@@ -39,9 +39,10 @@ The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `post_trade_gateway`, `market_data_gateway`, `dc_gateway`,
-`log_server`, and `api_gateways` sections are read by `pm-ralf-gwy`,
-`pm-md-gwy`, `pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
+The optional `alf_gateway`, `balf_gateway`, `post_trade_gateway`,
+`market_data_gateway`, `dc_gateway`, `log_server`, and `api_gateways` sections
+are read by `pm-alf-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-md-gwy`,
+`pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -62,14 +63,15 @@ comments. This page explains that shape in operational terms.
     same file format as `pm-config-gen` described below.
 
 !!! note "`gateways.alf` is the only sub-key under `gateways:`"
-    The `gateways:` mapping only contains `alf`. BALF, CALF, DC, and the
-    centralized log server are configured via separate **top-level** keys
-    (`balf_gateway`, `market_data_gateway`, `dc_gateway`, and `log_server`)
-    and are read by their own processes, not by `pm-engine`.
+    The `gateways:` mapping only contains `alf`, the list of *participant
+    identities* that may log in. The gateway **processes** themselves are
+    configured via separate **top-level** keys (`alf_gateway`, `balf_gateway`,
+    `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`, and
+    `api_gateways`) and are read by their own processes, not by `pm-engine`.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
-- **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). 
+- **ALF** — two parts. *Who may connect* is configured under `gateways.alf`; `pm-engine` uses it to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). *How the TCP gateway behaves* (port, timeouts, rate limits) is configured under the top-level `alf_gateway` key and read by `pm-alf-gwy`; see [Configuring `pm-alf-gwy`](#configuring-pm-alf-gwy).
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See [BALF Gateway](230-balf-gateway.md) for more usage and [BALF Protocol](910-app-balf-protocol.md) for the full specification.
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
@@ -1402,6 +1404,111 @@ Two practical consequences follow from this split:
 - Each gateway process can be restarted independently with a changed config
   section (for example, bumping `market_data_gateway.depth_levels`) without
   restarting `pm-engine`, since the engine never reads that section.
+
+## Configuring `pm-alf-gwy`
+
+`pm-alf-gwy` is the TCP front door for the ALF text protocol. It reads an
+optional top-level `alf_gateway` block from the same `engine_config.yaml`. The
+block is not consumed by `pm-engine`; it only configures the gateway process
+itself. Who may log in, and with which role, is **not** set here: the gateway
+takes that from the `gateways.alf` list (see
+[ALF Gateway Allowlist](#alf-gateway-allowlist)). Omit the block entirely to run
+on the defaults shown below.
+
+Minimal example (every value shown is the default):
+
+```yaml
+alf_gateway:
+  enabled: true
+  name: alf-gwy01
+  bind_address: 0.0.0.0
+  port: 5565
+  heartbeat_interval_sec: 5
+  handshake_timeout_sec: 10
+  idle_timeout_sec: 30
+  max_connections: 64
+  max_client_queue: 10000
+  max_commands_per_second: 100
+  max_errors_before_disconnect: 50
+  error_window_sec: 60
+```
+
+### Fields
+
+| Field | Default | Rule | What it does |
+|-------|---------|------|--------------|
+| `enabled` | `true` | boolean | When `false`, `pm-alf-gwy` logs a warning and refuses to start |
+| `name` | `alf-gwy01` | string | Reported to every client as `GW=` in the `WELCOME` line |
+| `bind_address` | `0.0.0.0` | string | Interface the listener binds. Use `127.0.0.1` for loopback-only. The `EDUMATCHER_GATEWAY_BIND_HOST` environment variable overrides this value |
+| `port` | `5565` | `1..65535` | TCP port clients connect to |
+| `heartbeat_interval_sec` | `5` | integer `> 0` | How often the gateway sends `HB` to an authenticated client that has received nothing else in that time. Advertised as `HBINT=` in `WELCOME` |
+| `handshake_timeout_sec` | `10` | integer `> 0` | How long a new connection has to complete the `HELLO` login |
+| `idle_timeout_sec` | `30` | integer `> 0` | How long a client may stay silent before it is disconnected. Advertised as `IDLE=` in `WELCOME` |
+| `max_connections` | `64` | integer `> 0` | Cap on simultaneous client connections |
+| `max_client_queue` | `10000` | integer `> 0` | Cap on lines queued for one client that is not reading |
+| `max_commands_per_second` | `100` | integer `> 0` | Per-client command rate limit |
+| `max_errors_before_disconnect` | `50` | integer `> 0` | Number of protocol errors tolerated within `error_window_sec` |
+| `error_window_sec` | `60` | integer `> 0` | Length of the sliding window over which errors are counted |
+
+### How the settings work together
+
+A connection goes through these stages, and each setting acts at one of them.
+
+1. **Accept.** A new TCP connection is accepted unless `max_connections` clients
+   are already connected; in that case the socket is closed immediately and a
+   warning is logged. The client receives no `ERR` line, only a closed
+   connection.
+2. **Login.** The first message must be `HELLO`. If login is not complete within
+   `handshake_timeout_sec`, the gateway sends `ERR|CODE=AUTH_TIMEOUT` and closes
+   the connection. On success the client gets `WELCOME|PROTO=ALF1|GW=<name>|ID=<gateway id>|HBINT=<n>|IDLE=<n>`,
+   so a client can read the timers it must respect instead of hard-coding them.
+3. **Keep-alive.** Once logged in, the gateway sends `HB` whenever
+   `heartbeat_interval_sec` has passed without any other line going out to that
+   client. In the other direction, *any* bytes received from the client count as
+   activity; if nothing arrives for `idle_timeout_sec` the gateway sends
+   `ERR|CODE=IDLE_TIMEOUT` and closes. A client that is only watching and
+   sending nothing must therefore send a `PING` more often than the idle
+   timeout, so keep `idle_timeout_sec` comfortably above the interval at which
+   your clients ping.
+4. **Commands.** Each client has its own token bucket that holds up to
+   `max_commands_per_second` tokens and refills at that rate; every command
+   spends one token. A command arriving with the bucket empty is rejected with
+   `ERR|CODE=RATE_LIMITED` and is **not** forwarded to the engine; the
+   connection stays open. `PING`, `EXIT` and `QUIT` after login do not spend
+   tokens.
+5. **Errors.** Every `ERR` the gateway sends for a client's mistake (bad syntax,
+   unknown command, rejected request, `RATE_LIMITED`, and so on) is recorded with
+   a timestamp. Timestamps older than `error_window_sec` drop out. When
+   `max_errors_before_disconnect` errors are inside the window, the gateway sends
+   `ERR|CODE=MAX_ERRORS` and disconnects. A client that is rate-limited all the
+   time is therefore eventually disconnected; raise `max_commands_per_second`
+   or lower the client's send rate.
+6. **Slow consumers.** Lines for a client wait in an outbound queue until its
+   socket accepts them. If that queue reaches `max_client_queue` lines, the
+   queue is discarded, the gateway sends `ERR|CODE=SLOW_CLIENT` and closes the
+   connection, so one stuck client cannot consume the gateway's memory.
+
+Choosing values for a classroom: the defaults suit a few dozen desks. Raise
+`max_connections` if more clients connect, raise `max_commands_per_second` for
+bots that send quote refreshes in bursts, and lower `idle_timeout_sec` if you
+want abandoned sessions released quickly.
+
+### Overrides and generation
+
+- `pm-alf-gwy --bind ADDR` and `--port N` override `bind_address` and `port` for
+  one run; `--engine-host HOST` points the gateway at an engine on another
+  machine. The other fields can only be changed in the file.
+- Changing the block takes effect when `pm-alf-gwy` is restarted; `pm-engine`
+  does not need to be restarted, since it never reads this block.
+- `pm-config-gen` emits the block with `--alf-gateway` and the `--alf-*`
+  overrides listed under [ALF gateway options](#option-reference).
+- `pm-cverifier` validates every field above and reports an unrecognised key in
+  the block (`S121`), which would otherwise be ignored and leave the default in
+  force.
+
+See [ALF Gateway](220-alf-gateway.md) for operating the gateway and
+[ALF Protocol](900-app-alf-protocol.md) for the message formats.
+
 
 ## Configuring `pm-ralf-gwy`
 
@@ -3001,6 +3108,14 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `country`                  | str     |       No | `"Sweden"`                                            | Any non-empty string   | Used for the scheduler's holiday calendar; an unrecognized value falls back to the default (see `M026` in [Config Verifier](020-config-verifier.md)) |
 | `indices`                  | list    |       No | `[]`                                                  | —                      | At most 5 entries; see [Configuring `pm-index`](#configuring-pm-index) for the per-index field reference |
 | `auction_indicative_interval_sec` | float | No | `1.0`                                            | Any number             | Must be `> 0`                            |
+| `gateway_defaults`         | mapping |       No | —                                                     | `smp_action`, `disconnect_behaviour` | Inherited by `gateways.alf` entries that omit them; see [Gateway Defaults](#gateway-defaults) |
+| `alf_gateway`              | mapping |       No | —                                                     | —                      | `pm-alf-gwy` settings; see [Configuring `pm-alf-gwy`](#configuring-pm-alf-gwy) |
+| `balf_gateway`             | mapping |       No | —                                                     | —                      | `pm-balf-gwy` settings; see [Configuring `pm-balf-gwy`](#configuring-pm-balf-gwy) |
+| `market_data_gateway`      | mapping |       No | —                                                     | —                      | `pm-md-gwy` settings; see [Configuring `pm-md-gwy`](#configuring-pm-md-gwy) |
+| `post_trade_gateway`       | mapping |       No | —                                                     | —                      | `pm-ralf-gwy` settings; see [Configuring `pm-ralf-gwy`](#configuring-pm-ralf-gwy) |
+| `dc_gateway`               | mapping |       No | —                                                     | —                      | `pm-dc-gwy` settings; see [Drop-Copy Gateway](201-dc-gateway.md) |
+| `log_server`               | mapping |       No | —                                                     | —                      | `pm-log-srv` settings; see [Configuring `pm-log-srv`](#configuring-pm-log-srv) |
+| `api_gateways`             | mapping |       No | —                                                     | —                      | Named `pm-api-gwy` instances; see [Configuring `pm-api-gwy`](#configuring-pm-api-gwy) |
 
 ### `engine_tuning` fields
 

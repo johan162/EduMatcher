@@ -146,6 +146,7 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
         engine_pub_addr=engine_pub_addr,
         drop_copy_pub_addr=drop_copy_pub_addr,
         heartbeat_interval_sec=cfg.heartbeat_interval_sec,
+        handshake_timeout_sec=cfg.handshake_timeout_sec,
         idle_timeout_sec=cfg.idle_timeout_sec,
         max_connections=cfg.max_connections,
         max_client_queue=cfg.max_client_queue,
