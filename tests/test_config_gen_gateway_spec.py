@@ -17,7 +17,7 @@ def test_parse_gateway_spec_defaults() -> None:
 def test_parse_gateway_spec_smp_action_defaults_none() -> None:
     """smp_action is not part of the colon-delimited spec syntax -- it is
     always SmpAction.NONE from parse_gateway_spec() and is only set
-    afterwards via the separate --gateway-smp flag (see cli.py)."""
+    afterwards via the separate --participant-smp flag (see cli.py)."""
     parsed = parse_gateway_spec("TRADER01:TRADER:CANCEL_ALL:Some desc")
     assert parsed.smp_action == SmpAction.NONE
 

@@ -351,7 +351,7 @@ missing:**
 - No `register_tick_decimals()` call for the bot's own symbol (§4) — a
   correctness gap, not a feature gap, but it belongs in the same fix pass.
 - `docs-design/EduMatcher-MM-bots.md` §9.2's tip — "Use `pm-config-gen
-  --gateways MM_AAPL_01:MARKET_MAKER ...` *(to be created as part of this
+  --participants MM_AAPL_01:MARKET_MAKER ...` *(to be created as part of this
   feature)*" — is now stale. `pm-config-gen` already has full
   `MARKET_MAKER`/`disconnect_behaviour`/`mm_max_spread_ticks` support
   (`config_gen/builder.py`, `config_gen/gateway_spec.py`,
@@ -492,7 +492,7 @@ top of this file. It is an `engine/main.py` bug, not a `pm-mm-bot` bug.**
    alongside the existing `self._tick_size` assignment in
    `_request_symbols()`.
 2. **Stale tooling note in the existing design doc.** §9.2 of
-   `EduMatcher-MM-bots.md` says the `pm-config-gen --gateways ...` helper is
+   `EduMatcher-MM-bots.md` says the `pm-config-gen --participants ...` helper is
    "to be created as part of this feature" — it already exists and is fully
    featured (`config_gen/builder.py:701-712`,
    `config_gen/gateway_spec.py:28`, `config_gen/warnings.py:90-99`). Low
@@ -710,7 +710,7 @@ files, which is why the original pass did not surface it.
   non-default registration for `AAPL` can't leak into other test files.
 - Corrected the stale `pm-config-gen` note in §9.2 of `EduMatcher-MM-bots.md`
   (§4.2) — it now gives the full, working command (`--symbols` is required
-  alongside `--gateways`) and notes the `MARKET_MAKER` default
+  alongside `--participants`) and notes the `MARKET_MAKER` default
   `disconnect_behaviour`.
 
 ### Phase B — Config-file strategy support — Done

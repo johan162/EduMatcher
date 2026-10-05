@@ -220,7 +220,7 @@ gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes the connection.
 
 !!! warning "No authentication"
     Unlike `pm-alf-gwy`, the `ID` in `HELLO` is not checked against
-    `gateways.alf` or any other allowlist. Any client may request fills for
+    `participants` or any other allowlist. Any client may request fills for
     any gateway ID — this mirrors the lack of authentication on the raw
     port-5557 socket itself. See
     [Drop Copy → Architecture](200-drop-copy.md#architecture).

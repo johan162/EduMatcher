@@ -58,7 +58,7 @@ Generate `engine_config.yaml` with a post_trade_gateway section:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --sessions-enabled \
   --post-trade-gateway \
   --post-trade-bind-address 127.0.0.1 \

@@ -297,7 +297,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.44.0
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.45.0
 ```
 
 If `multipass version` fails with `command not found`, the install did not
@@ -436,7 +436,7 @@ pm-config-deploy --show
 cat "$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml"
 ```
 
-You should see a `symbols:` section and a `gateways:` section. This is the same
+You should see a `symbols:` section and a `participants:` section. This is the same
 *kind* of file you will author yourself in the next chapter — there, though,
 you keep your own copy under version control rather than editing the deployed
 one.

@@ -215,7 +215,7 @@ sequenceDiagram
     participant ENG as pm-engine
 
     GW->>ENG: system.gateway_connect\n{gateway_id: "TRADER01"} (PUSH :5555)
-    alt ID is in gateways.alf
+    alt ID is in participants
         ENG-->>GW: system.gateway_auth.TRADER01\n{accepted: true, description: "..."} (PUB :5556)
         Note over GW: Enters command loop
     else ID not configured
@@ -233,7 +233,7 @@ sequenceDiagram
 | Field | Type | Description |
 |---|---|---|
 | `gateway_id` | string | Gateway identifier |
-| `accepted` | boolean | `true` if ID is configured in `gateways.alf` |
+| `accepted` | boolean | `true` if ID is configured in `participants` |
 | `reason` | string | Rejection reason when `accepted=false` |
 | `description` | string | Optional configured description for the gateway |
 
@@ -266,7 +266,7 @@ Sent by a gateway to submit a new order for matching.
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
 | `trail_offset` | integer (ticks) \| null | Distance **in ticks** to trail the market price (`TRAILING_STOP`) |
-| `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
+| `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `participants[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Participant Fields](010-configuration.md#participant-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 | `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
 | `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |

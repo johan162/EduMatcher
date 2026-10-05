@@ -98,7 +98,7 @@ matching engine and of every other gateway.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
-- **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`).
+- **ALF** — configured under `participants`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `participants`).
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable.
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection.
@@ -195,4 +195,4 @@ regulated venue it would be a *compliance failure*.
 - [Drop-Copy TCP Gateway (pm-dc-gwy)](201-dc-gateway.md)
 - [Centralized Log Server](280-log-srv.md)
 - [API Gateway](260-api-gateway.md)
-- [Configuration — ALF Gateway Allowlist](010-configuration.md#alf-gateway-allowlist) — how gateway IDs, roles, and disconnect behavior are configured
+- [Configuration — Participants](010-configuration.md#participants) — how gateway IDs, roles, and disconnect behavior are configured

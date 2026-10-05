@@ -85,7 +85,7 @@ For interactive operator use, `pm-alf-console` remains the right tool.
 
 - `pm-engine` running.
 - Gateway IDs that will connect must be configured in `engine_config.yaml`
-  under `gateways.alf`.
+  under `participants`.
 - Optional: add the `alf_gateway:` config section to customise port and limits.
 
 
@@ -109,8 +109,8 @@ alf_gateway:
   error_window_sec: 60
 ```
 
-The gateway reads gateway roles from the existing `gateways.alf` list — no
-separate credentials block is needed.  Any gateway ID listed in `gateways.alf`
+The gateway reads gateway roles from the existing `participants` list — no
+separate credentials block is needed.  Any gateway ID listed in `participants`
 can connect to `pm-alf-gwy`.
 
 | Field | Default | Description |
@@ -236,7 +236,7 @@ HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
 |-------|----------|-------|
 | `CLIENT` | Yes | Free-text label for logging (max 32 chars) |
 | `PROTO` | Yes | Must be exactly `ALF1` |
-| `ID` | Yes | Gateway ID that must be in `gateways.alf` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
+| `ID` | Yes | Gateway ID that must be in `participants` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
 
 On any other first line the gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes
 the connection.
@@ -1031,7 +1031,7 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-alf-gwy` is running; check `alf_gateway.port` in config |
 | Connection hangs with no output | Firewall blocking port 5565 | Test on loopback (`127.0.0.1`) first; open port in firewall for remote access |
 | `ERR\|CODE=AUTH_REQUIRED` immediately | First line was not `HELLO` | Ensure the very first line is a valid `HELLO` |
-| `ERR\|CODE=AUTH_FAILED` | Gateway ID not in `gateways.alf` | Add the ID under `gateways.alf` in `engine_config.yaml` and restart engine |
+| `ERR\|CODE=AUTH_FAILED` | Gateway ID not in `participants` | Add the ID under `participants` in `engine_config.yaml` and restart engine |
 | `ERR\|CODE=PROTO_MISMATCH` | `PROTO` field value is not `ALF1` | Fix the `HELLO` line: `HELLO\|CLIENT=...\|PROTO=ALF1\|ID=...` |
 | `ERR\|CODE=GATEWAY_ALREADY_CONNECTED` | Same gateway ID connected elsewhere | Disconnect the other session, or use a different gateway ID |
 | `WELCOME` arrives but then silence | Engine not running or ZMQ link lost | Start `pm-engine`; check gateway logs for ZMQ errors |
@@ -1045,6 +1045,6 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
 - [ALF Console](055-alf-console.md) — interactive command reference for `pm-alf-console`
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
-- [Configuration](010-configuration.md) — `alf_gateway:` section and `gateways.alf` allowlist
+- [Configuration](010-configuration.md) — `alf_gateway:` section and `participants` allowlist
 - [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables
 - [External Protocols Overview](210-protocols-overview.md) — protocol comparison and selection guide

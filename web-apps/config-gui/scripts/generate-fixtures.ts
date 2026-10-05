@@ -74,6 +74,10 @@ function expertFull(): EngineConfigDraft {
   d.balfGateway.include = true;
   d.output.commentDefaultFields = true;
 
+  // participant_defaults: TRADER01 inherits both, TRADER02 overrides smp with NONE.
+  d.gatewayDefault = { smpAction: "CANCEL_AGGRESSOR", disconnectBehaviour: "CANCEL_ALL" };
+  delete d.gateways[0]!.disconnectBehaviour;
+  d.gateways[1]!.smpAction = "NONE";
   // P1.1: non-default quote refresh policy on the market maker.
   const mm = d.gateways.find((g) => g.id === "MM01");
   if (mm) mm.quoteRefreshPolicy = "INACTIVATE_ON_FULL_FILL";

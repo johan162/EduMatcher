@@ -105,7 +105,7 @@ Generate a local lab config with trading keys and one read-only dashboard key:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --api-gateway \
@@ -545,7 +545,7 @@ algorithmic trading:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 ALGO01 OPS01:ADMIN \
+  --participants TRADER01 ALGO01 OPS01:ADMIN \
   --api-gateway-instance desk:TRADER01:8080 \
   --api-gateway-instance algos:ALGO01:8081 \
   --seed 20260624 \
@@ -564,7 +564,7 @@ Try an invalid duplicate assignment:
 ```bash
 pm-config-gen \
   --symbols AAPL \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --api-gateway-instance desk:TRADER01 \
   --api-gateway-instance algos:TRADER01 \
   --dry-run

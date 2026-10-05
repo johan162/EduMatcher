@@ -18,6 +18,7 @@ from edumatcher.config_gen.defaults import DEFAULT_MM_SEED_SPREAD_TICKS
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.models.order import SmpAction
+from edumatcher.models.participant import DisconnectBehaviour
 
 
 def test_builder_minimal() -> None:
@@ -29,7 +30,7 @@ def test_builder_minimal() -> None:
 
     assert payload["sessions_enabled"] is False
     assert payload["symbols"]["AAPL"]["tick_decimals"] == 2
-    assert payload["gateways"]["alf"][0]["disconnect_behaviour"] == "CANCEL_ALL"
+    assert payload["participants"][0]["disconnect_behaviour"] == "CANCEL_ALL"
     assert "risk_controls" not in payload
     assert "circuit_breaker_defaults" not in payload
 
@@ -43,7 +44,7 @@ def test_builder_omits_smp_action_when_none() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    assert "smp_action" not in payload["gateways"]["alf"][0]
+    assert "smp_action" not in payload["participants"][0]
 
 
 def test_builder_emits_gateway_smp_action_when_set() -> None:
@@ -54,7 +55,7 @@ def test_builder_emits_gateway_smp_action_when_set() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    assert payload["gateways"]["alf"][0]["smp_action"] == "CANCEL_RESTING"
+    assert payload["participants"][0]["smp_action"] == "CANCEL_RESTING"
 
 
 def test_builder_gateway_smp_action_is_per_gateway() -> None:
@@ -66,11 +67,47 @@ def test_builder_gateway_smp_action_is_per_gateway() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    alf = payload["gateways"]["alf"]
+    alf = payload["participants"]
     assert alf[0]["id"] == "TRADER01"
     assert alf[0]["smp_action"] == "CANCEL_BOTH"
     assert alf[1]["id"] == "TRADER02"
     assert "smp_action" not in alf[1]
+
+
+def test_builder_omits_gateway_default_block_by_default() -> None:
+    spec = ConfigSpec(symbols=["AAPL"], gateways=[parse_gateway_spec("TRADER01")])
+
+    assert "participant_defaults" not in ConfigBuilder(spec).build()
+
+
+def test_builder_gateway_default_block_and_inheritance() -> None:
+    explicit_none = replace(
+        parse_gateway_spec("TRADER02"), smp_action=SmpAction.NONE, smp_explicit=True
+    )
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            explicit_none,
+            parse_gateway_spec("OPS01:ADMIN:LEAVE_ALL"),
+        ],
+        gateway_default_smp=SmpAction.CANCEL_AGGRESSOR,
+        gateway_default_disconnect=DisconnectBehaviour.CANCEL_ALL,
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["participant_defaults"] == {
+        "smp_action": "CANCEL_AGGRESSOR",
+        "disconnect_behaviour": "CANCEL_ALL",
+    }
+    trader01, trader02, ops01 = payload["participants"]
+    # Unspecified fields are inherited, so they are not repeated.
+    assert "smp_action" not in trader01
+    assert "disconnect_behaviour" not in trader01
+    # An explicit NONE must survive: it overrides the non-NONE default.
+    assert trader02["smp_action"] == "NONE"
+    # A disconnect named in the gateway spec is always written.
+    assert ops01["disconnect_behaviour"] == "LEAVE_ALL"
 
 
 def test_builder_with_risk_level_and_symbol_level_reference() -> None:
@@ -565,7 +602,7 @@ def test_builder_gateway_description_emitted() -> None:
         emit_mm_defaults=True,
     )
     payload = ConfigBuilder(spec).build()
-    gw = payload["gateways"]["alf"][0]
+    gw = payload["participants"][0]
     assert gw["description"] == "Primary MM"
 
 
@@ -575,7 +612,7 @@ def test_builder_gateway_no_description_omits_key() -> None:
         gateways=[parse_gateway_spec("TRADER01")],
     )
     payload = ConfigBuilder(spec).build()
-    gw = payload["gateways"]["alf"][0]
+    gw = payload["participants"][0]
     assert "description" not in gw
 
 

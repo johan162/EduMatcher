@@ -18,6 +18,7 @@ import {
   type BalfGatewayConfig,
   type CbLevel,
   type ComboConfig,
+  type DisconnectBehaviour,
   type EngineConfigDraft,
   type GatewayConfig,
   type GatewayMmObligationOverride,
@@ -42,11 +43,11 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "enforce_collars",
   "enforce_circuit_breakers",
   "engine_tuning",
-  "snapshot_interval_sec",
   "mm_obligation_defaults",
   "risk_controls",
   "circuit_breaker_defaults",
-  "gateways",
+  "participant_defaults",
+  "participants",
   "alf_gateway",
   "post_trade_gateway",
   "market_data_gateway",
@@ -130,9 +131,7 @@ export function parseYamlToDraft(text: string): ImportResult {
     ? raw.engine_tuning
     : undefined;
   draft.snapshotIntervalSec =
-    asNumber(engineTuning?.snapshot_interval_sec) ??
-    asNumber(raw.snapshot_interval_sec) ??
-    draft.snapshotIntervalSec;
+    asNumber(engineTuning?.snapshot_interval_sec) ?? draft.snapshotIntervalSec;
   draft.quoteHistoryMaxlen =
     asNumber(engineTuning?.quote_history_maxlen) ?? draft.quoteHistoryMaxlen;
   draft.dropCopyBufferSize =
@@ -143,7 +142,8 @@ export function parseYamlToDraft(text: string): ImportResult {
     asNumber(engineTuning?.depth_snapshot_tolerance_ticks) ??
     draft.depthSnapshotToleranceTicks;
 
-  parseGateways(raw.gateways, draft);
+  parseGatewayDefault(raw.participant_defaults, draft);
+  parseGateways(raw.participants, draft);
   parseSymbols(raw.symbols, draft);
   parseMmDefaults(raw.mm_obligation_defaults, draft);
   parseRiskControls(raw.risk_controls, draft);
@@ -164,10 +164,20 @@ export function parseYamlToDraft(text: string): ImportResult {
   return { draft, unmapped };
 }
 
+function parseGatewayDefault(node: unknown, draft: EngineConfigDraft): void {
+  if (!isDict(node)) return;
+  const smp = asUpper(node.smp_action);
+  if (smp) draft.gatewayDefault.smpAction = smp as SmpAction;
+  const disconnect = asUpper(node.disconnect_behaviour);
+  if (disconnect) {
+    draft.gatewayDefault.disconnectBehaviour = disconnect as DisconnectBehaviour;
+  }
+}
+
 function parseGateways(node: unknown, draft: EngineConfigDraft): void {
-  if (!isDict(node) || !Array.isArray(node.alf)) return;
+  if (!Array.isArray(node)) return;
   const gateways: GatewayConfig[] = [];
-  for (const entry of node.alf) {
+  for (const entry of node) {
     if (!isDict(entry)) continue;
     const id = asUpper(entry.id);
     if (!id) continue;
@@ -177,11 +187,16 @@ function parseGateways(node: unknown, draft: EngineConfigDraft): void {
     // real default (CANCEL_QUOTES_ONLY for every role) rather than the
     // role-derived value createGateway() uses for freshly authored gateways.
     // This keeps import -> re-export faithful to what the engine would have done
-    // with the original omitted field.
+    // with the original omitted field. With a participant_defaults value the
+    // gateway keeps inheriting it instead.
     const disconnect = asUpper(entry.disconnect_behaviour);
-    base.disconnectBehaviour = disconnect
-      ? (disconnect as GatewayConfig["disconnectBehaviour"])
-      : "CANCEL_QUOTES_ONLY";
+    if (disconnect) {
+      base.disconnectBehaviour = disconnect as DisconnectBehaviour;
+    } else if (draft.gatewayDefault.disconnectBehaviour !== undefined) {
+      delete base.disconnectBehaviour;
+    } else {
+      base.disconnectBehaviour = "CANCEL_QUOTES_ONLY";
+    }
     const description = asString(entry.description);
     if (description) base.description = description;
     const refresh = asUpper(entry.quote_refresh_policy);

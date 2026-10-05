@@ -96,3 +96,29 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
     alf_main.main()
     assert called["run"] is True
+
+
+def test_resolve_config_keeps_every_configured_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import dataclasses
+
+    configured = dataclasses.replace(
+        AlfGatewayConfig(),
+        enabled=True,
+        name="alf-x",
+        port=6001,
+        heartbeat_interval_sec=7,
+        handshake_timeout_sec=17,
+        idle_timeout_sec=47,
+        max_connections=11,
+        max_client_queue=222,
+        max_commands_per_second=33,
+        max_errors_before_disconnect=44,
+        error_window_sec=55,
+    )
+    monkeypatch.setattr(alf_main, "load_default_alf_gateway_config", lambda: configured)
+
+    resolved = _resolve_config(Namespace(bind=None, port=None, engine_host=None))
+
+    assert resolved == configured

@@ -120,7 +120,7 @@ the guide readable.
 |---|---|---|
 | **Engine** | `pm-engine`, the authoritative process that owns all order books and matches orders | [Running the Exchange](040-running-the-exchange.md#running-the-exchange), [Processes](170-processes.md) |
 | **Symbol** | A tradeable instrument such as `AAPL`, with tick size, reference prices, optional market-maker seeds and risk settings | [Configuration](010-configuration.md), [Risk Controls](120-risk-controls.md) |
-| **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#alf-gateway-allowlist), [Gateway Concepts](051-gateway-intro.md) |
+| **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#participants), [Gateway Concepts](051-gateway-intro.md) |
 | **Session phase** | Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`, or a halt-related phase | [Auctions & Scheduling](080-session-scheduling.md) |
 | **Deployed configuration** | The running system reads one compiled artifact at `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`; you edit YAML, then deploy it | [Configuration](010-configuration.md#file-location) |
 
@@ -370,7 +370,7 @@ Typical loop:
 # Start from the sample copied by pm-setup, or generate a new authored file
 pm-config-gen \
     --symbols AAPL MSFT TSLA \
-    --gateways TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
+    --participants TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
     --output engine_config.yaml
 
 # Validate only

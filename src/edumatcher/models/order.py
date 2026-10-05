@@ -64,7 +64,7 @@ class SmpAction(str, Enum):
     Client-facing processes (``alf_gwy``, ``alf_console``, ``api_gateway``)
     preserve that distinction when parsing the wire request; the engine
     resolves ``None`` to the order's gateway-configured default
-    (``gateways.alf[].smp_action``, falling back to ``NONE`` itself if the
+    (``participants[].smp_action``, falling back to ``NONE`` itself if the
     gateway has none configured) before the order reaches the matching
     engine — see ``Engine._resolve_smp_action`` in ``engine/main.py``. Code
     that inspects ``Order.smp_action`` after that resolution point (e.g. the

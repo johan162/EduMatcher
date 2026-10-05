@@ -9,7 +9,7 @@ import string
 from typing import Any
 
 from edumatcher.models.order import SmpAction
-from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 from .cb_spec import CbSpec
 from .defaults import (
@@ -25,6 +25,17 @@ from .defaults import (
     DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
     DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
+    DEFAULT_ALF_GATEWAY_BIND_ADDRESS,
+    DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC,
+    DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND,
+    DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS,
+    DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT,
+    DEFAULT_ALF_GATEWAY_NAME,
+    DEFAULT_ALF_GATEWAY_PORT,
     DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
     DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
     DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY,
@@ -112,6 +123,9 @@ from .symbol_spec import SymbolOverride
 class ConfigSpec:
     symbols: list[str]
     gateways: list[GatewaySpec]
+    #: Written as the top-level ``participant_defaults`` block when either is set.
+    gateway_default_smp: SmpAction | None = None
+    gateway_default_disconnect: DisconnectBehaviour | None = None
     sessions_enabled: bool = False
     country: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
@@ -169,6 +183,7 @@ class ConfigSpec:
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
     balf_gateway: BalfGatewaySpec | None = None
+    alf_gateway: AlfGatewaySpec | None = None
     dc_gateway: DcGatewaySpec | None = None
     log_server: LogServerSpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
@@ -200,6 +215,22 @@ class MarketDataGatewaySpec:
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
     depth_levels: int = DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
+
+
+@dataclass(frozen=True)
+class AlfGatewaySpec:
+    enabled: bool = True
+    name: str = DEFAULT_ALF_GATEWAY_NAME
+    bind_address: str = DEFAULT_ALF_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_ALF_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_ALF_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    handshake_timeout_sec: int = DEFAULT_ALF_GATEWAY_HANDSHAKE_TIMEOUT_SEC
+    idle_timeout_sec: int = DEFAULT_ALF_GATEWAY_IDLE_TIMEOUT_SEC
+    max_connections: int = DEFAULT_ALF_GATEWAY_MAX_CONNECTIONS
+    max_client_queue: int = DEFAULT_ALF_GATEWAY_MAX_CLIENT_QUEUE
+    max_commands_per_second: int = DEFAULT_ALF_GATEWAY_MAX_COMMANDS_PER_SECOND
+    max_errors_before_disconnect: int = DEFAULT_ALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT
+    error_window_sec: int = DEFAULT_ALF_GATEWAY_ERROR_WINDOW_SEC
 
 
 @dataclass(frozen=True)
@@ -354,7 +385,12 @@ class ConfigBuilder:
         if self.spec.cb_levels:
             cfg["circuit_breaker_defaults"] = self._build_cb_defaults()
 
-        cfg["gateways"] = {"alf": self._build_gateways()}
+        participant_defaults = self._build_gateway_default()
+        if participant_defaults:
+            cfg["participant_defaults"] = participant_defaults
+        cfg["participants"] = self._build_gateways()
+        if self.spec.alf_gateway is not None:
+            cfg["alf_gateway"] = self._build_alf_gateway()
         if self.spec.post_trade_gateway is not None:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
         if self.spec.market_data_gateway is not None:
@@ -410,6 +446,26 @@ class ConfigBuilder:
             cfg["schedule"] = schedule
 
         return cfg
+
+    def _build_alf_gateway(self) -> dict[str, Any]:
+        spec = self.spec.alf_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "enabled": spec.enabled,
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "handshake_timeout_sec": spec.handshake_timeout_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_connections": spec.max_connections,
+            "max_client_queue": spec.max_client_queue,
+            "max_commands_per_second": spec.max_commands_per_second,
+            "max_errors_before_disconnect": spec.max_errors_before_disconnect,
+            "error_window_sec": spec.error_window_sec,
+        }
 
     def _build_post_trade_gateway(self) -> dict[str, Any]:
         spec = self.spec.post_trade_gateway
@@ -728,19 +784,34 @@ class ConfigBuilder:
             "reopening": reopening,
         }
 
+    def _build_gateway_default(self) -> dict[str, Any]:
+        default: dict[str, Any] = {}
+        if self.spec.gateway_default_smp is not None:
+            default["smp_action"] = self.spec.gateway_default_smp.value
+        if self.spec.gateway_default_disconnect is not None:
+            default["disconnect_behaviour"] = self.spec.gateway_default_disconnect.value
+        return default
+
     def _build_gateways(self) -> list[dict[str, Any]]:
+        inherited_smp = self.spec.gateway_default_smp or SmpAction.NONE
+        inherits_disconnect = self.spec.gateway_default_disconnect is not None
         gateways: list[dict[str, Any]] = []
         for gw in self.spec.gateways:
             payload: dict[str, Any] = {
                 "id": gw.gateway_id,
                 "role": gw.role.value,
-                "disconnect_behaviour": gw.disconnect_behaviour.value,
             }
+            # A gateway that took the role default rather than naming a
+            # value inherits participant_defaults.disconnect_behaviour instead.
+            if gw.disconnect_explicit or not inherits_disconnect:
+                payload["disconnect_behaviour"] = gw.disconnect_behaviour.value
             if gw.description:
                 payload["description"] = gw.description
             if gw.role == ParticipantRole.MARKET_MAKER:
                 payload["quote_refresh_policy"] = "INACTIVATE_ON_ANY_FILL"
-            if gw.smp_action != SmpAction.NONE:
+            if (
+                gw.smp_explicit or gw.smp_action != SmpAction.NONE
+            ) and gw.smp_action != inherited_smp:
                 payload["smp_action"] = gw.smp_action.value
             gateways.append(payload)
         return gateways

@@ -166,6 +166,28 @@ def test_hello_then_auth_success_sends_welcome(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_engine_refused_auth_does_not_emit_gateway_disconnect(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    assert session.connect_emitted is True
+
+    gateway._handle_gateway_auth(
+        "TRADER01", {"accepted": False, "reason": "already connected"}
+    )
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    fake_push.sent.clear()
+
+    gateway._disconnect(session, reason="peer_closed")
+
+    assert not fake_push.sent
+    peer.close()
+
+
 def test_quote_rejected_for_non_market_maker(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True

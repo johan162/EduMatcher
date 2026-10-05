@@ -133,8 +133,7 @@ symbols:
     tick_decimals: 2
     last_buy_price: 400.0
     outstanding_shares: 7430000000
-gateways:
-  alf: [{id: TRADER01, role: TRADER}]
+participants: [{id: TRADER01, role: TRADER}]
 indices:
   - id: EDU2
     description: Two-name index
@@ -168,8 +167,7 @@ symbols:
     tick_decimals: 2
     last_buy_price: 149.0
     outstanding_shares: 100
-gateways:
-  alf: [{id: TRADER01, role: TRADER}]
+participants: [{id: TRADER01, role: TRADER}]
 indices:
   - id: EDU1
     description: One-name index

@@ -43,7 +43,7 @@ class Credential:
     gateway_id: str | None
     description: str
     owner_gateway: str  # which api_gateways.<name> declares it
-    role: str  # resolved from gateways.alf, or "READ-ONLY"
+    role: str  # resolved from participants, or "READ-ONLY"
 
 
 @dataclass(frozen=True)

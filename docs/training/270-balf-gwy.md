@@ -64,7 +64,7 @@ Generate `engine_config.yaml` with the `balf_gateway:` section enabled:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 MM01:MARKET_MAKER \
+  --participants TRADER01 TRADER02 MM01:MARKET_MAKER \
   --balf-gateway \
   --balf-port 5560 \
   --balf-bind-address 127.0.0.1 \

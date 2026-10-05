@@ -187,7 +187,7 @@ def test_collision_is_detected_and_marked(tmp_path: Path) -> None:
         yaml.safe_dump(
             {
                 "symbols": {"AAPL": {"tick_decimals": 2}},
-                "gateways": {"alf": [{"id": "T1", "role": "TRADER"}]},
+                "participants": [{"id": "T1", "role": "TRADER"}],
                 # Both land on 5570 -- one explicitly, one via the runtime default.
                 "market_data_gateway": {"port": 5570},
                 "post_trade_gateway": {"port": 5570},
@@ -238,9 +238,9 @@ def test_density_is_monotone(path: Path) -> None:
     "raw",
     [
         {},
-        {"symbols": None, "gateways": None},
+        {"symbols": None, "participants": None},
         {"symbols": "not a mapping", "api_gateways": [1, 2]},
-        {"symbols": {"AAPL": None}, "gateways": {"alf": ["nope"]}},
+        {"symbols": {"AAPL": None}, "participants": ["nope"]},
         {"market_data_gateway": {"port": "not-an-int"}},
         {"api_gateways": {"desk": {"credentials": ["nope", {"api_key": None}]}}},
     ],

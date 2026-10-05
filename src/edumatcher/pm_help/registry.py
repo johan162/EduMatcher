@@ -173,7 +173,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         description=(
             "Accepts ALF pipe-delimited commands (NEW, AMEND, CANCEL, QUOTE, ...) on "
             "stdin and forwards them to the engine. The gateway ID must be listed in "
-            "engine_config.yaml under gateways.alf or the connection is refused.",
+            "engine_config.yaml under participants or the connection is refused.",
         ),
         options=(
             Option(
@@ -525,7 +525,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         description=(
             "Accepts the same ALF command vocabulary as pm-alf-console but over a "
             "TCP socket instead of stdin, for programmatic clients. Any configured "
-            "gateways.alf ID may connect; each connection is one gateway session, "
+            "participants ID may connect; each connection is one gateway session, "
             "starting with a HELLO|CLIENT=...|PROTO=ALF1|ID=<gateway-id> line.",
         ),
         options=(
@@ -1688,7 +1688,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         title="Engine Config Generator",
         summary="Generates engine_config.yaml from explicit CLI parameters instead of hand-editing YAML.",
         synopsis=(
-            "pm-config-gen --symbols SYM [SYM ...] --gateways GW_SPEC [...] [options]",
+            "pm-config-gen --symbols SYM [SYM ...] --participants GW_SPEC [...] [options]",
             "              --output engine_config.yaml",
         ),
         options=(
@@ -1699,9 +1699,9 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
                 group="Required",
             ),
             Option(
-                "--gateways GW_SPEC [...]",
+                "--participants GW_SPEC [...]",
                 "required",
-                "One or more ID[:ROLE[:DISCONNECT]] gateway specs",
+                "One or more ID[:ROLE[:DISCONNECT]] participant specs",
                 group="Required",
             ),
             Option(
@@ -1788,7 +1788,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         doc_anchor="pm-config-gen-engine-config-generator",
         doc_page="010-configuration.md",
         examples=(
-            "pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN "
+            "pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN "
             "--sessions-enabled --output engine_config.yaml",
         ),
         notes=(

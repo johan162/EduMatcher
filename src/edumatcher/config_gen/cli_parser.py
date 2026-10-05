@@ -43,22 +43,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="One or more symbols.",
     )
     parser.add_argument(
-        "--gateways",
+        "--participants",
         nargs="+",
         required=True,
         metavar="GW_SPEC",
-        help="One or more gateway specs (ID[:ROLE[:DISCONNECT]]).",
+        help="One or more participant specs (ID[:ROLE[:DISCONNECT]]).",
     )
     parser.add_argument(
-        "--gateway-smp",
+        "--participant-smp",
         action="append",
         default=[],
         metavar="GW_ID:SMP_ACTION",
         help="Gateway-level self-match-prevention default (NONE, CANCEL_AGGRESSOR, "
         "CANCEL_RESTING, CANCEL_BOTH), applied by the engine to any order, combo "
         "leg, or quote from GW_ID that doesn't specify its own SMP=. GW_ID must "
-        "be one of the IDs given to --gateways. Omit for a gateway to leave its "
+        "be one of the IDs given to --participants. Omit for a participant to leave its "
         "default at NONE. Can be repeated.",
+    )
+    parser.add_argument(
+        "--participant-default-smp",
+        choices=["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
+        type=str.upper,
+        default=None,
+        metavar="SMP_ACTION",
+        help="Write participant_defaults.smp_action: the self-match-prevention default "
+        "every participant inherits unless it has its own smp_action "
+        "(--participant-smp GW_ID:SMP_ACTION overrides it per participant, "
+        "including GW_ID:NONE). Choices: %(choices)s.",
+    )
+    parser.add_argument(
+        "--participant-default-disconnect",
+        choices=["CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"],
+        type=str.upper,
+        default=None,
+        metavar="DISCONNECT",
+        help="Write participant_defaults.disconnect_behaviour: the disconnect behaviour "
+        "inherited by every participant whose --participants spec does not name one "
+        "(replacing the per-role default for those participants). "
+        "Choices: %(choices)s.",
     )
     parser.add_argument(
         "--symbol-opts",
@@ -638,6 +660,102 @@ def build_parser() -> argparse.ArgumentParser:
             "terminal order stays in the gateway's in-memory cache. 0 "
             "disables eviction."
         ),
+    )
+
+    # ── ALF gateway ───────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--alf-gateway",
+        action="store_true",
+        help="Emit a top-level alf_gateway section for pm-alf-gwy.",
+    )
+    parser.add_argument(
+        "--alf-enabled",
+        dest="alf_enabled",
+        action="store_true",
+        default=None,
+        help="Set alf_gateway.enabled: true.",
+    )
+    parser.add_argument(
+        "--alf-disabled",
+        dest="alf_enabled",
+        action="store_false",
+        default=None,
+        help="Set alf_gateway.enabled: false.",
+    )
+    parser.add_argument(
+        "--alf-name",
+        default=None,
+        metavar="NAME",
+        help="alf_gateway.name override.",
+    )
+    parser.add_argument(
+        "--alf-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="alf_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--alf-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.port override (1-65535).",
+    )
+    parser.add_argument(
+        "--alf-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-handshake-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.handshake_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_connections override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-commands-per-second",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_commands_per_second override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-max-errors-before-disconnect",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.max_errors_before_disconnect override (> 0).",
+    )
+    parser.add_argument(
+        "--alf-error-window-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="alf_gateway.error_window_sec override (> 0).",
     )
 
     # ── BALF gateway ──────────────────────────────────────────────────────────

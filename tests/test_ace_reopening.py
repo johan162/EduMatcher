@@ -157,7 +157,7 @@ class TestLoaderMerge:
     def _write(self, tmp_path: Path, body: str) -> Path:
         source = tmp_path / "engine_config.yaml"
         source.write_text(
-            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n" + body,
+            "participants: [{id: TRADER01, role: TRADER}]\n" + body,
             encoding="utf-8",
         )
         return source

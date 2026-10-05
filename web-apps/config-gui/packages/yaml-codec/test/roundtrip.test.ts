@@ -44,12 +44,10 @@ describe("buildConfigDocument", () => {
       depth_snapshot_tolerance_ticks: 100,
     });
     expect(doc.symbols).toHaveProperty("AAPL");
-    expect(doc.gateways).toEqual({
-      alf: [
-        { id: "TRADER01", role: "TRADER", disconnect_behaviour: "CANCEL_ALL" },
-        { id: "TRADER02", role: "TRADER", disconnect_behaviour: "CANCEL_ALL" },
-      ],
-    });
+    expect(doc.participants).toEqual([
+      { id: "TRADER01", role: "TRADER", disconnect_behaviour: "CANCEL_ALL" },
+      { id: "TRADER02", role: "TRADER", disconnect_behaviour: "CANCEL_ALL" },
+    ]);
   });
 
   it("omits country when left at the default (Sweden)", () => {
@@ -75,8 +73,7 @@ describe("buildConfigDocument", () => {
     const yamlText = [
       "symbols:",
       "  AAPL: {}",
-      "gateways:",
-      "  alf:",
+      "participants:",
       "    - id: TRADER01",
       "country: Germany",
       "",
@@ -89,7 +86,7 @@ describe("buildConfigDocument", () => {
     const draft = twoTraderExchange();
     draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
     const doc = buildConfigDocument(draft) as any;
-    const mm = doc.gateways.alf.find((g: any) => g.id === "MM01");
+    const mm = doc.participants.find((g: any) => g.id === "MM01");
     expect(mm.quote_refresh_policy).toBe("INACTIVATE_ON_ANY_FILL");
     expect(doc.symbols.AAPL.market_maker_quotes[0]).toMatchObject({
       gateway_id: "MM01",
@@ -111,7 +108,7 @@ describe("buildConfigDocument", () => {
     };
     draft.gateways.push(mm);
     const doc = buildConfigDocument(draft) as any;
-    const mmOut = doc.gateways.alf.find((g: any) => g.id === "MM01");
+    const mmOut = doc.participants.find((g: any) => g.id === "MM01");
     expect(mmOut.enforce_mm_obligation).toBe(true);
     expect(mmOut.mm_max_spread_ticks).toBe(8);
     expect(mmOut.mm_min_qty).toBe(300);
@@ -122,7 +119,7 @@ describe("buildConfigDocument", () => {
       min_qty: 500,
     });
     // Non-overridden gateways carry none of these keys.
-    const trader = doc.gateways.alf.find((g: any) => g.id === "TRADER01");
+    const trader = doc.participants.find((g: any) => g.id === "TRADER01");
     expect(trader.enforce_mm_obligation).toBeUndefined();
     expect(trader.mm_obligations).toBeUndefined();
 
@@ -144,10 +141,10 @@ describe("buildConfigDocument", () => {
     mm.quoteRefreshPolicy = "NEVER_INACTIVATE";
     draft.gateways.push(mm);
     const doc = buildConfigDocument(draft) as any;
-    const mmOut = doc.gateways.alf.find((g: any) => g.id === "MM01");
+    const mmOut = doc.participants.find((g: any) => g.id === "MM01");
     expect(mmOut.quote_refresh_policy).toBe("NEVER_INACTIVATE");
     // Non-MM gateways never carry the field.
-    const trader = doc.gateways.alf.find((g: any) => g.id === "TRADER01");
+    const trader = doc.participants.find((g: any) => g.id === "TRADER01");
     expect(trader.quote_refresh_policy).toBeUndefined();
 
     const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
@@ -468,8 +465,7 @@ describe("parseYamlToDraft round trip", () => {
       "enforce_circuit_breakers: true",
       "engine_tuning:",
       "  snapshot_interval_sec: 0.5",
-      "gateways:",
-      "  alf:",
+      "participants:",
       "  - id: TRADER01", // TRADER, disconnect_behaviour intentionally omitted
       "    role: TRADER",
       "  - id: OPS01",
@@ -488,7 +484,7 @@ describe("parseYamlToDraft round trip", () => {
     // Re-export keeps the imported behaviour rather than silently changing it.
     const regenerated = generateYaml(draft);
     const parsed = yaml.load(regenerated, { json: true }) as any;
-    expect(parsed.gateways.alf[0].disconnect_behaviour).toBe(
+    expect(parsed.participants[0].disconnect_behaviour).toBe(
       "CANCEL_QUOTES_ONLY",
     );
   });
@@ -531,8 +527,7 @@ describe("parseYamlToDraft round trip", () => {
       "enforce_circuit_breakers: true",
       "engine_tuning:",
       "  snapshot_interval_sec: 0.5",
-      "gateways:",
-      "  alf:",
+      "participants:",
       "  - id: TRADER01",
       "    role: TRADER",
       "    disconnect_behaviour: CANCEL_ALL",

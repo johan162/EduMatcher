@@ -11,7 +11,44 @@ Status: Proposal
 The roadmap is given in roughly the chrnological order the features will be implemented. 
 Fully implemeted features are removed from this file. 
 
-All referenced desig documents live under `docs-design/`
+All referenced design documents live under `docs-design/`
+
+## Don't allow multiple connectiosn to the engine with same ID
+
+ ALF, BALF and the API gateway all accept the same IDs. The engine's _handle_gateway_connect accepts a second connect for an ID that's already connected. The disconnect handler then applies CANCEL_ALL for that ID. So if TRADER01 is connected through two processes and one drops, the engine cancels everything for TRADER01 while the other session is still live.
+
+ THat is a bug.
+ 
+
+## Align Gateway specification in config file
+
+### `gateways.alf`
+
+The "Gateways" top level field used to specify IDs for ALF (and BALF) gateways is an 
+anomaly. All other gateway specification allow the definition of listening port, IP, etc.
+But not `gateways`. Hence there is not possible to modify these core attributes for the ALF
+gateway but for all other.
+
+Should we modify this to have a separate `alf_gateway` top level key to mimic the process
+directly? (or perhaps call it `order_entry_gateway` align how we named the other gateway processes)
+
+
+### `AlfGwyProcSpec` etc.
+
+Spec block is not defined for any Gateway specifications in the config spec
+
+- BalfGwyProcSpec
+- MdGwyProcSpec
+- RalfGwyProcSpec
+- ApiGwyProcSpec
+- LogSrvProcSpec
+- AlfGwyProcSpec
+
+
+## Implementation of `pm-populate`
+
+This creates a histoy of trading for a set date range by running the exchange in accelerated
+time to simulate trading period.
 
 
 ## Fix remaining bugs in Trader Info Terminal GUI

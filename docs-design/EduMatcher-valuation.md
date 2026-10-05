@@ -37,6 +37,7 @@ Status: Proposed — design only, nothing implemented
 27. [Open questions and extensions](#27-open-questions-and-extensions)
 - [Appendix A — Formula summary](#appendix-a--formula-summary)
 - [Appendix B — Glossary](#appendix-b--glossary)
+- [Appendix C — From answers to offer price: the complete derivation](#appendix-c--from-answers-to-offer-price-the-complete-derivation)
 
 ---
 
@@ -1957,3 +1958,691 @@ Pop        clamp(0.08·ln cov + 0.02·h, −20%, 100%)
 | Red herring | The preliminary prospectus, carrying the price range |
 | First-day pop | The first-day return over the offer price |
 | Money left on the table | Pop × offer price × shares sold: what the issuer could have raised |
+
+## Appendix C — From answers to offer price: the complete derivation
+
+This appendix follows one company through every calculation `pm-valuation`
+makes between the answers in the interview and the offer price it proposes.
+Nothing is left out: every input is listed with where it came from, every
+formula is the one in the code, and every intermediate number is shown, so
+each step can be checked with a calculator from the rows above it.
+
+**The case** is the classroom case Tornfalk Security AB, a Swedish business
+software company:
+
+```bash
+pm-valuation --case tornfalk --no-tui --mode deterministic
+```
+
+It proposes an offer price of **105.00 SEK** per share. The scenarios and the
+Monte Carlo simulation do not influence the offer price, and are left out.
+
+**Conventions.**
+
+- Money is in SEK. In the tables, amounts are in millions of SEK (mkr) with
+  one decimal; prices and per-share values are in SEK with two decimals.
+- The model computes in full floating-point precision and rounds only for
+  display. A sum of displayed numbers can therefore differ from the displayed
+  total in the last decimal.
+- Years are numbered from year 1, the first forecast year. Year 0 is the last
+  completed financial year. Year 11 is computed only for the terminal value.
+- `tests/test_valuation_report.py::test_appendix_c_derivation` recomputes the
+  key numbers below and fails if the code and this appendix disagree.
+
+The calculation runs in this order:
+
+| Step | What | Section |
+|---|---|---|
+| 1 | The answers typed (here: the case file) | C.1 |
+| 2 | Every other input, resolved from the market, the sector preset and rules | C.2 |
+| 3 | The ten-year operating forecast: customers, revenue, staff, costs | C.3–C.5 |
+| 4 | Tax, investment and free cash flow | C.6–C.7 |
+| 5 | The two discount rates | C.8 |
+| 6 | The discounted cash flow and the terminal value: enterprise value | C.9 |
+| 7 | From enterprise value to a value per share: the DCF price | C.10 |
+| 8 | The comparables price and the fair value | C.11 |
+| 9 | The price range | C.12 |
+| 10 | The index prospects that the book takes into account | C.13 |
+| 11 | The book of orders at every price in the band | C.14 |
+| 12 | The pricing rule: the offer price | C.15 |
+
+C.16 lists every constant fixed in the code, and C.17 says how to reproduce
+the numbers.
+
+### C.1 The answers
+
+The case file `src/edumatcher/valuation/cases/tornfalk.yaml` holds 13 answers,
+and `--mode deterministic` adds a 14th. Everything else in C.2 is automatic.
+
+| Field | Answer |
+|---|---|
+| `company.name` | Tornfalk Security AB |
+| `company.ticker` | TORN |
+| `company.sector` | `b2b_saas` |
+| `company.market` | `se` |
+| `customers.last_fy_revenue` | 1,400 mkr |
+| `customers.now` | 2,600 |
+| `capital.cash` | 900 mkr |
+| `offering.shares_pre` | 120,000,000 |
+| `offering.raise` | 4,000 mkr |
+| `investors.inst_interest` | `very_high` |
+| `investors.retail_interest` | `high` |
+| `investors.hype` | 5 |
+| `investors.n_institutions` | 60 |
+| `simulation.mode` | `deterministic` |
+
+Both revenue and customers are given, so neither is derived from the other.
+They are not reconciled: 0.85 × 2,600 × 600,000 SEK would be 1,326 mkr, and the
+forecast simply starts from the 1,400 mkr given and the 2,600 customers given.
+
+### C.2 Every other input
+
+The resolver (`resolve.py`, §19.4) gives every field without an answer its
+automatic value. The market `se` (§5.1) converts the `b2b_saas` preset (§5),
+which is written in US dollars, at `fx` = 10 SEK per USD; the two per-person
+values are also multiplied by the Swedish `salary_level` of 0.7. The table
+lists every input the offer price depends on, in the order the calculation
+uses them.
+
+| Input | Value | Source | How |
+|---|---:|---|---|
+| Total addressable market (TAM) | 400,000 mkr | preset | 40 bn USD × 10 |
+| TAM growth, year 1 | 12% | preset | |
+| SAM share of TAM | 25% | preset | |
+| Market structure | competitive | default | |
+| Maximum share of SAM, `p_max` | 8% | derived | competitive → 8% |
+| ARPU, year 0 | 600,000 SEK | preset | 60,000 USD × 10 |
+| ARPU growth, year 1 | 5% | default | |
+| Annual churn | 8% | preset | |
+| Customer growth, year 1 | 50% | preset | |
+| Headcount, year 0 | 1,000 | derived | 1,400 mkr ÷ (200,000 USD × 10 × 0.7) = 1,400 mkr ÷ 1.4 mkr, rounded |
+| Loaded cost per employee | 1,050,000 SEK | preset | 150,000 USD × 10 × 0.7 |
+| Wage inflation | 3.5% | default | |
+| Headcount growth | `follow_revenue` | default | |
+| Headcount elasticity | 0.6 | default | |
+| Headcount growth floor | 4% | default | |
+| Staff split R&D / S&M / G&A / Ops | 38 / 30 / 14 / 18% | derived | the preset's split |
+| Infrastructure, fixed | 60 mkr | preset | 6 m USD × 10 |
+| Infrastructure per customer | 40,000 SEK | preset | 4,000 USD × 10 |
+| Other cost of revenue | 6% of revenue | preset | |
+| Paid acquisition cost per customer | 300,000 SEK | derived | 0.5 (preset multiple) × ARPU 600,000 |
+| Acquisition cost growth | 3% | default | |
+| R&D, non-staff | 4% of revenue | default | |
+| G&A, non-staff | 3% of revenue | default | |
+| Public-company cost | 30 mkr | default | 3 m USD × 10 |
+| Stock-based compensation | 12% of staff cost | default | |
+| General inflation | 2% | default | the market's |
+| Capex | 3% of revenue | preset | |
+| Useful life | 4 years | preset | |
+| Opening PP&E | 84 mkr | derived | 3% × 1,400 mkr × 4 ÷ 2 |
+| Net working capital | −5% of revenue | preset | |
+| Tax rate | 20.6% | default | the market's |
+| Tax losses carried forward | 0 | default | |
+| Cash | 900 mkr | you | |
+| Debt | 0 | default | |
+| Risk-free rate | 3.0% | default | the market's |
+| Equity risk premium | 5.6% | default | the market's |
+| Beta, years 1–5 / year 6 on | 1.5 / 1.1 | preset | |
+| Size premium, years 1–5 / year 6 on | 1.5% / 0.5% | default | |
+| Execution premium | 3.0% | preset | |
+| Target debt ratio D/V | 0% | default | |
+| Cost of debt | 6.0% | derived | risk-free + 3%; unused, since D/V = 0 |
+| Stage-1 years | 5 | default | |
+| Forecast horizon | 10 | default | |
+| Terminal growth | 2.0% | default | the market's |
+| RONIC spread | 2.0% | default | |
+| Rate overrides | none | default | |
+| Mid-year convention | no | default | |
+| Pre-IPO shares | 120,000,000 | you | |
+| Primary raise | 4,000 mkr | you | |
+| Secondary shares | 0 | default | |
+| Gross spread | 3% | default | the market's |
+| Other offering expenses | 60 mkr | derived | 2 m USD × 10 + 1% × 4,000 mkr |
+| IPO discount | 15% | default | |
+| Minimum IPO discount | 5% | default | |
+| Maximum price above the range | 0% | default | the market's: the maximum price is the top of the range |
+| Lock-up days / coverage | 180 / 100% | default | |
+| Cornerstone commitment | 0 | default | |
+| Dual-class shares | no | default | |
+| Institutional interest | very high | you | |
+| Institutions in the book | 60 | you | |
+| Average institutional order | 200 mkr | derived | 5% × 4,000 mkr |
+| Institutional price elasticity | 3 | default | |
+| Retail interest | high | you | |
+| Retail applicants | 20,000 | default | |
+| Average retail application | 25,000 SEK | default | 2,500 USD × 10 |
+| Hype factor | 5 | you | |
+| Target coverage | 3× | default | |
+| Comparable EV / NTM revenue | 10× | preset | |
+| DCF weight | 70% | default | |
+| Index rulebook: minimum market cap / free float / free-float cap | 5,000 mkr / 15% / 1,500 mkr | default | 500 m / 150 m USD × 10 |
+| Index rulebook: fast-entry market cap, seasoning, multi-class, relax | 50,000 mkr, 63 days, no, none | default | |
+| Management: minimum market cap | none | derived | no last private round |
+
+The other fields do not affect the offer price. The name, ticker, industry
+code, incorporation, currency, financial year end, lead underwriter and use of
+proceeds are display only. The retail tranche and the cornerstone lock-in
+only shape the allocation after the price is set. The maximum dilution and
+minimum net proceeds only raise warnings. The passive-fund fields only
+estimate index buying. The simulation fields drive the Monte Carlo.
+
+### C.3 Market and customers
+
+**The fade.** Growth rates fall in a straight line from their year-1 value to
+their long-run value, which they reach in year N = 10 (`forecast.fade`):
+
+```text
+fade(t) = (min(t, N) − 1) / (N − 1)          0 in year 1, 1 from year 10
+```
+
+**Market and price.** Each year:
+
+```text
+TAM growth_t   = 12% + (2% − 12%) × fade(t)            fades to terminal growth g = 2%
+TAM_t          = TAM_{t−1} × (1 + TAM growth_t)         TAM_0 = 400,000 mkr
+SAM_t          = 25% × TAM_t
+ARPU growth_t  = 5% + (2% − 5%) × fade(t)               fades to inflation 2%
+ARPU_t         = ARPU_{t−1} × (1 + ARPU growth_t)       ARPU_0 = 600,000 SEK
+Max customers_t = p_max × SAM_t / ARPU_t = 8% × SAM_t / ARPU_t
+```
+
+**Calibrating the S-curve.** New customers follow a logistic curve: many while
+the company is far from its ceiling, few as it approaches it. Its intensity
+`a` is set once, so that year 1 grows exactly by the year-1 customer growth:
+
+```text
+a = (growth_1 + churn) / (1 − C_0 / Max customers_1)
+  = (0.50 + 0.08) / (1 − 2,600 / 14,222.22)
+  = 0.58 / 0.817188 = 0.709751
+```
+
+where Max customers_1 = 8% × (400,000 mkr × 1.12 × 25%) / (600,000 × 1.05) =
+8% × 112,000 mkr / 630,000 SEK = 14,222.22.
+
+**Customers and revenue.** Each year, with C the customers at the start:
+
+```text
+Gross adds_t  = min( a × C × (1 − C / Max customers_t),  Max customers_t − C + Churned_t )   and ≥ 0
+Churned_t     = churn × C = 8% × C
+C_end         = C + Gross adds_t − Churned_t
+Revenue_t     = (C + C_end) / 2 × ARPU_t          customers pay for the part of the year they are customers
+```
+
+The second term of the minimum stops the curve from overshooting the
+ceiling; it never binds for Tornfalk.
+
+*Year 1:* adds = 0.709751 × 2,600 × (1 − 2,600 / 14,222.22) = 1,508.0;
+churned = 8% × 2,600 = 208.0; customers end = 2,600 + 1,508 − 208 = 3,900.0;
+revenue = (2,600 + 3,900) / 2 × 630,000 = 3,250 × 630,000 = 2,047.5 mkr,
+46.25% above the 1,400 mkr of year 0.
+
+*Year 2:* TAM growth = 12% − 10% × 1/9 = 10.89%; Max customers = 8% ×
+124,195.6 mkr / 659,400 = 15,067.70; adds = 0.709751 × 3,900 × (1 − 3,900 /
+15,067.70) = 2,051.6.
+
+| | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Y7 | Y8 | Y9 | Y10 | Y11 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| fade(t) | 0.0000 | 0.1111 | 0.2222 | 0.3333 | 0.4444 | 0.5556 | 0.6667 | 0.7778 | 0.8889 | 1.0000 | 1.0000 |
+| TAM growth | 12.00% | 10.89% | 9.78% | 8.67% | 7.56% | 6.44% | 5.33% | 4.22% | 3.11% | 2.00% | 2.00% |
+| TAM | 448,000.0 | 496,782.2 | 545,356.5 | 592,620.7 | 637,396.5 | 678,473.2 | 714,658.4 | 744,832.9 | 768,005.4 | 783,365.6 | 799,032.9 |
+| SAM = 25% × TAM | 112,000.0 | 124,195.6 | 136,339.1 | 148,155.2 | 159,349.1 | 169,618.3 | 178,664.6 | 186,208.2 | 192,001.4 | 195,841.4 | 199,758.2 |
+| ARPU growth | 5.00% | 4.67% | 4.33% | 4.00% | 3.67% | 3.33% | 3.00% | 2.67% | 2.33% | 2.00% | 2.00% |
+| ARPU (SEK) | 630,000 | 659,400 | 687,974 | 715,493 | 741,728 | 766,452 | 789,446 | 810,497 | 829,409 | 845,997 | 862,917 |
+| Max customers = 8% × SAM ÷ ARPU | 14,222.2 | 15,067.7 | 15,854.0 | 16,565.4 | 17,186.8 | 17,704.3 | 18,105.3 | 18,379.6 | 18,519.3 | 18,519.3 | 18,519.3 |
+| Customers, start | 2,600.0 | 3,900.0 | 5,639.6 | 7,767.3 | 10,073.8 | 12,227.0 | 13,933.6 | 15,097.6 | 15,803.3 | 16,184.0 | 16,337.8 |
+| + Gross adds | 1,508.0 | 2,051.6 | 2,578.9 | 2,927.9 | 2,959.1 | 2,684.8 | 2,278.6 | 1,913.5 | 1,645.0 | 1,448.5 | 1,366.0 |
+| − Churned (8%) | 208.0 | 312.0 | 451.2 | 621.4 | 805.9 | 978.2 | 1,114.7 | 1,207.8 | 1,264.3 | 1,294.7 | 1,307.0 |
+| = Customers, end | 3,900.0 | 5,639.6 | 7,767.3 | 10,073.8 | 12,227.0 | 13,933.6 | 15,097.6 | 15,803.3 | 16,184.0 | 16,337.8 | 16,396.7 |
+| Average customers | 3,250.0 | 4,769.8 | 6,703.4 | 8,920.6 | 11,150.4 | 13,080.3 | 14,515.6 | 15,450.4 | 15,993.6 | 16,260.9 | 16,367.3 |
+| Revenue = average × ARPU | 2,047.5 | 3,145.2 | 4,611.8 | 6,382.6 | 8,270.6 | 10,025.4 | 11,459.3 | 12,522.5 | 13,265.3 | 13,756.7 | 14,123.6 |
+| Revenue growth | 46.25% | 53.61% | 46.63% | 38.40% | 29.58% | 21.22% | 14.30% | 9.28% | 5.93% | 3.70% | 2.67% |
+
+### C.4 Staff
+
+```text
+Headcount growth_t = max( floor, elasticity × Revenue growth_t ) = max( 4%, 0.6 × Revenue growth_t )
+Headcount_t        = Headcount_{t−1} × (1 + Headcount growth_t)       Headcount_0 = 1,000
+Loaded cost_t      = 1,050,000 × 1.035^t
+Staff cost_t       = Headcount_t × Loaded cost_t, split 38 / 30 / 14 / 18% into R&D, S&M, G&A, Ops
+```
+
+*Year 1:* growth = 0.6 × 46.25% = 27.75%; headcount = 1,277.5; loaded cost =
+1,050,000 × 1.035 = 1,086,750; staff cost = 1,277.5 × 1,086,750 = 1,388.3 mkr.
+From year 9 the floor binds: 0.6 × 5.93% = 3.56% < 4%.
+
+| | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Y7 | Y8 | Y9 | Y10 | Y11 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Headcount growth | 27.75% | 32.17% | 27.98% | 23.04% | 17.75% | 12.73% | 8.58% | 5.57% | 4.00% | 4.00% | 4.00% |
+| Headcount | 1,277.5 | 1,688.4 | 2,160.8 | 2,658.6 | 3,130.5 | 3,529.0 | 3,831.9 | 4,045.2 | 4,207.0 | 4,375.3 | 4,550.3 |
+| Loaded cost (SEK) | 1,086,750 | 1,124,786 | 1,164,154 | 1,204,899 | 1,247,071 | 1,290,718 | 1,335,893 | 1,382,649 | 1,431,042 | 1,481,129 | 1,532,968 |
+| Staff cost | 1,388.3 | 1,899.1 | 2,515.5 | 3,203.4 | 3,903.9 | 4,555.0 | 5,119.0 | 5,593.1 | 6,020.4 | 6,480.4 | 6,975.5 |
+|   R&D staff (38%) | 527.6 | 721.7 | 955.9 | 1,217.3 | 1,483.5 | 1,730.9 | 1,945.2 | 2,125.4 | 2,287.7 | 2,462.5 | 2,650.7 |
+|   S&M staff (30%) | 416.5 | 569.7 | 754.7 | 961.0 | 1,171.2 | 1,366.5 | 1,535.7 | 1,677.9 | 1,806.1 | 1,944.1 | 2,092.6 |
+|   G&A staff (14%) | 194.4 | 265.9 | 352.2 | 448.5 | 546.6 | 637.7 | 716.7 | 783.0 | 842.9 | 907.2 | 976.6 |
+|   Ops staff (18%) | 249.9 | 341.8 | 452.8 | 576.6 | 702.7 | 819.9 | 921.4 | 1,006.8 | 1,083.7 | 1,166.5 | 1,255.6 |
+
+### C.5 Costs and operating profit
+
+```text
+Infrastructure_t   = (60 mkr + 40,000 × average customers_t) × 1.02^t
+Other cost_t       = 6% × Revenue_t
+Cost of revenue_t  = Infrastructure_t + Other cost_t + Ops staff_t
+Gross profit_t     = Revenue_t − Cost of revenue_t
+Paid acquisition_t = 300,000 × 1.03^t × Gross adds_t
+R&D_t              = R&D staff_t + 4% × Revenue_t
+S&M_t              = S&M staff_t + Paid acquisition_t
+G&A_t              = G&A staff_t + 3% × Revenue_t + 30 mkr × 1.02^t
+SBC_t              = 12% × Staff cost_t
+EBITDA_t           = Gross profit_t − R&D_t − S&M_t − G&A_t − SBC_t
+D&A_t              = PP&E at the start of year t / useful life (4)
+EBIT_t             = EBITDA_t − D&A_t
+```
+
+*Year 1:* infrastructure = (60 + 0.04 × 3,250) × 1.02 = 190 × 1.02 = 193.8 mkr;
+other cost = 6% × 2,047.5 = 122.85; cost of revenue = 193.8 + 122.85 + 249.9 =
+566.5; gross profit = 1,481.0. Paid acquisition = 300,000 × 1.03 × 1,508 =
+466.0. R&D = 527.6 + 81.9 = 609.5; S&M = 416.5 + 466.0 = 882.5; G&A = 194.4 +
+61.4 + 30.6 = 286.4; SBC = 12% × 1,388.3 = 166.6. EBITDA = 1,481.0 − 609.5 −
+882.5 − 286.4 − 166.6 = −464.0. D&A = 84 / 4 = 21.0; EBIT = −485.0, a margin of
+−23.7%.
+
+| | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Y7 | Y8 | Y9 | Y10 | Y11 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Revenue | 2,047.5 | 3,145.2 | 4,611.8 | 6,382.6 | 8,270.6 | 10,025.4 | 11,459.3 | 12,522.5 | 13,265.3 | 13,756.7 | 14,123.6 |
+| Infrastructure | 193.8 | 260.9 | 348.2 | 451.2 | 558.7 | 656.8 | 735.9 | 794.4 | 836.3 | 866.0 | 888.6 |
+| Other cost of revenue (6%) | 122.8 | 188.7 | 276.7 | 383.0 | 496.2 | 601.5 | 687.6 | 751.4 | 795.9 | 825.4 | 847.4 |
+| Ops staff | 249.9 | 341.8 | 452.8 | 576.6 | 702.7 | 819.9 | 921.4 | 1,006.8 | 1,083.7 | 1,166.5 | 1,255.6 |
+| = Cost of revenue | 566.5 | 791.5 | 1,077.7 | 1,410.7 | 1,757.6 | 2,078.2 | 2,344.8 | 2,552.5 | 2,715.8 | 2,857.9 | 2,991.6 |
+| **Gross profit** | 1,481.0 | 2,353.7 | 3,534.1 | 4,971.8 | 6,512.9 | 7,947.2 | 9,114.4 | 9,970.0 | 10,549.4 | 10,898.8 | 11,132.0 |
+| R&D = staff + 4% of revenue | 609.5 | 847.5 | 1,140.4 | 1,472.6 | 1,814.3 | 2,131.9 | 2,403.6 | 2,626.3 | 2,818.4 | 3,012.8 | 3,215.6 |
+| Paid acquisition | 466.0 | 653.0 | 845.4 | 988.6 | 1,029.1 | 961.7 | 840.7 | 727.2 | 643.9 | 584.0 | 567.2 |
+| S&M = staff + paid acquisition | 882.5 | 1,222.7 | 1,600.1 | 1,949.6 | 2,200.3 | 2,328.2 | 2,376.4 | 2,405.1 | 2,450.0 | 2,528.1 | 2,659.9 |
+| G&A = staff + 3% + public-co. cost | 286.4 | 391.4 | 522.4 | 672.4 | 827.8 | 972.2 | 1,094.9 | 1,193.9 | 1,276.7 | 1,356.5 | 1,437.6 |
+| SBC = 12% of staff cost | 166.6 | 227.9 | 301.9 | 384.4 | 468.5 | 546.6 | 614.3 | 671.2 | 722.4 | 777.6 | 837.1 |
+| **EBITDA** | −464.0 | −335.8 | −30.6 | 492.8 | 1,202.1 | 1,968.2 | 2,625.3 | 3,073.6 | 3,281.9 | 3,223.7 | 2,981.8 |
+| D&A = opening PP&E ÷ 4 | 21.0 | 31.1 | 46.9 | 69.8 | 100.2 | 137.2 | 178.1 | 219.5 | 258.5 | 293.4 | 323.2 |
+| **EBIT** | −485.0 | −366.9 | −77.5 | 423.0 | 1,101.9 | 1,831.1 | 2,447.2 | 2,854.1 | 3,023.4 | 2,930.3 | 2,658.6 |
+| EBIT margin | −23.7% | −11.7% | −1.7% | 6.6% | 13.3% | 18.3% | 21.4% | 22.8% | 22.8% | 21.3% | 18.8% |
+
+### C.6 Tax
+
+Losses are carried forward without limit and used against the first profits
+(§6.9):
+
+```text
+if EBIT_t < 0:  NOL_t = NOL_{t−1} + |EBIT_t|,             tax_t = 0
+else:           used_t = min(NOL_{t−1}, EBIT_t),  NOL_t = NOL_{t−1} − used_t
+                tax_t = 20.6% × (EBIT_t − used_t)
+```
+
+Years 1–3 lose 929.4 mkr in total. Year 4's EBIT of 423.0 is fully sheltered;
+year 5 uses the remaining 506.4 and pays 20.6% × (1,101.9 − 506.4) = 122.7.
+From year 6 the company pays the full rate.
+
+| | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Y7 | Y8 | Y9 | Y10 | Y11 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| EBIT | −485.0 | −366.9 | −77.5 | 423.0 | 1,101.9 | 1,831.1 | 2,447.2 | 2,854.1 | 3,023.4 | 2,930.3 | 2,658.6 |
+| NOL, opening | 0.0 | 485.0 | 851.9 | 929.4 | 506.4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| NOL used | 0.0 | 0.0 | 0.0 | 423.0 | 506.4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| NOL, closing | 485.0 | 851.9 | 929.4 | 506.4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Taxable = EBIT − NOL used (≥ 0) | 0.0 | 0.0 | 0.0 | 0.0 | 595.5 | 1,831.1 | 2,447.2 | 2,854.1 | 3,023.4 | 2,930.3 | 2,658.6 |
+| Tax = 20.6% × taxable | 0.0 | 0.0 | 0.0 | 0.0 | 122.7 | 377.2 | 504.1 | 587.9 | 622.8 | 603.6 | 547.7 |
+
+### C.7 Investment, working capital and free cash flow
+
+```text
+Capex_t     = 3% × Revenue_t
+PP&E_t      = PP&E_{t−1} + Capex_t − D&A_t                 PP&E_0 = 84 mkr
+NWC_t       = −5% × Revenue_t                               NWC_0 = −5% × 1,400 = −70 mkr
+ΔNWC_t      = NWC_t − NWC_{t−1}
+FCFF_t      = EBIT_t − Tax_t + D&A_t − Capex_t − ΔNWC_t
+```
+
+Negative working capital means customers pay in advance: growth releases
+cash, so ΔNWC is negative and adds to FCFF.
+
+*Year 1:* capex = 61.4; NWC = −102.4, ΔNWC = −102.4 − (−70) = −32.4; FCFF =
+−485.0 − 0 + 21.0 − 61.4 + 32.4 = −493.0 mkr.
+
+| | Y1 | Y2 | Y3 | Y4 | Y5 | Y6 | Y7 | Y8 | Y9 | Y10 | Y11 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PP&E, opening | 84.0 | 124.4 | 187.7 | 279.1 | 400.8 | 548.7 | 712.3 | 878.0 | 1,034.2 | 1,173.6 | 1,292.9 |
+| + Capex = 3% of revenue | 61.4 | 94.4 | 138.4 | 191.5 | 248.1 | 300.8 | 343.8 | 375.7 | 398.0 | 412.7 | 423.7 |
+| − D&A | 21.0 | 31.1 | 46.9 | 69.8 | 100.2 | 137.2 | 178.1 | 219.5 | 258.5 | 293.4 | 323.2 |
+| = PP&E, closing | 124.4 | 187.7 | 279.1 | 400.8 | 548.7 | 712.3 | 878.0 | 1,034.2 | 1,173.6 | 1,292.9 | 1,393.4 |
+| NWC = −5% of revenue | −102.4 | −157.3 | −230.6 | −319.1 | −413.5 | −501.3 | −573.0 | −626.1 | −663.3 | −687.8 | −706.2 |
+| ΔNWC | −32.4 | −54.9 | −73.3 | −88.5 | −94.4 | −87.7 | −71.7 | −53.2 | −37.1 | −24.6 | −18.3 |
+| EBIT | −485.0 | −366.9 | −77.5 | 423.0 | 1,101.9 | 1,831.1 | 2,447.2 | 2,854.1 | 3,023.4 | 2,930.3 | 2,658.6 |
+| − Tax | 0.0 | 0.0 | 0.0 | 0.0 | 122.7 | 377.2 | 504.1 | 587.9 | 622.8 | 603.6 | 547.7 |
+| + D&A | 21.0 | 31.1 | 46.9 | 69.8 | 100.2 | 137.2 | 178.1 | 219.5 | 258.5 | 293.4 | 323.2 |
+| − Capex | 61.4 | 94.4 | 138.4 | 191.5 | 248.1 | 300.8 | 343.8 | 375.7 | 398.0 | 412.7 | 423.7 |
+| − ΔNWC | −32.4 | −54.9 | −73.3 | −88.5 | −94.4 | −87.7 | −71.7 | −53.2 | −37.1 | −24.6 | −18.3 |
+| **= FCFF** | −493.0 | −375.3 | −95.6 | 389.8 | 925.7 | 1,378.0 | 1,849.1 | 2,163.2 | 2,298.3 | 2,232.0 | 2,028.8 |
+
+### C.8 The two discount rates
+
+The capital asset pricing model with premia, then the weighted average cost
+of capital (`rates.stage_rates`, §7):
+
+```text
+k_e1 = r_f + β_1 × ERP + size premium_1 + execution premium
+     = 3.0% + 1.5 × 5.6% + 1.5% + 3.0% = 3.0% + 8.4% + 1.5% + 3.0% = 15.90%
+k_e2 = r_f + β_2 × ERP + size premium_2
+     = 3.0% + 1.1 × 5.6% + 0.5%        = 3.0% + 6.16% + 0.5%      =  9.66%
+WACC = (1 − D/V) × k_e + D/V × k_d × (1 − tax rate)
+     = k_e, since D/V = 0
+r_1 = 15.90% (years 1–5),  r_2 = 9.66% (year 6 on, and the terminal value)
+```
+
+### C.9 Enterprise value
+
+**Discounting.** Each year's discount factor is the previous factor divided
+by one plus that year's own rate, so year 6 is discounted five years at r_1
+and one at r_2 (§8.1):
+
+```text
+DF_t = DF_{t−1} / (1 + r_t),   DF_0 = 1
+DF_5 = 1 / 1.159^5 = 0.478171
+DF_6 = 0.478171 / 1.0966 = 0.436048
+PV_t = FCFF_t × DF_t
+```
+
+| Year | Stage | Rate | Discount factor | FCFF | Present value |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1 | 15.90% | 0.862813 | −493.0 | −425.4 |
+| 2 | 1 | 15.90% | 0.744446 | −375.3 | −279.4 |
+| 3 | 1 | 15.90% | 0.642317 | −95.6 | −61.4 |
+| 4 | 1 | 15.90% | 0.554200 | 389.8 | 216.0 |
+| 5 | 1 | 15.90% | 0.478171 | 925.7 | 442.6 |
+| 6 | 2 | 9.66% | 0.436048 | 1,378.0 | 600.9 |
+| 7 | 2 | 9.66% | 0.397637 | 1,849.1 | 735.3 |
+| 8 | 2 | 9.66% | 0.362609 | 2,163.2 | 784.4 |
+| 9 | 2 | 9.66% | 0.330666 | 2,298.3 | 760.0 |
+| 10 | 2 | 9.66% | 0.301538 | 2,232.0 | 673.0 |
+| **Sum** | | | | | **3,446.0** |
+
+**Terminal value** (the value-driver formula, §8.3). From year 11 on the
+company grows at g = 2% for ever, pays full tax and reinvests exactly what that
+growth needs. Its return on new investment is r_2 plus the RONIC spread:
+
+```text
+NOPAT_11          = EBIT_11 × (1 − 20.6%) = 2,658.6 × 0.794 = 2,110.9 mkr
+RONIC             = r_2 + 2% = 11.66%
+Reinvestment rate = g / RONIC = 2% / 11.66% = 17.153%
+FCFF_11           = NOPAT_11 × (1 − 17.153%) = 1,748.9 mkr
+TV at year 10     = FCFF_11 / (r_2 − g) = 1,748.9 / (9.66% − 2%) = 22,831.0 mkr
+PV of TV          = TV × DF_10 = 22,831.0 × 0.301538 = 6,884.4 mkr
+```
+
+**Enterprise value** = PV of years 1–10 + PV of TV = 3,446.0 + 6,884.4 =
+**10,330.4 mkr**. The terminal value is 66.6% of it.
+
+### C.10 The DCF price
+
+The enterprise value is the value of the business for lenders and owners
+together. Equity before the IPO adds cash and subtracts debt:
+
+```text
+Equity_pre = EV + cash − debt = 10,330.4 + 900.0 − 0 = 11,230.4 mkr
+```
+
+The fair price of a share is the one at which the IPO buyers pay exactly what
+their new shares are worth. With raise R, spread f and other expenses X:
+
+```text
+P = (Equity_pre + R − f×R − X) / (S_pre + R/P)
+⇔ P × S_pre + R = Equity_pre + R − f×R − X
+⇔ P = (Equity_pre − f×R − X) / S_pre
+```
+
+The raise cancels out; only its costs remain (§9.2):
+
+```text
+DCF price = (11,230.4 − 3% × 4,000 − 60) / 120 m shares
+          = (11,230.4 − 120 − 60) / 120 m = 11,050.4 mkr / 120 m = 92.09 SEK
+```
+
+### C.11 The comparables price and the fair value
+
+The comparables value applies the peers' multiple to next year's revenue
+(year 1, the next twelve months), then crosses the same bridge (§10):
+
+```text
+EV_comps     = 10 × Revenue_1 = 10 × 2,047.5 = 20,475.0 mkr
+Comps price  = (20,475.0 + 900.0 − 0 − 120 − 60) / 120 m = 21,195.0 / 120 m = 176.625 SEK
+Fair value   = w × DCF price + (1 − w) × Comps price
+             = 0.70 × 92.0870 + 0.30 × 176.6250 = 64.4609 + 52.9875 = 117.45 SEK
+```
+
+The report shows 176.625 as 176.62: Python rounds an exact half to the even
+digit. The exact value is used in the calculation.
+
+### C.12 The price range
+
+```text
+mid  = Fair value × (1 − IPO discount) = 117.4484 × 0.85 = 99.8311
+step = 0.50 × 10^floor(log10(mid / 10)) = 0.50 × 10^floor(0.99927) = 0.50 × 10^0 = 0.50
+low  = round down to the step (0.95 × mid) = round down (94.8396) = 94.50
+high = round up to the step (1.05 × mid)   = round up (104.8227)  = 105.00
+```
+
+The step rule is `offering.price_step`: 0.01 below 2, 0.10 below 10, then
+0.50 × 10^floor(log10(mid/10)), that is 0.50 below 100, 5.00 below 1,000.
+A low below one step would be raised to one step.
+
+Management has no minimum market cap (no last private round), so there is
+no floor and the range stays at **94.50–105.00**. With a floor P_floor =
+(minimum market cap − R) / S_pre above 94.50, the range would move up to start
+at P_floor rounded up to the step, keep its width, and the IPO would be
+postponed if (1 − midpoint / fair value) fell below the minimum discount of 5%.
+
+### C.13 Index prospects
+
+Investors in the book value the chance that index funds will soon have to buy
+the stock. The model checks the fictive index rulebook (§17) for a listing at
+the range's midpoint, 99.8311:
+
+```text
+New shares     = floor(4,000 mkr / 99.8311) = 40,067,666
+Shares after   = 120,000,000 + 40,067,666 = 160,067,666
+Market cap     = 99.8311 × 160,067,666 = 15,979.7 mkr
+Free float     = new shares, as all pre-IPO shares are locked up = 40,067,666 / 160,067,666 = 25.03%
+Free-float cap = 40,067,666 × 99.8311 = 4,000.0 mkr
+```
+
+| Rule | Requirement | Tornfalk | Result |
+|---|---|---|---|
+| Minimum market cap | ≥ 5,000 mkr | 15,979.7 mkr | met |
+| Minimum free-float cap | ≥ 1,500 mkr | 4,000.0 mkr | met |
+| Minimum free float | ≥ 15% | 25.03% | met |
+| Single share class | required | yes | met |
+| Fast entry | market cap ≥ 50,000 mkr | 15,979.7 mkr | no: inclusion after 63 days' seasoning |
+
+The path is *after seasoning*, whose probability of inclusion within six
+months is set at **0.8** (fast entry 1.0, with a waiver 0.5, not eligible 0).
+
+### C.14 The book of orders
+
+**The band.** The book is built at every step from the bottom of the band to
+the maximum price (§15.4, §15.5):
+
+```text
+bottom = round down to the step (0.8 × low) = round down (75.60) = 75.50
+         (and never below the management floor, rounded up, if there is one)
+top    = round down to the step (high × (1 + maximum above the range))
+       = round down (105.00 × 1.00) = 105.00      Sweden: the top of the range is the maximum price
+prices = 75.50, 76.00, …, 105.00: (105.00 − 75.50) / 0.50 + 1 = 60 prices
+```
+
+**Demand at a price P** (`offering.book_line`, §15.1–§15.4):
+
+```text
+Institutional(P) = institutions × average order × interest(inst) × lock-up factor
+                   × (1 + 0.10 × index probability) × governance × (1 + 0.03 × hype)
+                   × (fair value / P)^elasticity
+Retail(P)        = applicants × average application × interest(retail) × (1 + 0.25 × hype)
+                   × (fair value / P)^(1.5 / (1 + 0.3 × hype))
+Offer value(P)   = R + secondary shares × P
+Coverage(P)      = (Institutional(P) + Retail(P) + min(cornerstone, offer value)) / Offer value(P)
+
+interest:        very_low 0.3, low 0.6, medium 1.0, high 1.5, very_high 2.2
+lock-up factor:  1 + 0.10 × clamp((lock-up days − 180) / 180, −1, 1)
+governance:      0.95 with dual-class shares, else 1
+```
+
+**Tornfalk at P = 105.00.** Fair value / P = 117.4484 / 105 = 1.118556.
+
+| Factor | Institutional | Retail |
+|---|---:|---:|
+| Investors × average order | 60 × 200 mkr = 12,000.0 mkr | 20,000 × 25,000 SEK = 500.0 mkr |
+| Interest | very high: × 2.2 | high: × 1.5 |
+| Lock-up, 180 days | × 1.00 | — |
+| Index prospects, probability 0.8 | × 1.08 | — |
+| Governance, single class | × 1.00 | — |
+| Hype 5 | × (1 + 0.03 × 5) = × 1.15 | × (1 + 0.25 × 5) = × 2.25 |
+| Price | × 1.118556³ = × 1.399501 | × 1.118556^0.6 = × 1.069534 |
+| **Demand** | **45,888.0 mkr** | **1,804.8 mkr** |
+
+Coverage = (45,888.0 + 1,804.8 + 0) / (4,000 + 0 × 105) = 47,692.8 / 4,000 =
+**11.92×**. The retail elasticity is 1.5 / (1 + 0.3 × 5) = 0.6: hype makes
+private investors less sensitive to price.
+
+The whole book:
+
+| Price | Institutional | Retail | Total demand | Offer | Coverage |
+|---:|---:|---:|---:|---:|---:|
+| 75.50 | 123,431.4 | 2,199.8 | 125,631.2 | 4,000.0 | 31.41× |
+| 76.00 | 121,011.3 | 2,191.1 | 123,202.4 | 4,000.0 | 30.80× |
+| 76.50 | 118,654.0 | 2,182.5 | 120,836.5 | 4,000.0 | 30.21× |
+| 77.00 | 116,357.5 | 2,174.0 | 118,531.5 | 4,000.0 | 29.63× |
+| 77.50 | 114,119.9 | 2,165.6 | 116,285.5 | 4,000.0 | 29.07× |
+| 78.00 | 111,939.3 | 2,157.2 | 114,096.6 | 4,000.0 | 28.52× |
+| 78.50 | 109,814.0 | 2,149.0 | 111,962.9 | 4,000.0 | 27.99× |
+| 79.00 | 107,742.1 | 2,140.8 | 109,882.9 | 4,000.0 | 27.47× |
+| 79.50 | 105,722.0 | 2,132.7 | 107,854.7 | 4,000.0 | 26.96× |
+| 80.00 | 103,752.0 | 2,124.7 | 105,876.7 | 4,000.0 | 26.47× |
+| 80.50 | 101,830.7 | 2,116.8 | 103,947.5 | 4,000.0 | 25.99× |
+| 81.00 | 99,956.6 | 2,108.9 | 102,065.5 | 4,000.0 | 25.52× |
+| 81.50 | 98,128.2 | 2,101.2 | 100,229.3 | 4,000.0 | 25.06× |
+| 82.00 | 96,344.1 | 2,093.5 | 98,437.5 | 4,000.0 | 24.61× |
+| 82.50 | 94,603.0 | 2,085.8 | 96,688.8 | 4,000.0 | 24.17× |
+| 83.00 | 92,903.5 | 2,078.3 | 94,981.8 | 4,000.0 | 23.75× |
+| 83.50 | 91,244.6 | 2,070.8 | 93,315.4 | 4,000.0 | 23.33× |
+| 84.00 | 89,624.9 | 2,063.4 | 91,688.3 | 4,000.0 | 22.92× |
+| 84.50 | 88,043.3 | 2,056.1 | 90,099.4 | 4,000.0 | 22.52× |
+| 85.00 | 86,498.7 | 2,048.8 | 88,547.5 | 4,000.0 | 22.14× |
+| 85.50 | 84,990.1 | 2,041.6 | 87,031.7 | 4,000.0 | 21.76× |
+| 86.00 | 83,516.3 | 2,034.5 | 85,550.8 | 4,000.0 | 21.39× |
+| 86.50 | 82,076.4 | 2,027.4 | 84,103.8 | 4,000.0 | 21.03× |
+| 87.00 | 80,669.4 | 2,020.4 | 82,689.8 | 4,000.0 | 20.67× |
+| 87.50 | 79,294.4 | 2,013.5 | 81,307.9 | 4,000.0 | 20.33× |
+| 88.00 | 77,950.4 | 2,006.6 | 79,957.0 | 4,000.0 | 19.99× |
+| 88.50 | 76,636.7 | 1,999.8 | 78,636.5 | 4,000.0 | 19.66× |
+| 89.00 | 75,352.3 | 1,993.0 | 77,345.4 | 4,000.0 | 19.34× |
+| 89.50 | 74,096.5 | 1,986.4 | 76,082.8 | 4,000.0 | 19.02× |
+| 90.00 | 72,868.4 | 1,979.7 | 74,848.1 | 4,000.0 | 18.71× |
+| 90.50 | 71,667.3 | 1,973.2 | 73,640.4 | 4,000.0 | 18.41× |
+| 91.00 | 70,492.4 | 1,966.7 | 72,459.1 | 4,000.0 | 18.11× |
+| 91.50 | 69,343.1 | 1,960.2 | 71,303.3 | 4,000.0 | 17.83× |
+| 92.00 | 68,218.6 | 1,953.8 | 70,172.4 | 4,000.0 | 17.54× |
+| 92.50 | 67,118.4 | 1,947.5 | 69,065.8 | 4,000.0 | 17.27× |
+| 93.00 | 66,041.6 | 1,941.2 | 67,982.8 | 4,000.0 | 17.00× |
+| 93.50 | 64,987.8 | 1,934.9 | 66,922.7 | 4,000.0 | 16.73× |
+| 94.00 | 63,956.3 | 1,928.7 | 65,885.0 | 4,000.0 | 16.47× |
+| 94.50 | 62,946.4 | 1,922.6 | 64,869.1 | 4,000.0 | 16.22× |
+| 95.00 | 61,957.8 | 1,916.5 | 63,874.3 | 4,000.0 | 15.97× |
+| 95.50 | 60,989.7 | 1,910.5 | 62,900.2 | 4,000.0 | 15.73× |
+| 96.00 | 60,041.7 | 1,904.5 | 61,946.2 | 4,000.0 | 15.49× |
+| 96.50 | 59,113.2 | 1,898.6 | 61,011.8 | 4,000.0 | 15.25× |
+| 97.00 | 58,203.8 | 1,892.7 | 60,096.5 | 4,000.0 | 15.02× |
+| 97.50 | 57,312.9 | 1,886.9 | 59,199.8 | 4,000.0 | 14.80× |
+| 98.00 | 56,440.2 | 1,881.1 | 58,321.3 | 4,000.0 | 14.58× |
+| 98.50 | 55,585.0 | 1,875.4 | 57,460.4 | 4,000.0 | 14.37× |
+| 99.00 | 54,747.1 | 1,869.7 | 56,616.8 | 4,000.0 | 14.15× |
+| 99.50 | 53,925.9 | 1,864.1 | 55,789.9 | 4,000.0 | 13.95× |
+| 100.00 | 53,121.0 | 1,858.5 | 54,979.5 | 4,000.0 | 13.74× |
+| 100.50 | 52,332.1 | 1,852.9 | 54,185.0 | 4,000.0 | 13.55× |
+| 101.00 | 51,558.8 | 1,847.4 | 53,406.2 | 4,000.0 | 13.35× |
+| 101.50 | 50,800.6 | 1,841.9 | 52,642.5 | 4,000.0 | 13.16× |
+| 102.00 | 50,057.1 | 1,836.5 | 51,893.6 | 4,000.0 | 12.97× |
+| 102.50 | 49,328.2 | 1,831.1 | 51,159.3 | 4,000.0 | 12.79× |
+| 103.00 | 48,613.3 | 1,825.8 | 50,439.1 | 4,000.0 | 12.61× |
+| 103.50 | 47,912.1 | 1,820.5 | 49,732.6 | 4,000.0 | 12.43× |
+| 104.00 | 47,224.4 | 1,815.2 | 49,039.6 | 4,000.0 | 12.26× |
+| 104.50 | 46,549.8 | 1,810.0 | 48,359.8 | 4,000.0 | 12.09× |
+| 105.00 | 45,888.0 | 1,804.8 | 47,692.8 | 4,000.0 | 11.92× |
+
+### C.15 The pricing rule and the offer price
+
+```text
+covered = the prices with coverage ≥ target coverage (3×)
+if covered:                 offer price = the highest covered price,   outcome PRICED
+elif coverage(bottom) ≥ 1:  offer price = the bottom of the band,      outcome THIN BOOK
+else:                       no offer price,                            outcome POSTPONE
+```
+
+Every one of Tornfalk's 60 prices is covered more than 3 times, from 31.41×
+at 75.50 to 11.92× at 105.00, so the highest, **105.00 SEK**, is the offer
+price: PROCEED, "the highest price with at least 3× coverage", within the
+range, at its top. It is already on the two-decimal price grid that
+`pm-new-symbol` lists with.
+
+At that price, the listing (§13.3, §9.2):
+
+```text
+New shares          = floor(4,000 mkr / 105.00) = floor(38,095,238.1) = 38,095,238
+Money raised        = 38,095,238 × 105.00 = 3,999,999,990 SEK
+Net proceeds        = 3,999,999,990 × (1 − 3%) − 60 mkr = 3,820.0 mkr
+Shares after        = 120,000,000 + 38,095,238 = 158,095,238
+Market cap          = 105.00 × 158,095,238 = 16,600.0 mkr
+Dilution            = 38,095,238 / 158,095,238 = 24.1%   (management's maximum 25%: no warning)
+Value after the IPO = (11,230.4 + 3,820.0) / 158,095,238 = 95.20 SEK per share
+```
+
+The value after the IPO, 95.20, is the DCF's intrinsic value per share once
+the offer has settled at 105.00, not fair value: fair value also weighs in
+the comparables.
+
+**The answer: 105.00 SEK**, for 158,095,238 shares:
+
+```bash
+pm-new-symbol --symbol TORN --ipo-price 105.00 --outstanding-shares 158095238 --tick-decimals 2
+```
+
+None of the plausibility checks (§24) fires for Tornfalk; they never change
+the price in any case.
+
+### C.16 Every constant in the code
+
+These numbers are part of the model, not inputs. Each is a heuristic or a
+convention described in the section given.
+
+| Constant | Value | Where | Section |
+|---|---|---|---|
+| Revenue to year-end run rate (deriving revenue from customers, or back) | 0.85 | `fields._REVENUE_TO_RUN_RATE` | §6.3 |
+| Fade | linear, 0 in year 1 to 1 in year N | `forecast.fade` | §6.2 |
+| Range width | ±5% around the midpoint | `offering.price_ipo` | §14.1 |
+| Price step | 0.01 / 0.10 / 0.50 × 10^k | `offering.price_step` | §14.1 |
+| Band bottom | 80% of the range's low | `offering.BAND_LOW` | §15.4 |
+| Interest multipliers | 0.3 / 0.6 / 1.0 / 1.5 / 2.2 | `offering.INTEREST` | §15.2 |
+| Lock-up factor | 1 + 0.10 × clamp((days − 180) / 180, −1, 1) | `offering.book_line` | §13.2 |
+| Index factor | 1 + 0.10 × probability | `offering.book_line` | §17.3 |
+| Index probabilities | fast entry 1.0, seasoning 0.8, waiver 0.5, not eligible 0 | `index_rules._PROBABILITY` | §17.3 |
+| Governance factor | 0.95 with dual-class shares | `offering.book_line` | §15.2 |
+| Hype on institutions / retail | × (1 + 0.03 h) / × (1 + 0.25 h) | `offering.book_line` | §15.2 |
+| Retail price elasticity | 1.5 / (1 + 0.3 h) | `offering.book_line` | §15.2 |
+| Primary shares | rounded down to whole shares | `bridge.Offering.primary_shares` | §9.2 |
+
+### C.17 Reproducing the numbers
+
+- `pm-valuation --case tornfalk --no-tui --mode deterministic --export t.md`
+  writes the report with the same tables: market and customers, headcount,
+  income statement, taxes and FCFF, discount rates, DCF, bridge, pricing with
+  the book.
+- `pm-valuation --case tornfalk --no-tui --save t.yaml --with-defaults`
+  writes every input of C.2 with its source.
+- The forecast, the DCF and the pricing are pure functions of the resolved
+  values: `forecast.forecast`, `dcf.dcf`, `valuation.value` and
+  `offering.price_ipo`.
+- `tests/test_valuation_report.py::test_appendix_c_derivation` pins the
+  numbers of this appendix.

@@ -38,30 +38,29 @@ the order book is empty and no trader can get an immediate fill.
 
 ## Exercise 1: Add MM Gateways to Configuration
 
-Extend your `engine_config.yaml` gateways section:
+Extend your `engine_config.yaml` `participants` list:
 
 ```yaml
-gateways:
-  alf:
-    # ... existing TRADER01, TRADER02, GW_ADMIN entries ...
+participants:
+  # ... existing TRADER01, TRADER02, GW_ADMIN entries ...
 
-    - id: MM_AAPL_01
-      description: "AAPL market-maker"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_AAPL_01
+    description: "AAPL market-maker"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
-    - id: MM_MSFT_01
-      description: "MSFT market-maker"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_MSFT_01
+    description: "MSFT market-maker"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
-    - id: MM_TSLA_01
-      description: "TSLA market-maker"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_TSLA_01
+    description: "TSLA market-maker"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
 Declaring a `MARKET_MAKER` gateway obliges you to seed a quote for every
@@ -100,7 +99,7 @@ symbols:
     # ask_price are left as `null` for you to fill in by hand
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --gateways TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --output engine_config.yaml --force
@@ -109,7 +108,7 @@ symbols:
     # the given range, rounded to each symbol's tick grid
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --gateways TRADER01 TRADER02 GW_ADMIN:ADMIN \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN \
         MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --seed-mm-mid-range 100:400 \
@@ -376,13 +375,12 @@ reconciliation handles either case) and register one gateway that will
 quote all three symbols instead:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM_TECH_01
-      description: "AAPL+MSFT+TSLA market-maker"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+participants:
+  - id: MM_TECH_01
+    description: "AAPL+MSFT+TSLA market-maker"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
 !!! warning "The market_maker_quotes seed requirement still applies to every symbol"
@@ -392,7 +390,7 @@ gateways:
     still needs a seed under `symbols.AAPL`, `symbols.MSFT`, *and*
     `symbols.TSLA`, exactly as if it were three separate single-symbol
     gateways. If you regenerate with `pm-config-gen`, point
-    `--gateways ... MM_TECH_01:MARKET_MAKER` at the one new ID and it will
+    `--participants ... MM_TECH_01:MARKET_MAKER` at the one new ID and it will
     seed all three symbols against it automatically.
 
 Check and deploy as before, then start one bot covering all three symbols on

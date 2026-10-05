@@ -293,7 +293,7 @@ api_gateways:
   desk:
     credentials:
       - api_key: key-trader-demo       # ← use this in the login form
-        gateway_id: TRADER01           # ← maps to gateways.alf id TRADER01
+        gateway_id: TRADER01           # ← maps to participants id TRADER01
       - api_key: key-mm-demo
         gateway_id: MM01                # role: MARKET_MAKER
       - api_key: key-admin-demo
@@ -1718,7 +1718,7 @@ outside that network, and it has to be told how to get back in.
 |---|---|---|
 | Login fails with "Invalid API key" | The key is missing, mistyped, or not present in `engine_config.yaml` | Check `api_gateways.<name>.credentials` and confirm the key you pasted matches exactly |
 | Login fails with "`ROLE_UNSUPPORTED`: Unsupported role: READ_ONLY" | The key is a read-only credential (`gateway_id: null`) | Use a key bound to a `gateway_id`; read-only keys are for observer tools like TapeDeck |
-| Login fails with "`ENGINE_AUTH`: …" | The key is valid but `pm-engine` refused its gateway id | Confirm the `gateway_id` exists under `gateways.alf` in `engine_config.yaml` |
+| Login fails with "`ENGINE_AUTH`: …" | The key is valid but `pm-engine` refused its gateway id | Confirm the `gateway_id` exists under `participants` in `engine_config.yaml` |
 | Login fails with "Gateway reached, but the engine did not answer. Is pm-engine running?" | `pm-api-gwy` is up but cannot reach the matching engine | Confirm `pm-engine` is running and the gateway's connection to it is healthy |
 | "Cannot reach the API gateway. Is pm-api-gwy running?" | The browser's `fetch()` to `pm-api-gwy` failed outright | Confirm `pm-api-gwy` is running and reachable at `VITE_API_BASE` (dev) or behind your reverse proxy (production) |
 | Connection banner shows "Reconnecting…" or "Disconnected" after a successful login | The events/market-data WebSocket dropped | Confirm `pm-api-gwy` is still running; the banner clears automatically once the socket reconnects, and `orders.snapshot` resyncs the blotter |

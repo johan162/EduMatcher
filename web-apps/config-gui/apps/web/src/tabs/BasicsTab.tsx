@@ -22,6 +22,9 @@ import { Select } from "@/components/ui/Select";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
 
+/** Select value for "key omitted": the gateway inherits the gateway default. */
+const INHERIT = "__inherit__";
+
 export function BasicsTab() {
   const draft = useDraftStore((s) => s.draft);
   const update = useDraftStore((s) => s.update);
@@ -182,16 +185,69 @@ export function BasicsTab() {
       </Section>
 
       <Section
-        title="Gateways"
+        title="Participants"
         description="Participant sessions permitted to connect. IDs are unique and uppercased. A MARKET_MAKER gateway enables quote seeding; an ADMIN gateway enables exchange-wide controls."
       >
+        {canSee("I") && (
+          <FieldRow
+            label="Participant defaults"
+            path="gatewayDefault"
+            help={{
+              text: "Values every gateway inherits unless its own row sets one. Leave a default as (not set) to omit it from the file. A gateway's own SMP of NONE still overrides a non-NONE default.",
+              cliFlag:
+                "--participant-default-smp / --participant-default-disconnect",
+              docHref: "../docs/user-guide/010-configuration.md",
+            }}
+          >
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                SMP action
+                <Select
+                  aria-label="Default SMP action"
+                  value={draft.gatewayDefault.smpAction ?? INHERIT}
+                  onValueChange={(v) =>
+                    update((d) => {
+                      if (v === INHERIT) delete d.gatewayDefault.smpAction;
+                      else d.gatewayDefault.smpAction = v as SmpAction;
+                    })
+                  }
+                  options={[
+                    { value: INHERIT, label: "(not set)" },
+                    ...SMP_ACTIONS.map((a) => ({ value: a, label: a })),
+                  ]}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                Disconnect behaviour
+                <Select
+                  aria-label="Default disconnect behaviour"
+                  value={draft.gatewayDefault.disconnectBehaviour ?? INHERIT}
+                  onValueChange={(v) =>
+                    update((d) => {
+                      if (v === INHERIT) {
+                        delete d.gatewayDefault.disconnectBehaviour;
+                      } else {
+                        d.gatewayDefault.disconnectBehaviour =
+                          v as DisconnectBehaviour;
+                      }
+                    })
+                  }
+                  options={[
+                    { value: INHERIT, label: "(not set)" },
+                    ...DISCONNECT_BEHAVIOURS.map((b) => ({ value: b, label: b })),
+                  ]}
+                />
+              </label>
+            </div>
+          </FieldRow>
+        )}
         <FieldRow
-          label="Gateway sessions"
+          label="Participant sessions"
           path="gateways"
           required
           help={{
             text: "Each row is a login session with a role. Roles: TRADER submits orders, MARKET_MAKER supplies quotes, ADMIN issues control commands.",
-            cliFlag: "--gateways",
+            cliFlag: "--participants",
           }}
         >
           <div className="w-full">
@@ -256,17 +312,24 @@ export function BasicsTab() {
                         <td className="px-3 py-1.5">
                           <Select
                             aria-label={`Gateway ${index + 1} disconnect behaviour`}
-                            value={gateway.disconnectBehaviour}
+                            value={gateway.disconnectBehaviour ?? INHERIT}
                             onValueChange={(v) =>
                               update((d) => {
-                                d.gateways[index]!.disconnectBehaviour =
-                                  v as DisconnectBehaviour;
+                                const g = d.gateways[index]!;
+                                if (v === INHERIT) delete g.disconnectBehaviour;
+                                else g.disconnectBehaviour = v as DisconnectBehaviour;
                               })
                             }
-                            options={DISCONNECT_BEHAVIOURS.map((b) => ({
-                              value: b,
-                              label: b,
-                            }))}
+                            options={[
+                              {
+                                value: INHERIT,
+                                label: `(default: ${draft.gatewayDefault.disconnectBehaviour ?? "CANCEL_QUOTES_ONLY"})`,
+                              },
+                              ...DISCONNECT_BEHAVIOURS.map((b) => ({
+                                value: b,
+                                label: b,
+                              })),
+                            ]}
                           />
                         </td>
                       )}
@@ -274,16 +337,24 @@ export function BasicsTab() {
                         <td className="px-3 py-1.5">
                           <Select
                             aria-label={`Gateway ${index + 1} SMP action`}
-                            value={gateway.smpAction}
+                            value={gateway.smpAction ?? INHERIT}
                             onValueChange={(v) =>
                               update((d) => {
-                                d.gateways[index]!.smpAction = v as SmpAction;
+                                const g = d.gateways[index]!;
+                                if (v === INHERIT) delete g.smpAction;
+                                else g.smpAction = v as SmpAction;
                               })
                             }
-                            options={SMP_ACTIONS.map((a) => ({
-                              value: a,
-                              label: a,
-                            }))}
+                            options={[
+                              {
+                                value: INHERIT,
+                                label: `(default: ${draft.gatewayDefault.smpAction ?? "NONE"})`,
+                              },
+                              ...SMP_ACTIONS.map((a) => ({
+                                value: a,
+                                label: a,
+                              })),
+                            ]}
                           />
                         </td>
                       )}

@@ -425,6 +425,57 @@ def _case(name: str) -> dict[str, object]:
     return {**answers, "simulation.mode": "deterministic"}
 
 
+def test_appendix_c_derivation() -> None:
+    """The step results of docs-design/EduMatcher-valuation.md, Appendix C."""
+    result = run(_case("tornfalk"), PRESETS)
+    v, val, pricing = result.resolved.values, result.valuation, result.pricing
+    m = 1e6
+    # C.2: the derived inputs
+    assert (v["people.headcount"], v["capital.ppe_start"]) == (1000, 84 * m)
+    assert (v["offering.other_expenses"], v["investors.avg_ticket"]) == (
+        60 * m,
+        200 * m,
+    )
+    assert (v["costs.cac_paid"], v["people.loaded_cost"]) == (300_000, 1_050_000)
+    # C.3-C.7: year 1, and the FCFF of every year
+    y1 = val.years[0]
+    assert (y1.gross_adds, y1.customers_end) == pytest.approx((1508, 3900))
+    assert y1.revenue == pytest.approx(2047.5 * m)
+    assert y1.headcount == pytest.approx(1277.5)
+    assert y1.staff_cost / m == pytest.approx(1388.3, abs=0.05)
+    assert y1.ebitda / m == pytest.approx(-464.0, abs=0.05)
+    assert y1.ebit / m == pytest.approx(-485.0, abs=0.05)
+    fcff = [round(y.fcff / m, 1) for y in val.years]
+    assert fcff == [-493.0, -375.3, -95.6, 389.8, 925.7, 1378.0, 1849.1, 2163.2,
+                    2298.3, 2232.0, 2028.8]  # fmt: skip
+    assert val.years[4].taxes / m == pytest.approx(122.7, abs=0.05)
+    # C.8-C.10
+    assert (val.stage1.rate, val.stage2.rate) == pytest.approx((0.159, 0.0966))
+    dcf = val.dcf
+    assert dcf.rows[5].discount_factor == pytest.approx(0.436048, abs=1e-6)
+    assert dcf.pv_explicit / m == pytest.approx(3446.0, abs=0.05)
+    assert dcf.terminal_value / m == pytest.approx(22831.0, abs=0.05)
+    assert dcf.pv_terminal / m == pytest.approx(6884.4, abs=0.05)
+    assert dcf.enterprise_value / m == pytest.approx(10330.4, abs=0.05)
+    assert val.dcf_price == pytest.approx(92.087, abs=0.0005)
+    # C.11-C.12
+    assert (val.comps_ev, val.comps_price) == pytest.approx((20475 * m, 176.625))
+    assert val.fair_value == pytest.approx(117.4484, abs=0.00005)
+    assert (pricing.mid, pricing.step) == pytest.approx((99.8311, 0.5), abs=0.00005)
+    assert pricing.price_range == (94.5, 105.0) and pricing.floor_price is None
+    # C.13-C.15
+    assert pricing.index_prospects.probability == 0.8
+    book = pricing.book
+    assert (len(book), book[0].price, book[-1].price) == (60, 75.5, 105.0)
+    assert book[-1].institutional / m == pytest.approx(45888.0, abs=0.05)
+    assert book[-1].retail / m == pytest.approx(1804.8, abs=0.05)
+    assert all(line.coverage >= 3 for line in book)
+    assert pricing.outcome is Outcome.PRICED and pricing.listing is not None
+    assert pricing.listing.price == 105.0
+    assert pricing.listing.primary_shares == 38_095_238
+    assert pricing.listing.value_after_ipo == pytest.approx(95.20, abs=0.005)
+
+
 def test_classroom_cases() -> None:
     """The numbers docs/training/280-ipo-valuation.md and the user guide quote."""
     assert case_names() == ["halvard", "tornfalk"]

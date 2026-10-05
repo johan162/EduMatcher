@@ -880,6 +880,39 @@ class TestFlushSnapshots:
 
 
 # ---------------------------------------------------------------------------
+# _handle_gateway_connect — one live connection per gateway ID
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateGatewayConnect:
+    def test_second_connect_refused_and_first_session_kept(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        pub_sock.sent.clear()
+
+        _connect(engine)
+
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.gateway_auth.GW01"
+        assert msg["accepted"] is False
+        assert "already connected" in msg["reason"]
+        assert engine._gateway_status("GW01") == (True, "")
+
+    def test_disconnect_then_connect_is_accepted(self, monkeypatch, tmp_path) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        engine._handle_gateway_disconnect({"gateway_id": "GW01"})
+        pub_sock.sent.clear()
+
+        _connect(engine)
+
+        _topic, msg = decode(pub_sock.sent[-1])
+        assert msg["accepted"] is True
+
+
+# ---------------------------------------------------------------------------
 # _gateway_status
 # ---------------------------------------------------------------------------
 

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import yaml from "js-yaml";
 import {
   buildConfigDocument,
+  buildDefaultEngineFieldCommentLines,
   generateYaml,
   parseYamlToDraft,
 } from "../src/index.js";
@@ -22,7 +23,7 @@ function roundTrip(text: string): Doc {
 }
 
 const MINIMAL =
-  "gateways:\n  alf:\n    - id: TRADER01\nsymbols:\n  AAPL:\n    tick_decimals: 2\n";
+  "participants:\n    - id: TRADER01\nsymbols:\n  AAPL:\n    tick_decimals: 2\n";
 
 describe("absent keys take the loader's defaults", () => {
   it("keeps sessions_enabled true when the key is omitted", () => {
@@ -65,7 +66,29 @@ describe("nothing is dropped or invented", () => {
         "- id: TRADER01\n      smp_action: CANCEL_BOTH",
       ),
     );
-    expect(doc.gateways.alf[0].smp_action).toBe("CANCEL_BOTH");
+    expect(doc.participants[0].smp_action).toBe("CANCEL_BOTH");
+  });
+
+  it("keeps participant_defaults and the participants that inherit from it", () => {
+    const doc = roundTrip(
+      "participant_defaults:\n  smp_action: CANCEL_AGGRESSOR\n  disconnect_behaviour: CANCEL_ALL\n" +
+        "participants:\n    - id: TRADER01\n    - id: TRADER02\n      smp_action: NONE\n" +
+        "      disconnect_behaviour: LEAVE_ALL\n" +
+        "symbols:\n  AAPL:\n    tick_decimals: 2\n",
+    );
+    expect(doc.participant_defaults).toEqual({
+      smp_action: "CANCEL_AGGRESSOR",
+      disconnect_behaviour: "CANCEL_ALL",
+    });
+    // Inherited: nothing is invented on the gateway.
+    expect(doc.participants[0]).toEqual({ id: "TRADER01", role: "TRADER" });
+    // An explicit NONE must survive because the default is not NONE.
+    expect(doc.participants[1].smp_action).toBe("NONE");
+    expect(doc.participants[1].disconnect_behaviour).toBe("LEAVE_ALL");
+  });
+
+  it("writes no participant_defaults block when none is set", () => {
+    expect(roundTrip(MINIMAL)).not.toHaveProperty("participant_defaults");
   });
 
   it("keeps an omitted combo-leg smp_action omitted (gateway default), and an explicit NONE", () => {
@@ -265,8 +288,7 @@ describe("nothing is dropped or invented", () => {
 describe("case normalisation (spec §1.6)", () => {
   it("upper-cases ids, symbols and enums so references still resolve", () => {
     const text = [
-      "gateways:",
-      "  alf:",
+      "participants:",
       "    - {id: mm01, role: market_maker, disconnect_behaviour: cancel_all}",
       "symbols:",
       "  aapl:",
@@ -303,7 +325,7 @@ describe("case normalisation (spec §1.6)", () => {
 describe("prices are written on each symbol's own tick grid", () => {
   it("snaps mid-range seeds to the symbol's tick_decimals, not the global default", () => {
     const text =
-      "gateways:\n  alf:\n    - {id: MM01, role: MARKET_MAKER}\n" +
+      "participants:\n    - {id: MM01, role: MARKET_MAKER}\n" +
       "symbols:\n  WHOLE: {tick_decimals: 0}\n  FINE: {tick_decimals: 4}\n";
     const { draft } = parseYamlToDraft(text);
     draft.seeding.mmMidRange = { min: 100.25, max: 100.25 };
@@ -320,5 +342,24 @@ describe("prices are written on each symbol's own tick grid", () => {
       bid_price: 100.2499,
       ask_price: 100.2501,
     });
+  });
+});
+
+describe("commented defaults block", () => {
+  it("shows and explains every process block", () => {
+    const lines = buildDefaultEngineFieldCommentLines();
+    for (const block of [
+      "alf_gateway",
+      "balf_gateway",
+      "market_data_gateway",
+      "post_trade_gateway",
+      "dc_gateway",
+      "log_server",
+      "api_gateways",
+    ]) {
+      expect(lines, `${block} shape`).toContain(`${block}:`);
+      expect(lines, `${block} notes`).toContain(`${block} entries`);
+    }
+    expect(lines).toContain("auction_indicative_interval_sec: 1.0");
   });
 });

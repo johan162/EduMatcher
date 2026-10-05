@@ -61,7 +61,7 @@ def _run_gen(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
 def _base(**sections: Any) -> dict[str, Any]:
     raw: dict[str, Any] = {
         "symbols": {"AAPL": {"tick_decimals": 2}},
-        "gateways": {"alf": [{"id": "GW01"}]},
+        "participants": [{"id": "GW01"}],
     }
     raw.update(sections)
     return raw
@@ -91,7 +91,7 @@ def test_generated_log_server_carries_every_pubsub_field(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "GW01",
             "--log-server",
             "--output",
@@ -118,7 +118,7 @@ def test_generated_config_round_trips_through_the_runtime_loader(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "GW01",
             "--log-server-pub-port",
             "7601",
@@ -154,7 +154,7 @@ def test_any_pubsub_flag_alone_emits_the_section(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "GW01",
             "--log-server-max-subscribers",
             "8",
@@ -175,7 +175,7 @@ def test_pubsub_disabled_flag_is_emitted(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "GW01",
             "--log-server-pubsub-disabled",
             "--output",
@@ -219,7 +219,7 @@ def test_generator_rejects_invalid_pubsub_flags(
     expected: str,
 ) -> None:
     out = tmp_path / "engine_config.yaml"
-    base = ["--symbols", "AAPL", "--gateways", "GW01", "--output", str(out)]
+    base = ["--symbols", "AAPL", "--participants", "GW01", "--output", str(out)]
     with pytest.raises(SystemExit):
         _run_gen(monkeypatch, base + argv)
     assert expected in capsys.readouterr().err
@@ -388,7 +388,7 @@ def test_generated_config_passes_the_verifier(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "GW01",
             "--log-server",
             "--output",
@@ -410,9 +410,8 @@ def test_handwritten_broken_config_is_caught(tmp_path: Path) -> None:
             symbols:
               AAPL:
                 tick_decimals: 2
-            gateways:
-              alf:
-                - id: GW01
+            participants:
+              - id: GW01
             log_server:
               port: 5600
               pub_port: 5600

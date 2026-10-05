@@ -71,12 +71,12 @@ OUTSTANDING_ARGS=(
 
 SMP_ARGS=()
 for gateway in "${GATEWAYS[@]}"; do
-  SMP_ARGS+=(--gateway-smp "${gateway%%:*}:CANCEL_AGGRESSOR")
+  SMP_ARGS+=(--participant-smp "${gateway%%:*}:CANCEL_AGGRESSOR")
 done
 
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
-  --gateways "${GATEWAYS[@]}"
+  --participants "${GATEWAYS[@]}"
   "${SMP_ARGS[@]}"
   --seed-mm-mid-range 20:300
   --mm-seed-spread-ticks 10

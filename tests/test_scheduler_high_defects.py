@@ -207,7 +207,7 @@ class TestH3MalformedScheduleTimesCrash:
         config = tmp_path / "unquoted.yaml"
         config.write_text(
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+            "participants: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
             "  weekdays:\n"
             "    pre_open: 9:00\n"
@@ -243,7 +243,7 @@ class TestH3MalformedScheduleTimesCrash:
         config = tmp_path / "malformed.yaml"
         config.write_text(
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+            "participants: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
             "  weekdays:\n"
             '    pre_open: "25:00"\n'  # hour out of range

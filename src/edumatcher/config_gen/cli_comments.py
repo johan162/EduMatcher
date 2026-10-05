@@ -76,6 +76,16 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # auction_indicative_interval_sec
+    lines.extend(
+        [
+            "auction_indicative_interval_sec: 1.0",
+            "  Minimum interval between indicative-uncross republishes during an auction call phase.",
+            "  Must be greater than zero.",
+            "",
+        ]
+    )
+
     # enforce_collars
     lines.extend(
         [
@@ -159,6 +169,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "    enabled: true",
             "    initial_band_pct: 0.10",
             "    random_end_max_ns: 30000000000",
+            "    random_seed: null",
             "    expansions:",
             "    - widen_pct: 0.10",
             "      min_duration_ns: 120000000000",
@@ -168,25 +179,34 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
-    # gateways
+    # participant_defaults
     lines.extend(
         [
-            "gateways:",
-            "  alf:",
-            "    - id: TRADER01",
-            "      description: Student workstation 1",
-            "      role: TRADER",
-            "      disconnect_behaviour: CANCEL_ALL",
-            "      quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
-            "      smp_action: NONE",
-            "      enforce_mm_obligation: false",
-            "      mm_max_spread_ticks: 20",
-            "      mm_min_qty: 100",
-            "      mm_obligations:",
-            "        AAPL:",
-            "          enforce_mm_obligation: true",
-            "          max_spread_ticks: 6",
-            "          min_qty: 300",
+            "participant_defaults:",
+            "  smp_action: CANCEL_AGGRESSOR",
+            "  disconnect_behaviour: CANCEL_ALL",
+            "",
+        ]
+    )
+
+    # participants
+    lines.extend(
+        [
+            "participants:",
+            "  - id: TRADER01",
+            "    description: Student workstation 1",
+            "    role: TRADER",
+            "    disconnect_behaviour: CANCEL_ALL",
+            "    quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "    smp_action: NONE",
+            "    enforce_mm_obligation: false",
+            "    mm_max_spread_ticks: 20",
+            "    mm_min_qty: 100",
+            "    mm_obligations:",
+            "      AAPL:",
+            "        enforce_mm_obligation: true",
+            "        max_spread_ticks: 6",
+            "        min_qty: 300",
             "",
         ]
     )
@@ -258,6 +278,26 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # alf_gateway
+    lines.extend(
+        [
+            "alf_gateway:",
+            "  enabled: true",
+            "  name: alf-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5565",
+            "  heartbeat_interval_sec: 5",
+            "  handshake_timeout_sec: 10",
+            "  idle_timeout_sec: 30",
+            "  max_connections: 64",
+            "  max_client_queue: 10000",
+            "  max_commands_per_second: 100",
+            "  max_errors_before_disconnect: 50",
+            "  error_window_sec: 60",
+            "",
+        ]
+    )
+
     # post_trade_gateway
     lines.extend(
         [
@@ -285,9 +325,33 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  heartbeat_interval_sec: 1",
             "  idle_timeout_sec: 5",
             "  replay_window_sec: 30",
+            "  max_connections: 64",
+            "  max_messages_per_second: 200",
             "  max_symbols_per_client: 200",
             "  max_client_queue: 10000",
             "  depth_levels: 10",
+            "",
+        ]
+    )
+
+    # balf_gateway
+    lines.extend(
+        [
+            "balf_gateway:",
+            "  enabled: true",
+            "  name: balf-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5560",
+            "  heartbeat_interval_sec: 1.0",
+            "  heartbeat_timeout_sec: 5.0",
+            "  idle_timeout_sec: 30.0",
+            "  auth_timeout_sec: 10.0",
+            "  max_connections: 64",
+            "  max_client_queue: 10000",
+            "  max_messages_per_second: 100",
+            "  max_errors_before_disconnect: 10",
+            "  error_window_sec: 60.0",
+            "  duplicate_session_policy: REJECT_NEW",
             "",
         ]
     )
@@ -333,6 +397,10 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  max_backfill_rows: 100000",
             "  max_pending_rows: 20000",
             "  pub_sndhwm: 10000",
+            "  client:",
+            "    connect_timeout_sec: 0.5",
+            "    failover_timeout_sec: 30.0",
+            "    failover_dir: data/logs",
             "",
         ]
     )
@@ -369,6 +437,14 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "    swagger_enabled: true",
             "    log_level: info",
             "    stats_db: data/stats.db",
+            "    audit_db: data/audit_index.db",
+            "    order_retention_sec: 3600",
+            "    market_data_cache_sec: 60",
+            "    session_timezone: null",
+            "    engine_pull_addr: tcp://127.0.0.1:5555",
+            "    engine_pub_addr: tcp://127.0.0.1:5556",
+            "    index_pull_addr: tcp://127.0.0.1:5559",
+            "    index_pub_addr: tcp://127.0.0.1:5558",
             "    credentials:",
             "      - api_key: key-trader-demo",
             "        gateway_id: TRADER01",
@@ -503,13 +579,33 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Built-in ladder values: L1=300000000000 (5m), L2=900000000000",
             "  (15m), L3=null.",
             "  Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.",
+            "reopening.random_seed: null",
+            "  Seed for the random tail of every call phase; engine-wide, so only valid here,",
+            "  never per symbol. null seeds from OS entropy; set an integer for reproducible runs.",
             "",
         ]
     )
 
     lines.extend(
         [
-            "gateways.alf entries",
+            "participant_defaults entries",
+            "" + "-" * 28,
+            "smp_action: NONE",
+            "  Self-match-prevention action inherited by every participants entry that",
+            "  omits its own smp_action. Accepts NONE, CANCEL_AGGRESSOR, CANCEL_RESTING",
+            "  or CANCEL_BOTH. An explicit gateway smp_action (including NONE) wins.",
+            "disconnect_behaviour: CANCEL_QUOTES_ONLY",
+            "  Disconnect behaviour inherited by every participants entry that omits its",
+            "  own disconnect_behaviour. Accepts CANCEL_ALL, CANCEL_QUOTES_ONLY or",
+            "  LEAVE_ALL. Applies to every role, so participants of different roles that",
+            "  need different behaviour should set it explicitly.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "participants entries",
             "" + "-" * 20,
             "id:",
             "  Participant session identifier used for login, permissions, and routing.",
@@ -520,6 +616,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  ADMIN can issue exchange control commands.",
             "disconnect_behaviour: CANCEL_QUOTES_ONLY",
             "  Cleanup action on disconnect to control stale exposure risk.",
+            "  Omit to inherit participant_defaults.disconnect_behaviour.",
             "quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
             "  Determines when seeded quotes are inactivated after executions.",
             "smp_action: NONE",
@@ -527,6 +624,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  CANCEL_RESTING, CANCEL_BOTH). Applied by the engine to any order, combo",
             "  leg, or quote from this gateway that omits its own SMP=; an explicit",
             "  per-request SMP= (including SMP=NONE) always takes precedence.",
+            "  Omit to inherit participant_defaults.smp_action.",
             "enforce_mm_obligation: false",
             "  Gateway-level switch to enforce market-maker obligations for this participant.",
             "mm_max_spread_ticks: 20",
@@ -661,6 +759,38 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
 
     lines.extend(
         [
+            "alf_gateway entries",
+            "-------------------",
+            "enabled: true",
+            "  Master switch that enables or disables the ALF text gateway (pm-alf-gwy).",
+            "name: alf-gwy01",
+            "  Service name of this ALF gateway instance.",
+            "bind_address: 0.0.0.0",
+            "  Network interface the ALF TCP gateway listens on (127.0.0.1 for loopback-only).",
+            "port: 5565",
+            "  TCP port ALF clients connect to; must be 1-65535.",
+            "heartbeat_interval_sec: 5",
+            "  Seconds between heartbeats.",
+            "handshake_timeout_sec: 10",
+            "  How long a new connection has to complete the LOGIN handshake.",
+            "idle_timeout_sec: 30",
+            "  Disconnect threshold when a connected client sends no traffic for this many seconds.",
+            "max_connections: 64",
+            "  Maximum number of simultaneous ALF client connections.",
+            "max_client_queue: 10000",
+            "  Per-client outbound buffer capacity before the client is treated as slow.",
+            "max_commands_per_second: 100",
+            "  Per-client inbound command rate limit.",
+            "max_errors_before_disconnect: 50",
+            "  Protocol errors allowed within the error window before disconnect.",
+            "error_window_sec: 60",
+            "  Rolling window over which protocol errors are counted.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
             "post_trade_gateway entries",
             "" + "-" * 27,
             "name: ralf-gwy01",
@@ -701,12 +831,52 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Session timeout when no traffic is received from a client.",
             "replay_window_sec: 30",
             "  In-memory replay horizon available to late/reconnecting clients.",
+            "max_connections: 64",
+            "  Maximum number of simultaneous CALF client connections.",
+            "max_messages_per_second: 200",
+            "  Per-client inbound message rate limit.",
             "max_symbols_per_client: 200",
             "  Subscription safety limit to prevent a single client from over-consuming fanout.",
             "max_client_queue: 10000",
             "  Per-client outbound queue cap before overload handling is triggered.",
             "depth_levels: 10",
             "  Number of aggregated price levels per side included in DEPTH channel snapshots and updates.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "balf_gateway entries",
+            "--------------------",
+            "enabled: true",
+            "  Master switch that enables or disables the BALF binary gateway (pm-balf-gwy).",
+            "name: balf-gwy01",
+            "  Service name reported to connecting BALF clients.",
+            "bind_address: 0.0.0.0",
+            "  Network interface the BALF TCP gateway listens on (127.0.0.1 for loopback-only).",
+            "port: 5560",
+            "  TCP port BALF clients connect to; must be 1-65535.",
+            "heartbeat_interval_sec: 1.0",
+            "  Seconds between HB keepalive frames when no other outbound traffic is pending.",
+            "heartbeat_timeout_sec: 5.0",
+            "  How long to wait for an expected heartbeat before treating the connection as dead.",
+            "idle_timeout_sec: 30.0",
+            "  Disconnect threshold when a connected client sends no traffic for this many seconds.",
+            "auth_timeout_sec: 10.0",
+            "  How long a newly connected client has to authenticate.",
+            "max_connections: 64",
+            "  Maximum number of simultaneous BALF client connections.",
+            "max_client_queue: 10000",
+            "  Per-client outbound frame buffer capacity before the client is treated as slow.",
+            "max_messages_per_second: 100",
+            "  Per-client inbound message rate limit.",
+            "max_errors_before_disconnect: 10",
+            "  Protocol errors allowed within the error window before disconnect.",
+            "error_window_sec: 60.0",
+            "  Rolling window over which protocol errors are counted.",
+            "duplicate_session_policy: REJECT_NEW",
+            "  What happens when a connected gateway ID connects again: REJECT_NEW or EVICT_OLD.",
             "",
         ]
     )
@@ -786,6 +956,15 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  buffered rows (reported back as the dropped counter).",
             "pub_sndhwm: 10000",
             "  ZeroMQ send high-water mark on the PUB socket.",
+            "client:",
+            "  Sub-block read by every pm-* process (not by pm-log-srv) to configure how it ships its logs.",
+            "client.connect_timeout_sec: 0.5",
+            "  TCP connect timeout for each attempt to reach the log server.",
+            "client.failover_timeout_sec: 30.0",
+            "  How long a process keeps retrying a dropped connection before it switches,",
+            "  permanently for that process, to a local log file. Must be >= 0.",
+            "client.failover_dir: data/logs",
+            "  Directory for the local failover log files.",
             "",
         ]
     )
@@ -808,10 +987,25 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Uvicorn logging level: debug, info, warning, or error.",
             "stats_db: data/stats.db",
             "  SQLite stats database used by /history endpoints.",
+            "audit_db: data/audit_index.db",
+            "  pm-audit index, opened read-only by GET /admin/orders/{order_id}; that endpoint returns 503 when absent.",
+            "order_retention_sec: 3600",
+            "  Seconds a terminal order stays in the in-memory cache; 0 disables eviction.",
+            "market_data_cache_sec: 60",
+            "  TTL for cached market-data reads served by this instance; 0 disables the trade buffer.",
+            "session_timezone: null",
+            "  IANA timezone (e.g. Europe/Stockholm) used to resolve date-only history queries;",
+            "  null uses the timezone recorded in stats_db. An unknown name is rejected.",
+            "engine_pull_addr / engine_pub_addr / index_pull_addr / index_pub_addr:",
+            "  ZeroMQ endpoints of the engine and index buses. Not validated; normally left unset.",
             "credentials:",
             "  Bearer-token credentials accepted by REST and WebSocket auth.",
+            "credentials[].api_key:",
+            "  The bearer token itself; non-empty and unique within the instance.",
+            "credentials[].description:",
+            "  Free-text label for the key.",
             "credentials[].gateway_id:",
-            "  Must reference gateways.alf[].id for trading access; null means read-only.",
+            "  Must reference participants[].id for trading access; null means read-only.",
             "  A non-null gateway_id may appear in only one api_gateways entry.",
             "rate_limit.writes_per_second: 10",
             "  Per API-key write throughput for POST/PATCH/DELETE routes.",

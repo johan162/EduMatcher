@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from pathlib import Path
 from typing import Any, cast
 
@@ -57,6 +58,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_mm_obligation_defaults_schema(raw, results)
     _check_symbols(raw, results)
     _check_gateways(raw, results)
+    _check_gateway_default(raw, results)
     _check_market_maker_combos(raw, results)
     _check_indices(raw, results)
     _check_cb_defaults(raw, results)
@@ -68,6 +70,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_dc_gateway(raw, results)
     _check_log_server(raw, results)
     _check_api_gateway_sections(raw, results)
+    _check_unknown_process_keys(raw, results)
     return results
 
 
@@ -99,41 +102,28 @@ def _check_top_level(raw: dict[str, Any], results: list[CheckResult]) -> None:
             )
         )
 
-    gateways = raw.get("gateways")
-    if not isinstance(gateways, dict):
+    participants = raw.get("participants")
+    if not isinstance(participants, list):
         results.append(
             CheckResult(
                 code="S002",
                 severity=Severity.ERROR,
-                message="'gateways' is required and must be a mapping containing a 'gateways.alf' list.",
-                suggestion="Add a 'gateways:' section with an 'alf:' list.",
-                path="gateways",
-            )
-        )
-        return
-
-    alf = gateways.get("alf")
-    if not isinstance(alf, list):
-        results.append(
-            CheckResult(
-                code="S003",
-                severity=Severity.ERROR,
-                message="'gateways.alf' must be a list of gateway entries.",
+                message="'participants' is required and must be a list of participant entries.",
                 suggestion=(
-                    "Add a list under 'gateways.alf:'. "
+                    "Add a 'participants:' list. "
                     "See the configuration guide for the required fields."
                 ),
-                path="gateways.alf",
+                path="participants",
             )
         )
-    elif not alf:
+    elif not participants:
         results.append(
             CheckResult(
                 code="S005",
                 severity=Severity.ERROR,
-                message="'gateways.alf' contains no gateway entries.",
-                suggestion="Add at least one gateway with an id and role.",
-                path="gateways.alf",
+                message="'participants' contains no participant entries.",
+                suggestion="Add at least one participant with an id and role.",
+                path="participants",
             )
         )
 
@@ -787,28 +777,86 @@ def _get_cb_default_levels(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
-def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    gateways = raw.get("gateways", {})
-    if not isinstance(gateways, dict):
+def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """S118–S120 — the top-level ``participant_defaults`` block."""
+    section = raw.get("participant_defaults")
+    if section is None:
         return
-    alf = gateways.get("alf", [])
-    if not isinstance(alf, list):
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S118",
+                severity=Severity.ERROR,
+                message=f"'participant_defaults' must be a mapping. Got '{section}'.",
+                suggestion=(
+                    "Set participant_defaults to a mapping with smp_action and/or "
+                    "disconnect_behaviour."
+                ),
+                path="participant_defaults",
+            )
+        )
+        return
+
+    for key in sorted(set(section) - {"smp_action", "disconnect_behaviour"}, key=str):
+        results.append(
+            CheckResult(
+                code="S118",
+                severity=Severity.ERROR,
+                message=f"'participant_defaults.{key}' is not a recognised field.",
+                suggestion="Supported fields: smp_action, disconnect_behaviour.",
+                path=f"participant_defaults.{key}",
+            )
+        )
+
+    disconnect = section.get("disconnect_behaviour")
+    if "disconnect_behaviour" in section and (
+        str(disconnect).upper() not in _VALID_DISCONNECT
+    ):
+        results.append(
+            CheckResult(
+                code="S119",
+                severity=Severity.ERROR,
+                message=(
+                    f"'participant_defaults.disconnect_behaviour' '{disconnect}' "
+                    "is not valid."
+                ),
+                suggestion=f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}.",
+                path="participant_defaults.disconnect_behaviour",
+            )
+        )
+
+    smp_action = section.get("smp_action")
+    if "smp_action" in section and str(smp_action).upper() not in _VALID_SMP_ACTIONS:
+        results.append(
+            CheckResult(
+                code="S120",
+                severity=Severity.ERROR,
+                message=f"'participant_defaults.smp_action' '{smp_action}' is not valid.",
+                suggestion=f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}.",
+                path="participant_defaults.smp_action",
+            )
+        )
+
+
+def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    participants = raw.get("participants", [])
+    if not isinstance(participants, list):
         return
 
     seen_ids: dict[str, int] = {}
     gateway_ids: list[tuple[int, str]] = []
-    for n, gw in enumerate(alf):
+    for n, gw in enumerate(participants):
         if not isinstance(gw, dict):
             results.append(
                 CheckResult(
                     code="S029",
                     severity=Severity.ERROR,
                     message=(
-                        f"gateways.alf[{n}] must be a mapping. "
+                        f"participants[{n}] must be a mapping. "
                         f"Got {type(gw).__name__}."
                     ),
-                    suggestion="Each gateways.alf entry must be a YAML mapping.",
-                    path=f"gateways.alf[{n}]",
+                    suggestion="Each participants entry must be a YAML mapping.",
+                    path=f"participants[{n}]",
                 )
             )
             continue
@@ -818,9 +866,9 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 CheckResult(
                     code="S020",
                     severity=Severity.ERROR,
-                    message=f"gateways.alf[{n}] has no 'id' field.",
+                    message=f"participants[{n}] has no 'id' field.",
                     suggestion="Every gateway must have a unique alphanumeric id.",
-                    path=f"gateways.alf[{n}]",
+                    path=f"participants[{n}]",
                 )
             )
             continue
@@ -831,11 +879,11 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     code="S021",
                     severity=Severity.ERROR,
                     message=(
-                        f"Duplicate gateway id '{gw_id}' at gateways.alf[{n}] "
-                        f"and gateways.alf[{seen_ids[gw_id]}]."
+                        f"Duplicate participant id '{gw_id}' at participants[{n}] "
+                        f"and participants[{seen_ids[gw_id]}]."
                     ),
                     suggestion="Each gateway must have a unique id.",
-                    path=f"gateways.alf[{n}].id",
+                    path=f"participants[{n}].id",
                 )
             )
         else:
@@ -850,7 +898,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     severity=Severity.ERROR,
                     message=(f"Gateway '{gw_id}': role '{role}' is not valid."),
                     suggestion=f"Accepted values: {', '.join(sorted(_VALID_ROLES))}.",
-                    path=f"gateways.alf[{n}].role",
+                    path=f"participants[{n}].role",
                 )
             )
 
@@ -866,7 +914,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     suggestion=(
                         f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}."
                     ),
-                    path=f"gateways.alf[{n}].disconnect_behaviour",
+                    path=f"participants[{n}].disconnect_behaviour",
                 )
             )
 
@@ -887,7 +935,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         + ", ".join(sorted(_VALID_QUOTE_REFRESH))
                         + "."
                     ),
-                    path=f"gateways.alf[{n}].quote_refresh_policy",
+                    path=f"participants[{n}].quote_refresh_policy",
                 )
             )
 
@@ -903,7 +951,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     suggestion=(
                         f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}."
                     ),
-                    path=f"gateways.alf[{n}].smp_action",
+                    path=f"participants[{n}].smp_action",
                 )
             )
 
@@ -918,7 +966,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         f"Got '{enforce_mm}'."
                     ),
                     suggestion="Set to true or false.",
-                    path=f"gateways.alf[{n}].enforce_mm_obligation",
+                    path=f"participants[{n}].enforce_mm_obligation",
                 )
             )
 
@@ -935,8 +983,8 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             f"Gateway '{gw_id}': {field} must be a positive integer. "
                             f"Got '{val}'."
                         ),
-                        suggestion=f"Set gateways.alf[{n}].{field} to an integer > 0.",
-                        path=f"gateways.alf[{n}].{field}",
+                        suggestion=f"Set participants[{n}].{field} to an integer > 0.",
+                        path=f"participants[{n}].{field}",
                     )
                 )
 
@@ -950,7 +998,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         f"Gateway '{gw_id}': mm_obligations must be a mapping when present."
                     ),
                     suggestion="Use symbol keys under mm_obligations, each with a mapping value.",
-                    path=f"gateways.alf[{n}].mm_obligations",
+                    path=f"participants[{n}].mm_obligations",
                 )
             )
         elif isinstance(mm_obligations, dict):
@@ -965,7 +1013,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                 f"Gateway '{gw_id}': mm_obligations.{sym} must be a mapping."
                             ),
                             suggestion="Provide enforce_mm_obligation, max_spread_ticks, min_qty fields.",
-                            path=f"gateways.alf[{n}].mm_obligations.{sym}",
+                            path=f"participants[{n}].mm_obligations.{sym}",
                         )
                     )
                     continue
@@ -982,7 +1030,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             ),
                             suggestion="Set enforce_mm_obligation to true or false.",
                             path=(
-                                f"gateways.alf[{n}].mm_obligations.{sym}.enforce_mm_obligation"
+                                f"participants[{n}].mm_obligations.{sym}.enforce_mm_obligation"
                             ),
                         )
                     )
@@ -1001,7 +1049,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                     f"must be a positive integer. Got '{val}'."
                                 ),
                                 suggestion=f"Set {field} to an integer > 0.",
-                                path=f"gateways.alf[{n}].mm_obligations.{sym}.{field}",
+                                path=f"participants[{n}].mm_obligations.{sym}.{field}",
                             )
                         )
 
@@ -1013,14 +1061,14 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         code="S084",
                         severity=Severity.ERROR,
                         message=(
-                            "gateways.alf IDs must not be prefixes of each other "
+                            "participants IDs must not be prefixes of each other "
                             f"('{gw_a}', '{gw_b}')."
                         ),
                         suggestion=(
                             "Rename one of the gateway IDs so neither ID is a "
                             "prefix of another."
                         ),
-                        path=f"gateways.alf[{idx_a}].id",
+                        path=f"participants[{idx_a}].id",
                     )
                 )
 
@@ -1834,12 +1882,12 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
         )
 
     engine_tuning = raw.get("engine_tuning")
-    snapshot_path = "snapshot_interval_sec"
-    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
-        snapshot_interval = engine_tuning.get("snapshot_interval_sec")
-        snapshot_path = "engine_tuning.snapshot_interval_sec"
-    else:
-        snapshot_interval = raw.get("snapshot_interval_sec")
+    snapshot_path = "engine_tuning.snapshot_interval_sec"
+    snapshot_interval = (
+        engine_tuning.get("snapshot_interval_sec")
+        if isinstance(engine_tuning, dict)
+        else None
+    )
     if snapshot_interval is not None:
         try:
             snap = float(snapshot_interval)
@@ -2656,3 +2704,209 @@ def _check_log_server_lease_bounds(
                 path="log_server.max_lease_sec",
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Unknown keys in process blocks (S121)
+# ---------------------------------------------------------------------------
+# The runtime loaders ignore a key they do not read, so a misspelled option
+# silently falls back to its default. These sets are the keys each loader reads;
+# tests/test_cverifier.py pins them to the loaders' config dataclasses.
+
+_PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
+    "alf_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "handshake_timeout_sec",
+            "idle_timeout_sec",
+            "max_connections",
+            "max_client_queue",
+            "max_commands_per_second",
+            "max_errors_before_disconnect",
+            "error_window_sec",
+        }
+    ),
+    "balf_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "heartbeat_timeout_sec",
+            "idle_timeout_sec",
+            "auth_timeout_sec",
+            "max_connections",
+            "max_client_queue",
+            "max_messages_per_second",
+            "max_errors_before_disconnect",
+            "error_window_sec",
+            "duplicate_session_policy",
+        }
+    ),
+    "market_data_gateway": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "replay_window_sec",
+            "max_connections",
+            "max_messages_per_second",
+            "max_symbols_per_client",
+            "max_client_queue",
+            "depth_levels",
+        }
+    ),
+    "post_trade_gateway": frozenset(
+        {
+            "name",
+            "bind_address",
+            "port",
+            "replay_retention_sec",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "max_client_queue",
+            "allowed_roles",
+        }
+    ),
+    "dc_gateway": frozenset(
+        {
+            "name",
+            "bind_address",
+            "port",
+            "heartbeat_interval_sec",
+            "idle_timeout_sec",
+            "max_client_queue",
+        }
+    ),
+    "log_server": frozenset(
+        {
+            "enabled",
+            "name",
+            "bind_address",
+            "port",
+            "db_path",
+            "retention_days",
+            "max_message_bytes",
+            "max_client_queue",
+            "write_batch_size",
+            "write_batch_interval_ms",
+            "heartbeat_interval_sec",
+            "pubsub_enabled",
+            "pub_port",
+            "pull_port",
+            "lease_sec",
+            "max_lease_sec",
+            "max_subscribers",
+            "notify_interval_ms",
+            "backfill_chunk_rows",
+            "max_backfill_minutes",
+            "max_backfill_rows",
+            "max_pending_rows",
+            "pub_sndhwm",
+            "client",
+        }
+    ),
+}
+_LOG_CLIENT_KEYS = frozenset(
+    {"connect_timeout_sec", "failover_timeout_sec", "failover_dir"}
+)
+_API_INSTANCE_KEYS = frozenset(
+    {
+        "enabled",
+        "host",
+        "port",
+        "log_level",
+        "swagger_enabled",
+        "stats_db",
+        "audit_db",
+        "order_retention_sec",
+        "market_data_cache_sec",
+        "session_timezone",
+        "engine_pull_addr",
+        "engine_pub_addr",
+        "index_pull_addr",
+        "index_pub_addr",
+        "credentials",
+        "rate_limit",
+        "timeouts",
+    }
+)
+_API_RATE_LIMIT_KEYS = frozenset({"writes_per_second", "burst"})
+_API_TIMEOUT_KEYS = frozenset({"engine_auth_sec", "engine_reply_sec", "wait_ack_sec"})
+_API_CREDENTIAL_KEYS = frozenset({"api_key", "gateway_id", "description"})
+
+
+def _report_unknown_keys(
+    section: object,
+    allowed: frozenset[str],
+    path: str,
+    results: list[CheckResult],
+) -> None:
+    if not isinstance(section, dict):
+        return  # a non-mapping is reported by the section's own checks
+    for key in sorted(section, key=str):
+        if key in allowed:
+            continue
+        close = difflib.get_close_matches(str(key), sorted(allowed), n=1)
+        hint = f" Did you mean '{close[0]}'?" if close else ""
+        results.append(
+            CheckResult(
+                code="S121",
+                severity=Severity.ERROR,
+                message=f"'{path}.{key}' is not a recognised field.",
+                suggestion=(
+                    f"The loader ignores unknown keys, so this setting has no "
+                    f"effect.{hint} Accepted: {', '.join(sorted(allowed))}."
+                ),
+                path=f"{path}.{key}",
+            )
+        )
+
+
+def _check_unknown_process_keys(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S121 — a key that no process loader reads, in a gateway/service block."""
+    for block, allowed in _PROCESS_BLOCK_KEYS.items():
+        _report_unknown_keys(raw.get(block), allowed, block, results)
+
+    log_server = raw.get("log_server")
+    if isinstance(log_server, dict):
+        _report_unknown_keys(
+            log_server.get("client"), _LOG_CLIENT_KEYS, "log_server.client", results
+        )
+
+    instances = raw.get("api_gateways")
+    if not isinstance(instances, dict):
+        return
+    for name, instance in instances.items():
+        base = f"api_gateways.{name}"
+        _report_unknown_keys(instance, _API_INSTANCE_KEYS, base, results)
+        if not isinstance(instance, dict):
+            continue
+        _report_unknown_keys(
+            instance.get("rate_limit"),
+            _API_RATE_LIMIT_KEYS,
+            f"{base}.rate_limit",
+            results,
+        )
+        _report_unknown_keys(
+            instance.get("timeouts"), _API_TIMEOUT_KEYS, f"{base}.timeouts", results
+        )
+        credentials = instance.get("credentials")
+        if isinstance(credentials, list):
+            for index, credential in enumerate(credentials):
+                _report_unknown_keys(
+                    credential,
+                    _API_CREDENTIAL_KEYS,
+                    f"{base}.credentials[{index}]",
+                    results,
+                )

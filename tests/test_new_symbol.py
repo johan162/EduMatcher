@@ -98,8 +98,8 @@ def test_generated_quote_raises_no_verifier_warning(source: Path) -> None:
 
 def test_quote_uses_the_gateways_own_spread(source: Path, data_dir: Path) -> None:
     text = source.read_text(encoding="utf-8").replace(
-        "    description: Market maker\n",
-        "    description: Market maker\n    mm_max_spread_ticks: 7\n",
+        "  description: Market maker\n",
+        "  description: Market maker\n  mm_max_spread_ticks: 7\n",
     )
     source.write_text(text, encoding="utf-8")
     deploy(source, data_dir / "ref_data" / "engine_config.json")
@@ -274,7 +274,7 @@ def test_malformed_price_is_a_usage_error() -> None:
 
 # -- the text edit ---------------------------------------------------------------
 
-_GATEWAYS = "gateways:\n  alf:\n  - id: T1\n    role: TRADER\n"
+_GATEWAYS = "participants:\n  - id: T1\n    role: TRADER\n"
 
 
 @pytest.mark.parametrize(

@@ -142,9 +142,9 @@ export const gatewayMmObligationOverrideSchema = z.object({
 export const gatewayConfigSchema = z.object({
   id: z.string().min(1),
   role: z.enum(PARTICIPANT_ROLES),
-  disconnectBehaviour: z.enum(DISCONNECT_BEHAVIOURS),
+  disconnectBehaviour: z.enum(DISCONNECT_BEHAVIOURS).optional(),
   description: z.string().optional(),
-  smpAction: z.enum(SMP_ACTIONS),
+  smpAction: z.enum(SMP_ACTIONS).optional(),
   quoteRefreshPolicy: z.enum(QUOTE_REFRESH_POLICIES).optional(),
   enforceMmObligation: z.boolean().optional(),
   mmMaxSpreadTicks: z.number().int().positive().optional(),
@@ -152,6 +152,11 @@ export const gatewayConfigSchema = z.object({
   mmObligations: z
     .record(z.string(), gatewayMmObligationOverrideSchema)
     .optional(),
+});
+
+export const gatewayDefaultSchema = z.object({
+  smpAction: z.enum(SMP_ACTIONS).optional(),
+  disconnectBehaviour: z.enum(DISCONNECT_BEHAVIOURS).optional(),
 });
 
 export const riskLevelSchema = z.object({
@@ -320,6 +325,7 @@ export const engineConfigDraftSchema = z.object({
   symbols: z.record(z.string(), symbolConfigSchema),
   symbolOrder: z.array(z.string()),
   gateways: z.array(gatewayConfigSchema),
+  gatewayDefault: gatewayDefaultSchema,
   riskControls: z.object({
     globalStaticBandPct: z.number().gt(0).lt(1).optional(),
     globalDynamicBandPct: z.number().gt(0).lt(1).optional(),

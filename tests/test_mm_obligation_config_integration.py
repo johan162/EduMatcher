@@ -69,13 +69,12 @@ symbols:
         ask_price: 100.03
         bid_qty: 10
         ask_qty: 10
-gateways:
-  alf:
-    - id: GW01
-      role: MARKET_MAKER
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 5
-      mm_min_qty: 10
+participants:
+  - id: GW01
+    role: MARKET_MAKER
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 5
+    mm_min_qty: 10
 """
     engine_enabled, pub_enabled = _make_engine(monkeypatch, tmp_path, enabled_yaml)
     engine_enabled._handle_quote_new(
@@ -103,13 +102,12 @@ symbols:
         ask_price: 100.10
         bid_qty: 10
         ask_qty: 10
-gateways:
-  alf:
-    - id: GW01
-      role: MARKET_MAKER
-      enforce_mm_obligation: false
-      mm_max_spread_ticks: 5
-      mm_min_qty: 10
+participants:
+  - id: GW01
+    role: MARKET_MAKER
+    enforce_mm_obligation: false
+    mm_max_spread_ticks: 5
+    mm_min_qty: 10
 """
     engine_disabled, pub_disabled = _make_engine(monkeypatch, tmp_path, disabled_yaml)
     engine_disabled._handle_quote_new(
@@ -144,10 +142,9 @@ symbols:
         ask_price: 100.03
         bid_qty: 10
         ask_qty: 10
-gateways:
-  alf:
-    - id: GW01
-      role: MARKET_MAKER
+participants:
+  - id: GW01
+    role: MARKET_MAKER
 """
     engine, pub_sock = _make_engine(monkeypatch, tmp_path, yaml_text)
     engine._handle_quote_new(
@@ -188,16 +185,15 @@ symbols:
         ask_price: 100.03
         bid_qty: 10
         ask_qty: 10
-gateways:
-  alf:
-    - id: GW01
-      role: MARKET_MAKER
-      enforce_mm_obligation: false
-      mm_obligations:
-        AAPL:
-          enforce_mm_obligation: true
-          max_spread_ticks: 5
-          min_qty: 10
+participants:
+  - id: GW01
+    role: MARKET_MAKER
+    enforce_mm_obligation: false
+    mm_obligations:
+      AAPL:
+        enforce_mm_obligation: true
+        max_spread_ticks: 5
+        min_qty: 10
 """
     engine, pub_sock = _make_engine(monkeypatch, tmp_path, yaml_text)
     engine._handle_quote_new(

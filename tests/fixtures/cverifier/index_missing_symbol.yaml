@@ -4,12 +4,11 @@ symbols:
     last_buy_price: 150.00
     outstanding_shares: 1000000
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-    - id: OPS01
-      role: ADMIN
+participants:
+  - id: TRADER01
+    role: TRADER
+  - id: OPS01
+    role: ADMIN
 
 indices:
   - id: EDU100

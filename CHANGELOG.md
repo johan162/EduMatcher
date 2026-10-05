@@ -1,3 +1,40 @@
+## [v0.45.0] - 2026-10-05
+
+Release Type: major
+
+### 📋 Summary
+This release renames the participant list in `engine_config.yaml`, adds shared defaults for participant settings, and completes configuration support for the ALF gateway across the generator, verifier and Config GUI.
+
+### ⚠️ Breaking Changes
+- Renamed `gateways.alf` to the top-level `participants` list; existing `engine_config.yaml` files must be updated and example configurations were regenerated
+- Removed the top-level `snapshot_interval_sec` key; set `engine_tuning.snapshot_interval_sec` instead
+- Removed the bare top-level `enforce_mm_obligation` and the single-instance `api_gateway` forms from `pm-config-show`; use `mm_obligation_defaults` and `api_gateways`
+- Changed `pm-cverifier` to report an unrecognised key inside a gateway or service block as an error (`S121`), where it was previously ignored
+
+### ✨ Additions
+- Added a `gateway_defaults` block with `smp_action` and `disconnect_behaviour` that participants inherit unless they set their own
+- Added `--gateway-default-smp` and `--gateway-default-disconnect` to `pm-config-gen`, and a matching editor in the Config GUI
+- Added `--alf-*` options to `pm-config-gen` to generate the `alf_gateway` block for `pm-alf-gwy`, with the matching flag hints in the Config GUI
+- Added `pm-cverifier` checks `S118`–`S120` for `gateway_defaults` and `S121` for unknown keys, including a "did you mean" suggestion
+
+### 🚀 Improvements
+- Improved the commented default-fields block from `pm-config-gen` so it now covers `alf_gateway`, `balf_gateway` and the previously missing market-data, log-server and API gateway fields
+- Improved `pm-config-show` so participants show the disconnect behaviour they inherit from `gateway_defaults`
+
+### 🐛 Bug Fixes
+- Fixed `pm-alf-gwy` ignoring `alf_gateway.handshake_timeout_sec` and always using 10 seconds
+- Fixed a second connection under an already-connected gateway ID sharing one session, so that either disconnect could cancel the other's orders; the engine now refuses it
+
+### 📚 Documentation
+- Added a "Configuring `pm-alf-gwy`" section to the configuration chapter explaining each setting and how the connection limits, timeouts and rate limits interact
+- Defined the process spec types for every gateway block in the configuration specification and corrected port ranges and stale notes
+- Documented `gateway_defaults`, the new `--alf-*` options and the new verifier codes
+
+### 🛠 Internal
+- Added tests that keep the commented defaults block, the verifier's accepted keys and the runtime loaders in step
+- Added a regression test checking that `pm-alf-gwy` keeps every configured field
+- Regenerated the example reference configurations and shell completions
+
 ## [v0.44.0] - 2026-10-01
 
 Release Type: major

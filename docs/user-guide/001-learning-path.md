@@ -322,7 +322,7 @@ multi-process system, the alternative is processes disagreeing about the rules.
 # 1. Generate a starting point
 pm-config-gen \
     --symbols AAPL MSFT TSLA \
-    --gateways TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
+    --participants TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
     --seed-mm-mid-range 90:160 \
     --seed-last-prices-from-mm \
     --output engine_config.yaml

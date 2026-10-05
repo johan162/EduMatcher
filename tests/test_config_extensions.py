@@ -38,10 +38,9 @@ class TestCollarParsing:
                   AAPL:
                     tick_decimals: 2
                     last_buy_price: 150.00
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -61,10 +60,9 @@ class TestCollarParsing:
                     collar:
                       static_band_pct: 0.15
                       dynamic_band_pct: 0.03
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -86,10 +84,9 @@ class TestCollarParsing:
                     tick_decimals: 2
                     last_buy_price: 150.00
                     collar: {}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -112,10 +109,9 @@ class TestCollarParsing:
                         last_buy_price: 150.00
                         collar:
                           static_band_pct: 1.5
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -133,10 +129,9 @@ class TestCollarParsing:
                         tick_decimals: 2
                         last_buy_price: 150.00
                         collar: not_a_mapping
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -159,10 +154,9 @@ class TestCircuitBreakerParsing:
                   AAPL:
                     tick_decimals: 2
                     last_buy_price: 150.00
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -188,10 +182,9 @@ class TestCircuitBreakerParsing:
                         L2:
                           price_shift_pct: 0.13
                           halt_duration_ns: 900000000000
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -217,10 +210,9 @@ class TestCircuitBreakerParsing:
                     tick_decimals: 2
                     last_buy_price: 150.00
                     circuit_breaker: {}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -251,10 +243,9 @@ class TestCircuitBreakerParsing:
                             L1:
                               price_shift_pct: 2.0
                               halt_duration_ns: 300000000000
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -275,10 +266,9 @@ class TestCircuitBreakerParsing:
                           levels:
                             L1:
                               halt_duration_ns: 300000000000
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -296,10 +286,9 @@ class TestCircuitBreakerParsing:
                         tick_decimals: 2
                         last_buy_price: 150.00
                         circuit_breaker: bad
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -323,8 +312,7 @@ symbols:
         ask_price: 151.00
         bid_qty: 100
         ask_qty: 100
-gateways:
-  alf:
+participants:
     - id: MM01
       role: MARKET_MAKER
 """
@@ -394,10 +382,9 @@ class TestGlobalRiskControlLevels:
                   AAPL:
                     tick_decimals: 2
                     last_buy_price: 150.00
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -429,10 +416,9 @@ class TestGlobalRiskControlLevels:
                     tick_decimals: 2
                     level: L1
                     last_buy_price: 150.00
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -459,10 +445,9 @@ class TestGlobalRiskControlLevels:
                     last_buy_price: 150.00
                     collar:
                       dynamic_band_pct: 0.05
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -493,10 +478,9 @@ class TestGlobalRiskControlLevels:
                       levels:
                         L2:
                           halt_duration_ns: 600000000000
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -521,10 +505,9 @@ class TestGlobalRiskControlLevels:
                         tick_decimals: 2
                         last_buy_price: 150.00
                         level: L9
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -543,10 +526,9 @@ class TestGlobalRiskControlLevels:
                       AAPL:
                         tick_decimals: 2
                         last_buy_price: 150.00
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -565,10 +547,9 @@ class TestGlobalRiskControlLevels:
                       AAPL:
                         tick_decimals: 2
                         last_buy_price: 150.00
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -591,10 +572,9 @@ class TestGlobalRiskControlLevels:
                       AAPL:
                         tick_decimals: 2
                         last_buy_price: 150.00
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -622,10 +602,9 @@ class TestGlobalMMObligationPolicies:
                         ask_price: 151.00
                         bid_qty: 200
                         ask_qty: 200
-                gateways:
-                  alf:
-                    - id: MM01
-                      role: MARKET_MAKER
+                participants:
+                  - id: MM01
+                    role: MARKET_MAKER
                 """,
             )
         )
@@ -658,10 +637,9 @@ class TestGlobalMMObligationPolicies:
                         ask_price: 151.00
                         bid_qty: 220
                         ask_qty: 220
-                gateways:
-                  alf:
-                    - id: MM01
-                      role: MARKET_MAKER
+                participants:
+                  - id: MM01
+                    role: MARKET_MAKER
                 """,
             )
         )
@@ -685,16 +663,15 @@ class TestGlobalMMObligationPolicies:
                         ask_price: 151.00
                         bid_qty: 220
                         ask_qty: 220
-                gateways:
-                  alf:
-                    - id: MM01
-                      role: MARKET_MAKER
-                      enforce_mm_obligation: false
-                      mm_obligations:
-                        AAPL:
-                          enforce_mm_obligation: true
-                          max_spread_ticks: 5
-                          min_qty: 200
+                participants:
+                  - id: MM01
+                    role: MARKET_MAKER
+                    enforce_mm_obligation: false
+                    mm_obligations:
+                      AAPL:
+                        enforce_mm_obligation: true
+                        max_spread_ticks: 5
+                        min_qty: 200
                 """,
             )
         )
@@ -717,10 +694,9 @@ class TestGlobalMMObligationPolicies:
                       AAPL:
                         tick_decimals: 2
                         last_buy_price: 150.00
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     """,
                 )
             )
@@ -740,10 +716,9 @@ class TestCountryReachesTheEngineConfig:
                 country: Germany
                 symbols:
                   AAPL: {tick_decimals: 2}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -756,10 +731,9 @@ class TestCountryReachesTheEngineConfig:
                 """
                 symbols:
                   AAPL: {tick_decimals: 2}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -775,10 +749,9 @@ class TestCountryReachesTheEngineConfig:
                 country: "   "
                 symbols:
                   AAPL: {tick_decimals: 2}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 """,
             )
         )
@@ -799,10 +772,9 @@ class TestScheduleTimesAreCanonical:
                 """
                 symbols:
                   AAPL: {tick_decimals: 2}
-                gateways:
-                  alf:
-                    - id: TRADER01
-                      role: TRADER
+                participants:
+                  - id: TRADER01
+                    role: TRADER
                 schedule:
                   weekdays:
                     pre_open: "09:00"
@@ -831,10 +803,9 @@ class TestScheduleTimesAreCanonical:
                     """
                     symbols:
                       AAPL: {tick_decimals: 2}
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
+                    participants:
+                      - id: TRADER01
+                        role: TRADER
                     schedule:
                       weekdays:
                         pre_open: "not a time"

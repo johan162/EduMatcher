@@ -51,15 +51,15 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "sessions_enabled",
         "enforce_collars",
         "enforce_circuit_breakers",
-        "enforce_mm_obligation",
         "country",
-        "snapshot_interval_sec",
+        "auction_indicative_interval_sec",
         "engine_tuning",
         "mm_obligation_defaults",
         "require_mm_seed_quotes",
         "risk_controls",
         "circuit_breaker_defaults",
-        "gateways",
+        "participant_defaults",
+        "participants",
         "alf_gateway",
         "balf_gateway",
         "post_trade_gateway",
@@ -67,7 +67,6 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "dc_gateway",
         "log_server",
         "api_gateways",
-        "api_gateway",
         "symbols",
         "market_maker_combos",
         "indices",
@@ -227,14 +226,19 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
 # ---------------------------------------------------------------------------
 def _participants(raw: dict[str, Any]) -> tuple[Participant, ...]:
     out: list[Participant] = []
-    for entry in _as_list(_as_dict(raw.get("gateways")).get("alf")):
+    default_disconnect = _as_dict(raw.get("participant_defaults")).get(
+        "disconnect_behaviour"
+    )
+    for entry in _as_list(raw.get("participants")):
         if not isinstance(entry, dict):
             continue
         out.append(
             Participant(
                 gid=str(entry.get("id", "?")),
                 role=_as_str(entry.get("role"), "—"),
-                disconnect=_as_str(entry.get("disconnect_behaviour"), "—"),
+                disconnect=_as_str(
+                    entry.get("disconnect_behaviour", default_disconnect), "—"
+                ),
                 quote_policy=(
                     entry.get("quote_refresh_policy")
                     if isinstance(entry.get("quote_refresh_policy"), str)
@@ -248,8 +252,6 @@ def _participants(raw: dict[str, Any]) -> tuple[Participant, ...]:
 
 def _api_gateways(raw: dict[str, Any], roles: dict[str, str]) -> tuple[ApiGateway, ...]:
     sections = _as_dict(raw.get("api_gateways"))
-    if not sections and isinstance(raw.get("api_gateway"), dict):
-        sections = {"default": raw["api_gateway"]}  # legacy single-instance form
 
     out: list[ApiGateway] = []
     for name, section in sections.items():
@@ -434,11 +436,7 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             "sessions_enabled": raw.get("sessions_enabled"),
             "enforce_collars": raw.get("enforce_collars"),
             "enforce_circuit_breakers": raw.get("enforce_circuit_breakers"),
-            # The per-section flag wins; the bare top-level key is the legacy
-            # spelling and only applies when the section omits it.
-            "enforce_mm_obligation": mm_defaults.get(
-                "enforce_mm_obligation", raw.get("enforce_mm_obligation")
-            ),
+            "enforce_mm_obligation": mm_defaults.get("enforce_mm_obligation"),
             "require_mm_seed_quotes": raw.get("require_mm_seed_quotes"),
             "country": raw.get("country"),
         },

@@ -459,7 +459,7 @@ def build_participants(view: ConfigView, width: int, density: int) -> Renderable
         )
         table.add_row(*row)
 
-    return boxed("PARTICIPANTS  (gateways.alf)", table, width)
+    return boxed("PARTICIPANTS", table, width)
 
 
 # ---------------------------------------------------------------------------

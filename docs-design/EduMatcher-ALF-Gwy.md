@@ -759,7 +759,7 @@ If sending a response to a client raises `OSError`/`BrokenPipeError`:
 ### 12.1 Authentication
 
 - Every connection MUST authenticate via HELLO before any commands are accepted.
-- The gateway ID must exist in `engine_config.yaml` under `gateways.alf`.
+- The gateway ID must exist in `engine_config.yaml` under `participants`.
 - The engine's acceptance is authoritative (the gateway does not maintain its own
   allowlist).
 
@@ -890,7 +890,7 @@ flowchart LR
 
 `pm-alf-gwy` sits alongside the other gateway processes. It uses the same
 engine ZMQ interface. The gateway allowlist in `engine_config.yaml` applies
-uniformly — a gateway ID configured under `gateways.alf` is usable from any
+uniformly — a gateway ID configured under `participants` is usable from any
 of these gateway processes.
 
 ---

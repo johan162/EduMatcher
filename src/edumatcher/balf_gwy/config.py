@@ -2,9 +2,9 @@
 
 The gateway reads two sections from the engine config YAML:
 - ``balf_gateway`` — BALF-specific runtime settings (port, timeouts, etc.)
-- ``gateways.alf``  — gateway identity allowlist shared with ALF in v1.0.0
+- ``participants``  — gateway identity allowlist shared with ALF in v1.0.0
 
-Gateway identity and ``disconnect_behaviour`` come from ``gateways.alf``
+Gateway identity and ``disconnect_behaviour`` come from ``participants``
 to keep Phase-1 engine changes at zero.  See spec §12.
 """
 
@@ -44,7 +44,7 @@ class BalfGatewayConfig:
     error_window_sec: float = 60.0
     # Duplicate session policy: "REJECT_NEW" or "EVICT_OLD"
     duplicate_session_policy: str = "REJECT_NEW"
-    # Gateway roles from gateways.alf: tuple of (gateway_id, role)
+    # Gateway roles from participants: tuple of (gateway_id, role)
     gateway_roles: tuple[tuple[str, str], ...] = ()
 
 
@@ -75,23 +75,19 @@ def _as_float(raw: object, field: str) -> float:
 
 
 def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
-    """Read gateway identity + role list from ``gateways.alf``."""
-    gateways = raw.get("gateways") if isinstance(raw, dict) else None
-    if not isinstance(gateways, dict):
-        return ()
-
-    alf = gateways.get("alf")
-    if not isinstance(alf, list):
+    """Read gateway identity + role list from ``participants``."""
+    participants = raw.get("participants") if isinstance(raw, dict) else None
+    if not isinstance(participants, list):
         return ()
 
     parsed: list[tuple[str, str]] = []
-    for idx, item in enumerate(alf):
+    for idx, item in enumerate(participants):
         if not isinstance(item, dict):
-            raise ValueError(f"gateways.alf[{idx}] must be a mapping")
+            raise ValueError(f"participants[{idx}] must be a mapping")
         gw_id = str(item.get("id", "")).strip().upper()
         role = str(item.get("role", "TRADER")).strip().upper()
         if not gw_id:
-            raise ValueError(f"gateways.alf[{idx}].id must be a non-empty string")
+            raise ValueError(f"participants[{idx}].id must be a non-empty string")
         parsed.append((gw_id, role))
 
     # Prefix uniqueness guard (same rule as ALF gateway)
@@ -99,7 +95,7 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
         for other_idx, (other_id, _) in enumerate(parsed):
             if idx != other_idx and other_id.startswith(gw_id):
                 raise ValueError(
-                    "gateways.alf IDs must not be prefixes of each other "
+                    "participants IDs must not be prefixes of each other "
                     f"({gw_id!r}, {other_id!r})"
                 )
     return tuple(parsed)

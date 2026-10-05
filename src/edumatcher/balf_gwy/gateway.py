@@ -938,6 +938,9 @@ class BalfGateway:
         if not accepted:
             self._global_stats["auth_failures"] += 1
             session.auth_pending = False
+            # The engine refused this connect, so it holds no session for it;
+            # a disconnect sent on close would tear down the one that does.
+            session.connect_emitted = False
             self._queue_frame(
                 session,
                 build_logon_ack(

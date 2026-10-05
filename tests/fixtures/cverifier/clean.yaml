@@ -22,17 +22,16 @@ symbols:
         bid_qty: 100
         ask_qty: 100
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: MM01
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-    - id: OPS01
-      role: ADMIN
-      disconnect_behaviour: LEAVE_ALL
+participants:
+  - id: TRADER01
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: MM01
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+  - id: OPS01
+    role: ADMIN
+    disconnect_behaviour: LEAVE_ALL
 
 risk_controls:
   default_level: DEFAULT

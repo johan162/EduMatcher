@@ -782,7 +782,7 @@ initialization sequence in order (all steps must complete before any
    `system.gateway_auth.<GW_ID>`. Check `accepted` field: if `False`, log the
    `reason`, do **not** proceed to further steps, and exit with a clear
    configuration error. A `False` auth in strict mode means the gateway ID is
-   not in `gateways.alf` — retrying is futile without fixing the config.
+   not in `participants` — retrying is futile without fixing the config.
 2. **`system.symbols_request`** → `system.symbols.<GW_ID>`: seed the symbol
    universe and per-symbol `tick_size` and `prev_close` from `symbol_meta`.
    Without this, price rounding and auction pricing are undefined.
@@ -1534,26 +1534,25 @@ started.
 | Engine startup | Authentication behaviour |
 |---|---|
 | `pm-engine` (no `--config`) | **Backward-compat mode.** `_allowed_fix_gateways` is `None`; every gateway ID is accepted. No YAML config needed for bots. |
-| `pm-engine` (with a deployed config) | **Strict mode.** Every gateway ID must appear in `gateways.alf`. Any ID not listed is rejected: `order.new` receives `accepted=False` with reason `"Gateway not configured: <ID>"`. |
+| `pm-engine` (with a deployed config) | **Strict mode.** Every gateway ID must appear in `participants`. Any ID not listed is rejected: `order.new` receives `accepted=False` with reason `"Gateway not configured: <ID>"`. |
 
 #### Required YAML entry per bot (strict mode)
 
-Gateways are declared under the `gateways.alf` key (an array). Only `id` is
+Gateways are declared under the `participants` key (an array). Only `id` is
 mandatory; all other fields have defaults suitable for an AI trader:
 
 ```yaml
-gateways:
-  alf:
-    - id: AI01
-      description: "AI trading bot 1"   # optional; defaults to ""
-      role: TRADER                       # optional; TRADER is the default
+participants:
+  - id: AI01
+    description: "AI trading bot 1"   # optional; defaults to ""
+    role: TRADER                       # optional; TRADER is the default
 ```
 
 `role: TRADER` is the correct value for AI bots. `MARKET_MAKER` adds MM-
 obligation enforcement and quote-refresh semantics that the AI bot does not use.
 `ADMIN` grants administrative commands. Both are wrong for a bot gateway.
 
-> **Note.** The engine config parser requires `gateways.alf` to have **at least
+> **Note.** The engine config parser requires `participants` to have **at least
 > one entry** when a config file is loaded. An empty array causes a startup
 > `ValueError`.
 
@@ -1581,17 +1580,16 @@ symbols:
   - name: MSFT
     tick_decimals: 2
 
-gateways:
-  alf:
-    - id: AI01
-      description: "Trend-follower bot"
-      role: TRADER
-    - id: AI02
-      description: "Contrarian bot"
-      role: TRADER
-    - id: AI03
-      description: "Noise-trader bot"
-      role: TRADER
+participants:
+  - id: AI01
+    description: "Trend-follower bot"
+    role: TRADER
+  - id: AI02
+    description: "Contrarian bot"
+    role: TRADER
+  - id: AI03
+    description: "Noise-trader bot"
+    role: TRADER
 ```
 
 For a 50-bot swarm (`pm-ai-swarm --prefix AI --count 50`), all 50 IDs
@@ -1632,11 +1630,10 @@ the desired behaviour is `CANCEL_ALL` — all live orders are cancelled as soon
 as the gateway disconnects — so the book is left clean if a bot crashes:
 
 ```yaml
-gateways:
-  alf:
-    - id: AI01
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL    # cancel limit orders on disconnect
+participants:
+  - id: AI01
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL    # cancel limit orders on disconnect
 ```
 
 Leave the default (`CANCEL_QUOTES_ONLY`) if you intentionally want bot orders to
@@ -2065,7 +2062,7 @@ likely to break the bot silently:
 7. `system.position_snapshot.<GW>` returns a non-empty list after a fill has
    occurred; a fresh gateway returns an empty list.  The bot uses `net_qty`
    and `avg_cost` to seed its risk state (not zero) on reconnect.
-8. With a config-loaded engine, a bot ID **not** in `gateways.alf` receives
+8. With a config-loaded engine, a bot ID **not** in `participants` receives
    `accepted=False` on its first `order.new` and triggers the reject-breaker
    path cleanly — confirm the bot does not hang waiting for an ack that never
    arrives.

@@ -91,10 +91,9 @@ risk_controls:
   levels:
     CORE:
 {level}
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
+participants:
+  - id: TRADER01
+    role: TRADER
 """
 
 

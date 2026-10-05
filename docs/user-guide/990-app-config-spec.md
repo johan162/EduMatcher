@@ -54,7 +54,7 @@ Field tables and the schema tree (§3) use these type names:
 | `Pct01` | number | fraction in the **open** interval `(0, 1)` |
 | `Nanos` | integer | duration in nanoseconds; `> 0` (or `null` where noted) |
 | `Secs` | number | duration in seconds; `> 0` |
-| `Port` | integer | TCP port; `> 0` (BALF: `1..65535`) |
+| `Port` | integer | TCP port; `> 0`. The ALF, BALF, CALF, RALF and drop-copy gateway ports MUST also be `<= 65535` (§6) |
 | `HHMM` | string | wall-clock local time `"HH:MM"` |
 | `Country` | string | country name (e.g. `"Sweden"`) or ISO 3166-1 alpha-2 code (e.g. `"SE"`); MUST be a country recognised by the `python-holidays` package |
 | `Enum<E>` | string | one member of enum `E` (§2); **case-insensitive**, stored upper-case |
@@ -72,8 +72,10 @@ if optional, its absence leaves the feature disabled.
 
 Loaders are **permissive**: a key not defined in this specification is **ignored**
 and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. `pm-cverifier` MAY warn on them, and `pm-config-show --all` lists
-every unrecognised top-level key it finds — a mistyped section name is otherwise
+unknown keys. `pm-cverifier` reports an unrecognised key inside a gateway or
+service process block (§6) as an **error** (`S121`), because the loader's
+silent fallback to a default would otherwise hide the typo; it does not check
+top-level keys, which `pm-config-show --all` lists — a mistyped section name is otherwise
 indistinguishable from an absent one.
 
 ### 1.6 Case normalisation
@@ -87,14 +89,14 @@ load. Producers MAY write any case; consumers compare upper-case.
 
 | Enum | Members | Used by |
 |------|---------|---------|
-| `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `gateways.alf[].role` |
-| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `gateways.alf[].disconnect_behaviour` |
-| `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `gateways.alf[].quote_refresh_policy` |
+| `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `participants[].role` |
+| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `participants[].disconnect_behaviour`, `participant_defaults.disconnect_behaviour` |
+| `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `participants[].quote_refresh_policy` |
 | `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds |
 | `ComboType` | `AON` | `market_maker_combos[].combo_type` |
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
-| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action` |
+| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `participants[].smp_action`, `participant_defaults.smp_action` |
 | `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
 
 An `Enum<E>` value outside its member set MUST be rejected.
@@ -110,13 +112,12 @@ This tree is normative for *shape*; §4–§6 are normative for *field law*.
 ```text
 # ── ENGINE (read by pm-engine) ──────────────────────────────────────────────
 symbols:                    ! Map<Symbol, SymbolSpec>          # ≥0 entries; key required
-gateways:                   ! Map
-  alf:                      ! List<AlfGatewaySpec>             # ≥1 entry
+participants:               ! List<ParticipantSpec>            # ≥1 entry
+participant_defaults:       ? ParticipantDefaultsSpec          # values a participants entry inherits when it omits them
 sessions_enabled:           ? Bool = true
 enforce_collars:            ? Bool = true
 enforce_circuit_breakers:   ? Bool = true
 require_mm_seed_quotes:     ? Bool = true
-snapshot_interval_sec:      ? Float = 0.5     ∈ > 0            # overridden by engine_tuning.snapshot_interval_sec, if set
 auction_indicative_interval_sec: ? Float = 1.0  ∈ > 0
 engine_tuning:               ? EngineTuningSpec
 mm_obligation_defaults:     ? MMObligationDefaultsSpec
@@ -147,17 +148,151 @@ SymbolSpec:
   order_limits:             ? OrderLimitsSpec            # per-symbol override
   circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
 
-AlfGatewaySpec:                              # one entry of gateways.alf
+ParticipantSpec:                             # one entry of participants
   id:                       ! GatewayId
   description:              ? Str = ""
   role:                    ? Enum<Role> = TRADER
-  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = CANCEL_QUOTES_ONLY
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
   quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
   enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
   mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
   mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
-  smp_action:              ? Enum<SmpAction> = NONE
+  smp_action:              ? Enum<SmpAction> = <participant_defaults.smp_action | NONE>
+
+ParticipantDefaultsSpec:                     # top-level participant_defaults
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour>
+  smp_action:              ? Enum<SmpAction>
+
+# ── PROCESS SPECS (field law in §6) ─────────────────────────────────────────
+# bind_address / host: the EDUMATCHER_GATEWAY_BIND_HOST environment variable,
+# when set, overrides both the YAML value and the "0.0.0.0" default (§6).
+
+AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "alf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5565                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Int = 5                     ∈ > 0
+  handshake_timeout_sec:        ? Int = 10                    ∈ > 0
+  idle_timeout_sec:             ? Int = 30                    ∈ > 0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  max_commands_per_second:      ? Int = 100                   ∈ > 0
+  max_errors_before_disconnect: ? Int = 50                    ∈ > 0
+  error_window_sec:             ? Int = 60                    ∈ > 0
+
+BalfGwyProcSpec:                             # balf_gateway       (pm-balf-gwy)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "balf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5560                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Secs = 1.0
+  heartbeat_timeout_sec:        ? Secs = 5.0
+  idle_timeout_sec:             ? Secs = 30.0
+  auth_timeout_sec:             ? Secs = 10.0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  max_messages_per_second:      ? Int = 100                   ∈ > 0
+  max_errors_before_disconnect: ? Int = 10                    ∈ > 0
+  error_window_sec:             ? Secs = 60.0
+  duplicate_session_policy:     ? Enum<DuplicateSessionPolicy> = REJECT_NEW
+
+MdGwyProcSpec:                               # market_data_gateway (pm-md-gwy, CALF)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "md-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5570                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
+  idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  replay_window_sec:            ? Int = 30                    ∈ > 0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_messages_per_second:      ? Int = 200                   ∈ > 0
+  max_symbols_per_client:       ? Int = 200                   ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  depth_levels:                 ? Int = 10                    ∈ > 0
+
+RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, RALF); no `enabled`
+  name:                         ? Str = "ralf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5580                 ∈ 1..65535
+  replay_retention_sec:         ? Int = 86400                 ∈ > 0
+  heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
+  idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  allowed_roles:                ? List<Str> = [CLEARING, DROP_COPY, AUDIT]
+
+DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); no `enabled`
+  name:                         ? Str = "dc-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5590                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Secs = 5
+  idle_timeout_sec:             ? Secs = 30
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+
+ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
+  enabled:                      ? Bool = true
+  host:                         ? Str = "0.0.0.0"
+  port:                         ? Port = 8080
+  log_level:                    ? Str = "info"
+  swagger_enabled:              ? Bool = true
+  stats_db:                     ? Path = <data dir>/stats.db
+  audit_db:                     ? Path = <data dir>/audit_index.db
+  order_retention_sec:          ? Int = 3600                  ∈ >= 0
+  market_data_cache_sec:        ? Int = 60                    ∈ >= 0
+  session_timezone:             ? Str | null = null           ∈ IANA timezone name
+  engine_pull_addr:             ? Str = tcp://<engine host>:5555
+  engine_pub_addr:              ? Str = tcp://<engine host>:5556
+  index_pull_addr:              ? Str = tcp://<index bind host>:5559
+  index_pub_addr:               ? Str = tcp://<index bind host>:5558
+  credentials:                  ? List<ApiCredentialSpec> = []
+  rate_limit:                   ? RateLimitSpec
+  timeouts:                     ? TimeoutSpec
+
+ApiCredentialSpec:
+  api_key:                      ! Str                         # non-empty, unique within the instance
+  gateway_id:                   ? GatewayId | null = null     # null = read-only key
+  description:                  ? Str = ""
+
+RateLimitSpec:
+  writes_per_second:            ? Int = 10                    ∈ > 0
+  burst:                        ? Int = 20                    ∈ > 0
+
+TimeoutSpec:
+  engine_auth_sec:              ? Secs = 3.0
+  engine_reply_sec:             ? Secs = 3.0
+  wait_ack_sec:                 ? Secs = 3.0
+
+LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "log-srv01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5600
+  db_path:                      ? Path = <data dir>/log.db
+  retention_days:               ? Int | null = 30            ∈ >= 0; 0 ≡ null ≡ unbounded
+  max_message_bytes:            ? Int = 65536                 ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  write_batch_size:             ? Int = 50                    ∈ > 0
+  write_batch_interval_ms:      ? Int = 100                   ∈ > 0
+  heartbeat_interval_sec:       ? Int = 5                     ∈ > 0
+  pubsub_enabled:               ? Bool = true
+  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
+  pull_port:                    ? Port = 5602
+  lease_sec:                    ? Int = 30                    ∈ > 0
+  max_lease_sec:                ? Int = 300                   ∈ >= lease_sec
+  max_subscribers:              ? Int = 32                    ∈ > 0
+  notify_interval_ms:           ? Int = 250                   ∈ > 0
+  backfill_chunk_rows:          ? Int = 500                   ∈ > 0
+  max_backfill_minutes:         ? Int = 1440                  ∈ > 0
+  max_backfill_rows:            ? Int = 100000                ∈ > 0
+  max_pending_rows:             ? Int = 20000                 ∈ > 0
+  pub_sndhwm:                   ? Int = 10000                 ∈ > 0
+  client:                       ? LogClientSpec
+
+LogClientSpec:                               # log_server.client; read by every pm-* process
+  connect_timeout_sec:          ? Secs = 0.5
+  failover_timeout_sec:         ? Float = 30.0                ∈ >= 0
+  failover_dir:                 ? Path = <data dir>/logs
 ```
 
 ---
@@ -214,7 +349,7 @@ the collar's price bands already skip. Both caps are re-checked on `order.amend`
 against the amended quantity and price, so the control cannot be bypassed by
 entering small and amending up.
 
-### 4.4 `MMObligationSpec` — `gateways.alf[].mm_obligations.<S>`
+### 4.4 `MMObligationSpec` — `participants[].mm_obligations.<S>`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -241,7 +376,7 @@ entering small and amending up.
 | `quantity` | `Qty` | ✔ | — | |
 | `price` | `Price` | – | `null` | required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); on **this leg's** symbol's tick grid, which need not be the grid of the combo's other legs; positivity is **not** validated anywhere in code |
 | `stop_price` | `Price` | – | `null` | stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; on this leg's symbol's tick grid |
-| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `gateways.alf[].smp_action`, else `NONE` | |
+| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `participants[].smp_action`, else `NONE` | |
 
 ### 4.6 `IndexSpec` — `indices[]`
 
@@ -299,9 +434,9 @@ is a valid empty spec. Symbol fields: see the schema tree (§3, `SymbolSpec`);
 `market_maker_quotes` §4.1, `collar` §4.2, `order_limits` §4.3,
 `circuit_breaker` §5.6.
 
-### 5.2 `gateways.alf` (REQUIRED)
+### 5.2 `participants` (REQUIRED)
 
-`List<AlfGatewaySpec>` with **at least one** entry (§3, `AlfGatewaySpec`). Gateway
+`List<ParticipantSpec>` with **at least one** entry (§3, `ParticipantSpec`). Participant
 ids MUST be unique after upper-casing. This list is the participant allowlist and
 is **also** consumed by `pm-alf-gwy` and `pm-balf-gwy` for identity and role.
 
@@ -316,6 +451,27 @@ gateway's orders **when the order itself doesn't specify one**:
   `SMP=` from the client — including `SMP=NONE` — always takes precedence
   over this gateway default; only an *omitted* `SMP=` falls back to it.
 
+### 5.2a `participant_defaults` (OPTIONAL) — `ParticipantDefaultsSpec`
+
+A mapping of values that every `participants` entry **inherits when it omits the
+key**. It exists so a uniform policy (for example, `CANCEL_AGGRESSOR` on every
+gateway) is written once instead of on each entry.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `smp_action` | `Enum<SmpAction>` | – | `NONE` | inherited by an entry that omits `smp_action` |
+| `disconnect_behaviour` | `Enum<DisconnectBehaviour>` | – | `CANCEL_QUOTES_ONLY` | inherited by an entry that omits `disconnect_behaviour` |
+
+Resolution order for a gateway's effective value is: the entry's own key, then
+`participant_defaults`, then the built-in default. An explicit entry value always
+wins, including `smp_action: NONE` when the default is something else. The block
+applies to **every** role: a `participant_defaults.disconnect_behaviour` of
+`CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
+so entries that need a different behaviour MUST set it explicitly.
+
+Unlike most sections, an unrecognised key under `participant_defaults` is **rejected**
+(CV22) rather than ignored, so that a mistyped name is not silently dropped.
+
 ### 5.3 Engine behaviour flags
 
 | Field | Type | Req | Default | Constraints |
@@ -324,7 +480,6 @@ gateway's orders **when the order itself doesn't specify one**:
 | `enforce_collars` | `Bool` | – | `true` | global collar enforcement toggle |
 | `enforce_circuit_breakers` | `Bool` | – | `true` | global circuit-breaker enforcement toggle |
 | `require_mm_seed_quotes` | `Bool` | – | `true` | when `true`, CV3 applies; when `false`, a `MARKET_MAKER` gateway may exist with no `market_maker_quotes` entries, for a genuinely empty book at startup |
-| `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; per-symbol book snapshot throttle |
 
 > NOTE — `sessions_enabled` default: the engine loader applies `true` when the key
 > is omitted from a *present* file. (A completely absent config file runs
@@ -341,7 +496,7 @@ expected to need adjustment in normal use:
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
-| `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; when present, **overrides** the top-level `snapshot_interval_sec` (§5.3) |
+| `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; per-symbol book snapshot throttle |
 | `quote_history_maxlen` | `Int` | – | `30` | `> 0` |
 | `drop_copy_buffer_size` | `Int` | – | `10000` | `> 0` |
 | `recent_trades_maxlen` | `Int` | – | `20` | `> 0` |
@@ -356,7 +511,7 @@ expected to need adjustment in normal use:
 | `mm_min_qty` | `Qty` | – | `100` | `> 0` |
 | `symbols` | `Map<Symbol, {enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty}>` | – | `{}` | each key MUST exist in `symbols`; per-symbol fields default to the block-level values above |
 
-These values supply the defaults inherited by `gateways.alf[]` obligation fields.
+These values supply the defaults inherited by `participants[]` obligation fields.
 
 ### 5.5 `risk_controls` (OPTIONAL) — `RiskControlsSpec`
 
@@ -456,28 +611,41 @@ for the same bank-holiday lookup to decide which block of the resolved
 ## 6. Auxiliary gateway blocks
 
 Each block below is read **only** by its own process; `pm-engine` ignores them.
+The one exception is `log_server.client` (§6.7), which every `pm-*` process reads.
 See [Configuration → Which Process Reads What](010-configuration.md#which-process-reads-what).
+The named spec type of each block (`AlfGwyProcSpec`, …) is defined in the schema
+tree (§3); the tables below give the field law.
+
+`bind_address` (`host` for `api_gateways`) defaults to `"0.0.0.0"`. When the
+`EDUMATCHER_GATEWAY_BIND_HOST` environment variable is set it overrides both the
+YAML value and the default, for every block at once. The ZeroMQ addresses of
+the engine and index buses are not YAML-configurable, with the exception of the
+four `*_addr` fields of `ApiGwyProcSpec` (§6.5).
 
 ### 6.1 `alf_gateway` — `pm-alf-gwy`
+
+Spec type: `AlfGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `enabled` | `Bool` | – | `true` | |
 | `name` | `Str` | – | `"alf-gwy01"` | |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
-| `port` | `Port` | – | `5565` | `> 0` |
+| `port` | `Port` | – | `5565` | `1..65535` |
 | `heartbeat_interval_sec` | `Int` | – | `5` | `> 0` |
 | `handshake_timeout_sec` | `Int` | – | `10` | `> 0` |
-| `idle_timeout_sec` | `Int` | – | `30` | `> 0`; **KNOWN BUG** — only `30` when the `alf_gateway:` section is present; if the section is omitted entirely, the loader falls back to a dataclass default of `3600`. See the review notes in `docs-design/reviews/config-doc-review.md`. |
+| `idle_timeout_sec` | `Int` | – | `30` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `max_commands_per_second` | `Int` | – | `100` | `> 0` |
 | `max_errors_before_disconnect` | `Int` | – | `50` | `> 0` |
 | `error_window_sec` | `Int` | – | `60` | `> 0` |
 
-Also consumes `gateways.alf` for identity/role.
+Also consumes `participants` for identity/role.
 
 ### 6.2 `balf_gateway` — `pm-balf-gwy`
+
+Spec type: `BalfGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -487,7 +655,7 @@ Also consumes `gateways.alf` for identity/role.
 | `port` | `Port` | – | `5560` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `1.0` | `> 0` |
 | `heartbeat_timeout_sec` | `Secs` | – | `5.0` | `> 0` |
-| `idle_timeout_sec` | `Secs` | – | `30.0` | `> 0`; **KNOWN BUG** — only `30.0` when the `balf_gateway:` section is present; if the section is omitted entirely, the loader falls back to a dataclass default of `300.0`. See the review notes in `docs-design/reviews/config-doc-review.md`. |
+| `idle_timeout_sec` | `Secs` | – | `30.0` | `> 0` |
 | `auth_timeout_sec` | `Secs` | – | `10.0` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
@@ -496,16 +664,18 @@ Also consumes `gateways.alf` for identity/role.
 | `error_window_sec` | `Secs` | – | `60.0` | `> 0` |
 | `duplicate_session_policy` | `Enum<DuplicateSessionPolicy>` | – | `REJECT_NEW` | |
 
-Also consumes `gateways.alf` for identity, role, and `disconnect_behaviour`.
+Also consumes `participants` for identity, role, and `disconnect_behaviour`.
 
 ### 6.3 `market_data_gateway` — `pm-md-gwy` (CALF)
+
+Spec type: `MdGwyProcSpec`.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `enabled` | `Bool` | – | `true` | |
 | `name` | `Str` | – | `"md-gwy01"` | reported as `WELCOME\|GW=` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
-| `port` | `Port` | – | `5570` | `> 0` |
+| `port` | `Port` | – | `5570` | `1..65535` |
 | `heartbeat_interval_sec` | `Int` | – | `1` | `> 0`; advertised as `WELCOME\|HBINT=` |
 | `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
 | `replay_window_sec` | `Int` | – | `30` | `> 0`; advertised as `WELCOME\|REPLAY=` |
@@ -517,11 +687,13 @@ Also consumes `gateways.alf` for identity, role, and `disconnect_behaviour`.
 
 ### 6.4 `post_trade_gateway` — `pm-ralf-gwy` (RALF)
 
+Spec type: `RalfGwyProcSpec`.
+
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `name` | `Str` | – | `"ralf-gwy01"` | |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
-| `port` | `Port` | – | `5580` | `> 0` |
+| `port` | `Port` | – | `5580` | `1..65535` |
 | `replay_retention_sec` | `Int` | – | `86400` | `> 0` |
 | `heartbeat_interval_sec` | `Int` | – | `1` | `> 0` |
 | `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
@@ -533,8 +705,9 @@ This block has no `enabled` key.
 ### 6.5 `api_gateways` — `pm-api-gwy` (REST / WebSocket)
 
 `api_gateways` is a `Map<Str, ApiGwyProcSpec>` of **named instances** (the map key
-is the instance name). The singular key `api_gateway` is **NOT supported** and MUST
-be rejected.
+is the instance name, non-empty). The singular key `api_gateway` is **NOT supported** and MUST
+be rejected. `ApiCredentialSpec`, `RateLimitSpec` and `TimeoutSpec` are defined in the
+schema tree (§3).
 
 `ApiGwyProcSpec`:
 
@@ -549,6 +722,10 @@ be rejected.
 | `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}` uses it, and that endpoint returns 503 when the file is absent |
 | `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
 | `market_data_cache_sec` | `Int` | – | `60` | `>= 0`. TTL for cached market-data reads served by this instance |
+| `engine_pull_addr` | `Str` | – | `tcp://<engine host>:5555` | ZeroMQ endpoint the gateway sends orders to; `<engine host>` is `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`). Not validated; normally left unset |
+| `engine_pub_addr` | `Str` | – | `tcp://<engine host>:5556` | ZeroMQ endpoint of the engine event feed. Not validated; normally left unset |
+| `index_pull_addr` | `Str` | – | `tcp://<index bind host>:5559` | ZeroMQ endpoint of `pm-index` control; `<index bind host>` is `EDUMATCHER_INDEX_BIND_HOST` (default `127.0.0.1`). Not validated; normally left unset |
+| `index_pub_addr` | `Str` | – | `tcp://<index bind host>:5558` | ZeroMQ endpoint of the `pm-index` feed. Not validated; normally left unset |
 | `session_timezone` | `Str` | – | `null` | IANA timezone name (e.g. `"Europe/Stockholm"`) used to resolve which trading day a date-only query refers to; overrides the timezone recorded in the stats database. An unrecognised value is rejected. |
 | `credentials` | `List<ApiCredentialSpec>` | – | `[]` | api keys unique within instance |
 | `rate_limit` | `RateLimitSpec` | – | see below | |
@@ -568,11 +745,13 @@ be rejected.
 
 ### 6.6 `dc_gateway` — `pm-dc-gwy` (drop-copy TCP relay)
 
+Spec type: `DcGwyProcSpec`.
+
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
 | `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
-| `port` | `Port` | – | `5590` | `> 0` |
+| `port` | `Port` | – | `5590` | `1..65535` |
 | `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
 | `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
@@ -608,13 +787,23 @@ to point at a non-default engine address.
 | `max_backfill_rows` | `Int` | – | `100000` | `> 0`; hard cap on the rows returned by one backfill; the final chunk sets `truncated: true` when it bites |
 | `max_pending_rows` | `Int` | – | `20000` | `> 0`; per-subscription `STREAM` buffer cap — a subscriber that is alive but too slow loses its oldest buffered rows, reported back to it as `dropped` |
 | `pub_sndhwm` | `Int` | – | `10000` | `> 0`; ZeroMQ send high-water mark on the `PUB` socket |
+| `client` | `LogClientSpec` | – | see below | read by every `pm-*` process (not by `pm-log-srv`) to configure its `TcpLogHandler`; must be a mapping |
+
+`LogClientSpec` (`log_server.client`):
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `connect_timeout_sec` | `Secs` | – | `0.5` | `> 0`; TCP connect timeout for each attempt to reach the log server |
+| `failover_timeout_sec` | `Float` | – | `30.0` | `>= 0`; how long a process keeps retrying a dropped log-server connection before it switches, permanently for that process, to a local log file |
+| `failover_dir` | `Path` | – | resolved `<data dir>/logs` | directory for the local failover log files; `~` expanded |
 
 The `pubsub_*`/`pub_*`/`pull_*`/`lease_*`/`backfill_*` fields configure LALF-PS,
 described in full in [Centralized Log Server](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface).
 
-This block has no interaction with `gateways.alf` or any other engine section —
+This block has no interaction with `participants` or any other engine section —
 `pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
-not consume any engine-section fields. See [Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv)
+not consume any engine-section fields. The `client` sub-block is the only part
+read by other processes. See [Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv)
 for worked examples and [Centralized Log Server](280-log-srv.md) for the operational
 guide; the wire protocol it serves is normatively specified in the
 [LALF Protocol Reference](940-app-lalf-protocol.md).
@@ -628,8 +817,8 @@ rejected at load.
 
 | # | Rule |
 |---|------|
-| CV1 | `symbols` is present and a mapping; `gateways.alf` is present and a list with ≥ 1 entry. |
-| CV2 | `gateways.alf[].id` values are unique (after upper-casing). |
+| CV1 | `symbols` is present and a mapping; `participants` is present and a list with ≥ 1 entry. |
+| CV2 | `participants[].id` values are unique (after upper-casing). |
 | CV3 | If **any** gateway has `role: MARKET_MAKER`, then **every** symbol MUST define at least one `market_maker_quotes` entry, unless `require_mm_seed_quotes: false`. |
 | CV4 | Every `market_maker_quotes[].gateway_id` references a configured gateway whose role is `MARKET_MAKER`. |
 | CV5 | For each MM quote seed, `bid_price < ask_price` and `bid_qty, ask_qty > 0`. |
@@ -641,7 +830,7 @@ rejected at load.
 | CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
 | CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
 | CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
-| CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
+| CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `participants` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
 | CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
@@ -649,6 +838,7 @@ rejected at load.
 | CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
 | CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
+| CV22 | `participant_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
 
 ---
 
@@ -682,9 +872,8 @@ rejected at load.
 The smallest document that loads and supports trading (informative):
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
+participants:
+  - id: TRADER01
 symbols:
   AAPL:
     tick_decimals: 2

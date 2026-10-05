@@ -326,7 +326,7 @@ exactly one command, and exits.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--id` | *(required)* | Gateway ID used as the ack-routing key (mirrors `pm-admin-cli --id`). Does not need to be a `gateways.alf`-configured ID — see [§9](#9-security-and-authentication-considerations). |
+| `--id` | *(required)* | Gateway ID used as the ack-routing key (mirrors `pm-admin-cli --id`). Does not need to be a `participants`-configured ID — see [§9](#9-security-and-authentication-considerations). |
 | `--index-push` | `INDEX_PULL_CONNECT_ADDR` (`tcp://127.0.0.1:5559`) | Address of `pm-index`'s PULL socket. |
 | `--index-sub` | `INDEX_PUB_CONNECT_ADDR` (`tcp://127.0.0.1:5558`) | Address of `pm-index`'s PUB socket, for acks. |
 | `--timeout` | `3000` | Ack timeout in milliseconds. |
@@ -680,7 +680,7 @@ help text.
   `make_puller()`.
 - No allowlist — unlike the engine's PUSH/PULL socket (port 5555), which
   at least checks a `role: ADMIN` field against `engine_config.yaml`'s
-  `gateways.alf` list for halt/resume-style commands, `pm-index` performs
+  `participants` list for halt/resume-style commands, `pm-index` performs
   **no** check of `gateway_id` against any configured list at all. It only
   verifies the field is non-empty before proceeding.
 - The `gateway_id` field is used exclusively as an ack-routing key (which

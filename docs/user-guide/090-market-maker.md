@@ -40,16 +40,15 @@ A gateway must be assigned the `MARKET_MAKER` role in `engine_config.yaml`
 before the engine will accept quotes from it:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM01
-      description: Market maker
-      role: MARKET_MAKER
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
-      disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
-      mm_min_qty: 100                # minimum size on each side
+participants:
+  - id: MM01
+    description: Market maker
+    role: MARKET_MAKER
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
+    disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
+    mm_min_qty: 100                # minimum size on each side
 ```
 
 A `TRADER` gateway that tries to send a `QUOTE` command will receive a
@@ -262,12 +261,12 @@ highest:
 
 ```
 global mm_obligation_defaults (flat fields)
-  └── per-gateway defaults (gateways.alf[].mm_max_spread_ticks, ...)
+  └── per-gateway defaults (participants[].mm_max_spread_ticks, ...)
        └── per-symbol global policy (mm_obligation_defaults.symbols.<SYM>)
-            └── per-gateway per-symbol policy (gateways.alf[].mm_obligations.<SYM>)
+            └── per-gateway per-symbol policy (participants[].mm_obligations.<SYM>)
 ```
 
-A per-gateway per-symbol override (`gateways.alf[].mm_obligations.<SYM>`) wins
+A per-gateway per-symbol override (`participants[].mm_obligations.<SYM>`) wins
 over everything else; a global per-symbol override
 (`mm_obligation_defaults.symbols.<SYM>`) wins over a gateway's own flat
 defaults. This lets you enforce tight spreads on liquid symbols while being
@@ -287,14 +286,13 @@ mm_obligation_defaults:
   mm_max_spread_ticks: 20
   mm_min_qty: 50
 
-gateways:
-  alf:
-    - id: MM01
-      role: MARKET_MAKER
-      mm_obligations:
-        AAPL:
-          max_spread_ticks: 5    # tighter spread required on AAPL
-          min_qty: 200
+participants:
+  - id: MM01
+    role: MARKET_MAKER
+    mm_obligations:
+      AAPL:
+        max_spread_ticks: 5    # tighter spread required on AAPL
+        min_qty: 200
 ```
 
 ---
@@ -343,7 +341,7 @@ classroom or demo environment it is useful to have quotes already in the book
 price discovery can begin from a known starting point.
 
 !!! warning "`market_maker_quotes` is mandatory by default once any MARKET_MAKER gateway is configured"
-    Config loading enforces this by default: if `gateways.alf` contains
+    Config loading enforces this by default: if `participants` contains
     **any** gateway with `role: MARKET_MAKER` and the top-level
     `require_mm_seed_quotes` flag is left at its default (`true`), then
     **every** configured symbol must have at least one `market_maker_quotes`
@@ -588,19 +586,18 @@ ask to reflect the inventory consumed.
 ## Config reference summary
 
 ```yaml
-gateways:
-  alf:
-    - id: MM01
-      role: MARKET_MAKER
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE
-      disconnect_behaviour: CANCEL_QUOTES_ONLY        # or CANCEL_ALL / LEAVE_ALL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 10
-      mm_min_qty: 100
-      mm_obligations:              # per-symbol overrides (optional); note: no mm_ prefix here
-        TSLA:
-          max_spread_ticks: 20
-          min_qty: 50
+participants:
+  - id: MM01
+    role: MARKET_MAKER
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE
+    disconnect_behaviour: CANCEL_QUOTES_ONLY        # or CANCEL_ALL / LEAVE_ALL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 10
+    mm_min_qty: 100
+    mm_obligations:              # per-symbol overrides (optional); note: no mm_ prefix here
+      TSLA:
+        max_spread_ticks: 20
+        min_qty: 50
 ```
 
 
@@ -685,7 +682,7 @@ Automatic **sibling** cancellation depends on `quote_refresh_policy`:
 - `INACTIVATE_ON_FULL_FILL`: sibling leg is auto-cancelled only when the filled leg reaches `remaining_qty=0`
 - `NEVER_INACTIVATE`: no automatic sibling cancellation due to fills
 
-The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `gateways.alf[].quote_refresh_policy`.
+The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `participants[].quote_refresh_policy`.
 
 !!! note "This is about the sibling leg — not the leg that was actually hit"
     None of these three policies ever automatically cancels the *hit* leg's

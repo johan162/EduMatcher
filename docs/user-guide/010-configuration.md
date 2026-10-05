@@ -39,9 +39,10 @@ The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `post_trade_gateway`, `market_data_gateway`, `dc_gateway`,
-`log_server`, and `api_gateways` sections are read by `pm-ralf-gwy`,
-`pm-md-gwy`, `pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
+The optional `alf_gateway`, `balf_gateway`, `post_trade_gateway`,
+`market_data_gateway`, `dc_gateway`, `log_server`, and `api_gateways` sections
+are read by `pm-alf-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-md-gwy`,
+`pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -49,7 +50,7 @@ present, the parser requires two sections:
 
 - `symbols` - a mapping of accepted symbols; generated examples include a
   positive integer `outstanding_shares` field for each symbol
-- `gateways.alf` - a list with at least one accepted ALF gateway
+- `participants` - a list with at least one accepted ALF gateway
 
 The sample `engine_config.yaml` intentionally keeps the
 live configuration minimal and places the full parser-recognized shape in
@@ -61,15 +62,16 @@ comments. This page explains that shape in operational terms.
     [Configuration GUI (`config-gui`)](030-config-GUI.md) chapter. It targets the
     same file format as `pm-config-gen` described below.
 
-!!! note "`gateways.alf` is the only sub-key under `gateways:`"
-    The `gateways:` mapping only contains `alf`. BALF, CALF, DC, and the
-    centralized log server are configured via separate **top-level** keys
-    (`balf_gateway`, `market_data_gateway`, `dc_gateway`, and `log_server`)
-    and are read by their own processes, not by `pm-engine`.
+!!! note "`participants` lists identities, not gateway processes"
+    The top-level `participants:` list holds the *participant identities*
+    that may log in. The gateway **processes** themselves are
+    configured via separate **top-level** keys (`alf_gateway`, `balf_gateway`,
+    `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`, and
+    `api_gateways`) and are read by their own processes, not by `pm-engine`.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
-- **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). 
+- **ALF** — two parts. *Who may connect* is configured under `participants`; `pm-engine` uses it to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `participants`). *How the TCP gateway behaves* (port, timeouts, rate limits) is configured under the top-level `alf_gateway` key and read by `pm-alf-gwy`; see [Configuring `pm-alf-gwy`](#configuring-pm-alf-gwy).
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See [BALF Gateway](230-balf-gateway.md) for more usage and [BALF Protocol](910-app-balf-protocol.md) for the full specification.
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
@@ -171,7 +173,7 @@ Installed mode:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
@@ -183,7 +185,7 @@ Poetry/source mode:
 ```bash
 poetry run pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
@@ -195,7 +197,7 @@ Print to stdout only (no file write):
 ```bash
 pm-config-gen \
   --symbols AAPL \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --outstanding-shares AAPL:15400000000 \
   --dry-run
 ```
@@ -238,8 +240,10 @@ Required inputs:
 | Option                             | Type              | Description                               |
 |------------------------------------|-------------------|-------------------------------------------|
 | `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
-| `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
-| `--gateway-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `gateways.alf[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--gateways`; omitted gateways stay at `NONE`. See [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) |
+| `--participants GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
+| `--participant-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `participants[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--participants`; omitted gateways inherit `--participant-default-smp`, else `NONE`. `GW_ID:NONE` is written when it overrides a non-`NONE` default. See [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) |
+| `--participant-default-smp SMP_ACTION` | Choice            | Writes `participant_defaults.smp_action`, inherited by every gateway without its own `smp_action`. See [Participant Defaults](#participant-defaults) |
+| `--participant-default-disconnect DISCONNECT` | Choice     | Writes `participant_defaults.disconnect_behaviour` (`CANCEL_ALL`, `CANCEL_QUOTES_ONLY`, `LEAVE_ALL`). Gateways whose `--participants` spec does not name a disconnect behaviour inherit it instead of the per-role default; this includes `ADMIN` and `MARKET_MAKER` gateways. See [Participant Defaults](#participant-defaults) |
 
 Session and schedule options:
 
@@ -330,6 +334,24 @@ Market-data gateway options:
 | `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
 | `--market-data-depth-levels`                       | int (`> 0`) | `10`                        | `market_data_gateway.depth_levels`                          |
 
+ALF gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--alf-gateway` | Flag | off | Emit top-level `alf_gateway` block for `pm-alf-gwy`; any other `--alf-*` option also emits it |
+| `--alf-enabled` / `--alf-disabled` | Flag pair | enabled | `alf_gateway.enabled` |
+| `--alf-name` | string | `alf-gwy01` | `alf_gateway.name` |
+| `--alf-bind-address` | string | `0.0.0.0` | `alf_gateway.bind_address` |
+| `--alf-port` | int (`1..65535`) | `5565` | `alf_gateway.port` |
+| `--alf-heartbeat-interval-sec` | int (`> 0`) | `5` | `alf_gateway.heartbeat_interval_sec` |
+| `--alf-handshake-timeout-sec` | int (`> 0`) | `10` | `alf_gateway.handshake_timeout_sec` |
+| `--alf-idle-timeout-sec` | int (`> 0`) | `30` | `alf_gateway.idle_timeout_sec` |
+| `--alf-max-connections` | int (`> 0`) | `64` | `alf_gateway.max_connections` |
+| `--alf-max-client-queue` | int (`> 0`) | `10000` | `alf_gateway.max_client_queue` |
+| `--alf-max-commands-per-second` | int (`> 0`) | `100` | `alf_gateway.max_commands_per_second` |
+| `--alf-max-errors-before-disconnect` | int (`> 0`) | `50` | `alf_gateway.max_errors_before_disconnect` |
+| `--alf-error-window-sec` | int (`> 0`) | `60` | `alf_gateway.error_window_sec` |
+
 BALF gateway options:
 
 | Option | Type | Default | Description |
@@ -405,14 +427,14 @@ other's *defaults*, not only against explicitly-set values), and
 
 ```bash
 # Two log servers on one host — move the whole three-port block
-pm-config-gen --symbols AAPL --gateways GW01 \
+pm-config-gen --symbols AAPL --participants GW01 \
   --log-server-port 5700 --log-server-pub-port 5701 --log-server-pull-port 5702
 
 # Collect logs but publish nothing: no ZeroMQ socket is bound
-pm-config-gen --symbols AAPL --gateways GW01 --log-server-pubsub-disabled
+pm-config-gen --symbols AAPL --participants GW01 --log-server-pubsub-disabled
 
 # Reap dead viewers within 10 s, and cap concurrent viewers at 8
-pm-config-gen --symbols AAPL --gateways GW01 \
+pm-config-gen --symbols AAPL --participants GW01 \
   --log-server-lease-sec 10 --log-server-max-subscribers 8
 ```
 
@@ -430,7 +452,7 @@ API gateway options:
 | `--api-gateway-log-level LEVEL` | enum | `info` | `debug`, `info`, `warning`, or `error` |
 | `--api-gateway-stats-db PATH` | path | `data/stats.db` | SQLite database used by `/history/*` endpoints |
 | `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` | Repeatable | none | Add an explicit bearer-token credential; use `GATEWAY_ID=null` for read-only access |
-| `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys` | Flag pair | generated when emitted | Generate one key for each `gateways.alf` entry |
+| `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys` | Flag pair | generated when emitted | Generate one key for each `participants` entry |
 | `--api-gateway-readonly-key` | Flag | off | Generate an additional read-only key with `gateway_id: null` |
 | `--api-gateway-rate-limit-writes-per-second N` | int (`> 0`) | `10` | Per-key write rate limit |
 | `--api-gateway-rate-limit-burst N` | int (`> 0`) | `20` | Per-key write burst capacity |
@@ -474,7 +496,7 @@ the dashboard process one read-only credential:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 MM01:MARKET_MAKER OPS01:ADMIN \
+  --participants TRADER01 TRADER02 MM01:MARKET_MAKER OPS01:ADMIN \
   --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 \
   --api-gateway-instance dashboards::8081 \
   --api-gateway-readonly-key \
@@ -492,7 +514,7 @@ Typical CLI example for a local lab with RALF enabled:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --sessions-enabled \
   --post-trade-gateway \
   --post-trade-bind-address 127.0.0.1 \
@@ -512,7 +534,7 @@ block for `pm-ralf-gwy`. Use `127.0.0.1` for a single-host lab; switch to a
 controlled network bind such as `0.0.0.0` only when external clients must
 connect from other machines.
 
-### `--gateways` format
+### `--participants` format
 
 Each gateway token is:
 
@@ -551,7 +573,7 @@ Example:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 MM01:MARKET_MAKER \
+  --participants TRADER01 MM01:MARKET_MAKER \
   --symbol-opts AAPL:tick_decimals=2,level=L1,mm_spread_ticks=8 \
   --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,ace_initial_band=0.05 \
   --symbol-opts AAPL:enforce_mm_obligation=true
@@ -583,7 +605,7 @@ order-limit caps:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --symbol-static-band AAPL:0.18 \
   --symbol-dynamic-band AAPL:0.03 \
   --symbol-max-order-qty AAPL:50000 \
@@ -600,7 +622,7 @@ Per-symbol risk-level assignment can also use an explicit flag:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --risk-level CORE:0.18:0.02 \
   --risk-level HIGH_BETA:0.12:0.04 \
   --symbol-risk-level AAPL:CORE \
@@ -659,7 +681,7 @@ Minimal two-leg example:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --combo "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
   --output engine_config.yaml
 ```
@@ -693,7 +715,7 @@ Multiple combos use repeated `--combo` flags:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --combo "PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
   --combo "PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800" \
   --output engine_config.yaml
@@ -706,7 +728,7 @@ Minimal classroom config:
 ```bash
 pm-config-gen \
   --symbols AAPL \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --no-sessions-enabled \
   --output engine_config.yaml
@@ -717,7 +739,7 @@ Session-driven day with risk levels and CB ladder:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -733,7 +755,7 @@ Market-maker session with seeded startup quotes:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
+  --participants TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
@@ -758,7 +780,7 @@ Post-trade gateway config with explicit RALF listener settings:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --post-trade-gateway \
@@ -794,7 +816,7 @@ REST/WebSocket API gateway config with generated keys:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --api-gateway \
@@ -843,7 +865,7 @@ Explicit API-key config:
 ```bash
 pm-config-gen \
   --symbols AAPL \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --api-key trader-secret:TRADER01:"Desk app" \
   --api-key dashboard-secret:null:"Read-only dashboard" \
   --no-api-gateway-generate-keys \
@@ -851,7 +873,7 @@ pm-config-gen \
 ```
 
 `gateway_id` values in API credentials must either be `null` for read-only
-market-data access or match an ID from `gateways.alf`. Generated keys are plain
+market-data access or match an ID from `participants`. Generated keys are plain
 YAML bearer tokens for local labs and teaching setups; production deployments
 should manage secrets with the surrounding platform and terminate TLS in front
 of `pm-api-gwy`.
@@ -864,7 +886,7 @@ BALF gateway config with explicit settings:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 \
+  --participants TRADER01 TRADER02 \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --balf-gateway \
@@ -898,7 +920,7 @@ Index calculation config with `pm-index`:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -929,7 +951,7 @@ With multiple indices and custom settings:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -947,7 +969,7 @@ Startup combo seeds with two pairs:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -962,7 +984,7 @@ Custom circuit-breaker ladder in place of the built-in defaults:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --sessions-enabled \
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
   --output engine_config.yaml
@@ -973,7 +995,7 @@ Per-symbol reopening-auction band override while using global defaults for the c
 ```bash
 pm-config-gen \
   --symbols AAPL TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
   --symbol-opts TSLA:ace_initial_band=0.05 \
   --output engine_config.yaml
@@ -984,7 +1006,7 @@ Gateway description labels and per-symbol MM obligation override:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways \
+  --participants \
     "TRADER01:TRADER:CANCEL_ALL:Student desk 1" \
     "TRADER02:TRADER:CANCEL_ALL:Student desk 2" \
     "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker" \
@@ -1000,7 +1022,7 @@ pm-config-gen \
 
 This uses `enforce_mm_obligation=false` on MSFT to disable the check for that
 symbol only, while leaving it enabled globally. Gateway descriptions appear in
-the generated YAML as the `description` field on each `gateways.alf` entry.
+the generated YAML as the `description` field on each `participants` entry.
 
 
 ## Compile Configs with `pm-config-deploy`
@@ -1316,8 +1338,8 @@ The current parser recognizes these top-level keys:
 | Key                        | Required when file exists? | Used by                         | Purpose                                                                   |
 |----------------------------|---------------------------:|---------------------------------|---------------------------------------------------------------------------|
 | `symbols`                  |                        Yes | Engine                          | Accepted symbols and per-symbol settings                                  |
-| `gateways`                 |                        Yes | Engine                          | Gateway configuration container                                           |
-| `gateways.alf`             |                        Yes | Engine                          | Accepted ALF order-entry gateways                                         |
+| `participants`             |                        Yes | Engine                          | Participant identities allowed to connect, with per-participant settings |
+| `participant_defaults`     |                         No | Engine                          | Values a `participants` entry inherits when it omits them                 |
 | `alf_gateway`              |                         No | `pm-alf-gwy`                    | External ALF text TCP gateway settings                                    |
 | `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
 | `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
@@ -1354,9 +1376,9 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
-| `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
-| `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `participants`, `participant_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
+| `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
 | `pm-dc-gwy` | `dc_gwy/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
@@ -1381,6 +1403,111 @@ Two practical consequences follow from this split:
 - Each gateway process can be restarted independently with a changed config
   section (for example, bumping `market_data_gateway.depth_levels`) without
   restarting `pm-engine`, since the engine never reads that section.
+
+## Configuring `pm-alf-gwy`
+
+`pm-alf-gwy` is the TCP front door for the ALF text protocol. It reads an
+optional top-level `alf_gateway` block from the same `engine_config.yaml`. The
+block is not consumed by `pm-engine`; it only configures the gateway process
+itself. Who may log in, and with which role, is **not** set here: the gateway
+takes that from the `participants` list (see
+[Participants](#participants)). Omit the block entirely to run
+on the defaults shown below.
+
+Minimal example (every value shown is the default):
+
+```yaml
+alf_gateway:
+  enabled: true
+  name: alf-gwy01
+  bind_address: 0.0.0.0
+  port: 5565
+  heartbeat_interval_sec: 5
+  handshake_timeout_sec: 10
+  idle_timeout_sec: 30
+  max_connections: 64
+  max_client_queue: 10000
+  max_commands_per_second: 100
+  max_errors_before_disconnect: 50
+  error_window_sec: 60
+```
+
+### Fields
+
+| Field | Default | Rule | What it does |
+|-------|---------|------|--------------|
+| `enabled` | `true` | boolean | When `false`, `pm-alf-gwy` logs a warning and refuses to start |
+| `name` | `alf-gwy01` | string | Reported to every client as `GW=` in the `WELCOME` line |
+| `bind_address` | `0.0.0.0` | string | Interface the listener binds. Use `127.0.0.1` for loopback-only. The `EDUMATCHER_GATEWAY_BIND_HOST` environment variable overrides this value |
+| `port` | `5565` | `1..65535` | TCP port clients connect to |
+| `heartbeat_interval_sec` | `5` | integer `> 0` | How often the gateway sends `HB` to an authenticated client that has received nothing else in that time. Advertised as `HBINT=` in `WELCOME` |
+| `handshake_timeout_sec` | `10` | integer `> 0` | How long a new connection has to complete the `HELLO` login |
+| `idle_timeout_sec` | `30` | integer `> 0` | How long a client may stay silent before it is disconnected. Advertised as `IDLE=` in `WELCOME` |
+| `max_connections` | `64` | integer `> 0` | Cap on simultaneous client connections |
+| `max_client_queue` | `10000` | integer `> 0` | Cap on lines queued for one client that is not reading |
+| `max_commands_per_second` | `100` | integer `> 0` | Per-client command rate limit |
+| `max_errors_before_disconnect` | `50` | integer `> 0` | Number of protocol errors tolerated within `error_window_sec` |
+| `error_window_sec` | `60` | integer `> 0` | Length of the sliding window over which errors are counted |
+
+### How the settings work together
+
+A connection goes through these stages, and each setting acts at one of them.
+
+1. **Accept.** A new TCP connection is accepted unless `max_connections` clients
+   are already connected; in that case the socket is closed immediately and a
+   warning is logged. The client receives no `ERR` line, only a closed
+   connection.
+2. **Login.** The first message must be `HELLO`. If login is not complete within
+   `handshake_timeout_sec`, the gateway sends `ERR|CODE=AUTH_TIMEOUT` and closes
+   the connection. On success the client gets `WELCOME|PROTO=ALF1|GW=<name>|ID=<gateway id>|HBINT=<n>|IDLE=<n>`,
+   so a client can read the timers it must respect instead of hard-coding them.
+3. **Keep-alive.** Once logged in, the gateway sends `HB` whenever
+   `heartbeat_interval_sec` has passed without any other line going out to that
+   client. In the other direction, *any* bytes received from the client count as
+   activity; if nothing arrives for `idle_timeout_sec` the gateway sends
+   `ERR|CODE=IDLE_TIMEOUT` and closes. A client that is only watching and
+   sending nothing must therefore send a `PING` more often than the idle
+   timeout, so keep `idle_timeout_sec` comfortably above the interval at which
+   your clients ping.
+4. **Commands.** Each client has its own token bucket that holds up to
+   `max_commands_per_second` tokens and refills at that rate; every command
+   spends one token. A command arriving with the bucket empty is rejected with
+   `ERR|CODE=RATE_LIMITED` and is **not** forwarded to the engine; the
+   connection stays open. `PING`, `EXIT` and `QUIT` after login do not spend
+   tokens.
+5. **Errors.** Every `ERR` the gateway sends for a client's mistake (bad syntax,
+   unknown command, rejected request, `RATE_LIMITED`, and so on) is recorded with
+   a timestamp. Timestamps older than `error_window_sec` drop out. When
+   `max_errors_before_disconnect` errors are inside the window, the gateway sends
+   `ERR|CODE=MAX_ERRORS` and disconnects. A client that is rate-limited all the
+   time is therefore eventually disconnected; raise `max_commands_per_second`
+   or lower the client's send rate.
+6. **Slow consumers.** Lines for a client wait in an outbound queue until its
+   socket accepts them. If that queue reaches `max_client_queue` lines, the
+   queue is discarded, the gateway sends `ERR|CODE=SLOW_CLIENT` and closes the
+   connection, so one stuck client cannot consume the gateway's memory.
+
+Choosing values for a classroom: the defaults suit a few dozen desks. Raise
+`max_connections` if more clients connect, raise `max_commands_per_second` for
+bots that send quote refreshes in bursts, and lower `idle_timeout_sec` if you
+want abandoned sessions released quickly.
+
+### Overrides and generation
+
+- `pm-alf-gwy --bind ADDR` and `--port N` override `bind_address` and `port` for
+  one run; `--engine-host HOST` points the gateway at an engine on another
+  machine. The other fields can only be changed in the file.
+- Changing the block takes effect when `pm-alf-gwy` is restarted; `pm-engine`
+  does not need to be restarted, since it never reads this block.
+- `pm-config-gen` emits the block with `--alf-gateway` and the `--alf-*`
+  overrides listed under [ALF gateway options](#option-reference).
+- `pm-cverifier` validates every field above and reports an unrecognised key in
+  the block (`S121`), which would otherwise be ignored and leave the default in
+  force.
+
+See [ALF Gateway](220-alf-gateway.md) for operating the gateway and
+[ALF Protocol](900-app-alf-protocol.md) for the message formats.
+
 
 ## Configuring `pm-ralf-gwy`
 
@@ -1468,7 +1595,7 @@ If you prefer to generate this block instead of writing it by hand,
 `pm-engine`; it is consumed by the BALF binary TCP gateway process.
 
 Gateway identities and disconnect behaviour are read from the existing
-`gateways.alf` list — no separate credentials block is needed.
+`participants` list — no separate credentials block is needed.
 
 Minimal example:
 
@@ -1744,16 +1871,15 @@ symbols:
     last_buy_price: 209.50
     last_sell_price: 210.50
 
-gateways:
-  alf:
-    - id: TRADER01
-      description: Student workstation 1
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: TRADER02
-      description: Student workstation 2
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
+participants:
+  - id: TRADER01
+    description: Student workstation 1
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: TRADER02
+    description: Student workstation 2
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
 ```
 
 This config does not define a `MARKET_MAKER` gateway, so no
@@ -1799,20 +1925,19 @@ symbols:
     collar:
       dynamic_band_pct: 0.04
 
-gateways:
-  alf:
-    - id: TRADER01
-      description: Student workstation 1
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: TRADER02
-      description: Student workstation 2
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: OPS01
-      description: Instructor console
-      role: ADMIN
-      disconnect_behaviour: LEAVE_ALL
+participants:
+  - id: TRADER01
+    description: Student workstation 1
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: TRADER02
+    description: Student workstation 2
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: OPS01
+    description: Instructor console
+    role: ADMIN
+    disconnect_behaviour: LEAVE_ALL
 
 schedule:
   weekdays:
@@ -1888,45 +2013,44 @@ circuit_breaker_defaults:
       price_shift_pct: 0.20
       halt_duration_ns:
 
-gateways:
-  alf:
-    - id: TRADER01
-      description: Student workstation 1
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: TRADER02
-      description: Student workstation 2
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-    - id: MM01
-      description: Primary market maker
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 20
-      mm_min_qty: 100
-      mm_obligations:
-        AAPL:
-          enforce_mm_obligation: true
-          max_spread_ticks: 6
-          min_qty: 300
-        TSLA:
-          enforce_mm_obligation: true
-          max_spread_ticks: 50
-          min_qty: 50
-    - id: MM02
-      description: Backup market maker
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_FULL_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 30
-      mm_min_qty: 50
-    - id: OPS01
-      description: Instructor console
-      role: ADMIN
-      disconnect_behaviour: LEAVE_ALL
+participants:
+  - id: TRADER01
+    description: Student workstation 1
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: TRADER02
+    description: Student workstation 2
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+  - id: MM01
+    description: Primary market maker
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 20
+    mm_min_qty: 100
+    mm_obligations:
+      AAPL:
+        enforce_mm_obligation: true
+        max_spread_ticks: 6
+        min_qty: 300
+      TSLA:
+        enforce_mm_obligation: true
+        max_spread_ticks: 50
+        min_qty: 50
+  - id: MM02
+    description: Backup market maker
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_FULL_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 30
+    mm_min_qty: 50
+  - id: OPS01
+    description: Instructor console
+    role: ADMIN
+    disconnect_behaviour: LEAVE_ALL
 
 symbols:
   AAPL:
@@ -2043,7 +2167,7 @@ Use this checklist when creating a new engine configuration.
    `last_buy_price` / `last_sell_price` if viewers should start with references.
 
 3. Define ALF gateways.
-   Add every expected `pm-alf-console --id ...` under `gateways.alf`. Choose
+   Add every expected `pm-alf-console --id ...` under `participants`. Choose
    `TRADER`, `MARKET_MAKER`, or `ADMIN`, then choose disconnect behavior.
 
 4. Decide whether market makers exist.
@@ -2059,7 +2183,7 @@ Use this checklist when creating a new engine configuration.
 
 6. Add market-maker obligation policy if quote quality matters.
    Start with `mm_obligation_defaults`, override by symbol under
-   `mm_obligation_defaults.symbols`, and use `gateways.alf[*].mm_obligations`
+   `mm_obligation_defaults.symbols`, and use `participants[*].mm_obligations`
    only for gateway-specific exceptions.
 
 7. Add startup combos only after symbols are stable.
@@ -2218,37 +2342,79 @@ Rules:
 - defaults to `100` when omitted
 
 
-## ALF Gateway Allowlist
+## Participant Defaults
 
-Only gateway IDs listed under `gateways.alf` may connect and submit orders when
+The optional top-level `participant_defaults` block holds values that every
+`participants` entry **inherits when it omits the key**. Use it to state a
+uniform policy once instead of repeating it on each gateway.
+
+```yaml
+participant_defaults:
+  smp_action: CANCEL_AGGRESSOR
+  disconnect_behaviour: CANCEL_ALL
+
+participants:
+  - id: TRADER01             # inherits both defaults
+  - id: TRADER02
+    smp_action: NONE         # explicit: allows self-trades on this gateway
+  - id: OPS01
+    role: ADMIN
+    disconnect_behaviour: LEAVE_ALL
+```
+
+| Field                  | Required | Accepted values                                  | Default when omitted |
+|------------------------|---------:|--------------------------------------------------|----------------------|
+| `smp_action`           |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `NONE`               |
+| `disconnect_behaviour` |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`  | `CANCEL_QUOTES_ONLY` |
+
+Rules:
+
+- a gateway's effective value is its own key, then `participant_defaults`, then the
+  built-in default shown above
+- an explicit gateway value always wins, including `smp_action: NONE` when the
+  default is something else
+- the block applies to every role; a `disconnect_behaviour` default of
+  `CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
+  so give those entries their own value when they need a different behaviour
+- `participant_defaults` must be a mapping, values are case-insensitive, and any key
+  other than the two above is rejected at load (a mistyped name is not
+  silently ignored)
+- per-order `SMP=` still outranks both (see the `smp_action` note below)
+
+`pm-config-gen` writes the block with `--participant-default-smp` and
+`--participant-default-disconnect`, `pm-cverifier` checks it (`S118`–`S120`), and the
+config GUI edits it under **Basics → Participants**.
+
+## Participants
+
+Only gateway IDs listed under `participants` may connect and submit orders when
 a config file exists.
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: Student workstation 1
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
+participants:
+  - id: TRADER01
+    description: Student workstation 1
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
 ```
 
-### Gateway Fields
+### Participant Fields
 
 | Field                   | Required | Accepted values / type                                                  | Default                       |
 |-------------------------|---------:|-------------------------------------------------------------------------|-------------------------------|
 | `id`                    |      Yes | Non-empty string, uppercased by parser                                  | None                          |
 | `description`           |       No | String or null                                                          | Empty string                  |
 | `role`                  |       No | `TRADER`, `MARKET_MAKER`, `ADMIN`                                       | `TRADER`                      |
-| `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `CANCEL_QUOTES_ONLY`          |
+| `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `participant_defaults`, then `CANCEL_QUOTES_ONLY` |
 | `quote_refresh_policy`  |       No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL`      |
 | `enforce_mm_obligation` |       No | Boolean                                                                 | Global MM default             |
 | `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `10`  |
 | `mm_min_qty`            |       No | Positive integer                                                        | Global MM default, then `100` |
 | `mm_obligations`        |       No | Per-symbol mapping                                                      | Empty mapping                 |
-| `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `NONE`                        |
+| `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `participant_defaults`, then `NONE` |
 
 !!! note "`smp_action` is a fallback default, not an override"
-    `gateways.alf[].smp_action` is the self-match-prevention action the
+    `participants[].smp_action` is the self-match-prevention action the
     engine applies to this gateway's orders **when the order itself doesn't
     specify one**:
 
@@ -2262,10 +2428,10 @@ gateways:
       explicit `SMP=` — including `SMP=NONE`, a deliberate request to allow
       self-trades — that value is always honoured as-is. Only when the
       client omits `SMP=` entirely does the engine fall back to this
-      gateway's `smp_action`, and finally to `NONE` if the gateway has none
-      configured.
+      gateway's `smp_action` (or the inherited `participant_defaults.smp_action`),
+      and finally to `NONE` if neither is configured.
 
-    In short: an explicit per-order `SMP=` always wins; `gateways.alf[].smp_action`
+    In short: an explicit per-order `SMP=` always wins; `participants[].smp_action`
     only fills the gap when the client didn't say anything.
 
 Nested `mm_obligations.<SYMBOL>` entries support these fields:
@@ -2279,15 +2445,14 @@ Nested `mm_obligations.<SYMBOL>` entries support these fields:
 Inside `mm_obligations`, use this shape:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM01
-      role: MARKET_MAKER
-      mm_obligations:
-        AAPL:
-          enforce_mm_obligation: true
-          max_spread_ticks: 6
-          min_qty: 300
+participants:
+  - id: MM01
+    role: MARKET_MAKER
+    mm_obligations:
+      AAPL:
+        enforce_mm_obligation: true
+        max_spread_ticks: 6
+        min_qty: 300
 ```
 
 Use `max_spread_ticks` and `min_qty` inside `mm_obligations`; do not use the
@@ -2342,7 +2507,7 @@ Defaults and validation:
 
 The effective policy is resolved from most specific to least specific:
 
-1. `gateways.alf[*].mm_obligations.<SYMBOL>`
+1. `participants[*].mm_obligations.<SYMBOL>`
 2. `mm_obligation_defaults.symbols.<SYMBOL>`
 3. Gateway flat fields
 4. `mm_obligation_defaults` flat fields
@@ -2394,7 +2559,7 @@ simply left inactive when omitted. Two fields become mandatory, but only under
 specific conditions:
 
 - **`market_maker_quotes`** — becomes mandatory (must be a non-empty list) for
-  *every* symbol as soon as any `gateways.alf` entry has `role: MARKET_MAKER`,
+  *every* symbol as soon as any `participants` entry has `role: MARKET_MAKER`,
   unless the top-level `require_mm_seed_quotes` is explicitly set to `false`
   (default `true`). With `require_mm_seed_quotes: false`, a `MARKET_MAKER`
   gateway may exist with no `market_maker_quotes` entries at all. If no
@@ -2490,7 +2655,7 @@ Or generate the same structure from CLI:
 ```bash
 pm-config-gen \
   --symbols AAPL TSLA \
-  --gateways TRADER01 \
+  --participants TRADER01 \
   --risk-level CORE:0.18:0.02 \
   --risk-level HIGH_BETA:0.12:0.04 \
   --symbol-risk-level AAPL:CORE \
@@ -2719,7 +2884,7 @@ Leg fields:
 | `quantity`   |         Yes | Integer quantity                                                                  |
 | `price`      | Conditional | Display price for priced order types, on the leg symbol's tick grid               |
 | `stop_price` | Conditional | Display stop price for stop order types, on the leg symbol's tick grid            |
-| `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; if omitted, falls back to the seeding gateway's `gateways.alf[].smp_action` (§below), then `NONE` |
+| `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; if omitted, falls back to the seeding gateway's `participants[].smp_action` (§below), then `NONE` |
 
 Combo leg values are passed to `ComboLeg.from_dict()`, so these are the only leg
 fields used by current config parsing. Unlike quote seeds, combo legs do not
@@ -2879,7 +3044,7 @@ ValueError: Engine config must have a 'symbols' mapping
 ```
 
 ```text
-ValueError: gateways.alf[0].disconnect_behaviour is invalid
+ValueError: participants[0].disconnect_behaviour is invalid
 ```
 
 For installed (pipx) users who do not have access to the `poetry run` environment,
@@ -2921,8 +3086,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | Field                      | Type    | Required | Default                                               | Allowed values / range | Constraint                               |
 |----------------------------|---------|---------:|-------------------------------------------------------|------------------------|------------------------------------------|
 | `symbols`                  | mapping |      Yes | —                                                     | —                      | Must contain at least one entry          |
-| `gateways`                 | mapping |      Yes | —                                                     | —                      | Must contain key `alf`                   |
-| `gateways.alf`             | list    |      Yes | —                                                     | —                      | Non-empty list of gateway mappings       |
+| `participants`             | list    |      Yes | —                                                     | —                      | Non-empty list of participant mappings   |
 | `sessions_enabled`         | bool    |       No | `true` when file exists, `false` in unrestricted mode | `true`, `false`        | Must be a YAML boolean                   |
 | `enforce_collars`          | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
 | `enforce_circuit_breakers` | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
@@ -2936,6 +3100,14 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `country`                  | str     |       No | `"Sweden"`                                            | Any non-empty string   | Used for the scheduler's holiday calendar; an unrecognized value falls back to the default (see `M026` in [Config Verifier](020-config-verifier.md)) |
 | `indices`                  | list    |       No | `[]`                                                  | —                      | At most 5 entries; see [Configuring `pm-index`](#configuring-pm-index) for the per-index field reference |
 | `auction_indicative_interval_sec` | float | No | `1.0`                                            | Any number             | Must be `> 0`                            |
+| `participant_defaults`     | mapping |       No | —                                                     | `smp_action`, `disconnect_behaviour` | Inherited by `participants` entries that omit them; see [Participant Defaults](#participant-defaults) |
+| `alf_gateway`              | mapping |       No | —                                                     | —                      | `pm-alf-gwy` settings; see [Configuring `pm-alf-gwy`](#configuring-pm-alf-gwy) |
+| `balf_gateway`             | mapping |       No | —                                                     | —                      | `pm-balf-gwy` settings; see [Configuring `pm-balf-gwy`](#configuring-pm-balf-gwy) |
+| `market_data_gateway`      | mapping |       No | —                                                     | —                      | `pm-md-gwy` settings; see [Configuring `pm-md-gwy`](#configuring-pm-md-gwy) |
+| `post_trade_gateway`       | mapping |       No | —                                                     | —                      | `pm-ralf-gwy` settings; see [Configuring `pm-ralf-gwy`](#configuring-pm-ralf-gwy) |
+| `dc_gateway`               | mapping |       No | —                                                     | —                      | `pm-dc-gwy` settings; see [Drop-Copy Gateway](201-dc-gateway.md) |
+| `log_server`               | mapping |       No | —                                                     | —                      | `pm-log-srv` settings; see [Configuring `pm-log-srv`](#configuring-pm-log-srv) |
+| `api_gateways`             | mapping |       No | —                                                     | —                      | Named `pm-api-gwy` instances; see [Configuring `pm-api-gwy`](#configuring-pm-api-gwy) |
 
 ### `engine_tuning` fields
 
@@ -2949,7 +3121,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 
 ---
 
-### `gateways.alf[]` — gateway entry fields
+### `participants[]` — gateway entry fields
 
 | Field                   | Type        | Required | Default                                                           | Allowed values / range                                                  | Constraint                                 |
 |-------------------------|-------------|---------:|-------------------------------------------------------------------|-------------------------------------------------------------------------|--------------------------------------------|
@@ -2964,7 +3136,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `mm_obligations`        | mapping     |       No | `{}`                                                              | Mapping of symbol → obligation entry                                    | Symbol keys are uppercased                 |
 | `smp_action`            | Enum        |       No | `NONE`                                                            | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | Case-insensitive; fallback default used when an order (`NEW`, combo, or `QUOTE`) doesn't specify its own `SMP=` |
 
-### `gateways.alf[].mm_obligations.<SYMBOL>` fields
+### `participants[].mm_obligations.<SYMBOL>` fields
 
 | Field                   | Type | Required | Default                         | Allowed values / range | Constraint             |
 |-------------------------|------|---------:|---------------------------------|------------------------|------------------------|
@@ -3116,7 +3288,7 @@ symbol has no breaker):
 | `quantity` | int | Yes | — | Positive integer | — |
 | `price` | float | Conditional | `null` | Display price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` (not enforced for `IOC`); must be a multiple of the leg symbol's tick size |
 | `stop_price` | float | Optional | `null` | Display price | Not currently validated as required for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; must be a multiple of the leg symbol's tick size |
-| `smp_action` | Enum | No | Seeding gateway's `gateways.alf[].smp_action`, else `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
+| `smp_action` | Enum | No | Seeding gateway's `participants[].smp_action`, else `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
 
 !!! note "Combo leg prices use the leg symbol's scale"
     The legs of one combo trade different instruments, which need not share a

@@ -439,6 +439,43 @@ class EngineConfig:
         return frozenset(self.fix_gateways)
 
 
+def _parse_gateway_default(
+    node: object,
+) -> tuple[DisconnectBehaviour, SmpAction]:
+    """Resolve the top-level ``participant_defaults`` block.
+
+    Returns the (disconnect_behaviour, smp_action) a ``participants`` entry
+    inherits when it omits the key; absent keys fall back to the built-ins.
+    """
+    disconnect = DisconnectBehaviour.CANCEL_QUOTES_ONLY
+    smp = SmpAction.NONE
+    if node is None:
+        return disconnect, smp
+    if not isinstance(node, dict):
+        raise ValueError("Engine config 'participant_defaults' must be a mapping")
+    unknown = set(node) - {"disconnect_behaviour", "smp_action"}
+    if unknown:
+        raise ValueError(
+            "Engine config 'participant_defaults' has unknown field(s): "
+            f"{', '.join(sorted(str(k) for k in unknown))}"
+        )
+    if "disconnect_behaviour" in node:
+        try:
+            disconnect = DisconnectBehaviour(str(node["disconnect_behaviour"]).upper())
+        except ValueError as exc:
+            raise ValueError(
+                "Engine config 'participant_defaults.disconnect_behaviour' is invalid"
+            ) from exc
+    if "smp_action" in node:
+        try:
+            smp = SmpAction(str(node["smp_action"]).upper())
+        except ValueError as exc:
+            raise ValueError(
+                "Engine config 'participant_defaults.smp_action' is invalid"
+            ) from exc
+    return disconnect, smp
+
+
 def load_engine_config(path: Path) -> EngineConfig:
     """
     Parse *path* as YAML and return an EngineConfig.
@@ -461,16 +498,17 @@ def load_engine_config(path: Path) -> EngineConfig:
     if not isinstance(symbols_raw, dict):
         raise ValueError("Engine config must have a 'symbols' mapping")
 
-    gateways_raw = raw.get("gateways")
-    if not isinstance(gateways_raw, dict):
-        raise ValueError("Engine config must have a 'gateways' mapping")
-    alf_raw = gateways_raw.get("alf")
-    if not isinstance(alf_raw, list):
-        raise ValueError("Engine config must have a 'gateways.alf' list")
+    participants_raw = raw.get("participants")
+    if not isinstance(participants_raw, list):
+        raise ValueError("Engine config must have a 'participants' list")
 
     cb_defaults_raw = raw.get("circuit_breaker_defaults")
     if cb_defaults_raw is not None and not isinstance(cb_defaults_raw, dict):
         raise ValueError("Engine config 'circuit_breaker_defaults' must be a mapping")
+
+    default_disconnect, default_smp = _parse_gateway_default(
+        raw.get("participant_defaults")
+    )
 
     mm_global_raw = raw.get("mm_obligation_defaults")
     mm_global_policy = MMObligationPolicy()
@@ -1220,25 +1258,22 @@ def load_engine_config(path: Path) -> EngineConfig:
         )
 
     fix_gateways: dict[str, FixGatewayConfig] = {}
-    for i, item in enumerate(alf_raw):
+    for i, item in enumerate(participants_raw):
         if not isinstance(item, dict):
-            raise ValueError(f"gateways.alf[{i}] must be a mapping")
+            raise ValueError(f"participants[{i}] must be a mapping")
         gw_id_raw = item.get("id")
         if not isinstance(gw_id_raw, str) or not gw_id_raw.strip():
-            raise ValueError(f"gateways.alf[{i}].id must be a non-empty string")
+            raise ValueError(f"participants[{i}].id must be a non-empty string")
         gw_id = gw_id_raw.strip().upper()
         desc = item.get("description", "")
         if desc is None:
             desc = ""
         if not isinstance(desc, str):
-            raise ValueError(f"gateways.alf[{i}].description must be a string")
+            raise ValueError(f"participants[{i}].description must be a string")
 
         role_raw = str(item.get("role", ParticipantRole.TRADER.value)).upper()
         disconnect_raw = str(
-            item.get(
-                "disconnect_behaviour",
-                DisconnectBehaviour.CANCEL_QUOTES_ONLY.value,
-            )
+            item.get("disconnect_behaviour", default_disconnect.value)
         ).upper()
         refresh_raw = str(
             item.get(
@@ -1246,13 +1281,13 @@ def load_engine_config(path: Path) -> EngineConfig:
                 QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
             )
         ).upper()
-        smp_action_raw = str(item.get("smp_action", SmpAction.NONE.value)).upper()
+        smp_action_raw = str(item.get("smp_action", default_smp.value)).upper()
         enforce_mm_obligation = item.get(
             "enforce_mm_obligation", mm_global_policy.enforce_mm_obligation
         )
         if not isinstance(enforce_mm_obligation, bool):
             raise ValueError(
-                f"gateways.alf[{i}].enforce_mm_obligation must be a boolean"
+                f"participants[{i}].enforce_mm_obligation must be a boolean"
             )
 
         mm_max_spread_ticks_raw = item.get(
@@ -1263,61 +1298,61 @@ def load_engine_config(path: Path) -> EngineConfig:
             mm_max_spread_ticks = int(mm_max_spread_ticks_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"gateways.alf[{i}].mm_max_spread_ticks must be an integer"
+                f"participants[{i}].mm_max_spread_ticks must be an integer"
             ) from exc
         try:
             mm_min_qty = int(mm_min_qty_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"gateways.alf[{i}].mm_min_qty must be an integer"
+                f"participants[{i}].mm_min_qty must be an integer"
             ) from exc
         if mm_max_spread_ticks <= 0:
-            raise ValueError(f"gateways.alf[{i}].mm_max_spread_ticks must be > 0")
+            raise ValueError(f"participants[{i}].mm_max_spread_ticks must be > 0")
         if mm_min_qty <= 0:
-            raise ValueError(f"gateways.alf[{i}].mm_min_qty must be > 0")
+            raise ValueError(f"participants[{i}].mm_min_qty must be > 0")
 
         try:
             role = ParticipantRole(role_raw)
         except ValueError as exc:
-            raise ValueError(f"gateways.alf[{i}].role is invalid") from exc
+            raise ValueError(f"participants[{i}].role is invalid") from exc
 
         try:
             disconnect_behaviour = DisconnectBehaviour(disconnect_raw)
         except ValueError as exc:
             raise ValueError(
-                f"gateways.alf[{i}].disconnect_behaviour is invalid"
+                f"participants[{i}].disconnect_behaviour is invalid"
             ) from exc
 
         try:
             quote_refresh_policy = QuoteRefreshPolicy(refresh_raw)
         except ValueError as exc:
             raise ValueError(
-                f"gateways.alf[{i}].quote_refresh_policy is invalid"
+                f"participants[{i}].quote_refresh_policy is invalid"
             ) from exc
 
         try:
             smp_action = SmpAction(smp_action_raw)
         except ValueError as exc:
-            raise ValueError(f"gateways.alf[{i}].smp_action is invalid") from exc
+            raise ValueError(f"participants[{i}].smp_action is invalid") from exc
 
         # --- Optional per-symbol mm_obligations mapping -----------------------
         mm_obligations: dict[str, MarketMakerObligation] = {}
         mm_obligation_policies: dict[str, MMObligationPolicy] = {}
         mm_obligations_raw = item.get("mm_obligations") or {}
         if not isinstance(mm_obligations_raw, dict):
-            raise ValueError(f"gateways.alf[{i}].mm_obligations must be a mapping")
+            raise ValueError(f"participants[{i}].mm_obligations must be a mapping")
         for obl_sym, obl_raw in mm_obligations_raw.items():
             obl_sym = str(obl_sym).upper()
             if not isinstance(obl_raw, dict):
                 raise ValueError(
-                    f"gateways.alf[{i}].mm_obligations.{obl_sym} must be a mapping"
+                    f"participants[{i}].mm_obligations.{obl_sym} must be a mapping"
                 )
             obl_enforce_raw = obl_raw.get(
                 "enforce_mm_obligation", enforce_mm_obligation
             )
             if not isinstance(obl_enforce_raw, bool):
                 raise ValueError(
-                    f"gateways.alf[{i}].mm_obligations.{obl_sym}.enforce_mm_obligation must be a boolean"
+                    f"participants[{i}].mm_obligations.{obl_sym}.enforce_mm_obligation must be a boolean"
                 )
             obl_max_raw = obl_raw.get("max_spread_ticks", mm_max_spread_ticks)
             obl_min_raw = obl_raw.get("min_qty", mm_min_qty)
@@ -1335,11 +1370,11 @@ def load_engine_config(path: Path) -> EngineConfig:
                 )
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"gateways.alf[{i}].mm_obligations.{obl_sym} is invalid"
+                    f"participants[{i}].mm_obligations.{obl_sym} is invalid"
                 ) from exc
 
         if gw_id in fix_gateways:
-            raise ValueError(f"Duplicate gateway id in gateways.alf: {gw_id}")
+            raise ValueError(f"Duplicate participant id in participants: {gw_id}")
         fix_gateways[gw_id] = FixGatewayConfig(
             id=gw_id,
             description=desc,
@@ -1355,7 +1390,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         )
 
     if not fix_gateways:
-        raise ValueError("Engine config must define at least one gateways.alf entry")
+        raise ValueError("Engine config must define at least one participants entry")
 
     mm_gateway_ids = {
         gw_id
@@ -1402,8 +1437,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         raise ValueError("Engine config 'engine_tuning' must be a mapping")
 
     snapshot_interval_raw = engine_tuning_raw.get(
-        "snapshot_interval_sec",
-        raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC),
+        "snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC
     )
     if snapshot_interval_raw is None:
         raise ValueError("Engine config 'snapshot_interval_sec' must be numeric")

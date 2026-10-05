@@ -89,7 +89,8 @@ const gatewayIdRules: Rule = (draft) => {
     out.push({
       id: "no-gateways",
       severity: "error",
-      message: "At least one ALF gateway is required (gateways.alf must not be empty).",
+      message:
+        "At least one participant is required (participants must not be empty).",
       fieldPaths: ["gateways"],
       tab: "basics",
     });
@@ -308,6 +309,7 @@ const seedFromMmWithoutRange: Rule = (draft) =>
 const SECTION_TABS: Record<string, string> = {
   symbols: "symbols",
   gateways: "basics",
+  gatewayDefault: "basics",
   country: "basics",
   tickDecimals: "symbols",
   riskControls: "risk",

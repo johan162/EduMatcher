@@ -61,7 +61,7 @@ flowchart TB
 | Best for | Python scripts, operators, simple bots | Latency-sensitive algos, C/Rust/C++ clients |
 
 !!! info "Same engine semantics"
-    BALF and ALF both authenticate against the same `gateways.alf` allowlist
+    BALF and ALF both authenticate against the same `participants` allowlist
     and translate into the identical engine ZMQ/JSON messages. The engine sees
     no difference between an ALF order and a BALF order.
 
@@ -83,7 +83,7 @@ For external market-data consumers, use `pm-md-gwy` (CALF) or `pm-api-gwy`.
 
 - `pm-engine` running and accessible.
 - Gateway IDs that will connect must be present in `engine_config.yaml`
-  under `gateways.alf` (BALF `1.0.0` reuses the ALF allowlist).
+  under `participants` (BALF `1.0.0` reuses the ALF allowlist).
 - Optional: add a `balf_gateway:` section to customise port and limits.
 
 
@@ -110,8 +110,8 @@ balf_gateway:
 ```
 
 The gateway reads gateway roles and disconnect behaviour from the existing
-`gateways.alf` list — no separate credentials block is needed.  Any gateway ID
-listed in `gateways.alf` can connect to `pm-balf-gwy`.
+`participants` list — no separate credentials block is needed.  Any gateway ID
+listed in `participants` can connect to `pm-balf-gwy`.
 
 | Field | Default | Description |
 |-------|---------|-------------|
@@ -274,7 +274,7 @@ sequenceDiagram
 
 The **first frame** must be a `LOGON` (msg_type `0x01`, 32 bytes total):
 
-- `gateway_id`: 16-byte zero-padded ASCII, matching an entry in `gateways.alf`
+- `gateway_id`: 16-byte zero-padded ASCII, matching an entry in `participants`
 - `proto_version`: must be `1`
 - reserved bytes: must be zero
 
@@ -544,7 +544,7 @@ A `AMEND_ACK` may arrive because:
 
 On every disconnect trigger the gateway sends `system.gateway_disconnect` to
 the engine.  The engine applies the `disconnect_behaviour` configured for that
-gateway identity in `gateways.alf`:
+gateway identity in `participants`:
 
 | `disconnect_behaviour` | Engine action |
 |---|---|
@@ -827,7 +827,7 @@ EOF
 |---------|--------------|-----|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-balf-gwy` is running; check `balf_gateway.port` |
 | Connection accepted but LOGON_ACK never arrives | Engine not running or ZMQ link lost | Start `pm-engine`; check gateway logs |
-| `LOGON_ACK accepted=0, code=0x01` | Gateway ID not in `gateways.alf` | Add the ID under `gateways.alf` and restart engine |
+| `LOGON_ACK accepted=0, code=0x01` | Gateway ID not in `participants` | Add the ID under `participants` and restart engine |
 | `LOGON_ACK accepted=0, code=0x02` | Same gateway ID already connected | Disconnect the other session, or use `duplicate_session_policy: EVICT_OLD` |
 | `LOGON_ACK accepted=0, code=0x03` | `proto_version` byte is not `1` | Fix the LOGON frame builder |
 | Connection closes ~5 s after last message | `heartbeat_timeout_sec` elapsed | Send `HEARTBEAT` frames and reply to server `HEARTBEAT` with `HEARTBEAT_ACK` |
@@ -844,7 +844,7 @@ EOF
 - [ALF TCP Gateway](220-alf-gateway.md) — text-protocol alternative for
   Python/any-language clients where binary parsing is not required
 - [Configuration](010-configuration.md) — `balf_gateway:` section and
-  `gateways.alf` allowlist
+  `participants` allowlist
 - [Processes](170-processes.md) — process topology and ZMQ message tables
 - [External Protocols Overview](210-protocols-overview.md) — protocol comparison
   and selection guide

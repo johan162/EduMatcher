@@ -53,10 +53,9 @@ symbols:
         ask_price: 1.2346
         bid_qty: 100
         ask_qty: 100
-gateways:
-  alf:
-    - id: MM01
-      role: MARKET_MAKER
+participants:
+  - id: MM01
+    role: MARKET_MAKER
 market_maker_combos:
   - combo_id: PAIR1
     legs:

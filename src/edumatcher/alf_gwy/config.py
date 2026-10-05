@@ -50,22 +50,18 @@ def _as_int(raw: object, field: str) -> int:
 
 
 def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
-    gateways = raw.get("gateways") if isinstance(raw, dict) else None
-    if not isinstance(gateways, dict):
-        return ()
-
-    alf = gateways.get("alf")
-    if not isinstance(alf, list):
+    participants = raw.get("participants") if isinstance(raw, dict) else None
+    if not isinstance(participants, list):
         return ()
 
     parsed: list[tuple[str, str]] = []
-    for idx, item in enumerate(alf):
+    for idx, item in enumerate(participants):
         if not isinstance(item, dict):
-            raise ValueError(f"gateways.alf[{idx}] must be a mapping")
+            raise ValueError(f"participants[{idx}] must be a mapping")
         gw_id = str(item.get("id", "")).strip().upper()
         role = str(item.get("role", "TRADER")).strip().upper()
         if not gw_id:
-            raise ValueError(f"gateways.alf[{idx}].id must be a non-empty string")
+            raise ValueError(f"participants[{idx}].id must be a non-empty string")
         parsed.append((gw_id, role))
 
     for idx, (gw_id, _role) in enumerate(parsed):
@@ -74,7 +70,7 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
                 continue
             if other_id.startswith(gw_id):
                 raise ValueError(
-                    "gateways.alf IDs must not be prefixes of each other "
+                    "participants IDs must not be prefixes of each other "
                     f"({gw_id!r}, {other_id!r})"
                 )
     return tuple(parsed)

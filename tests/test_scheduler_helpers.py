@@ -23,7 +23,7 @@ def _deploy(tmp_path: Path) -> Path:
     source = tmp_path / "authored.yaml"
     source.write_text(
         "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-        "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+        "participants: [{id: TRADER01, role: TRADER}]\n"
     )
     dest = tmp_path / "engine_config.json"
     deploy(source, dest)

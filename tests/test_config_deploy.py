@@ -38,16 +38,15 @@ VALID = """
 symbols:
   AAPL: {tick_decimals: 2, last_buy_price: 150.0}
   MSFT: {tick_decimals: 2, last_buy_price: 400.0}
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-    - id: OPS01
-      role: ADMIN
+participants:
+  - id: TRADER01
+    role: TRADER
+  - id: OPS01
+    role: ADMIN
 """
 
 # `symbols` must be a mapping; a sequence is rejected by the schema layer.
-INVALID = "symbols: [not a mapping]\ngateways: {alf: []}\n"
+INVALID = "symbols: [not a mapping]\nparticipants: []\n"
 
 
 def _source(tmp_path: Path, text: str = VALID, name: str = "authored.yaml") -> Path:

@@ -261,7 +261,7 @@ def test_quote_obligation_not_enforced_when_disabled(monkeypatch, tmp_path) -> N
 
 
 def test_quote_legs_inherit_gateway_smp_action(monkeypatch, tmp_path) -> None:
-    """gateways.alf[].smp_action should be attached to both bid and ask legs
+    """participants[].smp_action should be attached to both bid and ask legs
     a QUOTE produces, not just left at the SmpAction.NONE default."""
     engine, _ = _make_engine(
         monkeypatch,
@@ -316,7 +316,7 @@ def test_quote_smp_action_defaults_to_none_when_unconfigured(
 
 
 def test_quote_smp_cancel_resting_prevents_self_match(monkeypatch, tmp_path) -> None:
-    """With gateways.alf[].smp_action=CANCEL_RESTING, a quote leg that would
+    """With participants[].smp_action=CANCEL_RESTING, a quote leg that would
     otherwise cross a stale same-gateway resting order cancels that resting
     order instead of self-trading against it."""
     engine, pub_sock = _make_engine(

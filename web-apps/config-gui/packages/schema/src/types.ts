@@ -220,7 +220,7 @@ export interface SymbolConfig {
 
 /**
  * Per-symbol market-maker obligation override for a single gateway
- * (`gateways.alf[*].mm_obligations.<SYM>`). Note the engine uses the nested
+ * (`participants[*].mm_obligations.<SYM>`). Note the engine uses the nested
  * keys `max_spread_ticks` / `min_qty` here (no `mm_` prefix), unlike the flat
  * gateway/global fields. Undefined fields inherit the gateway's flat values.
  */
@@ -233,13 +233,18 @@ export interface GatewayMmObligationOverride {
 export interface GatewayConfig {
   id: string;
   role: ParticipantRole;
-  disconnectBehaviour: DisconnectBehaviour;
+  /**
+   * Undefined = the key is omitted and the gateway inherits
+   * `gatewayDefault.disconnectBehaviour` (else the engine's CANCEL_QUOTES_ONLY).
+   */
+  disconnectBehaviour?: DisconnectBehaviour;
   description?: string;
   /**
    * SMP action applied to this gateway's orders when the order itself does
-   * not carry one. NONE (the engine default) is omitted from the output.
+   * not carry one. Undefined inherits `gatewayDefault.smpAction` (else NONE).
+   * An explicit NONE is not the same: it overrides a non-NONE default.
    */
-  smpAction: SmpAction;
+  smpAction?: SmpAction;
   /**
    * When quotes are inactivated after a fill. Only meaningful for MARKET_MAKER
    * gateways; omitted from output for other roles. Undefined = engine/GUI
@@ -255,6 +260,15 @@ export interface GatewayConfig {
   mmMinQty?: number;
   /** Per-symbol obligation overrides for this gateway, keyed by symbol. */
   mmObligations?: Record<string, GatewayMmObligationOverride>;
+}
+
+/**
+ * The top-level `participant_defaults` block: values a `participants` entry
+ * inherits when it omits the key. An undefined key is not written.
+ */
+export interface GatewayDefaultConfig {
+  smpAction?: SmpAction;
+  disconnectBehaviour?: DisconnectBehaviour;
 }
 
 /**
@@ -485,6 +499,8 @@ export interface EngineConfigDraft {
   /** Preserves symbol insertion order for stable output. */
   symbolOrder: string[];
   gateways: GatewayConfig[];
+  /** Written as `participant_defaults` when any key is set. */
+  gatewayDefault: GatewayDefaultConfig;
 
   riskControls: {
     /** DEFAULT level derived from global static/dynamic band, if set. */

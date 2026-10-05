@@ -57,21 +57,21 @@ function AlfPanel() {
 
   return (
     <div>
-      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write alf_gateway section" hasEnabledKey />
+      <IncludeRow include={g.include} onToggle={(v) => set((gw) => (gw.include = v))} label="Write alf_gateway section" flag="--alf-gateway" hasEnabledKey />
       {g.include && (
         <>
           <EnabledRow enabled={g.enabled} onToggle={(v) => set((gw) => (gw.enabled = v))} label="pm-alf-gwy enabled" />
-          <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name of this ALF text gateway instance." }} />
-          <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the ALF TCP gateway listens on. Use 127.0.0.1 for loopback-only." }} />
-          <NumField label="Port" path="alfGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port ALF clients connect to." }} />
-          <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between heartbeats." }} />
-          <NumField label="Handshake timeout (sec)" value={g.handshakeTimeoutSec} onChange={(v) => set((gw) => (gw.handshakeTimeoutSec = v ?? gw.handshakeTimeoutSec))} help={{ text: "How long a new connection has to complete the LOGIN handshake." }} />
-          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds." }} />
-          <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous ALF client connections." }} />
-          <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound buffer capacity before the client is treated as slow." }} />
-          <NumField label="Max commands/sec" value={g.maxCommandsPerSecond} onChange={(v) => set((gw) => (gw.maxCommandsPerSecond = v ?? gw.maxCommandsPerSecond))} help={{ text: "Per-client inbound command rate limit." }} />
-          <NumField label="Max errors before disconnect" value={g.maxErrorsBeforeDisconnect} onChange={(v) => set((gw) => (gw.maxErrorsBeforeDisconnect = v ?? gw.maxErrorsBeforeDisconnect))} help={{ text: "Protocol errors allowed within the error window before disconnect." }} />
-          <NumField label="Error window (sec)" value={g.errorWindowSec} onChange={(v) => set((gw) => (gw.errorWindowSec = v ?? gw.errorWindowSec))} help={{ text: "Rolling window over which protocol errors are counted." }} />
+          <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} help={{ text: "Service name of this ALF text gateway instance.", cliFlag: "--alf-name" }} />
+          <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} help={{ text: "Network interface the ALF TCP gateway listens on. Use 127.0.0.1 for loopback-only.", cliFlag: "--alf-bind-address" }} />
+          <NumField label="Port" path="alfGateway.port" value={g.port} onChange={(v) => set((gw) => (gw.port = v ?? gw.port))} help={{ text: "TCP port ALF clients connect to.", cliFlag: "--alf-port" }} />
+          <NumField label="Heartbeat interval (sec)" value={g.heartbeatIntervalSec} onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))} help={{ text: "Seconds between heartbeats.", cliFlag: "--alf-heartbeat-interval-sec" }} />
+          <NumField label="Handshake timeout (sec)" value={g.handshakeTimeoutSec} onChange={(v) => set((gw) => (gw.handshakeTimeoutSec = v ?? gw.handshakeTimeoutSec))} help={{ text: "How long a new connection has to complete the LOGIN handshake.", cliFlag: "--alf-handshake-timeout-sec" }} />
+          <NumField label="Idle timeout (sec)" value={g.idleTimeoutSec} onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))} help={{ text: "Disconnect threshold when a connected client sends no traffic for this many seconds.", cliFlag: "--alf-idle-timeout-sec" }} />
+          <NumField label="Max connections" value={g.maxConnections} onChange={(v) => set((gw) => (gw.maxConnections = v ?? gw.maxConnections))} help={{ text: "Maximum number of simultaneous ALF client connections.", cliFlag: "--alf-max-connections" }} />
+          <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} help={{ text: "Per-client outbound buffer capacity before the client is treated as slow.", cliFlag: "--alf-max-client-queue" }} />
+          <NumField label="Max commands/sec" value={g.maxCommandsPerSecond} onChange={(v) => set((gw) => (gw.maxCommandsPerSecond = v ?? gw.maxCommandsPerSecond))} help={{ text: "Per-client inbound command rate limit.", cliFlag: "--alf-max-commands-per-second" }} />
+          <NumField label="Max errors before disconnect" value={g.maxErrorsBeforeDisconnect} onChange={(v) => set((gw) => (gw.maxErrorsBeforeDisconnect = v ?? gw.maxErrorsBeforeDisconnect))} help={{ text: "Protocol errors allowed within the error window before disconnect.", cliFlag: "--alf-max-errors-before-disconnect" }} />
+          <NumField label="Error window (sec)" value={g.errorWindowSec} onChange={(v) => set((gw) => (gw.errorWindowSec = v ?? gw.errorWindowSec))} help={{ text: "Rolling window over which protocol errors are counted.", cliFlag: "--alf-error-window-sec" }} />
         </>
       )}
     </div>

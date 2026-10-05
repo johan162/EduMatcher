@@ -1833,18 +1833,17 @@ called directly from the NIC receive callback without a thread context switch.
 # Existing ALF gateway configuration — unchanged
 sessions_enabled: true
 
-gateways:
-  alf:
-    - id: TRADER01
-      description: Human trader workstation
-      role: TRADER
-            disconnect_behaviour: CANCEL_ALL
-        - id: ALGO01
-            description: Market-making algorithm
-            role: MARKET_MAKER
-            disconnect_behaviour: CANCEL_QUOTES_ONLY
-            mm_max_spread_ticks: 5
-            mm_min_qty: 50
+participants:
+  - id: TRADER01
+    description: Human trader workstation
+    role: TRADER
+          disconnect_behaviour: CANCEL_ALL
+      - id: ALGO01
+          description: Market-making algorithm
+          role: MARKET_MAKER
+          disconnect_behaviour: CANCEL_QUOTES_ONLY
+          mm_max_spread_ticks: 5
+          mm_min_qty: 50
 
 # BALF gateway runtime settings
 balf_gateway:
@@ -1862,7 +1861,7 @@ balf_gateway:
 ```
 
 For BALF `1.0.0`, gateway identity allowlist and per-gateway behavior are read
-from `gateways.alf` to match current engine behavior and keep Phase 1 engine
+from `participants` to match current engine behavior and keep Phase 1 engine
 changes at zero. BALF is a transport/protocol alternative, not a separate
 identity namespace in v1.
 

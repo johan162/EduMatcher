@@ -68,7 +68,7 @@ config, then add `alf_gateway:` by hand:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
-  --gateways TRADER01 TRADER02 MM01:MARKET_MAKER \
+  --participants TRADER01 TRADER02 MM01:MARKET_MAKER \
   --output engine_config.yaml
 ```
 
@@ -507,7 +507,7 @@ Map each observed `ERR|CODE=...|REJECT_CODE=...` to its operator remediation:
 |---|---|---|
 | `AUTH_REQUIRED` | `AUTH_REQUIRED` | Client sent a non-`HELLO` first line; fix client code ordering |
 | `PROTO_MISMATCH` | `AUTH_FAILED` | Wrong `PROTO=` value; must be exactly `ALF1` |
-| `AUTH_FAILED` | `AUTH_FAILED` | Gateway ID not in `gateways.alf`; add to config and restart engine |
+| `AUTH_FAILED` | `AUTH_FAILED` | Gateway ID not in `participants`; add to config and restart engine |
 | `GATEWAY_ALREADY_CONNECTED` | `AUTH_FAILED` | Same ID connected from another session; disconnect it first |
 | `MISSING_FIELD` | `MISSING_FIELD` | Required field absent for this order type; check command reference |
 | `INVALID_VALUE` | `INVALID_VALUE` | Field value fails validation (e.g. `PRICE=NaN`, `QTY=0`); fix client |
