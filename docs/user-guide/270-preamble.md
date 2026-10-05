@@ -239,6 +239,34 @@ sequenceDiagram
 
 When `accepted=false`, the gateway must terminate and MUST NOT submit orders.
 
+Only one process may hold a given ID at a time. A connect for an ID that is
+already connected is refused with
+`reason: "Gateway already connected: TRADER01"`, and the process that was
+refused must not send `system.gateway_disconnect` for it, since that would
+tear down the live session.
+
+### `system.gateway_heartbeat`
+
+**Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
+**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`) via PUSH :5555
+
+Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
+immediately after the connect is accepted. It is one-way: the engine does not
+reply. The payload carries the sender's own `interval_sec`, so the engine needs
+no per-client setting. After **3 consecutive missed beats** the engine
+disconnects the session exactly as if `system.gateway_disconnect` had arrived,
+applying the participant's `disconnect_behaviour` and publishing
+`system.gateway_bye.{GW_ID}` with `reason: "heartbeat_timeout"`.
+
+Liveness is opt-in: a session that has never sent a heartbeat is never timed
+out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
+not re-published on the audit feed.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | The connected participant ID |
+| `interval_sec` | integer | Seconds between this sender's beats (1 to 3600) |
+
 
 
 ### `order.new`

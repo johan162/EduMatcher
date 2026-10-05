@@ -188,6 +188,24 @@ def test_engine_refused_auth_does_not_emit_gateway_disconnect(
     peer.close()
 
 
+def test_engine_heartbeat_sent_once_per_interval(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    fake_push.sent.clear()
+
+    gateway._send_engine_heartbeats_if_due()
+    gateway._send_engine_heartbeats_if_due()
+
+    assert [f[0].decode("utf-8") for f in fake_push.sent] == [
+        "system.gateway_heartbeat"
+    ]
+    peer.close()
+
+
 def test_quote_rejected_for_non_market_maker(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True

@@ -184,6 +184,21 @@ def make_order_new_unchecked_msg(order_dict: dict[str, Any]) -> list[bytes]:
     return _gen_order.make_order_new_unchecked(**order_dict)
 
 
+#: Seconds between the ``system.gateway_heartbeat`` beats every participant
+#: process sends the engine. The engine disconnects a session after three
+#: consecutive misses, so a dead process frees its ID within ~3x this.
+GATEWAY_HEARTBEAT_INTERVAL_SEC = 60
+
+
+def make_gateway_heartbeat_msg(
+    gateway_id: str, interval_sec: int = GATEWAY_HEARTBEAT_INTERVAL_SEC
+) -> list[bytes]:
+    """Gateway → engine: this participant's process is still alive."""
+    return _gen_system.make_gateway_heartbeat(
+        gateway_id=gateway_id, interval_sec=interval_sec
+    )
+
+
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
     return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 

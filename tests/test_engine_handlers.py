@@ -32,6 +32,7 @@ from edumatcher.engine.config_loader import (
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF
+from edumatcher.models.participant import DisconnectBehaviour
 from edumatcher.models.session import SessionState
 
 # ---------------------------------------------------------------------------
@@ -910,6 +911,85 @@ class TestDuplicateGatewayConnect:
 
         _topic, msg = decode(pub_sock.sent[-1])
         assert msg["accepted"] is True
+
+
+# ---------------------------------------------------------------------------
+# system.gateway_heartbeat — silent sessions are disconnected
+# ---------------------------------------------------------------------------
+
+
+class TestGatewayHeartbeat:
+    @staticmethod
+    def _beat(engine: Engine, interval_sec: int = 10, gw: str = "GW01") -> None:
+        engine._handle_gateway_heartbeat(
+            {"gateway_id": gw, "interval_sec": interval_sec}
+        )
+
+    @staticmethod
+    def _age(engine: Engine, seconds: float, gw: str = "GW01") -> None:
+        engine._sessions[gw].last_heartbeat -= seconds
+
+    def test_three_missed_beats_disconnect_and_cancel(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        engine._sessions["GW01"].disconnect_behaviour = DisconnectBehaviour.CANCEL_ALL
+        engine._handle_new_order(_make_order_payload(price=99.0))
+        self._beat(engine, interval_sec=10)
+        self._age(engine, 31)
+        pub_sock.sent.clear()
+
+        engine._expire_silent_gateways()
+
+        assert engine._gateway_status("GW01")[0] is False
+        assert not engine.books["AAPL"].orders_for_gateway("GW01")
+        topics = [decode(f)[0] for f in pub_sock.sent]
+        assert "system.gateway_bye.GW01" in topics
+        bye = next(decode(f)[1] for f in pub_sock.sent if "gateway_bye" in decode(f)[0])
+        assert bye["reason"] == "heartbeat_timeout"
+
+    def test_within_three_intervals_stays_connected(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, _ = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        self._beat(engine, interval_sec=10)
+        self._age(engine, 29)
+
+        engine._expire_silent_gateways()
+
+        assert engine._gateway_status("GW01") == (True, "")
+
+    def test_session_that_never_beat_is_not_timed_out(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, _ = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+
+        engine._expire_silent_gateways()
+
+        assert engine._gateway_status("GW01") == (True, "")
+
+    def test_beat_for_a_disconnected_id_is_ignored(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(monkeypatch, tmp_path)
+        self._beat(engine)
+
+        assert engine._session_for_gateway("GW01").heartbeat_interval_sec == 0
+
+    def test_reconnect_after_timeout_is_accepted(self, monkeypatch, tmp_path) -> None:
+        engine, pub_sock = _make_engine(monkeypatch, tmp_path)
+        _connect(engine)
+        self._beat(engine, interval_sec=10)
+        self._age(engine, 31)
+        engine._expire_silent_gateways()
+        pub_sock.sent.clear()
+
+        _connect(engine)
+
+        assert decode(pub_sock.sent[-1])[1]["accepted"] is True
+        engine._expire_silent_gateways()
+        assert engine._gateway_status("GW01") == (True, "")
 
 
 # ---------------------------------------------------------------------------

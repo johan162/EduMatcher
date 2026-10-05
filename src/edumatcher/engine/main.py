@@ -219,6 +219,7 @@ from edumatcher.models.generated.system import (
     TOPIC_GATEWAYS_REQUEST,
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_DISCONNECT,
+    TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_HALT_STATUS_REQUEST,
     TOPIC_POSITION_REQUEST,
     TOPIC_QUOTE_BOOTSTRAP_REQUEST,
@@ -300,6 +301,10 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: seconds keeps the write volume negligible next to the 200 ms poll tick
 #: while bounding the exposure to something an operator can reason about.
 _PERSIST_INTERVAL_SEC = 5.0
+
+#: A session that has sent a system.gateway_heartbeat is disconnected once
+#: this many of its own beat intervals pass without another one.
+_HEARTBEAT_MISSED_LIMIT = 3
 
 #: Topics whose payload names an order the submitting gateway is waiting on an
 #: ack for. If a handler for one of these raises, the client is left with no
@@ -3785,6 +3790,7 @@ class Engine:
 
         session = self._session_for_gateway(gateway_id)
         session.connected = False
+        session.heartbeat_interval_sec = 0
         self._connected_fix_gateways.discard(gateway_id)
 
         # Republish the disconnect on the PUB feed as the lifecycle counterpart
@@ -3819,6 +3825,49 @@ class Engine:
                         self._cancel_order_by_id(
                             order.id, cancel_reason="GATEWAY_DISCONNECT"
                         )
+
+    def _handle_gateway_heartbeat(self, payload: dict[str, Any]) -> None:
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        session = self._sessions.get(gateway_id)
+        if session is None or not session.connected:
+            # A beat from a process whose session is gone (already timed out
+            # or disconnected) must not resurrect it.
+            return
+        session.heartbeat_interval_sec = min(
+            3600, max(1, int(payload.get("interval_sec", 0)))
+        )
+        session.last_heartbeat = time.monotonic()
+        self._dbg_count("gateway_heartbeats")
+        log.debug(
+            "heartbeat gateway=%s interval=%ds",
+            gateway_id,
+            session.heartbeat_interval_sec,
+        )
+
+    def _expire_silent_gateways(self) -> None:
+        """Disconnect each session that stopped sending its heartbeat.
+
+        A process that died without a ``gateway_disconnect`` would otherwise
+        keep its ID connected for ever and block every reconnect. The normal
+        disconnect path runs, so ``disconnect_behaviour`` and the
+        ``gateway_bye`` broadcast apply exactly as for a clean exit.
+        """
+        now = time.monotonic()
+        for session in list(self._sessions.values()):
+            if not session.connected or session.heartbeat_interval_sec <= 0:
+                continue
+            limit = _HEARTBEAT_MISSED_LIMIT * session.heartbeat_interval_sec
+            if now - session.last_heartbeat <= limit:
+                continue
+            log.warning(
+                "Gateway %s missed %d heartbeats (interval %ds) — disconnecting",
+                session.gateway_id,
+                _HEARTBEAT_MISSED_LIMIT,
+                session.heartbeat_interval_sec,
+            )
+            self._handle_gateway_disconnect(
+                {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
+            )
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -6374,7 +6423,11 @@ class Engine:
         Best-effort regardless: a raise here would escape the receive loop and
         end it. Recording must never be able to stop the exchange.
         """
-        if len(frames) < 3 or topic.endswith(self._QUERY_SUFFIX):
+        if (
+            len(frames) < 3
+            or topic.endswith(self._QUERY_SUFFIX)
+            or topic == TOPIC_GATEWAY_HEARTBEAT
+        ):
             # Fewer than three frames means no envelope: a client that builds
             # its own PUSH socket instead of going through `make_pusher`.
             # There is no id to preserve, and minting one would invent a
@@ -6430,6 +6483,8 @@ class Engine:
                 self._handle_gateway_connect(payload)
             elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._handle_gateway_disconnect(payload)
+            elif topic == TOPIC_GATEWAY_HEARTBEAT:
+                self._handle_gateway_heartbeat(payload)
             elif topic == TOPIC_SYMBOLS_REQUEST:
                 self._handle_symbols_request(payload)
             elif topic == TOPIC_REFERENCE_REQUEST:
@@ -6608,6 +6663,7 @@ class Engine:
             # Publish where each symbol would uncross, while a call phase runs
             self._flush_auction_indicative,
             self._flush_debug_summary,
+            self._expire_silent_gateways,
         ):
             try:
                 flush()

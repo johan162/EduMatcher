@@ -37,7 +37,9 @@ from edumatcher.models.message import (
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_kill_switch_msg,
     make_oco_cancel_msg,
     make_oco_order_msg,
@@ -156,6 +158,9 @@ class ClientSession:
     connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
+    # Last system.gateway_heartbeat sent to the engine for this session; -inf
+    # so the first beat goes out on the first tick after authentication.
+    last_engine_heartbeat: float = float("-inf")
     connect_emitted: bool = False
     lines_received: int = 0
     lines_sent: int = 0
@@ -247,6 +252,7 @@ class AlfGateway:
                 self._poll_engine_events()
                 self._poll_dc_events()
                 self._send_heartbeats_if_due()
+                self._send_engine_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
                 time.sleep(0.01)
@@ -1695,6 +1701,26 @@ class AlfGateway:
             if now - session.last_outbound < self.config.heartbeat_interval_sec:
                 continue
             self._queue_line(session, "HB", {"TS": iso_utc(time.time())})
+
+    def _send_engine_heartbeats_if_due(self) -> None:
+        """Tell the engine each authenticated session is still alive.
+
+        One beat per session, so a session that closes stops being reported
+        and the engine frees its ID if the disconnect never reaches it.
+        """
+        now = time.monotonic()
+        for session in self._clients.values():
+            if not session.authenticated or session.closing or not session.gateway_id:
+                continue
+            if now - session.last_engine_heartbeat < GATEWAY_HEARTBEAT_INTERVAL_SEC:
+                continue
+            session.last_engine_heartbeat = now
+            log.debug("engine heartbeat sent gateway_id=%s", session.gateway_id)
+            self._send_to_engine(
+                make_gateway_heartbeat_msg(session.gateway_id),
+                count_as_command=False,
+                require_engine=False,
+            )
 
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()

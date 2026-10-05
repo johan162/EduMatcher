@@ -708,6 +708,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": (),
         "fields": _system.describe_gateway_disconnect(),
     },
+    _system.TOPIC_GATEWAY_HEARTBEAT: {
+        "family": "system",
+        "message": "gateway_heartbeat",
+        "prefix": _system.TOPIC_GATEWAY_HEARTBEAT,
+        "transport": ("engine_pub", "engine_push"),
+        "params": (),
+        "fields": _system.describe_gateway_heartbeat(),
+    },
     _system.TOPIC_GATEWAY_BYE: {
         "family": "system",
         "message": "gateway_bye",

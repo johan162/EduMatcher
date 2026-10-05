@@ -500,14 +500,16 @@ class TestTheFourFieldsNamedSymbols:
 
 
 class TestTheFamilyIsComplete:
-    def test_all_thirty_two_topics_are_declared(self) -> None:
+    def test_all_thirty_three_topics_are_declared(self) -> None:
         """29 -> 31 -> 32: startup_recovery and diagnostic (see
         docs/user-guide/190-audit.md) — the GTC-restore summary and the
         absorbed-internal-failure marker, both broadcasts with no request
         just like eod. AR-0.5 then added recovery_item, one broadcast per
-        restored/failed GTC order alongside the startup_recovery summary."""
+        restored/failed GTC order alongside the startup_recovery summary. 32 -> 33:
+        gateway_heartbeat, the one-way liveness beat that frees an ID whose
+        process died without a gateway_disconnect."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
-        assert len(topics) == 32, sorted(topics)
+        assert len(topics) == 33, sorted(topics)
 
 
 class TestQuoteLegSnapshotPrice:

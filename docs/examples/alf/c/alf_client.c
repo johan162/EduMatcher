@@ -49,6 +49,12 @@
  * -------------------------------------------------------------------------- */
 
 static int use_color = 1;
+static int debug_log = 0;
+
+/* Keepalive: the gateway drops a session after IDLE seconds of silence, so
+ * PING every IDLE/3 seconds. The PONG replies to our own PINGs are hidden. */
+static int g_idle_sec = 30;
+static int g_pongs_to_hide = 0;
 
 #define ANSI(code) (use_color ? "\033[" code "m" : "")
 
@@ -470,6 +476,7 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     if (strcmp(t, "HB") == 0) return;
 
     if (strcmp(t, "PONG") == 0) {
+        if (g_pongs_to_hide > 0) { g_pongs_to_hide--; return; }
         event_print("[%s] %sPONG%s  %s", ts, COL_DIM, COL_RESET,
                     alf_get_field(msg, "TS") ? alf_get_field(msg, "TS") : "");
         return;
@@ -1191,6 +1198,7 @@ static int do_handshake(int fd, const char *gateway_id, const char *client_name)
             const char *gw   = alf_get_field(&msg, "GW");
             const char *hb   = alf_get_field(&msg, "HBINT");
             const char *idle = alf_get_field(&msg, "IDLE");
+            if (idle && atoi(idle) > 0) g_idle_sec = atoi(idle);
             printf("%sGateway %s connected.%s  gw=%s  hb=%ss  idle=%ss\n",
                    COL_GREEN, gateway_id, COL_RESET,
                    gw   ? gw   : "alf-gwy",
@@ -1240,8 +1248,9 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--id")     == 0 && i + 1 < argc) gateway_id = argv[++i];
         else if (strcmp(argv[i], "--client") == 0 && i + 1 < argc) client_name = argv[++i];
         else if (strcmp(argv[i], "--no-color") == 0) use_color = 0;
+        else if (strcmp(argv[i], "--debug") == 0) debug_log = 1;
         else if (strcmp(argv[i], "--help") == 0) {
-            printf("Usage: alf_client [--host H] [--port P] --id GW_ID [--client NAME] [--no-color]\n");
+            printf("Usage: alf_client [--host H] [--port P] --id GW_ID [--client NAME] [--no-color] [--debug]\n");
             return 0;
         }
     }
@@ -1287,6 +1296,7 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
 
     /* Event loop */
+    time_t last_keepalive = time(NULL);
     int maxfd = (g_sockfd > STDIN_FILENO) ? g_sockfd : STDIN_FILENO;
     while (g_running) {
         fd_set rfds;
@@ -1299,6 +1309,14 @@ int main(int argc, char **argv)
         if (r < 0) {
             if (errno == EINTR) continue;
             break;
+        }
+        int keepalive_sec = g_idle_sec / 3 > 0 ? g_idle_sec / 3 : 1;
+        if (time(NULL) - last_keepalive >= keepalive_sec) {
+            last_keepalive = time(NULL);
+            if (debug_log)
+                fprintf(stderr, "keepalive PING sent gateway_id=%s\n", g_gateway_id);
+            g_pongs_to_hide++;
+            gwy_send("PING\n");
         }
         if (FD_ISSET(g_sockfd, &rfds))
             process_socket_data();

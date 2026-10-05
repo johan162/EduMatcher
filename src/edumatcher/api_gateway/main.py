@@ -32,6 +32,7 @@ from edumatcher.api_gateway.routers import (
 )
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.config import resolve_data_path
+from edumatcher.models.message import GATEWAY_HEARTBEAT_INTERVAL_SEC
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -142,6 +143,15 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                         config.order_retention_sec,
                     )
 
+        async def _send_heartbeats() -> None:
+            """Tell the engine every ID this process holds is still alive, so
+            a hung or killed gateway frees them instead of locking them."""
+            while True:
+                await asyncio.sleep(GATEWAY_HEARTBEAT_INTERVAL_SEC)
+                for gateway_id in engine.active_gateways():
+                    engine.send_heartbeat(gateway_id)
+
+        heartbeat_task = asyncio.create_task(_send_heartbeats())
         sweeper = (
             asyncio.create_task(_evict_terminal_orders())
             if config.order_retention_sec > 0
@@ -150,6 +160,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         try:
             yield
         finally:
+            heartbeat_task.cancel()
             if sweeper is not None:
                 sweeper.cancel()
             for gateway_id in engine.active_gateways():

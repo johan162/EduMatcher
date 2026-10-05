@@ -250,6 +250,34 @@ sequenceDiagram
 
 When `accepted=false`, the gateway must terminate and MUST NOT submit orders.
 
+Only one process may hold a given ID at a time. A connect for an ID that is
+already connected is refused with
+`reason: "Gateway already connected: TRADER01"`, and the process that was
+refused must not send `system.gateway_disconnect` for it, since that would
+tear down the live session.
+
+### `system.gateway_heartbeat`
+
+**Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
+**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`) via PUSH :5555
+
+Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
+immediately after the connect is accepted. It is one-way: the engine does not
+reply. The payload carries the sender's own `interval_sec`, so the engine needs
+no per-client setting. After **3 consecutive missed beats** the engine
+disconnects the session exactly as if `system.gateway_disconnect` had arrived,
+applying the participant's `disconnect_behaviour` and publishing
+`system.gateway_bye.{GW_ID}` with `reason: "heartbeat_timeout"`.
+
+Liveness is opt-in: a session that has never sent a heartbeat is never timed
+out, and a heartbeat for an ID that is not connected is ignored. Heartbeats are
+not re-published on the audit feed.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | The connected participant ID |
+| `interval_sec` | integer | Seconds between this sender's beats (1 to 3600) |
+
 
 
 ### `order.new`
@@ -585,6 +613,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.gateway_bye.{gateway_id}` | `system` | `engine` |
 | `system.gateway_connect` | `system` | `admin`, `api_gateway`, `gateway` |
 | `system.gateway_disconnect` | `system` | `admin`, `api_gateway`, `gateway` |
+| `system.gateway_heartbeat` | `system` | `api_gateway`, `gateway` |
 | `system.gateways.{gateway_id}` | `system` | `engine` |
 | `system.gateways_request` | `system` | `admin`, `api_gateway` |
 | `system.halt_status.{gateway_id}` | `system` | `engine` |
@@ -3396,6 +3425,23 @@ Gateway to engine: I am leaving cleanly. PUSH/PULL, like `gateway_connect`; the 
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 
 **See also:** `system.gateway_bye.{GW_ID}`, `system.gateway_connect`
+
+### `system.gateway_heartbeat`
+
+**Published by:** `api_gateway`, `gateway`
+
+**Transport:** `engine_pub`, `engine_push`
+
+**Since:** 1.0
+
+Gateway to engine: this participant's process is still alive. A process that dies without sending `gateway_disconnect` (kill -9, a crashed host, a dropped network) would otherwise keep its ID marked connected for ever, and the engine refuses a second connect for an ID that is already connected. The engine counts the beats it expects -- one per `interval_sec` -- and disconnects the session, applying its `disconnect_behaviour`, after three consecutive misses. Liveness is opt-in: a session that has never sent one is never timed out.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `interval_sec` | `int` | required | ge 1, le 3600, unit `dimensionless` | Seconds between this sender's beats. Carried on every beat so the engine needs no per-client setting; the bound stops a client declaring an interval so long that its ID could never be reclaimed. |
+
+**See also:** `system.gateway_connect`, `system.gateway_disconnect`
 
 ### `system.gateway_bye.{gateway_id}`
 

@@ -675,6 +675,33 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 
+  - name: gateway_heartbeat
+    topic: "system.gateway_heartbeat"
+    transport: [engine_pub, engine_push]
+    doc:
+      motivation: >
+        Gateway to engine: this participant's process is still alive. A
+        process that dies without sending `gateway_disconnect` (kill -9, a
+        crashed host, a dropped network) would otherwise keep its ID marked
+        connected for ever, and the engine refuses a second connect for an ID
+        that is already connected. The engine counts the beats it expects --
+        one per `interval_sec` -- and disconnects the session, applying its
+        `disconnect_behaviour`, after three consecutive misses. Liveness is
+        opt-in: a session that has never sent one is never timed out.
+      published_by: [api_gateway, gateway]
+      since: "1.0"
+      see_also: ["system.gateway_connect", "system.gateway_disconnect"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: interval_sec, type: int, unit: dimensionless,
+          validate: { ge: 1, le: 3600 },
+          doc: "Seconds between this sender's beats. Carried on every beat so
+                the engine needs no per-client setting; the bound stops a
+                client declaring an interval so long that its ID could never
+                be reclaimed." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
   - name: gateway_bye
     topic: "system.gateway_bye.{gateway_id}"
     transport: [engine_pub]

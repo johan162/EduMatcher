@@ -60,7 +60,7 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """115, where the hand-written file managed 67.
+        """116, where the hand-written file managed 67.
 
         This count moves whenever a new message is added to spec/ — most
         recently system.recovery_item (114 -> 115, AR-0.5), the per-entity
@@ -80,7 +80,7 @@ class TestTheAppendixDocumentsEveryMessage:
         staying fixed at some past value.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 115, total
+        assert total == 116, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

@@ -85,7 +85,9 @@ from edumatcher.models.message import (
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_kill_switch_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
@@ -356,6 +358,7 @@ class Gateway:
         self._last_index_update: dict[str, Any] | None = None
         self._default_index_id: str | None = None
         self._running = True
+        self._heartbeat_stop = threading.Event()
         self._authenticated: bool = False
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
@@ -644,6 +647,28 @@ class Gateway:
         self._auth_reason = "Gateway authentication timed out"
         log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
+
+    def _heartbeat_loop(self) -> None:
+        """Tell the engine this console is alive, so a killed console frees its
+        ID instead of locking it. Own socket: a ZMQ socket must not be shared
+        across threads, and push_sock belongs to the prompt thread."""
+        push_sock = make_pusher(ENGINE_PULL_ADDR)
+        try:
+            while True:
+                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
+                try:
+                    push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(self.gateway_id)
+                    )
+                except zmq.Again:
+                    log.warning(
+                        "gateway_id=%s heartbeat dropped: engine unreachable",
+                        self.gateway_id,
+                    )
+                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                    return
+        finally:
+            push_sock.close()
 
     def _send(self, sock: PushSocket, frames: list[bytes]) -> bool:
         """Send on a PUSH socket, reporting a clean error instead of
@@ -1878,6 +1903,7 @@ class Gateway:
 
         listener = threading.Thread(target=self._listen, daemon=True)
         listener.start()
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
         log.info("gateway command loop started gateway_id=%s", self.gateway_id)
 
         desc = f" — {self._auth_description}" if self._auth_description else ""
@@ -1910,6 +1936,7 @@ class Gateway:
                         self._parse_and_send(line)
         finally:
             self._running = False
+            self._heartbeat_stop.set()
             try:
                 self.push_sock.send_multipart(
                     make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")

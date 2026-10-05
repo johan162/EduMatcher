@@ -88,7 +88,9 @@ from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
@@ -179,6 +181,10 @@ class ClientSession:
 
     # True once gateway_connect was emitted for this session.
     connect_emitted: bool = False
+
+    # Last system.gateway_heartbeat sent to the engine for this session; -inf
+    # so the first beat goes out on the first tick after authentication.
+    last_engine_heartbeat: float = float("-inf")
 
     # Rate limiting
     rate_tokens: float = 0.0
@@ -289,6 +295,7 @@ class BalfGateway:
                 self._read_client_data()
                 self._poll_engine_events()
                 self._send_heartbeats_if_due()
+                self._send_engine_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_stale_clients()
                 time.sleep(0.005)
@@ -1188,6 +1195,26 @@ class BalfGateway:
                 continue
             if now - session.last_outbound >= self.config.heartbeat_interval_sec:
                 self._queue_frame(session, build_heartbeat(session.next_seq()))
+
+    def _send_engine_heartbeats_if_due(self) -> None:
+        """Tell the engine each authenticated session is still alive.
+
+        One beat per session, so a session that closes stops being reported
+        and the engine frees its ID if the disconnect never reaches it.
+        """
+        now = time.monotonic()
+        for session in self._clients.values():
+            if not session.authenticated or session.closing or not session.gateway_id:
+                continue
+            if now - session.last_engine_heartbeat < GATEWAY_HEARTBEAT_INTERVAL_SEC:
+                continue
+            session.last_engine_heartbeat = now
+            log.debug("engine heartbeat sent gateway_id=%s", session.gateway_id)
+            self._send_to_engine(
+                make_gateway_heartbeat_msg(session.gateway_id),
+                count_as_command=False,
+                require_engine=False,
+            )
 
     def _drop_stale_clients(self) -> None:
         now = time.monotonic()

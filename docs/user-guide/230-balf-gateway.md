@@ -498,6 +498,25 @@ See [HEARTBEAT](910-app-balf-protocol.md#heartbeat-0x30-bidirectional) and
 [HEARTBEAT_ACK](910-app-balf-protocol.md#heartbeat_ack-0x31-bidirectional)
 in the protocol reference.
 
+#### Engine heartbeat
+
+The exchange allows only **one live connection per participant ID**, whichever
+process holds it. If another process already holds the ID at the engine, the
+engine refuses the connect and the `LOGON` is answered with
+`LOGON_ACK(accepted=0, reject_code=0x01)` carrying the message
+`Gateway already connected: <ID>`.
+
+To make sure a process that dies silently cannot keep its ID locked, `pm-balf-gwy`
+sends the engine a `system.gateway_heartbeat` for every authenticated session
+every **60 seconds**, starting right after `LOGON_ACK`
+(see [Message Reference](270-message-reference.md#systemgateway_heartbeat)).
+After **3 consecutive missed beats** (180 s) the engine disconnects the
+session and applies the participant's `disconnect_behaviour`, so the ID can be
+connected again. Your BALF client does nothing extra: this is separate from the
+`HEARTBEAT` / `HEARTBEAT_ACK` exchange above, which is between your client and
+the gateway (5 s by default). The gateway logs `engine heartbeat sent
+gateway_id=<ID>` at debug level.
+
 ### EXECUTION_REPORT
 
 Sent when a resting order is partially or fully filled.  Multiple
@@ -827,7 +846,7 @@ EOF
 |---------|--------------|-----|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-balf-gwy` is running; check `balf_gateway.port` |
 | Connection accepted but LOGON_ACK never arrives | Engine not running or ZMQ link lost | Start `pm-engine`; check gateway logs |
-| `LOGON_ACK accepted=0, code=0x01` | Gateway ID not in `participants` | Add the ID under `participants` and restart engine |
+| `LOGON_ACK accepted=0, code=0x01` | Gateway ID not in `participants` — or, when the message reads `Gateway already connected`, another process holds the ID at the engine | Add the ID under `participants` and restart engine; or stop the other process (if it was killed, the engine frees the ID within 3 minutes) |
 | `LOGON_ACK accepted=0, code=0x02` | Same gateway ID already connected | Disconnect the other session, or use `duplicate_session_policy: EVICT_OLD` |
 | `LOGON_ACK accepted=0, code=0x03` | `proto_version` byte is not `1` | Fix the LOGON frame builder |
 | Connection closes ~5 s after last message | `heartbeat_timeout_sec` elapsed | Send `HEARTBEAT` frames and reply to server `HEARTBEAT` with `HEARTBEAT_ACK` |

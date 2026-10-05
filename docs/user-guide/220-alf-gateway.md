@@ -128,6 +128,34 @@ can connect to `pm-alf-gwy`.
 | `max_errors_before_disconnect` | `50` | Error threshold in a sliding window before forced disconnect |
 | `error_window_sec` | `60` | Width of the sliding window used to count errors toward `max_errors_before_disconnect` |
 
+### One live connection per ID, and the engine heartbeat
+
+A participant ID can have only **one** live connection to the exchange at a
+time, whichever process holds it — `pm-alf-gwy`, `pm-balf-gwy`, `pm-alf-console`
+or `pm-api-gwy`.  If the ID is already connected, the engine refuses the
+second connect and `WELCOME` never arrives: the gateway answers
+`ERR|CODE=AUTH_FAILED|DETAIL=Gateway already connected: TRADER01` and closes.
+(Two processes sharing one ID would share one session, so either one dropping
+would cancel the other's orders.)
+
+A process that dies without saying goodbye (`kill -9`, a crashed host, a pulled
+network cable) must not keep its ID locked for ever.  So every process that
+holds an ID sends the engine a `system.gateway_heartbeat` every **60 seconds**
+(see [Message Reference](270-message-reference.md#systemgateway_heartbeat)).
+`pm-alf-gwy` sends one per authenticated session, starting right after
+`WELCOME`, and a session that closes stops being reported.  After **3
+consecutive missed beats** (180 s) the engine disconnects the session as if it
+had said goodbye: the participant's `disconnect_behaviour` is applied and the
+ID can be connected again.  Worst case, an ID is locked for about three
+minutes after its process dies.
+
+This engine heartbeat is **separate from** the `HB` / `PING` / `idle_timeout_sec`
+mechanism above, which is between your TCP client and the gateway and is much
+quicker (30 s by default).  Your ALF client needs to do nothing extra for the
+engine heartbeat — the gateway sends it on the client's behalf.  Its debug log
+line is `engine heartbeat sent gateway_id=<ID>` (run the gateway with
+`--log-level DEBUG`).
+
 !!! note "TLS"
     `pm-alf-gwy` does not terminate TLS.  For remote deployments, put it behind
     a reverse proxy (nginx, stunnel, or similar).
@@ -621,6 +649,12 @@ changes to also handle the queried response.
 
 ### `PING` / `EXIT`
 
+`PING` is also your keepalive: any inbound line resets the gateway's
+`idle_timeout_sec` clock, so a client that may sit idle (waiting for a human, or
+for the market) should send `PING` every `IDLE / 3` seconds, where `IDLE` is
+the value announced in `WELCOME`.  Both example clients do this and hide the
+`PONG` replies to their own pings (`--debug` logs each one sent).
+
 ```text
 PING        → PONG|TS=2026-07-02T09:30:00.123Z
 EXIT        → (connection closed)
@@ -764,7 +798,7 @@ ZeroMQ, no `edumatcher` package import, only a plain socket.
 examples/alf/
 ├── python/
 │   ├── alf_parser.py       # Protocol library: parse, build, AlfSession
-│   └── alf_client.py       # Interactive client (tab-completion, event display, P&L)
+│   └── alf_client.py       # Interactive client (tab-completion, event display, P&L, keepalive PING)
 └── c/
     ├── alf_parser.h / .c   # C library
     ├── alf_client.c        # Interactive C client (readline + select)
@@ -1034,8 +1068,9 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 | `ERR\|CODE=AUTH_FAILED` | Gateway ID not in `participants` | Add the ID under `participants` in `engine_config.yaml` and restart engine |
 | `ERR\|CODE=PROTO_MISMATCH` | `PROTO` field value is not `ALF1` | Fix the `HELLO` line: `HELLO\|CLIENT=...\|PROTO=ALF1\|ID=...` |
 | `ERR\|CODE=GATEWAY_ALREADY_CONNECTED` | Same gateway ID connected elsewhere | Disconnect the other session, or use a different gateway ID |
+| `ERR\|CODE=AUTH_FAILED` with `Gateway already connected` | Another process (console, API gateway, another gateway) holds the ID at the engine | Stop that process. If it was killed, wait up to 3 minutes for the engine to time it out (3 missed heartbeats) |
 | `WELCOME` arrives but then silence | Engine not running or ZMQ link lost | Start `pm-engine`; check gateway logs for ZMQ errors |
-| Gateway closes after ~30 s of silence | `idle_timeout_sec` elapsed | Send `PING` periodically; reduce `idle_timeout_sec` in config if needed |
+| Gateway closes after ~30 s of silence | `idle_timeout_sec` elapsed | Send `PING` periodically (the example clients do so every `IDLE/3` seconds); reduce `idle_timeout_sec` in config if needed |
 | `ERR\|CODE=RATE_LIMITED` | Commands arriving faster than `max_commands_per_second` | Throttle the client; increase `max_commands_per_second` in config |
 | Gateway not reachable from another host | `bind_address: 127.0.0.1` | Change `bind_address` to `0.0.0.0` (or the specific interface IP) |
 

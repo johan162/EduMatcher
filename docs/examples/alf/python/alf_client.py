@@ -24,6 +24,7 @@ Requires Python 3.9+ and the alf_parser.py library in the same directory.
 from __future__ import annotations
 
 import argparse
+import logging
 import readline
 import sys
 import threading
@@ -31,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 
 from alf_parser import AlfMessage, AlfParseError, AlfSession
+
+log = logging.getLogger("alf_client")
 
 # ---------------------------------------------------------------------------
 # ANSI colour helpers
@@ -302,6 +305,12 @@ class AlfClient:
         self._prompt = f"[{session.gateway_id}]> "
         self._running = False
         self._print_lock = threading.Lock()
+        # Keepalive: the gateway disconnects a session after `idle_timeout`
+        # seconds of silence, so a client that is waiting for a human (or
+        # hung) would otherwise be dropped. The PONG replies to our own PINGs
+        # are swallowed rather than printed.
+        self._keepalive_stop = threading.Event()
+        self._pongs_to_hide = 0
 
         # State
         self._orders: dict[str, dict[str, str]] = {}  # order_id → fields
@@ -361,6 +370,9 @@ class AlfClient:
             return  # heartbeat — silently ignore
 
         if t == "PONG":
+            if self._pongs_to_hide > 0:
+                self._pongs_to_hide -= 1
+                return
             self._pr(f"[{ts}] {_DIM}PONG{_RESET}  {f.get('TS', '')}")
             return
 
@@ -741,6 +753,18 @@ class AlfClient:
     # Receive thread
     # ------------------------------------------------------------------
 
+    def _keepalive_loop(self) -> None:
+        """Background thread: PING every idle_timeout/3 seconds, so the
+        gateway never sees this session as silent (see ``_pongs_to_hide``)."""
+        interval = max(1, self._session.welcome.idle_timeout // 3)
+        while not self._keepalive_stop.wait(interval):
+            log.debug("keepalive PING sent gateway_id=%s", self._session.gateway_id)
+            self._pongs_to_hide += 1
+            try:
+                self._session.send("PING")
+            except OSError:
+                return
+
     def _recv_loop(self) -> None:
         """Background thread: read gateway messages and display them."""
         while self._running:
@@ -955,6 +979,7 @@ class AlfClient:
         self._running = True
         recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
         recv_thread.start()
+        threading.Thread(target=self._keepalive_loop, daemon=True).start()
 
         w = self._session.welcome
         print(
@@ -978,6 +1003,7 @@ class AlfClient:
                     readline.add_history(line)
         finally:
             self._running = False
+            self._keepalive_stop.set()
             try:
                 readline.write_history_file(str(HISTORY_FILE))
             except OSError:
@@ -1013,7 +1039,11 @@ def main() -> None:
         default="alf-client",
         help="Client name for gateway logs (default: alf-client)",
     )
+    parser.add_argument(
+        "--debug", action="store_true", help="Log each keepalive PING sent"
+    )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
 
     print(f"Connecting to {args.host}:{args.port} as {args.id.upper()} …")
     try:
