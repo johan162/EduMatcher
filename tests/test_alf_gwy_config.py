@@ -31,12 +31,11 @@ alf_gateway:
   max_errors_before_disconnect: 12
   error_window_sec: 7
 
-gateways:
-  alf:
-    - id: trader01
-      role: TRADER
-    - id: mm01
-      role: MARKET_MAKER
+participants:
+  - id: trader01
+    role: TRADER
+  - id: mm01
+    role: MARKET_MAKER
 """)
 
     cfg = load_alf_gateway_config(p)
@@ -87,10 +86,9 @@ alf_gateway:
 def test_gateway_roles_requires_mapping_entries(tmp_path: Path) -> None:
     p = tmp_path / "engine_config.yaml"
     p.write_text("""
-gateways:
-  alf:
-    - id: ""
-      role: TRADER
+participants:
+  - id: ""
+    role: TRADER
 """)
     with pytest.raises(ValueError):
         load_alf_gateway_config(p)
@@ -99,12 +97,11 @@ gateways:
 def test_gateway_ids_must_not_be_prefixes(tmp_path: Path) -> None:
     p = tmp_path / "engine_config.yaml"
     p.write_text("""
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-    - id: TRADER011
-      role: TRADER
+participants:
+  - id: TRADER01
+    role: TRADER
+  - id: TRADER011
+    role: TRADER
 """)
     with pytest.raises(ValueError, match="prefixes"):
         load_alf_gateway_config(p)

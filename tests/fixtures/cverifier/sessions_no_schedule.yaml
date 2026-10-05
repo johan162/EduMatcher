@@ -3,9 +3,8 @@ symbols:
     tick_decimals: 2
     last_buy_price: 150.00
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
+participants:
+  - id: TRADER01
+    role: TRADER
 
 sessions_enabled: true

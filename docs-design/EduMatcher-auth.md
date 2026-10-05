@@ -201,7 +201,7 @@ is out of scope for this phase".
 | `pm-log-srv` (5600) | LALF client name | none |
 
 `pm-engine`'s `_handle_gateway_connect` accepts any `gateway_id` present in
-`gateways.alf` and refuses unknown ones with `Gateway not configured: {id}`.
+`participants` and refuses unknown ones with `Gateway not configured: {id}`.
 There is no secret material in the handshake. **The `api_key` at the
 `pm-api-gwy` edge is the only secret in the entire system.**
 
@@ -210,7 +210,7 @@ There is no secret material in the handshake. **The `api_key` at the
 The picture is not all bad. Three existing properties make this work
 substantially easier than it would otherwise be:
 
-- **A role model already exists and is enforced.** `gateways.alf` entries
+- **A role model already exists and is enforced.** `participants` entries
   carry `role: TRADER|ADMIN|MARKET_MAKER`, the engine resolves it, and
   `pm-api-gwy` already gates `/admin/*` on it (`403 ROLE_DENIED`). We are
   adding *authentication* to an *authorization* model that already works.
@@ -369,7 +369,7 @@ top of it, rather than replacing it.
 flowchart LR
     U["USER<br/>user_id, username,<br/>display_name, password_hash"]
     M["MEMBERSHIP<br/>(user_id, gateway_id)<br/>optional scope narrowing"]
-    G["GATEWAY<br/>gateway_id + role<br/><i>read-only projection of</i><br/><i>gateways.alf</i>"]
+    G["GATEWAY<br/>gateway_id + role<br/><i>read-only projection of</i><br/><i>participants</i>"]
     U -->|"has 0..n"| M
     M -->|"acts as 1"| G
 ```
@@ -379,7 +379,7 @@ with two memberships (say `TRADER01` and `TRADER07`) picks one at login; the
 choice is recorded in the token and cannot be changed without a new token.
 
 `GATEWAY` is not a new source of truth — it is a read-only projection of
-`gateways.alf` from `engine_config.yaml`, refreshed by `pm-auth` at startup.
+`participants` from `engine_config.yaml`, refreshed by `pm-auth` at startup.
 This keeps a single authority for what gateways exist and what role each has.
 
 ### 7.3 Scopes
@@ -456,7 +456,7 @@ CREATE TABLE users (
 -- "this person may act as this gateway"
 CREATE TABLE memberships (
   user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  gateway_id TEXT NOT NULL,            -- validated against gateways.alf
+  gateway_id TEXT NOT NULL,            -- validated against participants
   scopes     TEXT,                     -- NULL = role defaults
   PRIMARY KEY (user_id, gateway_id)
 );
@@ -765,7 +765,7 @@ become empty and eventually disappear. That is a genuine improvement in its
 own right: today every plaintext key for the whole system lives in one file
 that `config-gui` edits over an unauthenticated HTTP connection.
 
-`gateways.alf` stays exactly as it is — it remains the authority for which
+`participants` stays exactly as it is — it remains the authority for which
 gateways exist and what role each holds.
 
 ### 12.3 Secrets that are not in the config file

@@ -68,8 +68,7 @@ def test_resolve_config_overrides(
         """
 symbols:
   AAPL: {tick_decimals: 2, last_buy_price: 150.0}
-gateways:
-  alf: [{id: GW01, role: TRADER}]
+participants: [{id: GW01, role: TRADER}]
 market_data_gateway: {name: md-from-config, port: 6000}
 """,
     )
@@ -98,8 +97,7 @@ def test_main_exits_when_disabled(
         """
 symbols:
   AAPL: {tick_decimals: 2, last_buy_price: 150.0}
-gateways:
-  alf: [{id: GW01, role: TRADER}]
+participants: [{id: GW01, role: TRADER}]
 market_data_gateway: {enabled: false}
 """,
     )
@@ -114,8 +112,7 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         """
 symbols:
   AAPL: {tick_decimals: 2, last_buy_price: 150.0}
-gateways:
-  alf: [{id: GW01, role: TRADER}]
+participants: [{id: GW01, role: TRADER}]
 """,
     )
     monkeypatch.setattr(sys, "argv", ["pm-md-gwy"])

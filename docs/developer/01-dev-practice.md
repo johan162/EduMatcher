@@ -282,16 +282,15 @@ EduMatcher uses `engine_config.yaml` for reference data. A one-symbol minimal
 configuration can look like this:
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: First trader
-    - id: MM01
-      description: Market maker
-      role: MARKET_MAKER
-    - id: GW_ADMIN
-      description: Operator console
-      role: ADMIN
+participants:
+  - id: TRADER01
+    description: First trader
+  - id: MM01
+    description: Market maker
+    role: MARKET_MAKER
+  - id: GW_ADMIN
+    description: Operator console
+    role: ADMIN
 
 symbols:
   AAPL:

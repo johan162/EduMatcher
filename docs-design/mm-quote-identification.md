@@ -84,7 +84,7 @@ Automatic sibling cancellation depends on `quote_refresh_policy`:
 - `INACTIVATE_ON_FULL_FILL`: sibling leg is auto-cancelled only when the filled leg reaches `remaining_qty=0`
 - `NEVER_INACTIVATE`: no automatic sibling cancellation due to fills
 
-The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `gateways.alf[].quote_refresh_policy`.
+The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `participants[].quote_refresh_policy`.
 
 ### What the MM needs in order to re-issue a quote
 

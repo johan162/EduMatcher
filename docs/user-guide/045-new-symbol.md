@@ -133,7 +133,7 @@ The quote must meet the market maker's own obligation. The engine resolves
 that obligation with this precedence, and `pm-new-symbol` resolves it the same
 way:
 
-1. `gateways.alf[…].mm_obligations.<SYMBOL>` for that gateway and symbol
+1. `participants[…].mm_obligations.<SYMBOL>` for that gateway and symbol
 2. the gateway's own `mm_max_spread_ticks` / `mm_min_qty` /
    `enforce_mm_obligation`
 3. `mm_obligation_defaults`, which the gateway fields default to

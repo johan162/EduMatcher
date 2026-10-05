@@ -481,7 +481,7 @@ reach is provided only through the external protocol gateways.
 - **Remote participants connect at the gateways, not the bus.** The protocol
   gateways bind `0.0.0.0` and are the intended network edge:
   order entry over **ALF** (`pm-alf-gwy`, :5565) and **BALF** (`pm-balf-gwy`, :5560),
-  which authenticate sessions against the `gateways.alf` allowlist; market data over
+  which authenticate sessions against the `participants` allowlist; market data over
   **CALF** (`pm-md-gwy`, :5570) and post-trade over **RALF** (`pm-ralf-gwy`, :5580).
   A remote trading client or data consumer speaks TCP to one of these — it never
   touches the ZMQ bus.
@@ -1147,7 +1147,7 @@ Where p = distinct price levels, n = total resting orders, k = orders matched.
 ### Gateway Authentication
 
 Before a gateway can submit orders, it must authenticate with the engine.
-If the engine has a `gateways.alf` section in its config, only listed gateway IDs are accepted.
+If the engine has a `participants` section in its config, only listed gateway IDs are accepted.
 
 ```mermaid
 sequenceDiagram
@@ -1163,7 +1163,7 @@ sequenceDiagram
 ```
 
 If `accepted: false`, the gateway prints the rejection reason and exits.
-If no `gateways.alf` section exists in config, all gateway IDs are auto-accepted
+If no `participants` section exists in config, all gateway IDs are auto-accepted
 (backward-compatible mode).
 
 Orders from gateways that have not completed the auth handshake are rejected with

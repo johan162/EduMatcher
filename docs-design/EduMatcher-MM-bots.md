@@ -729,35 +729,34 @@ reject the `QUOTE` command with: _"Quotes are only allowed for MARKET_MAKER
 participants"_.
 
 ```yaml
-gateways:
-  alf:
-    # Bot instances for AAPL
-    - id: MM_AAPL_01
-      description: "AAPL market-maker bot instance 1"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 10      # max 10 ticks = $0.10 for tick_size=0.01
-      mm_min_qty: 100
+participants:
+  # Bot instances for AAPL
+  - id: MM_AAPL_01
+    description: "AAPL market-maker bot instance 1"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 10      # max 10 ticks = $0.10 for tick_size=0.01
+    mm_min_qty: 100
 
-    - id: MM_AAPL_02
-      description: "AAPL market-maker bot instance 2"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_AAPL_02
+    description: "AAPL market-maker bot instance 2"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
-    # Bot instance for MSFT
-    - id: MM_MSFT_01
-      description: "MSFT market-maker bot instance 1"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  # Bot instance for MSFT
+  - id: MM_MSFT_01
+    description: "MSFT market-maker bot instance 1"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
 > **Tip:** `pm-config-gen` can generate these gateway stanzas automatically:
-> `pm-config-gen --symbols AAPL MSFT --gateways MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER`.
-> `--gateways` accepts `ID[:ROLE[:DISCONNECT]]` specs, and a `MARKET_MAKER`
+> `pm-config-gen --symbols AAPL MSFT --participants MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER`.
+> `--participants` accepts `ID[:ROLE[:DISCONNECT]]` specs, and a `MARKET_MAKER`
 > gateway automatically defaults to `disconnect_behaviour: CANCEL_QUOTES_ONLY`
 > (see §9.3) unless a spec overrides it explicitly.
 
@@ -953,28 +952,27 @@ mm_obligation_defaults:
       mm_max_spread_ticks: 12
       mm_min_qty: 100
 
-gateways:
-  alf:
-    # AAPL market makers — two competing instances
-    - id: MM_AAPL_01
-      description: "AAPL MM bot — primary"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
+participants:
+  # AAPL market makers — two competing instances
+  - id: MM_AAPL_01
+    description: "AAPL MM bot — primary"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
 
-    - id: MM_AAPL_02
-      description: "AAPL MM bot — secondary (wider spread)"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_AAPL_02
+    description: "AAPL MM bot — secondary (wider spread)"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
-    # MSFT market maker — single instance
-    - id: MM_MSFT_01
-      description: "MSFT MM bot"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_FULL_FILL
+  # MSFT market maker — single instance
+  - id: MM_MSFT_01
+    description: "MSFT MM bot"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_FULL_FILL
 ```
 
 ### 12.2 Bot Launch Reference

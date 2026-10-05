@@ -27,7 +27,7 @@ pm-engine --verbose
 pm-alf-gwy
 ```
 
-`TRADER01` must be listed in `engine_config.yaml` under `gateways.alf`.
+`TRADER01` must be listed in `engine_config.yaml` under `participants`.
 
 **Python:** Python 3.9+, no extra packages needed.
 

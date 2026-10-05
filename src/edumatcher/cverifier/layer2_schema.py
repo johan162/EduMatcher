@@ -102,41 +102,28 @@ def _check_top_level(raw: dict[str, Any], results: list[CheckResult]) -> None:
             )
         )
 
-    gateways = raw.get("gateways")
-    if not isinstance(gateways, dict):
+    participants = raw.get("participants")
+    if not isinstance(participants, list):
         results.append(
             CheckResult(
                 code="S002",
                 severity=Severity.ERROR,
-                message="'gateways' is required and must be a mapping containing a 'gateways.alf' list.",
-                suggestion="Add a 'gateways:' section with an 'alf:' list.",
-                path="gateways",
-            )
-        )
-        return
-
-    alf = gateways.get("alf")
-    if not isinstance(alf, list):
-        results.append(
-            CheckResult(
-                code="S003",
-                severity=Severity.ERROR,
-                message="'gateways.alf' must be a list of gateway entries.",
+                message="'participants' is required and must be a list of participant entries.",
                 suggestion=(
-                    "Add a list under 'gateways.alf:'. "
+                    "Add a 'participants:' list. "
                     "See the configuration guide for the required fields."
                 ),
-                path="gateways.alf",
+                path="participants",
             )
         )
-    elif not alf:
+    elif not participants:
         results.append(
             CheckResult(
                 code="S005",
                 severity=Severity.ERROR,
-                message="'gateways.alf' contains no gateway entries.",
-                suggestion="Add at least one gateway with an id and role.",
-                path="gateways.alf",
+                message="'participants' contains no participant entries.",
+                suggestion="Add at least one participant with an id and role.",
+                path="participants",
             )
         )
 
@@ -791,8 +778,8 @@ def _get_cb_default_levels(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    """S118–S120 — the top-level ``gateway_defaults`` block."""
-    section = raw.get("gateway_defaults")
+    """S118–S120 — the top-level ``participant_defaults`` block."""
+    section = raw.get("participant_defaults")
     if section is None:
         return
     if not isinstance(section, dict):
@@ -800,12 +787,12 @@ def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> N
             CheckResult(
                 code="S118",
                 severity=Severity.ERROR,
-                message=f"'gateway_defaults' must be a mapping. Got '{section}'.",
+                message=f"'participant_defaults' must be a mapping. Got '{section}'.",
                 suggestion=(
-                    "Set gateway_defaults to a mapping with smp_action and/or "
+                    "Set participant_defaults to a mapping with smp_action and/or "
                     "disconnect_behaviour."
                 ),
-                path="gateway_defaults",
+                path="participant_defaults",
             )
         )
         return
@@ -815,9 +802,9 @@ def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> N
             CheckResult(
                 code="S118",
                 severity=Severity.ERROR,
-                message=f"'gateway_defaults.{key}' is not a recognised field.",
+                message=f"'participant_defaults.{key}' is not a recognised field.",
                 suggestion="Supported fields: smp_action, disconnect_behaviour.",
-                path=f"gateway_defaults.{key}",
+                path=f"participant_defaults.{key}",
             )
         )
 
@@ -830,11 +817,11 @@ def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> N
                 code="S119",
                 severity=Severity.ERROR,
                 message=(
-                    f"'gateway_defaults.disconnect_behaviour' '{disconnect}' "
+                    f"'participant_defaults.disconnect_behaviour' '{disconnect}' "
                     "is not valid."
                 ),
                 suggestion=f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}.",
-                path="gateway_defaults.disconnect_behaviour",
+                path="participant_defaults.disconnect_behaviour",
             )
         )
 
@@ -844,35 +831,32 @@ def _check_gateway_default(raw: dict[str, Any], results: list[CheckResult]) -> N
             CheckResult(
                 code="S120",
                 severity=Severity.ERROR,
-                message=f"'gateway_defaults.smp_action' '{smp_action}' is not valid.",
+                message=f"'participant_defaults.smp_action' '{smp_action}' is not valid.",
                 suggestion=f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}.",
-                path="gateway_defaults.smp_action",
+                path="participant_defaults.smp_action",
             )
         )
 
 
 def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    gateways = raw.get("gateways", {})
-    if not isinstance(gateways, dict):
-        return
-    alf = gateways.get("alf", [])
-    if not isinstance(alf, list):
+    participants = raw.get("participants", [])
+    if not isinstance(participants, list):
         return
 
     seen_ids: dict[str, int] = {}
     gateway_ids: list[tuple[int, str]] = []
-    for n, gw in enumerate(alf):
+    for n, gw in enumerate(participants):
         if not isinstance(gw, dict):
             results.append(
                 CheckResult(
                     code="S029",
                     severity=Severity.ERROR,
                     message=(
-                        f"gateways.alf[{n}] must be a mapping. "
+                        f"participants[{n}] must be a mapping. "
                         f"Got {type(gw).__name__}."
                     ),
-                    suggestion="Each gateways.alf entry must be a YAML mapping.",
-                    path=f"gateways.alf[{n}]",
+                    suggestion="Each participants entry must be a YAML mapping.",
+                    path=f"participants[{n}]",
                 )
             )
             continue
@@ -882,9 +866,9 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 CheckResult(
                     code="S020",
                     severity=Severity.ERROR,
-                    message=f"gateways.alf[{n}] has no 'id' field.",
+                    message=f"participants[{n}] has no 'id' field.",
                     suggestion="Every gateway must have a unique alphanumeric id.",
-                    path=f"gateways.alf[{n}]",
+                    path=f"participants[{n}]",
                 )
             )
             continue
@@ -895,11 +879,11 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     code="S021",
                     severity=Severity.ERROR,
                     message=(
-                        f"Duplicate gateway id '{gw_id}' at gateways.alf[{n}] "
-                        f"and gateways.alf[{seen_ids[gw_id]}]."
+                        f"Duplicate participant id '{gw_id}' at participants[{n}] "
+                        f"and participants[{seen_ids[gw_id]}]."
                     ),
                     suggestion="Each gateway must have a unique id.",
-                    path=f"gateways.alf[{n}].id",
+                    path=f"participants[{n}].id",
                 )
             )
         else:
@@ -914,7 +898,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     severity=Severity.ERROR,
                     message=(f"Gateway '{gw_id}': role '{role}' is not valid."),
                     suggestion=f"Accepted values: {', '.join(sorted(_VALID_ROLES))}.",
-                    path=f"gateways.alf[{n}].role",
+                    path=f"participants[{n}].role",
                 )
             )
 
@@ -930,7 +914,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     suggestion=(
                         f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}."
                     ),
-                    path=f"gateways.alf[{n}].disconnect_behaviour",
+                    path=f"participants[{n}].disconnect_behaviour",
                 )
             )
 
@@ -951,7 +935,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         + ", ".join(sorted(_VALID_QUOTE_REFRESH))
                         + "."
                     ),
-                    path=f"gateways.alf[{n}].quote_refresh_policy",
+                    path=f"participants[{n}].quote_refresh_policy",
                 )
             )
 
@@ -967,7 +951,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     suggestion=(
                         f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}."
                     ),
-                    path=f"gateways.alf[{n}].smp_action",
+                    path=f"participants[{n}].smp_action",
                 )
             )
 
@@ -982,7 +966,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         f"Got '{enforce_mm}'."
                     ),
                     suggestion="Set to true or false.",
-                    path=f"gateways.alf[{n}].enforce_mm_obligation",
+                    path=f"participants[{n}].enforce_mm_obligation",
                 )
             )
 
@@ -999,8 +983,8 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             f"Gateway '{gw_id}': {field} must be a positive integer. "
                             f"Got '{val}'."
                         ),
-                        suggestion=f"Set gateways.alf[{n}].{field} to an integer > 0.",
-                        path=f"gateways.alf[{n}].{field}",
+                        suggestion=f"Set participants[{n}].{field} to an integer > 0.",
+                        path=f"participants[{n}].{field}",
                     )
                 )
 
@@ -1014,7 +998,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         f"Gateway '{gw_id}': mm_obligations must be a mapping when present."
                     ),
                     suggestion="Use symbol keys under mm_obligations, each with a mapping value.",
-                    path=f"gateways.alf[{n}].mm_obligations",
+                    path=f"participants[{n}].mm_obligations",
                 )
             )
         elif isinstance(mm_obligations, dict):
@@ -1029,7 +1013,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                 f"Gateway '{gw_id}': mm_obligations.{sym} must be a mapping."
                             ),
                             suggestion="Provide enforce_mm_obligation, max_spread_ticks, min_qty fields.",
-                            path=f"gateways.alf[{n}].mm_obligations.{sym}",
+                            path=f"participants[{n}].mm_obligations.{sym}",
                         )
                     )
                     continue
@@ -1046,7 +1030,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             ),
                             suggestion="Set enforce_mm_obligation to true or false.",
                             path=(
-                                f"gateways.alf[{n}].mm_obligations.{sym}.enforce_mm_obligation"
+                                f"participants[{n}].mm_obligations.{sym}.enforce_mm_obligation"
                             ),
                         )
                     )
@@ -1065,7 +1049,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                     f"must be a positive integer. Got '{val}'."
                                 ),
                                 suggestion=f"Set {field} to an integer > 0.",
-                                path=f"gateways.alf[{n}].mm_obligations.{sym}.{field}",
+                                path=f"participants[{n}].mm_obligations.{sym}.{field}",
                             )
                         )
 
@@ -1077,14 +1061,14 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         code="S084",
                         severity=Severity.ERROR,
                         message=(
-                            "gateways.alf IDs must not be prefixes of each other "
+                            "participants IDs must not be prefixes of each other "
                             f"('{gw_a}', '{gw_b}')."
                         ),
                         suggestion=(
                             "Rename one of the gateway IDs so neither ID is a "
                             "prefix of another."
                         ),
-                        path=f"gateways.alf[{idx_a}].id",
+                        path=f"participants[{idx_a}].id",
                     )
                 )
 

@@ -156,7 +156,7 @@ bound to, and the app routes you to that role's landing screen.
 
 API keys live under `api_gateways.<name>.credentials` in
 `engine_config.yaml`. Each entry maps an API key to a `gateway_id`, which in
-turn resolves to a role under `gateways.alf`:
+turn resolves to a role under `participants`:
 
 ```yaml
 api_gateways:
@@ -165,7 +165,7 @@ api_gateways:
     port: 8080
     credentials:
       - api_key: key-trader-demo       # ← use this in the login form
-        gateway_id: TRADER01           # ← maps to gateways.alf id TRADER01
+        gateway_id: TRADER01           # ← maps to participants id TRADER01
         description: Demo trading client
       - api_key: key-mm-demo
         gateway_id: MM01               # role: MARKET_MAKER
@@ -174,14 +174,13 @@ api_gateways:
       - api_key: key-readonly
         gateway_id: null               # no engine identity → read-only REST access
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-    - id: MM01
-      role: MARKET_MAKER
-    - id: OPS01
-      role: ADMIN
+participants:
+  - id: TRADER01
+    role: TRADER
+  - id: MM01
+    role: MARKET_MAKER
+  - id: OPS01
+    role: ADMIN
 ```
 
 `engine_config.yaml` lives in the EduMatcher session data directory —

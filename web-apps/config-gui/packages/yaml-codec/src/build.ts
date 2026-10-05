@@ -235,7 +235,7 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
       id: gw.id,
       role: gw.role,
     };
-    // Undefined inherits gateway_defaults.disconnect_behaviour.
+    // Undefined inherits participant_defaults.disconnect_behaviour.
     if (gw.disconnectBehaviour !== undefined) {
       payload.disconnect_behaviour = gw.disconnectBehaviour;
     }
@@ -246,7 +246,7 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
         gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
     }
     // Omitted when it equals what the gateway would inherit anyway (NONE
-    // without a gateway_defaults); builder.py does the same.
+    // without a participant_defaults); builder.py does the same.
     if (gw.smpAction !== undefined && gw.smpAction !== inheritedSmp) {
       payload.smp_action = gw.smpAction;
     }
@@ -497,9 +497,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   }
 
   const gatewayDefault = buildGatewayDefault(draft);
-  if (gatewayDefault !== null) cfg.gateway_defaults = gatewayDefault;
+  if (gatewayDefault !== null) cfg.participant_defaults = gatewayDefault;
 
-  cfg.gateways = { alf: buildGateways(draft) };
+  cfg.participants = buildGateways(draft);
 
   if (draft.alfGateway.include) {
     cfg.alf_gateway = buildNetworkGateway(draft, "alf");

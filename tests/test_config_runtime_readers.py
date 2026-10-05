@@ -45,8 +45,7 @@ from edumatcher.ralf_gateway.config import (
 BASE = """
 symbols:
   AAPL: {tick_decimals: 2, last_buy_price: 150.0}
-gateways:
-  alf: [{id: TRADER01, role: TRADER}]
+participants: [{id: TRADER01, role: TRADER}]
 """
 
 # One distinctive value per section, so a reader returning the wrong section —

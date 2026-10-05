@@ -78,7 +78,7 @@ Where to read more:
 - Interactive client behavior and operator workflow (`pm-alf-console` is a client, not a gateway): [ALF Console](055-alf-console.md)
 - Process-level role of `pm-alf-console`: [Processes](170-processes.md#pm-alf-console-user-gateway)
 - Process-level role of `pm-alf-gwy`: [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway)
-- Engine configuration of allowed ALF IDs/roles: [Configuration](010-configuration.md#alf-gateway-allowlist)
+- Engine configuration of allowed ALF IDs/roles: [Configuration](010-configuration.md#participants)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](900-app-alf-protocol.md)
 
 

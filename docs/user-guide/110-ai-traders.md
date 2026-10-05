@@ -145,7 +145,7 @@ Common options:
 
 | Option | Default | Description |
 |---|---|---|
-| `--id` | required | Gateway ID — must be listed under `gateways.alf` in the deployed engine configuration (or the engine must be unrestricted) |
+| `--id` | required | Gateway ID — must be listed under `participants` in the deployed engine configuration (or the engine must be unrestricted) |
 | `--profile` | `cautious` | One of: `aggressive`, `cautious`, `many-small`, `few-large` |
 | `--symbols` | all | Comma-separated list of symbols this bot watches; default is all symbols from engine |
 | `--seed` | `1` | Random seed — same seed produces identical order sequence (useful for reproducibility) |
@@ -252,7 +252,7 @@ bot's output is interleaved in the terminal.
 Unrestricted mode applies only when the engine finds no configuration at all
 (neither a deployed compiled artifact nor `<DATA_DIR>/ref_data/engine_config.yaml`).
 In that case any gateway ID can connect and trade any symbol. If a
-configuration is deployed, every bot ID must be listed under `gateways.alf`
+configuration is deployed, every bot ID must be listed under `participants`
 and the engine reads only the deployed artifact (`pm-config-deploy`). This is the
 easiest way to test:
 
@@ -263,7 +263,7 @@ poetry run pm-ai-swarm --count 5
 
 ### With a config file
 
-Add the bot gateway IDs to the `gateways:` section. AI traders are ordinary
+Add the bot gateway IDs to the `participants:` list. AI traders are ordinary
 `TRADER` participants:
 
 ```yaml
@@ -273,19 +273,18 @@ symbols:
   MSFT:
     tick_decimals: 2
 
-gateways:
-  alf:
-    - id: AI01
-      description: AI bot 1
-    - id: AI02
-      description: AI bot 2
-    - id: AI03
-      description: AI bot 3
-    # ... as many as --count
-    - id: ST01
-      description: Student 1
-    - id: ST02
-      description: Student 2
+participants:
+  - id: AI01
+    description: AI bot 1
+  - id: AI02
+    description: AI bot 2
+  - id: AI03
+    description: AI bot 3
+  # ... as many as --count
+  - id: ST01
+    description: Student 1
+  - id: ST02
+    description: Student 2
 ```
 
 !!! tip "Using a range pattern"
@@ -322,37 +321,36 @@ symbols:
     last_buy_price: 250.00
     last_sell_price: 250.50
 
-gateways:
-  alf:
-    # Instructor / operator
-    - id: OPS01
-      description: Operator console
-      role: ADMIN
+participants:
+  # Instructor / operator
+  - id: OPS01
+    description: Operator console
+    role: ADMIN
 
-    # Market maker (optional, adds liquidity — see pm-mm-bot below).
-    # Gateway ID follows pm-mm-bot's MM_<SYMBOL>_<nn> convention; see
-    # [Market-Maker Bot](100-mm-bot.md#gateway-identity-convention).
-    - id: MM_AAPL_01
-      description: Market maker (AAPL)
-      role: MARKET_MAKER
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 20
-      mm_min_qty: 100
+  # Market maker (optional, adds liquidity — see pm-mm-bot below).
+  # Gateway ID follows pm-mm-bot's MM_<SYMBOL>_<nn> convention; see
+  # [Market-Maker Bot](100-mm-bot.md#gateway-identity-convention).
+  - id: MM_AAPL_01
+    description: Market maker (AAPL)
+    role: MARKET_MAKER
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 20
+    mm_min_qty: 100
 
-    # AI bots (30 bots, IDs AI01–AI30)
-    - id: AI01
-      description: AI bot 1
-    - id: AI02
-      description: AI bot 2
-    # ... repeat through AI30
+  # AI bots (30 bots, IDs AI01–AI30)
+  - id: AI01
+    description: AI bot 1
+  - id: AI02
+    description: AI bot 2
+  # ... repeat through AI30
 
-    # Students (adjust count for your class size)
-    - id: ST01
-      description: Student 1
-    - id: ST02
-      description: Student 2
-    # ...
+  # Students (adjust count for your class size)
+  - id: ST01
+    description: Student 1
+  - id: ST02
+    description: Student 2
+  # ...
 ```
 
 ### Launch sequence

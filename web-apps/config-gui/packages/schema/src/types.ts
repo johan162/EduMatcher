@@ -220,7 +220,7 @@ export interface SymbolConfig {
 
 /**
  * Per-symbol market-maker obligation override for a single gateway
- * (`gateways.alf[*].mm_obligations.<SYM>`). Note the engine uses the nested
+ * (`participants[*].mm_obligations.<SYM>`). Note the engine uses the nested
  * keys `max_spread_ticks` / `min_qty` here (no `mm_` prefix), unlike the flat
  * gateway/global fields. Undefined fields inherit the gateway's flat values.
  */
@@ -263,7 +263,7 @@ export interface GatewayConfig {
 }
 
 /**
- * The top-level `gateway_defaults` block: values a `gateways.alf` entry
+ * The top-level `participant_defaults` block: values a `participants` entry
  * inherits when it omits the key. An undefined key is not written.
  */
 export interface GatewayDefaultConfig {
@@ -499,7 +499,7 @@ export interface EngineConfigDraft {
   /** Preserves symbol insertion order for stable output. */
   symbolOrder: string[];
   gateways: GatewayConfig[];
-  /** Written as `gateway_defaults` when any key is set. */
+  /** Written as `participant_defaults` when any key is set. */
   gatewayDefault: GatewayDefaultConfig;
 
   riskControls: {

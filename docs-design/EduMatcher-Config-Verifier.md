@@ -163,10 +163,9 @@ use `{placeholders}` for context-specific values.
 | Code | Severity | Condition | Message and suggestion |
 |------|----------|-----------|----------------------|
 | `S001` | ERROR | `symbols` absent or not a mapping | `'symbols' is required and must be a mapping. Add at least one symbol entry.` |
-| `S002` | ERROR | `gateways` absent or not a mapping | `'gateways' is required and must be a mapping containing a 'gateways.alf' list.` |
-| `S003` | ERROR | `gateways.alf` absent or not a list | `'gateways.alf' must be a list of gateway entries. See the configuration guide for the required fields.` |
+| `S002` | ERROR | `participants` absent or not a list | `'participants' is required and must be a list of participant entries. Add a 'participants:' list. See the configuration guide for the required fields.` |
 | `S004` | ERROR | `symbols` is empty | `'symbols' contains no entries. Add at least one symbol (e.g. AAPL) with tick_decimals.` |
-| `S005` | ERROR | `gateways.alf` is empty | `'gateways.alf' contains no gateway entries. Add at least one gateway with an id and role.` |
+| `S005` | ERROR | `participants` is empty | `'participants' contains no participant entries. Add at least one participant with an id and role.` |
 
 **Symbol fields**
 
@@ -185,8 +184,8 @@ use `{placeholders}` for context-specific values.
 
 | Code | Severity | Condition | Message and suggestion |
 |------|----------|-----------|----------------------|
-| `S020` | ERROR | Gateway entry missing `id` | `gateways.alf[{n}] has no 'id' field. Every gateway must have a unique alphanumeric id.` |
-| `S021` | ERROR | Duplicate gateway ID | `Duplicate gateway id '{id}' at gateways.alf[{n}] and gateways.alf[{m}]. Each gateway must have a unique id.` |
+| `S020` | ERROR | Gateway entry missing `id` | `participants[{n}] has no 'id' field. Every gateway must have a unique alphanumeric id.` |
+| `S021` | ERROR | Duplicate gateway ID | `Duplicate gateway id '{id}' at participants[{n}] and participants[{m}]. Each gateway must have a unique id.` |
 | `S022` | ERROR | `role` is not a recognised value | `Gateway '{id}': role '{role}' is not valid. Accepted values: TRADER, MARKET_MAKER, ADMIN.` |
 | `S023` | ERROR | `disconnect_behaviour` is not a recognised value | `Gateway '{id}': disconnect_behaviour '{value}' is not valid. Accepted values: CANCEL_ALL, CANCEL_QUOTES_ONLY, LEAVE_ALL.` |
 
@@ -214,7 +213,7 @@ use `{placeholders}` for context-specific values.
 | Code | Severity | Condition | Message and suggestion |
 |------|----------|-----------|----------------------|
 | `M001` | ERROR | MM gateway present but a symbol has no `market_maker_quotes` | `Symbol '{sym}' has no market_maker_quotes entry for MARKET_MAKER gateway '{gw}'. Add a bid/ask seed quote or the engine will reject startup. Run pm-config-gen with --seed-mm to generate placeholder seeds.` |
-| `M002` | WARN | MM quote seed references a gateway ID that is not in `gateways.alf` | `Symbol '{sym}': market_maker_quotes gateway_id '{gw}' is not listed in gateways.alf. Either add the gateway or remove the seed entry.` |
+| `M002` | WARN | MM quote seed references a gateway ID that is not in `participants` | `Symbol '{sym}': market_maker_quotes gateway_id '{gw}' is not listed in participants. Either add the gateway or remove the seed entry.` |
 | `M003` | WARN | MM quote bid/ask spread wider than the MM obligation `mm_max_spread_ticks` | `Symbol '{sym}': market_maker_quotes[{n}] spread ({spread} ticks) exceeds mm_max_spread_ticks ({limit}). The seed quote would be immediately rejected. Narrow the spread or raise mm_max_spread_ticks.` |
 | `M004` | ERROR | `sessions_enabled: true` but no `schedule` section | `sessions_enabled is true but no schedule is defined. The engine will wait indefinitely in CLOSED state. Add a schedule section or set sessions_enabled: false.` |
 | `M005` | WARN | `sessions_enabled: false` but a `schedule` section is present | `A schedule section is present but sessions_enabled is false. The schedule will be ignored. Set sessions_enabled: true or remove the schedule section.` |
@@ -272,7 +271,7 @@ Warnings
 [M013] WARN  No ADMIN gateway configured
   No gateway has role: ADMIN. Without an admin gateway, halt, resume,
   kill-switch, and emergency commands cannot be issued at runtime.
-  → Add a gateway with role: ADMIN to gateways.alf:
+  → Add a gateway with role: ADMIN to participants:
       - id: OPS01
         role: ADMIN
         disconnect_behaviour: LEAVE_ALL
@@ -324,8 +323,8 @@ Verdict:  ⚠ 1 WARNING, 2 ADVISORIES — engine can start but review warnings
       "code": "M013",
       "severity": "WARN",
       "message": "No gateway has role: ADMIN.",
-      "suggestion": "Add a gateway with role: ADMIN to gateways.alf.",
-      "path": "gateways.alf"
+      "suggestion": "Add a gateway with role: ADMIN to participants.",
+      "path": "participants"
     },
     {
       "code": "C003",
@@ -547,7 +546,7 @@ as inputs.  No file I/O is needed for Layer 2 onward.
 def test_s013_undefined_risk_level():
     raw = {
         "symbols": {"TSLA": {"level": "STRICT", "tick_decimals": 2}},
-        "gateways": {"alf": [{"id": "GW01", "role": "TRADER"}]},
+        "participants": [{"id": "GW01", "role": "TRADER"}],
         "risk_controls": {"levels": {"DEFAULT": {}}},
     }
     results = layer2_schema.check(raw, Path("fake.yaml"))

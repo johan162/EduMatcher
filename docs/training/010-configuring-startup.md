@@ -67,17 +67,16 @@ symbols:
     last_buy_price: 250.00
     last_sell_price: 250.00
 
-gateways:
-  alf:
-    - id: TRADER01
-      description: "Alice — first trader"
-      role: TRADER
-    - id: TRADER02
-      description: "Bob — second trader"
-      role: TRADER
-    - id: GW_ADMIN
-      description: "Exchange operator"
-      role: ADMIN
+participants:
+  - id: TRADER01
+    description: "Alice — first trader"
+    role: TRADER
+  - id: TRADER02
+    description: "Bob — second trader"
+    role: TRADER
+  - id: GW_ADMIN
+    description: "Exchange operator"
+    role: ADMIN
 ```
 
 !!! note "Why `tick_decimals`, not `tick_size`"
@@ -115,7 +114,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --gateways TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
@@ -138,7 +137,7 @@ cat engine_config.yaml
 !!! tip "Dry-run mode"
     Add `--dry-run` to preview the output without writing a file:
     ```bash
-    pm-config-gen --symbols AAPL MSFT TSLA --gateways TRADER01 --dry-run
+    pm-config-gen --symbols AAPL MSFT TSLA --participants TRADER01 --dry-run
     ```
 
 !!! tip "Adding market-maker gateways"
@@ -146,7 +145,7 @@ cat engine_config.yaml
     ```bash
     pm-config-gen \
       --symbols AAPL MSFT TSLA \
-      --gateways TRADER01 TRADER02 GW_ADMIN:ADMIN MM_AAPL_01:MARKET_MAKER \
+      --participants TRADER01 TRADER02 GW_ADMIN:ADMIN MM_AAPL_01:MARKET_MAKER \
       --enforce-mm-obligations \
       --output engine_config.yaml --force
     ```
@@ -589,7 +588,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --gateways TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
@@ -617,7 +616,7 @@ pm-config-gen \
   --symbol-opts AAPL:tick_decimals=2 \
   --symbol-opts MSFT:tick_decimals=2 \
   --symbol-opts TSLA:tick_decimals=2 \
-  --gateways TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
+  --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \

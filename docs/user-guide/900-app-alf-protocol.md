@@ -255,9 +255,9 @@ not part of the documented protocol and should be avoided.
 | `CANCEL_BOTH`      | Cancel both the incoming and resting order       |
 
 If `SMP` is omitted entirely, the engine falls back to the submitting
-gateway's configured `gateways.alf[].smp_action` (or `NONE` if the gateway
+gateway's configured `participants[].smp_action` (or `NONE` if the gateway
 has none configured) — see
-[Configuration — Gateway Fields](010-configuration.md#gateway-fields). This
+[Configuration — Participant Fields](010-configuration.md#participant-fields). This
 is different from sending `SMP=NONE` explicitly, which is always honoured
 as-is even if the gateway has a non-`NONE` default configured.
 
@@ -776,7 +776,7 @@ NEW
 
 If `COMBO_TYPE` is omitted, the gateway defaults it to `AON`. If `TIF` is
 omitted, it defaults to `DAY`. If `SMP` is omitted, every leg falls back to
-the submitting gateway's configured `gateways.alf[].smp_action` (see
+the submitting gateway's configured `participants[].smp_action` (see
 [Supported `SMP` values](#supported-smp-values) above) rather than a fixed
 `NONE`.
 
@@ -1249,39 +1249,38 @@ equivalent to exiting the program.)
 ## Configuration reference
 
 ALF gateway authorization and behavior are configured in the main engine
-configuration file (`engine_config.yaml`), under the `gateways.alf` list.
+configuration file (`engine_config.yaml`), under the `participants` list.
 
 Path location:
 
-- `engine_config.yaml` -> `gateways` -> `alf` -> list of gateway entries
+- `engine_config.yaml` -> `participants` -> list of participant entries
 
 All supported ALF gateway configuration fields are listed below.
 
 | Field | Type / allowed range | Default | Description |
 |---|---|---|---|
-| `gateways.alf[].id` | Non-empty string | None (required) | Gateway identity used by `pm-alf-console --id ...` and engine allowlist checks. |
-| `gateways.alf[].description` | String | Empty string | Human-readable gateway description. |
-| `gateways.alf[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Participant role used for authorization/policy checks. |
-| `gateways.alf[].disconnect_behaviour` | Enum: `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `CANCEL_QUOTES_ONLY` | Engine behavior applied when that gateway disconnects. |
-| `gateways.alf[].quote_refresh_policy` | Enum: `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL` | Controls market-maker quote life-cycle after fills. |
-| `gateways.alf[].enforce_mm_obligation` | Boolean (`true`/`false`) | `false` | Enables per-gateway market-maker obligation checks. |
-| `gateways.alf[].mm_max_spread_ticks` | Integer, `> 0` | `10` | Maximum allowed quote spread for MM obligation checks. |
-| `gateways.alf[].mm_min_qty` | Integer, `> 0` | `100` | Minimum quote size for MM obligation checks. |
-| `gateways.alf[].mm_obligations` | Mapping of symbol -> obligation object | Empty mapping | Optional per-symbol MM overrides when configured. |
+| `participants[].id` | Non-empty string | None (required) | Gateway identity used by `pm-alf-console --id ...` and engine allowlist checks. |
+| `participants[].description` | String | Empty string | Human-readable gateway description. |
+| `participants[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Participant role used for authorization/policy checks. |
+| `participants[].disconnect_behaviour` | Enum: `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `CANCEL_QUOTES_ONLY` | Engine behavior applied when that gateway disconnects. |
+| `participants[].quote_refresh_policy` | Enum: `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL` | Controls market-maker quote life-cycle after fills. |
+| `participants[].enforce_mm_obligation` | Boolean (`true`/`false`) | `false` | Enables per-gateway market-maker obligation checks. |
+| `participants[].mm_max_spread_ticks` | Integer, `> 0` | `10` | Maximum allowed quote spread for MM obligation checks. |
+| `participants[].mm_min_qty` | Integer, `> 0` | `100` | Minimum quote size for MM obligation checks. |
+| `participants[].mm_obligations` | Mapping of symbol -> obligation object | Empty mapping | Optional per-symbol MM overrides when configured. |
 
 **Example:**
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: Human trader workstation
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: false
-      mm_max_spread_ticks: 10
-      mm_min_qty: 100
+participants:
+  - id: TRADER01
+    description: Human trader workstation
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: false
+    mm_max_spread_ticks: 10
+    mm_min_qty: 100
 ```
 
 

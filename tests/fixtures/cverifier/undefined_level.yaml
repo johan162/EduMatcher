@@ -4,10 +4,9 @@ symbols:
     last_buy_price: 200.00
     level: STRICT
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
+participants:
+  - id: TRADER01
+    role: TRADER
 
 risk_controls:
   levels:

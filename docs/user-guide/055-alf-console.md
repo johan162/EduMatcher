@@ -54,7 +54,7 @@ and prints responses to stdout.
 
 Responsibilities of `pm-alf-console`:
 
-- authenticates the gateway ID against `gateways.alf`
+- authenticates the gateway ID against `participants`
 - parses ALF command lines into validated engine requests
 - subscribes to gateway-scoped lifecycle events (acks, fills, cancels, rejects)
 - maintains local session caches for `ORDERS`, `POS`, `QBOOT`, and `QLEGS`
@@ -136,13 +136,13 @@ poetry run pm-alf-console --id GW01
 ```
 
 The `--id` flag sets your gateway identifier. It appears on all orders and fills.
-The ID must be preconfigured in `engine_config.yaml` under `gateways.alf`.
+The ID must be preconfigured in `engine_config.yaml` under `participants`.
 
 **CLI flags:**
 
 | Flag | Default | Description |
 |---|---|---|
-| `--id GW_ID` | *(required)* | Unique gateway identifier (e.g. `GW01`, `ALICE`). Must be listed under `gateways.alf` in `engine_config.yaml` |
+| `--id GW_ID` | *(required)* | Unique gateway identifier (e.g. `GW01`, `ALICE`). Must be listed under `participants` in `engine_config.yaml` |
 | `--drop-copy` | off | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting). Can also be toggled at runtime — see [DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay) |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
@@ -185,7 +185,7 @@ sequenceDiagram
     participant ENG as pm-engine
 
     GW->>ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
-    alt ID is in gateways.alf
+    alt ID is in participants
         ENG-->>GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
         Note over GW: Enters interactive command loop
     else ID not configured
@@ -200,17 +200,16 @@ The terminal does **not** subscribe to `session.state`. Use `pm-audit`,
 `pm-viewer`, `pm-orders`, or the scheduler output if you need to watch trading
 phase transitions live.
 
-Allowed gateway IDs are configured in `engine_config.yaml` under `gateways.alf`.
+Allowed gateway IDs are configured in `engine_config.yaml` under `participants`.
 
 Example:
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: The first trader
-    - id: TRADER02
-      description: High frequency
+participants:
+  - id: TRADER01
+    description: The first trader
+  - id: TRADER02
+    description: High frequency
 ```
 
 If a session starts with an ID that is not listed there, the engine refuses
@@ -548,9 +547,9 @@ NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>
 **SMP** (Self Match Prevention) values: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`.
 SMP prevents you from accidentally trading against your own resting orders. If
 `SMP` is omitted, the engine falls back to the gateway's configured
-`gateways.alf[].smp_action` (or `NONE` if none is configured) rather than a
+`participants[].smp_action` (or `NONE` if none is configured) rather than a
 fixed default — see
-[Configuration — Gateway Fields](010-configuration.md#gateway-fields) for the
+[Configuration — Participant Fields](010-configuration.md#participant-fields) for the
 config field, and
 [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp)
 for a full explanation of how SMP is enforced during matching and how the
@@ -613,7 +612,7 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 | `LEG<i>.QTY`       | Yes      | Quantity                                         |
 | `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT, FOK, STOP_LIMIT, ICEBERG leg types) |
 | `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
-| `SMP=<action>`     | No       | Self-match prevention, applied to every leg; same values as `NEW`'s `SMP`. If omitted, falls back to the gateway's configured `gateways.alf[].smp_action` (else `NONE`) — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
+| `SMP=<action>`     | No       | Self-match prevention, applied to every leg; same values as `NEW`'s `SMP`. If omitted, falls back to the gateway's configured `participants[].smp_action` (else `NONE`) — see [Configuration — Participant Fields](010-configuration.md#participant-fields) |
 
 #### Examples
 
@@ -878,7 +877,7 @@ When metadata is available, the columns mean:
 
 !!! note "Gateway authorization"
     `SYMBOLS` and all trading commands are available only after successful
-    startup authentication. If your ID is not listed under `gateways.alf`,
+    startup authentication. If your ID is not listed under `participants`,
     the engine refuses the connection.
 
 ### SESSION — Query Current Trading Session State
@@ -1076,7 +1075,7 @@ poetry run pm-alf-console --id TRADER03
 ```
 
 Before starting a new gateway ID (for example `TRADER03`), add it to
-`engine_config.yaml` in `gateways.alf` and restart the engine.
+`engine_config.yaml` in `participants` and restart the engine.
 
 Each session only receives events for its own orders. Use `pm-orders` to see all
 gateways' activity.
@@ -1121,7 +1120,7 @@ the command prompt. You can continue typing while events arrive.
 | Symptom | Typical cause | Fast check | Action |
 |---|---|---|---|
 | `Gateway authentication timed out` | Engine is not running/reachable | Is `pm-engine` running in another terminal? | Start `pm-engine` first |
-| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `gateways.alf` list | Add ID under `gateways.alf` and restart engine |
+| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `participants` list | Add ID under `participants` and restart engine |
 | `REJECTED ... code=UNKNOWN_SYMBOL` | Symbol unknown to engine config | Run `SYMBOLS` | Use listed symbols or add symbol to config |
 | `REJECTED ... code=INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`) | Circuit breaker/operator halt | Check audit/viewer output | Wait for resume or use admin controls |
 | `REJECTED ... code=COLLAR_BREACH` | Price too far from reference | Compare to recent trade prices | Reprice closer to market |
@@ -1133,7 +1132,7 @@ the command prompt. You can continue typing while events arrive.
 
 - [Gateway Concepts](051-gateway-intro.md) — what a gateway is, and why `pm-alf-console` is not one
 - [ALF TCP Gateway](220-alf-gateway.md) — the real ALF gateway, for remote/external clients
-- [Configuration](010-configuration.md#alf-gateway-allowlist) — gateway roles, allowlists, disconnect behaviour, and MM obligations
+- [Configuration](010-configuration.md#participants) — gateway roles, allowlists, disconnect behaviour, and MM obligations
 - [Order Types](060-order-types.md) — full semantics for every order type accepted by the terminal
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
 - [Messages](270-message-reference.md) — the ZeroMQ messages the terminal publishes and subscribes to

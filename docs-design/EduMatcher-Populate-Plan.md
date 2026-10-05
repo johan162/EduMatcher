@@ -271,7 +271,7 @@ This is WP-03b's SQL change seen from the operator's side.
   - `pm-config-gen … --sim-traders auto` with 150 symbols emits SIM01–SIM50,
     all with `LEAVE_ALL` and `CANCEL_RESTING`, and none in `credentials`.
   - 10 symbols gives 20 SIM gateways. `--sim-traders 0` gives none.
-  - An explicit `--gateways SIM01:TRADER` collision is an error.
+  - An explicit `--participants SIM01:TRADER` collision is an error.
   - cverifier errors on a SIM gateway with `CANCEL_ALL`, with an API key, or
     in `market_maker_quotes`, and warns when the count exceeds
     `max_connections`.

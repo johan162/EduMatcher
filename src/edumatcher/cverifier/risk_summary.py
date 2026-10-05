@@ -49,17 +49,15 @@ def build(raw: dict[str, Any]) -> RiskSummary:
         summary.symbols = sorted(str(k).upper() for k in symbols)
 
     # Gateways
-    gateways_raw = raw.get("gateways", {})
-    if isinstance(gateways_raw, dict):
-        alf = gateways_raw.get("alf", [])
-        if isinstance(alf, list):
-            for gw in alf:
-                if isinstance(gw, dict) and gw.get("id"):
-                    gw_id = str(gw["id"]).strip().upper()
-                    role = str(gw.get("role", "TRADER")).upper()
-                    summary.gateways[gw_id] = role
-                    if role == "ADMIN" and summary.admin_gateway is None:
-                        summary.admin_gateway = gw_id
+    participants = raw.get("participants", [])
+    if isinstance(participants, list):
+        for gw in participants:
+            if isinstance(gw, dict) and gw.get("id"):
+                gw_id = str(gw["id"]).strip().upper()
+                role = str(gw.get("role", "TRADER")).upper()
+                summary.gateways[gw_id] = role
+                if role == "ADMIN" and summary.admin_gateway is None:
+                    summary.admin_gateway = gw_id
 
     # Sessions
     summary.sessions_enabled = bool(raw.get("sessions_enabled", False))

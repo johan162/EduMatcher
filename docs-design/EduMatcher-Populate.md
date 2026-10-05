@@ -446,7 +446,7 @@ allowed in both modes. It takes no gateway id, matching how
 | `alf_gwy`, `balf_gwy` | SIMULATOR is treated like TRADER: allowed NEW/AMEND/CANCEL/KILL/POS, refused QUOTE (`ROLE_DENIED`) |
 | `cverifier` layer 2 | Add the value to `_VALID_ROLES` |
 | `cverifier` layer 3 | A SIMULATOR gateway must have `disconnect_behaviour: LEAVE_ALL` (error). It must not appear in any `api_gateways.*.credentials` (error), and must not appear in `market_maker_quotes` (error). Warn if the count of SIMULATOR gateways is greater than `alf_gateway.max_connections`. |
-| `config_gen` | `_ROLE_DEFAULT_DISCONNECT[SIMULATOR] = LEAVE_ALL`. New `--sim-traders N\|auto` (default `auto`) appends `SIM01..SIMnn` (zero-padded to 2 digits, 3 if > 99) with description `Simulation trader (pm-populate)` and `smp_action: CANCEL_RESTING` (D33). SIM gateways are excluded from API-key auto-generation. An explicit `--gateways` entry that collides with a SIM id is an error. |
+| `config_gen` | `_ROLE_DEFAULT_DISCONNECT[SIMULATOR] = LEAVE_ALL`. New `--sim-traders N\|auto` (default `auto`) appends `SIM01..SIMnn` (zero-padded to 2 digits, 3 if > 99) with description `Simulation trader (pm-populate)` and `smp_action: CANCEL_RESTING` (D33). SIM gateways are excluded from API-key auto-generation. An explicit `--participants` entry that collides with a SIM id is an error. |
 | `api_gateway/engine_client.py` | No change. Unknown roles already fail closed to TRADER, and SIM gateways have no keys. |
 | config-gui | Add to `PARTICIPANT_ROLES`, extend the `defaults.ts` role union and default disconnect (LEAVE_ALL), and add a diagnostics rule mirroring cverifier |
 | trader-gui | Add `"SIMULATOR"` to the `GatewayRole` type (the admin gateway list shows it). LoginPage is unchanged: SIM can never log in. |

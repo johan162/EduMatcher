@@ -38,9 +38,8 @@ def _write_yaml(tmp_path: Path, content: str) -> Path:
 _BASE = """
 symbols:
   AAPL: {}
-gateways:
-  alf:
-    - id: TRADER01
+participants:
+  - id: TRADER01
 """
 
 

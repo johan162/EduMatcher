@@ -111,13 +111,12 @@ poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 Before launching, ensure the gateway ID is registered in `engine_config.yaml`:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM_AAPL_01
-      description: "AAPL market-maker bot"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+participants:
+  - id: MM_AAPL_01
+    description: "AAPL market-maker bot"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
 ---
@@ -1152,41 +1151,39 @@ Each bot instance — whether it quotes one symbol or several — must be
 pre-registered as a single gateway entry in `engine_config.yaml`:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM_AAPL_01
-      description: "AAPL market-maker bot instance 1"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 10
-      mm_min_qty: 100
-      smp_action: CANCEL_RESTING
+participants:
+  - id: MM_AAPL_01
+    description: "AAPL market-maker bot instance 1"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 10
+    mm_min_qty: 100
+    smp_action: CANCEL_RESTING
 
-    - id: MM_AAPL_02
-      description: "AAPL market-maker bot instance 2"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+  - id: MM_AAPL_02
+    description: "AAPL market-maker bot instance 2"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 ```
 
 A `pm-mm-bot --symbols AAPL,MSFT --label TECH` process registers as *one*
-gateway entry the same way — nothing in `gateways:` names which symbols a
+gateway entry the same way — nothing in `participants:` names which symbols a
 `MARKET_MAKER` gateway quotes, since that's the bot's own `--symbol`/
 `--symbols` choice, not an engine-config concept:
 
 ```yaml
-gateways:
-  alf:
-    - id: MM_TECH_01
-      description: "AAPL+MSFT market-maker bot"
-      role: MARKET_MAKER
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
-      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 10
-      mm_min_qty: 100
+participants:
+  - id: MM_TECH_01
+    description: "AAPL+MSFT market-maker bot"
+    role: MARKET_MAKER
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
+    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: true
+    mm_max_spread_ticks: 10
+    mm_min_qty: 100
 ```
 
 One easy-to-miss consequence: the per-symbol `market_maker_quotes` seed
@@ -1213,7 +1210,7 @@ these automatically for every symbol, so this is only a concern when writing
   resting order from the *same* gateway id (e.g. a stale leg left over from
   a prior quote) is always handled per this gateway-level setting instead of
   self-trading. See
-  [Configuration Spec §5.2](990-app-config-spec.md#52-gatewaysalf-required)
+  [Configuration Spec §5.2](990-app-config-spec.md#52-participants-required)
   for the full `SmpAction` value list and how this default also applies to
   `NEW`/combo orders from other gateway roles when they omit `SMP=`. See
   [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp)

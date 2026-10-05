@@ -16,13 +16,13 @@ class GatewaySpec:
     description: str = ""
     # Gateway-level self-match-prevention default, applied by the engine to
     # any order/quote from this gateway that doesn't specify its own SMP=
-    # (see gateways.alf[].smp_action in docs/user-guide/120-risk-controls.md).
-    # Not part of the colon-delimited --gateways spec syntax (would collide
+    # (see participants[].smp_action in docs/user-guide/120-risk-controls.md).
+    # Not part of the colon-delimited --participants spec syntax (would collide
     # with the free-text DESCRIPTION slot) -- set via the separate,
-    # repeatable --gateway-smp GW_ID:SMP_ACTION flag instead.
+    # repeatable --participant-smp GW_ID:SMP_ACTION flag instead.
     smp_action: SmpAction = SmpAction.NONE
     # True when the spec named the value itself (rather than taking the role
-    # default), so it must be written even when a ``gateway_defaults`` exists.
+    # default), so it must be written even when a ``participant_defaults`` exists.
     disconnect_explicit: bool = False
     smp_explicit: bool = False
 

@@ -50,9 +50,9 @@ KEY_LANDINGS: dict[str, object] = {
     "circuit_breaker_defaults": lambda c: next(
         (s.circuit_breaker for s in c.engine.symbols.values()), None
     ),
-    "gateways": lambda c: c.engine.fix_gateways or None,
+    "participants": lambda c: c.engine.fix_gateways or None,
     # Resolved into each FixGatewayConfig at compile time; no field of its own.
-    "gateway_defaults": lambda c: c.engine.fix_gateways or None,
+    "participant_defaults": lambda c: c.engine.fix_gateways or None,
     "alf_gateway": lambda c: c.alf_gateway,
     "post_trade_gateway": lambda c: c.post_trade_gateway,
     "market_data_gateway": lambda c: c.market_data_gateway,
@@ -210,8 +210,7 @@ symbols:
     last_buy_price: 149.0
     last_sell_price: 151.0
     outstanding_shares: 15400000000
-gateways:
-  alf: [{id: TRADER01, role: TRADER}]
+participants: [{id: TRADER01, role: TRADER}]
 indices:
   - id: EDU1
     description: One-name index

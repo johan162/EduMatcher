@@ -35,9 +35,8 @@ symbols:
   AAPL:
     last_buy_price: 150.0
     last_sell_price: 151.0
-gateways:
-  alf:
-    - id: TRADER01
+participants:
+  - id: TRADER01
 """
 
 
@@ -60,9 +59,8 @@ class TestConfigLoaderHappyPath:
         symbols:
           aapl:
             last_buy_price: 100.0
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert "AAPL" in cfg.symbols
@@ -72,9 +70,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           MSFT:
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert "MSFT" in cfg.symbols
@@ -90,10 +87,9 @@ class TestConfigLoaderHappyPath:
                 ask_price: 150.0
                 bid_qty: 100
                 ask_qty: 100
-        gateways:
-          alf:
-            - id: MM01
-              role: MARKET_MAKER
+        participants:
+          - id: MM01
+            role: MARKET_MAKER
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert len(cfg.symbols["AAPL"].market_maker_quotes) == 1
@@ -103,11 +99,10 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              description: First gateway
-            - id: GW02
+        participants:
+          - id: GW01
+            description: First gateway
+          - id: GW02
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert "GW01" in cfg.fix_gateways
@@ -124,16 +119,15 @@ class TestConfigLoaderHappyPath:
                 ask_price: 101.0
                 bid_qty: 50
                 ask_qty: 50
-        gateways:
-          alf:
-            - id: MM01
-              role: MARKET_MAKER
-              disconnect_behaviour: CANCEL_ALL
-              quote_refresh_policy: NEVER_INACTIVATE
-              enforce_mm_obligation: true
-              mm_max_spread_ticks: 8
-              mm_min_qty: 50
-              smp_action: CANCEL_RESTING
+        participants:
+          - id: MM01
+            role: MARKET_MAKER
+            disconnect_behaviour: CANCEL_ALL
+            quote_refresh_policy: NEVER_INACTIVATE
+            enforce_mm_obligation: true
+            mm_max_spread_ticks: 8
+            mm_min_qty: 50
+            smp_action: CANCEL_RESTING
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         gw = cfg.fix_gateways["MM01"]
@@ -149,9 +143,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.fix_gateways["GW01"].smp_action == SmpAction.NONE
@@ -160,10 +153,9 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              smp_action: cancel_both
+        participants:
+          - id: GW01
+            smp_action: cancel_both
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.fix_gateways["GW01"].smp_action == SmpAction.CANCEL_BOTH
@@ -174,15 +166,14 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateway_defaults:
+        participant_defaults:
           smp_action: CANCEL_AGGRESSOR
           disconnect_behaviour: cancel_all
-        gateways:
-          alf:
-            - id: GW01
-            - id: GW02
-              smp_action: NONE
-              disconnect_behaviour: LEAVE_ALL
+        participants:
+          - id: GW01
+          - id: GW02
+            smp_action: NONE
+            disconnect_behaviour: LEAVE_ALL
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         inherits = cfg.fix_gateways["GW01"]
@@ -198,11 +189,10 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateway_defaults:
+        participant_defaults:
           smp_action: CANCEL_BOTH
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         gw = load_engine_config(_write_yaml(tmp_path, yaml)).fix_gateways["GW01"]
         assert gw.smp_action == SmpAction.CANCEL_BOTH
@@ -211,17 +201,17 @@ class TestConfigLoaderHappyPath:
     @pytest.mark.parametrize(
         ("block", "message"),
         [
-            ("gateway_defaults: [1]", "'gateway_defaults' must be a mapping"),
+            ("participant_defaults: [1]", "'participant_defaults' must be a mapping"),
             (
-                "gateway_defaults:\n          smp_action: SOMETIMES",
-                "gateway_defaults.smp_action' is invalid",
+                "participant_defaults:\n          smp_action: SOMETIMES",
+                "participant_defaults.smp_action' is invalid",
             ),
             (
-                "gateway_defaults:\n          disconnect_behaviour: NUKE",
-                "gateway_defaults.disconnect_behaviour' is invalid",
+                "participant_defaults:\n          disconnect_behaviour: NUKE",
+                "participant_defaults.disconnect_behaviour' is invalid",
             ),
             (
-                "gateway_defaults:\n          smp_actoin: NONE",
+                "participant_defaults:\n          smp_actoin: NONE",
                 "unknown field(s): smp_actoin",
             ),
         ],
@@ -233,9 +223,8 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {{}}
         {block}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match=re.escape(message)):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -244,9 +233,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: trader01
+        participants:
+          - id: trader01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert "TRADER01" in cfg.fix_gateways
@@ -263,9 +251,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         schedule:
           weekdays:
             pre_open: "08:00"
@@ -298,9 +285,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         sessions_enabled: true
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -315,9 +301,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         enforce_collars: false
         enforce_circuit_breakers: false
         """
@@ -337,9 +322,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         engine_tuning:
           snapshot_interval_sec: 1.25
           quote_history_maxlen: 60
@@ -358,9 +342,8 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         snapshot_interval_sec: 1.25
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -373,9 +356,8 @@ class TestConfigLoaderHappyPath:
             last_buy_price: 150.0
           MSFT:
             last_buy_price: 400.0
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_id: PAIR1
             combo_type: AON
@@ -403,9 +385,8 @@ class TestConfigLoaderHappyPath:
           AAPL:
             last_buy_price: "149.50"
             last_sell_price: "150.50"
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.symbols["AAPL"].last_buy_price == 149.50
@@ -415,10 +396,9 @@ class TestConfigLoaderHappyPath:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              description:
+        participants:
+          - id: GW01
+            description:
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.fix_gateways["GW01"].description == ""
@@ -432,9 +412,8 @@ class TestConfigLoaderHappyPath:
         symbols:
           EURUSD:
             tick_decimals: 4
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.symbols["EURUSD"].tick_decimals == 4
@@ -460,9 +439,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         sessions_enabled: "yes"
         """
         with pytest.raises(ValueError, match="sessions_enabled"):
@@ -472,9 +450,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         engine_tuning:
           snapshot_interval_sec: "fast"
         """
@@ -485,9 +462,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         engine_tuning:
           snapshot_interval_sec: 0
         """
@@ -498,9 +474,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         engine_tuning: fast
         """
         with pytest.raises(ValueError, match="engine_tuning"):
@@ -512,9 +487,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         engine_tuning:
           quote_history_maxlen: 0
         """
@@ -525,9 +499,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         enforce_collars: "yes"
         """
         with pytest.raises(ValueError, match="enforce_collars"):
@@ -537,9 +510,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         enforce_circuit_breakers: "yes"
         """
         with pytest.raises(ValueError, match="enforce_circuit_breakers"):
@@ -549,9 +521,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.require_mm_seed_quotes is True
@@ -562,10 +533,9 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: MM01
-              role: MARKET_MAKER
+        participants:
+          - id: MM01
+            role: MARKET_MAKER
         """
         with pytest.raises(
             ValueError, match="at least one market_maker_quotes entry is required"
@@ -578,10 +548,9 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: MM01
-              role: MARKET_MAKER
+        participants:
+          - id: MM01
+            role: MARKET_MAKER
         require_mm_seed_quotes: false
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -592,9 +561,8 @@ class TestConfigLoaderFileErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         require_mm_seed_quotes: "yes"
         """
         with pytest.raises(ValueError, match="require_mm_seed_quotes"):
@@ -609,9 +577,8 @@ class TestConfigLoaderFileErrors:
 class TestConfigLoaderSymbolErrors:
     def test_missing_symbols_key_raises(self, tmp_path: Path) -> None:
         yaml = """
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="'symbols'"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -620,9 +587,8 @@ class TestConfigLoaderSymbolErrors:
         yaml = """
         symbols:
           AAPL: "not a dict"
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="must be a mapping"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -632,9 +598,8 @@ class TestConfigLoaderSymbolErrors:
         symbols:
           AAPL:
             last_buy_price: "not-a-number"
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="last_buy_price must be a number"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -644,9 +609,8 @@ class TestConfigLoaderSymbolErrors:
         symbols:
           AAPL:
             last_sell_price: "bad"
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="last_sell_price must be a number"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -656,9 +620,8 @@ class TestConfigLoaderSymbolErrors:
         symbols:
           AAPL:
             market_maker_quotes: "not-a-list"
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="market_maker_quotes must be a list"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -669,9 +632,8 @@ class TestConfigLoaderSymbolErrors:
           AAPL:
             market_maker_quotes:
               - 12345
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="must be a mapping"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -686,10 +648,9 @@ class TestConfigLoaderSymbolErrors:
                 ask_price: 100.0
                 bid_qty: 10
                 ask_qty: 10
-        gateways:
-          alf:
-            - id: MM01
-              role: MARKET_MAKER
+        participants:
+          - id: MM01
+            role: MARKET_MAKER
         """
         with pytest.raises(ValueError, match="requires bid_price < ask_price"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -704,10 +665,9 @@ class TestConfigLoaderSymbolErrors:
                 ask_price: 101.0
                 bid_qty: 10
                 ask_qty: 10
-        gateways:
-          alf:
-            - id: GW01
-              role: TRADER
+        participants:
+          - id: GW01
+            role: TRADER
         """
         with pytest.raises(ValueError, match="must reference a MARKET_MAKER gateway"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -717,9 +677,8 @@ class TestConfigLoaderSymbolErrors:
         symbols:
           AAPL:
             tick_decimals: 9
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         """
         with pytest.raises(ValueError, match="tick_decimals"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -731,30 +690,29 @@ class TestConfigLoaderSymbolErrors:
 
 
 class TestConfigLoaderGatewayErrors:
-    def test_missing_gateways_key_raises(self, tmp_path: Path) -> None:
+    def test_missing_participants_key_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL: {}
         """
-        with pytest.raises(ValueError, match="'gateways'"):
+        with pytest.raises(ValueError, match="'participants'"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
-    def test_missing_fix_list_raises(self, tmp_path: Path) -> None:
+    def test_participants_not_a_list_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
+        participants:
           other: {}
         """
-        with pytest.raises(ValueError, match="gateways.alf"):
+        with pytest.raises(ValueError, match="participants"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_empty_fix_list_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf: []
+        participants: []
         """
         with pytest.raises(ValueError, match="at least one"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -763,9 +721,8 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - "just-a-string"
+        participants:
+          - "just-a-string"
         """
         with pytest.raises(ValueError, match="must be a mapping"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -774,9 +731,8 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - description: "no id here"
+        participants:
+          - description: "no id here"
         """
         with pytest.raises(ValueError, match=".id must be a non-empty string"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -785,22 +741,20 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-            - id: GW01
+        participants:
+          - id: GW01
+          - id: GW01
         """
-        with pytest.raises(ValueError, match="Duplicate gateway id"):
+        with pytest.raises(ValueError, match="Duplicate participant id"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_gateway_invalid_role_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              role: INVALID
+        participants:
+          - id: GW01
+            role: INVALID
         """
         with pytest.raises(ValueError, match="role is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -809,10 +763,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              disconnect_behaviour: BAD_MODE
+        participants:
+          - id: GW01
+            disconnect_behaviour: BAD_MODE
         """
         with pytest.raises(ValueError, match="disconnect_behaviour is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -821,10 +774,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              quote_refresh_policy: SOMETIMES
+        participants:
+          - id: GW01
+            quote_refresh_policy: SOMETIMES
         """
         with pytest.raises(ValueError, match="quote_refresh_policy is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -833,10 +785,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              smp_action: SOMETIMES
+        participants:
+          - id: GW01
+            smp_action: SOMETIMES
         """
         with pytest.raises(ValueError, match="smp_action is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -847,10 +798,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              enforce_mm_obligation: "yes"
+        participants:
+          - id: GW01
+            enforce_mm_obligation: "yes"
         """
         with pytest.raises(ValueError, match="enforce_mm_obligation"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -859,10 +809,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              mm_max_spread_ticks: 0
+        participants:
+          - id: GW01
+            mm_max_spread_ticks: 0
         """
         with pytest.raises(ValueError, match="mm_max_spread_ticks"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -871,10 +820,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              mm_min_qty: -1
+        participants:
+          - id: GW01
+            mm_min_qty: -1
         """
         with pytest.raises(ValueError, match="mm_min_qty"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -883,10 +831,9 @@ class TestConfigLoaderGatewayErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
-              description: 12345
+        participants:
+          - id: GW01
+            description: 12345
         """
         with pytest.raises(ValueError, match="description must be a string"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -902,9 +849,8 @@ class TestConfigLoaderComboErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos: "bad"
         """
         with pytest.raises(ValueError, match="must be a list"):
@@ -914,9 +860,8 @@ class TestConfigLoaderComboErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - "just-a-string"
         """
@@ -928,9 +873,8 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
           MSFT: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_type: AON
             legs:
@@ -953,9 +897,8 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
           MSFT: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_id: PAIR1
             combo_type: INVALID
@@ -978,9 +921,8 @@ class TestConfigLoaderComboErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_id: BAD
             legs:
@@ -997,9 +939,8 @@ class TestConfigLoaderComboErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_id: DUP
             legs:
@@ -1021,9 +962,8 @@ class TestConfigLoaderComboErrors:
         yaml = """
         symbols:
           AAPL: {}
-        gateways:
-          alf:
-            - id: GW01
+        participants:
+          - id: GW01
         market_maker_combos:
           - combo_id: PAIR1
             legs:

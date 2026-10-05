@@ -264,7 +264,7 @@ editable.
 
 | Tab | Persona | Configures | Reference chapter |
 |---|---|---|---|
-| **Basics** | Beginner | The symbol universe and the ALF gateway allowlist | [ALF gateway allowlist](010-configuration.md#alf-gateway-allowlist), [ALF gateway](220-alf-gateway.md) |
+| **Basics** | Beginner | The symbol universe and the participants list | [Participants](010-configuration.md#participants), [ALF gateway](220-alf-gateway.md) |
 | **Sessions & Schedule** | Beginner | Whether the scheduler drives the trading day, and the phase times | [Auctions & Session Scheduling](080-session-scheduling.md) |
 | **Risk & Collars** | Intermediate | The global collar band, named risk levels, and collar enforcement | [Price collars](120-risk-controls.md#price-collars) |
 | **Circuit Breakers** | Intermediate | The halt ladder, reference window, and CB enforcement | [Circuit breakers](120-risk-controls.md#circuit-breakers) |
@@ -287,12 +287,13 @@ just want to produce a working file quickly, follow the
 ## Basics: symbols and gateways
 
 The **Basics** tab is the mandatory foundation: at least one **symbol** and one
-**gateway** are required before anything can be exported.
+**participant** are required before anything can be exported.
 
 - **Symbols** are the instruments that trade on the exchange. Add them with the
   [IPO dialog](#symbols-and-the-ipo-dialog); names are uppercased automatically
   and must be unique.
-- **Gateways** are the participant sessions permitted to connect, each with a
+- **Participants** are the sessions permitted to connect (the `participants`
+  list), each with a
   **role** — `TRADER`, `MARKET_MAKER`, or `ADMIN`. Roles determine which
   commands a session may send; see
   [Role Privileges](010-configuration.md#role-privileges) and the
@@ -510,7 +511,7 @@ row (Basics tab) provides the finest-grained control:
 1. **Flat gateway overrides** — `enforce_mm_obligation`, `mm_max_spread_ticks`,
    `mm_min_qty` for *every symbol this gateway quotes*.
 2. **Per-symbol table** — overrides for specific symbols on this gateway, written
-   as `gateways.alf[*].mm_obligations.<SYM>` (the nested keys are
+   as `participants[*].mm_obligations.<SYM>` (the nested keys are
    `max_spread_ticks` / `min_qty`, without the `mm_` prefix — a format quirk the
    GUI handles for you).
 

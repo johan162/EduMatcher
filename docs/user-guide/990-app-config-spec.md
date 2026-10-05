@@ -89,14 +89,14 @@ load. Producers MAY write any case; consumers compare upper-case.
 
 | Enum | Members | Used by |
 |------|---------|---------|
-| `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `gateways.alf[].role` |
-| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `gateways.alf[].disconnect_behaviour`, `gateway_defaults.disconnect_behaviour` |
-| `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `gateways.alf[].quote_refresh_policy` |
+| `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `participants[].role` |
+| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `participants[].disconnect_behaviour`, `participant_defaults.disconnect_behaviour` |
+| `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `participants[].quote_refresh_policy` |
 | `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds |
 | `ComboType` | `AON` | `market_maker_combos[].combo_type` |
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
-| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action`, `gateway_defaults.smp_action` |
+| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `participants[].smp_action`, `participant_defaults.smp_action` |
 | `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
 
 An `Enum<E>` value outside its member set MUST be rejected.
@@ -112,9 +112,8 @@ This tree is normative for *shape*; §4–§6 are normative for *field law*.
 ```text
 # ── ENGINE (read by pm-engine) ──────────────────────────────────────────────
 symbols:                    ! Map<Symbol, SymbolSpec>          # ≥0 entries; key required
-gateways:                   ! Map
-  alf:                      ! List<AlfGatewaySpec>             # ≥1 entry
-gateway_defaults:           ? GatewayDefaultSpec               # values a gateways.alf entry inherits when it omits them
+participants:               ! List<ParticipantSpec>            # ≥1 entry
+participant_defaults:       ? ParticipantDefaultsSpec          # values a participants entry inherits when it omits them
 sessions_enabled:           ? Bool = true
 enforce_collars:            ? Bool = true
 enforce_circuit_breakers:   ? Bool = true
@@ -149,19 +148,19 @@ SymbolSpec:
   order_limits:             ? OrderLimitsSpec            # per-symbol override
   circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
 
-AlfGatewaySpec:                              # one entry of gateways.alf
+ParticipantSpec:                             # one entry of participants
   id:                       ! GatewayId
   description:              ? Str = ""
   role:                    ? Enum<Role> = TRADER
-  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <gateway_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
   quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
   enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
   mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
   mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
-  smp_action:              ? Enum<SmpAction> = <gateway_defaults.smp_action | NONE>
+  smp_action:              ? Enum<SmpAction> = <participant_defaults.smp_action | NONE>
 
-GatewayDefaultSpec:                          # top-level gateway_defaults
+ParticipantDefaultsSpec:                     # top-level participant_defaults
   disconnect_behaviour:    ? Enum<DisconnectBehaviour>
   smp_action:              ? Enum<SmpAction>
 
@@ -350,7 +349,7 @@ the collar's price bands already skip. Both caps are re-checked on `order.amend`
 against the amended quantity and price, so the control cannot be bypassed by
 entering small and amending up.
 
-### 4.4 `MMObligationSpec` — `gateways.alf[].mm_obligations.<S>`
+### 4.4 `MMObligationSpec` — `participants[].mm_obligations.<S>`
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
@@ -377,7 +376,7 @@ entering small and amending up.
 | `quantity` | `Qty` | ✔ | — | |
 | `price` | `Price` | – | `null` | required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); on **this leg's** symbol's tick grid, which need not be the grid of the combo's other legs; positivity is **not** validated anywhere in code |
 | `stop_price` | `Price` | – | `null` | stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; on this leg's symbol's tick grid |
-| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `gateways.alf[].smp_action`, else `NONE` | |
+| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `participants[].smp_action`, else `NONE` | |
 
 ### 4.6 `IndexSpec` — `indices[]`
 
@@ -435,9 +434,9 @@ is a valid empty spec. Symbol fields: see the schema tree (§3, `SymbolSpec`);
 `market_maker_quotes` §4.1, `collar` §4.2, `order_limits` §4.3,
 `circuit_breaker` §5.6.
 
-### 5.2 `gateways.alf` (REQUIRED)
+### 5.2 `participants` (REQUIRED)
 
-`List<AlfGatewaySpec>` with **at least one** entry (§3, `AlfGatewaySpec`). Gateway
+`List<ParticipantSpec>` with **at least one** entry (§3, `ParticipantSpec`). Participant
 ids MUST be unique after upper-casing. This list is the participant allowlist and
 is **also** consumed by `pm-alf-gwy` and `pm-balf-gwy` for identity and role.
 
@@ -452,9 +451,9 @@ gateway's orders **when the order itself doesn't specify one**:
   `SMP=` from the client — including `SMP=NONE` — always takes precedence
   over this gateway default; only an *omitted* `SMP=` falls back to it.
 
-### 5.2a `gateway_defaults` (OPTIONAL) — `GatewayDefaultSpec`
+### 5.2a `participant_defaults` (OPTIONAL) — `ParticipantDefaultsSpec`
 
-A mapping of values that every `gateways.alf` entry **inherits when it omits the
+A mapping of values that every `participants` entry **inherits when it omits the
 key**. It exists so a uniform policy (for example, `CANCEL_AGGRESSOR` on every
 gateway) is written once instead of on each entry.
 
@@ -464,13 +463,13 @@ gateway) is written once instead of on each entry.
 | `disconnect_behaviour` | `Enum<DisconnectBehaviour>` | – | `CANCEL_QUOTES_ONLY` | inherited by an entry that omits `disconnect_behaviour` |
 
 Resolution order for a gateway's effective value is: the entry's own key, then
-`gateway_defaults`, then the built-in default. An explicit entry value always
+`participant_defaults`, then the built-in default. An explicit entry value always
 wins, including `smp_action: NONE` when the default is something else. The block
-applies to **every** role: a `gateway_defaults.disconnect_behaviour` of
+applies to **every** role: a `participant_defaults.disconnect_behaviour` of
 `CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
 so entries that need a different behaviour MUST set it explicitly.
 
-Unlike most sections, an unrecognised key under `gateway_defaults` is **rejected**
+Unlike most sections, an unrecognised key under `participant_defaults` is **rejected**
 (CV22) rather than ignored, so that a mistyped name is not silently dropped.
 
 ### 5.3 Engine behaviour flags
@@ -512,7 +511,7 @@ expected to need adjustment in normal use:
 | `mm_min_qty` | `Qty` | – | `100` | `> 0` |
 | `symbols` | `Map<Symbol, {enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty}>` | – | `{}` | each key MUST exist in `symbols`; per-symbol fields default to the block-level values above |
 
-These values supply the defaults inherited by `gateways.alf[]` obligation fields.
+These values supply the defaults inherited by `participants[]` obligation fields.
 
 ### 5.5 `risk_controls` (OPTIONAL) — `RiskControlsSpec`
 
@@ -642,7 +641,7 @@ Spec type: `AlfGwyProcSpec`.
 | `max_errors_before_disconnect` | `Int` | – | `50` | `> 0` |
 | `error_window_sec` | `Int` | – | `60` | `> 0` |
 
-Also consumes `gateways.alf` for identity/role.
+Also consumes `participants` for identity/role.
 
 ### 6.2 `balf_gateway` — `pm-balf-gwy`
 
@@ -665,7 +664,7 @@ Spec type: `BalfGwyProcSpec`.
 | `error_window_sec` | `Secs` | – | `60.0` | `> 0` |
 | `duplicate_session_policy` | `Enum<DuplicateSessionPolicy>` | – | `REJECT_NEW` | |
 
-Also consumes `gateways.alf` for identity, role, and `disconnect_behaviour`.
+Also consumes `participants` for identity, role, and `disconnect_behaviour`.
 
 ### 6.3 `market_data_gateway` — `pm-md-gwy` (CALF)
 
@@ -801,7 +800,7 @@ to point at a non-default engine address.
 The `pubsub_*`/`pub_*`/`pull_*`/`lease_*`/`backfill_*` fields configure LALF-PS,
 described in full in [Centralized Log Server](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface).
 
-This block has no interaction with `gateways.alf` or any other engine section —
+This block has no interaction with `participants` or any other engine section —
 `pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
 not consume any engine-section fields. The `client` sub-block is the only part
 read by other processes. See [Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv)
@@ -818,8 +817,8 @@ rejected at load.
 
 | # | Rule |
 |---|------|
-| CV1 | `symbols` is present and a mapping; `gateways.alf` is present and a list with ≥ 1 entry. |
-| CV2 | `gateways.alf[].id` values are unique (after upper-casing). |
+| CV1 | `symbols` is present and a mapping; `participants` is present and a list with ≥ 1 entry. |
+| CV2 | `participants[].id` values are unique (after upper-casing). |
 | CV3 | If **any** gateway has `role: MARKET_MAKER`, then **every** symbol MUST define at least one `market_maker_quotes` entry, unless `require_mm_seed_quotes: false`. |
 | CV4 | Every `market_maker_quotes[].gateway_id` references a configured gateway whose role is `MARKET_MAKER`. |
 | CV5 | For each MM quote seed, `bid_price < ask_price` and `bid_qty, ask_qty > 0`. |
@@ -831,7 +830,7 @@ rejected at load.
 | CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
 | CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
 | CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
-| CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
+| CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `participants` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
 | CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
@@ -839,7 +838,7 @@ rejected at load.
 | CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
 | CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
-| CV22 | `gateway_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
+| CV22 | `participant_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
 
 ---
 
@@ -873,9 +872,8 @@ rejected at load.
 The smallest document that loads and supports trading (informative):
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
+participants:
+  - id: TRADER01
 symbols:
   AAPL:
     tick_decimals: 2

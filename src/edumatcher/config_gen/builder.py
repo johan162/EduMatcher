@@ -123,7 +123,7 @@ from .symbol_spec import SymbolOverride
 class ConfigSpec:
     symbols: list[str]
     gateways: list[GatewaySpec]
-    #: Written as the top-level ``gateway_defaults`` block when either is set.
+    #: Written as the top-level ``participant_defaults`` block when either is set.
     gateway_default_smp: SmpAction | None = None
     gateway_default_disconnect: DisconnectBehaviour | None = None
     sessions_enabled: bool = False
@@ -385,10 +385,10 @@ class ConfigBuilder:
         if self.spec.cb_levels:
             cfg["circuit_breaker_defaults"] = self._build_cb_defaults()
 
-        gateway_defaults = self._build_gateway_default()
-        if gateway_defaults:
-            cfg["gateway_defaults"] = gateway_defaults
-        cfg["gateways"] = {"alf": self._build_gateways()}
+        participant_defaults = self._build_gateway_default()
+        if participant_defaults:
+            cfg["participant_defaults"] = participant_defaults
+        cfg["participants"] = self._build_gateways()
         if self.spec.alf_gateway is not None:
             cfg["alf_gateway"] = self._build_alf_gateway()
         if self.spec.post_trade_gateway is not None:
@@ -802,7 +802,7 @@ class ConfigBuilder:
                 "role": gw.role.value,
             }
             # A gateway that took the role default rather than naming a
-            # value inherits gateway_defaults.disconnect_behaviour instead.
+            # value inherits participant_defaults.disconnect_behaviour instead.
             if gw.disconnect_explicit or not inherits_disconnect:
                 payload["disconnect_behaviour"] = gw.disconnect_behaviour.value
             if gw.description:

@@ -559,7 +559,7 @@ Enable with defaults for one index:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA JPM BAC \
-  --gateways TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
+  --participants TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
   --index EDU100:"Broad technology benchmark" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
   --index-cb EDU100
@@ -595,7 +595,7 @@ Enable with custom thresholds (5%/10 min, 10%/30 min, 15%/rest-of-day):
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --index EDU100:"Broad technology benchmark" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
   --index-cb EDU100:0.05:10:0.10:30:0.15:-1
@@ -606,7 +606,7 @@ Two indexes — one with CB, one informational only:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA JPM BAC GS \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --index EDU100:"Broad technology benchmark" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
   --index EDUFIN:"Financial sector basket" \

@@ -7,15 +7,12 @@ from typing import Any
 
 def gateway_ids_by_role(raw: dict[str, Any], role: str) -> list[str]:
     """Return upper-cased gateway ids whose role matches *role*."""
-    gateways = raw.get("gateways", {})
-    if not isinstance(gateways, dict):
-        return []
-    alf = gateways.get("alf", [])
-    if not isinstance(alf, list):
+    participants = raw.get("participants", [])
+    if not isinstance(participants, list):
         return []
     target = role.upper()
     result: list[str] = []
-    for gw in alf:
+    for gw in participants:
         if not isinstance(gw, dict):
             continue
         gw_id = gw.get("id")
@@ -26,15 +23,12 @@ def gateway_ids_by_role(raw: dict[str, Any], role: str) -> list[str]:
 
 def all_gateway_ids(raw: dict[str, Any]) -> set[str]:
     """Return the set of all upper-cased gateway ids."""
-    gateways = raw.get("gateways", {})
-    if not isinstance(gateways, dict):
-        return set()
-    alf = gateways.get("alf", [])
-    if not isinstance(alf, list):
+    participants = raw.get("participants", [])
+    if not isinstance(participants, list):
         return set()
     return {
         str(gw["id"]).strip().upper()
-        for gw in alf
+        for gw in participants
         if isinstance(gw, dict) and gw.get("id")
     }
 

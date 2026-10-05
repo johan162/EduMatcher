@@ -233,7 +233,7 @@ pm-alf-console --id TRADER01
 pm-alf-console --id TRADER02
 ```
 
-The gateway IDs must exist under `gateways.alf` in the deployed configuration,
+The gateway IDs must exist under `participants` in the deployed configuration,
 unless the engine is intentionally running unrestricted with no deployed config.
 
 ### Step 3 - submit a test order
@@ -814,7 +814,7 @@ Most common causes:
 
 1. `pm-engine` is not running or has not finished binding sockets.
 2. The gateway is using a different `EDUMATCHER_DATA_DIR` from the engine.
-3. The gateway ID is not in `gateways.alf` in the deployed configuration.
+3. The gateway ID is not in `participants` in the deployed configuration.
 4. Local firewall, VPN or container networking prevents access to port `5555`.
 
 Checks:
@@ -884,11 +884,10 @@ Fix the gateway role in `engine_config.yaml`, deploy it, and restart affected
 processes:
 
 ```yaml
-gateways:
-  alf:
-    - id: OPS01
-      role: ADMIN
-      description: Operator console
+participants:
+  - id: OPS01
+    role: ADMIN
+    description: Operator console
 ```
 
 ### External feed is reachable but silent

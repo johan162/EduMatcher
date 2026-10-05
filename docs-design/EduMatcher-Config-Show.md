@@ -150,7 +150,7 @@ absent from the file — the layout has no fixed slots, so nothing leaves a hole
 | `mm_obligation_defaults` (+ `.symbols`) | MARKET MAKING | overrides listed by symbol |
 | `risk_controls.levels`, `.default_level` | PRICE COLLARS | symbol counts computed per level |
 | `circuit_breaker_defaults` (+ `.reopening`) | CIRCUIT BREAKERS | reopening ladder at density 2 |
-| `gateways.alf` | PARTICIPANTS | id, role, disconnect, quote policy |
+| `participants` | PARTICIPANTS | id, role, disconnect, quote policy |
 | `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, `log_server` | PORTS + GATEWAY TUNING | one listener row each; `log_server` contributes three |
 | `api_gateways.<name>` | API GATEWAYS + PORTS + API KEYS | any number of named instances |
 | `symbols` | SYMBOLS | the elastic panel |
@@ -470,7 +470,7 @@ sub-tables rather than leaving half the width empty.
 │ desk           ● on    0.0.0.0:8080       4   yes                            │
 │ dashboards     ● on    0.0.0.0:8081       1   yes                            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-╭─  PARTICIPANTS  (gateways.alf)  ─────────────────────────────────────────────╮
+╭─  PARTICIPANTS  (participants)  ─────────────────────────────────────────────╮
 │ ID          ROLE            ON DISCONNECT        DESCRIPTION                 │
 │ ──────────────────────────────────────────────────────────────────────────── │
 │ TRADER01    TRADER          CANCEL_ALL           Student                     │
@@ -536,7 +536,7 @@ own.
 │ —                 dashboards       READ-ONLY            key-readonly-••••••••••••••••••••••••••••fnub                │
 │ masked — run with -a/--all to reveal                                                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─  PARTICIPANTS  (gateways.alf)  ───────────────────────────────────────────╮  ╭─  SYMBOLS  ──────────────────────────╮
+╭─  PARTICIPANTS  (participants)  ───────────────────────────────────────────╮  ╭─  SYMBOLS  ──────────────────────────╮
 │ ID          ROLE            ON DISCONNECT        DESCRIPTION               │  │ SYMBOL   DEC        LAST    Q        │
 │ ────────────────────────────────────────────────────────────────────────── │  │ ──────────────────────────────────── │
 │ TRADER01    TRADER          CANCEL_ALL           Student                   │  │ AAPL       2      123.57    1        │
@@ -579,7 +579,7 @@ gives up width.
 │  8080   HTTP       pm-api-gwy    REST API — desk                  0.0.0.0     set     │  ╰───────────────────────────────────────────────────────────────────╯
 │  8081   HTTP       pm-api-gwy    REST API — dashboards            0.0.0.0     set     │                                                                       
 ╰───────────────────────────────────────────────────────────────────────────────────────╯                                                                       
-╭─  API KEYS  ────────────────────────────────────────────────────────────────────────────────╮  ╭─  PARTICIPANTS  (gateways.alf)  ────────────────────────────╮
+╭─  API KEYS  ────────────────────────────────────────────────────────────────────────────────╮  ╭─  PARTICIPANTS  (participants)  ────────────────────────────╮
 │ GATEWAY ID     API GW        ROLE             API KEY                                       │  │ ID          ROLE            ON DISCONNECT        DESCR…     │
 │ ─────────────────────────────────────────────────────────────────────────────────────────── │  │ ─────────────────────────────────────────────────────────── │
 │ TRADER01       desk          TRADER           key-trader01-••••••••••••••••••••••••••••047r │  │ TRADER01    TRADER          CANCEL_ALL           Stude…     │
@@ -655,7 +655,7 @@ where anything sits.
 │  8080   HTTP       pm-api-gwy    REST API — desk                     0.0.0.0     set     │  │ MM02            desk           MARKET_MAKER       key-mm02-rsdafv374y73j30gctmyscijtplgcjzu            │
 │  8081   HTTP       pm-api-gwy    REST API — dashboards               0.0.0.0     set     │  │ —               dashboards     READ-ONLY          key-readonly-rffwde8s2u48nhnr9hu46k1ktayyerqk        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯  ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─  API GATEWAYS  ─────────────────────────────────────────────────╮  ╭─  SESSION SCHEDULE  ───────────────────────╮  ╭─  PARTICIPANTS  (gateways.alf)  ───────────────────────────────────────────────╮
+╭─  API GATEWAYS  ─────────────────────────────────────────────────╮  ╭─  SESSION SCHEDULE  ───────────────────────╮  ╭─  PARTICIPANTS  (participants)  ───────────────────────────────────────────────╮
 │ GATEWAY                BIND            KEYS   SWAGGER            │  │ 08:45 Pre-open                             │  │ ID          ROLE            ON DISCONNECT        DESCRIPTION                   │
 │ ──────────────────────────────────────────────────────────────── │  │ 08:55 Opening auction                      │  │ ────────────────────────────────────────────────────────────────────────────── │
 │ desk           ● on    0.0.0.0:8080       8   yes                │  │ 09:00 Continuous                           │  │ TRADER01    TRADER          CANCEL_ALL           Student desk 1                │
@@ -714,7 +714,7 @@ undoes them.
 │ ● on sessions   ● on collars   ● on breakers   ● on mm-oblig                                                         │
 │ 30 symbols   8 participants   2 API gateways   9 keys   9 listeners                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─  PORTS & LISTENERS  ────────────────────────────────────────────────────────╮  ╭─  PARTICIPANTS  (gateways.alf)  ───╮
+╭─  PORTS & LISTENERS  ────────────────────────────────────────────────────────╮  ╭─  PARTICIPANTS  (participants)  ───╮
 │  PORT   PROTO      PROCESS       FUNCTION                BIND                │  │ ID      ROLE        ON DISCONNECT  │
 │ ──────────────────────────────────────────────────────────────────────────── │  │ ────────────────────────────────── │
 │  5555   ZMQ PULL   pm-engine     Order intake (CALF)     127.0.0.1   fixed   │  │ TRAD…   TRADER      CANCEL_ALL     │

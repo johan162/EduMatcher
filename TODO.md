@@ -13,6 +13,12 @@ Fully implemeted features are removed from this file.
 
 All referenced design documents live under `docs-design/`
 
+## Don't allow multiple connectiosn to the engine with same ID
+
+ ALF, BALF and the API gateway all accept the same IDs. The engine's _handle_gateway_connect accepts a second connect for an ID that's already connected. The disconnect handler then applies CANCEL_ALL for that ID. So if TRADER01 is connected through two processes and one drops, the engine cancels everything for TRADER01 while the other session is still live.
+
+ THat is a bug.
+ 
 
 ## Align Gateway specification in config file
 

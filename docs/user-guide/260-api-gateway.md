@@ -102,7 +102,7 @@ gateway is intended to be reachable by browser clients, API clients, and
 read-only dashboards on other machines. Set it to `127.0.0.1` only for a
 loopback-only lab or when a reverse proxy on the same host is the only caller.
 
-The engine's `gateways.alf` allowlist remains authoritative. If a credential
+The engine's `participants` allowlist remains authoritative. If a credential
 maps to `TRADER01` but `TRADER01` is not allowed by the engine config, the
 engine rejects the API gateway handshake and every request using that
 credential fails with `403` and error code `ENGINE_AUTH`.
@@ -236,7 +236,7 @@ Provisioning rules:
 - `gateway_id: null` creates a read-only authenticated key.
 - `gateway_id: <GW_ID>` creates a trading-capable key bound to that gateway.
 - ADMIN access is not set on the API key itself; it comes from the mapped
-  gateway role in `gateways.alf`.
+  gateway role in `participants`.
 - Non-null `gateway_id` values must be unique across `api_gateways` entries.
 
 How to get a key in practice:
@@ -280,7 +280,7 @@ For strict endpoint-by-endpoint access rules, see
 | Error code | Status | Cause |
 |---|---|---|
 | `AUTH` | `401` | Missing/malformed `Authorization` header, or an unrecognized API key |
-| `ENGINE_AUTH` | `403` | The credential's `gateway_id` isn't allowed by the engine's `gateways.alf` list |
+| `ENGINE_AUTH` | `403` | The credential's `gateway_id` isn't allowed by the engine's `participants` list |
 | `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
 | `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call. Also reused (same code, unrelated cause) when the engine itself rejects a circuit-breaker or kill-switch command — the ack carries `accepted: false` and the gateway surfaces the engine's `reason` under this same error code |
 | `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
@@ -872,7 +872,7 @@ For the full response shapes and error codes see
 Base path: `/api/v1/admin`.
 
 These endpoints require an API key whose `gateway_id` maps to an engine gateway
-configured with the `ADMIN` role (`gateways.alf[].role: ADMIN`). The gateway
+configured with the `ADMIN` role (`participants[].role: ADMIN`). The gateway
 role is resolved from the engine at call time, not from the API credential.
 Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 
@@ -1742,7 +1742,7 @@ created and populated the configured database.
 
 ## Operational checklist
 
-1. Confirm `api_gateways.<NAME>.credentials` maps to gateways allowed under `gateways.alf`
+1. Confirm `api_gateways.<NAME>.credentials` maps to gateways allowed under `participants`
 2. Confirm each non-null `gateway_id` appears in only one API gateway entry
 3. Start `pm-engine`, `pm-stats`, then `pm-api-gwy --instance NAME`
 4. Open `/docs` if Swagger is enabled
@@ -1890,7 +1890,7 @@ curl -v --no-buffer \
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
 | `{"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
-| `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `gateways.alf` list |
+| `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `participants` list |
 | `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
 | `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |

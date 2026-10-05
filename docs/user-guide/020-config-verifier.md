@@ -180,7 +180,7 @@ Every finding has:
       "severity": "WARN",
       "message": "No gateway has role: ADMIN.",
       "suggestion": "...",
-      "path": "gateways.alf"
+      "path": "participants"
     }
   ],
   "risk_summary": { ... }
@@ -209,10 +209,9 @@ reporting scripts.
 | Code   | Condition                           |
 |--------|-------------------------------------|
 | `S001` | `symbols` absent or not a mapping   |
-| `S002` | `gateways` absent or not a mapping  |
-| `S003` | `gateways.alf` absent or not a list |
+| `S002` | `participants` absent or not a list |
 | `S004` | `symbols` is empty                  |
-| `S005` | `gateways.alf` is empty             |
+| `S005` | `participants` is empty             |
 
 **Symbol fields**
 
@@ -266,11 +265,11 @@ the key if it appears on a risk level.
 | `S026` | `mm_max_spread_ticks` or `mm_min_qty` invalid    |
 | `S027` | `mm_obligations` is present but not a mapping    |
 | `S028` | `mm_obligations.<symbol>` entry is invalid        |
-| `S029` | `gateways.alf[n]` is not a mapping                |
-| `S084` | Two `gateways.alf` IDs are prefixes of each other |
-| `S118` | `gateway_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
-| `S119` | `gateway_defaults.disconnect_behaviour` is not a recognised value |
-| `S120` | `gateway_defaults.smp_action` is not a recognised value |
+| `S029` | `participants[n]` is not a mapping                |
+| `S084` | Two `participants` IDs are prefixes of each other |
+| `S118` | `participant_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
+| `S119` | `participant_defaults.disconnect_behaviour` is not a recognised value |
+| `S120` | `participant_defaults.smp_action` is not a recognised value |
 | `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
 
 **Circuit breaker fields**
@@ -392,7 +391,7 @@ read-only dashboard entry generated from `pm-config-gen` with
 `--api-gateway-instance dashboards::8081`. In the resulting YAML,
 `dashboards.credentials[].gateway_id: null` is valid and is intentionally
 ignored by the `M022` gateway-reference check. Non-null credentials must match
-an ID under `gateways.alf`, and each non-null ID may belong to only one named
+an ID under `participants`, and each non-null ID may belong to only one named
 `api_gateways` entry. `M018` also checks every named API gateway port for
 collisions with the other configured listeners.
 
@@ -484,7 +483,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | Code   | Severity | Condition                                                     |
 |--------|----------|---------------------------------------------------------------|
 | `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
-| `M002` | ERROR    | MM seed references a gateway ID not in `gateways.alf`         |
+| `M002` | ERROR    | MM seed references a gateway ID not in `participants`         |
 | `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
 | `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
@@ -504,7 +503,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
 | `M021` | ERROR    | A `schedule` time value isn't a quoted `"HH:MM"` string (e.g. YAML mis-parsed it as a sexagesimal integer) |
-| `M022` | ERROR    | API credential `gateway_id` is not defined in `gateways.alf` |
+| `M022` | ERROR    | API credential `gateway_id` is not defined in `participants` |
 | `M023` | ERROR    | A `schedule` time value doesn't parse as a valid 24-hour `HH:MM` time |
 | `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
 | `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |

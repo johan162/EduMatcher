@@ -663,26 +663,26 @@ def _parse_gateway_smp_specs(
     for raw in specs:
         if ":" not in raw:
             raise ValueError(
-                f"Invalid --gateway-smp '{raw}': expected GW_ID:SMP_ACTION"
+                f"Invalid --participant-smp '{raw}': expected GW_ID:SMP_ACTION"
             )
         gw_raw, smp_raw = raw.split(":", 1)
         gateway_id = gw_raw.strip().upper()
         if not gateway_id:
             raise ValueError(
-                f"Invalid --gateway-smp '{raw}': gateway ID cannot be empty"
+                f"Invalid --participant-smp '{raw}': gateway ID cannot be empty"
             )
         if gateway_id not in allowed_gateways:
             raise ValueError(
-                f"--gateway-smp references unknown gateway_id '{gateway_id}'"
+                f"--participant-smp references unknown gateway_id '{gateway_id}'"
             )
         if gateway_id in result:
-            raise ValueError(f"Duplicate --gateway-smp for gateway '{gateway_id}'")
+            raise ValueError(f"Duplicate --participant-smp for gateway '{gateway_id}'")
         smp_str = smp_raw.strip().upper()
         try:
             smp_action = SmpAction(smp_str)
         except ValueError:
             raise ValueError(
-                f"Invalid --gateway-smp '{raw}': smp_action '{smp_str}' is invalid"
+                f"Invalid --participant-smp '{raw}': smp_action '{smp_str}' is invalid"
             ) from None
         result[gateway_id] = smp_action
     return result
@@ -777,10 +777,10 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
 ]:
     symbols = [s.upper() for s in args.symbols]
 
-    gateways = [parse_gateway_spec(raw) for raw in args.gateways]
+    gateways = [parse_gateway_spec(raw) for raw in args.participants]
 
     gateway_smp = _parse_gateway_smp_specs(
-        specs=args.gateway_smp,
+        specs=args.participant_smp,
         allowed_gateways={gw.gateway_id for gw in gateways},
     )
     if gateway_smp:
@@ -1927,13 +1927,13 @@ def main() -> None:
             symbols=symbols,
             gateways=gateways,
             gateway_default_smp=(
-                SmpAction(args.gateway_default_smp)
-                if args.gateway_default_smp is not None
+                SmpAction(args.participant_default_smp)
+                if args.participant_default_smp is not None
                 else None
             ),
             gateway_default_disconnect=(
-                DisconnectBehaviour(args.gateway_default_disconnect)
-                if args.gateway_default_disconnect is not None
+                DisconnectBehaviour(args.participant_default_disconnect)
+                if args.participant_default_disconnect is not None
                 else None
             ),
             sessions_enabled=bool(args.sessions_enabled),
@@ -2008,7 +2008,7 @@ def main() -> None:
         spec=spec,
         parsed_symbol_option_warnings=symbol_opt_warnings,
         raw_symbols=args.symbols,
-        raw_gateways=args.gateways,
+        raw_gateways=args.participants,
         output_exists=output_exists,
     )
 

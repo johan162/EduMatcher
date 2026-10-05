@@ -10,7 +10,7 @@ from edumatcher.config import DATA_DIR, STATS_DB_FILE
 
 def test_defaults_when_api_gateway_block_missing(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
-    path.write_text("symbols: {}\ngateways: {alf: []}\n")
+    path.write_text("symbols: {}\nparticipants: []\n")
     cfg = load_api_gateway_config(path)
     assert cfg.host == "0.0.0.0"
     assert cfg.port == 8080

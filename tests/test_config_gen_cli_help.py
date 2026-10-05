@@ -23,7 +23,7 @@ def test_pm_config_gen_help_runs() -> None:
     assert "--symbol-max-order-value" in result.stdout
     assert "--symbol-risk-level" in result.stdout
     assert "--api-gateway-order-retention-sec" in result.stdout
-    assert "--gateway-smp" in result.stdout
+    assert "--participant-smp" in result.stdout
     assert "--api-gateway" in result.stdout
     assert "--api-gateway-name" in result.stdout
     assert "--api-gateway-instance" in result.stdout

@@ -94,7 +94,7 @@ shares:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -517,7 +517,7 @@ Configure a second, narrower index alongside `EDU100`:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \

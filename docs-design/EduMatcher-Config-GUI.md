@@ -24,7 +24,7 @@ Status: Design Proposal
     - [5.3 Master–detail pattern (Symbols tab example)](#53-masterdetail-pattern-symbols-tab-example)
   - [6. Visual Design System](#6-visual-design-system)
   - [7. Field Catalogue](#7-field-catalogue)
-    - [7.1 Basics — Symbols \& Gateways (mandatory section)](#71-basics--symbols--gateways-mandatory-section)
+    - [7.1 Basics — Symbols \& Gateways (mandatory section)](#71-basics--symbols--participants-mandatory-section)
     - [7.2 Sessions \& Schedule](#72-sessions--schedule)
     - [7.3 Risk Controls \& Collars](#73-risk-controls--collars)
     - [7.4 Circuit Breakers](#74-circuit-breakers)
@@ -300,7 +300,7 @@ concept to a GUI field. Columns: **Mandatory** (Yes/No), **Default**
 | Field | CLI source | Mandatory | Default | Persona | Widget | Notes |
 |---|---|---|---|---|---|---|
 | Symbols | `--symbols` | Yes | — | B | Tag input w/ autocomplete, uppercases on blur | At least 1 required; duplicates rejected inline |
-| Gateways table | `--gateways` | Yes | — | B | Editable table, add/remove rows | At least 1 required; IDs unique, uppercased on blur |
+| Gateways table | `--participants` | Yes | — | B | Editable table, add/remove rows | At least 1 required; IDs unique, uppercased on blur |
 | Gateway → ID | part of `GW_SPEC` | Yes | — | B | Text cell | |
 | Gateway → Role | part of `GW_SPEC` | No | `TRADER` | B | Dropdown: `TRADER` / `MARKET_MAKER` / `ADMIN` | |
 | Gateway → Disconnect behavior | part of `GW_SPEC` | No | Role-derived (`CANCEL_ALL` / `CANCEL_QUOTES_ONLY` / `LEAVE_ALL`) | I | Dropdown, auto-set then editable | Beginner: hidden, always uses role default |
@@ -568,7 +568,7 @@ follow-up but is out of scope for this document.
    `engine_config.yaml` schema directly, so import is a direct
    YAML → object mapping.
 3. Any YAML keys/sections the GUI does not have a dedicated editor for
-   (e.g., a hand-added `gateways.alf[*].mm_obligations` override, or a
+   (e.g., a hand-added `participants[*].mm_obligations` override, or a
    `market_maker_combos` entry the Combos tab doesn't yet cover) are kept in
    a per-section `unmappedYaml` bucket and displayed in a read-only "Advanced
    / Unmapped YAML" panel at the bottom of the relevant tab, with a clear
@@ -959,7 +959,7 @@ GUI-only concerns that remain fully specified in this document.
   `--symbols` parsing both `.upper()` the value before use); the CLI also
   keeps its post-hoc `[INFO]` note so terminal users aren't surprised by a
   silent rewrite. The GUI should go one step further per
-  [§7.1](#71-basics--symbols--gateways-mandatory-section): transform on
+  [§7.1](#71-basics--symbols--participants-mandatory-section): transform on
   blur with no separate warning needed, since the change is visible
   immediately in the field itself.
 - **Tick-aware decimal price entry** for combo leg prices/stops — ✅

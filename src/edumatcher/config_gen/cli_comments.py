@@ -179,35 +179,34 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
-    # gateway_defaults
+    # participant_defaults
     lines.extend(
         [
-            "gateway_defaults:",
+            "participant_defaults:",
             "  smp_action: CANCEL_AGGRESSOR",
             "  disconnect_behaviour: CANCEL_ALL",
             "",
         ]
     )
 
-    # gateways
+    # participants
     lines.extend(
         [
-            "gateways:",
-            "  alf:",
-            "    - id: TRADER01",
-            "      description: Student workstation 1",
-            "      role: TRADER",
-            "      disconnect_behaviour: CANCEL_ALL",
-            "      quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
-            "      smp_action: NONE",
-            "      enforce_mm_obligation: false",
-            "      mm_max_spread_ticks: 20",
-            "      mm_min_qty: 100",
-            "      mm_obligations:",
-            "        AAPL:",
-            "          enforce_mm_obligation: true",
-            "          max_spread_ticks: 6",
-            "          min_qty: 300",
+            "participants:",
+            "  - id: TRADER01",
+            "    description: Student workstation 1",
+            "    role: TRADER",
+            "    disconnect_behaviour: CANCEL_ALL",
+            "    quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "    smp_action: NONE",
+            "    enforce_mm_obligation: false",
+            "    mm_max_spread_ticks: 20",
+            "    mm_min_qty: 100",
+            "    mm_obligations:",
+            "      AAPL:",
+            "        enforce_mm_obligation: true",
+            "        max_spread_ticks: 6",
+            "        min_qty: 300",
             "",
         ]
     )
@@ -589,16 +588,16 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
 
     lines.extend(
         [
-            "gateway_defaults entries",
-            "" + "-" * 24,
+            "participant_defaults entries",
+            "" + "-" * 28,
             "smp_action: NONE",
-            "  Self-match-prevention action inherited by every gateways.alf entry that",
+            "  Self-match-prevention action inherited by every participants entry that",
             "  omits its own smp_action. Accepts NONE, CANCEL_AGGRESSOR, CANCEL_RESTING",
             "  or CANCEL_BOTH. An explicit gateway smp_action (including NONE) wins.",
             "disconnect_behaviour: CANCEL_QUOTES_ONLY",
-            "  Disconnect behaviour inherited by every gateways.alf entry that omits its",
+            "  Disconnect behaviour inherited by every participants entry that omits its",
             "  own disconnect_behaviour. Accepts CANCEL_ALL, CANCEL_QUOTES_ONLY or",
-            "  LEAVE_ALL. Applies to every role, so gateways of different roles that",
+            "  LEAVE_ALL. Applies to every role, so participants of different roles that",
             "  need different behaviour should set it explicitly.",
             "",
         ]
@@ -606,7 +605,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
 
     lines.extend(
         [
-            "gateways.alf entries",
+            "participants entries",
             "" + "-" * 20,
             "id:",
             "  Participant session identifier used for login, permissions, and routing.",
@@ -617,7 +616,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  ADMIN can issue exchange control commands.",
             "disconnect_behaviour: CANCEL_QUOTES_ONLY",
             "  Cleanup action on disconnect to control stale exposure risk.",
-            "  Omit to inherit gateway_defaults.disconnect_behaviour.",
+            "  Omit to inherit participant_defaults.disconnect_behaviour.",
             "quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
             "  Determines when seeded quotes are inactivated after executions.",
             "smp_action: NONE",
@@ -625,7 +624,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  CANCEL_RESTING, CANCEL_BOTH). Applied by the engine to any order, combo",
             "  leg, or quote from this gateway that omits its own SMP=; an explicit",
             "  per-request SMP= (including SMP=NONE) always takes precedence.",
-            "  Omit to inherit gateway_defaults.smp_action.",
+            "  Omit to inherit participant_defaults.smp_action.",
             "enforce_mm_obligation: false",
             "  Gateway-level switch to enforce market-maker obligations for this participant.",
             "mm_max_spread_ticks: 20",
@@ -1006,7 +1005,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "credentials[].description:",
             "  Free-text label for the key.",
             "credentials[].gateway_id:",
-            "  Must reference gateways.alf[].id for trading access; null means read-only.",
+            "  Must reference participants[].id for trading access; null means read-only.",
             "  A non-null gateway_id may appear in only one api_gateways entry.",
             "rate_limit.writes_per_second: 10",
             "  Per API-key write throughput for POST/PATCH/DELETE routes.",

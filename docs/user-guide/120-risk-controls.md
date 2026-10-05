@@ -376,7 +376,7 @@ symbols:
 as `--symbol-opts` keys:
 
 ```bash
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 \
+pm-config-gen --symbols AAPL MSFT --participants TRADER01 \
   --symbol-max-order-qty AAPL:50000 \
   --symbol-max-order-value AAPL:2500000
 ```
@@ -1020,12 +1020,11 @@ requires every symbol to be frozen simultaneously.
 Configure a dedicated gateway with `role: ADMIN` in `engine_config.yaml`:
 
 ```yaml
-gateways:
-  alf:
-    - id: GW_ADMIN
-      description: "Operations desk"
-      role: ADMIN
-      disconnect_behaviour: CANCEL_QUOTES_ONLY
+participants:
+  - id: GW_ADMIN
+    description: "Operations desk"
+    role: ADMIN
+    disconnect_behaviour: CANCEL_QUOTES_ONLY
 ```
 
 The gateway connects to the engine via the standard PUSH socket (port 5555) and
@@ -1515,23 +1514,22 @@ SMP can be set in two places, and they serve different purposes:
    `ComboRequest` payload (API Gateway), or the `smp_action` key on a
    `market_maker_combos[].legs[]` seed entry in `engine_config.yaml`. This is
    the client expressing "for *this* order, do X on self-match."
-2. **`gateways.alf[].smp_action`** — a per-gateway default in
+2. **`participants[].smp_action`** — a per-gateway default in
    `engine_config.yaml`, applied by the engine when an order or leg does
    **not** specify `SMP=` at all. This is the operator expressing "for
    *this gateway*, when nobody says otherwise, do X."
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: "Prop desk algo 1"
-      smp_action: CANCEL_RESTING   # gateway-level default
+participants:
+  - id: TRADER01
+    description: "Prop desk algo 1"
+    smp_action: CANCEL_RESTING   # gateway-level default
 ```
 
 | Field | Location | Required | Values | Default |
 |---|---|---|---|---|
 | `SMP=` | `NEW`/`COMBO` command (ALF), `smp` byte (BALF), `smp_action` (REST) | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | *(unspecified — falls back, see below)* |
-| `gateways.alf[].smp_action` | `engine_config.yaml` | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `NONE` |
+| `participants[].smp_action` | `engine_config.yaml` | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `NONE` |
 
 ### Precedence: why "omitted" and "explicit `NONE`" are not the same thing
 
@@ -1559,7 +1557,7 @@ the engine treats them as genuinely different values:
 1. Order/leg specified SMP= explicitly (including explicit SMP=NONE)
       → use that value, always. The gateway default is never consulted.
 2. Order/leg omitted SMP= entirely
-      → use gateways.alf[<this gateway>].smp_action
+      → use participants[<this gateway>].smp_action
 3. Gateway has no smp_action configured (or is unknown to the engine)
       → use SmpAction.NONE
 ```
@@ -1573,7 +1571,7 @@ flowchart TD
     A(["Order or combo leg\narrives at the engine"]) --> B{SMP=\nspecified?}
     B -- "Yes, incl. explicit NONE" --> C(["Use the specified value\nas-is"])
     B -- No --> D{Gateway has\nsmp_action configured?}
-    D -- Yes --> E(["Use gateways.alf.smp_action"])
+    D -- Yes --> E(["Use participants.smp_action"])
     D -- No --> F(["Use SmpAction.NONE"])
     C --> G(["Concrete smp_action\nreaches the order book"])
     E --> G
@@ -1590,7 +1588,7 @@ Not every order-entry path exposes its own `SMP=` field:
 | ALF `NEW\|TYPE=COMBO` | Yes — but **one `SMP=` value for the whole combo**, applied identically to every leg (no `LEG<i>.SMP`) | Explicit value applied to all legs, else gateway default applied to all legs, else `NONE` |
 | BALF `NEW_ORDER` | Yes (`smp` byte is mandatory in the fixed frame — see note below) | Always the value on the wire — see [BALF Protocol Reference — `NEW_ORDER`](910-app-balf-protocol.md#new_order-0x10-client-server) |
 | REST `OrderRequest` / `ComboRequest` | Yes (JSON field, optional; on a `ComboRequest` it is **one top-level `smp_action` for the whole combo**, applied to every leg) | Explicit value, else gateway default, else `NONE` |
-| Market-maker `QUOTE` (both `pm-mm-bot` and the REST quoting endpoint) | **No** — quotes have no per-request SMP field | Always `gateways.alf[].smp_action`, else `NONE` |
+| Market-maker `QUOTE` (both `pm-mm-bot` and the REST quoting endpoint) | **No** — quotes have no per-request SMP field | Always `participants[].smp_action`, else `NONE` |
 | `market_maker_combos[].legs[]` config-seeded combo | Optional `smp_action` key, settable **per leg** | Explicit per-leg value, else gateway default, else `NONE` — resolved independently per leg |
 
 !!! note "BALF's `smp` byte is mandatory, not omittable"
@@ -1599,7 +1597,7 @@ Not every order-entry path exposes its own `SMP=` field:
     [BALF Protocol Reference — `NEW_ORDER`](910-app-balf-protocol.md#new_order-0x10-client-server)).
     There is no wire representation of "the client didn't send this field."
     A BALF client that wants the gateway default to apply must send `0x00`
-    and rely on `gateways.alf[].smp_action` being configured to something
+    and rely on `participants[].smp_action` being configured to something
     other than `NONE` — sending `0x00` is indistinguishable from an
     explicit `SMP=NONE` and does **not** fall back to the gateway default.
     This is a deliberate scope decision: extending the None/omitted
@@ -1610,7 +1608,7 @@ Market makers are the clearest illustration of why the gateway-level default
 exists at all: a `QUOTE` submits two legs (bid and ask) in one call with no
 room for a per-leg `SMP=`, yet a market maker's own stale bid and fresh ask
 can easily cross each other after a quote refresh. Configuring
-`gateways.alf[<mm-gateway>].smp_action: CANCEL_RESTING` is the *only* way to
+`participants[<mm-gateway>].smp_action: CANCEL_RESTING` is the *only* way to
 protect a quoting gateway from this — see
 [Market-Maker Bot — Recommended settings](100-mm-bot.md#recommended-settings)
 for the concrete example.
@@ -1620,10 +1618,9 @@ for the concrete example.
 **Example 1 — omitted `SMP=`, gateway has a configured default.**
 
 ```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      smp_action: CANCEL_RESTING
+participants:
+  - id: TRADER01
+    smp_action: CANCEL_RESTING
 ```
 
 ```text
@@ -1650,18 +1647,17 @@ separately reconciled for.
 **Example 3 — quote leg, no gateway default configured.**
 
 ```yaml
-gateways:
-  alf:
-    - id: MM_AAPL_02
-      role: MARKET_MAKER
-      # no smp_action set
+participants:
+  - id: MM_AAPL_02
+    role: MARKET_MAKER
+    # no smp_action set
 ```
 
 A `QUOTE` from `MM_AAPL_02` has no `SMP=` field to omit or specify — it
 always falls back to the gateway default, which here is unset, so it
 resolves to `SmpAction.NONE`. A stale leg from a prior quote can self-trade
 against the fresh replacement leg. This is the exact gap
-`gateways.alf[].smp_action` closes when configured — see Example 1's
+`participants[].smp_action` closes when configured — see Example 1's
 pattern applied to a market maker.
 
 **Example 4 — combo on the ALF text protocol: one `SMP=` value for every leg.**
@@ -1698,7 +1694,7 @@ the `market_maker_combos[].legs[]` config-seed path allows a per-leg value.
 
 `smp_action: "NONE"` applies to both legs, regardless of `TRADER01`'s gateway
 default. Omitting the field would make every leg fall back to `TRADER01`'s
-`gateways.alf[].smp_action` (else `NONE`).
+`participants[].smp_action` (else `NONE`).
 
 ### SMP and the other risk controls
 
@@ -1719,9 +1715,9 @@ would ever be reached, since none of those orders get as far as the sweep.
 
 ### Configuration reference
 
-See [Configuration — Gateway Fields](010-configuration.md#gateway-fields)
-for the full `gateways.alf[].smp_action` field definition and
-[Configuration Spec §5.2](990-app-config-spec.md#52-gatewaysalf-required)
+See [Configuration — Participant Fields](010-configuration.md#participant-fields)
+for the full `participants[].smp_action` field definition and
+[Configuration Spec §5.2](990-app-config-spec.md#52-participants-required)
 for the normative schema entry, including how the same default extends to
 `market_maker_combos[].legs[]` config-seeded combos. Per-request field
 definitions live alongside each protocol's `NEW`/`COMBO`/`QUOTE` command
@@ -1753,4 +1749,4 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 - [ALF Console](055-alf-console.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
 - [Combos](070-combo-orders.md) — per-leg `SMP=` on multi-leg orders
 - [Market-Maker Bot](100-mm-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default
-- [Configuration Spec](990-app-config-spec.md) — normative schema for `gateways.alf[].smp_action` and `ComboLegSpec.smp_action`
+- [Configuration Spec](990-app-config-spec.md) — normative schema for `participants[].smp_action` and `ComboLegSpec.smp_action`

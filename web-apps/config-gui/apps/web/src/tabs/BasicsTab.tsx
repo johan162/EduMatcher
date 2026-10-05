@@ -185,16 +185,17 @@ export function BasicsTab() {
       </Section>
 
       <Section
-        title="Gateways"
+        title="Participants"
         description="Participant sessions permitted to connect. IDs are unique and uppercased. A MARKET_MAKER gateway enables quote seeding; an ADMIN gateway enables exchange-wide controls."
       >
         {canSee("I") && (
           <FieldRow
-            label="Gateway defaults"
+            label="Participant defaults"
             path="gatewayDefault"
             help={{
               text: "Values every gateway inherits unless its own row sets one. Leave a default as (not set) to omit it from the file. A gateway's own SMP of NONE still overrides a non-NONE default.",
-              cliFlag: "--gateway-default-smp / --gateway-default-disconnect",
+              cliFlag:
+                "--participant-default-smp / --participant-default-disconnect",
               docHref: "../docs/user-guide/010-configuration.md",
             }}
           >
@@ -241,12 +242,12 @@ export function BasicsTab() {
           </FieldRow>
         )}
         <FieldRow
-          label="Gateway sessions"
+          label="Participant sessions"
           path="gateways"
           required
           help={{
             text: "Each row is a login session with a role. Roles: TRADER submits orders, MARKET_MAKER supplies quotes, ADMIN issues control commands.",
-            cliFlag: "--gateways",
+            cliFlag: "--participants",
           }}
         >
           <div className="w-full">

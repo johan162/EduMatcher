@@ -502,9 +502,8 @@ iceberg's internal refresh state does not matter.
 restricts the run to a controlled environment:
 
 ```yaml
-gateways:
-  alf:
-    - id: VERIFY01
+participants:
+  - id: VERIFY01
 
 symbols:
   AAPL:

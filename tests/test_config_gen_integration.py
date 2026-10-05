@@ -26,7 +26,7 @@ def test_minimal_output_parses(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--output",
             str(out_file),
@@ -52,7 +52,7 @@ def test_disabled_mm_obligations_are_not_emitted(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "MM01:MARKET_MAKER",
             "--no-enforce-mm-obligations",
             "--no-mm-seed-quotes",
@@ -79,7 +79,7 @@ def test_engine_tuning_is_omitted_without_tuning_options(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--output",
             str(out_file),
@@ -100,7 +100,7 @@ def test_engine_tuning_is_emitted_for_explicit_default(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--snapshot-interval=0.5",
             "--output",
@@ -122,10 +122,10 @@ def test_gateway_smp_emitted_and_parses(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "TRADER02",
-            "--gateway-smp",
+            "--participant-smp",
             "TRADER02:CANCEL_RESTING",
             "--output",
             str(out_file),
@@ -134,7 +134,7 @@ def test_gateway_smp_emitted_and_parses(
 
     cfg = load_engine_config(out_file)
     assert cfg.fix_gateways["TRADER02"].smp_action.value == "CANCEL_RESTING"
-    # TRADER01 was not given --gateway-smp, so it keeps the engine's own
+    # TRADER01 was not given --participant-smp, so it keeps the engine's own
     # NONE default rather than pm-config-gen spelling out a no-op field.
     assert cfg.fix_gateways["TRADER01"].smp_action.value == "NONE"
     assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
@@ -150,15 +150,15 @@ def test_gateway_default_flags_emitted_and_inherited(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "TRADER02",
             "OPS01:ADMIN:LEAVE_ALL",
-            "--gateway-default-smp",
+            "--participant-default-smp",
             "cancel_aggressor",
-            "--gateway-default-disconnect",
+            "--participant-default-disconnect",
             "CANCEL_ALL",
-            "--gateway-smp",
+            "--participant-smp",
             "TRADER02:NONE",
             "--output",
             str(out_file),
@@ -166,7 +166,7 @@ def test_gateway_default_flags_emitted_and_inherited(
     )
 
     raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
-    assert raw["gateway_defaults"] == {
+    assert raw["participant_defaults"] == {
         "smp_action": "CANCEL_AGGRESSOR",
         "disconnect_behaviour": "CANCEL_ALL",
     }
@@ -187,7 +187,7 @@ def test_country_emitted_and_parses(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--country",
             "Germany",
@@ -213,7 +213,7 @@ def test_country_omitted_when_not_given(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--output",
             str(out_file),
@@ -239,7 +239,7 @@ def test_country_unrecognised_errors(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--country",
                 "Narnia",
@@ -259,9 +259,9 @@ def test_gateway_smp_unknown_gateway_errors(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
-                "--gateway-smp",
+                "--participant-smp",
                 "NOPE:CANCEL_BOTH",
                 "--dry-run",
             ],
@@ -279,9 +279,9 @@ def test_gateway_smp_invalid_action_errors(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
-                "--gateway-smp",
+                "--participant-smp",
                 "TRADER01:NOT_A_VALUE",
                 "--dry-run",
             ],
@@ -299,7 +299,7 @@ def test_market_maker_warns_and_stubs(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "MM01:MARKET_MAKER",
             "--dry-run",
@@ -325,7 +325,7 @@ def test_market_maker_seeded_quotes_are_emitted(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "MM01:MARKET_MAKER",
             "--seed",
@@ -360,7 +360,7 @@ def test_no_mm_seed_quotes_omits_quotes_and_warnings(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "MM01:MARKET_MAKER",
             "--no-mm-seed-quotes",
@@ -392,7 +392,7 @@ def test_output_refuses_overwrite_without_force(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--output",
                 str(out_file),
@@ -412,7 +412,7 @@ def test_post_trade_gateway_output_is_emitted(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--post-trade-gateway",
             "--post-trade-bind-address",
@@ -445,7 +445,7 @@ def test_market_data_gateway_output_is_emitted(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--market-data-gateway",
             "--market-data-bind-address",
@@ -476,7 +476,7 @@ def test_api_gateway_output_generates_keys(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "OPS01:ADMIN",
             "--api-gateway",
@@ -523,7 +523,7 @@ def test_api_gateway_explicit_key_output(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--api-key",
             "manual-token:TRADER01:Desk app",
@@ -552,7 +552,7 @@ def test_api_gateway_multiple_instances_output(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "ALGO01",
             "--api-gateway-instance",
@@ -585,7 +585,7 @@ def test_api_gateway_identity_free_instance_generates_readonly_key(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--api-gateway-instance",
             "desk:TRADER01:8080",
@@ -616,7 +616,7 @@ def test_api_gateway_multiple_instances_reject_duplicate_gateway(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--api-gateway-instance",
                 "desk:TRADER01",
@@ -639,7 +639,7 @@ def test_outstanding_shares_output_is_emitted(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--outstanding-shares",
             "AAPL:15400000000",
@@ -666,7 +666,7 @@ def test_symbol_collar_band_flags_emit_per_symbol_override(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--symbol-static-band",
             "AAPL:0.18",
@@ -695,7 +695,7 @@ def test_symbol_order_limit_flags_emit_per_symbol_caps(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--symbol-max-order-qty",
             "AAPL:50000",
@@ -732,7 +732,7 @@ def test_symbol_order_limit_flags_agree_with_symbol_opts(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--symbol-max-order-qty",
             "AAPL:50000",
@@ -748,7 +748,7 @@ def test_symbol_order_limit_flags_agree_with_symbol_opts(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--symbol-opts",
             "AAPL:max_order_qty=50000,max_order_value=2500000",
@@ -788,7 +788,7 @@ def test_symbol_order_limit_flags_reject_bad_input(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 flag,
                 value,
@@ -812,7 +812,7 @@ def test_symbol_risk_level_flag_emits_per_symbol_level_override(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--risk-level",
             "CORE:0.18:0.02",
@@ -837,7 +837,7 @@ def test_outstanding_shares_invalid_value(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--outstanding-shares",
                 "AAPL:-1",
@@ -856,7 +856,7 @@ def test_seed_last_prices_from_mm_requires_mid_range(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "MM01:MARKET_MAKER",
                 "--seed-last-prices-from-mm",
@@ -875,7 +875,7 @@ def test_seed_mm_mid_range_requires_mm_gateway(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--seed-mm-mid-range",
                 "20:30",
@@ -898,7 +898,7 @@ def test_seed_mm_mid_range_must_fit_every_symbols_tick_grid(
                 "--symbols",
                 "AAPL",
                 "WHOLE",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "MM01:MARKET_MAKER",
                 "--symbol-opts",
@@ -922,7 +922,7 @@ def test_seed_quote_spread_cannot_exceed_mm_obligation(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "MM01:MARKET_MAKER",
                 "--seed-mm-mid-range",
@@ -949,7 +949,7 @@ def test_seed_quote_spread_uses_symbol_mm_obligation_override(
                 "--symbols",
                 "AAPL",
                 "MSFT",
-                "--gateways",
+                "--participants",
                 "MM01:MARKET_MAKER",
                 "--symbol-opts",
                 "MSFT:mm_spread_ticks=12",
@@ -978,7 +978,7 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--comment-default-config-fields",
             "--dry-run",
@@ -1015,7 +1015,7 @@ def test_index_section_is_emitted(
             "AAPL",
             "MSFT",
             "TSLA",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--outstanding-shares",
             "AAPL:15000000000",
@@ -1056,7 +1056,7 @@ def test_index_two_indices_emitted(
             "AAPL",
             "MSFT",
             "JPM",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--outstanding-shares",
             "AAPL:15000000000",
@@ -1100,7 +1100,7 @@ def test_index_custom_file_paths(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--outstanding-shares",
             "AAPL:15000000000",
@@ -1131,7 +1131,7 @@ def test_index_default_file_paths_derived_from_id(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--outstanding-shares",
             "AAPL:15000000000",
@@ -1164,7 +1164,7 @@ def test_index_missing_constituents_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--index",
                 "EDU100",
@@ -1188,7 +1188,7 @@ def test_index_unknown_constituent_symbol_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--index",
                 "EDU100",
@@ -1213,7 +1213,7 @@ def test_index_more_than_five_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--index",
                 "I1",
@@ -1245,7 +1245,7 @@ def test_combo_round_trips_through_loader(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--combo",
             "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50",
@@ -1276,7 +1276,7 @@ def test_combo_unknown_symbol_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--combo",
                 "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,UNKNOWN/SELL/LIMIT/50/415.50",
@@ -1300,7 +1300,7 @@ def test_combo_duplicate_leg_symbol_fails(
                 "--symbols",
                 "AAPL",
                 "MSFT",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--combo",
                 "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,AAPL/SELL/LIMIT/50/415.50",
@@ -1323,7 +1323,7 @@ def test_combo_too_few_legs_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--combo",
                 "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50",
@@ -1345,7 +1345,7 @@ def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
             "--symbols",
             "AAPL",
             "MSFT",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--symbol-opts",
             "AAPL:tick_decimals=4",
@@ -1375,7 +1375,7 @@ def test_combo_leg_price_off_the_tick_grid_fails(
                 "--symbols",
                 "AAPL",
                 "MSFT",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--combo",
                 "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.505,MSFT/SELL/LIMIT/50/415.50",
@@ -1399,7 +1399,7 @@ def test_combo_leg_price_bad_decimal_fails(
                 "--symbols",
                 "AAPL",
                 "MSFT",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--combo",
                 "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/1.2.3,MSFT/SELL/LIMIT/50/1.00",
@@ -1422,7 +1422,7 @@ def test_schedule_out_of_order_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--sessions-enabled",
                 "--continuous",
@@ -1448,7 +1448,7 @@ def test_schedule_bad_time_format_fails(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--pre-open",
                 "9am",
@@ -1469,7 +1469,7 @@ def test_alf_flags_emit_alf_gateway_block_and_parse(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--alf-port",
             "6565",
@@ -1502,7 +1502,7 @@ def test_alf_gateway_omitted_without_alf_flags(
     out_file = tmp_path / "engine_config.yaml"
     _run_main(
         monkeypatch,
-        ["--symbols", "AAPL", "--gateways", "TRADER01", "--output", str(out_file)],
+        ["--symbols", "AAPL", "--participants", "TRADER01", "--output", str(out_file)],
     )
 
     assert "alf_gateway" not in yaml.safe_load(out_file.read_text(encoding="utf-8"))
@@ -1518,7 +1518,7 @@ def test_alf_gateway_flag_alone_emits_defaults(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--alf-gateway",
             "--output",
@@ -1542,7 +1542,7 @@ def test_alf_port_out_of_range_is_rejected(
             [
                 "--symbols",
                 "AAPL",
-                "--gateways",
+                "--participants",
                 "TRADER01",
                 "--alf-port",
                 "70000",
@@ -1564,7 +1564,7 @@ def test_alf_port_collision_is_warned(
         [
             "--symbols",
             "AAPL",
-            "--gateways",
+            "--participants",
             "TRADER01",
             "--alf-port",
             "5570",

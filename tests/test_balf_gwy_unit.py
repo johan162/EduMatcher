@@ -507,12 +507,11 @@ class TestLoadBalfGatewayConfig:
               max_connections: 32
               max_messages_per_second: 200
               duplicate_session_policy: EVICT_OLD
-            gateways:
-              alf:
-                - id: GW1
-                  role: TRADER
-                - id: GW2
-                  role: MARKET_MAKER
+            participants:
+              - id: GW1
+                role: TRADER
+              - id: GW2
+                role: MARKET_MAKER
         """)
         p = tmp_path / "cfg.yaml"
         p.write_text(yaml_text)
@@ -580,12 +579,11 @@ class TestLoadBalfGatewayConfig:
 
     def test_gateway_roles_prefix_collision_raises(self, tmp_path: Path):
         yaml_text = textwrap.dedent("""\
-            gateways:
-              alf:
-                - id: GW
-                  role: TRADER
-                - id: GW1
-                  role: TRADER
+            participants:
+              - id: GW
+                role: TRADER
+              - id: GW1
+                role: TRADER
         """)
         p = tmp_path / "cfg.yaml"
         p.write_text(yaml_text)
@@ -594,9 +592,8 @@ class TestLoadBalfGatewayConfig:
 
     def test_gateway_roles_missing_id_raises(self, tmp_path: Path):
         yaml_text = textwrap.dedent("""\
-            gateways:
-              alf:
-                - role: TRADER
+            participants:
+              - role: TRADER
         """)
         p = tmp_path / "cfg.yaml"
         p.write_text(yaml_text)
@@ -605,17 +602,16 @@ class TestLoadBalfGatewayConfig:
 
     def test_gateway_roles_non_dict_item_raises(self, tmp_path: Path):
         yaml_text = textwrap.dedent("""\
-            gateways:
-              alf:
-                - not_a_dict
+            participants:
+              - not_a_dict
         """)
         p = tmp_path / "cfg.yaml"
         p.write_text(yaml_text)
         with pytest.raises(ValueError):
             load_balf_gateway_config(p)
 
-    def test_no_alf_section_returns_empty_roles(self, tmp_path: Path):
-        yaml_text = "gateways:\n  ralf:\n    - id: RGW\n"
+    def test_no_participants_section_returns_empty_roles(self, tmp_path: Path):
+        yaml_text = "symbols: {}\n"
         p = tmp_path / "cfg.yaml"
         p.write_text(yaml_text)
         cfg = load_balf_gateway_config(p)

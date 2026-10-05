@@ -156,7 +156,7 @@ describe("parseYamlToDraft — log_server LALF-PS", () => {
   it("keeps defaults for LALF-PS keys a hand-written file omits", () => {
     const text = yaml.dump({
       symbols: { AAPL: { tick_decimals: 2 } },
-      gateways: { alf: [{ id: "TRADER01" }] },
+      participants: [{ id: "TRADER01" }],
       log_server: { enabled: true, port: 5600 },
     });
     const { draft } = parseYamlToDraft(text);
@@ -168,7 +168,7 @@ describe("parseYamlToDraft — log_server LALF-PS", () => {
   it("reads pubsub_enabled: false rather than falling back to the default", () => {
     const text = yaml.dump({
       symbols: { AAPL: { tick_decimals: 2 } },
-      gateways: { alf: [{ id: "TRADER01" }] },
+      participants: [{ id: "TRADER01" }],
       log_server: { enabled: true, pubsub_enabled: false },
     });
     const { draft } = parseYamlToDraft(text);

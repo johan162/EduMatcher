@@ -87,19 +87,17 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     all_ids = all_gateway_ids(raw)
     require_mm_seed_quotes = bool(raw.get("require_mm_seed_quotes", True))
     gateways_by_role: dict[str, str] = {}
-    gateways = raw.get("gateways")
-    if isinstance(gateways, dict):
-        alf = gateways.get("alf")
-        if isinstance(alf, list):
-            for gw in alf:
-                if not isinstance(gw, dict):
-                    continue
-                gw_id = gw.get("id")
-                if not isinstance(gw_id, str) or not gw_id.strip():
-                    continue
-                gateways_by_role[gw_id.strip().upper()] = str(
-                    gw.get("role", "TRADER")
-                ).upper()
+    participants = raw.get("participants")
+    if isinstance(participants, list):
+        for gw in participants:
+            if not isinstance(gw, dict):
+                continue
+            gw_id = gw.get("id")
+            if not isinstance(gw_id, str) or not gw_id.strip():
+                continue
+            gateways_by_role[gw_id.strip().upper()] = str(
+                gw.get("role", "TRADER")
+            ).upper()
 
     symbols = raw.get("symbols", {})
     if not isinstance(symbols, dict):
@@ -157,7 +155,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             severity=Severity.ERROR,
                             message=(
                                 f"Symbol '{sym}': market_maker_quotes gateway_id "
-                                f"'{gw_id}' is not listed in gateways.alf."
+                                f"'{gw_id}' is not listed in participants."
                             ),
                             suggestion=(
                                 "Either add the gateway or remove the seed entry."
@@ -793,24 +791,21 @@ def _check_admin_gateway(raw: dict[str, Any], results: list[CheckResult]) -> Non
                     "      role: ADMIN\n"
                     "      disconnect_behaviour: LEAVE_ALL"
                 ),
-                path="gateways.alf",
+                path="participants",
             )
         )
 
     # C010: LEAVE_ALL on non-ADMIN gateways
-    gateways = raw.get("gateways", {})
-    if not isinstance(gateways, dict):
+    participants = raw.get("participants", [])
+    if not isinstance(participants, list):
         return
-    alf = gateways.get("alf", [])
-    if not isinstance(alf, list):
-        return
-    gateway_defaults = raw.get("gateway_defaults")
+    participant_defaults = raw.get("participant_defaults")
     default_disconnect = (
-        gateway_defaults.get("disconnect_behaviour", "")
-        if isinstance(gateway_defaults, dict)
+        participant_defaults.get("disconnect_behaviour", "")
+        if isinstance(participant_defaults, dict)
         else ""
     )
-    for n, gw in enumerate(alf):
+    for n, gw in enumerate(participants):
         if not isinstance(gw, dict):
             continue
         role = str(gw.get("role", "TRADER")).upper()
@@ -830,7 +825,7 @@ def _check_admin_gateway(raw: dict[str, Any], results: list[CheckResult]) -> Non
                         "TRADER and MARKET_MAKER gateways usually use CANCEL_ALL "
                         "or CANCEL_QUOTES_ONLY to prevent stale orders after disconnection."
                     ),
-                    path=f"gateways.alf[{n}].disconnect_behaviour",
+                    path=f"participants[{n}].disconnect_behaviour",
                 )
             )
 
@@ -1031,10 +1026,10 @@ def _check_api_gateway_semantic(
                     severity=Severity.ERROR,
                     message=(
                         f"API gateway credential gateway_id '{gateway_id}' is not "
-                        "defined in gateways.alf."
+                        "defined in participants."
                     ),
                     suggestion=(
-                        f"Add gateway '{gateway_id}' under gateways.alf or update "
+                        f"Add gateway '{gateway_id}' under participants or update "
                         "the credential to an existing ALF gateway id."
                     ),
                     path=path,

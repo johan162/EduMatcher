@@ -523,14 +523,14 @@ sequenceDiagram
 
 BALF settings are part of the main engine configuration file
 (`engine_config.yaml`). BALF has no config block of its own for gateway
-identity — it reuses `gateways.alf` (the same allowlist ALF uses, see
+identity — it reuses `participants` (the same allowlist ALF uses, see
 [ALF TCP Gateway](220-alf-gateway.md#configuration-reference)) for identity,
 role, and `disconnect_behaviour`, and adds only its own TCP listener/runtime
 parameters under `balf_gateway`.
 
 Path locations:
 
-- `engine_config.yaml` -> `gateways` -> `alf` (shared with ALF)
+- `engine_config.yaml` -> `participants` (shared with ALF)
 - `engine_config.yaml` -> `balf_gateway`
 
 ### `balf_gateway` fields

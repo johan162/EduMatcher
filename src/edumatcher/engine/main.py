@@ -763,7 +763,7 @@ class Engine:
         equivalent) entirely -- distinct from an *explicit* ``SMP=NONE``,
         which is a deliberate request to allow self-trades and must be
         respected as-is. When omitted, fall back to the order's gateway's
-        configured ``gateways.alf[].smp_action`` default, or ``SmpAction.NONE``
+        configured ``participants[].smp_action`` default, or ``SmpAction.NONE``
         if the gateway has none configured (unconfigured/unknown gateway,
         or the engine is running without a loaded config). See SmpAction's
         docstring in models/order.py for the full rationale.
@@ -1447,7 +1447,7 @@ class Engine:
         self._dbg_count("new_order_requests")
 
         # SMP=None means the client omitted it -- fall back to the gateway's
-        # configured default (gateways.alf[].smp_action). An explicit value
+        # configured default (participants[].smp_action). An explicit value
         # (including SmpAction.NONE) from the client is always respected.
         order.smp_action = self._resolve_smp_action(order.gateway_id, order.smp_action)
 

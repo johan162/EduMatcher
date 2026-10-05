@@ -46,8 +46,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "mm_obligation_defaults",
   "risk_controls",
   "circuit_breaker_defaults",
-  "gateway_defaults",
-  "gateways",
+  "participant_defaults",
+  "participants",
   "alf_gateway",
   "post_trade_gateway",
   "market_data_gateway",
@@ -142,8 +142,8 @@ export function parseYamlToDraft(text: string): ImportResult {
     asNumber(engineTuning?.depth_snapshot_tolerance_ticks) ??
     draft.depthSnapshotToleranceTicks;
 
-  parseGatewayDefault(raw.gateway_defaults, draft);
-  parseGateways(raw.gateways, draft);
+  parseGatewayDefault(raw.participant_defaults, draft);
+  parseGateways(raw.participants, draft);
   parseSymbols(raw.symbols, draft);
   parseMmDefaults(raw.mm_obligation_defaults, draft);
   parseRiskControls(raw.risk_controls, draft);
@@ -175,9 +175,9 @@ function parseGatewayDefault(node: unknown, draft: EngineConfigDraft): void {
 }
 
 function parseGateways(node: unknown, draft: EngineConfigDraft): void {
-  if (!isDict(node) || !Array.isArray(node.alf)) return;
+  if (!Array.isArray(node)) return;
   const gateways: GatewayConfig[] = [];
-  for (const entry of node.alf) {
+  for (const entry of node) {
     if (!isDict(entry)) continue;
     const id = asUpper(entry.id);
     if (!id) continue;
@@ -187,7 +187,7 @@ function parseGateways(node: unknown, draft: EngineConfigDraft): void {
     // real default (CANCEL_QUOTES_ONLY for every role) rather than the
     // role-derived value createGateway() uses for freshly authored gateways.
     // This keeps import -> re-export faithful to what the engine would have done
-    // with the original omitted field. With a gateway_defaults value the
+    // with the original omitted field. With a participant_defaults value the
     // gateway keeps inheriting it instead.
     const disconnect = asUpper(entry.disconnect_behaviour);
     if (disconnect) {

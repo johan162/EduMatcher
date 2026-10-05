@@ -87,12 +87,12 @@ done
 gateway_smp_args=()
 for gateway in "${gateways[@]}"; do
   gateway_id="${gateway%%:*}"
-  gateway_smp_args+=(--gateway-smp "${gateway_id}:CANCEL_AGGRESSOR")
+  gateway_smp_args+=(--participant-smp "${gateway_id}:CANCEL_AGGRESSOR")
 done
 
 common_args=(
   --symbols "${symbols[@]}"
-  --gateways "${gateways[@]}"
+  --participants "${gateways[@]}"
   "${gateway_smp_args[@]}"
   --output engine_config.yaml
   --force

@@ -326,7 +326,7 @@ process's own `config.py`.
          ```
      2. Generate a config (or reuse/edit the sample config):
          ```bash
-         pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+         pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
          ```
      3. Use the operational control `pm-opctl-cli` to start the system in the correct order with:
          ```
@@ -470,7 +470,7 @@ pm-alf-console --id <GW_ID>
 2. Waits for `system.gateway_auth.<GW_ID>`
 3. Enters command loop only if accepted
 
-If the ID is not listed in `engine_config.yaml` under `gateways.alf`, connection
+If the ID is not listed in `engine_config.yaml` under `participants`, connection
 is refused and the gateway exits.
 
 **Messages sent** (PUSH → :5555):
@@ -515,7 +515,7 @@ See the [ALF Console](055-alf-console.md) for the full command list.
 Accepts ALF order-entry commands from external bots and remote processes over a
 plain TCP connection.  Uses the same ALF command vocabulary as `pm-alf-console`
 but is designed for programmatic clients, not interactive terminals.  One
-connection per gateway ID; all configured `gateways.alf` IDs may connect.
+connection per gateway ID; all configured `participants` IDs may connect.
 
 ```bash
 pm-alf-gwy [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
@@ -2357,7 +2357,7 @@ and exits.
 Validation runs all four `pm-cverifier` layers. That is stricter than starting
 used to be: a configuration with, say, a `MARKET_MAKER` gateway and no
 `market_maker_quotes` (`M001`), or an API credential naming a `gateway_id`
-absent from `gateways.alf` (`M022`), will now refuse to deploy where it
+absent from `participants` (`M022`), will now refuse to deploy where it
 previously ran. Warnings do not block — a command that refused on advice would
 push people back towards editing the deployed copy by hand.
 
@@ -2388,7 +2388,7 @@ Generates an `engine_config.yaml` from explicit CLI parameters so environments
 can be recreated without manual YAML editing.
 
 ```bash
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
 ```
 
 **Startup options:**
@@ -2398,15 +2398,15 @@ pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --ses
 | Flag | Description |
 |---|---|
 | `--symbols SYM [SYM ...]` | One or more symbols |
-| `--gateways GW_SPEC [...]` | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
+| `--participants GW_SPEC [...]` | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
 
 #### Gateway / symbol overrides
 
 | Flag | Description |
 |---|---|
-| `--gateway-smp GW_ID:SMP_ACTION` | Per-gateway self-match-prevention default (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); repeatable |
-| `--gateway-default-smp SMP_ACTION` | Writes `gateway_defaults.smp_action`, inherited by gateways without their own |
-| `--gateway-default-disconnect DISCONNECT` | Writes `gateway_defaults.disconnect_behaviour`, inherited by gateways whose spec names no disconnect behaviour |
+| `--participant-smp GW_ID:SMP_ACTION` | Per-gateway self-match-prevention default (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); repeatable |
+| `--participant-default-smp SMP_ACTION` | Writes `participant_defaults.smp_action`, inherited by gateways without their own |
+| `--participant-default-disconnect DISCONNECT` | Writes `participant_defaults.disconnect_behaviour`, inherited by gateways whose spec names no disconnect behaviour |
 | `--symbol-opts SYMBOL:KEY=VALUE[,...]` | Per-symbol overrides; repeatable |
 | `--symbol-static-band SYM:PCT` | Per-symbol collar static band in (0,1); repeatable |
 | `--symbol-dynamic-band SYM:PCT` | Per-symbol collar dynamic band in (0,1); repeatable |

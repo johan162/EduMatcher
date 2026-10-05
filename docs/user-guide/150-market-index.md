@@ -118,11 +118,10 @@ symbols:
     tick_decimals: 2
     outstanding_shares: 3200000000
 
-gateways:
-  alf:
-    - id: TRADER01
-      role: TRADER
-      disconnect_behaviour: CANCEL_ALL
+participants:
+  - id: TRADER01
+    role: TRADER
+    disconnect_behaviour: CANCEL_ALL
 
 indices:
   - id: EDU100
@@ -173,7 +172,7 @@ Constraints:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -678,7 +677,7 @@ before `pm-index` will accept the result.
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
@@ -693,7 +692,7 @@ pm-config-gen \
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --gateways TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \

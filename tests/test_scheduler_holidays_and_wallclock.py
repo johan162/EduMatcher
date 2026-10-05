@@ -79,7 +79,7 @@ class TestCountryFromCompiledConfig:
         source.write_text(
             "country: Germany\n"
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+            "participants: [{id: TRADER01, role: TRADER}]\n"
         )
 
         country = compile_config(source).engine.country
@@ -99,7 +99,7 @@ class TestCountryFromCompiledConfig:
         source.write_text(
             "country: Narnia\n"
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
-            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+            "participants: [{id: TRADER01, role: TRADER}]\n"
         )
 
         country = compile_config(source).engine.country

@@ -167,7 +167,7 @@ echo "  1. Copy the shell snippet above into your profile (~/.zshrc or ~/.bashrc
 echo "     so every new terminal inherits the correct EDUMATCHER_DATA_DIR."
 echo ""
 echo "  2. Edit engine_config.yaml in your working directory:"
-echo "     - Add student gateway IDs under gateways.alf"
+echo "     - Add student participant IDs under participants"
 echo "     - Add symbols and their seed quotes"
 echo ""
 echo "  3. Verify the config:"
