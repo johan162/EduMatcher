@@ -5767,7 +5767,7 @@ reach is provided only through the external protocol gateways.</p>
 <li><strong>Remote participants connect at the gateways, not the bus.</strong> The protocol
   gateways bind <code>0.0.0.0</code> and are the intended network edge:
   order entry over <strong>ALF</strong> (<code>pm-alf-gwy</code>, :5565) and <strong>BALF</strong> (<code>pm-balf-gwy</code>, :5560),
-  which authenticate sessions against the <code>gateways.alf</code> allowlist; market data over
+  which authenticate sessions against the <code>participants</code> allowlist; market data over
   <strong>CALF</strong> (<code>pm-md-gwy</code>, :5570) and post-trade over <strong>RALF</strong> (<code>pm-ralf-gwy</code>, :5580).
   A remote trading client or data consumer speaks TCP to one of these — it never
   touches the ZMQ bus.</li>
@@ -6439,7 +6439,7 @@ limit is used directly.</p>
 <p>Where p = distinct price levels, n = total resting orders, k = orders matched.</p>
 <h3 id="gateway-authentication">Gateway Authentication<a class="headerlink" href="#gateway-authentication" title="Permanent link">&para;</a></h3>
 <p>Before a gateway can submit orders, it must authenticate with the engine.
-If the engine has a <code>gateways.alf</code> section in its config, only listed gateway IDs are accepted.</p>
+If the engine has a <code>participants</code> section in its config, only listed gateway IDs are accepted.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant G as Gateway
     participant E as Engine
@@ -6451,7 +6451,7 @@ If the engine has a <code>gateways.alf</code> section in its config, only listed
     Note over E,G: PUB -&gt; SUB
     G-&gt;&gt;E: order.new (now allowed)</code></pre>
 <p>If <code>accepted: false</code>, the gateway prints the rejection reason and exits.
-If no <code>gateways.alf</code> section exists in config, all gateway IDs are auto-accepted
+If no <code>participants</code> section exists in config, all gateway IDs are auto-accepted
 (backward-compatible mode).</p>
 <p>Orders from gateways that have not completed the auth handshake are rejected with
 reason "Gateway not connected: {GW_ID}".</p>

@@ -4485,7 +4485,7 @@ human operators.</p>
 <h2 id="how-to-start-a-swarm-of-bots">How to Start a Swarm of Bots<a class="headerlink" href="#how-to-start-a-swarm-of-bots" title="Permanent link">&para;</a></h2>
 <p>Use this sequence for reliable startup.</p>
 <h3 id="step-1-ensure-gateway-ids-exist-in-config">Step 1: Ensure gateway IDs exist in config<a class="headerlink" href="#step-1-ensure-gateway-ids-exist-in-config" title="Permanent link">&para;</a></h3>
-<p>Your swarm IDs must be listed under <code>gateways.alf</code> in <code>engine_config.yaml</code>.
+<p>Your swarm IDs must be listed under <code>participants</code> in <code>engine_config.yaml</code>.
 For example, if you launch with <code>--prefix AI --start-index 1 --count 30</code>,
 the engine must allow <code>AI01</code> through <code>AI30</code>.</p>
 <h3 id="step-2-start-core-exchange-processes">Step 2: Start core exchange processes<a class="headerlink" href="#step-2-start-core-exchange-processes" title="Permanent link">&para;</a></h3>
@@ -4542,7 +4542,7 @@ the engine must allow <code>AI01</code> through <code>AI30</code>.</p>
 <h2 id="practical-notes">Practical Notes<a class="headerlink" href="#practical-notes" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Keep engine and subscribers running before bots start.</li>
-<li>Ensure all bot IDs are listed under <code>gateways.alf</code> in <code>engine_config.yaml</code>.</li>
+<li>Ensure all bot IDs are listed under <code>participants</code> in <code>engine_config.yaml</code>.</li>
 <li>Start small (2–5 bots), verify flow, then scale to 30.</li>
 <li>Use fixed seeds for scenario replay and performance comparisons.</li>
 </ol>

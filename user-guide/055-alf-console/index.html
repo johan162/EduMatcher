@@ -4822,7 +4822,7 @@ it connects <strong>directly to the engine's ZMQ sockets</strong>, reads command
 and prints responses to stdout.</p>
 <p>Responsibilities of <code>pm-alf-console</code>:</p>
 <ul>
-<li>authenticates the gateway ID against <code>gateways.alf</code></li>
+<li>authenticates the gateway ID against <code>participants</code></li>
 <li>parses ALF command lines into validated engine requests</li>
 <li>subscribes to gateway-scoped lifecycle events (acks, fills, cancels, rejects)</li>
 <li>maintains local session caches for <code>ORDERS</code>, <code>POS</code>, <code>QBOOT</code>, and <code>QLEGS</code></li>
@@ -4922,7 +4922,7 @@ system. Multiple instances can run simultaneously.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
 <p>The <code>--id</code> flag sets your gateway identifier. It appears on all orders and fills.
-The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
+The ID must be preconfigured in <code>engine_config.yaml</code> under <code>participants</code>.</p>
 <p><strong>CLI flags:</strong></p>
 <table>
 <thead>
@@ -4936,7 +4936,7 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gate
 <tr>
 <td><code>--id GW_ID</code></td>
 <td><em>(required)</em></td>
-<td>Unique gateway identifier (e.g. <code>GW01</code>, <code>ALICE</code>). Must be listed under <code>gateways.alf</code> in <code>engine_config.yaml</code></td>
+<td>Unique gateway identifier (e.g. <code>GW01</code>, <code>ALICE</code>). Must be listed under <code>participants</code> in <code>engine_config.yaml</code></td>
 </tr>
 <tr>
 <td><code>--drop-copy</code></td>
@@ -5018,7 +5018,7 @@ on it until <code>DC|STATE=ON</code> (or <code>--drop-copy</code> at startup) �
     participant ENG as pm-engine
 
     GW-&gt;&gt;ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
-    alt ID is in gateways.alf
+    alt ID is in participants
         ENG--&gt;&gt;GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
         Note over GW: Enters interactive command loop
     else ID not configured
@@ -5030,14 +5030,13 @@ on it until <code>DC|STATE=ON</code> (or <code>--drop-copy</code> at startup) �
 <p>The terminal does <strong>not</strong> subscribe to <code>session.state</code>. Use <code>pm-audit</code>,
 <code>pm-viewer</code>, <code>pm-orders</code>, or the scheduler output if you need to watch trading
 phase transitions live.</p>
-<p>Allowed gateway IDs are configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
+<p>Allowed gateway IDs are configured in <code>engine_config.yaml</code> under <code>participants</code>.</p>
 <p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">The first trader</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">The first trader</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
 </code></pre></div>
 <p>If a session starts with an ID that is not listed there, the engine refuses
 the connection and the terminal exits.</p>
@@ -5410,9 +5409,9 @@ command for external TCP clients — see
 <p><strong>SMP</strong> (Self Match Prevention) values: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>.
 SMP prevents you from accidentally trading against your own resting orders. If
 <code>SMP</code> is omitted, the engine falls back to the gateway's configured
-<code>gateways.alf[].smp_action</code> (or <code>NONE</code> if none is configured) rather than a
+<code>participants[].smp_action</code> (or <code>NONE</code> if none is configured) rather than a
 fixed default — see
-<a href="../010-configuration/#gateway-fields">Configuration — Gateway Fields</a> for the
+<a href="../010-configuration/#participant-fields">Configuration — Participant Fields</a> for the
 config field, and
 <a href="../120-risk-controls/#self-match-prevention-smp">Risk Controls — Self-Match Prevention</a>
 for a full explanation of how SMP is enforced during matching and how the
@@ -5594,7 +5593,7 @@ terminal's tab completion alongside <code>DAY</code> and <code>GTC</code> (see
 <tr>
 <td><code>SMP=&lt;action&gt;</code></td>
 <td>No</td>
-<td>Self-match prevention, applied to every leg; same values as <code>NEW</code>'s <code>SMP</code>. If omitted, falls back to the gateway's configured <code>gateways.alf[].smp_action</code> (else <code>NONE</code>) — see <a href="../010-configuration/#gateway-fields">Configuration — Gateway Fields</a></td>
+<td>Self-match prevention, applied to every leg; same values as <code>NEW</code>'s <code>SMP</code>. If omitted, falls back to the gateway's configured <code>participants[].smp_action</code> (else <code>NONE</code>) — see <a href="../010-configuration/#participant-fields">Configuration — Participant Fields</a></td>
 </tr>
 </tbody>
 </table>
@@ -5904,7 +5903,7 @@ unless those symbols already have orders.</p>
 <div class="admonition note">
 <p class="admonition-title">Gateway authorization</p>
 <p><code>SYMBOLS</code> and all trading commands are available only after successful
-startup authentication. If your ID is not listed under <code>gateways.alf</code>,
+startup authentication. If your ID is not listed under <code>participants</code>,
 the engine refuses the connection.</p>
 </div>
 <h3 id="session-query-current-trading-session-state">SESSION — Query Current Trading Session State<a class="headerlink" href="#session-query-current-trading-session-state" title="Permanent link">&para;</a></h3>
@@ -6190,7 +6189,7 @@ phase-change broadcasts — see the "Session phase changes" note under
 <a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
-<code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
+<code>engine_config.yaml</code> in <code>participants</code> and restart the engine.</p>
 <p>Each session only receives events for its own orders. Use <code>pm-orders</code> to see all
 gateways' activity.</p>
 <h2 id="interactive-features">Interactive Features<a class="headerlink" href="#interactive-features" title="Permanent link">&para;</a></h2>
@@ -6278,8 +6277,8 @@ the command prompt. You can continue typing while events arrive.</p>
 <tr>
 <td><code>Gateway not configured: GW01</code></td>
 <td>Gateway ID not in <code>engine_config.yaml</code></td>
-<td>Check <code>gateways.alf</code> list</td>
-<td>Add ID under <code>gateways.alf</code> and restart engine</td>
+<td>Check <code>participants</code> list</td>
+<td>Add ID under <code>participants</code> and restart engine</td>
 </tr>
 <tr>
 <td><code>REJECTED ... code=UNKNOWN_SYMBOL</code></td>
@@ -6323,7 +6322,7 @@ the command prompt. You can continue typing while events arrive.</p>
 <ul>
 <li><a href="../051-gateway-intro/">Gateway Concepts</a> — what a gateway is, and why <code>pm-alf-console</code> is not one</li>
 <li><a href="../220-alf-gateway/">ALF TCP Gateway</a> — the real ALF gateway, for remote/external clients</li>
-<li><a href="../010-configuration/#alf-gateway-allowlist">Configuration</a> — gateway roles, allowlists, disconnect behaviour, and MM obligations</li>
+<li><a href="../010-configuration/#participants">Configuration</a> — gateway roles, allowlists, disconnect behaviour, and MM obligations</li>
 <li><a href="../060-order-types/">Order Types</a> — full semantics for every order type accepted by the terminal</li>
 <li><a href="../900-app-alf-protocol/">ALF Protocol Reference</a> — formal ABNF grammar and field rules for the pipe-delimited syntax</li>
 <li><a href="../270-message-reference/">Messages</a> — the ZeroMQ messages the terminal publishes and subscribes to</li>

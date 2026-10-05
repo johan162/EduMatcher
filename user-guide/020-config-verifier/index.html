@@ -1101,10 +1101,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s117" class="md-nav__link">
+  <a href="#layer-2-schema-s001s121" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S117)
+        Layer 2 — Schema (S001–S121)
       
     </span>
   </a>
@@ -4496,7 +4496,7 @@ possible.</p>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WARN"</span><span class="p">,</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No gateway has role: ADMIN."</span><span class="p">,</span>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">"suggestion"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gateways.alf"</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"participants"</span>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span><span class="p">],</span>
 <a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">  </span><span class="nt">"risk_summary"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span>
@@ -4532,7 +4532,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s117">Layer 2 — Schema (<code>S001</code>–<code>S117</code>)<a class="headerlink" href="#layer-2-schema-s001s117" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s121">Layer 2 — Schema (<code>S001</code>–<code>S121</code>)<a class="headerlink" href="#layer-2-schema-s001s121" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -4548,11 +4548,7 @@ reporting scripts.</p>
 </tr>
 <tr>
 <td><code>S002</code></td>
-<td><code>gateways</code> absent or not a mapping</td>
-</tr>
-<tr>
-<td><code>S003</code></td>
-<td><code>gateways.alf</code> absent or not a list</td>
+<td><code>participants</code> absent or not a list</td>
 </tr>
 <tr>
 <td><code>S004</code></td>
@@ -4560,7 +4556,7 @@ reporting scripts.</p>
 </tr>
 <tr>
 <td><code>S005</code></td>
-<td><code>gateways.alf</code> is empty</td>
+<td><code>participants</code> is empty</td>
 </tr>
 </tbody>
 </table>
@@ -4724,11 +4720,27 @@ the key if it appears on a risk level.</p>
 </tr>
 <tr>
 <td><code>S029</code></td>
-<td><code>gateways.alf[n]</code> is not a mapping</td>
+<td><code>participants[n]</code> is not a mapping</td>
 </tr>
 <tr>
 <td><code>S084</code></td>
-<td>Two <code>gateways.alf</code> IDs are prefixes of each other</td>
+<td>Two <code>participants</code> IDs are prefixes of each other</td>
+</tr>
+<tr>
+<td><code>S118</code></td>
+<td><code>participant_defaults</code> is not a mapping, or has a key other than <code>smp_action</code> / <code>disconnect_behaviour</code></td>
+</tr>
+<tr>
+<td><code>S119</code></td>
+<td><code>participant_defaults.disconnect_behaviour</code> is not a recognised value</td>
+</tr>
+<tr>
+<td><code>S120</code></td>
+<td><code>participant_defaults.smp_action</code> is not a recognised value</td>
+</tr>
+<tr>
+<td><code>S121</code></td>
+<td>A key in <code>alf_gateway</code>, <code>balf_gateway</code>, <code>market_data_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code> (or <code>log_server.client</code>), or an <code>api_gateways.&lt;name&gt;</code> instance (or its <code>rate_limit</code>, <code>timeouts</code> or <code>credentials[]</code>) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name</td>
 </tr>
 </tbody>
 </table>
@@ -4875,7 +4887,7 @@ the key if it appears on a risk level.</p>
 </tr>
 <tr>
 <td><code>S061</code></td>
-<td><code>snapshot_interval_sec</code> present but not a positive number</td>
+<td><code>engine_tuning.snapshot_interval_sec</code> present but not a positive number</td>
 </tr>
 <tr>
 <td><code>S062</code></td>
@@ -5039,7 +5051,7 @@ read-only dashboard entry generated from <code>pm-config-gen</code> with
 <code>--api-gateway-instance dashboards::8081</code>. In the resulting YAML,
 <code>dashboards.credentials[].gateway_id: null</code> is valid and is intentionally
 ignored by the <code>M022</code> gateway-reference check. Non-null credentials must match
-an ID under <code>gateways.alf</code>, and each non-null ID may belong to only one named
+an ID under <code>participants</code>, and each non-null ID may belong to only one named
 <code>api_gateways</code> entry. <code>M018</code> also checks every named API gateway port for
 collisions with the other configured listeners.</p>
 <p>For example, this generated shape is valid:</p>
@@ -5230,7 +5242,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M002</code></td>
 <td>ERROR</td>
-<td>MM seed references a gateway ID not in <code>gateways.alf</code></td>
+<td>MM seed references a gateway ID not in <code>participants</code></td>
 </tr>
 <tr>
 <td><code>M003</code></td>
@@ -5330,7 +5342,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M022</code></td>
 <td>ERROR</td>
-<td>API credential <code>gateway_id</code> is not defined in <code>gateways.alf</code></td>
+<td>API credential <code>gateway_id</code> is not defined in <code>participants</code></td>
 </tr>
 <tr>
 <td><code>M023</code></td>
@@ -5399,7 +5411,7 @@ family because it is an operational-completeness warning.</p>
 <tr>
 <td><code>C007</code></td>
 <td>INFO</td>
-<td><code>snapshot_interval_sec</code> is at the default <code>0.5</code></td>
+<td><code>engine_tuning.snapshot_interval_sec</code> is at the default <code>0.5</code></td>
 </tr>
 <tr>
 <td><code>C008</code></td>

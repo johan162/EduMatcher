@@ -5602,7 +5602,7 @@ immediately or silently lose its first messages.</p>
      <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-setup
 </code></pre></div></li>
 <li>Generate a config (or reuse/edit the sample config):
-     <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+     <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div></li>
 <li>Use the operational control <code>pm-opctl-cli</code> to start the system in the correct order with:
      <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-opctl-cli start
@@ -5907,7 +5907,7 @@ See <a href="../900-app-alf-protocol/">ALF Protocol Reference</a>.</p>
 1. Sends <code>system.gateway_connect</code> to the engine
 2. Waits for <code>system.gateway_auth.&lt;GW_ID&gt;</code>
 3. Enters command loop only if accepted</p>
-<p>If the ID is not listed in <code>engine_config.yaml</code> under <code>gateways.alf</code>, connection
+<p>If the ID is not listed in <code>engine_config.yaml</code> under <code>participants</code>, connection
 is refused and the gateway exits.</p>
 <p><strong>Messages sent</strong> (PUSH → :5555):</p>
 <table>
@@ -6028,7 +6028,7 @@ is refused and the gateway exits.</p>
 <p>Accepts ALF order-entry commands from external bots and remote processes over a
 plain TCP connection.  Uses the same ALF command vocabulary as <code>pm-alf-console</code>
 but is designed for programmatic clients, not interactive terminals.  One
-connection per gateway ID; all configured <code>gateways.alf</code> IDs may connect.</p>
+connection per gateway ID; all configured <code>participants</code> IDs may connect.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-alf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5565</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
@@ -10208,7 +10208,7 @@ and exits.</p>
 <p>Validation runs all four <code>pm-cverifier</code> layers. That is stricter than starting
 used to be: a configuration with, say, a <code>MARKET_MAKER</code> gateway and no
 <code>market_maker_quotes</code> (<code>M001</code>), or an API credential naming a <code>gateway_id</code>
-absent from <code>gateways.alf</code> (<code>M022</code>), will now refuse to deploy where it
+absent from <code>participants</code> (<code>M022</code>), will now refuse to deploy where it
 previously ran. Warnings do not block — a command that refused on advice would
 push people back towards editing the deployed copy by hand.</p>
 <p>Compiling also resolves every default exactly once. That is what allows the
@@ -10228,7 +10228,7 @@ runtime message bus.</p>
 <h2 id="pm-config-gen-engine-config-generator">pm-config-gen — Engine Config Generator<a class="headerlink" href="#pm-config-gen-engine-config-generator" title="Permanent link">&para;</a></h2>
 <p>Generates an <code>engine_config.yaml</code> from explicit CLI parameters so environments
 can be recreated without manual YAML editing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <h4 id="required">Required<a class="headerlink" href="#required" title="Permanent link">&para;</a></h4>
@@ -10245,7 +10245,7 @@ can be recreated without manual YAML editing.</p>
 <td>One or more symbols</td>
 </tr>
 <tr>
-<td><code>--gateways GW_SPEC [...]</code></td>
+<td><code>--participants GW_SPEC [...]</code></td>
 <td>One or more gateway specs (<code>ID[:ROLE[:DISCONNECT]]</code>)</td>
 </tr>
 </tbody>
@@ -10260,8 +10260,16 @@ can be recreated without manual YAML editing.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>--gateway-smp GW_ID:SMP_ACTION</code></td>
+<td><code>--participant-smp GW_ID:SMP_ACTION</code></td>
 <td>Per-gateway self-match-prevention default (<code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>); repeatable</td>
+</tr>
+<tr>
+<td><code>--participant-default-smp SMP_ACTION</code></td>
+<td>Writes <code>participant_defaults.smp_action</code>, inherited by gateways without their own</td>
+</tr>
+<tr>
+<td><code>--participant-default-disconnect DISCONNECT</code></td>
+<td>Writes <code>participant_defaults.disconnect_behaviour</code>, inherited by gateways whose spec names no disconnect behaviour</td>
 </tr>
 <tr>
 <td><code>--symbol-opts SYMBOL:KEY=VALUE[,...]</code></td>
@@ -10463,6 +10471,11 @@ can be recreated without manual YAML editing.</p>
 <td><code>--market-data-gateway</code></td>
 <td><code>market_data_gateway:</code> for <code>pm-md-gwy</code></td>
 <td><code>--market-data-name</code>, <code>--market-data-bind-address</code>, <code>--market-data-port</code>, <code>--market-data-heartbeat-interval-sec</code>, <code>--market-data-idle-timeout-sec</code>, <code>--market-data-replay-window-sec</code>, <code>--market-data-max-symbols-per-client</code>, <code>--market-data-max-client-queue</code>, <code>--market-data-depth-levels</code>, <code>--market-data-enabled</code> / <code>--market-data-disabled</code></td>
+</tr>
+<tr>
+<td><code>--alf-gateway</code></td>
+<td><code>alf_gateway:</code> for <code>pm-alf-gwy</code></td>
+<td><code>--alf-enabled</code>, <code>--alf-disabled</code>, <code>--alf-name</code>, <code>--alf-bind-address</code>, <code>--alf-port</code>, <code>--alf-heartbeat-interval-sec</code>, <code>--alf-handshake-timeout-sec</code>, <code>--alf-idle-timeout-sec</code>, <code>--alf-max-connections</code>, <code>--alf-max-client-queue</code>, <code>--alf-max-commands-per-second</code>, <code>--alf-max-errors-before-disconnect</code>, <code>--alf-error-window-sec</code></td>
 </tr>
 <tr>
 <td><code>--balf-gateway</code></td>

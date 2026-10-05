@@ -5433,7 +5433,7 @@ with <code>MAX_ORDER_QTY</code>.</p>
 </table>
 <p><code>pm-config-gen</code> can write both, either with the explicit per-symbol flags or
 as <code>--symbol-opts</code> keys:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--symbol-max-order-qty<span class="w"> </span>AAPL:50000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--symbol-max-order-value<span class="w"> </span>AAPL:2500000
 </code></pre></div>
@@ -6106,12 +6106,11 @@ technology incident, regulatory instruction, or extreme market dislocation
 requires every symbol to be frozen simultaneously.</p>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <p>Configure a dedicated gateway with <code>role: ADMIN</code> in <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Operations</span><span class="nv"> </span><span class="s">desk"</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Operations</span><span class="nv"> </span><span class="s">desk"</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
 </code></pre></div>
 <p>The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.</p>
@@ -6599,16 +6598,15 @@ WebSocket clients receive a <code>cancel_reason</code> field (see above).</p>
    <code>ComboRequest</code> payload (API Gateway), or the <code>smp_action</code> key on a
    <code>market_maker_combos[].legs[]</code> seed entry in <code>engine_config.yaml</code>. This is
    the client expressing "for <em>this</em> order, do X on self-match."</li>
-<li><strong><code>gateways.alf[].smp_action</code></strong> — a per-gateway default in
+<li><strong><code>participants[].smp_action</code></strong> — a per-gateway default in
    <code>engine_config.yaml</code>, applied by the engine when an order or leg does
    <strong>not</strong> specify <code>SMP=</code> at all. This is the operator expressing "for
    <em>this gateway</em>, when nobody says otherwise, do X."</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Prop</span><span class="nv"> </span><span class="s">desk</span><span class="nv"> </span><span class="s">algo</span><span class="nv"> </span><span class="s">1"</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span><span class="w">   </span><span class="c1"># gateway-level default</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"Prop</span><span class="nv"> </span><span class="s">desk</span><span class="nv"> </span><span class="s">algo</span><span class="nv"> </span><span class="s">1"</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span><span class="w">   </span><span class="c1"># gateway-level default</span>
 </code></pre></div>
 <table>
 <thead>
@@ -6629,7 +6627,7 @@ WebSocket clients receive a <code>cancel_reason</code> field (see above).</p>
 <td><em>(unspecified — falls back, see below)</em></td>
 </tr>
 <tr>
-<td><code>gateways.alf[].smp_action</code></td>
+<td><code>participants[].smp_action</code></td>
 <td><code>engine_config.yaml</code></td>
 <td>No</td>
 <td><code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
@@ -6661,7 +6659,7 @@ the engine treats them as genuinely different values:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>1. Order/leg specified SMP= explicitly (including explicit SMP=NONE)
 <a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>      → use that value, always. The gateway default is never consulted.
 <a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>2. Order/leg omitted SMP= entirely
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>      → use gateways.alf[&lt;this gateway&gt;].smp_action
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>      → use participants[&lt;this gateway&gt;].smp_action
 <a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>3. Gateway has no smp_action configured (or is unknown to the engine)
 <a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>      → use SmpAction.NONE
 </code></pre></div>
@@ -6672,7 +6670,7 @@ state and needs no special-casing for it.</p>
     A(["Order or combo leg\narrives at the engine"]) --&gt; B{SMP=\nspecified?}
     B -- "Yes, incl. explicit NONE" --&gt; C(["Use the specified value\nas-is"])
     B -- No --&gt; D{Gateway has\nsmp_action configured?}
-    D -- Yes --&gt; E(["Use gateways.alf.smp_action"])
+    D -- Yes --&gt; E(["Use participants.smp_action"])
     D -- No --&gt; F(["Use SmpAction.NONE"])
     C --&gt; G(["Concrete smp_action\nreaches the order book"])
     E --&gt; G
@@ -6711,7 +6709,7 @@ state and needs no special-casing for it.</p>
 <tr>
 <td>Market-maker <code>QUOTE</code> (both <code>pm-mm-bot</code> and the REST quoting endpoint)</td>
 <td><strong>No</strong> — quotes have no per-request SMP field</td>
-<td>Always <code>gateways.alf[].smp_action</code>, else <code>NONE</code></td>
+<td>Always <code>participants[].smp_action</code>, else <code>NONE</code></td>
 </tr>
 <tr>
 <td><code>market_maker_combos[].legs[]</code> config-seeded combo</td>
@@ -6727,7 +6725,7 @@ state and needs no special-casing for it.</p>
 <a href="../910-app-balf-protocol/#new_order-0x10-client-server">BALF Protocol Reference — <code>NEW_ORDER</code></a>).
 There is no wire representation of "the client didn't send this field."
 A BALF client that wants the gateway default to apply must send <code>0x00</code>
-and rely on <code>gateways.alf[].smp_action</code> being configured to something
+and rely on <code>participants[].smp_action</code> being configured to something
 other than <code>NONE</code> — sending <code>0x00</code> is indistinguishable from an
 explicit <code>SMP=NONE</code> and does <strong>not</strong> fall back to the gateway default.
 This is a deliberate scope decision: extending the None/omitted
@@ -6738,16 +6736,15 @@ distinction into the binary frame would require a wire format change
 exists at all: a <code>QUOTE</code> submits two legs (bid and ask) in one call with no
 room for a per-leg <code>SMP=</code>, yet a market maker's own stale bid and fresh ask
 can easily cross each other after a quote refresh. Configuring
-<code>gateways.alf[&lt;mm-gateway&gt;].smp_action: CANCEL_RESTING</code> is the <em>only</em> way to
+<code>participants[&lt;mm-gateway&gt;].smp_action: CANCEL_RESTING</code> is the <em>only</em> way to
 protect a quoting gateway from this — see
 <a href="../100-mm-bot/#recommended-settings">Market-Maker Bot — Recommended settings</a>
 for the concrete example.</p>
 <h3 id="worked-examples">Worked examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h3>
 <p><strong>Example 1 — omitted <code>SMP=</code>, gateway has a configured default.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">      </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_RESTING</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 </code></pre></div>
@@ -6764,17 +6761,16 @@ resting sell, producing a genuine self-trade. This is the "I meant it"
 escape hatch — useful for, e.g., internal cross facilitation the firm has
 separately reconciled for.</p>
 <p><strong>Example 3 — quote leg, no gateway default configured.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">      </span><span class="c1"># no smp_action set</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_AAPL_02</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">    </span><span class="c1"># no smp_action set</span>
 </code></pre></div>
 <p>A <code>QUOTE</code> from <code>MM_AAPL_02</code> has no <code>SMP=</code> field to omit or specify — it
 always falls back to the gateway default, which here is unset, so it
 resolves to <code>SmpAction.NONE</code>. A stale leg from a prior quote can self-trade
 against the fresh replacement leg. This is the exact gap
-<code>gateways.alf[].smp_action</code> closes when configured — see Example 1's
+<code>participants[].smp_action</code> closes when configured — see Example 1's
 pattern applied to a market maker.</p>
 <p><strong>Example 4 — combo on the ALF text protocol: one <code>SMP=</code> value for every leg.</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
@@ -6802,7 +6798,7 @@ the <code>market_maker_combos[].legs[]</code> config-seed path allows a per-leg 
 </code></pre></div>
 <p><code>smp_action: "NONE"</code> applies to both legs, regardless of <code>TRADER01</code>'s gateway
 default. Omitting the field would make every leg fall back to <code>TRADER01</code>'s
-<code>gateways.alf[].smp_action</code> (else <code>NONE</code>).</p>
+<code>participants[].smp_action</code> (else <code>NONE</code>).</p>
 <h3 id="smp-and-the-other-risk-controls">SMP and the other risk controls<a class="headerlink" href="#smp-and-the-other-risk-controls" title="Permanent link">&para;</a></h3>
 <p>SMP is orthogonal to the four admission-path/exposure controls described
 above: it does not reject orders at admission time, does not halt a symbol,
@@ -6843,9 +6839,9 @@ would ever be reached, since none of those orders get as far as the sweep.</p>
 </tbody>
 </table>
 <h3 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h3>
-<p>See <a href="../010-configuration/#gateway-fields">Configuration — Gateway Fields</a>
-for the full <code>gateways.alf[].smp_action</code> field definition and
-<a href="../990-app-config-spec/#52-gatewaysalf-required">Configuration Spec §5.2</a>
+<p>See <a href="../010-configuration/#participant-fields">Configuration — Participant Fields</a>
+for the full <code>participants[].smp_action</code> field definition and
+<a href="../990-app-config-spec/#52-participants-required">Configuration Spec §5.2</a>
 for the normative schema entry, including how the same default extends to
 <code>market_maker_combos[].legs[]</code> config-seeded combos. Per-request field
 definitions live alongside each protocol's <code>NEW</code>/<code>COMBO</code>/<code>QUOTE</code> command
@@ -6887,7 +6883,7 @@ reference: <a href="../055-alf-console/#new-submit-an-order">ALF Console — <co
 <li><a href="../055-alf-console/">ALF Console</a> — <code>KILL</code> command for triggering the kill switch via the ALF terminal, and the <code>NEW</code>/<code>COMBO</code> <code>SMP=</code> field</li>
 <li><a href="../070-combo-orders/">Combos</a> — per-leg <code>SMP=</code> on multi-leg orders</li>
 <li><a href="../100-mm-bot/">Market-Maker Bot</a> — why quoting gateways rely entirely on the <code>smp_action</code> gateway default</li>
-<li><a href="../990-app-config-spec/">Configuration Spec</a> — normative schema for <code>gateways.alf[].smp_action</code> and <code>ComboLegSpec.smp_action</code></li>
+<li><a href="../990-app-config-spec/">Configuration Spec</a> — normative schema for <code>participants[].smp_action</code> and <code>ComboLegSpec.smp_action</code></li>
 </ul>
 
 

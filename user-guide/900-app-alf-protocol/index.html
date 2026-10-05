@@ -5383,9 +5383,9 @@ not part of the documented protocol and should be avoided.</p>
 </tbody>
 </table>
 <p>If <code>SMP</code> is omitted entirely, the engine falls back to the submitting
-gateway's configured <code>gateways.alf[].smp_action</code> (or <code>NONE</code> if the gateway
+gateway's configured <code>participants[].smp_action</code> (or <code>NONE</code> if the gateway
 has none configured) — see
-<a href="../010-configuration/#gateway-fields">Configuration — Gateway Fields</a>. This
+<a href="../010-configuration/#participant-fields">Configuration — Participant Fields</a>. This
 is different from sending <code>SMP=NONE</code> explicitly, which is always honoured
 as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 <h2 id="command-families">Command families<a class="headerlink" href="#command-families" title="Permanent link">&para;</a></h2>
@@ -5929,7 +5929,7 @@ cancelled.</p>
 </table>
 <p>If <code>COMBO_TYPE</code> is omitted, the gateway defaults it to <code>AON</code>. If <code>TIF</code> is
 omitted, it defaults to <code>DAY</code>. If <code>SMP</code> is omitted, every leg falls back to
-the submitting gateway's configured <code>gateways.alf[].smp_action</code> (see
+the submitting gateway's configured <code>participants[].smp_action</code> (see
 <a href="#supported-smp-values">Supported <code>SMP</code> values</a> above) rather than a fixed
 <code>NONE</code>.</p>
 <h3 id="combo-leg-expressibility">Combo leg expressibility<a class="headerlink" href="#combo-leg-expressibility" title="Permanent link">&para;</a></h3>
@@ -6319,10 +6319,10 @@ itself. (For the single-session <code>pm-alf-console</code>, ending the one sess
 equivalent to exiting the program.)</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>ALF gateway authorization and behavior are configured in the main engine
-configuration file (<code>engine_config.yaml</code>), under the <code>gateways.alf</code> list.</p>
+configuration file (<code>engine_config.yaml</code>), under the <code>participants</code> list.</p>
 <p>Path location:</p>
 <ul>
-<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>alf</code> -&gt; list of gateway entries</li>
+<li><code>engine_config.yaml</code> -&gt; <code>participants</code> -&gt; list of participant entries</li>
 </ul>
 <p>All supported ALF gateway configuration fields are listed below.</p>
 <table>
@@ -6336,55 +6336,55 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
 </thead>
 <tbody>
 <tr>
-<td><code>gateways.alf[].id</code></td>
+<td><code>participants[].id</code></td>
 <td>Non-empty string</td>
 <td>None (required)</td>
 <td>Gateway identity used by <code>pm-alf-console --id ...</code> and engine allowlist checks.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].description</code></td>
+<td><code>participants[].description</code></td>
 <td>String</td>
 <td>Empty string</td>
 <td>Human-readable gateway description.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].role</code></td>
+<td><code>participants[].role</code></td>
 <td>Enum: <code>TRADER</code>, <code>MARKET_MAKER</code>, <code>ADMIN</code></td>
 <td><code>TRADER</code></td>
 <td>Participant role used for authorization/policy checks.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].disconnect_behaviour</code></td>
+<td><code>participants[].disconnect_behaviour</code></td>
 <td>Enum: <code>CANCEL_QUOTES_ONLY</code>, <code>CANCEL_ALL</code>, <code>LEAVE_ALL</code></td>
 <td><code>CANCEL_QUOTES_ONLY</code></td>
 <td>Engine behavior applied when that gateway disconnects.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].quote_refresh_policy</code></td>
+<td><code>participants[].quote_refresh_policy</code></td>
 <td>Enum: <code>INACTIVATE_ON_ANY_FILL</code>, <code>INACTIVATE_ON_FULL_FILL</code>, <code>NEVER_INACTIVATE</code></td>
 <td><code>INACTIVATE_ON_ANY_FILL</code></td>
 <td>Controls market-maker quote life-cycle after fills.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].enforce_mm_obligation</code></td>
+<td><code>participants[].enforce_mm_obligation</code></td>
 <td>Boolean (<code>true</code>/<code>false</code>)</td>
 <td><code>false</code></td>
 <td>Enables per-gateway market-maker obligation checks.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].mm_max_spread_ticks</code></td>
+<td><code>participants[].mm_max_spread_ticks</code></td>
 <td>Integer, <code>&gt; 0</code></td>
 <td><code>10</code></td>
 <td>Maximum allowed quote spread for MM obligation checks.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].mm_min_qty</code></td>
+<td><code>participants[].mm_min_qty</code></td>
 <td>Integer, <code>&gt; 0</code></td>
 <td><code>100</code></td>
 <td>Minimum quote size for MM obligation checks.</td>
 </tr>
 <tr>
-<td><code>gateways.alf[].mm_obligations</code></td>
+<td><code>participants[].mm_obligations</code></td>
 <td>Mapping of symbol -&gt; obligation object</td>
 <td>Empty mapping</td>
 <td>Optional per-symbol MM overrides when configured.</td>
@@ -6392,16 +6392,15 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Human trader workstation</span>
-<a id="__codelineno-66-5" name="__codelineno-66-5" href="#__codelineno-66-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
-<a id="__codelineno-66-6" name="__codelineno-66-6" href="#__codelineno-66-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
-<a id="__codelineno-66-7" name="__codelineno-66-7" href="#__codelineno-66-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-66-8" name="__codelineno-66-8" href="#__codelineno-66-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<a id="__codelineno-66-9" name="__codelineno-66-9" href="#__codelineno-66-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-66-10" name="__codelineno-66-10" href="#__codelineno-66-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Human trader workstation</span>
+<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+<a id="__codelineno-66-5" name="__codelineno-66-5" href="#__codelineno-66-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<a id="__codelineno-66-6" name="__codelineno-66-6" href="#__codelineno-66-6"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-66-7" name="__codelineno-66-7" href="#__codelineno-66-7"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-66-8" name="__codelineno-66-8" href="#__codelineno-66-8"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-66-9" name="__codelineno-66-9" href="#__codelineno-66-9"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
 <ul>

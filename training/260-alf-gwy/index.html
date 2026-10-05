@@ -4435,7 +4435,7 @@ no CLI generator support for the <code>alf_gateway:</code> section. Generate the
 config, then add <code>alf_gateway:</code> by hand:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Append the <code>alf_gateway:</code> section yourself:</p>
@@ -4735,7 +4735,7 @@ completing the <code>HELLO</code> handshake, or with invalid content:</p>
 <tr>
 <td><code>AUTH_FAILED</code></td>
 <td><code>AUTH_FAILED</code></td>
-<td>Gateway ID not in <code>gateways.alf</code>; add to config and restart engine</td>
+<td>Gateway ID not in <code>participants</code>; add to config and restart engine</td>
 </tr>
 <tr>
 <td><code>GATEWAY_ALREADY_CONNECTED</code></td>

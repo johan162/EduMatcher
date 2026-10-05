@@ -5296,13 +5296,13 @@ any pending outbound messages and then close the connection on its side.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
 <p>BALF settings are part of the main engine configuration file
 (<code>engine_config.yaml</code>). BALF has no config block of its own for gateway
-identity — it reuses <code>gateways.alf</code> (the same allowlist ALF uses, see
+identity — it reuses <code>participants</code> (the same allowlist ALF uses, see
 <a href="../220-alf-gateway/#configuration-reference">ALF TCP Gateway</a>) for identity,
 role, and <code>disconnect_behaviour</code>, and adds only its own TCP listener/runtime
 parameters under <code>balf_gateway</code>.</p>
 <p>Path locations:</p>
 <ul>
-<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>alf</code> (shared with ALF)</li>
+<li><code>engine_config.yaml</code> -&gt; <code>participants</code> (shared with ALF)</li>
 <li><code>engine_config.yaml</code> -&gt; <code>balf_gateway</code></li>
 </ul>
 <h3 id="balf_gateway-fields"><code>balf_gateway</code> fields<a class="headerlink" href="#balf_gateway-fields" title="Permanent link">&para;</a></h3>

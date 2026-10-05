@@ -4635,7 +4635,7 @@ is designed for low-latency programmatic clients.</p>
 </table>
 <div class="admonition info">
 <p class="admonition-title">Same engine semantics</p>
-<p>BALF and ALF both authenticate against the same <code>gateways.alf</code> allowlist
+<p>BALF and ALF both authenticate against the same <code>participants</code> allowlist
 and translate into the identical engine ZMQ/JSON messages. The engine sees
 no difference between an ALF order and a BALF order.</p>
 </div>
@@ -4676,7 +4676,7 @@ For external market-data consumers, use <code>pm-md-gwy</code> (CALF) or <code>p
 <ul>
 <li><code>pm-engine</code> running and accessible.</li>
 <li>Gateway IDs that will connect must be present in <code>engine_config.yaml</code>
-  under <code>gateways.alf</code> (BALF <code>1.0.0</code> reuses the ALF allowlist).</li>
+  under <code>participants</code> (BALF <code>1.0.0</code> reuses the ALF allowlist).</li>
 <li>Optional: add a <code>balf_gateway:</code> section to customise port and limits.</li>
 </ul>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
@@ -4698,8 +4698,8 @@ For external market-data consumers, use <code>pm-md-gwy</code> (CALF) or <code>p
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">duplicate_session_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REJECT_NEW</span>
 </code></pre></div>
 <p>The gateway reads gateway roles and disconnect behaviour from the existing
-<code>gateways.alf</code> list — no separate credentials block is needed.  Any gateway ID
-listed in <code>gateways.alf</code> can connect to <code>pm-balf-gwy</code>.</p>
+<code>participants</code> list — no separate credentials block is needed.  Any gateway ID
+listed in <code>participants</code> can connect to <code>pm-balf-gwy</code>.</p>
 <table>
 <thead>
 <tr>
@@ -4949,7 +4949,7 @@ exactly the expected byte count using a loop, as shown above.</p>
 <h3 id="step-1-send-logon">Step 1 — Send LOGON<a class="headerlink" href="#step-1-send-logon" title="Permanent link">&para;</a></h3>
 <p>The <strong>first frame</strong> must be a <code>LOGON</code> (msg_type <code>0x01</code>, 32 bytes total):</p>
 <ul>
-<li><code>gateway_id</code>: 16-byte zero-padded ASCII, matching an entry in <code>gateways.alf</code></li>
+<li><code>gateway_id</code>: 16-byte zero-padded ASCII, matching an entry in <code>participants</code></li>
 <li><code>proto_version</code>: must be <code>1</code></li>
 <li>reserved bytes: must be zero</li>
 </ul>
@@ -5394,7 +5394,7 @@ amend via <code>order.ack</code>, the gateway emits the appropriate <code>CANCEL
 <h2 id="disconnect-behaviour-and-passive-order-policy">Disconnect behaviour and passive-order policy<a class="headerlink" href="#disconnect-behaviour-and-passive-order-policy" title="Permanent link">&para;</a></h2>
 <p>On every disconnect trigger the gateway sends <code>system.gateway_disconnect</code> to
 the engine.  The engine applies the <code>disconnect_behaviour</code> configured for that
-gateway identity in <code>gateways.alf</code>:</p>
+gateway identity in <code>participants</code>:</p>
 <table>
 <thead>
 <tr>
@@ -5716,8 +5716,8 @@ section above, or send a minimal LOGON with a one-liner:</p>
 </tr>
 <tr>
 <td><code>LOGON_ACK accepted=0, code=0x01</code></td>
-<td>Gateway ID not in <code>gateways.alf</code></td>
-<td>Add the ID under <code>gateways.alf</code> and restart engine</td>
+<td>Gateway ID not in <code>participants</code></td>
+<td>Add the ID under <code>participants</code> and restart engine</td>
 </tr>
 <tr>
 <td><code>LOGON_ACK accepted=0, code=0x02</code></td>
@@ -5763,7 +5763,7 @@ section above, or send a minimal LOGON with a one-liner:</p>
 <li><a href="../220-alf-gateway/">ALF TCP Gateway</a> — text-protocol alternative for
   Python/any-language clients where binary parsing is not required</li>
 <li><a href="../010-configuration/">Configuration</a> — <code>balf_gateway:</code> section and
-  <code>gateways.alf</code> allowlist</li>
+  <code>participants</code> allowlist</li>
 <li><a href="../170-processes/">Processes</a> — process topology and ZMQ message tables</li>
 <li><a href="../210-protocols-overview/">External Protocols Overview</a> — protocol comparison
   and selection guide</li>

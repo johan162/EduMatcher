@@ -4977,7 +4977,7 @@ the existing CALF and RALF gateway pattern.</p>
 gateway is intended to be reachable by browser clients, API clients, and
 read-only dashboards on other machines. Set it to <code>127.0.0.1</code> only for a
 loopback-only lab or when a reverse proxy on the same host is the only caller.</p>
-<p>The engine's <code>gateways.alf</code> allowlist remains authoritative. If a credential
+<p>The engine's <code>participants</code> allowlist remains authoritative. If a credential
 maps to <code>TRADER01</code> but <code>TRADER01</code> is not allowed by the engine config, the
 engine rejects the API gateway handshake and every request using that
 credential fails with <code>403</code> and error code <code>ENGINE_AUTH</code>.</p>
@@ -5127,7 +5127,7 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <li><code>gateway_id: null</code> creates a read-only authenticated key.</li>
 <li><code>gateway_id: &lt;GW_ID&gt;</code> creates a trading-capable key bound to that gateway.</li>
 <li>ADMIN access is not set on the API key itself; it comes from the mapped
-  gateway role in <code>gateways.alf</code>.</li>
+  gateway role in <code>participants</code>.</li>
 <li>Non-null <code>gateway_id</code> values must be unique across <code>api_gateways</code> entries.</li>
 </ul>
 <p>How to get a key in practice:</p>
@@ -5171,7 +5171,7 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 <tr>
 <td><code>ENGINE_AUTH</code></td>
 <td><code>403</code></td>
-<td>The credential's <code>gateway_id</code> isn't allowed by the engine's <code>gateways.alf</code> list</td>
+<td>The credential's <code>gateway_id</code> isn't allowed by the engine's <code>participants</code> list</td>
 </tr>
 <tr>
 <td><code>READ_ONLY</code></td>
@@ -6184,7 +6184,7 @@ consistent with <code>GET /api/v1/history/fills</code>.</p>
 <h2 id="admin-endpoints">Admin endpoints<a class="headerlink" href="#admin-endpoints" title="Permanent link">&para;</a></h2>
 <p>Base path: <code>/api/v1/admin</code>.</p>
 <p>These endpoints require an API key whose <code>gateway_id</code> maps to an engine gateway
-configured with the <code>ADMIN</code> role (<code>gateways.alf[].role: ADMIN</code>). The gateway
+configured with the <code>ADMIN</code> role (<code>participants[].role: ADMIN</code>). The gateway
 role is resolved from the engine at call time, not from the API credential.
 Callers without the ADMIN role receive <code>403</code> with error code <code>ROLE_DENIED</code>.</p>
 <div class="admonition note">
@@ -7271,7 +7271,7 @@ only because <code>stats.db</code> is absent. History endpoints depend on <code>
 created and populated the configured database.</p>
 <h2 id="operational-checklist">Operational checklist<a class="headerlink" href="#operational-checklist" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Confirm <code>api_gateways.&lt;NAME&gt;.credentials</code> maps to gateways allowed under <code>gateways.alf</code></li>
+<li>Confirm <code>api_gateways.&lt;NAME&gt;.credentials</code> maps to gateways allowed under <code>participants</code></li>
 <li>Confirm each non-null <code>gateway_id</code> appears in only one API gateway entry</li>
 <li>Start <code>pm-engine</code>, <code>pm-stats</code>, then <code>pm-api-gwy --instance NAME</code></li>
 <li>Open <code>/docs</code> if Swagger is enabled</li>
@@ -7437,7 +7437,7 @@ thread has crashed.</p>
 <tr>
 <td><code>401 Unauthorized</code></td>
 <td>Missing/wrong <code>Authorization</code> header (<code>AUTH</code>), or the engine rejected the gateway's own handshake for that <code>gateway_id</code> (<code>ENGINE_AUTH</code>, <code>403</code>)</td>
-<td>Use <code>Authorization: Bearer &lt;key&gt;</code> with a key listed in <code>credentials</code>; if you get <code>403 ENGINE_AUTH</code> instead, check that the <code>gateway_id</code> is allowed by the engine's <code>gateways.alf</code> list</td>
+<td>Use <code>Authorization: Bearer &lt;key&gt;</code> with a key listed in <code>credentials</code>; if you get <code>403 ENGINE_AUTH</code> instead, check that the <code>gateway_id</code> is allowed by the engine's <code>participants</code> list</td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>

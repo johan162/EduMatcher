@@ -2517,10 +2517,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#44-mmobligationspec-gatewaysalfmm_obligationss" class="md-nav__link">
+  <a href="#44-mmobligationspec-participantsmm_obligationss" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4.4 MMObligationSpec — gateways.alf[].mm_obligations.&lt;S&gt;
+        4.4 MMObligationSpec — participants[].mm_obligations.&lt;S&gt;
       
     </span>
   </a>
@@ -2589,10 +2589,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#52-gatewaysalf-required" class="md-nav__link">
+  <a href="#52-participants-required" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5.2 gateways.alf (REQUIRED)
+        5.2 participants (REQUIRED)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52a-participant_defaults-optional-participantdefaultsspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2a participant_defaults (OPTIONAL) — ParticipantDefaultsSpec
       
     </span>
   </a>
@@ -4711,7 +4722,7 @@ this document specifies the content of a <em>present</em> file.</p>
 <tr>
 <td><code>Port</code></td>
 <td>integer</td>
-<td>TCP port; <code>&gt; 0</code> (BALF: <code>1..65535</code>)</td>
+<td>TCP port; <code>&gt; 0</code>. The ALF, BALF, CALF, RALF and drop-copy gateway ports MUST also be <code>&lt;= 65535</code> (§6)</td>
 </tr>
 <tr>
 <td><code>HHMM</code></td>
@@ -4748,8 +4759,10 @@ if optional, its absence leaves the feature disabled.</p>
 <h3 id="15-unknown-keys">1.5 Unknown keys<a class="headerlink" href="#15-unknown-keys" title="Permanent link">&para;</a></h3>
 <p>Loaders are <strong>permissive</strong>: a key not defined in this specification is <strong>ignored</strong>
 and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. <code>pm-cverifier</code> MAY warn on them, and <code>pm-config-show --all</code> lists
-every unrecognised top-level key it finds — a mistyped section name is otherwise
+unknown keys. <code>pm-cverifier</code> reports an unrecognised key inside a gateway or
+service process block (§6) as an <strong>error</strong> (<code>S121</code>), because the loader's
+silent fallback to a default would otherwise hide the typo; it does not check
+top-level keys, which <code>pm-config-show --all</code> lists — a mistyped section name is otherwise
 indistinguishable from an absent one.</p>
 <h3 id="16-case-normalisation">1.6 Case normalisation<a class="headerlink" href="#16-case-normalisation" title="Permanent link">&para;</a></h3>
 <p><code>Symbol</code>, <code>GatewayId</code>, <code>IndexId</code>, and every <code>Enum&lt;E&gt;</code> value are upper-cased during
@@ -4768,17 +4781,17 @@ load. Producers MAY write any case; consumers compare upper-case.</p>
 <tr>
 <td><code>Role</code></td>
 <td><code>TRADER</code>, <code>MARKET_MAKER</code>, <code>ADMIN</code></td>
-<td><code>gateways.alf[].role</code></td>
+<td><code>participants[].role</code></td>
 </tr>
 <tr>
 <td><code>DisconnectBehaviour</code></td>
 <td><code>CANCEL_QUOTES_ONLY</code>, <code>CANCEL_ALL</code>, <code>LEAVE_ALL</code></td>
-<td><code>gateways.alf[].disconnect_behaviour</code></td>
+<td><code>participants[].disconnect_behaviour</code>, <code>participant_defaults.disconnect_behaviour</code></td>
 </tr>
 <tr>
 <td><code>QuoteRefreshPolicy</code></td>
 <td><code>INACTIVATE_ON_ANY_FILL</code>, <code>INACTIVATE_ON_FULL_FILL</code>, <code>NEVER_INACTIVATE</code></td>
-<td><code>gateways.alf[].quote_refresh_policy</code></td>
+<td><code>participants[].quote_refresh_policy</code></td>
 </tr>
 <tr>
 <td><code>TIF</code></td>
@@ -4803,7 +4816,7 @@ load. Producers MAY write any case; consumers compare upper-case.</p>
 <tr>
 <td><code>SmpAction</code></td>
 <td><code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
-<td>combo legs, <code>gateways.alf[].smp_action</code></td>
+<td>combo legs, <code>participants[].smp_action</code>, <code>participant_defaults.smp_action</code></td>
 </tr>
 <tr>
 <td><code>DuplicateSessionPolicy</code></td>
@@ -4820,54 +4833,187 @@ OPTIONAL key, <code>=</code> = default, <code>∈</code> = domain/constraint. Ty
 This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field law</em>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a># ── ENGINE (read by pm-engine) ──────────────────────────────────────────────
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>symbols:                    ! Map&lt;Symbol, SymbolSpec&gt;          # ≥0 entries; key required
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>gateways:                   ! Map
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  alf:                      ! List&lt;AlfGatewaySpec&gt;             # ≥1 entry
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>participants:               ! List&lt;ParticipantSpec&gt;            # ≥1 entry
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>participant_defaults:       ? ParticipantDefaultsSpec          # values a participants entry inherits when it omits them
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>sessions_enabled:           ? Bool = true
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>enforce_collars:            ? Bool = true
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>enforce_circuit_breakers:   ? Bool = true
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>require_mm_seed_quotes:     ? Bool = true
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>snapshot_interval_sec:      ? Float = 0.5     ∈ &gt; 0            # overridden by engine_tuning.snapshot_interval_sec, if set
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>auction_indicative_interval_sec: ? Float = 1.0  ∈ &gt; 0
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>engine_tuning:               ? EngineTuningSpec
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>mm_obligation_defaults:     ? MMObligationDefaultsSpec
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>risk_controls:              ? RiskControlsSpec
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>circuit_breaker_defaults:   ? CircuitBreakerSpec
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>market_maker_combos:        ? List&lt;ComboSeedSpec&gt;              # each: 2..10 legs
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>indices:                    ? List&lt;IndexSpec&gt;                  # ≤ 5
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>schedule:                   ? WeeklyScheduleSpec
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>api_gateways:               ? Map&lt;Str, ApiGwyProcSpec&gt;   # pm-api-gwy (named instances)
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>SymbolSpec:
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  level:                    ? Str          ∈ key of risk_controls.levels
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  last_buy_price:           ? Price
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  last_sell_price:          ? Price
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  collar:                   ? CollarSpec
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>AlfGatewaySpec:                              # one entry of gateways.alf
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  id:                       ! GatewayId
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  description:              ? Str = ""
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
-<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY
-<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
-<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
-<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
-<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
-<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
-<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = NONE
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>auction_indicative_interval_sec: ? Float = 1.0  ∈ &gt; 0
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>engine_tuning:               ? EngineTuningSpec
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>mm_obligation_defaults:     ? MMObligationDefaultsSpec
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>risk_controls:              ? RiskControlsSpec
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>circuit_breaker_defaults:   ? CircuitBreakerSpec
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>market_maker_combos:        ? List&lt;ComboSeedSpec&gt;              # each: 2..10 legs
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>indices:                    ? List&lt;IndexSpec&gt;                  # ≤ 5
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>schedule:                   ? WeeklyScheduleSpec
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>api_gateways:               ? Map&lt;Str, ApiGwyProcSpec&gt;   # pm-api-gwy (named instances)
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>SymbolSpec:
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>  level:                    ? Str          ∈ key of risk_controls.levels
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  last_buy_price:           ? Price
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  last_sell_price:          ? Price
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  collar:                   ? CollarSpec
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>ParticipantSpec:                             # one entry of participants
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>  id:                       ! GatewayId
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  description:              ? Str = ""
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = &lt;participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY&gt;
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = &lt;participant_defaults.smp_action | NONE&gt;
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>ParticipantDefaultsSpec:                     # top-level participant_defaults
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt;
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>  smp_action:              ? Enum&lt;SmpAction&gt;
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a># ── PROCESS SPECS (field law in §6) ─────────────────────────────────────────
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a># bind_address / host: the EDUMATCHER_GATEWAY_BIND_HOST environment variable,
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a># when set, overrides both the YAML value and the "0.0.0.0" default (§6).
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>  name:                         ? Str = "alf-gwy01"
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>  port:                         ? Port = 5565                 ∈ 1..65535
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>  handshake_timeout_sec:        ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>  idle_timeout_sec:             ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
+<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>  max_commands_per_second:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>  max_errors_before_disconnect: ? Int = 50                    ∈ &gt; 0
+<a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a>  error_window_sec:             ? Int = 60                    ∈ &gt; 0
+<a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>
+<a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>BalfGwyProcSpec:                             # balf_gateway       (pm-balf-gwy)
+<a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>  name:                         ? Str = "balf-gwy01"
+<a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>  port:                         ? Port = 5560                 ∈ 1..65535
+<a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>  heartbeat_interval_sec:       ? Secs = 1.0
+<a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>  heartbeat_timeout_sec:        ? Secs = 5.0
+<a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>  idle_timeout_sec:             ? Secs = 30.0
+<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>  auth_timeout_sec:             ? Secs = 10.0
+<a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
+<a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a>  max_messages_per_second:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a>  max_errors_before_disconnect: ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a>  error_window_sec:             ? Secs = 60.0
+<a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a>  duplicate_session_policy:     ? Enum&lt;DuplicateSessionPolicy&gt; = REJECT_NEW
+<a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>
+<a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>MdGwyProcSpec:                               # market_data_gateway (pm-md-gwy, CALF)
+<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>  name:                         ? Str = "md-gwy01"
+<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a>  port:                         ? Port = 5570                 ∈ 1..65535
+<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
+<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>  replay_window_sec:            ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
+<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>  max_messages_per_second:      ? Int = 200                   ∈ &gt; 0
+<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>  max_symbols_per_client:       ? Int = 200                   ∈ &gt; 0
+<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>  depth_levels:                 ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>
+<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, RALF); no `enabled`
+<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>  name:                         ? Str = "ralf-gwy01"
+<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>  port:                         ? Port = 5580                 ∈ 1..65535
+<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>  replay_retention_sec:         ? Int = 86400                 ∈ &gt; 0
+<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
+<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>  allowed_roles:                ? List&lt;Str&gt; = [CLEARING, DROP_COPY, AUDIT]
+<a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>
+<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); no `enabled`
+<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>  name:                         ? Str = "dc-gwy01"
+<a id="__codelineno-0-115" name="__codelineno-0-115" href="#__codelineno-0-115"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-116" name="__codelineno-0-116" href="#__codelineno-0-116"></a>  port:                         ? Port = 5590                 ∈ 1..65535
+<a id="__codelineno-0-117" name="__codelineno-0-117" href="#__codelineno-0-117"></a>  heartbeat_interval_sec:       ? Secs = 5
+<a id="__codelineno-0-118" name="__codelineno-0-118" href="#__codelineno-0-118"></a>  idle_timeout_sec:             ? Secs = 30
+<a id="__codelineno-0-119" name="__codelineno-0-119" href="#__codelineno-0-119"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-120" name="__codelineno-0-120" href="#__codelineno-0-120"></a>
+<a id="__codelineno-0-121" name="__codelineno-0-121" href="#__codelineno-0-121"></a>ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
+<a id="__codelineno-0-122" name="__codelineno-0-122" href="#__codelineno-0-122"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>  host:                         ? Str = "0.0.0.0"
+<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>  port:                         ? Port = 8080
+<a id="__codelineno-0-125" name="__codelineno-0-125" href="#__codelineno-0-125"></a>  log_level:                    ? Str = "info"
+<a id="__codelineno-0-126" name="__codelineno-0-126" href="#__codelineno-0-126"></a>  swagger_enabled:              ? Bool = true
+<a id="__codelineno-0-127" name="__codelineno-0-127" href="#__codelineno-0-127"></a>  stats_db:                     ? Path = &lt;data dir&gt;/stats.db
+<a id="__codelineno-0-128" name="__codelineno-0-128" href="#__codelineno-0-128"></a>  audit_db:                     ? Path = &lt;data dir&gt;/audit_index.db
+<a id="__codelineno-0-129" name="__codelineno-0-129" href="#__codelineno-0-129"></a>  order_retention_sec:          ? Int = 3600                  ∈ &gt;= 0
+<a id="__codelineno-0-130" name="__codelineno-0-130" href="#__codelineno-0-130"></a>  market_data_cache_sec:        ? Int = 60                    ∈ &gt;= 0
+<a id="__codelineno-0-131" name="__codelineno-0-131" href="#__codelineno-0-131"></a>  session_timezone:             ? Str | null = null           ∈ IANA timezone name
+<a id="__codelineno-0-132" name="__codelineno-0-132" href="#__codelineno-0-132"></a>  engine_pull_addr:             ? Str = tcp://&lt;engine host&gt;:5555
+<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>  engine_pub_addr:              ? Str = tcp://&lt;engine host&gt;:5556
+<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>  index_pull_addr:              ? Str = tcp://&lt;index bind host&gt;:5559
+<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>  index_pub_addr:               ? Str = tcp://&lt;index bind host&gt;:5558
+<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>  credentials:                  ? List&lt;ApiCredentialSpec&gt; = []
+<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>  rate_limit:                   ? RateLimitSpec
+<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>  timeouts:                     ? TimeoutSpec
+<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>
+<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>ApiCredentialSpec:
+<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>  api_key:                      ! Str                         # non-empty, unique within the instance
+<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>  gateway_id:                   ? GatewayId | null = null     # null = read-only key
+<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>  description:                  ? Str = ""
+<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>
+<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>RateLimitSpec:
+<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>  writes_per_second:            ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>  burst:                        ? Int = 20                    ∈ &gt; 0
+<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>
+<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>TimeoutSpec:
+<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>  engine_auth_sec:              ? Secs = 3.0
+<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a>  engine_reply_sec:             ? Secs = 3.0
+<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>  wait_ack_sec:                 ? Secs = 3.0
+<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>
+<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
+<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>  name:                         ? Str = "log-srv01"
+<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>  port:                         ? Port = 5600
+<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>  db_path:                      ? Path = &lt;data dir&gt;/log.db
+<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>  retention_days:               ? Int | null = 30            ∈ &gt;= 0; 0 ≡ null ≡ unbounded
+<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>  max_message_bytes:            ? Int = 65536                 ∈ &gt; 0
+<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>  write_batch_size:             ? Int = 50                    ∈ &gt; 0
+<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>  write_batch_interval_ms:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a>  pubsub_enabled:               ? Bool = true
+<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
+<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>  pull_port:                    ? Port = 5602
+<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>  lease_sec:                    ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>  max_lease_sec:                ? Int = 300                   ∈ &gt;= lease_sec
+<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>  max_subscribers:              ? Int = 32                    ∈ &gt; 0
+<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>  notify_interval_ms:           ? Int = 250                   ∈ &gt; 0
+<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>  backfill_chunk_rows:          ? Int = 500                   ∈ &gt; 0
+<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a>  max_backfill_minutes:         ? Int = 1440                  ∈ &gt; 0
+<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>  max_backfill_rows:            ? Int = 100000                ∈ &gt; 0
+<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>  max_pending_rows:             ? Int = 20000                 ∈ &gt; 0
+<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  pub_sndhwm:                   ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>  client:                       ? LogClientSpec
+<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>
+<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>LogClientSpec:                               # log_server.client; read by every pm-* process
+<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  connect_timeout_sec:          ? Secs = 0.5
+<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>  failover_timeout_sec:         ? Float = 30.0                ∈ &gt;= 0
+<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>  failover_dir:                 ? Path = &lt;data dir&gt;/logs
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -5016,7 +5162,7 @@ for an order that carries no price on the wire (MARKET, IOC) — the same orders
 the collar's price bands already skip. Both caps are re-checked on <code>order.amend</code>
 against the amended quantity and price, so the control cannot be bypassed by
 entering small and amending up.</p>
-<h3 id="44-mmobligationspec-gatewaysalfmm_obligationss">4.4 <code>MMObligationSpec</code> — <code>gateways.alf[].mm_obligations.&lt;S&gt;</code><a class="headerlink" href="#44-mmobligationspec-gatewaysalfmm_obligationss" title="Permanent link">&para;</a></h3>
+<h3 id="44-mmobligationspec-participantsmm_obligationss">4.4 <code>MMObligationSpec</code> — <code>participants[].mm_obligations.&lt;S&gt;</code><a class="headerlink" href="#44-mmobligationspec-participantsmm_obligationss" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -5151,7 +5297,7 @@ entering small and amending up.</p>
 <td><code>smp_action</code></td>
 <td><code>Enum&lt;SmpAction&gt;</code></td>
 <td style="text-align: center;">–</td>
-<td>seeding gateway's <code>gateways.alf[].smp_action</code>, else <code>NONE</code></td>
+<td>seeding gateway's <code>participants[].smp_action</code>, else <code>NONE</code></td>
 <td></td>
 </tr>
 </tbody>
@@ -5322,8 +5468,8 @@ no per-field default once a block exists.</p>
 is a valid empty spec. Symbol fields: see the schema tree (§3, <code>SymbolSpec</code>);
 <code>market_maker_quotes</code> §4.1, <code>collar</code> §4.2, <code>order_limits</code> §4.3,
 <code>circuit_breaker</code> §5.6.</p>
-<h3 id="52-gatewaysalf-required">5.2 <code>gateways.alf</code> (REQUIRED)<a class="headerlink" href="#52-gatewaysalf-required" title="Permanent link">&para;</a></h3>
-<p><code>List&lt;AlfGatewaySpec&gt;</code> with <strong>at least one</strong> entry (§3, <code>AlfGatewaySpec</code>). Gateway
+<h3 id="52-participants-required">5.2 <code>participants</code> (REQUIRED)<a class="headerlink" href="#52-participants-required" title="Permanent link">&para;</a></h3>
+<p><code>List&lt;ParticipantSpec&gt;</code> with <strong>at least one</strong> entry (§3, <code>ParticipantSpec</code>). Participant
 ids MUST be unique after upper-casing. This list is the participant allowlist and
 is <strong>also</strong> consumed by <code>pm-alf-gwy</code> and <code>pm-balf-gwy</code> for identity and role.</p>
 <p><code>smp_action</code> sets the self-match-prevention action the engine applies to this
@@ -5337,6 +5483,45 @@ gateway's orders <strong>when the order itself doesn't specify one</strong>:</p>
   <code>SMP=</code> from the client — including <code>SMP=NONE</code> — always takes precedence
   over this gateway default; only an <em>omitted</em> <code>SMP=</code> falls back to it.</li>
 </ul>
+<h3 id="52a-participant_defaults-optional-participantdefaultsspec">5.2a <code>participant_defaults</code> (OPTIONAL) — <code>ParticipantDefaultsSpec</code><a class="headerlink" href="#52a-participant_defaults-optional-participantdefaultsspec" title="Permanent link">&para;</a></h3>
+<p>A mapping of values that every <code>participants</code> entry <strong>inherits when it omits the
+key</strong>. It exists so a uniform policy (for example, <code>CANCEL_AGGRESSOR</code> on every
+gateway) is written once instead of on each entry.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>smp_action</code></td>
+<td><code>Enum&lt;SmpAction&gt;</code></td>
+<td style="text-align: center;">–</td>
+<td><code>NONE</code></td>
+<td>inherited by an entry that omits <code>smp_action</code></td>
+</tr>
+<tr>
+<td><code>disconnect_behaviour</code></td>
+<td><code>Enum&lt;DisconnectBehaviour&gt;</code></td>
+<td style="text-align: center;">–</td>
+<td><code>CANCEL_QUOTES_ONLY</code></td>
+<td>inherited by an entry that omits <code>disconnect_behaviour</code></td>
+</tr>
+</tbody>
+</table>
+<p>Resolution order for a gateway's effective value is: the entry's own key, then
+<code>participant_defaults</code>, then the built-in default. An explicit entry value always
+wins, including <code>smp_action: NONE</code> when the default is something else. The block
+applies to <strong>every</strong> role: a <code>participant_defaults.disconnect_behaviour</code> of
+<code>CANCEL_ALL</code> also reaches <code>ADMIN</code> and <code>MARKET_MAKER</code> entries that omit the key,
+so entries that need a different behaviour MUST set it explicitly.</p>
+<p>Unlike most sections, an unrecognised key under <code>participant_defaults</code> is <strong>rejected</strong>
+(CV22) rather than ignored, so that a mistyped name is not silently dropped.</p>
 <h3 id="53-engine-behaviour-flags">5.3 Engine behaviour flags<a class="headerlink" href="#53-engine-behaviour-flags" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5376,13 +5561,6 @@ gateway's orders <strong>when the order itself doesn't specify one</strong>:</p>
 <td style="text-align: center;">–</td>
 <td><code>true</code></td>
 <td>when <code>true</code>, CV3 applies; when <code>false</code>, a <code>MARKET_MAKER</code> gateway may exist with no <code>market_maker_quotes</code> entries, for a genuinely empty book at startup</td>
-</tr>
-<tr>
-<td><code>snapshot_interval_sec</code></td>
-<td><code>Float</code></td>
-<td style="text-align: center;">–</td>
-<td><code>0.5</code></td>
-<td><code>&gt; 0</code>; per-symbol book snapshot throttle</td>
 </tr>
 </tbody>
 </table>
@@ -5430,7 +5608,7 @@ expected to need adjustment in normal use:</p>
 <td><code>Float</code></td>
 <td style="text-align: center;">–</td>
 <td><code>0.5</code></td>
-<td><code>&gt; 0</code>; when present, <strong>overrides</strong> the top-level <code>snapshot_interval_sec</code> (§5.3)</td>
+<td><code>&gt; 0</code>; per-symbol book snapshot throttle</td>
 </tr>
 <tr>
 <td><code>quote_history_maxlen</code></td>
@@ -5504,7 +5682,7 @@ expected to need adjustment in normal use:</p>
 </tr>
 </tbody>
 </table>
-<p>These values supply the defaults inherited by <code>gateways.alf[]</code> obligation fields.</p>
+<p>These values supply the defaults inherited by <code>participants[]</code> obligation fields.</p>
 <h3 id="55-risk_controls-optional-riskcontrolsspec">5.5 <code>risk_controls</code> (OPTIONAL) — <code>RiskControlsSpec</code><a class="headerlink" href="#55-risk_controls-optional-riskcontrolsspec" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -5735,8 +5913,17 @@ for the same bank-holiday lookup to decide which block of the resolved
 <hr />
 <h2 id="6-auxiliary-gateway-blocks">6. Auxiliary gateway blocks<a class="headerlink" href="#6-auxiliary-gateway-blocks" title="Permanent link">&para;</a></h2>
 <p>Each block below is read <strong>only</strong> by its own process; <code>pm-engine</code> ignores them.
-See <a href="../010-configuration/#which-process-reads-what">Configuration → Which Process Reads What</a>.</p>
+The one exception is <code>log_server.client</code> (§6.7), which every <code>pm-*</code> process reads.
+See <a href="../010-configuration/#which-process-reads-what">Configuration → Which Process Reads What</a>.
+The named spec type of each block (<code>AlfGwyProcSpec</code>, …) is defined in the schema
+tree (§3); the tables below give the field law.</p>
+<p><code>bind_address</code> (<code>host</code> for <code>api_gateways</code>) defaults to <code>"0.0.0.0"</code>. When the
+<code>EDUMATCHER_GATEWAY_BIND_HOST</code> environment variable is set it overrides both the
+YAML value and the default, for every block at once. The ZeroMQ addresses of
+the engine and index buses are not YAML-configurable, with the exception of the
+four <code>*_addr</code> fields of <code>ApiGwyProcSpec</code> (§6.5).</p>
 <h3 id="61-alf_gateway-pm-alf-gwy">6.1 <code>alf_gateway</code> — <code>pm-alf-gwy</code><a class="headerlink" href="#61-alf_gateway-pm-alf-gwy" title="Permanent link">&para;</a></h3>
+<p>Spec type: <code>AlfGwyProcSpec</code>.</p>
 <table>
 <thead>
 <tr>
@@ -5774,7 +5961,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Port</code></td>
 <td style="text-align: center;">–</td>
 <td><code>5565</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>1..65535</code></td>
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
@@ -5795,7 +5982,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Int</code></td>
 <td style="text-align: center;">–</td>
 <td><code>30</code></td>
-<td><code>&gt; 0</code>; <strong>KNOWN BUG</strong> — only <code>30</code> when the <code>alf_gateway:</code> section is present; if the section is omitted entirely, the loader falls back to a dataclass default of <code>3600</code>. See the review notes in <code>docs-design/reviews/config-doc-review.md</code>.</td>
+<td><code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>max_connections</code></td>
@@ -5834,8 +6021,9 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 </tr>
 </tbody>
 </table>
-<p>Also consumes <code>gateways.alf</code> for identity/role.</p>
+<p>Also consumes <code>participants</code> for identity/role.</p>
 <h3 id="62-balf_gateway-pm-balf-gwy">6.2 <code>balf_gateway</code> — <code>pm-balf-gwy</code><a class="headerlink" href="#62-balf_gateway-pm-balf-gwy" title="Permanent link">&para;</a></h3>
+<p>Spec type: <code>BalfGwyProcSpec</code>.</p>
 <table>
 <thead>
 <tr>
@@ -5894,7 +6082,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Secs</code></td>
 <td style="text-align: center;">–</td>
 <td><code>30.0</code></td>
-<td><code>&gt; 0</code>; <strong>KNOWN BUG</strong> — only <code>30.0</code> when the <code>balf_gateway:</code> section is present; if the section is omitted entirely, the loader falls back to a dataclass default of <code>300.0</code>. See the review notes in <code>docs-design/reviews/config-doc-review.md</code>.</td>
+<td><code>&gt; 0</code></td>
 </tr>
 <tr>
 <td><code>auth_timeout_sec</code></td>
@@ -5947,8 +6135,9 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 </tr>
 </tbody>
 </table>
-<p>Also consumes <code>gateways.alf</code> for identity, role, and <code>disconnect_behaviour</code>.</p>
+<p>Also consumes <code>participants</code> for identity, role, and <code>disconnect_behaviour</code>.</p>
 <h3 id="63-market_data_gateway-pm-md-gwy-calf">6.3 <code>market_data_gateway</code> — <code>pm-md-gwy</code> (CALF)<a class="headerlink" href="#63-market_data_gateway-pm-md-gwy-calf" title="Permanent link">&para;</a></h3>
+<p>Spec type: <code>MdGwyProcSpec</code>.</p>
 <table>
 <thead>
 <tr>
@@ -5986,7 +6175,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Port</code></td>
 <td style="text-align: center;">–</td>
 <td><code>5570</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>1..65535</code></td>
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
@@ -6047,6 +6236,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 </tbody>
 </table>
 <h3 id="64-post_trade_gateway-pm-ralf-gwy-ralf">6.4 <code>post_trade_gateway</code> — <code>pm-ralf-gwy</code> (RALF)<a class="headerlink" href="#64-post_trade_gateway-pm-ralf-gwy-ralf" title="Permanent link">&para;</a></h3>
+<p>Spec type: <code>RalfGwyProcSpec</code>.</p>
 <table>
 <thead>
 <tr>
@@ -6077,7 +6267,7 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <td><code>Port</code></td>
 <td style="text-align: center;">–</td>
 <td><code>5580</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>1..65535</code></td>
 </tr>
 <tr>
 <td><code>replay_retention_sec</code></td>
@@ -6119,8 +6309,9 @@ See <a href="../010-configuration/#which-process-reads-what">Configuration → W
 <p>This block has no <code>enabled</code> key.</p>
 <h3 id="65-api_gateways-pm-api-gwy-rest-websocket">6.5 <code>api_gateways</code> — <code>pm-api-gwy</code> (REST / WebSocket)<a class="headerlink" href="#65-api_gateways-pm-api-gwy-rest-websocket" title="Permanent link">&para;</a></h3>
 <p><code>api_gateways</code> is a <code>Map&lt;Str, ApiGwyProcSpec&gt;</code> of <strong>named instances</strong> (the map key
-is the instance name). The singular key <code>api_gateway</code> is <strong>NOT supported</strong> and MUST
-be rejected.</p>
+is the instance name, non-empty). The singular key <code>api_gateway</code> is <strong>NOT supported</strong> and MUST
+be rejected. <code>ApiCredentialSpec</code>, <code>RateLimitSpec</code> and <code>TimeoutSpec</code> are defined in the
+schema tree (§3).</p>
 <p><code>ApiGwyProcSpec</code>:</p>
 <table>
 <thead>
@@ -6197,6 +6388,34 @@ be rejected.</p>
 <td><code>&gt;= 0</code>. TTL for cached market-data reads served by this instance</td>
 </tr>
 <tr>
+<td><code>engine_pull_addr</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>tcp://&lt;engine host&gt;:5555</code></td>
+<td>ZeroMQ endpoint the gateway sends orders to; <code>&lt;engine host&gt;</code> is <code>EDUMATCHER_ENGINE_HOST</code> (default <code>127.0.0.1</code>). Not validated; normally left unset</td>
+</tr>
+<tr>
+<td><code>engine_pub_addr</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>tcp://&lt;engine host&gt;:5556</code></td>
+<td>ZeroMQ endpoint of the engine event feed. Not validated; normally left unset</td>
+</tr>
+<tr>
+<td><code>index_pull_addr</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>tcp://&lt;index bind host&gt;:5559</code></td>
+<td>ZeroMQ endpoint of <code>pm-index</code> control; <code>&lt;index bind host&gt;</code> is <code>EDUMATCHER_INDEX_BIND_HOST</code> (default <code>127.0.0.1</code>). Not validated; normally left unset</td>
+</tr>
+<tr>
+<td><code>index_pub_addr</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>tcp://&lt;index bind host&gt;:5558</code></td>
+<td>ZeroMQ endpoint of the <code>pm-index</code> feed. Not validated; normally left unset</td>
+</tr>
+<tr>
 <td><code>session_timezone</code></td>
 <td><code>Str</code></td>
 <td style="text-align: center;">–</td>
@@ -6265,6 +6484,7 @@ be rejected.</p>
 <code>TimeoutSpec</code>: <code>engine_auth_sec</code> <code>Secs &gt; 0 = 3.0</code>, <code>engine_reply_sec</code> <code>Secs &gt; 0 = 3.0</code>,
 <code>wait_ack_sec</code> <code>Secs &gt; 0 = 3.0</code>.</p>
 <h3 id="66-dc_gateway-pm-dc-gwy-drop-copy-tcp-relay">6.6 <code>dc_gateway</code> — <code>pm-dc-gwy</code> (drop-copy TCP relay)<a class="headerlink" href="#66-dc_gateway-pm-dc-gwy-drop-copy-tcp-relay" title="Permanent link">&para;</a></h3>
+<p>Spec type: <code>DcGwyProcSpec</code>.</p>
 <table>
 <thead>
 <tr>
@@ -6295,7 +6515,7 @@ be rejected.</p>
 <td><code>Port</code></td>
 <td style="text-align: center;">–</td>
 <td><code>5590</code></td>
-<td><code>&gt; 0</code></td>
+<td><code>1..65535</code></td>
 </tr>
 <tr>
 <td><code>heartbeat_interval_sec</code></td>
@@ -6496,13 +6716,56 @@ to point at a non-default engine address.</p>
 <td><code>10000</code></td>
 <td><code>&gt; 0</code>; ZeroMQ send high-water mark on the <code>PUB</code> socket</td>
 </tr>
+<tr>
+<td><code>client</code></td>
+<td><code>LogClientSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>see below</td>
+<td>read by every <code>pm-*</code> process (not by <code>pm-log-srv</code>) to configure its <code>TcpLogHandler</code>; must be a mapping</td>
+</tr>
+</tbody>
+</table>
+<p><code>LogClientSpec</code> (<code>log_server.client</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>connect_timeout_sec</code></td>
+<td><code>Secs</code></td>
+<td style="text-align: center;">–</td>
+<td><code>0.5</code></td>
+<td><code>&gt; 0</code>; TCP connect timeout for each attempt to reach the log server</td>
+</tr>
+<tr>
+<td><code>failover_timeout_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30.0</code></td>
+<td><code>&gt;= 0</code>; how long a process keeps retrying a dropped log-server connection before it switches, permanently for that process, to a local log file</td>
+</tr>
+<tr>
+<td><code>failover_dir</code></td>
+<td><code>Path</code></td>
+<td style="text-align: center;">–</td>
+<td>resolved <code>&lt;data dir&gt;/logs</code></td>
+<td>directory for the local failover log files; <code>~</code> expanded</td>
+</tr>
 </tbody>
 </table>
 <p>The <code>pubsub_*</code>/<code>pub_*</code>/<code>pull_*</code>/<code>lease_*</code>/<code>backfill_*</code> fields configure LALF-PS,
 described in full in <a href="../280-log-srv/#lalf-ps-the-zeromq-log-distribution-interface">Centralized Log Server</a>.</p>
-<p>This block has no interaction with <code>gateways.alf</code> or any other engine section —
+<p>This block has no interaction with <code>participants</code> or any other engine section —
 <code>pm-log-srv</code> is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
-not consume any engine-section fields. See <a href="../010-configuration/#configuring-pm-log-srv">Configuring pm-log-srv</a>
+not consume any engine-section fields. The <code>client</code> sub-block is the only part
+read by other processes. See <a href="../010-configuration/#configuring-pm-log-srv">Configuring pm-log-srv</a>
 for worked examples and <a href="../280-log-srv/">Centralized Log Server</a> for the operational
 guide; the wire protocol it serves is normatively specified in the
 <a href="../940-app-lalf-protocol/">LALF Protocol Reference</a>.</p>
@@ -6520,11 +6783,11 @@ rejected at load.</p>
 <tbody>
 <tr>
 <td>CV1</td>
-<td><code>symbols</code> is present and a mapping; <code>gateways.alf</code> is present and a list with ≥ 1 entry.</td>
+<td><code>symbols</code> is present and a mapping; <code>participants</code> is present and a list with ≥ 1 entry.</td>
 </tr>
 <tr>
 <td>CV2</td>
-<td><code>gateways.alf[].id</code> values are unique (after upper-casing).</td>
+<td><code>participants[].id</code> values are unique (after upper-casing).</td>
 </tr>
 <tr>
 <td>CV3</td>
@@ -6572,7 +6835,7 @@ rejected at load.</p>
 </tr>
 <tr>
 <td>CV14</td>
-<td>(<code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>) No <code>gateways.alf</code> id may be a prefix of another id.</td>
+<td>(<code>pm-alf-gwy</code>, <code>pm-balf-gwy</code>) No <code>participants</code> id may be a prefix of another id.</td>
 </tr>
 <tr>
 <td>CV15</td>
@@ -6601,6 +6864,10 @@ rejected at load.</p>
 <tr>
 <td>CV21</td>
 <td>Every <code>DayScheduleSpec</code> present anywhere under <code>schedule</code> (<code>weekdays</code>, <code>weekend</code>, <code>holidays</code>, or an individual <code>mon</code>..<code>sun</code> key) MUST define all five of <code>pre_open</code>, <code>opening_auction_start</code>, <code>continuous_start</code>, <code>closing_auction_start</code>, <code>closing_auction_end</code>; a partial block is rejected, not filled from a default.</td>
+</tr>
+<tr>
+<td>CV22</td>
+<td><code>participant_defaults</code>, when present, is a mapping whose only keys are <code>smp_action</code> and <code>disconnect_behaviour</code>, each a valid member of its enumeration.</td>
 </tr>
 </tbody>
 </table>
@@ -6631,14 +6898,13 @@ rejected at load.</p>
 <hr />
 <h2 id="9-minimal-conformant-document">9. Minimal conformant document<a class="headerlink" href="#9-minimal-conformant-document" title="Permanent link">&para;</a></h2>
 <p>The smallest document that loads and supports trading (informative):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
 </code></pre></div>
 <p>If a <code>MARKET_MAKER</code> gateway is added, CV3 then requires a <code>market_maker_quotes</code>
 block on every symbol, unless <code>require_mm_seed_quotes: false</code> is also set.</p>

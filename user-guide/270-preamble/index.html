@@ -4332,7 +4332,7 @@ covered in the <a href="../../architecture/02-architecture-guide/#message-format
     participant ENG as pm-engine
 
     GW-&gt;&gt;ENG: system.gateway_connect\n{gateway_id: "TRADER01"} (PUSH :5555)
-    alt ID is in gateways.alf
+    alt ID is in participants
         ENG--&gt;&gt;GW: system.gateway_auth.TRADER01\n{accepted: true, description: "..."} (PUB :5556)
         Note over GW: Enters command loop
     else ID not configured
@@ -4373,7 +4373,7 @@ covered in the <a href="../../architecture/02-architecture-guide/#message-format
 <tr>
 <td><code>accepted</code></td>
 <td>boolean</td>
-<td><code>true</code> if ID is configured in <code>gateways.alf</code></td>
+<td><code>true</code> if ID is configured in <code>participants</code></td>
 </tr>
 <tr>
 <td><code>reason</code></td>
@@ -4484,7 +4484,7 @@ covered in the <a href="../../architecture/02-architecture-guide/#message-format
 <tr>
 <td><code>smp_action</code></td>
 <td>string | null</td>
-<td>Self-match prevention: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>. <code>null</code> when the client omitted <code>SMP=</code>, in which case the engine resolves it to the gateway's configured <code>gateways.alf[].smp_action</code> default (else <code>"NONE"</code>) before the order reaches the book — see <a href="../010-configuration/#gateway-fields">Configuration — Gateway Fields</a></td>
+<td>Self-match prevention: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>. <code>null</code> when the client omitted <code>SMP=</code>, in which case the engine resolves it to the gateway's configured <code>participants[].smp_action</code> default (else <code>"NONE"</code>) before the order reaches the book — see <a href="../010-configuration/#participant-fields">Configuration — Participant Fields</a></td>
 </tr>
 <tr>
 <td><code>client_tag</code></td>

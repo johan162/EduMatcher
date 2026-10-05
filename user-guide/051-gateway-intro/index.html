@@ -4380,7 +4380,7 @@ process that <em>is</em> the real ALF gateway.</p>
 </div>
 <p>Each protocol's configuration lives in a different part of <code>engine_config.yaml</code>:</p>
 <ul>
-<li><strong>ALF</strong> — configured under <code>gateways.alf</code>; used by <code>pm-engine</code> to authenticate order-entry connections from <code>pm-alf-console</code> and <code>pm-alf-gwy</code>, as well as <code>pm-balf-gwy</code> (the gateway id used in the BALF configurations must exist under <code>gateways.alf</code>).
+<li><strong>ALF</strong> — configured under <code>participants</code>; used by <code>pm-engine</code> to authenticate order-entry connections from <code>pm-alf-console</code> and <code>pm-alf-gwy</code>, as well as <code>pm-balf-gwy</code> (the gateway id used in the BALF configurations must exist under <code>participants</code>).
   Uses a pipe-delimited text format (<code>FIELD=VALUE|FIELD=VALUE</code>).</li>
 <li><strong>BALF</strong> — configured under the top-level <code>balf_gateway</code> key; used by <code>pm-balf-gwy</code>. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable.</li>
 <li><strong>CALF</strong> — configured under the top-level <code>market_data_gateway</code> key; used by <code>pm-md-gwy</code>. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection.</li>
@@ -4466,7 +4466,7 @@ regulated venue it would be a <em>compliance failure</em>.</p>
 <li><a href="../201-dc-gateway/">Drop-Copy TCP Gateway (pm-dc-gwy)</a></li>
 <li><a href="../280-log-srv/">Centralized Log Server</a></li>
 <li><a href="../260-api-gateway/">API Gateway</a></li>
-<li><a href="../010-configuration/#alf-gateway-allowlist">Configuration — ALF Gateway Allowlist</a> — how gateway IDs, roles, and disconnect behavior are configured</li>
+<li><a href="../010-configuration/#participants">Configuration — Participants</a> — how gateway IDs, roles, and disconnect behavior are configured</li>
 </ul>
 
 

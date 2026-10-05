@@ -4836,7 +4836,7 @@ book underrepresents true liquidity. EduMatcher shows child orders on the book
 </tr>
 <tr>
 <td><code>SMP=</code></td>
-<td>Optional self-match-prevention action — <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, or <code>CANCEL_BOTH</code>. One value for the <em>whole combo</em>, applied identically to every leg (there is no per-leg <code>LEG&lt;i&gt;.SMP</code> on this protocol). If omitted, falls back to the gateway's configured <code>gateways.alf[].smp_action</code> (else <code>NONE</code>) — see <a href="../120-risk-controls/#self-match-prevention-smp">Risk Controls — Self-Match Prevention</a> for the full mechanics and precedence rules</td>
+<td>Optional self-match-prevention action — <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, or <code>CANCEL_BOTH</code>. One value for the <em>whole combo</em>, applied identically to every leg (there is no per-leg <code>LEG&lt;i&gt;.SMP</code> on this protocol). If omitted, falls back to the gateway's configured <code>participants[].smp_action</code> (else <code>NONE</code>) — see <a href="../120-risk-controls/#self-match-prevention-smp">Risk Controls — Self-Match Prevention</a> for the full mechanics and precedence rules</td>
 </tr>
 </tbody>
 </table>

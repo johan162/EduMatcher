@@ -54,25 +54,29 @@ symbols=(
   REG DLR WELL CB
 )
 
+trader_gateways=()
+trader_ids=()
+for n in $(seq 1 10); do
+  trader_id=$(printf 'TRADER%02d' "$n")
+  trader_gateways+=("${trader_id}:TRADER:CANCEL_ALL:Student desk ${n}")
+  trader_ids+=("$trader_id")
+done
+trader_list=$(IFS=,; echo "${trader_ids[*]}")
+
 gateways=(
-  "TRADER01:TRADER:CANCEL_ALL:Student desk 1"
-  "TRADER02:TRADER:CANCEL_ALL:Student desk 2"
+  "${trader_gateways[@]}"
   "OPS01:ADMIN:LEAVE_ALL:Instructor console"
   "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
 )
-desk_gateways="TRADER01,TRADER02,MM01,OPS01"
+desk_gateways="${trader_list},MM01,OPS01"
 if [[ "$profile" == complex ]]; then
   gateways=(
-    "TRADER01:TRADER:CANCEL_ALL:Student desk 1"
-    "TRADER02:TRADER:CANCEL_ALL:Student desk 2"
-    "TRADER03:TRADER:CANCEL_ALL:Student desk 3"
-    "TRADER04:TRADER:CANCEL_ALL:Student desk 4"
-    "TRADER05:TRADER:CANCEL_ALL:Student desk 5"
+    "${trader_gateways[@]}"
     "OPS01:ADMIN:LEAVE_ALL:Instructor console"
     "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
     "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker"
   )
-  desk_gateways="TRADER01,TRADER02,TRADER03,TRADER04,TRADER05,MM01,MM02,OPS01"
+  desk_gateways="${trader_list},MM01,MM02,OPS01"
 fi
 
 outstanding_args=()
@@ -83,12 +87,12 @@ done
 gateway_smp_args=()
 for gateway in "${gateways[@]}"; do
   gateway_id="${gateway%%:*}"
-  gateway_smp_args+=(--gateway-smp "${gateway_id}:CANCEL_AGGRESSOR")
+  gateway_smp_args+=(--participant-smp "${gateway_id}:CANCEL_AGGRESSOR")
 done
 
 common_args=(
   --symbols "${symbols[@]}"
-  --gateways "${gateways[@]}"
+  --participants "${gateways[@]}"
   "${gateway_smp_args[@]}"
   --output engine_config.yaml
   --force

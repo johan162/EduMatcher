@@ -5225,7 +5225,7 @@ loaded, session mode known, and sockets bound.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
-<p>The gateway IDs must exist under <code>gateways.alf</code> in the deployed configuration,
+<p>The gateway IDs must exist under <code>participants</code> in the deployed configuration,
 unless the engine is intentionally running unrestricted with no deployed config.</p>
 <h3 id="step-3-submit-a-test-order">Step 3 - submit a test order<a class="headerlink" href="#step-3-submit-a-test-order" title="Permanent link">&para;</a></h3>
 <p>From one gateway:</p>
@@ -5913,7 +5913,7 @@ and, where configured, <code>pm-log-srv</code>.</p>
 <ol>
 <li><code>pm-engine</code> is not running or has not finished binding sockets.</li>
 <li>The gateway is using a different <code>EDUMATCHER_DATA_DIR</code> from the engine.</li>
-<li>The gateway ID is not in <code>gateways.alf</code> in the deployed configuration.</li>
+<li>The gateway ID is not in <code>participants</code> in the deployed configuration.</li>
 <li>Local firewall, VPN or container networking prevents access to port <code>5555</code>.</li>
 </ol>
 <p>Checks:</p>
@@ -5962,11 +5962,10 @@ exchange-wide halt/resume and symbol-wide mass cancel commands require
 <code>role: ADMIN</code>.</p>
 <p>Fix the gateway role in <code>engine_config.yaml</code>, deploy it, and restart affected
 processes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OPS01</span>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OPS01</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
 </code></pre></div>
 <h3 id="external-feed-is-reachable-but-silent">External feed is reachable but silent<a class="headerlink" href="#external-feed-is-reachable-but-silent" title="Permanent link">&para;</a></h3>
 <p>For CALF/RALF/DC/API issues, separate connectivity from data availability:</p>

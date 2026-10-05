@@ -4700,7 +4700,7 @@ session-scoped cache), <code>pm-alf-gwy</code> forwards the request to the engin
 <ul>
 <li><code>pm-engine</code> running.</li>
 <li>Gateway IDs that will connect must be configured in <code>engine_config.yaml</code>
-  under <code>gateways.alf</code>.</li>
+  under <code>participants</code>.</li>
 <li>Optional: add the <code>alf_gateway:</code> config section to customise port and limits.</li>
 </ul>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
@@ -4719,8 +4719,8 @@ session-scoped cache), <code>pm-alf-gwy</code> forwards the request to the engin
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">max_errors_before_disconnect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">error_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
 </code></pre></div>
-<p>The gateway reads gateway roles from the existing <code>gateways.alf</code> list — no
-separate credentials block is needed.  Any gateway ID listed in <code>gateways.alf</code>
+<p>The gateway reads gateway roles from the existing <code>participants</code> list — no
+separate credentials block is needed.  Any gateway ID listed in <code>participants</code>
 can connect to <code>pm-alf-gwy</code>.</p>
 <table>
 <thead>
@@ -4924,7 +4924,7 @@ as shown in the Python example below.</p>
 <tr>
 <td><code>ID</code></td>
 <td>Yes</td>
-<td>Gateway ID that must be in <code>gateways.alf</code> in config; max 32 characters (connection closed with <code>INVALID_VALUE</code> if exceeded)</td>
+<td>Gateway ID that must be in <code>participants</code> in config; max 32 characters (connection closed with <code>INVALID_VALUE</code> if exceeded)</td>
 </tr>
 </tbody>
 </table>
@@ -5860,8 +5860,8 @@ then type <code>quit</code> to close.</p>
 </tr>
 <tr>
 <td><code>ERR\|CODE=AUTH_FAILED</code></td>
-<td>Gateway ID not in <code>gateways.alf</code></td>
-<td>Add the ID under <code>gateways.alf</code> in <code>engine_config.yaml</code> and restart engine</td>
+<td>Gateway ID not in <code>participants</code></td>
+<td>Add the ID under <code>participants</code> in <code>engine_config.yaml</code> and restart engine</td>
 </tr>
 <tr>
 <td><code>ERR\|CODE=PROTO_MISMATCH</code></td>
@@ -5900,7 +5900,7 @@ then type <code>quit</code> to close.</p>
 <li><a href="../900-app-alf-protocol/">ALF Protocol Reference</a> — formal wire syntax and full field/enum definitions</li>
 <li><a href="../055-alf-console/">ALF Console</a> — interactive command reference for <code>pm-alf-console</code></li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — the engine's drop-copy feed (<code>:5557</code>) that <code>DC|STATE=ON</code> relays</li>
-<li><a href="../010-configuration/">Configuration</a> — <code>alf_gateway:</code> section and <code>gateways.alf</code> allowlist</li>
+<li><a href="../010-configuration/">Configuration</a> — <code>alf_gateway:</code> section and <code>participants</code> allowlist</li>
 <li><a href="../170-processes/#pm-alf-gwy-alf-tcp-gateway">Processes</a> — process topology and ZMQ message tables</li>
 <li><a href="../210-protocols-overview/">External Protocols Overview</a> — protocol comparison and selection guide</li>
 </ul>

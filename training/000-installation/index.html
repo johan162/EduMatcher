@@ -4752,7 +4752,7 @@ host. Install Multipass from <a href="https://multipass.run/install">multipass.r
 verify it, then bootstrap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>multipass<span class="w"> </span>version
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.44.0
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.45.0
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -4880,7 +4880,7 @@ processes on different configurations by accident.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-config-deploy<span class="w"> </span>--show
 <a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>cat<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data/engine_config.yaml"</span>
 </code></pre></div>
-<p>You should see a <code>symbols:</code> section and a <code>gateways:</code> section. This is the same
+<p>You should see a <code>symbols:</code> section and a <code>participants:</code> section. This is the same
 <em>kind</em> of file you will author yourself in the next chapter — there, though,
 you keep your own copy under version control rather than editing the deployed
 one.</p>

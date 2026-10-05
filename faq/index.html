@@ -4804,11 +4804,10 @@ If the engine was killed mid-session, the file may be stale or missing.</p>
 <hr />
 <h3 id="why-is-my-order-rejected-with-gateway-not-authenticated">Why is my order rejected with "Gateway not authenticated"?<a class="headerlink" href="#why-is-my-order-rejected-with-gateway-not-authenticated" title="Permanent link">&para;</a></h3>
 <p>Your gateway ID is not in the engine's allowlist. Gateway IDs must be
-pre-configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">My first trader</span>
+pre-configured in <code>engine_config.yaml</code> under <code>participants</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">My first trader</span>
 </code></pre></div>
 <p>Restart the engine after editing the config.</p>
 <hr />

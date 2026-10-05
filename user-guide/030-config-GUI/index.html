@@ -5018,8 +5018,8 @@ Suggested file: <code>images/config-gui/fig-02-persona-theme.png</code>.</p>
 <tr>
 <td><strong>Basics</strong></td>
 <td>Beginner</td>
-<td>The symbol universe and the ALF gateway allowlist</td>
-<td><a href="../010-configuration/#alf-gateway-allowlist">ALF gateway allowlist</a>, <a href="../220-alf-gateway/">ALF gateway</a></td>
+<td>The symbol universe and the participants list</td>
+<td><a href="../010-configuration/#participants">Participants</a>, <a href="../220-alf-gateway/">ALF gateway</a></td>
 </tr>
 <tr>
 <td><strong>Sessions &amp; Schedule</strong></td>
@@ -5091,12 +5091,13 @@ just want to produce a working file quickly, follow the
 <a href="#reviewing-and-exporting">Reviewing and exporting</a>.</p>
 <h2 id="basics-symbols-and-gateways">Basics: symbols and gateways<a class="headerlink" href="#basics-symbols-and-gateways" title="Permanent link">&para;</a></h2>
 <p>The <strong>Basics</strong> tab is the mandatory foundation: at least one <strong>symbol</strong> and one
-<strong>gateway</strong> are required before anything can be exported.</p>
+<strong>participant</strong> are required before anything can be exported.</p>
 <ul>
 <li><strong>Symbols</strong> are the instruments that trade on the exchange. Add them with the
   <a href="#symbols-and-the-ipo-dialog">IPO dialog</a>; names are uppercased automatically
   and must be unique.</li>
-<li><strong>Gateways</strong> are the participant sessions permitted to connect, each with a
+<li><strong>Participants</strong> are the sessions permitted to connect (the <code>participants</code>
+  list), each with a
   <strong>role</strong> — <code>TRADER</code>, <code>MARKET_MAKER</code>, or <code>ADMIN</code>. Roles determine which
   commands a session may send; see
   <a href="../010-configuration/#role-privileges">Role Privileges</a> and the
@@ -5369,7 +5370,7 @@ row (Basics tab) provides the finest-grained control:</p>
 <li><strong>Flat gateway overrides</strong> — <code>enforce_mm_obligation</code>, <code>mm_max_spread_ticks</code>,
    <code>mm_min_qty</code> for <em>every symbol this gateway quotes</em>.</li>
 <li><strong>Per-symbol table</strong> — overrides for specific symbols on this gateway, written
-   as <code>gateways.alf[*].mm_obligations.&lt;SYM&gt;</code> (the nested keys are
+   as <code>participants[*].mm_obligations.&lt;SYM&gt;</code> (the nested keys are
    <code>max_spread_ticks</code> / <code>min_qty</code>, without the <code>mm_</code> prefix — a format quirk the
    GUI handles for you).</li>
 </ol>
