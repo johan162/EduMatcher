@@ -2452,6 +2452,20 @@ class Engine:
 
         session = self._session_for_gateway(gateway_id)
 
+        if session.connected:
+            # A second live connection under the same ID would share one
+            # session, so either one dropping would run the disconnect
+            # behaviour (CANCEL_ALL) against the other's orders.
+            self.pub_sock.send_multipart(
+                make_gateway_auth_msg(
+                    gateway_id,
+                    accepted=False,
+                    reason=f"Gateway already connected: {gateway_id}",
+                )
+            )
+            log.info(f"REFUSED gateway connect (already connected): {gateway_id}")
+            return
+
         if self._allowed_fix_gateways is None:
             # Backward-compat mode: no gateway restrictions
             self._connected_fix_gateways.add(gateway_id)

@@ -1267,6 +1267,9 @@ class AlfGateway:
         if not accepted:
             self._global_stats["auth_failures"] += 1
             target.auth_pending = False
+            # The engine refused this connect, so it holds no session for it;
+            # a disconnect sent on close would tear down the one that does.
+            target.connect_emitted = False
             self._register_error(
                 target,
                 "AUTH_FAILED",

@@ -443,6 +443,30 @@ class TestPreAuthHardening:
         assert disc_topic == "system.gateway_disconnect"
         assert str(disc_payload.get("gateway_id", "")).upper() == "TRADER01"
 
+    def test_engine_refused_logon_does_not_emit_gateway_disconnect(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        # The engine holds no session for a refused connect, so a disconnect
+        # on close would cancel the orders of the live session sharing the ID.
+        _, pull, pub, port = balf_gw_factory()
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            bc.send(_build_logon("TRADER01"))
+            _drain_until(pull, "system.gateway_connect")
+            time.sleep(0.1)  # allow ZMQ PUB subscription to propagate
+            _publish_auth(pub, "TRADER01", accepted=False, reason="already connected")
+            body = bc.recv_until(MSG_LOGON_ACK)
+            assert body[16] == 0
+            assert bc.is_closed(timeout=2.0)
+
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            if not pull.poll(timeout=20):
+                continue
+            topic, _payload = decode(pull.recv_multipart())
+            assert topic != "system.gateway_disconnect"
+
 
 # ===========================================================================
 # Engine unavailable / backpressure fail-fast — critical (C1)
