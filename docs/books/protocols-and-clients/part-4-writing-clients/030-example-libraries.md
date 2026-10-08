@@ -41,13 +41,13 @@ connect over TCP and exchange text lines using the ALF wire format.
 
 | File | Description |
 |------|-------------|
-| [alf/README.md](../../../examples/alf/README.md) | Directory overview and quick-start |
-| [alf/python/alf_parser.py](../../../examples/alf/python/alf_parser.py) | Python parser, builder, and session helper |
-| [alf/python/alf_client.py](../../../examples/alf/python/alf_client.py) | Interactive Python client with tab-completion |
-| [alf/c/alf_parser.h](../../../examples/alf/c/alf_parser.h) | C library header |
-| [alf/c/alf_parser.c](../../../examples/alf/c/alf_parser.c) | C library implementation |
-| [alf/c/alf_client.c](../../../examples/alf/c/alf_client.c) | Interactive C client with readline |
-| [alf/c/Makefile](../../../examples/alf/c/Makefile) | Build helper |
+| [alf/README.txt](../../../downloads/examples/alf/README.txt) | Directory overview and quick-start |
+| [alf/python/alf_parser.py](../../../downloads/examples/alf/python/alf_parser.py) | Python parser, builder, and session helper |
+| [alf/python/alf_client.py](../../../downloads/examples/alf/python/alf_client.py) | Interactive Python client with tab-completion |
+| [alf/c/alf_parser.h](../../../downloads/examples/alf/c/alf_parser.h) | C library header |
+| [alf/c/alf_parser.c](../../../downloads/examples/alf/c/alf_parser.c) | C library implementation |
+| [alf/c/alf_client.c](../../../downloads/examples/alf/c/alf_client.c) | Interactive C client with readline |
+| [alf/c/Makefile](../../../downloads/examples/alf/c/Makefile) | Build helper |
 
 ### Wire format
 
@@ -225,13 +225,13 @@ older gateway build.
 
 | File | Description |
 |------|-------------|
-| [calf/README.md](../../../examples/calf/README.md) | Directory overview and quick-start |
-| [calf/calf_parser.py](../../../examples/calf/calf_parser.py) | Python parser and builder |
-| [calf/calf_subscriber.py](../../../examples/calf/calf_subscriber.py) | Python subscriber example |
-| [calf/calf_parser.h](../../../examples/calf/calf_parser.h) | C library header |
-| [calf/calf_parser.c](../../../examples/calf/calf_parser.c) | C library implementation |
-| [calf/calf_subscriber.c](../../../examples/calf/calf_subscriber.c) | C subscriber example |
-| [calf/Makefile](../../../examples/calf/Makefile) | Build helper |
+| [calf/README.txt](../../../downloads/examples/calf/README.txt) | Directory overview and quick-start |
+| [calf/calf_parser.py](../../../downloads/examples/calf/calf_parser.py) | Python parser and builder |
+| [calf/calf_subscriber.py](../../../downloads/examples/calf/calf_subscriber.py) | Python subscriber example |
+| [calf/calf_parser.h](../../../downloads/examples/calf/calf_parser.h) | C library header |
+| [calf/calf_parser.c](../../../downloads/examples/calf/calf_parser.c) | C library implementation |
+| [calf/calf_subscriber.c](../../../downloads/examples/calf/calf_subscriber.c) | C subscriber example |
+| [calf/Makefile](../../../downloads/examples/calf/Makefile) | Build helper |
 
 ### Wire format
 
@@ -372,13 +372,13 @@ Ctrl-C shutdown.
 
 | File | Description |
 |------|-------------|
-| [ralf/README.md](../../../examples/ralf/README.md) | Directory overview and quick-start |
-| [ralf/ralf_parser.py](../../../examples/ralf/ralf_parser.py) | Python parser and builder |
-| [ralf/ralf_subscriber.py](../../../examples/ralf/ralf_subscriber.py) | Python subscriber example |
-| [ralf/ralf_parser.h](../../../examples/ralf/ralf_parser.h) | C library header |
-| [ralf/ralf_parser.c](../../../examples/ralf/ralf_parser.c) | C library implementation |
-| [ralf/ralf_subscriber.c](../../../examples/ralf/ralf_subscriber.c) | C subscriber example |
-| [ralf/Makefile](../../../examples/ralf/Makefile) | Build helper |
+| [ralf/README.txt](../../../downloads/examples/ralf/README.txt) | Directory overview and quick-start |
+| [ralf/ralf_parser.py](../../../downloads/examples/ralf/ralf_parser.py) | Python parser and builder |
+| [ralf/ralf_subscriber.py](../../../downloads/examples/ralf/ralf_subscriber.py) | Python subscriber example |
+| [ralf/ralf_parser.h](../../../downloads/examples/ralf/ralf_parser.h) | C library header |
+| [ralf/ralf_parser.c](../../../downloads/examples/ralf/ralf_parser.c) | C library implementation |
+| [ralf/ralf_subscriber.c](../../../downloads/examples/ralf/ralf_subscriber.c) | C subscriber example |
+| [ralf/Makefile](../../../downloads/examples/ralf/Makefile) | Build helper |
 
 ### Wire format
 
@@ -511,8 +511,8 @@ rather than text lines.
 
 | File | Description |
 |------|-------------|
-| [balf/balf_parser.py](../../../examples/balf/balf_parser.py) | Python binary parser |
-| [balf/balf_parser.c](../../../examples/balf/balf_parser.c) | C binary parser |
+| [balf/balf_parser.py](../../../downloads/examples/balf/balf_parser.py) | Python binary parser |
+| [balf/balf_parser.c](../../../downloads/examples/balf/balf_parser.c) | C binary parser |
 
 ### Binary frame structure
 
@@ -617,7 +617,7 @@ cc -std=c11 -Wall -Wextra -pedantic -O2 balf_parser.c -o balf_parser
 There is no BALF C (or Python) network client example — only the parsing
 logic is provided.  To exercise BALF end-to-end, connect a TCP client to
 `pm-balf-gwy` and feed received frames through `split_frame()`
-(Python: [`balf_parser.py`](../../../examples/balf/balf_parser.py)) or the C
+(Python: [`balf_parser.py`](../../../downloads/examples/balf/balf_parser.py)) or the C
 reference decoder's parsing functions.
 
 ### Run the gateway
@@ -655,13 +655,13 @@ required.
 
 | File | Description |
 |------|-------------|
-| [REST/python/api_gateway_client.py](../../../examples/REST/python/api_gateway_client.py) | Python REST client library |
-| [REST/python/demo_info.py](../../../examples/REST/python/demo_info.py) | Print gateway status, symbols, and session info |
-| [REST/python/submit_market_order.py](../../../examples/REST/python/submit_market_order.py) | Submit a MARKET order from the command line |
-| [REST/c/api_gateway_client.h](../../../examples/REST/c/api_gateway_client.h) | C library header |
-| [REST/c/api_gateway_client.c](../../../examples/REST/c/api_gateway_client.c) | C library implementation |
-| [REST/c/demo_info.c](../../../examples/REST/c/demo_info.c) | C equivalent of demo_info.py |
-| [REST/c/Makefile](../../../examples/REST/c/Makefile) | Build helper |
+| [REST/python/api_gateway_client.py](../../../downloads/examples/REST/python/api_gateway_client.py) | Python REST client library |
+| [REST/python/demo_info.py](../../../downloads/examples/REST/python/demo_info.py) | Print gateway status, symbols, and session info |
+| [REST/python/submit_market_order.py](../../../downloads/examples/REST/python/submit_market_order.py) | Submit a MARKET order from the command line |
+| [REST/c/api_gateway_client.h](../../../downloads/examples/REST/c/api_gateway_client.h) | C library header |
+| [REST/c/api_gateway_client.c](../../../downloads/examples/REST/c/api_gateway_client.c) | C library implementation |
+| [REST/c/demo_info.c](../../../downloads/examples/REST/c/demo_info.c) | C equivalent of demo_info.py |
+| [REST/c/Makefile](../../../downloads/examples/REST/c/Makefile) | Build helper |
 
 ### Authentication
 

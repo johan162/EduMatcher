@@ -12,6 +12,9 @@ FILTER_DIR := $(BUILD_ASSETS)/filters
 ASSETS_DIR := $(DOCS_DIR)/assets
 DIST_DIR := $(DOCS_DIR)/dist
 DOWNLOADS_DIR := $(DOCS_DIR)/downloads
+EXAMPLES_DIR := $(DOCS_DIR)/examples
+# Example sets the books link to; ref_data and generated are not linked.
+EXAMPLE_DOWNLOAD_SETS := alf calf ralf balf REST
 BUILD_DIR := $(DOCS_DIR)/.build
 STAMP_DIR := $(DOCS_DIR)/.makefile-stamps
 SCRIPTS_DIR := ../scripts
@@ -57,7 +60,7 @@ include $(BUILD_ASSETS)/book.mk
 
 .PHONY: pdf-docs epub-docs chapters-pdf book-bundles covers book-all docs-all omnibus docs serve docs-check docs-ledger nav \
   pdf-training-guide epub-training-guide chapters-training-guide exchange-intro \
-  pdf-exchange-intro epub-exchange-intro epub-downloads clean really-clean help check-latex-engine
+  pdf-exchange-intro epub-exchange-intro epub-downloads example-downloads clean really-clean help check-latex-engine
 
 pdf-docs: $(addprefix pdf-,$(BOOKS))
 epub-docs: $(addprefix epub-,$(BOOKS))
@@ -79,11 +82,31 @@ book-all: pdf-docs epub-docs
 EPUB_DOWNLOAD_TARGETS := $(foreach book,$(BOOKS),$($(book)_EPUB_DL))
 epub-downloads: $(EPUB_DOWNLOAD_TARGETS)
 
-docs: nav epub-downloads
+# MkDocs excludes examples/** from the site, so the example sources the books
+# link to are copied under downloads/examples/, next to the EPUBs. Only source
+# files are copied: build outputs and bytecode stay behind. Each README.md goes
+# out as README.txt, since MkDocs would otherwise render it as a page whose
+# relative links are written for its original location.
+example-downloads:
+	@printf '%b\n' "$(DARKYELLOW)- Copying examples to $(DOWNLOADS_DIR)/examples...$(NC)"
+	mkdir -p $(DOWNLOADS_DIR)/examples
+	for set in $(EXAMPLE_DOWNLOAD_SETS); do
+	  rsync -a --delete --delete-excluded --prune-empty-dirs \
+	    --exclude='README.md' \
+	    --include='*/' --include='*.py' --include='*.c' --include='*.h' \
+	    --include='Makefile' --exclude='*' \
+	    $(EXAMPLES_DIR)/$$set/ $(DOWNLOADS_DIR)/examples/$$set/
+	  if [ -f $(EXAMPLES_DIR)/$$set/README.md ]; then
+	    cp $(EXAMPLES_DIR)/$$set/README.md $(DOWNLOADS_DIR)/examples/$$set/README.txt
+	  fi
+	done
+	@printf '%b\n' "$(GREEN)OK example downloads$(NC)"
+
+docs: nav epub-downloads example-downloads
 	@printf '%b\n' "$(DARKYELLOW)- Building MkDocs site...$(NC)"
 	@cd .. && $(POETRY) run mkdocs build
 	@printf '%b\n' "$(GREEN)OK MkDocs site built$(NC)"
-serve: nav epub-downloads
+serve: nav epub-downloads example-downloads
 	@cd .. && $(POETRY) run mkdocs serve
 
 pdf-exchange-intro:
@@ -142,6 +165,7 @@ help:
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs' 'Build the MkDocs site'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'serve' 'Serve the MkDocs site locally'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'epub-downloads' 'Refresh the EPUB download copies the site links to'
+	@printf '  $(BLUE)%-30s$(NC) %s\n' 'example-downloads' 'Copy the linked example sources to downloads/examples'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs-check' 'Run documentation checks and the migration ledger'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'docs-ledger' 'Check migrated documentation coverage'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'nav' 'Regenerate MkDocs navigation'
