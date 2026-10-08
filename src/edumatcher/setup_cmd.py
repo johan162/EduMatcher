@@ -21,7 +21,7 @@ mapping (e.g. ``s3-basic`` ->
 Any example name also accepts an optional trailing ``-nomm`` to select the
 no-market-maker-quotes variant of that example (e.g. ``s3-basic-nomm`` ->
 ``docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml``)
-— see docs/concepts/03-concepts-mm-quotes.md.
+— see ../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md.
 
 Usage
 -----

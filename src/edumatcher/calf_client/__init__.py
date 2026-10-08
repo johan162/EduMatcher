@@ -39,7 +39,7 @@ Or the cached state, with frames as the trigger to read it::
 
     client.run(on_frame=on_frame, on_gap=lambda g: print("lost", g.count))
 
-See ``docs/user-guide/920-app-calf-protocol.md`` for the normative wire
+See ``../../../docs/books/protocols-and-clients/part-2-specifications/030-calf.md`` for the normative wire
 contract, and ``docs/examples/calf/`` for standalone examples that show the
 protocol directly rather than through this package.
 """

@@ -26,8 +26,16 @@ from edumatcher.msgen.spec import load_transports
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_ROOT = REPO_ROOT / "spec"
-REFERENCE = REPO_ROOT / "docs" / "user-guide" / "270-message-reference.md"
-PREAMBLE = REPO_ROOT / "docs" / "user-guide" / "270-preamble.md"
+REFERENCE = (
+    REPO_ROOT
+    / "docs"
+    / "books/protocols-and-clients/part-5-message-reference/010-message-reference.md"
+)
+PREAMBLE = (
+    REPO_ROOT
+    / "docs"
+    / "books/protocols-and-clients/part-5-message-reference/000-preamble.md"
+)
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +81,7 @@ class TestTheAppendixDocumentsEveryMessage:
         added so pm-audit's bare PUB subscription can see a
         maintenance-flush exception, a dispatch-handler crash, an
         undecodable inbound message, an unrouted topic, and a GTC-restore
-        summary -- see docs/user-guide/190-audit.md. Bump the literal here
+        summary -- see ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md. Bump the literal here
         alongside any spec addition; the real regression this test (and
         test_every_topic_has_a_section above it) guards against is the
         generated reference page silently omitting a message, not the total

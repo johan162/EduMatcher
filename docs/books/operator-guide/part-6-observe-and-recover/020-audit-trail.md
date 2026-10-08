@@ -1,0 +1,1034 @@
+# Audit Trail
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - Why a full event log matters for an exchange and what `pm-audit` records
+    - The JSONL log format and how log rotation works
+    - All `pm-audit` startup options including write buffering
+    - How to query audit logs from the command line using every `pm-audit-cli` verb
+    - When to use the optional SQLite index for faster queries
+    - A practical cookbook for common audit investigation workflows
+
+
+
+## Overview
+
+EduMatcher maintains a complete, immutable record of every message that passes
+through the ZeroMQ bus. This is the **audit trail** — a chronological log of
+every order, fill, trade, cancellation, session transition, and system event
+that occurred during a trading session.
+
+The audit system has two independent components:
+
+| Component | Role | Type |
+|---|---|---|
+| **`pm-audit`** | Subscriber — records every event to a rotating JSONL log file | Long-running process |
+| **`pm-audit-cli`** | Query tool — reads audit logs and prints structured output | One-shot CLI |
+
+The recorder and the query tool are completely independent. `pm-audit-cli`
+reads log files directly from disk and works even when `pm-audit` is not
+running.
+
+```mermaid
+flowchart TB
+    subgraph Runtime
+        ENG["pm-engine\n(ZMQ PUB :5556)"]
+        AUD["pm-audit\nSUB :5556"]
+        LOG[("data/audit.log\n+ rotated backups")]
+        ENG -- "all topics" --> AUD
+        AUD -- "buffered JSONL writes" --> LOG
+    end
+    subgraph Operator
+        CLI["pm-audit-cli\n(read-only)"]
+        LOG -- "stream parse" --> CLI
+        CLI -. "optional fast path" .-> IDX[("audit_index.db")]
+    end
+```
+
+### Why a full event log matters
+
+A financial exchange must be able to answer questions after the fact:
+
+- Was a specific order ever acknowledged by the engine?
+- What sequence of events led to a particular fill?
+- Did a circuit breaker fire before or after an order was submitted?
+- Which gateways were active at a given time?
+
+The audit trail answers all of these by preserving every message exactly as
+it was broadcast, with a millisecond-precision UTC timestamp.
+
+
+
+## Data Directory
+
+Audit logs are stored in the same data directory used by all other EduMatcher
+persistent files:
+
+| Running mode | Default location |
+|---|---|
+| Source checkout (`poetry run pm-audit`) | `<repo>/src/data/audit.log` |
+| Installed (`pm-audit` on PATH) | `~/.local/share/edumatcher/audit.log` |
+
+Override with `EDUMATCHER_DATA_DIR` or `--audit-log-file`:
+
+```bash
+export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
+pm-audit  # writes to $HOME/sessions/morning/audit.log
+```
+
+
+
+## pm-audit — Event Recorder
+
+`pm-audit` subscribes to all topics on the engine's PUB socket and appends
+every message as a single JSON line to the configured log file.
+
+```bash
+pm-audit [options]
+```
+
+### Startup options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--audit-log-file PATH` | `<DATA_DIR>/audit.log` | Audit-trail output log file path |
+| `--terminal` / `-t` | off | Also print each entry to stdout (useful during demos) |
+| `--buffer-size N` | `100` | Number of messages to buffer in memory before flushing to disk |
+| `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
+| `--log-target` | `server` | Where this process's own operational log records go (not the audit trail): `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file PATH` | — | Operational log file path — required when `--log-target file`. Distinct from `--audit-log-file`, which is the audit-trail output |
+| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file once `pm-log-srv` becomes unreachable |
+
+`--log-level` takes priority over `-v`/`-q` when both are given.
+
+### Write buffering
+
+Writing every message to disk individually would generate enormous I/O on
+active sessions. `pm-audit` batches messages in memory and flushes as a
+group when either limit is reached:
+
+- **Buffer full**: buffer contains `--buffer-size` messages (default 100)
+- **Timer expired**: `--flush-interval` seconds have elapsed since the last flush (default 10 s)
+- **Shutdown**: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit
+
+No messages are lost on clean shutdown. A hard kill (`kill -9`) may lose up
+to `--buffer-size` messages that had not yet been flushed.
+
+**Tuning examples:**
+
+```bash
+# Default: good balance of throughput and latency
+pm-audit
+
+# High-throughput session: larger buffer, less frequent disk I/O
+pm-audit --buffer-size 500 --flush-interval 30
+
+# Low-latency / compliance: flush aggressively
+pm-audit --buffer-size 1 --flush-interval 1
+
+# Demo mode: see every event on the terminal as well
+pm-audit --terminal
+```
+
+### Log format
+
+Every line is an independent record in this format:
+
+```
+[2026-07-08T09:30:00.123+00:00] [trade.executed] [seq=42 msg=01J… cause=01J… chain=01J…] {"id": "TRD-001", ...}
+```
+
+| Part | Example | Description |
+|---|---|---|
+| `[timestamp]` | `2026-07-08T09:30:00.123+00:00` | UTC ISO-8601 with millisecond precision. This is `pm-audit`'s **receipt** clock, not the publisher's |
+| `[topic]` | `trade.executed` | ZeroMQ topic exactly as broadcast by the engine |
+| `[metadata]` | `seq=42 msg=01J… cause=01J… chain=01J…` | Envelope frames, recorded as `key=value` pairs. Optional — see below |
+| `{...}` | `{"symbol": "AAPL", ...}` | Full JSON payload of the message, byte-identical to what was published |
+
+**The metadata section**
+
+| Key | Meaning |
+|---|---|
+| `seq` | The publisher's per-topic sequence number. Dense within a run, so a gap means messages were **dropped** — PUB/SUB discards silently once a subscriber falls behind, and this is how you find out |
+| `msg` | ULID of this message |
+| `cause` | ULID of the message that caused this one. **Absent means nothing caused it** — a scheduler tick, a circuit-breaker trip — not that the cause is unknown |
+| `chain` | ULID shared by every message descending from one original request |
+
+The section is omitted entirely for a message whose publisher stamps no
+envelope, and lines archived before the section existed are still read
+correctly, so a mixed archive needs no flag.
+
+This is what makes a post-mortem tractable. To follow one order submission
+through everything it caused:
+
+```bash
+# find the submission
+poetry run pm-audit-cli --format json events --topic order.new --limit 1 
+
+# then everything in its causal chain, in order
+grep 'chain=01ARZ3NDEKTSV4RRFFQ69G5FAV' data/audit.log
+```
+
+Lines are appended in arrival order. Within a single session they are
+chronologically monotonic by receipt time — but note that receipt order across
+several publishers is not causal order. `cause` and `chain` are what establish
+causality; the timestamp only establishes when `pm-audit` saw it.
+
+### Log rotation
+
+Log files rotate at **10 MB** with **5 backups** kept:
+
+```
+data/audit.log       ← active, current writes
+data/audit.log.1     ← previous
+data/audit.log.2     ← older
+...
+data/audit.log.5     ← oldest kept
+```
+
+When `audit.log` reaches 10 MB the Python `RotatingFileHandler` renames it
+to `audit.log.1` (shifting existing backups up) and opens a fresh
+`audit.log`. Rotated files may also be compressed externally; `pm-audit-cli`
+reads `.gz` files transparently.
+
+### Subscribed topics
+
+`pm-audit` subscribes with an **empty topic filter**, which causes ZeroMQ to
+deliver every published message without exception:
+
+| Topic | Source |
+|---|---|
+| `order.new` | Gateway order submissions |
+| `order.ack.*` | Engine order acknowledgements |
+| `order.fill.*` | Fill notifications |
+| `order.cancelled.*` | Cancel confirmations |
+| `order.expired.*` | TIF expiry notifications |
+| `trade.executed` | Every matched trade pair |
+| `book.*` | Book snapshots after every change (each carries `ts_ns`, so a snapshot can be ordered against the trades around it) |
+| `session.state` | Session phase transitions (`command_id` present when an operator, not the scheduler, requested it) |
+| `system.*` | Gateway auth, symbols, EOD, GTC-restore summary and per-entity restore outcomes, absorbed internal failures |
+| *(all others)* | Admin events, combos, quotes, circuit breaker |
+
+### Audit completeness — every state-changing decision, not just its outcome
+
+`pm-audit` can only ever see what the engine publishes on `:5556` — it is a
+bare subscriber with no other visibility into the process. Reconstructing
+"what happened and why" from the log is therefore only as complete as the
+publish call sites are, and a few decision points used to publish an outcome
+without the reason behind it, or nothing at all. The fields and events below
+close those gaps:
+
+| Gap closed | Where it shows up |
+|---|---|
+| Every engine-initiated cancel now states why | `order.cancelled.{GW_ID}`'s `cancel_reason` covers a kill switch (self or admin), a circuit-breaker halt, a gateway disconnect, an admin symbol-level mass cancel, a quote being replaced, and a quote leg cancelled because its sibling filled — in addition to the original `SELF_MATCH_PREVENTED` / `INSUFFICIENT_LIQUIDITY`. Still `null` for a client-requested cancel, which is not the exchange's decision to explain. |
+| Cancels and quote removals join back to the command that caused them | `order.cancelled.{GW_ID}` and `quote.status.{GW_ID}` both carry `command_id` when an admin/kill-switch command caused the event — the same `command_id` echoed on that command's ack and on `admin.action`. `null` when there is no such command (self-match prevention, a participant's own quote cancel, and so on). |
+| A resting order can be told apart from a config-seeded one | `order.ack.{GW_ID}` and `order.fill.{GW_ID}` carry `is_seed` — `true` for an order or quote leg created by `market_maker_quotes`/`market_maker_combos` at startup rather than a live gateway submission (the ack, not `order.new`, is the first audit-visible event for any order, since `order.new` is a PUSH-only submission the engine never re-publishes on `:5556`). The on-demand `order.orders`/`order.price_level_orders` snapshot rows carry it too. Purely observational: nothing in the engine branches on it. |
+| Every combo leg gets an acknowledgement | `order.ack.{GW_ID}` now fires once per child leg when a combo is accepted — live or config-seeded. Previously no combo leg published an ack at all; a subscriber that started after acceptance had no way to learn a leg's symbol, side, price, or qty until it was cancelled, and `order.cancelled`'s minimal shape cannot supply them either. |
+| Startup recovery is on the record | `system.startup_recovery`, published once right after `_restore_gtc()`, reports how many orders were restored, discarded as stale `TIF=DAY`, or failed to restore; how many single-leg quote remnants and rebuilt `QuoteIndex` entries resulted; and how many GTC combos came back. Previously these counts reached only `log.info`/`log.error`. `system.recovery_item` now accompanies it with one line per entity — `entity_id`, `kind` (`ORDER`/`COMBO`) and `outcome` (`RESTORED`/`DISCARDED_STALE_DAY`/`FAILED`/`QUOTE_REMNANT`), plus `detail` carrying the exception text for a `FAILED` order — so a single bad GTC record is a wire fact with a reason attached, not just a decremented count. |
+| Kill-switch and admin sweeps say which ids they hit, not just how many | `risk.kill_switch_ack`, `kill_switch_gateway_ack`, `kill_switch_global_ack`, `symbol_halt_ack`, `cancel_symbol_ack`, `circuit_breaker_halt_all_ack`, `circuit_breaker_resume_all_ack`, and `admin.action`'s `scope` all carry an id list beside every count they already reported — `cancelled_order_ids`, `cancelled_quote_order_ids`, `halted_symbol_ids`, `resumed_symbol_ids`, `affected_gateway_ids`. Previously undoing or auditing the effect of a mass cancel meant re-deriving the affected set from `order.cancelled` lines by `command_id`; the ack now says it directly, and a length mismatch against the count is itself a detectable defect. |
+| Cancellations, expiries and amendments can be filtered by symbol | `order.cancelled`, `order.expired` and `order.amended` all carry `symbol` now. `pm-audit-cli events --topic order.cancelled --symbol AAPL` previously returned nothing for any symbol — the engine had `symbol` at every publish site but never put it on the wire. |
+| Book and depth snapshots carry a clock | `book.{symbol}` and `depth.{symbol}` both gain `ts_ns`, stamped from the same strictly-monotonic clock `trade.executed` uses. Previously a snapshot carried no time field at all, so there was no way to tell from the log alone whether a given snapshot reflects a particular trade. |
+| An operator-driven session transition is distinguishable from a scheduled one | `session.state` gains an optional `command_id`, echoing the `command_id` on the `session.transition` that caused it — present only when an operator (not `pm-scheduler`) requested the transition. Previously the broadcast looked identical either way; telling them apart meant inferring it from what else was on the bus at the time. |
+| Absorbed internal failures are on the record | `system.diagnostic` fires for a maintenance-flush exception, a dispatch-handler crash, an undecodable inbound message, or a message on a topic with no handler — cases the engine deliberately survives so trading is not interrupted, but which previously reached only the process log. Carries `component`, `detail` (the flush name or topic, when there is one), `error` (the exception text, when there is one), and `count` (that component's running occurrence count). The client-facing reject for a crashed order handler still stays generic — see `order.ack`'s `INTERNAL_ERROR` — so `system.diagnostic` is the only wire-visible place the real exception text appears. |
+| Amendments show the prior price/qty | `order.amended.{GW_ID}` carries `old_price`/`old_qty` alongside the new values, so a post-mortem does not need the preceding `order.new`/`order.amended` to know what changed. |
+| Index corporate actions show the prior divisor | `index.corp_action_ack`, `index.constituent_change_ack`, and `index.rebalance_ack` all carry `old_divisor` alongside `divisor`, mirroring `HistoryRecord.old_divisor` in pm-index's own local archive — a post-mortem no longer needs that archive to see what changed. |
+
+### Signal handling and graceful shutdown
+
+```
+Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
+```
+
+The buffer flush happens synchronously before the process exits so the last
+batch of messages is always written to disk.
+
+
+
+## pm-audit-cli — Query Tool
+
+`pm-audit-cli` is a read-only command-line tool for querying audit logs
+without shell pipelines or SQL knowledge. It reads JSONL files directly from
+disk and produces structured output.
+
+```bash
+pm-audit-cli [global-options] COMMAND [command-options]
+```
+
+### Why a separate query tool
+
+`pm-audit` is a long-running writer. Querying is a separate one-shot
+operation. Keeping them separate means:
+
+- You can query logs while `pm-audit` is still writing
+- The tool works on archived logs from previous sessions
+- Queries never affect the running recorder
+
+This follows the same pattern as `pm-stats-cli` and `pm-clearing-cli`.
+
+### Global options
+
+These flags are parsed once, before the subcommand:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--log-file PATH` | `data/audit.log` | Primary audit log file to read |
+| `--log-dir PATH` | (parent of `--log-file`) | Directory containing rotated log backups; when set, rotated files are discovered automatically |
+| `--format table\|json\|csv` | `table` | Output format |
+| `--no-header` | off | Suppress CSV header row |
+| `--use-index PATH` | (auto) | Path to SQLite index file; auto-detected as `<the directory containing --log-file>/audit_index.db` when present |
+
+!!! note "Not every flag applies to every command"
+    `--use-index` only affects the `events` command — `orders`, `trades`,
+    `topics`, `gateways`, and `timeline` always stream the JSONL log files
+    directly and never consult the SQLite index, even when one exists and
+    `--use-index` is given. `--format`/`--no-header` are also ignored by
+    `stats` (its output is a fixed text summary, not a table) and by `index`
+    (which prints build progress, not rows).
+
+    The auto-detected index path is always `<the directory containing
+    --log-file>/audit_index.db` — it does **not** use `--log-dir`. If
+    `--log-dir` points somewhere other than `--log-file`'s own parent
+    directory, the index lookup still only checks the log file's parent.
+
+**Output formats:**
+
+| Format | When to use |
+|---|---|
+| `table` | Interactive terminal — aligned columns, human-readable |
+| `json` | Automation, scripts, downstream processing |
+| `csv` | Export to spreadsheets or pipelines |
+
+**No-result behaviour:**
+
+- `table`: prints `No matching events found.`
+- `json`: prints `[]`
+- `csv`: prints header only (or nothing with `--no-header`)
+
+Exit code is always `0` when a query succeeds with no results. Non-zero only
+on argument errors (exit `2`) or I/O failures (exit `1`).
+
+### Rotated log discovery
+
+When `--log-dir` is set (or defaulted from `--log-file`), `pm-audit-cli`
+automatically discovers rotated backup files:
+
+```
+logs/audit.log.2.gz   ← oldest, read first
+logs/audit.log.1      ← middle
+logs/audit.log        ← newest, read last
+```
+
+All results are returned in chronological order across all files.
+
+
+
+### `events` — General event search
+
+Search log entries by topic prefix, gateway, symbol, and time range. This is
+the most flexible command and the right starting point for any investigation.
+
+```bash
+pm-audit-cli events [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--topic PREFIX` | (all) | Filter by topic prefix, e.g. `order.fill` or `trade.` |
+| `--gateway GW_ID` | (all) | Filter by gateway ID appearing in the payload |
+| `--symbol SYMBOL` | (all) | Filter by instrument symbol |
+| `--date YYYY-MM-DD` | (all) | Shorthand for a full trading day |
+| `--from ISO_TS` | (none) | Start of time range (inclusive) |
+| `--to ISO_TS` | (none) | End of time range (inclusive) |
+| `--limit N` | `100` | Maximum rows returned |
+| `--reverse` | off | Show newest events first |
+| `-f`, `--follow` | off | Keep watching the log and print new events as they arrive; see [Follow mode](#follow-mode) below |
+| `--interval SEC` | `1.0` | Polling interval for `--follow` (ignored otherwise) |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `timestamp` | UTC timestamp of the event |
+| `topic` | ZeroMQ topic |
+| `gateway` | Gateway ID extracted from payload (if present) |
+| `symbol` | Instrument symbol extracted from payload (if present) |
+| `order_id` | Order ID extracted from payload (if present) |
+| `summary` | Brief human-readable description of the event |
+
+!!! note "`summary` format differs when the SQLite index is used"
+    When `events` is served from the JSONL log files, `summary` is a
+    structured, topic-aware description (e.g. `FILL 60@150.00`). When a
+    usable index exists at the resolved `--use-index` path, `events` is
+    served from SQLite instead, and `summary` is just the payload dict's
+    `str()` representation truncated to 80 characters — a different, less
+    readable format. Rebuild the index after querying if you need the
+    latest events; the index is never queried automatically for freshness.
+    `--follow` always reads the JSONL files directly and never uses the
+    index, even when one is available — see below.
+
+**Examples:**
+
+```bash
+# All events in the log (last 100)
+pm-audit-cli events
+
+# All fills for gateway GW01 on a specific date
+pm-audit-cli events --topic order.fill --gateway GW01 --date 2026-07-08
+
+# All trade executions for AAPL in a two-hour window
+pm-audit-cli events --topic trade.executed --symbol AAPL \
+  --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T11:30:00+00:00
+
+# Most recent 50 events across all topics
+pm-audit-cli events --limit 50 --reverse
+
+# All session phase transitions
+pm-audit-cli events --topic session.state
+
+# All order rejections
+pm-audit-cli events --topic order.ack --symbol AAPL
+
+# Export all trade events as JSON for analysis
+pm-audit-cli --format json events --topic trade.executed --limit 5000 > trades.json
+
+# Order submissions from a specific gateway in CSV format
+pm-audit-cli --format csv events --topic order.new --gateway GW01 > gw01_orders.csv
+
+# Watch fills arrive live during a training session
+pm-audit-cli events --topic order.fill --follow
+
+# Watch one symbol, polling every 2 seconds instead of the 1s default
+pm-audit-cli events --symbol AAPL --follow --interval 2
+```
+
+#### Follow mode
+
+`events` and `timeline` both accept `-f`/`--follow` to keep the query
+running: after printing the normal (filtered, `--limit`-capped) result, the
+command keeps polling the log files every `--interval` seconds and prints
+each newly-appended, matching entry as it arrives, until interrupted with
+`Ctrl-C`. This is the audit-log equivalent of `pm-log-cli tail`.
+
+```bash
+# Watch the whole log live, table format
+pm-audit-cli events --follow
+
+# Watch order lifecycle events for one gateway, as JSON
+pm-audit-cli --format json events --topic order. --gateway GW01 --follow
+```
+
+A few things behave differently in follow mode:
+
+- **`--limit` only bounds the initial backfill.** The first batch printed
+  respects `--limit` (`100` by default for `events`, `500` for `timeline`)
+  exactly as it would without `--follow`. Once the poll loop starts, every
+  subsequent batch prints however many new matching entries actually
+  arrived since the last poll — there is no cap. This mirrors `pm-log-cli
+  tail --before N`.
+- **`events --reverse --follow` together is rejected** (exit code `2`):
+  `timeline` has no `--reverse` flag, and for `events`, newest-first
+  ordering is meaningless once the log is still growing.
+- **`events --follow` always reads the JSONL log files**, even when a
+  usable SQLite index exists at the resolved `--use-index` path. The index
+  is a point-in-time snapshot and is never refreshed by a running query, so
+  follow mode bypasses it rather than showing stale data.
+- **Log rotation is handled automatically.** Each poll re-discovers the log
+  file set (the same discovery `--log-dir` uses), so a rotation that
+  happens while `--follow` is running — a fresh `audit.log` starting up
+  after the previous one becomes `audit.log.1` — is picked up on the next
+  poll without needing to restart the command.
+- **No `seq` requirement.** Resuming after each poll is based on the
+  entries' timestamps, not the optional `seq=` field in the log line's
+  metadata section — so `--follow` works identically whether or not
+  `pm-audit` happens to be stamping envelope metadata.
+
+`--format csv`/`--format json` both work under `--follow`. Each poll batch
+is printed as its own block, one after another, rather than as a single
+combined document: for `csv`, only the very first batch gets a header row
+(later batches never repeat it, regardless of `--no-header`); for `json`,
+each batch is its own JSON array printed back to back with no separator
+between them. A consumer streaming the output should parse it incrementally
+(read one CSV block or JSON array at a time) rather than treating the whole
+stream as one JSON value or one CSV table.
+
+
+### `orders` — Order lifecycle investigation
+
+Find all audit events related to specific order IDs or filter by gateway and
+symbol to reconstruct an order's full journey through the engine.
+
+```bash
+pm-audit-cli orders [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--id ORDER_ID` | (none) | Order ID to find (repeatable; searches `order_id` and `id` fields in payload) |
+| `--gateway GW_ID` | (all) | Filter by gateway ID |
+| `--symbol SYMBOL` | (all) | Filter by symbol |
+| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--from ISO_TS` | (none) | Start of time range |
+| `--to ISO_TS` | (none) | End of time range |
+| `--limit N` | `100` | Maximum rows |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `timestamp` | Event timestamp |
+| `order_id` | Order identifier |
+| `event` | Last dot-separated segment of the topic. For two-part topics like `order.new` this is the verb (`new`). For per-gateway topics like `order.ack.GW01`, `order.fill.GW01`, or `order.cancelled.GW01` it is the **gateway ID**, not the verb — the topic's own verb segment (`ack`, `fill`, `cancelled`) is dropped. |
+| `gateway` | Gateway ID |
+| `symbol` | Instrument symbol |
+| `side` | `BUY` or `SELL` |
+| `qty` | `quantity or fill_qty or remaining_qty` — the first **truthy** value in that order (not merely the first present key; a legitimate `0` or `null` falls through to the next) |
+| `price` | Price (limit price or fill price depending on event type) |
+| `status` | Order status after the event |
+| `reason` | `reject_code` (from an `order.ack` rejection), `cancel_reason` (from `order.cancelled`), or a generic `reason` string — whichever the event carries |
+
+**Examples:**
+
+```bash
+# Full lifecycle of one specific order
+pm-audit-cli orders --id ORD-GW01-00142
+
+# Two orders side by side
+pm-audit-cli orders --id ORD-GW01-00142 --id ORD-GW01-00143
+
+# All order events for gateway GW01 today
+pm-audit-cli orders --gateway GW01 --date 2026-07-08 --limit 50
+
+# Order events for AAPL in a session
+pm-audit-cli orders --symbol AAPL --from 2026-07-08T09:30:00+00:00
+
+# Export one order's lifecycle as JSON for a support ticket
+pm-audit-cli --format json orders --id ORD-GW01-00142
+
+# Order activity for market-maker in CSV
+pm-audit-cli --format csv orders --gateway MM_AAPL_01 > mm_orders.csv
+```
+
+
+
+### `trades` — Trade execution search
+
+Find `trade.executed` events with precise filtering on both sides of the
+trade, price ranges, and minimum quantities.
+
+```bash
+pm-audit-cli trades [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--symbol SYMBOL` | (all) | Filter by instrument symbol |
+| `--gateway GW_ID` | (all) | Match trades where this gateway appears on either side |
+| `--buy-gateway GW_ID` | (all) | Filter by buyer gateway specifically |
+| `--sell-gateway GW_ID` | (all) | Filter by seller gateway specifically |
+| `--min-price PRICE` | (none) | Minimum trade price (inclusive) |
+| `--max-price PRICE` | (none) | Maximum trade price (inclusive) |
+| `--min-qty QTY` | (none) | Minimum trade quantity (inclusive) |
+| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--from ISO_TS` | (none) | Start of time range |
+| `--to ISO_TS` | (none) | End of time range |
+| `--limit N` | `100` | Maximum rows |
+| `--reverse` | off | Show newest first |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `timestamp` | Trade execution timestamp |
+| `trade_id` | Durable trade identifier, formatted as `run_seq-counter` (for example, `000042-000000001`). The prefix identifies the engine run; the suffix is monotonic within that run. |
+| `symbol` | Instrument symbol |
+| `price` | Execution price |
+| `quantity` | Matched quantity |
+| `buy_gateway` | Buyer gateway ID |
+| `sell_gateway` | Seller gateway ID |
+| `aggressor` | Which side crossed the spread: `BUY`, `SELL`, or `AUCTION` for trades produced by an auction match |
+
+**Examples:**
+
+```bash
+# All trades for AAPL today
+pm-audit-cli trades --symbol AAPL --date 2026-07-08
+
+# Block trades (>= 1,000 shares) across all symbols
+pm-audit-cli trades --min-qty 1000
+
+# Trades between two specific gateways
+pm-audit-cli trades --buy-gateway GW01 --sell-gateway MM_AAPL_01
+
+# MSFT trades in a specific price band
+pm-audit-cli trades --symbol MSFT --min-price 410.0 --max-price 420.0
+
+# Most recent 20 trades
+pm-audit-cli trades --limit 20 --reverse
+
+# Export full day as CSV for post-trade analysis
+pm-audit-cli --format csv trades --date 2026-07-08 --limit 10000 > day_trades.csv
+
+# All trades involving market maker
+pm-audit-cli --format json trades --gateway MM_AAPL_01
+```
+
+
+
+### `topics` — Topic discovery and statistics
+
+List all topics present in the audit logs with event counts and first/last
+occurrence timestamps. Useful for understanding what happened in a session
+and for checking whether expected event types were produced.
+
+```bash
+pm-audit-cli topics [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--date YYYY-MM-DD` | (all) | Restrict to a trading date |
+| `--from ISO_TS` | (none) | Start of time range |
+| `--to ISO_TS` | (none) | End of time range |
+| `--prefix PREFIX` | (all) | Filter topics by prefix, e.g. `order.` |
+| `--sort count\|alpha` | `count` | Sort by event count descending (default) or alphabetically |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `topic` | ZeroMQ topic name |
+| `count` | Number of events with this topic |
+| `first_seen` | Timestamp of the first occurrence |
+| `last_seen` | Timestamp of the last occurrence |
+
+**Examples:**
+
+```bash
+# All topics in the log, most frequent first
+pm-audit-cli topics
+
+# Topics on a specific trading date
+pm-audit-cli topics --date 2026-07-08
+
+# Order-related topics only, sorted alphabetically
+pm-audit-cli topics --prefix order. --sort alpha
+
+# What happened during the opening auction?
+pm-audit-cli topics --from 2026-07-08T09:00:00+00:00 --to 2026-07-08T09:30:00+00:00
+
+# Export all topic stats as JSON
+pm-audit-cli --format json topics
+
+# Check that trades were produced today
+pm-audit-cli topics --prefix trade. --date 2026-07-08
+```
+
+
+### `gateways` — Gateway activity summary
+
+List all gateways seen in the audit logs and show a summary of their
+activity: order submissions, fills, and trades participated in.
+
+```bash
+pm-audit-cli gateways [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--from ISO_TS` | (none) | Start of time range |
+| `--to ISO_TS` | (none) | End of time range |
+| `--min-events N` | (none) | Only show gateways with at least N events |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `gateway_id` | Gateway identifier |
+| `events` | Total event count (all topics) |
+| `orders` | `order.new` events submitted |
+| `fills` | `order.fill.*` events received |
+| `trades` | `trade.executed` events participated in |
+| `first_seen` | First event timestamp |
+| `last_seen` | Last event timestamp |
+
+Results are sorted by total event count descending — the most active gateway
+appears first.
+
+**Examples:**
+
+```bash
+# All gateways in the logs
+pm-audit-cli gateways
+
+# Active gateways on a specific date
+pm-audit-cli gateways --date 2026-07-08
+
+# Only gateways with meaningful activity
+pm-audit-cli gateways --min-events 10
+
+# Gateway activity in the first hour of trading
+pm-audit-cli gateways --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T10:30:00+00:00
+
+# Export as JSON for automation
+pm-audit-cli --format json gateways
+
+# Check which gateways connected during the closing auction
+pm-audit-cli gateways \
+  --from 2026-07-08T15:30:00+00:00 --to 2026-07-08T16:00:00+00:00
+```
+
+
+
+### `timeline` — Chronological event stream
+
+Show a raw chronological stream of events for session replay and forensic
+investigation. Unlike `events`, the `timeline` command exposes the full JSON
+payload as a single column, making it suitable for detailed reconstruction of
+what happened over a time window.
+
+```bash
+pm-audit-cli timeline [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--from ISO_TS` | (none) | Start time |
+| `--to ISO_TS` | (none) | End time |
+| `--topic PREFIX` | (all) | Filter by topic prefix |
+| `--gateway GW_ID` | (all) | Filter by gateway |
+| `--symbol SYMBOL` | (all) | Filter by symbol |
+| `--limit N` | `500` | Maximum events |
+| `-f`, `--follow` | off | Keep watching the log and print new events as they arrive; see [Follow mode](#follow-mode) above |
+| `--interval SEC` | `1.0` | Polling interval for `--follow` (ignored otherwise) |
+
+**Output columns:**
+
+| Column | Description |
+|---|---|
+| `timestamp` | Event timestamp |
+| `topic` | ZeroMQ topic |
+| `gateway` | Gateway ID (if present in payload) |
+| `symbol` | Symbol (if present in payload) |
+| `payload` | Full JSON payload as a string |
+
+**Examples:**
+
+```bash
+# Opening 5 minutes of trading
+pm-audit-cli timeline \
+  --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T09:35:00+00:00
+
+# Gateway activity in a 10-minute window
+pm-audit-cli timeline --gateway GW01 \
+  --from 2026-07-08T14:00:00+00:00 --to 2026-07-08T14:10:00+00:00
+
+# Symbol-focused replay with higher limit
+pm-audit-cli timeline --symbol AAPL \
+  --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T16:00:00+00:00 \
+  --limit 2000
+
+# All session state changes across the day (timeline has no --date flag;
+# use --from/--to to bound a trading day instead)
+pm-audit-cli timeline --topic session.state \
+  --from 2026-07-08T00:00:00+00:00 --to 2026-07-08T23:59:59+00:00
+
+# Only trades and fills in the closing auction
+pm-audit-cli timeline --topic trade. \
+  --from 2026-07-08T15:30:00+00:00 --to 2026-07-08T16:00:00+00:00
+
+# Export for external replay tooling
+pm-audit-cli --format json timeline \
+  --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T16:00:00+00:00 \
+  --limit 100000 > session_replay.json
+
+# Watch the full raw event stream live (see Follow mode above)
+pm-audit-cli timeline --follow
+```
+
+
+### `stats` — Log file statistics
+
+Show a health-check summary of the audit log files: total events, file sizes,
+date range, and counts of unique topics and gateways. Run this to confirm
+that `pm-audit` has been recording as expected.
+
+```bash
+pm-audit-cli stats [--verbose]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--verbose` | off | Show a per-file breakdown in addition to the summary |
+
+**Example output (default):**
+
+```
+Audit Log Statistics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total events:       45,678
+  Total size:         12.4 MB
+  Log files:          3
+  Oldest event:       2026-07-01T09:30:00.123+00:00
+  Newest event:       2026-07-08T15:59:59.987+00:00
+  Topics seen:        24
+  Gateways seen:      5
+```
+
+**Example output (`--verbose`):**
+
+```
+Audit Log Statistics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total events:       45,678
+  Total size:         12.4 MB
+  Log files:          3
+  Oldest event:       2026-07-01T09:30:00.123+00:00
+  Newest event:       2026-07-08T15:59:59.987+00:00
+  Topics seen:        24
+  Gateways seen:      5
+
+  Per-file breakdown:
+    data/audit.log.2  12,000 events  4.1 MB
+    data/audit.log.1  18,234 events  6.2 MB
+    data/audit.log     15,444 events  2.1 MB
+```
+
+**Examples:**
+
+```bash
+# Quick health check
+pm-audit-cli stats
+
+# Full breakdown including per-file stats
+pm-audit-cli stats --verbose
+
+# Check a specific log file location
+pm-audit-cli --log-file /mnt/archive/2026-07-01/audit.log stats
+```
+
+
+
+### `index` — Build or update the SQLite index
+
+For large audit histories or frequent complex queries, `pm-audit-cli` can
+build an optional SQLite index from the JSONL log files. Once built, the
+`events` command uses it automatically for significantly faster response.
+
+```bash
+pm-audit-cli index [options]
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--output PATH` | `<the directory containing --log-file>/audit_index.db` | Destination SQLite database |
+| `--days N` | (none) | Index only the last N days of logs |
+| `--from ISO_TS` | (none) | Start of index range |
+| `--to ISO_TS` | (none) | End of index range |
+| `--rebuild` | off | Delete all existing index data and rebuild from scratch |
+| `--incremental` | off | Add only entries newer than the last indexed timestamp |
+
+`--rebuild` and `--incremental` are mutually exclusive.
+
+!!! warning "Re-running `index` without `--rebuild`/`--incremental` duplicates rows"
+    Without either flag, `index` re-inserts every entry in the requested
+    range on each run with no deduplication — running the same `--days 7`
+    command twice doubles the row count for that window. Use `--incremental`
+    for routine re-indexing, or `--rebuild` to start clean.
+
+**Index schema highlights:**
+
+The index stores one row per log line in a `audit_events` table with
+dedicated columns for `timestamp`, `topic`, `gateway_id`, `symbol`,
+`order_id`, and `trade_id`, each with a covering index. The full JSON payload
+is kept in a `payload` column so no information is lost.
+
+**Performance comparison (1 M events):**
+
+| Query type | JSONL streaming | SQLite index |
+|---|---|---|
+| Recent 100 events | < 1 s | < 0.1 s |
+| Single topic filter | 4–6 s | 0.2 s |
+| Multi-filter (topic + gateway + date) | 10–15 s | 0.5 s |
+| Order ID lookup | 8 s | 0.05 s |
+
+**Index auto-detection:**
+
+When `audit_index.db` exists in the log directory, the `events` command uses
+it automatically. Override with `--use-index PATH` or point at a different
+index location.
+
+**Examples:**
+
+```bash
+# Build index for the last 7 days
+pm-audit-cli index --days 7
+
+# Build complete index from all log files
+pm-audit-cli index --rebuild
+
+# Incremental update — only adds entries not yet in the index
+pm-audit-cli index --incremental
+
+# Index a specific date range
+pm-audit-cli index \
+  --from 2026-07-01T00:00:00+00:00 --to 2026-07-08T23:59:59+00:00
+
+# Build index to a custom location
+pm-audit-cli index --output /tmp/session_idx.db --rebuild
+
+# Use a non-default index when querying
+pm-audit-cli --use-index /tmp/session_idx.db \
+  events --topic trade.executed --limit 100
+```
+
+!!! tip "When to build an index"
+    Build an index when:
+
+    - The audit log contains more than ~500,000 events
+    - You run more than a few queries per session
+    - You need to correlate events across multiple fields (topic + gateway + symbol + date)
+
+    For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.
+
+
+
+## Cookbook — Common Audit Workflows
+
+### Investigate a specific order
+
+```bash
+# Find all events for order ORD-GW01-00142
+pm-audit-cli orders --id ORD-GW01-00142
+
+# Same as JSON (attach to support ticket)
+pm-audit-cli --format json orders --id ORD-GW01-00142
+
+# Find by gateway and time window (when order ID is not known)
+pm-audit-cli orders --gateway GW01 \
+  --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T09:35:00+00:00
+```
+
+### Reconstruct a trade
+
+```bash
+# Find trade details by symbol and time
+pm-audit-cli trades --symbol AAPL \
+  --from 2026-07-08T10:15:00+00:00 --to 2026-07-08T10:15:01+00:00
+
+# Find all large trades above a price threshold
+pm-audit-cli trades --min-qty 500 --min-price 150.0 --date 2026-07-08
+```
+
+### Verify session phases fired correctly
+
+```bash
+# See all session transitions in order
+pm-audit-cli events --topic session.state --date 2026-07-08
+
+# Timeline around market open
+pm-audit-cli timeline --topic session. \
+  --from 2026-07-08T09:25:00+00:00 --to 2026-07-08T09:35:00+00:00
+```
+
+### Identify the most active gateway
+
+```bash
+pm-audit-cli gateways --date 2026-07-08
+```
+
+### Check log health before end of day
+
+```bash
+pm-audit-cli stats --verbose
+pm-audit-cli topics --date 2026-07-08 --sort count | head -10
+```
+
+### Export a full session for offline analysis
+
+```bash
+# Build index first for speed
+pm-audit-cli index --rebuild
+
+# Export all trades
+pm-audit-cli --format csv trades --date 2026-07-08 --limit 50000 > trades.csv
+
+# Export all order events for gateway GW01
+pm-audit-cli --format json events --topic order. --gateway GW01 \
+  --date 2026-07-08 --limit 50000 > gw01_orders.json
+```
+
+### Filter across rotated log backups
+
+```bash
+# Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.
+pm-audit-cli --log-dir data/ \
+  trades --symbol AAPL --from 2026-07-01 --to 2026-07-08 --limit 10000
+```
+
+### Watch a live training session
+
+```bash
+# Everything, as it happens
+pm-audit-cli events --follow
+
+# Just order lifecycle events for one gateway, while proctoring a session
+pm-audit-cli events --gateway GW01 --topic order. --follow
+
+# Full raw payloads for the whole floor, piped to a file for later replay
+# (each poll batch is its own JSON array back to back -- see Follow mode
+# above -- not JSON Lines, so replay tooling should parse incrementally)
+pm-audit-cli --format json timeline --follow > live_session.json
+```
+
+
+
+## Error Handling
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Success (including queries that returned zero rows) |
+| `1` | I/O error (log file not found, unreadable database) |
+| `2` | Argument error (invalid date format, bad `--limit`, conflicting flags) |
+
+Invalid log lines (malformed JSON, truncated writes) are always silently
+skipped — no warning is printed, and there is no global `--verbose` flag on
+`pm-audit-cli` to enable one. (`stats --verbose` is a different, per-command
+flag that only adds a per-file size/count breakdown to the `stats` output.)
+
+
+
+## See Also
+
+**In this book:**
+
+- [Persistence](010-persistence.md) — which files each process writes and where they live
+- [Statistics and Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) — `pm-stats` and `pm-stats-cli` for structured market data queries
+
+**Participant Guide:**
+
+- P&L & Clearing — `pm-clearing` and `pm-clearing-cli` for trade settlement
+
+**Reference Manual:**
+
+- Processes — pm-audit — startup reference table in the process overview

@@ -35,11 +35,10 @@ This plan divides the documentation into **seven books, plus the existing Exchan
 
 ### Assumptions (please correct any that are wrong)
 
-1. "The other 7 documents" means books 1 to 7 above. Book 0 is `docs-exchange-intro`, which already is the "concepts" book and is excluded by your instruction. The Training Guide is a book of its own whose chapter *content* is unchanged; it is moved and relinked so that it builds with the same pipeline as the others.
-2. `docs/how-exchange-works.md` is a **generated** copy of the Exchange Intro book (`make exchange-intro` assembles it from `docs-exchange-intro/src`). It is not edited and keeps being produced exactly as today.
-3. "No loss" means no *information* is lost; text may be moved, split, merged, re-wrapped and rewritten, but every old section must be traceable to where it went (section 7).
-4. Following the project instructions, **no backward-compatibility shims** are kept: old paths are rewritten everywhere they are used, not redirected. The migration map (section 7.3) is the lookup table for anyone holding an old link.
-5. Version numbers: all seven books carry the project version (`pyproject.toml`), as today. Book 0 keeps its own version stream (1.10.1).
+1. `docs/how-exchange-works.md` is a **generated** copy of the Exchange Intro book (`make exchange-intro` assembles it from `docs-exchange-intro/src`). It is not edited and keeps being produced exactly as today.
+2. "No loss" means no *information* is lost; text may be moved, split, merged, re-wrapped and rewritten, but every old section must be traceable to where it went (section 7).
+3. Following the project instructions, **no backward-compatibility shims** are kept: old paths are rewritten everywhere they are used, not redirected. The migration map (section 7.3) is the lookup table for anyone holding an old link.
+4. Version numbers: all seven books carry the project version (`pyproject.toml`), as today. Book 0 keeps its own version stream (1.10.1).
 
 ---
 
@@ -643,7 +642,7 @@ For each book `<b>` (slug with `-` written as `_` in file names), at version `V`
 | PDF, B5, light | `dist/edumatcher_<b>_b5-V.pdf` | `pdf-<b>` |
 | PDF, A4, dark | `dist/edumatcher_<b>_dark_a4-V.pdf` | `pdf-<b>` |
 | PDF, B5, dark | `dist/edumatcher_<b>_dark_b5-V.pdf` | `pdf-<b>` |
-| Bundle of the four PDFs | `dist/edumatcher_<b>_bundle-V.zip` | `pdf-<b>` |
+| All-format book archive | `dist/edumatcher_<b>_all-V.zip` | `pdf-<b>` or `book-bundles` |
 | EPUB3 (reflowable, light/dark follows the reader) | `dist/edumatcher_<b>-V.epub` | `epub-<b>` |
 | One A4 PDF per chapter, and a zip of them | `dist/chapters-a4/<b>/NNN-name.pdf`, `dist/edumatcher_<b>_chapters_a4_bundle-V.zip` | `chapters-<b>` |
 | Cover image | `assets/cover-<b>.png` | `cover-<b>` |

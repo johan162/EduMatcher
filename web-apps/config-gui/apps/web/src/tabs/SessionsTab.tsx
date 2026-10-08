@@ -81,7 +81,7 @@ export function SessionsTab() {
           help={{
             text: "When on, the engine starts CLOSED and pm-scheduler drives the trading-day timeline. When off, the engine runs in continuous mode and ignores the schedule.",
             cliFlag: "--sessions-enabled",
-            docHref: "../docs/user-guide/010-configuration.md",
+            docHref: "../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
           }}
         >
           <Switch

@@ -2,7 +2,7 @@
 #
 #   docker compose up --build
 #
-# Then open http://localhost:${WEB_PORT:-8092}. See docs/user-guide/030-config-GUI.md.
+# Then open http://localhost:${WEB_PORT:-8092}. See docs/books/operator-guide/part-2-configure/030-config-gui.md.
 services:
   config-gui:
     build:

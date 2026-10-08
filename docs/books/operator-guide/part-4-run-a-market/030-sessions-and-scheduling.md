@@ -1,0 +1,732 @@
+# Session Scheduling and Auctions
+
+<a id="pm-scheduler-session-scheduler"></a>
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - Why exchanges use auctions rather than continuous matching at the open and close
+    - How the equilibrium (uncross) price is calculated
+    - Which order types are valid in each session phase
+    - What happens to resting orders at each phase transition
+    - How to drive phase transitions in EduMatcher
+
+   **Prerequisite**: [A Full Trading Day](../../participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md) gives a visual
+    overview of the session phases before diving into the mechanics here.
+
+## What are auctions?
+
+In real exchanges, a trading day is not a single uninterrupted period of
+continuous matching.  Instead it is divided into **session phases**, two of
+which are dedicated **auction periods** — one at the open and one at the
+close.
+
+An auction collects orders over a fixed time window without executing any of
+them.  When the window ends the exchange computes a single **equilibrium
+price** and fills every **crossable** order at that price in one atomic event
+called the **uncross**.  ("Crossable" means orders that overlap in price: a
+buy order priced at or above the equilibrium and a sell order priced at or
+below it — they can trade because the buyer is willing to pay at least what
+the seller demands.)
+
+### Why auctions exist
+
+| Problem | How auctions help |
+|---|---|
+| **Opening price discovery** | Overnight news creates uncertainty.  An opening auction lets all participants express interest simultaneously, producing a fair opening price that reflects the balance of supply and demand — rather than letting the first few aggressive orders set the tone. |
+| **Closing price quality** | The official closing price is used by fund managers to value portfolios (NAV = Net Asset Value), by index providers to rebalance index compositions, and by clearinghouses for end-of-day settlement.  A closing auction concentrates end-of-day liquidity into a single price, reducing the impact of last-second volatility. |
+| **Reduced information asymmetry** | In continuous trading a fast participant can exploit outdated ("stale") resting orders before the slower participant has time to update them — for example, news breaks and a high-frequency trader buys shares from a resting sell order whose owner hasn't yet cancelled it.  Because auctions execute everything at once, speed advantages are neutralised during these windows. |
+| **Maximised fill quantity** | The equilibrium algorithm explicitly maximises the number of shares that can trade, giving more participants a fill than a sequence of bilateral matches would. |
+
+!!! note "Day one: the IPO reference stands in for price discovery"
+    A freshly listed symbol has no trade history, so there is nothing to
+    discover a price *from* yet. On day one the symbol's seeded opening
+    reference (`last_buy_price` / `last_sell_price`, set when the symbol is
+    listed) acts as the starting point until the first opening auction or trade
+    establishes a real market price. See
+    [Configuration - Adding or Removing Symbols](../part-2-configure/010-the-configuration-workflow.md#adding-or-removing-symbols)
+    and [Risk Controls - Day one (IPO) behaviour](040-risk-controls.md#day-one-ipo-behaviour).
+
+### EduMatcher's auction model
+
+EduMatcher implements a **standard two-sided call auction** used by most
+equity exchanges (Euronext, LSE, Nasdaq Nordic, etc.).  Each symbol book
+participates in a global schedule of session phases:
+
+```
+PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
+```
+
+The scheduler process (`pm-scheduler`) drives these transitions by sending
+`session.transition` messages to the engine over ZeroMQ.
+
+
+
+## The trading date
+
+A **trading date** is the calendar date, in the exchange's local wall clock, on
+which one `PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`
+cycle runs. It is the unit every daily figure in EduMatcher is bucketed by:
+
+| Where | Column | Meaning |
+|-------|--------|---------|
+| `stats.db` | `daily_stats.date`, `index_daily_stats.date` | Trading date |
+| `clearing.db` | `trade_events.trade_date`, `gateway_daily_summary.trade_date` | Trading date |
+
+The trading date is deliberately **not** the UTC date, and **not** the date on
+the clock of whichever machine happens to be running a process. An exchange's
+daily rollup has to describe the session its participants actually traded. A
+venue whose session runs into the evening — or any venue whose session
+straddles 00:00 UTC — would otherwise have a single trading session split
+across two dates, and every daily summary, P&L statement and index close would
+describe half a day.
+
+All timestamps (`ts` columns, log lines, message payloads) remain **UTC
+instants**. Only the daily rollups use the trading date. Converting between the
+two is exactly the job of the session timezone.
+
+### Setting the session timezone
+
+The two **recorders** each take a `--timezone` argument, an IANA timezone name,
+defaulting to `UTC`:
+
+```bash
+pm-stats    --timezone Europe/Stockholm
+pm-clearing --timezone Europe/Stockholm
+```
+
+Each writes the value into its own database. Every **reader** then picks it up
+from there and needs no configuration:
+
+```bash
+pm-stats-cli daily --date 2026-06-14   # resolves in Europe/Stockholm
+pm-ticker                              # same
+```
+
+`pm-stats-cli --timezone`, `pm-ticker --timezone` and the API Gateway's
+`session_timezone:` config key remain available as explicit overrides, and warn
+when they contradict what the database records.
+
+!!! warning "The two recorders must agree with each other"
+    `pm-stats` and `pm-clearing` write separate databases, and nothing
+    cross-checks them. If they are started with different `--timezone` values,
+    `daily_stats.volume` will not reconcile against
+    `gateway_daily_summary.traded_qty`, and neither process will report an
+    error.
+
+    Within a single database the value is enforced: restarting a recorder
+    against an existing file with a different `--timezone` is refused outright,
+    since its `date` column would otherwise mean two different things.
+
+    Set it once, in whatever starts your processes. If your exchange runs in
+    UTC, leave both at the default.
+
+### Relationship to `country:`
+
+`country:` (used by `pm-scheduler` for the bank-holiday calendar, see
+[Bank holidays and weekends](#bank-holidays-and-weekends)) and `--timezone` are
+**separate settings and are not derived from one another**. `country:` decides
+*which days* the schedule runs on; `--timezone` decides *which calendar day* a
+timestamp is filed under. A country can span several timezones, so one cannot
+be inferred from the other.
+
+Keep them consistent: an exchange configured with `country: Sweden` should be
+recording with `--timezone Europe/Stockholm`.
+
+### Trading days are not always 24 hours
+
+On a daylight-saving transition the trading date spans 23 or 25 hours, and the
+query tooling accounts for this — a `--date` filter resolves to the instant
+range between local midnight and the *next* local midnight, whatever its
+length. Nothing needs configuring for this to work.
+
+
+
+## Session phases
+
+| Phase             | Orders accepted? | Matching? | Description                                                                                                    |
+|-------------------|------------------|-----------|----------------------------------------------------------------------------------------------------------------|
+| `PRE_OPEN`        | Yes              | No        | Orders rest on the book, no execution.  Participants can position themselves before the auction starts.        |
+| `OPENING_AUCTION` | Yes              | No        | Orders continue to accumulate.  **ATO** (At-The-Open) orders are accepted only during this phase.              |
+| `CONTINUOUS`      | Yes              | Yes       | Normal price-time-priority matching.  Every incoming order is immediately swept against resting liquidity.     |
+| `CLOSING_AUCTION` | Yes              | No        | Orders accumulate for the closing uncross.  **ATC** (At-The-Close) orders are accepted only during this phase. |
+| `CLOSED`          | No               | No        | Market is closed.  All new orders are rejected.                                                                |
+
+### Order acceptance rules by phase
+
+| Order characteristic | PRE_OPEN | OPENING_AUCTION | CONTINUOUS | CLOSING_AUCTION | CLOSED |
+|---|---|---|---|---|---|
+| LIMIT / ICEBERG | Rest | Rest | Match | Rest | Reject |
+| MARKET | Reject | Reject | Match | Reject | Reject |
+| FOK | Reject | Reject | Match | Reject | Reject |
+| IOC | Reject | Reject | Match | Reject | Reject |
+| STOP / STOP_LIMIT | Rest (no trigger) | Rest (no trigger) | Normal trigger logic | Rest (no trigger) | Reject |
+| TRAILING_STOP | Rest (no trigger¹) | Rest (no trigger¹) | Normal trigger logic | Rest (no trigger¹) | Reject |
+| TIF = ATO | Reject | **Accept** | Reject | Reject | Reject |
+| TIF = ATC | Reject | Reject | Reject | **Accept** | Reject |
+
+¹ This check is not actually phase-specific: a TRAILING_STOP order is rejected
+  in **any** session phase (including CONTINUOUS) if no `STOP=` is given and
+  no prior trade has established a `last_trade_price` for the symbol — the
+  engine needs one of the two to compute an initial stop price.  In practice
+  this almost always bites during PRE_OPEN/auction phases, since that is
+  before the symbol's first trade of the day.
+
+MARKET, FOK, and IOC orders are always rejected outside CONTINUOUS because they
+cannot rest on the book — they require immediate execution.
+
+### Transition side-effects
+
+When the engine transitions **into a matching phase, or into `CLOSED` from
+`CLOSING_AUCTION`** (i.e. when the new state has matching enabled and the old
+one did not, or the transition is the end-of-day close — including the
+`PRE_OPEN → CONTINUOUS` shortcut):
+
+1. **Uncross** — the equilibrium price algorithm runs on every symbol book
+   and executes all crossable interest at the equilibrium price.
+2. **TIF expiry** — ATO orders are expired when leaving `OPENING_AUCTION`;
+   ATC orders are expired when leaving `CLOSING_AUCTION`.  Expired orders
+   receive an `order.expired` event on the PUB socket.
+
+!!! note
+    The uncross also fires on `PRE_OPEN → CONTINUOUS` (skipping the opening
+    auction).  Any orders that accumulated during pre-open are crossed at
+    the equilibrium price before continuous matching begins.
+
+### Valid state transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED : engine start (sessions enabled)
+    PRE_OPEN --> OPENING_AUCTION
+    PRE_OPEN --> CONTINUOUS : skip opening auction
+    OPENING_AUCTION --> CONTINUOUS : uncross + ATO expiry
+    CONTINUOUS --> CLOSING_AUCTION
+    CONTINUOUS --> CLOSED : skip closing auction
+    CLOSING_AUCTION --> CLOSED : uncross + ATC expiry
+    CLOSED --> PRE_OPEN : next day
+    CLOSED --> [*] : engine shutdown
+```
+
+Invalid transitions are silently rejected by the engine and logged to
+stdout (the engine's `logging` output stream, not stderr).
+
+
+
+## The session scheduler (`pm-scheduler`)
+
+The scheduler is a standalone process that sends `session.transition`
+messages to the engine at configured wall-clock times over a ZeroMQ PUSH
+socket. It only does so on days that resolve to a schedule — see
+[Bank holidays and weekends](#bank-holidays-and-weekends) below.
+
+### Starting the scheduler
+
+```bash
+# Use times from engine_config.yaml (or built-in defaults); run today's
+# schedule once (catching up on any times already passed) and then exit
+poetry run pm-scheduler
+
+# Repeat the schedule every calendar day instead of exiting after today
+poetry run pm-scheduler --daily
+
+# Rapid-fire all transitions immediately (for testing / demos)
+poetry run pm-scheduler --now
+
+# Custom delay between transitions in --now mode (default 3 s)
+poetry run pm-scheduler --now --delay 5
+
+# pm-scheduler always reads the deployed compiled artifact (like pm-engine) --
+# there is no flag to point it at a different config file; see
+# [Configuration -- Missing-file Behavior](../part-2-configure/010-the-configuration-workflow.md) for why.
+poetry run pm-scheduler
+```
+
+### CLI flag reference
+
+| Flag                    | Default             | Description                                                                 |
+|--------------------------|---------------------|-------------------------------------------------------------------------------|
+| `--now`                  | off                 | Rapid-fire all five transitions immediately (for testing / demos)             |
+| `--delay SECONDS`        | `3.0`                | Seconds between transitions in `--now` mode; ignored (with a warning) otherwise |
+| `--daily`                | off                 | Run continuously, repeating the schedule every calendar day instead of exiting after today |
+| `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
+| `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
+| `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
+| `--quiet` / `-q`         | off                 | Reduce log output to warnings/errors (this is already the default level)     |
+
+### Configuring the schedule
+
+A `schedule` section resolves to one schedule per day of the week — Monday
+through Sunday — plus an optional override for bank holidays. Each day (or
+the holidays entry) is either a block of all five transition times, or
+unconfigured, which means **CLOSED** that day: no transitions are sent and
+the market never leaves `CLOSED`.
+
+Two shortcuts avoid repeating the same five times for every day:
+
+- `weekdays:` — applies to Monday-Friday, for any of the five that isn't
+  individually overridden by a `mon:`..`fri:` block.
+- `weekend:` — applies to Saturday and Sunday, for either that isn't
+  individually overridden by `sat:`/`sun:`. `weekend:` and `sat:`/`sun:` are
+  **mutually exclusive** — specify one or the other, not both.
+
+Every block that *is* present — `weekdays`, `weekend`, an individual
+`mon`..`sun`, or `holidays` — MUST define all five transition times
+(`pre_open`, `opening_auction_start`, `continuous_start`,
+`closing_auction_start`, `closing_auction_end`). There is no per-key
+fallback: a partial block is a config error, not a partially-applied
+schedule.
+
+#### Typical exchange: same hours Monday-Friday, closed on weekends
+
+```yaml
+schedule:
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
+```
+
+Saturday, Sunday and bank holidays are all unconfigured here, so they default
+to CLOSED.
+
+#### Short Friday, a shared weekend schedule, and a holiday half-day
+
+```yaml
+schedule:
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    closing_auction_end: "16:05"
+  fri:                       # overrides weekdays: for Friday only
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+  weekend:                   # same hours for both Saturday and Sunday
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+  holidays:                  # bank holidays get a reduced session too
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+```
+
+An individually-specified day always wins over `weekdays`/`weekend` for that
+day: `fri:` here overrides the `weekdays:` hours for Friday only, while
+Monday through Thursday still run on the `weekdays:` block.
+
+#### Weekend-only exchange
+
+A schedule doesn't have to run Monday-Friday at all. Omitting `weekdays` (and
+every individual `mon`..`fri` key) leaves those five days CLOSED:
+
+```yaml
+schedule:
+  weekend:
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+```
+
+#### Invalid: `weekend` and `sat`/`sun` combined
+
+```yaml
+schedule:
+  weekend:
+    pre_open: "10:00"
+    opening_auction_start: "10:25"
+    continuous_start: "10:30"
+    closing_auction_start: "14:00"
+    closing_auction_end: "14:05"
+  sat:
+    pre_open: "11:00"
+    opening_auction_start: "11:25"
+    continuous_start: "11:30"
+    closing_auction_start: "13:00"
+    closing_auction_end: "13:05"
+```
+
+Rejected at load: `weekend` and an individual `sat`/`sun` key say two
+different things about the same day, so the config MUST pick one.
+
+#### Invalid: an incomplete day block
+
+```yaml
+schedule:
+  weekdays:
+    pre_open: "09:00"
+    opening_auction_start: "09:25"
+    continuous_start: "09:30"
+    closing_auction_start: "16:00"
+    # closing_auction_end missing
+```
+
+Rejected at load: `weekdays` is present but doesn't define all five
+transition times.
+
+Times are `HH:MM` in local time. Any day left with no resolved schedule —
+not covered by `weekdays`/`weekend` and not individually specified —
+defaults to **CLOSED**, exactly like an omitted `holidays:` block. See
+[Bank holidays and weekends](#bank-holidays-and-weekends) below for how the
+`holidays:` entry and the `country` key interact.
+
+### Session handling toggle
+
+Session gating in the engine is controlled by `sessions_enabled`:
+
+```yaml
+sessions_enabled: true
+```
+
+- `true` (the default when a config file is present but omits the field):
+   session transitions are enforced, the engine starts `CLOSED`, and new orders
+   are rejected outside order-accepting session states.
+- `false`: session handling is disabled, `session.transition` messages are
+   ignored by the engine, and the engine starts (and remains) in `CONTINUOUS`
+   state — all order types are accepted and matched immediately. This is also the
+   effective value when **no** config file is present at all (unrestricted mode).
+
+Use `sessions_enabled: false` when you want an always-open simulation without
+time-based session control.
+
+!!! note "Default value"
+    With a config file present, omitting `sessions_enabled` enables sessions
+    (`true`). It is only `false` when you set it explicitly or run with no config
+    file. See [Configuration → `sessions_enabled`](../part-2-configure/010-the-configuration-workflow.md#sessions_enabled)
+    for the full scenario table.
+
+### Bank holidays and weekends
+
+Which block of the resolved weekly table applies to a given calendar day is
+decided in two steps, using the
+[`python-holidays`](https://pypi.org/project/holidays/) package:
+
+1. If the day is a bank holiday for the configured `country`, the
+   `holidays:` entry applies — or CLOSED, if no `holidays:` block is
+   configured.
+2. Otherwise, the day's own entry from the weekly table applies (`mon`..`sun`,
+   already resolved from `weekdays`/`weekend`/individual overrides as
+   described above) — or CLOSED, if that day has no resolved entry.
+
+```yaml
+country: Sweden
+```
+
+- `country` accepts either a country name (`"Sweden"`) or an ISO 3166-1
+  alpha-2 code (`"SE"`).
+- `country` selects the **holiday calendar** only. It does not set the session
+  timezone used to bucket daily statistics — that is `--timezone`, described
+  under [The trading date](#the-trading-date).
+- If omitted, or if the value is not a country `python-holidays` recognizes,
+  it **falls back to `"Sweden"`** and logs a warning.
+- Weekends are no longer forced CLOSED — a `weekend:` or `sat:`/`sun:` block
+  gives Saturday and/or Sunday their own schedule, the same as any weekday.
+  Only a day with no resolved entry at all (weekday, weekend day, or holiday)
+  is CLOSED.
+
+Behavior when today resolves to CLOSED depends on the run mode:
+
+| Mode                     | Behavior on a CLOSED day                                                             |
+|---------------------------|---------------------------------------------------------------------------------------------|
+| Single-shot (default)     | Sends no transitions and exits immediately — today's schedule is skipped entirely.         |
+| `--daily`                 | Skips today, then sleeps through to the **next day that resolves to a schedule** (not just the next calendar day) before running the schedule again. |
+| `--now`                   | Unaffected — `--now` ignores wall-clock scheduling (and therefore schedule resolution) entirely, since it's intended for testing/demos. |
+
+```yaml
+# Germany's holiday calendar instead of the default (Sweden)
+country: DE
+```
+
+```text
+2026-12-25 is CLOSED today (bank holiday in Sweden); skipping today's schedule
+```
+
+(shown with `-v`/`--verbose`, since it's an `INFO`-level log line)
+
+!!! note "Why this matters for `--daily`"
+    Before per-day schedules existed, a scheduler left running continuously
+    with `--daily` would happily drive `CLOSED → PRE_OPEN → … → CLOSED` on a
+    Sunday or on Christmas Day. A day with no resolved schedule — a weekend
+    with no `weekend:`/`sat:`/`sun:` block, or a bank holiday with no
+    `holidays:` block — is skipped, and the engine simply stays `CLOSED`
+    until the next day that does resolve to a schedule.
+
+### Wall-clock re-checking
+
+Long waits — whether counting down to a scheduled transition time or sleeping
+overnight between trading days under `--daily` — are never slept out in a
+single call. Instead, `pm-scheduler` wakes at least every **30 seconds** and
+re-derives the remaining wait from the current local wall-clock time. This
+means a server time adjustment (NTP sync, manual clock change, DST) made
+while the scheduler is waiting is picked up within 30 seconds, rather than
+only being noticed after a long sleep computed under now-stale assumptions
+finally elapses.
+
+### Built-in default schedule
+
+If no config file provides a `schedule` section, `pm-scheduler` uses these
+times as `weekdays:` (Saturday, Sunday and bank holidays default to CLOSED):
+
+| Time  | Transition target |
+|-------|-------------------|
+| 09:00 | `PRE_OPEN`        |
+| 09:25 | `OPENING_AUCTION` |
+| 09:30 | `CONTINUOUS`      |
+| 16:00 | `CLOSING_AUCTION` |
+| 16:05 | `CLOSED`          |
+
+### `--now` mode
+
+The `--now` flag skips wall-clock waiting and sends every transition in the
+default sequence with a short configurable delay between each.  This is
+useful for integration testing and demos where you want to exercise the full
+auction lifecycle in seconds rather than hours.
+
+```bash
+poetry run pm-scheduler --now --delay 2 -v
+```
+
+`-v` is needed to see the transition log below — like every other `pm-`
+process, `pm-scheduler` is quiet by default (`WARNING` and above only); `-v`
+raises the level to `INFO`.
+
+Output:
+
+```
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -> PRE_OPEN
+2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -> OPENING_AUCTION
+2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -> CONTINUOUS
+2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -> CLOSING_AUCTION
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -> CLOSED
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
+```
+
+
+
+## Equilibrium price
+
+The **equilibrium price** (also called the **auction price** or **uncross
+price**) is the single price at which the auction executes all crossable
+interest.  It is the price that maximises the number of shares traded while
+minimising the leftover imbalance.
+
+### Intuition
+
+Imagine plotting two curves:
+
+- **Cumulative demand** — for each candidate price $P$, how many shares are
+  buyers willing to buy at $P$ or higher?  (Sum of all bid quantities where
+  $\text{bid price} \geq P$.)
+- **Cumulative supply** — for each candidate price $P$, how many shares are
+  sellers willing to sell at $P$ or lower?  (Sum of all ask quantities where
+  $\text{ask price} \leq P$.)
+
+The equilibrium price sits where these two curves cross — the point where
+the most shares can change hands.
+
+### Algorithm
+
+The engine computes the equilibrium price in $O(p)$ time, where $p$ is the
+number of distinct price levels on the book.
+
+#### Step 1 — Build cumulative quantity arrays
+
+Let $B = \{b_1, b_2, \ldots\}$ be the set of distinct bid prices sorted
+**descending** (highest first), and $A = \{a_1, a_2, \ldots\}$ the set of
+distinct ask prices sorted **ascending** (lowest first).
+
+Compute the running cumulative quantities:
+
+$$
+\text{cum\_buy}[b_i] = \sum_{j=1}^{i} \text{bid\_qty}(b_j)
+$$
+
+$$
+\text{cum\_sell}[a_i] = \sum_{j=1}^{i} \text{ask\_qty}(a_j)
+$$
+
+Because bids are sorted highest-first, $\text{cum\_buy}[b_i]$ gives the
+total bid quantity at prices $\geq b_i$.  Symmetrically,
+$\text{cum\_sell}[a_i]$ gives total ask quantity at prices $\leq a_i$.
+
+#### Step 2 — Evaluate every candidate price
+
+The set of candidate prices is $C = B \cup A$ (every distinct price level on
+either side), sorted ascending.
+
+For each candidate price $P \in C$:
+
+$$
+\text{buy\_qty}(P) = \text{cum\_buy}[\min\{b \in B \mid b \geq P\}]
+$$
+
+$$
+\text{sell\_qty}(P) = \text{cum\_sell}[\max\{a \in A \mid a \leq P\}]
+$$
+
+$$
+\text{exec\_qty}(P) = \min\bigl(\text{buy\_qty}(P),\; \text{sell\_qty}(P)\bigr)
+$$
+
+$$
+\text{surplus}(P) = \bigl|\text{buy\_qty}(P) - \text{sell\_qty}(P)\bigr|
+$$
+
+#### Step 3 — Select the best price
+
+$$
+P^* = \arg\max_{P \in C} \text{exec\_qty}(P)
+$$
+
+If multiple prices yield the same maximum $\text{exec\_qty}$, break ties by:
+
+1. Pick the $P$ with the smallest $\text{surplus}$ (least imbalance).
+2. If still tied, pick the **lowest** price among the candidates.
+   (This is an arbitrary but deterministic convention; some real exchanges
+   pick the price nearest the last traded price instead.)
+
+If $\text{exec\_qty}(P^*) = 0$, there is no crossable interest and no
+uncross takes place.
+
+#### Step 4 — Determine imbalance
+
+At the chosen $P^*$:
+
+- If $\text{buy\_qty} > \text{sell\_qty}$ → imbalance side is **BUY**
+- If $\text{sell\_qty} > \text{buy\_qty}$ → imbalance side is **SELL**
+- If equal → **balanced** (no imbalance)
+
+The surplus quantity is the number of shares that could not be matched.
+
+### Worked example
+
+Consider this order book accumulated during an opening auction:
+
+| Side | Price | Quantity |
+|------|-------|----------|
+| BUY  | 105   | 10       |
+| BUY  | 103   | 10       |
+| BUY  | 100   | 10       |
+| SELL | 102   | 15       |
+| SELL | 104   | 10       |
+
+**Cumulative buy** (highest first): 105→10, 103→20, 100→30
+
+**Cumulative sell** (lowest first): 102→15, 104→25
+
+Evaluate candidates (ascending):
+
+| $P$ | buy_qty | sell_qty | exec_qty | surplus |
+|-----|---------|----------|----------|---------|
+| 100 | 30      | 0        | 0        | 30      |
+| 102 | 20      | 15       | 15       | 5       |
+| 103 | 20      | 15       | 15       | 5       |
+| 104 | 10      | 25       | 10       | 15      |
+| 105 | 10      | 25       | 10       | 15      |
+
+Maximum exec_qty = **15** at prices 102 and 103 (both with surplus 5).
+Tie-broken by lowest price: $P^* = 102$.
+
+Result: 15 shares execute at **102.00**, with a BUY-side imbalance of 5
+shares.
+
+### Uncross execution
+
+Once the equilibrium price $P^*$ is determined, the engine sweeps the book:
+
+1. Take the best bid (highest price, earliest time) and the best ask
+   (lowest price, earliest time).  This is **price-time priority**: orders
+   at better prices go first; among equal prices, the one that arrived
+   earlier goes first.
+2. If the bid price $\geq P^*$ and the ask price $\leq P^*$, fill
+   $\min(\text{bid\_remaining}, \text{ask\_remaining})$ shares at $P^*$.
+3. Repeat until no more crossable interest remains.
+4. Any remaining orders whose prices do NOT cross $P^*$ (surplus orders)
+   stay on the book and participate in the next phase (typically continuous
+   trading).  They are not expired or cancelled — they simply did not get
+   matched in the auction.
+
+All fills occur at the single equilibrium price — there is no price
+improvement or slippage during the uncross.
+
+### Published events
+
+When an uncross completes, the engine publishes:
+
+| Topic                        | Content                                                       |
+|------------------------------|---------------------------------------------------------------|
+| `order.fill.{gateway_id}`    | One per order that received a fill (partial or complete)      |
+| `trade.executed`             | One per matched pair                                          |
+| `auction.result.{symbol}`    | Summary: equilibrium price, quantity, surplus, imbalance side |
+| `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired       |
+| `session.state`              | Confirms the new session state after the transition           |
+
+---
+
+## Hands-on: driving an opening auction manually
+
+This short walkthrough uses two terminals with `sessions_enabled: true`. Terminal 1
+runs `pm-admin --id OPS01` (a gateway configured with `role: ADMIN`) — the
+`SESSION|STATE=` command that advances the session is only available there, not
+in `pm-alf-console`.
+
+```text
+# Terminal 1 — ADMIN gateway (pm-admin --id OPS01)
+[OPS01|ADMIN]> SESSION|STATE=OPENING_AUCTION
+SESSION  PRE_OPEN → OPENING_AUCTION
+
+# Terminal 2 — trader submits orders during auction
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
+
+# Terminal 1 — trigger the uncross
+[OPS01|ADMIN]> SESSION|STATE=CONTINUOUS
+SESSION  OPENING_AUCTION → CONTINUOUS
+# Engine logs: UNCROSS AAPL: 1 trade(s) @ 149.5, qty=100, surplus=0 (...)
+# and publishes an auction.result.AAPL message with the same fields.
+```
+
+Both ATO orders fill at the equilibrium price.  The `TIF=ATO` orders are
+expired if they did *not* fill.
+
+!!! note "Why 149.50 and not the midpoint"
+    With only one bid (150.00) and one ask (149.50), both candidate prices
+    (149.50 and 150.00) achieve the same maximum `exec_qty` (100) with the
+    same surplus (0).  Per the tie-break rule (Step 3 above), the algorithm
+    picks the **lowest** of the tied candidate prices — 149.50 — not the
+    midpoint between the bid and ask.  EduMatcher's uncross always settles
+    at one of the resting order prices, never an interpolated value.
+
+## See also
+
+**In this book:**
+
+- [Configuration](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `country`, and `sessions_enabled`
+- [Running the Engine](../part-3-run/010-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
+- [Risk Controls](040-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
+
+**Participant Guide:**
+
+- Order Types — ATO and ATC time-in-force explained
+
+**Reference Manual:**
+
+- Processes — how to start and configure `pm-scheduler`
+
+**Protocols and Clients:**
+
+- Messages — `session.state`, `auction.result`, and `order.expired` message formats

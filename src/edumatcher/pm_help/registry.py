@@ -6,7 +6,7 @@ information no ``argparse`` parser exposes on its own: which ports a process
 binds or connects to, which ZeroMQ topics it sends/subscribes, which other
 commands it works alongside, and a worked example of real-world use.
 
-Content here should stay in sync with `docs/user-guide/170-processes.md`,
+Content here should stay in sync with `../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md`,
 which is the canonical prose reference this data is distilled from. When one
 changes, check the other.
 """
@@ -53,7 +53,9 @@ class CommandInfo:
     ports: str = ""
     messages: tuple[str, ...] = ()
     related: tuple[str, ...] = ()
-    doc_anchor: str = ""  # heading anchor within docs/user-guide/170-processes.md
+    doc_anchor: str = (
+        ""  # heading anchor within ../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md
+    )
     doc_page: str = (
         ""  # optional dedicated topic page (shown in addition to the anchor)
     )
@@ -66,7 +68,7 @@ class CommandInfo:
 # Shared option groups
 #
 # Every long-running process that connects to the ZeroMQ bus shares the same
-# six logging flags (see docs/user-guide/040-running-the-exchange.md#logging-levels).
+# six logging flags (see ../../../docs/books/operator-guide/part-3-run/010-running-the-exchange.md#logging-levels).
 # Factoring them out here keeps each CommandInfo focused on what is actually
 # distinctive about that command, and keeps the two docs from drifting apart
 # on wording.
@@ -188,7 +190,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-engine", "pm-alf-gwy", "pm-orders", "pm-viewer"),
         doc_anchor="pm-alf-console-user-gateway",
-        doc_page="055-alf-console.md",
+        doc_page="../../../docs/books/participant-guide/part-2-orders/010-the-trader-console.md",
         examples=(
             "pm-alf-console --id GW01",
             "NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=96|TYPE=LIMIT|TIF=DAY   # enter a new limit order",
@@ -361,7 +363,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-stats-cli", "pm-clearing", "pm-index", "pm-ticker", "pm-board"),
         doc_anchor="pm-stats-statistics-recorder",
-        doc_page="140-statistics-and-reporting.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md",
         notes=(
             "Opens two independent PUB/SUB connections: pm-engine (:5556) for "
             "trade.*/book.*/system.eod, and pm-index (:5558) for index.update.",
@@ -425,7 +427,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-clearing-cli", "pm-stats"),
         doc_anchor="pm-clearing-clearing-pl",
-        doc_page="130-pnl-clearing.md",
+        doc_page="../../../docs/books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md",
     ),
     CommandInfo(
         name="pm-audit",
@@ -506,7 +508,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-engine", "pm-admin"),
         doc_anchor="pm-scheduler-session-scheduler",
-        doc_page="080-session-scheduling.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md",
     ),
 )
 
@@ -541,7 +543,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5565 (ALF); connects out to 5555, 5556, 5557",
         related=("pm-alf-console", "pm-engine", "pm-balf-gwy"),
         doc_anchor="pm-alf-gwy-alf-tcp-gateway",
-        doc_page="220-alf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/010-alf-gateway.md",
     ),
     CommandInfo(
         name="pm-balf-gwy",
@@ -566,7 +568,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5560 (BALF binary); connects out to 5555, 5556",
         related=("pm-alf-gwy", "pm-engine"),
         doc_anchor="pm-balf-gwy-balf-tcp-gateway",
-        doc_page="230-balf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/020-balf-gateway.md",
     ),
     CommandInfo(
         name="pm-md-gwy",
@@ -599,7 +601,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5570 (CALF); connects out to 5556, 5558",
         related=("pm-calf-spy", "pm-index", "pm-engine"),
         doc_anchor="pm-md-gwy-calf-market-data-gateway",
-        doc_page="240-calf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/030-calf-gateway.md",
     ),
     CommandInfo(
         name="pm-ralf-gwy",
@@ -626,7 +628,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5580 (RALF); connects out to 5556",
         related=("pm-ralf-spy", "pm-engine"),
         doc_anchor="pm-ralf-gwy-post-trade-dissemination-gateway",
-        doc_page="250-ralf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/040-ralf-gateway.md",
     ),
     CommandInfo(
         name="pm-dc-gwy",
@@ -655,7 +657,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5590 (DC1); connects out to 5557",
         related=("pm-dc-spy", "pm-engine"),
         doc_anchor="pm-dc-gwy-drop-copy-tcp-gateway",
-        doc_page="201-dc-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/060-drop-copy-gateway.md",
     ),
     CommandInfo(
         name="pm-api-gwy",
@@ -696,7 +698,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on HTTP/WS at its configured port (e.g. 8080 desk, 8081 dashboards); connects out to 5555, 5556",
         related=("pm-alf-console", "pm-stats"),
         doc_anchor="pm-api-gwy-restwebsocket-api-gateway",
-        doc_page="260-api-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/050-api-gateway.md",
         notes=(
             "Browse http://127.0.0.1:<PORT>/docs for interactive Swagger docs when swagger_enabled: true.",
         ),
@@ -768,7 +770,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-md-gwy", "pm-ralf-spy", "pm-dc-spy"),
         doc_anchor="pm-calf-spy-calf-protocol-spy",
-        doc_page="241-calf-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md",
     ),
     CommandInfo(
         name="pm-ralf-spy",
@@ -828,7 +830,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ralf-gwy", "pm-calf-spy", "pm-dc-spy"),
         doc_anchor="pm-ralf-spy-ralf-protocol-spy",
-        doc_page="251-ralf-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-ralf.md",
     ),
     CommandInfo(
         name="pm-dc-spy",
@@ -860,7 +862,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-dc-gwy", "pm-engine"),
         doc_anchor="pm-dc-spy-drop-copy-spy",
-        doc_page="202-dc-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md",
     ),
 )
 
@@ -914,7 +916,7 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ai-swarm", "pm-mm-bot", "pm-engine"),
         doc_anchor="pm-ai-trader-autonomous-trader-bot",
-        doc_page="110-ai-traders.md",
+        doc_page="../../../docs/books/participant-guide/part-4-automated-trading/010-ai-traders.md",
     ),
     CommandInfo(
         name="pm-ai-swarm",
@@ -948,7 +950,7 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ai-trader", "pm-mm-bot"),
         doc_anchor="pm-ai-swarm-multi-agent-trading-swarm",
-        doc_page="110-ai-traders.md",
+        doc_page="../../../docs/books/participant-guide/part-4-automated-trading/010-ai-traders.md",
     ),
     CommandInfo(
         name="pm-mm-bot",
@@ -1006,7 +1008,7 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ai-trader", "pm-engine", "pm-alf-console"),
         doc_anchor="pm-mm-bot-autonomous-market-maker-bot",
-        doc_page="100-mm-bot.md",
+        doc_page="../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md",
         examples=("pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",),
         notes=(
             "Reference price resolution order: active quote from QBOOT (restart "
@@ -1046,7 +1048,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ports="Binds 5558 (PUB, index.update), 5559 (PULL, operator commands); connects out to 5556",
         related=("pm-index-cli", "pm-index-admin-cli", "pm-stats-cli", "pm-md-gwy"),
         doc_anchor="pm-index-index-calculation-process",
-        doc_page="150-market-index.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/070-market-index.md",
     ),
     CommandInfo(
         name="pm-index-cli",
@@ -1086,7 +1088,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ),
         related=("pm-index", "pm-index-admin-cli", "pm-stats-cli"),
         doc_anchor="pm-index-cli-index-structuralaudit-history-query-tool",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-index-cli events --index MYIDX --days 30",),
     ),
     CommandInfo(
@@ -1137,7 +1139,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ),
         related=("pm-index", "pm-index-cli"),
         doc_anchor="pm-index-admin-cli-index-corporate-action-constituent-change-cli",
-        doc_page="152-index-admin-cli.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/080-index-administration.md",
         notes=(
             'Every mutating subcommand prompts "Continue? [y/N]" unless -y/--yes is given.',
         ),
@@ -1340,7 +1342,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-clearing", "pm-stats-cli", "pm-audit-cli"),
         doc_anchor="pm-clearing-cli-clearing-query-cli",
-        doc_page="130-pnl-clearing.md",
+        doc_page="../../../docs/books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md",
         examples=(
             "pm-clearing-cli gateways",
             "pm-clearing-cli --format json positions --gateway MM01",
@@ -1411,7 +1413,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-stats", "pm-clearing-cli", "pm-index-cli"),
         doc_anchor="pm-stats-cli-statistics-query-cli",
-        doc_page="140-statistics-and-reporting.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md",
         examples=(
             "pm-stats-cli daily --date 2026-06-14 --symbol AAPL",
             "pm-stats-cli snapshots --symbol MSFT --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00",
@@ -1506,7 +1508,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-admin-cli", "pm-opctl-cli", "pm-engine"),
         doc_anchor="pm-admin-interactive-admin-console",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-admin --id GW_ADMIN",),
         notes=(
             "Most commands require the ADMIN gateway role; see the full risk-control flow in Risk Controls.",
@@ -1572,7 +1574,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-admin", "pm-opctl-cli"),
         doc_anchor="pm-admin-cli-cli-admin-commands",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL",),
     ),
     CommandInfo(
@@ -1633,7 +1635,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-engine", "pm-config-deploy", "pm-setup", "pm-admin"),
         doc_anchor="pm-opctl-cli-operational-process-control",
-        doc_page="040-running-the-exchange.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/010-running-the-exchange.md",
         examples=(
             "pm-opctl-cli init                # write editable emo-config.yaml",
             "pm-opctl-cli start                # start the default profile",
@@ -1677,7 +1679,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-config-gen", "pm-config-deploy", "pm-opctl-cli"),
         doc_anchor="pm-setup-session-bootstrap-tool",
-        doc_page="000-getting-started.md",
+        doc_page="../../../docs/books/quick-start/part-1-see-it-run/030-your-first-trade.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
         ),
@@ -1786,7 +1788,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-config-gen-engine-config-generator",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         examples=(
             "pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN "
             "--sessions-enabled --output engine_config.yaml",
@@ -1849,7 +1851,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-gen", "pm-config-show", "pm-opctl-cli"),
         doc_anchor="pm-config-deploy-compile-and-install-a-configuration",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
         ),
@@ -1900,7 +1902,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             ),
         ),
         related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli", "pm-valuation"),
-        doc_page="045-new-symbol.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/010-new-symbols.md",
     ),
     CommandInfo(
         name="pm-valuation",
@@ -1959,7 +1961,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             ),
         ),
         related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),
-        doc_page="046-valuation.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/020-valuation.md",
         examples=(
             "pm-valuation --case tornfalk                  # interview a classroom case",
             "pm-valuation --market us                      # a US IPO, in USD",
@@ -2016,7 +2018,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-gen"),
         doc_anchor="pm-config-show-config-viewer",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         notes=(
             "Exit 2: config file missing/unreadable. Exit 3: not valid YAML "
             "(points at pm-cverifier). Local inspection logic; not on the ZeroMQ bus.",
@@ -2087,7 +2089,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5600 (LALF collection), binds ZMQ 5601 (PUB) and 5602 (PULL) unless --no-pubsub",
         related=("pm-log-cli",),
         doc_anchor="pm-log-srv-centralized-log-server",
-        doc_page="280-log-srv.md",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md",
         notes=(
             "Fully implemented; auto-detection by every other pm-* process is a follow-up phase not yet rolled out.",
         ),
@@ -2119,7 +2121,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
         ),
         related=("pm-log-srv",),
         doc_anchor="pm-log-cli-log-server-querytroubleshooting-cli",
-        doc_page="280-log-srv.md",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md",
     ),
 )
 

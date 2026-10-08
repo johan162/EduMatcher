@@ -75,9 +75,9 @@ Config builder   :  http://localhost:8092
 
 Prefer a Python package? `pipx install edumatcher`, then `pm-setup`. Both
 routes, and three more, are covered in
-**[Installation](https://johan162.github.io/EduMatcher/user-guide/005-installation/)**.
+**[Installation](https://johan162.github.io/EduMatcher/books/operator-guide/part-1-install-and-deploy/010-installation/)**.
 
-New here? **[A Path Through the Guide](https://johan162.github.io/EduMatcher/user-guide/001-learning-path/)**
+New here? **[A Path Through the Guide](https://johan162.github.io/EduMatcher/books/quick-start/part-2-next-steps/020-choose-your-book/)**
 is a staged route from the command above to running a venue of your own, with a
 checkpoint at every step.
 
@@ -104,12 +104,12 @@ checkpoint at every step.
 Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
 
 - **[How an Exchange Works](https://johan162.github.io/EduMatcher/how-exchange-works/)**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
-- **[Exchange Concepts](https://johan162.github.io/EduMatcher/concepts/01-concepts-order-book/)**: deep dive in core technical concept of an exchange
-- **[User Guide](https://johan162.github.io/EduMatcher/user-guide/000-getting-started/)**: step-by-step instructions for installation, configuration, and running EduMatcher
-- **[Training Material](https://johan162.github.io/EduMatcher/training/)**: self-paced exercises to learn how to setup and manage the Exchange
-- **[Architecture](https://johan162.github.io/EduMatcher/architecture/01-architecture/)**: an overview of the SW architecture
-- **[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
-- **[Glossary](https://johan162.github.io/EduMatcher/glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
+- **[Exchange Concepts](https://johan162.github.io/EduMatcher/books/participant-guide/part-1-trading-basics/020-the-order-book/)**: deep dive in core technical concept of an exchange
+- **[User Guide](https://johan162.github.io/EduMatcher/books/quick-start/part-1-see-it-run/030-your-first-trade/)**: step-by-step instructions for installation, configuration, and running EduMatcher
+- **[Training Material](https://johan162.github.io/EduMatcher/books/training-guide/)**: self-paced exercises to learn how to setup and manage the Exchange
+- **[Architecture](https://johan162.github.io/EduMatcher/books/architecture-and-development/part-1-architecture/010-architecture-overview/)**: an overview of the SW architecture
+- **[Developer Guide](https://johan162.github.io/EduMatcher/books/architecture-and-development/part-4-developing/010-development-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
+- **[Glossary](https://johan162.github.io/EduMatcher/books/reference-manual/90-backmatter/010-glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
 
 ***Note:** Running an exchange is an inherently complex task and there is only
 so much that can be simplified. The user guide and training material are built
@@ -158,7 +158,7 @@ for every match. They are required for realistic risk control and add measurable
 ## Contributing
 
 Contributions are welcome. Start with the
-**[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**,
+**[Developer Guide](https://johan162.github.io/EduMatcher/books/architecture-and-development/part-4-developing/010-development-practice/)**,
 which covers the development environment, testing and the conventions this
 project follows, then open an issue or pull request on
 [GitHub](https://github.com/johan162/EduMatcher/issues).

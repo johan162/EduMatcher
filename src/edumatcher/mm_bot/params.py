@@ -90,7 +90,7 @@ TIER2_DEFAULTS: dict[str, Any] = {
     "qlegs_reconcile_interval_sec": 15.0,
     "initial_min": None,
     "initial_max": None,
-    # passive strategy (docs/user-guide/100-mm-bot.md, "The passive strategy")
+    # passive strategy (../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md, "The passive strategy")
     "retreat_ticks": 5,
     "behind_ticks": 1,
     "min_cover_qty": 1,

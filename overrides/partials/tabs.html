@@ -1,0 +1,38 @@
+{#-
+  Override of Material's partials/tabs.html: groups several flat top-level
+  nav entries into one tab with a hover dropdown (see tabs-item.html). The
+  nav tree itself is untouched -- only how these items are laid out in the
+  tab bar changes.
+-#}
+{% import "partials/tabs-item.html" as item with context %}
+
+{#- label -> the exact titles (from book.toml) of the entries it collects. -#}
+{% set groups = [
+  ("Guide", ["Quick Start Guide", "Participant Guide", "Operator's Guide", "Architecture and Developer Guide"]),
+  ("References", ["Reference Manual", "Protocols and Clients"]),
+] %}
+
+<nav class="md-tabs" aria-label="{{ lang.t('tabs') }}" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      {% set ns = namespace(done=[]) %}
+      {% for nav_item in nav.items %}
+        {% if nav_item.title not in ns.done %}
+          {% set matched = namespace(group=none) %}
+          {% for label, titles in groups %}
+            {% if nav_item.title in titles and not matched.group %}
+              {% set matched.group = (label, titles) %}
+            {% endif %}
+          {% endfor %}
+          {% if matched.group %}
+            {% set label, titles = matched.group %}
+            {{ item.render_group(label, nav.items | selectattr("title", "in", titles) | list) }}
+            {% set ns.done = ns.done + titles %}
+          {% else %}
+            {{ item.render(nav_item) }}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </ul>
+  </div>
+</nav>

@@ -527,7 +527,7 @@ def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
     (a ``ValueError``) instead of being published. Producers are held to the
     contract; readers of historical data should use
     ``generated.trade.TradeExecuted.from_dict``, which coerces without
-    validating. See ``docs/developer/06-msgen.md``.
+    validating. See ``../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md``.
     """
     return _gen_trade.make_trade_executed(**trade_dict)
 

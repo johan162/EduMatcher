@@ -762,7 +762,7 @@ messages:
         resting state came back. Every one of these counts previously only
         reached `log.info`/`log.error` — invisible to `pm-audit`, which is a
         bare PUB subscriber and sees nothing that is not published (see
-        docs/user-guide/190-audit.md). A post-mortem investigating "why does
+        ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). A post-mortem investigating "why does
         the book look different after a restart" needs this the same way it
         needs `order.cancelled` for a live cancel.
       published_by: [engine]
@@ -809,7 +809,7 @@ messages:
         *how many*; this says *which ones* — "which order failed to
         restore?" was unanswerable from either the counts alone or the
         process log, since a post-mortem investigating a startup only sees
-        what was published (see docs/user-guide/190-audit.md). Published
+        what was published (see ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md). Published
         once per entity, before the single summary `startup_recovery`
         broadcast, so the counts there are the cross-check: `restored_orders
         + discarded_stale_day_orders + failed_orders` must equal the number
@@ -884,7 +884,7 @@ messages:
         handler crash, an undecodable inbound message, or a message on an
         unhandled topic reached only the process log — `pm-audit`'s bare PUB
         subscription on the engine's :5556 socket (see
-        docs/user-guide/190-audit.md) never saw any of them, so a bug that
+        ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md) never saw any of them, so a bug that
         only ever showed up as "the book snapshot stopped updating" or "an
         order silently never got a reply" had no trail to replay. This does
         not replace logging (the process log keeps the full traceback); it
@@ -1025,7 +1025,7 @@ messages:
         `GET /reference/symbols` and `GET /reference/schedule`. Sanctioned,
         and the better JSON in both cases -- a list of objects each carrying
         its own `symbol` is what a client can iterate without knowing the
-        keys. `260-api-gateway.md` moves with it.
+        keys. `../../docs/books/operator-guide/part-5-gateways/050-api-gateway.md` moves with it.
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 64 },
           doc: "Topic-only; dropped from the body by the default projection.

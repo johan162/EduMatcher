@@ -500,7 +500,7 @@ def _summarise(entry: AuditEntry) -> str:
         # Wire field is fill_qty (spec/messages/order.yaml::order_fill), not
         # filled_qty -- the previous key here never matched, so every row
         # silently fell back to quantity/remaining_qty instead of the actual
-        # fill size (see docs/user-guide/190-audit.md).
+        # fill size (see ../../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md).
         fq = p.get("fill_qty", p.get("quantity", ""))
         fp = p.get("fill_price", p.get("price", ""))
         return f"FILL {fq}@{fp}"

@@ -1497,7 +1497,7 @@ def render_family(family: Family, spec_path: str) -> str:
             f"Family version {family.version}. Every symbol here is derived from "
             f"``{spec_path}``; edit the spec, not this file.",
             "``pm-msgen check`` fails the build if this file and the spec "
-            "disagree. See docs/developer/06-msgen.md.",
+            "disagree. See ../../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md.",
         ],
     )
 
@@ -1620,7 +1620,7 @@ def render_registry(families: list[Family], spec_path: str) -> str:
             "``order.ack.TRADER01`` - back to the message that defines it, "
             "and to that message's declared field units.",
             "Every symbol here is derived from the specification; edit the "
-            "spec, not this file. See docs/developer/06-msgen.md.",
+            "spec, not this file. See ../../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md.",
         ],
     )
 

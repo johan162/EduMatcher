@@ -29,7 +29,7 @@ targets.
 
 For the inner loop against a containerised exchange — running one app here with
 hot reload while the backend runs in `deployment/docker/` — see
-[The Development Loop](../docs/developer/08-dev-workflow.md). In short:
+[The Development Loop](../docs/books/architecture-and-development/part-4-developing/020-development-workflow.md). In short:
 `make up-all` there, `eval "$(make -s dev-env GUI=<app>)"`, then `make dev`
 here.
 

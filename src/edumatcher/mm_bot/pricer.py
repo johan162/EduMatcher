@@ -292,7 +292,7 @@ class PassivePricer:
     """Quote as a backstop: yield the top of the book to other traders.
 
     This is the ``"passive"`` strategy referenced by ``--strategy``. It
-    combines two behaviours (docs/user-guide/100-mm-bot.md, "The passive
+    combines two behaviours (../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md, "The passive
     strategy"):
 
     * **Step behind others.** Every side has a *home* price (where the

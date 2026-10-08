@@ -1,0 +1,48 @@
+title = "Protocols and Clients"
+subtitle = "External protocols, session behavior, and client examples"
+slug = "protocols-and-clients"
+
+[[parts]]
+title = "Part I: Choosing and connecting"
+dir = "part-1-choosing-and-connecting"
+files = ["010-protocols-overview.md"]
+
+[[parts]]
+title = "Part II: Specifications"
+dir = "part-2-specifications"
+files = [
+  "010-alf.md",
+  "020-balf.md",
+  "030-calf.md",
+  "040-ralf.md",
+  "050-lalf.md",
+  "060-rest-and-websocket.md",
+]
+
+[[parts]]
+title = "Part III: Session behavior"
+dir = "part-3-session-behaviour"
+files = [
+  "030-calf-market-data-feed.md",
+  "060-drop-copy.md",
+]
+
+[[parts]]
+title = "Part IV: Writing clients"
+dir = "part-4-writing-clients"
+files = [
+  "030-example-libraries.md",
+  "040-the-spy-tools.md",
+  "040-the-spy-tools-calf.md",
+  "040-the-spy-tools-ralf.md",
+]
+
+[[parts]]
+title = "Part V: Message reference"
+dir = "part-5-message-reference"
+# 000-preamble.md is not listed here: it's pm-msgen's hand-written input,
+# copied verbatim into the generated 010-message-reference.md, not a
+# separate chapter (listing both duplicated the narrative on the site).
+files = [
+  "010-message-reference.md",
+]

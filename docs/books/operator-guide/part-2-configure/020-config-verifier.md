@@ -1,0 +1,588 @@
+# Configuration Verifier (`pm-cverifier`)
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - Why `pm-cverifier` exists and what problems it solves
+    - How to run it from the command line and interpret its output
+    - What each verification layer checks and what the check codes mean
+    - How to use it in CI pipelines with `--strict` and `--format json`
+    - How to read the Risk Summary to confirm your intended risk posture
+
+
+## Why a Config Verifier?
+
+`engine_config.yaml` (see [Configuration](010-the-configuration-workflow.md) for the full
+guide and [App Config Spec](../../reference-manual/part-3-configuration/030-formal-specification.md) for the normative field
+reference) covers symbols, gateways, risk controls, collar bands,
+circuit breakers, market-maker obligations, session schedules, combo seeds,
+index definitions, and seven optional gateway subsystems (`alf_gateway`,
+`balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`,
+`log_server`, `api_gateways`).
+Getting all of this right by hand is error-prone.
+
+The current engine loader (`load_engine_config()`) reports only the *first* hard
+error it encounters before aborting.  This means operators spend time in a
+trial-and-error loop: edit the file, start the engine, read a terse `ValueError`,
+fix one problem, repeat.  There is also no concept of advisory warnings — a
+valid config that quietly uses defaults the operator did not intend is accepted
+without comment.
+
+`pm-cverifier` is a standalone, **read-only** tool that inspects a config file
+deeply and produces a human-friendly report covering:
+
+- every YAML syntax error that would prevent the file from being parsed
+- every hard error that `load_engine_config()` would raise, plus additional ones
+- completeness gaps — settings that are missing but probably should be present
+- advisory suggestions for settings that are valid but likely to surprise
+- a plain-English **Risk Summary** that shows what risk controls are actually active
+- an overall `OK` / `WARNING` / `ERROR` verdict
+
+
+
+## Quick Start
+
+```bash
+# verify a config file and print a human-readable report
+pm-cverifier engine_config.yaml
+
+# only show warnings and above (suppress info-level advisories)
+pm-cverifier --level warn engine_config.yaml
+
+# use in CI — fail if any warnings exist, output machine-readable JSON
+pm-cverifier --strict --format json engine_config.yaml
+```
+
+Exit codes:
+
+| Code | Meaning                                          |
+|------|--------------------------------------------------|
+| `0`  | All checks passed; zero errors and zero warnings |
+| `1`  | One or more warnings; no errors                  |
+| `2`  | One or more hard errors                          |
+
+With `--strict`, any warning also produces exit code `2`.
+
+
+## CLI Reference
+
+`pm-cverifier --help`:
+
+```
+usage: pm-cverifier [-h] [--version] [--format {text,json}]
+                    [--level {info,warn,error}] [--no-color] [--strict]
+                    CONFIG_FILE
+
+Read-only engine_config.yaml verification tool.
+
+positional arguments:
+  CONFIG_FILE           Path to engine_config.yaml
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --format {text,json}  Output format (default: text)
+  --level {info,warn,error}
+                        Minimum severity to show (default: info)
+  --no-color            Disable ANSI color in text output
+  --strict              Treat warnings as errors for CI exit-code purposes
+```
+
+
+## Verification Layers
+
+The verifier runs checks in four sequential layers.  A hard error in Layer 1
+(unparseable file) or in Layer 2 (schema errors) stops the later layers, which
+are reported as `skipped (fix schema errors first)`.  Within a layer, every
+independent problem is reported, so a single pass surfaces as many issues as
+possible.
+
+```mermaid
+flowchart TD
+    L1["Layer 1 — YAML Syntax\nCan the file be parsed?"]
+    L2["Layer 2 — Schema\nDo all required fields exist\nand have the right types?"]
+    L3["Layer 3 — Semantic\nAre values consistent\nand cross-field rules satisfied?"]
+    L4["Layer 4 — Completeness\nAre recommended settings\npresent and plausible?"]
+
+    L1 -->|pass| L2
+    L2 --> L3
+    L3 --> L4
+    L1 -->|fail| STOP["Stop — report error"]
+```
+
+| Layer            | Severity      | What it checks                                          |
+|------------------|---------------|---------------------------------------------------------|
+| 1 — YAML Syntax  | ERROR         | File readable, valid YAML, top-level is a mapping       |
+| 2 — Schema       | ERROR         | Required keys, correct types, in-range values           |
+| 3 — Semantic     | ERROR or WARN | Cross-field consistency, referential integrity          |
+| 4 — Completeness | WARN or INFO  | Missing-but-recommended settings, default-value notices |
+
+
+## Understanding the Output
+
+### Text output (default)
+
+```
+pm-cverifier engine_config.yaml
+
+✓ YAML syntax: OK
+✓ Schema: 0 errors
+⚠ Semantic: 1 warning
+i Completeness: 2 advisories
+
+────────────────────────────────────────────────────────
+Warnings
+────────────────────────────────────────────────────────
+
+[M013] WARN  No gateway has role: ADMIN.
+  → Without an admin gateway, halt, resume, kill-switch, and emergency
+    commands cannot be issued at runtime. Add a gateway with role: ADMIN:
+    - id: OPS01
+      role: ADMIN
+      disconnect_behaviour: LEAVE_ALL
+
+────────────────────────────────────────────────────────
+Risk Summary
+────────────────────────────────────────────────────────
+
+Symbols          2  (AAPL, MSFT)
+Gateways         2  (TRADER01: TRADER, MM01: MARKET_MAKER)
+Sessions         disabled — always CONTINUOUS
+Collars          enabled — DEFAULT: static=20%, dynamic=2%
+Order limits     none configured
+Circuit breakers enabled — L1=7% (5 min), L2=13% (15 min), L3=20% (rest-of-day) (built-in defaults)
+MM obligations   not enforced
+Admin gateway    none ⚠
+
+────────────────────────────────────────────────────────
+Verdict:  ⚠ 1 WARNING, 2 ADVISORIES — engine can start but review warnings
+────────────────────────────────────────────────────────
+```
+
+Every finding has:
+
+1. A **check code** (e.g. `M013`) — use this to look up the exact condition in
+   the check catalogue below.
+2. A **severity** — `ERROR`, `WARN`, or `INFO`.
+3. A **message** — one sentence naming the problem and the exact field.
+4. A **suggestion** — a concrete fix, including a YAML snippet where useful.
+
+### JSON output (`--format json`)
+
+```json
+{
+  "file": "engine_config.yaml",
+  "verdict": "WARN",
+  "summary": { "errors": 0, "warnings": 1, "info": 2 },
+  "checks": [
+    {
+      "code": "M013",
+      "severity": "WARN",
+      "message": "No gateway has role: ADMIN.",
+      "suggestion": "...",
+      "path": "participants"
+    }
+  ],
+  "risk_summary": { ... }
+}
+```
+
+The JSON output is stable and suitable for parsing in CI pipelines or custom
+reporting scripts.
+
+
+## Check Catalogue
+
+### Layer 1 — YAML Syntax (`Y001`–`Y004`)
+
+| Code   | Condition                           |
+|--------|-------------------------------------|
+| `Y001` | File not found                      |
+| `Y002` | File is not readable                |
+| `Y003` | YAML parse error                    |
+| `Y004` | Top-level document is not a mapping |
+
+### Layer 2 — Schema (`S001`–`S121`)
+
+**Top-level structure**
+
+| Code   | Condition                           |
+|--------|-------------------------------------|
+| `S001` | `symbols` absent or not a mapping   |
+| `S002` | `participants` absent or not a list |
+| `S004` | `symbols` is empty                  |
+| `S005` | `participants` is empty             |
+
+**Symbol fields**
+
+| Code   | Condition                                                                                             |
+|--------|-------------------------------------------------------------------------------------------------------|
+| `S010` | `tick_decimals` not an integer in `0..8`                                                              |
+| `S011` | `last_buy_price` or `last_sell_price` not numeric                                                     |
+| `S012` | `outstanding_shares` not a positive integer                                                           |
+| `S013` | `level` references an undefined risk level                                                            |
+| `S014` | `market_maker_quotes[n]` missing required fields                                                      |
+| `S015` | `market_maker_quotes[n].bid_price >= ask_price`                                                       |
+| `S016` | `market_maker_quotes[n]` has a non-numeric price, non-positive/non-integer quantity, or invalid `tif` |
+| `S017` | `market_maker_quotes` is present but not a list                                                       |
+| `S018` | `market_maker_quotes[n]` is not a mapping                                                             |
+| `S019` | `market_maker_quotes[n].gateway_id` is blank when provided                                            |
+
+**Symbol collar / circuit-breaker overrides**
+
+`symbols.<SYMBOL>.collar` and `symbols.<SYMBOL>.circuit_breaker.levels` are
+inline per-symbol overrides that the engine loader validates just as strictly
+as the top-level `risk_controls.levels.*.collar` and
+`circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`) —
+these codes cover the per-symbol equivalents. `order_limits` has no level-scope
+equivalent at all: `S114`–`S116` are the only value checks, and `S117` refuses
+the key if it appears on a risk level.
+
+| Code   | Condition                                                              |
+|--------|--------------------------------------------------------------------------|
+| `S036` | `symbols.<SYMBOL>.collar` present but not a mapping                    |
+| `S037` | `symbols.<SYMBOL>.collar.static_band_pct` not in `(0, 1)`               |
+| `S038` | `symbols.<SYMBOL>.collar.dynamic_band_pct` not in `(0, 1)`              |
+| `S114` | `symbols.<SYMBOL>.order_limits` present but not a mapping              |
+| `S115` | `symbols.<SYMBOL>.order_limits.max_order_qty` not a positive integer   |
+| `S116` | `symbols.<SYMBOL>.order_limits.max_order_value` not a positive number  |
+| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping — **also reused** for top-level `country` present but not a non-empty string (unrelated condition, same code) |
+| `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
+| `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
+| `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
+
+**Gateway fields**
+
+| Code   | Condition                                        |
+|--------|--------------------------------------------------|
+| `S020` | Gateway entry missing `id`                       |
+| `S021` | Duplicate gateway ID                             |
+| `S022` | `role` is not a recognised value                 |
+| `S023` | `disconnect_behaviour` is not a recognised value |
+| `S024` | `quote_refresh_policy` is not a recognised value |
+| `S086` | `smp_action` is not a recognised value            |
+| `S025` | `enforce_mm_obligation` is not a boolean         |
+| `S026` | `mm_max_spread_ticks` or `mm_min_qty` invalid    |
+| `S027` | `mm_obligations` is present but not a mapping    |
+| `S028` | `mm_obligations.<symbol>` entry is invalid        |
+| `S029` | `participants[n]` is not a mapping                |
+| `S084` | Two `participants` IDs are prefixes of each other |
+| `S118` | `participant_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
+| `S119` | `participant_defaults.disconnect_behaviour` is not a recognised value |
+| `S120` | `participant_defaults.smp_action` is not a recognised value |
+| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
+
+**Circuit breaker fields**
+
+| Code   | Condition                                             |
+|--------|-------------------------------------------------------|
+| `S030` | `circuit_breaker_defaults` or `.levels` not a mapping |
+| `S031` | CB level missing `price_shift_pct`                    |
+| `S032` | `price_shift_pct` out of range `(0, 1)`               |
+| `S033` | `halt_duration_ns` not a positive integer             |
+| `S035` | `circuit_breaker` present inside a risk level         |
+
+**Risk controls**
+
+| Code   | Condition                                                   |
+|--------|-------------------------------------------------------------|
+| `S040` | `risk_controls.default_level` references an undefined level |
+| `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
+| `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
+| `S117` | `risk_controls.levels.<LEVEL>.order_limits` is present — order limits are a per-symbol control and are not supported here |
+
+**Indices (`indices`)**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S043` | `indices` is present but not a list                    |
+| `S044` | `indices[n]` is not a mapping                          |
+| `S045` | `indices[n].id` invalid (empty, non-alnum, or duplicate) |
+| `S046` | `indices[n].description` is empty or not a string      |
+| `S047` | `indices[n].base_value` or `publish_interval_sec` invalid |
+| `S048` | `indices[n].history_file` or `state_file` invalid      |
+| `S049` | `indices[n].constituents` invalid shape or duplicates  |
+
+**Combo seeds (`market_maker_combos`)**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S055` | `market_maker_combos` is present but not a list        |
+| `S056` | `market_maker_combos[n]` invalid mapping/combo_id      |
+| `S057` | `market_maker_combos[n].combo_type` or `.tif` invalid  |
+| `S058` | `market_maker_combos[n].legs` invalid shape/length     |
+| `S059` | `market_maker_combos[n].legs[m]` invalid, duplicate, or unknown symbol |
+
+**Runtime / schedule / top-level flags**
+
+| Code   | Condition                                                   |
+|--------|-------------------------------------------------------------|
+| `S060` | `sessions_enabled` present but not a boolean                |
+| `S061` | `engine_tuning.snapshot_interval_sec` present but not a positive number |
+| `S062` | `enforce_collars` present but not a boolean                 |
+| `S063` | `enforce_circuit_breakers` present but not a boolean        |
+| `S064` | `schedule` present but not a mapping                        |
+| `S113` | `require_mm_seed_quotes` present but not a boolean          |
+
+**Reopening / Automated Corridor Expansion (`circuit_breaker.reopening`)**
+
+Applied to both `circuit_breaker_defaults.reopening` and each
+`symbols.<SYM>.circuit_breaker.reopening`.
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S104` | `reopening` is present but not a mapping                                  |
+| `S105` | `reopening.enabled` is not a boolean                                      |
+| `S106` | `reopening.initial_band_pct` is outside `(0, 1)`                          |
+| `S107` | `reopening.expansions` is not a non-empty list, or an entry is not a mapping |
+| `S108` | `reopening.expansions[].widen_pct` is missing or outside `(0, 1)`         |
+| `S109` | `reopening.expansions[].min_duration_ns` is missing or not `> 0`          |
+| `S110` | `reopening.random_seed` is set on a symbol — it is engine-wide and belongs in `circuit_breaker_defaults` |
+| `S111` | `reopening.random_end_max_ns` is not an integer `>= 0`                    |
+| `S112` | `reopening.expansions` is set on a symbol — the ladder is exchange-wide and belongs in `circuit_breaker_defaults` |
+
+`S110` and `S112` are errors rather than warnings because both keys would
+otherwise be accepted, stored and then ignored. The random-end generator is one
+engine-wide instance, and the expansion ladder is read from the exchange
+defaults, so in each case the symbol would appear configured while behaving
+exactly as if it were not.
+
+**MM obligation defaults (`mm_obligation_defaults`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S070` | `mm_obligation_defaults` is present but not a mapping                     |
+| `S071` | `mm_obligation_defaults.enforce_mm_obligation` is not a boolean           |
+| `S072` | `mm_obligation_defaults.mm_max_spread_ticks` invalid                      |
+| `S073` | `mm_obligation_defaults.mm_min_qty` invalid                               |
+| `S074` | `mm_obligation_defaults.symbols` is present but not a mapping             |
+| `S075` | `mm_obligation_defaults.symbols.<symbol>` is not a mapping                |
+| `S076` | `mm_obligation_defaults.symbols.<symbol>.enforce_mm_obligation` invalid   |
+| `S077` | `mm_obligation_defaults.symbols.<symbol>.mm_max_spread_ticks/min_qty` invalid |
+
+**Price tick grid**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S078` | A price is not a whole multiple of its symbol's tick size |
+
+`S078` covers every price in the file — `last_buy_price`, `last_sell_price`,
+`market_maker_quotes[n].bid_price`/`ask_price`, and
+`market_maker_combos[n].legs[m].price`/`stop_price`. Each is display money the
+engine converts to integer ticks as it loads, and it refuses one it cannot
+represent rather than rounding it. A combo leg is checked against its own
+symbol's `tick_decimals`, not the combo's first leg: the legs of one combo
+trade different instruments, which need not share a tick size. The check
+stands down for a symbol whose `tick_decimals` is itself invalid — `S010`
+reports that, and there is no grid to check against until it is fixed.
+
+**API gateway sections**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S080` | `api_gateways` section fails runtime-loader validation |
+
+`S080` also covers the case where the config uses the unsupported singular
+key `api_gateway` instead of `api_gateways` — see the [App Config Spec](../../reference-manual/part-3-configuration/030-formal-specification.md)
+(CV15), which documents that rejection as a normative rule.
+
+The verifier accepts multiple named API gateway entries, including a separate
+read-only dashboard entry generated from `pm-config-gen` with
+`--api-gateway-instance dashboards::8081`. In the resulting YAML,
+`dashboards.credentials[].gateway_id: null` is valid and is intentionally
+ignored by the `M022` gateway-reference check. Non-null credentials must match
+an ID under `participants`, and each non-null ID may belong to only one named
+`api_gateways` entry. `M018` also checks every named API gateway port for
+collisions with the other configured listeners.
+
+For example, this generated shape is valid:
+
+```yaml
+api_gateways:
+  desk:
+    port: 8080
+    credentials:
+      - api_key: key-trader01-example
+        gateway_id: TRADER01
+  dashboards:
+    port: 8081
+    credentials:
+      - api_key: key-dashboard-example
+        gateway_id: null
+```
+
+**ALF, RALF, and market-data gateway sections**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S081` | `alf_gateway` section fails runtime-loader validation |
+| `S082` | `post_trade_gateway` section fails runtime-loader validation |
+| `S083` | `market_data_gateway` section fails runtime-loader validation |
+
+**BALF gateway fields (`balf_gateway`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S050` | `balf_gateway` is present but not a mapping                               |
+| `S051` | `balf_gateway.port` not an integer in `1..65535`                          |
+| `S052` | BALF capacity fields not positive integers (`max_connections`, etc.)      |
+| `S053` | BALF timeout/interval fields not positive numbers                         |
+| `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
+| `S085` | `balf_gateway` fails runtime-loader validation for a reason not covered by `S050`–`S054` (drift safety net; only fires when none of those already reported) |
+
+**Drop-copy gateway fields (`dc_gateway`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S090` | `dc_gateway` is present but not a mapping                                 |
+| `S091` | `dc_gateway.port` not an integer in `1..65535`                            |
+| `S092` | `dc_gateway.name` or `.bind_address` blank or not a string                |
+| `S093` | `dc_gateway.max_client_queue` not a positive integer                      |
+| `S094` | `dc_gateway.heartbeat_interval_sec` or `.idle_timeout_sec` not a positive number |
+
+**Log server fields (`log_server`)**
+
+| Code    | Condition                                                                 |
+|---------|---------------------------------------------------------------------------|
+| `S095`  | `log_server` is present but not a mapping                                 |
+| `S096`  | `log_server.enabled` or `.pubsub_enabled` present but not a boolean        |
+| `S097`  | `log_server.port`, `.pub_port`, or `.pull_port` not an integer in `1..65535` |
+| `S098`  | `log_server.name`, `.bind_address`, or `.db_path` blank or not a string    |
+| `S099`  | `log_server.max_message_bytes`, `.max_client_queue`, `.write_batch_size`, `.write_batch_interval_ms`, `.heartbeat_interval_sec`, `.lease_sec`, `.max_lease_sec`, `.max_subscribers`, `.notify_interval_ms`, `.backfill_chunk_rows`, `.max_backfill_minutes`, `.max_backfill_rows`, `.max_pending_rows`, or `.pub_sndhwm` not a positive integer |
+| `S100`  | `log_server.retention_days` present but not a non-negative integer (or `null`) |
+| `S101`  | `log_server` fails runtime-loader validation for a reason not covered by `S095`–`S103` (drift safety net; only fires when none of those already reported) |
+| `S102`  | Two of `log_server.port`, `.pub_port`, `.pull_port` resolve to the same port |
+| `S103`  | `log_server.max_lease_sec` is below `log_server.lease_sec`                 |
+
+`log_server.retention_days` follows the same convention documented in
+[Configuring `pm-log-srv`](010-the-configuration-workflow.md#configuring-pm-log-srv): `0`
+and `null` both mean unbounded retention, so `S100` only fires on a negative
+value or a non-integer type, never on `0`.
+
+`S102` and `S103` cover the two LALF-PS rules that involve more than one
+field, and both are conditions `pm-log-srv` refuses to start on:
+
+- **`S102`** — `pm-log-srv` binds three listeners: LALF/TCP on `port`, and
+  the LALF-PS ZeroMQ `PUB`/`PULL` sockets on `pub_port`/`pull_port`. The
+  check compares *effective* values, applying each field's own default when
+  the key is omitted, so writing `pub_port: 5600` collides with the default
+  LALF port just as surely as two explicit duplicates would.
+- **`S103`** — `max_lease_sec` is the ceiling applied to a subscriber's
+  requested `lease_sec`. A ceiling below the server's own default lease
+  would make that default unreachable, which is incoherent rather than
+  merely unusual.
+
+See [LALF-PS](../part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface)
+for what these fields do.
+
+### Layer 3 — Semantic (`M001`–`M026`)
+
+`M014` is currently emitted during the schema pass because CB threshold ordering
+is validated while parsing `circuit_breaker_defaults`.
+
+| Code   | Severity | Condition                                                     |
+|--------|----------|---------------------------------------------------------------|
+| `M001` | ERROR    | MM gateway present but a symbol has no seed quotes (skipped when `require_mm_seed_quotes: false`) |
+| `M002` | ERROR    | MM seed references a gateway ID not in `participants`         |
+| `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
+| `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |
+| `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
+| `M006` | WARN     | Schedule times not in chronological order                     |
+| `M007` | WARN     | `enforce_collars: false` while collars are defined            |
+| `M008` | WARN     | `enforce_circuit_breakers: false` while CB levels are defined |
+| `M009` | ERROR    | Index constituent not in `symbols`                            |
+| `M010` | ERROR    | Index constituent missing `outstanding_shares`                |
+| `M011` | ERROR    | More than 5 indices defined                                   |
+| `M012` | WARN     | Combo uses `tif: GTC`                                         |
+| `M013` | WARN     | No ADMIN gateway configured                                   |
+| `M014` | WARN     | CB level thresholds not strictly increasing                   |
+| `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
+| `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
+| `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
+| `M018` | ERROR    | Two configured listeners are bound to the same port. Covers `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, every `api_gateways.<name>`, and all three of `log_server`'s own ports — `port` (LALF/TCP) plus `pub_port`/`pull_port` (LALF-PS), the latter two skipped when `pubsub_enabled: false` since a disabled interface binds nothing |
+| `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
+| `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
+| `M021` | ERROR    | A `schedule` time value isn't a quoted `"HH:MM"` string (e.g. YAML mis-parsed it as a sexagesimal integer) |
+| `M022` | ERROR    | API credential `gateway_id` is not defined in `participants` |
+| `M023` | ERROR    | A `schedule` time value doesn't parse as a valid 24-hour `HH:MM` time |
+| `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
+| `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |
+| `M026` | WARN     | Top-level `country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
+
+### Layer 4 — Completeness (`C001`–`C013`)
+
+`C010` is emitted during the semantic pass (Layer 3) but kept in the `C` code
+family because it is an operational-completeness warning.
+
+| Code   | Severity | Condition                                                           |
+|--------|----------|---------------------------------------------------------------------|
+| `C001` | WARN     | No symbol has a reference price                                     |
+| `C002` | INFO     | Symbol has only one of `last_buy_price` / `last_sell_price`         |
+| `C003` | INFO     | `enforce_collars: true` but no collar configured                    |
+| `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
+| `C005` | WARN     | MM gateway present but `mm_obligation_defaults` absent              |
+| `C006` | WARN     | `enforce_mm_obligation: false`                                      |
+| `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
+| `C008` | WARN     | Index constituent has no reference price                            |
+| `C009` | INFO     | `sessions_enabled: false` and no schedule (always-on)               |
+| `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |
+| `C011` | INFO     | Risk level defined but no symbol uses it                            |
+| `C012` | WARN     | More than 20 symbols with `snapshot_interval_sec < 0.2`             |
+| `C013` | WARN     | Index `history_file` or `state_file` parent directory may not exist |
+
+
+## Using in CI
+
+```bash
+# pre-flight check in a deployment script
+pm-cverifier --strict --format json engine_config.yaml
+echo "Config OK"
+
+# GitHub Actions step example
+- name: Verify engine config
+  run: pm-cverifier --strict --format json engine_config.yaml
+```
+
+With `--strict`, exit code `2` is returned for any warning, so CI will fail fast
+rather than silently deploying a misconfigured exchange.
+
+
+## The Risk Summary
+
+The Risk Summary is always printed at the end of the text report (and included in
+the `risk_summary` key of JSON output).  It answers: *"What does this config
+actually do at runtime?"*
+
+| Field            | Description                                      |
+|------------------|--------------------------------------------------|
+| Symbols          | Total count and names                            |
+| Gateways         | Total count, ID, and role for each               |
+| Sessions         | Enabled/disabled, schedule summary               |
+| Collars          | Whether enforced and which levels are configured |
+| Order limits     | Per-symbol max order qty/value, or "none configured" |
+| Circuit breakers | Whether enforced and threshold summary; noted "(built-in defaults)" when no `circuit_breaker_defaults` is configured |
+| MM obligations   | Whether enforcement is active                    |
+| Admin gateway    | Which gateway (if any) has role `ADMIN`          |
+| Indices          | Index IDs if any are configured                  |
+
+A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
+subsystem configuration (for example missing ADMIN gateway or missing collar
+configuration), even if the overall verdict is `OK`.
+
+The JSON `risk_summary` object carries a few additional machine-readable
+fields not shown in the text table above, including `circuit_breakers_using_defaults`
+(`true` when no explicit `circuit_breaker_defaults` block was configured and the
+built-in L1/L2/L3 ladder is in effect).
+
+
+## Relationship to Other Tools
+
+| Tool                             | Purpose                                             |
+|----------------------------------|------------------------------------------------------|
+| `pm-config-gen` (see [Configuration](010-the-configuration-workflow.md)) | *Generate* an `engine_config.yaml` from CLI flags |
+| Config GUI (see [Config GUI](030-config-gui.md))            | *Generate/edit* an `engine_config.yaml` visually, with a built-in "Verify with pm-cverifier" action |
+| `pm-cverifier`                   | *Verify* an existing config file before use         |
+| `pm-engine` (see [Running the Engine](../part-3-run/010-running-the-exchange.md)) | *Load* the config and start the matching engine |
+
+`pm-cverifier` is read-only and has no effect on the engine or any runtime state.
+It is safe to run at any time, including while the engine is running.

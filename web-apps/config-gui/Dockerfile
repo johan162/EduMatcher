@@ -5,7 +5,7 @@
 #
 # The optional "Verify with pm-cverifier" button needs the Python toolchain,
 # which is NOT included here; that endpoint returns a friendly 503 in this
-# image. Everything else works. See docs/user-guide/030-config-GUI.md.
+# image. Everything else works. See ../../docs/books/operator-guide/part-2-configure/030-config-gui.md.
 # 
 
 # ---- build stage -------------------------------------------------------------

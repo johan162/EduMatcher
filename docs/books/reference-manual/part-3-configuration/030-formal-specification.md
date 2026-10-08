@@ -1,0 +1,903 @@
+# Appendix: Engine Configuration Specification
+
+**Status: Normative.** This appendix defines the formal structure of
+`engine_config.yaml`, the single reference-data file for an EduMatcher exchange.
+It is the authoritative schema; where it and any tutorial disagree, this document
+governs. For worked examples, recipes, and rationale, see
+[Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) (informative).
+
+The schema described here is derived from and MUST match the runtime loaders:
+`engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
+`ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`,
+`dc_gateway/config.py`, `log_srv/config.py`, and `scheduler/main.py`
+(`schedule` and `country` only). `pm-cverifier` is the reference validator.
+
+---
+
+## 1. Conventions
+
+### 1.1 Requirement keywords
+
+The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHOULD**, **MAY**, and
+**OPTIONAL** are to be interpreted as described in RFC 2119.
+
+### 1.2 The file
+
+The configuration is a single YAML 1.1 document whose root MUST be a **mapping**.
+A loader given a non-mapping root MUST reject the file. `load_engine_config()`
+itself MUST raise `FileNotFoundError` for a missing path — it does not implement
+a fallback. The *caller*, `pm-engine` (`engine/main.py`), checks for the file's
+existence before calling the loader: if the deployed config
+(compiled to `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`) does not
+exist, `pm-engine` skips loading entirely and starts in *unrestricted mode* (no
+symbol/gateway allowlist, sessions disabled) rather than failing. That fallback
+is implemented by `pm-engine`, not by the loader, and is out of scope here —
+this document specifies the content of a *present* file.
+
+### 1.3 Scalar type notation
+
+Field tables and the schema tree (§3) use these type names:
+
+| Type | YAML form | Definition |
+|------|-----------|------------|
+| `Bool` | boolean | `true` / `false` |
+| `Int` | integer | whole number |
+| `Float` | number | integer or decimal; parsed as floating point |
+| `Str` | string | UTF-8 text |
+| `Path` | string | filesystem path (`~` is expanded where noted) |
+| `Symbol` | string | instrument id; **normalised to upper-case** on load |
+| `GatewayId` | string | participant id; non-empty; **normalised to upper-case** |
+| `IndexId` | string | index id; **alphanumeric**, upper-case, unique |
+| `Price` | number | price in **display units** (e.g. `150.10`); MUST be a whole multiple of the owning symbol's tick size `10^-tick_decimals` (see CV18) |
+| `Qty` | integer | quantity; `> 0` unless stated |
+| `Ticks` | integer | count of minimum price increments; `> 0` |
+| `Pct01` | number | fraction in the **open** interval `(0, 1)` |
+| `Nanos` | integer | duration in nanoseconds; `> 0` (or `null` where noted) |
+| `Secs` | number | duration in seconds; `> 0` |
+| `Port` | integer | TCP port; `> 0`. The ALF, BALF, CALF, RALF and drop-copy gateway ports MUST also be `<= 65535` (§6) |
+| `HHMM` | string | wall-clock local time `"HH:MM"` |
+| `Country` | string | country name (e.g. `"Sweden"`) or ISO 3166-1 alpha-2 code (e.g. `"SE"`); MUST be a country recognised by the `python-holidays` package |
+| `Enum<E>` | string | one member of enum `E` (§2); **case-insensitive**, stored upper-case |
+| `List<T>` | sequence | ordered list of `T` |
+| `Map<K,V>` | mapping | keyed collection; keys of type `K`, values of type `V` |
+
+### 1.4 Field-table columns
+
+Each section table uses: **Field**, **Type**, **Req** (`✔` required / `–`
+optional), **Default** (value applied when the key is omitted from a *present*
+file), and **Constraints**. A `Default` of `—` means the field has no default and,
+if optional, its absence leaves the feature disabled.
+
+### 1.5 Unknown keys
+
+Loaders are **permissive**: a key not defined in this specification is **ignored**
+and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
+unknown keys. `pm-cverifier` reports an unrecognised key inside a gateway or
+service process block (§6) as an **error** (`S121`), because the loader's
+silent fallback to a default would otherwise hide the typo; it does not check
+top-level keys, which `pm-config-show --all` lists — a mistyped section name is otherwise
+indistinguishable from an absent one.
+
+### 1.6 Case normalisation
+
+`Symbol`, `GatewayId`, `IndexId`, and every `Enum<E>` value are upper-cased during
+load. Producers MAY write any case; consumers compare upper-case.
+
+---
+
+## 2. Enumerations
+
+| Enum | Members | Used by |
+|------|---------|---------|
+| `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `participants[].role` |
+| `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `participants[].disconnect_behaviour`, `participant_defaults.disconnect_behaviour` |
+| `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `participants[].quote_refresh_policy` |
+| `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds |
+| `ComboType` | `AON` | `market_maker_combos[].combo_type` |
+| `Side` | `BUY`, `SELL` | combo legs |
+| `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
+| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `participants[].smp_action`, `participant_defaults.smp_action` |
+| `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
+
+An `Enum<E>` value outside its member set MUST be rejected.
+
+---
+
+## 3. Formal schema tree
+
+The complete structure at a glance. Annotations: `!` = REQUIRED key, `?` =
+OPTIONAL key, `=` = default, `∈` = domain/constraint. Types are from §1.3–§2.
+This tree is normative for *shape*; §4–§6 are normative for *field law*.
+
+```text
+# ── ENGINE (read by pm-engine) ──────────────────────────────────────────────
+symbols:                    ! Map<Symbol, SymbolSpec>          # ≥0 entries; key required
+participants:               ! List<ParticipantSpec>            # ≥1 entry
+participant_defaults:       ? ParticipantDefaultsSpec          # values a participants entry inherits when it omits them
+sessions_enabled:           ? Bool = true
+enforce_collars:            ? Bool = true
+enforce_circuit_breakers:   ? Bool = true
+require_mm_seed_quotes:     ? Bool = true
+auction_indicative_interval_sec: ? Float = 1.0  ∈ > 0
+engine_tuning:               ? EngineTuningSpec
+mm_obligation_defaults:     ? MMObligationDefaultsSpec
+risk_controls:              ? RiskControlsSpec
+circuit_breaker_defaults:   ? CircuitBreakerSpec
+market_maker_combos:        ? List<ComboSeedSpec>              # each: 2..10 legs
+indices:                    ? List<IndexSpec>                  # ≤ 5
+schedule:                   ? WeeklyScheduleSpec
+country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+
+# ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
+alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
+balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
+market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
+post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
+dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
+api_gateways:               ? Map<Str, ApiGwyProcSpec>   # pm-api-gwy (named instances)
+log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
+
+SymbolSpec:
+  level:                    ? Str          ∈ key of risk_controls.levels
+  tick_decimals:            ? Int = 2      ∈ 0..8
+  outstanding_shares:       ? Int          ∈ > 0        # REQUIRED for index constituents
+  last_buy_price:           ? Price
+  last_sell_price:          ? Price
+  market_maker_quotes:      ? List<MMQuoteSeedSpec>
+  collar:                   ? CollarSpec
+  order_limits:             ? OrderLimitsSpec            # per-symbol override
+  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+
+ParticipantSpec:                             # one entry of participants
+  id:                       ! GatewayId
+  description:              ? Str = ""
+  role:                    ? Enum<Role> = TRADER
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
+  quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
+  enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
+  mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
+  mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
+  mm_obligations:          ? Map<Symbol, MMObligationSpec>
+  smp_action:              ? Enum<SmpAction> = <participant_defaults.smp_action | NONE>
+
+ParticipantDefaultsSpec:                     # top-level participant_defaults
+  disconnect_behaviour:    ? Enum<DisconnectBehaviour>
+  smp_action:              ? Enum<SmpAction>
+
+# ── PROCESS SPECS (field law in §6) ─────────────────────────────────────────
+# bind_address / host: the EDUMATCHER_GATEWAY_BIND_HOST environment variable,
+# when set, overrides both the YAML value and the "0.0.0.0" default (§6).
+
+AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "alf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5565                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Int = 5                     ∈ > 0
+  handshake_timeout_sec:        ? Int = 10                    ∈ > 0
+  idle_timeout_sec:             ? Int = 30                    ∈ > 0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  max_commands_per_second:      ? Int = 100                   ∈ > 0
+  max_errors_before_disconnect: ? Int = 50                    ∈ > 0
+  error_window_sec:             ? Int = 60                    ∈ > 0
+
+BalfGwyProcSpec:                             # balf_gateway       (pm-balf-gwy)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "balf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5560                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Secs = 1.0
+  heartbeat_timeout_sec:        ? Secs = 5.0
+  idle_timeout_sec:             ? Secs = 30.0
+  auth_timeout_sec:             ? Secs = 10.0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  max_messages_per_second:      ? Int = 100                   ∈ > 0
+  max_errors_before_disconnect: ? Int = 10                    ∈ > 0
+  error_window_sec:             ? Secs = 60.0
+  duplicate_session_policy:     ? Enum<DuplicateSessionPolicy> = REJECT_NEW
+
+MdGwyProcSpec:                               # market_data_gateway (pm-md-gwy, CALF)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "md-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5570                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
+  idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  replay_window_sec:            ? Int = 30                    ∈ > 0
+  max_connections:              ? Int = 64                    ∈ > 0
+  max_messages_per_second:      ? Int = 200                   ∈ > 0
+  max_symbols_per_client:       ? Int = 200                   ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  depth_levels:                 ? Int = 10                    ∈ > 0
+
+RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, RALF); no `enabled`
+  name:                         ? Str = "ralf-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5580                 ∈ 1..65535
+  replay_retention_sec:         ? Int = 86400                 ∈ > 0
+  heartbeat_interval_sec:       ? Int = 1                     ∈ > 0
+  idle_timeout_sec:             ? Int = 5                     ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  allowed_roles:                ? List<Str> = [CLEARING, DROP_COPY, AUDIT]
+
+DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); no `enabled`
+  name:                         ? Str = "dc-gwy01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5590                 ∈ 1..65535
+  heartbeat_interval_sec:       ? Secs = 5
+  idle_timeout_sec:             ? Secs = 30
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+
+ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
+  enabled:                      ? Bool = true
+  host:                         ? Str = "0.0.0.0"
+  port:                         ? Port = 8080
+  log_level:                    ? Str = "info"
+  swagger_enabled:              ? Bool = true
+  stats_db:                     ? Path = <data dir>/stats.db
+  audit_db:                     ? Path = <data dir>/audit_index.db
+  order_retention_sec:          ? Int = 3600                  ∈ >= 0
+  market_data_cache_sec:        ? Int = 60                    ∈ >= 0
+  session_timezone:             ? Str | null = null           ∈ IANA timezone name
+  engine_pull_addr:             ? Str = tcp://<engine host>:5555
+  engine_pub_addr:              ? Str = tcp://<engine host>:5556
+  index_pull_addr:              ? Str = tcp://<index bind host>:5559
+  index_pub_addr:               ? Str = tcp://<index bind host>:5558
+  credentials:                  ? List<ApiCredentialSpec> = []
+  rate_limit:                   ? RateLimitSpec
+  timeouts:                     ? TimeoutSpec
+
+ApiCredentialSpec:
+  api_key:                      ! Str                         # non-empty, unique within the instance
+  gateway_id:                   ? GatewayId | null = null     # null = read-only key
+  description:                  ? Str = ""
+
+RateLimitSpec:
+  writes_per_second:            ? Int = 10                    ∈ > 0
+  burst:                        ? Int = 20                    ∈ > 0
+
+TimeoutSpec:
+  engine_auth_sec:              ? Secs = 3.0
+  engine_reply_sec:             ? Secs = 3.0
+  wait_ack_sec:                 ? Secs = 3.0
+
+LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
+  enabled:                      ? Bool = true
+  name:                         ? Str = "log-srv01"
+  bind_address:                 ? Str = "0.0.0.0"
+  port:                         ? Port = 5600
+  db_path:                      ? Path = <data dir>/log.db
+  retention_days:               ? Int | null = 30            ∈ >= 0; 0 ≡ null ≡ unbounded
+  max_message_bytes:            ? Int = 65536                 ∈ > 0
+  max_client_queue:             ? Int = 10000                 ∈ > 0
+  write_batch_size:             ? Int = 50                    ∈ > 0
+  write_batch_interval_ms:      ? Int = 100                   ∈ > 0
+  heartbeat_interval_sec:       ? Int = 5                     ∈ > 0
+  pubsub_enabled:               ? Bool = true
+  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
+  pull_port:                    ? Port = 5602
+  lease_sec:                    ? Int = 30                    ∈ > 0
+  max_lease_sec:                ? Int = 300                   ∈ >= lease_sec
+  max_subscribers:              ? Int = 32                    ∈ > 0
+  notify_interval_ms:           ? Int = 250                   ∈ > 0
+  backfill_chunk_rows:          ? Int = 500                   ∈ > 0
+  max_backfill_minutes:         ? Int = 1440                  ∈ > 0
+  max_backfill_rows:            ? Int = 100000                ∈ > 0
+  max_pending_rows:             ? Int = 20000                 ∈ > 0
+  pub_sndhwm:                   ? Int = 10000                 ∈ > 0
+  client:                       ? LogClientSpec
+
+LogClientSpec:                               # log_server.client; read by every pm-* process
+  connect_timeout_sec:          ? Secs = 0.5
+  failover_timeout_sec:         ? Float = 30.0                ∈ >= 0
+  failover_dir:                 ? Path = <data dir>/logs
+```
+
+---
+
+## 4. Domain sub-structures
+
+### 4.1 `MMQuoteSeedSpec` — `symbols.<S>.market_maker_quotes[]`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `gateway_id` | `GatewayId` | ✔ | — | MUST reference a configured gateway whose `role` is `MARKET_MAKER` |
+| `bid_price` | `Price` | ✔ | — | `bid_price < ask_price` |
+| `ask_price` | `Price` | ✔ | — | `> bid_price` |
+| `bid_qty` | `Qty` | ✔ | — | `> 0` |
+| `ask_qty` | `Qty` | ✔ | — | `> 0` |
+| `tif` | `Enum<TIF>` | – | `DAY` | |
+| `quote_id` | `Str` | – | `null` | empty string treated as `null` |
+| `seed_once` | `Bool` | – | `true` | when `true`, skip injection if `book_stats` already has this symbol |
+
+### 4.2 `CollarSpec` — `symbols.<S>.collar` and `risk_controls.levels.<L>.collar`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `static_band_pct` | `Pct01` | – | `0.20` | `0 < x < 1` |
+| `dynamic_band_pct` | `Pct01` | – | `0.02` | `0 < x < 1` |
+
+A per-symbol `collar` is merged over the symbol's resolved `level` collar
+(symbol keys win). When neither is present, no collar applies to the symbol.
+
+### 4.3 `OrderLimitsSpec` — `symbols.<S>.order_limits`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `max_order_qty` | `Qty` | – | — | `> 0` |
+| `max_order_value` | `Float` | – | — | `> 0`; display money |
+
+Pre-trade caps on a **single order**, configured **per symbol and nowhere
+else**. Unlike `collar`, `order_limits` has no risk-level tier and no global
+default: an appropriate cap depends on the individual instrument's price and
+typical size, so there is nothing sensible for a shared profile to say.
+`risk_controls.levels.<L>.order_limits` is **NOT supported** and MUST be
+rejected (§5.5).
+
+Each cap is independently optional and has **no default**: a cap the symbol
+does not set is not enforced. There is deliberately no built-in fallback number
+— a limit that exists only in code and not in the configuration file is not
+auditable as a requirement.
+
+An order breaching `max_order_qty` is rejected with reject code
+`MAX_ORDER_QTY`; one breaching `max_order_value` (`quantity × price`, in
+display money) with `MAX_ORDER_VALUE`. `max_order_value` is **not** evaluated
+for an order that carries no price on the wire (MARKET, IOC) — the same orders
+the collar's price bands already skip. Both caps are re-checked on `order.amend`
+against the amended quantity and price, so the control cannot be bypassed by
+entering small and amending up.
+
+### 4.4 `MMObligationSpec` — `participants[].mm_obligations.<S>`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enforce_mm_obligation` | `Bool` | – | gateway's `enforce_mm_obligation` | |
+| `max_spread_ticks` | `Ticks` | – | gateway's `mm_max_spread_ticks` | `> 0` |
+| `min_qty` | `Qty` | – | gateway's `mm_min_qty` | `> 0` |
+
+### 4.5 `ComboSeedSpec` — `market_maker_combos[]`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `combo_id` | `Str` | ✔ | — | non-empty |
+| `combo_type` | `Enum<ComboType>` | – | `AON` | |
+| `tif` | `Enum<TIF>` | – | `DAY` | |
+| `legs` | `List<ComboLegSpec>` | ✔ | — | length `2..10`; symbols unique within the combo |
+
+`ComboLegSpec`:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `symbol` | `Symbol` | ✔ | — | MUST exist in `symbols` |
+| `side` | `Enum<Side>` | ✔ | — | |
+| `order_type` | `Enum<OrderType>` | ✔ | — | |
+| `quantity` | `Qty` | ✔ | — | |
+| `price` | `Price` | – | `null` | required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); on **this leg's** symbol's tick grid, which need not be the grid of the combo's other legs; positivity is **not** validated anywhere in code |
+| `stop_price` | `Price` | – | `null` | stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP`; on this leg's symbol's tick grid |
+| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `participants[].smp_action`, else `NONE` | |
+
+### 4.6 `IndexSpec` — `indices[]`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `id` | `IndexId` | ✔ | — | alphanumeric; unique across `indices` |
+| `description` | `Str` | ✔ | — | non-empty |
+| `base_value` | `Float` | – | `1000.0` | `> 0` |
+| `publish_interval_sec` | `Secs` | – | `1.0` | `> 0` |
+| `history_file` | `Path` | – | `data/indexes/<id>_history.jsonl` | non-empty |
+| `state_file` | `Path` | – | `data/indexes/<id>_state.json` | non-empty |
+| `constituents` | `List<Symbol>` | ✔ | — | non-empty; each MUST exist in `symbols` **and** define `outstanding_shares`; no duplicates |
+
+### 4.7 `WeeklyScheduleSpec` — `schedule`, and `DayScheduleSpec` — one day block
+
+`WeeklyScheduleSpec` is a mapping of shortcut and day keys, each an optional
+`DayScheduleSpec`:
+
+| Field | Type | Req | Applies to |
+|-------|------|:---:|---|
+| `weekdays` | `DayScheduleSpec` | – | `mon`..`fri`, for any not given its own key below |
+| `mon`, `tue`, `wed`, `thu`, `fri` | `DayScheduleSpec` | – | one weekday; overrides `weekdays` for that day |
+| `weekend` | `DayScheduleSpec` | – | `sat`+`sun`, for either not given its own key below; ∈ mutually exclusive with `sat`/`sun` (CV20) |
+| `sat`, `sun` | `DayScheduleSpec` | – | one weekend day; overrides `weekend` for that day; ∈ mutually exclusive with `weekend` (CV20) |
+| `holidays` | `DayScheduleSpec` | – | days the configured `country` observes as a bank holiday |
+
+A key absent from `schedule` (and, for `mon`..`sun`, not covered by
+`weekdays`/`weekend` either) resolves to CLOSED for that day/holiday-set — no
+transitions are sent and the engine never leaves `CLOSED` on it. No other
+keys are permitted under `schedule` (CV21).
+
+`DayScheduleSpec` — the value of any key above:
+
+| Field | Type | Req | Default |
+|-------|------|:---:|---------|
+| `pre_open` | `HHMM` | ✔, if the block is present | — |
+| `opening_auction_start` | `HHMM` | ✔, if the block is present | — |
+| `continuous_start` | `HHMM` | ✔, if the block is present | — |
+| `closing_auction_start` | `HHMM` | ✔, if the block is present | — |
+| `closing_auction_end` | `HHMM` | ✔, if the block is present | — |
+
+Unlike every other REQUIRED marking in this document, "required" here is
+conditional on the block appearing at all: a `DayScheduleSpec` that is
+present but omits any of the five fields MUST be rejected (CV21) — there is
+no per-field default once a block exists.
+
+---
+
+## 5. Engine sections
+
+### 5.1 `symbols` (REQUIRED)
+
+`Map<Symbol, SymbolSpec>`. The mapping key is the symbol id. A value of `null`/`{}`
+is a valid empty spec. Symbol fields: see the schema tree (§3, `SymbolSpec`);
+`market_maker_quotes` §4.1, `collar` §4.2, `order_limits` §4.3,
+`circuit_breaker` §5.6.
+
+### 5.2 `participants` (REQUIRED)
+
+`List<ParticipantSpec>` with **at least one** entry (§3, `ParticipantSpec`). Participant
+ids MUST be unique after upper-casing. This list is the participant allowlist and
+is **also** consumed by `pm-alf-gwy` and `pm-balf-gwy` for identity and role.
+
+`smp_action` sets the self-match-prevention action the engine applies to this
+gateway's orders **when the order itself doesn't specify one**:
+
+- Live `QUOTE` legs (the bid/ask orders generated from a `quote.new` request —
+  see [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) and the ALF `QUOTE` command) have no
+  per-request SMP concept of their own, so they always use this default.
+- `NEW`/combo order entry carries its own optional per-order `SMP=` field
+  (§4.5, `ComboLegSpec.smp_action`; ALF protocol `NEW|SMP=`). An explicit
+  `SMP=` from the client — including `SMP=NONE` — always takes precedence
+  over this gateway default; only an *omitted* `SMP=` falls back to it.
+
+### 5.2a `participant_defaults` (OPTIONAL) — `ParticipantDefaultsSpec`
+
+A mapping of values that every `participants` entry **inherits when it omits the
+key**. It exists so a uniform policy (for example, `CANCEL_AGGRESSOR` on every
+gateway) is written once instead of on each entry.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `smp_action` | `Enum<SmpAction>` | – | `NONE` | inherited by an entry that omits `smp_action` |
+| `disconnect_behaviour` | `Enum<DisconnectBehaviour>` | – | `CANCEL_QUOTES_ONLY` | inherited by an entry that omits `disconnect_behaviour` |
+
+Resolution order for a gateway's effective value is: the entry's own key, then
+`participant_defaults`, then the built-in default. An explicit entry value always
+wins, including `smp_action: NONE` when the default is something else. The block
+applies to **every** role: a `participant_defaults.disconnect_behaviour` of
+`CANCEL_ALL` also reaches `ADMIN` and `MARKET_MAKER` entries that omit the key,
+so entries that need a different behaviour MUST set it explicitly.
+
+Unlike most sections, an unrecognised key under `participant_defaults` is **rejected**
+(CV22) rather than ignored, so that a mistyped name is not silently dropped.
+
+### 5.3 Engine behaviour flags
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `sessions_enabled` | `Bool` | – | `true` | when `true`, engine starts `CLOSED` and honours `schedule`/session transitions; when `false`, starts and stays `CONTINUOUS` |
+| `enforce_collars` | `Bool` | – | `true` | global collar enforcement toggle |
+| `enforce_circuit_breakers` | `Bool` | – | `true` | global circuit-breaker enforcement toggle |
+| `require_mm_seed_quotes` | `Bool` | – | `true` | when `true`, CV3 applies; when `false`, a `MARKET_MAKER` gateway may exist with no `market_maker_quotes` entries, for a genuinely empty book at startup |
+
+> NOTE — `sessions_enabled` default: the engine loader applies `true` when the key
+> is omitted from a *present* file. (A completely absent config file runs
+> unrestricted with sessions disabled — see [Auctions & Scheduling](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md).)
+
+### 5.3a `auction_indicative_interval_sec` and `engine_tuning` (OPTIONAL)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `auction_indicative_interval_sec` | `Float` | – | `1.0` | `> 0`; throttle for indicative-uncross republishing during auction call phases |
+
+`engine_tuning` (`EngineTuningSpec`) groups low-level runtime tuning knobs not
+expected to need adjustment in normal use:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `snapshot_interval_sec` | `Float` | – | `0.5` | `> 0`; per-symbol book snapshot throttle |
+| `quote_history_maxlen` | `Int` | – | `30` | `> 0` |
+| `drop_copy_buffer_size` | `Int` | – | `10000` | `> 0` |
+| `recent_trades_maxlen` | `Int` | – | `20` | `> 0` |
+| `depth_snapshot_tolerance_ticks` | `Int` | – | `100` | `> 0` |
+
+### 5.4 `mm_obligation_defaults` (OPTIONAL) — `MMObligationDefaultsSpec`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enforce_mm_obligation` | `Bool` | – | `false` | |
+| `mm_max_spread_ticks` | `Ticks` | – | `10` | `> 0` |
+| `mm_min_qty` | `Qty` | – | `100` | `> 0` |
+| `symbols` | `Map<Symbol, {enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty}>` | – | `{}` | each key MUST exist in `symbols`; per-symbol fields default to the block-level values above |
+
+These values supply the defaults inherited by `participants[]` obligation fields.
+
+### 5.5 `risk_controls` (OPTIONAL) — `RiskControlsSpec`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `default_level` | `Str` | – | `null` | non-empty; MUST be a key of `levels` |
+| `levels` | `Map<Str, {collar: CollarSpec}>` | – | `{}` | level names upper-cased |
+
+`risk_controls.levels.<L>.circuit_breaker` is **NOT supported** and MUST be
+rejected; define circuit breakers under `circuit_breaker_defaults` (§5.6) instead.
+`risk_controls.levels.<L>.order_limits` is likewise **NOT supported** and MUST
+be rejected; set `order_limits` on each symbol that needs a cap (§4.3).
+
+### 5.6 `circuit_breaker_defaults` and `symbols.<S>.circuit_breaker` — `CircuitBreakerSpec`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `reference_window_ns` | `Nanos` | – | `300000000000` (5 min) | rolling reference window |
+| `levels` | `Map<Str, CBLevelSpec>` | – | built-in `L1/L2/L3` | non-empty after merge |
+| `reopening` | `ReopeningSpec` | – | built-in ACE defaults | merges field-by-field |
+
+`CBLevelSpec`:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `price_shift_pct` | `Pct01` | ✔ | — | `0 < x < 1` |
+| `halt_duration_ns` | `Nanos` \| `null` | – | — | `> 0` when set; `null` = halt for the rest of the trading day |
+
+`ReopeningSpec` (Automated Corridor Expansion):
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | – |
+| `initial_band_pct` | `Pct01` | – | `0.10` | `0 < x < 1` |
+| `expansions` | `List<ExpansionSpec>` | – | `[{0.10, 120e9}, {0.20, 300e9}]` | non-empty; final entry repeats indefinitely; only valid under `circuit_breaker_defaults` |
+| `random_end_max_ns` | `Nanos` | – | `30000000000` | `>= 0`; `0` disables the random end |
+| `random_seed` | `Int` \| `null` | – | `null` | engine-wide; only valid under `circuit_breaker_defaults` |
+
+`ExpansionSpec`:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `widen_pct` | `Pct01` | ✔ | — | `0 < x < 1`; additive on the reference price |
+| `min_duration_ns` | `Nanos` | ✔ | — | `> 0` |
+
+Merge order: `circuit_breaker_defaults` supplies defaults; a symbol's
+`circuit_breaker.levels.<L>` overrides by level key. If no levels result from the
+merge, the built-in ladder applies: `L1 = 0.07 / 5 min`, `L2 = 0.13 / 15 min`,
+`L3 = 0.20 / rest-of-day`, all `AUCTION`.
+
+### 5.7 `market_maker_combos` (OPTIONAL)
+
+`List<ComboSeedSpec>` — see §4.5. Leg prices are display money on the leg
+symbol's own tick grid: the legs of one combo trade different instruments,
+which need not share a tick size.
+
+### 5.8 `indices` (OPTIONAL)
+
+`List<IndexSpec>`, **at most 5** entries — see §4.6.
+
+### 5.9 `schedule` (OPTIONAL)
+
+`WeeklyScheduleSpec` — see §4.7. Resolved once at load time into a plain
+per-day table (`mon`..`sun`, plus `holidays`) that every consumer reads
+without re-implementing the `weekdays`/`weekend` shortcut rules: `pm-engine`
+(when `sessions_enabled`, to publish it on `system.reference` and
+`system.session_schedule`) and, independently, `pm-scheduler` (to decide
+which transitions to send today).
+
+### 5.10 `country` (OPTIONAL)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `country` | `Country` | – | `"Sweden"` | MUST be a country name or ISO 3166-1 alpha-2 code recognised by `python-holidays`; an unrecognised value falls back to the default rather than being rejected |
+
+`country` is a top-level key, a sibling of `schedule` rather than nested under
+it. Unlike every other field in this document, an invalid `country` value does
+**not** abort loading (contrast §1.4's general rule and CV16 below). The two
+consumers handle an invalid value differently: `engine/config_loader.py`
+substitutes `"Sweden"` silently, with no `python-holidays` recognition check
+and no log message; `pm-scheduler` (`scheduler/main.py`) separately validates
+the value against `python-holidays`, logs a warning, and substitutes
+`"Sweden"` if it is unrecognised (CV16).
+
+`pm-engine` reads this key for two purposes: it derives the ISO alpha-2
+country code reported in outbound reference messages, and it uses the same
+`python-holidays` lookup `pm-scheduler` does to resolve the `today`/
+`today_is_holiday` convenience fields on `system.reference` and
+`system.session_schedule` (§4.7, §5.9) — which of `holidays` or the
+calendar day's own entry applies right now. `pm-scheduler` uses `country`
+for the same bank-holiday lookup to decide which block of the resolved
+`schedule` (§5.9) — if any — to run today — see
+[Session Scheduling → Bank holidays and weekends](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#bank-holidays-and-weekends).
+
+---
+
+## 6. Auxiliary gateway blocks
+
+Each block below is read **only** by its own process; `pm-engine` ignores them.
+The one exception is `log_server.client` (§6.7), which every `pm-*` process reads.
+See [Configuration → Which Process Reads What](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#which-process-reads-what).
+The named spec type of each block (`AlfGwyProcSpec`, …) is defined in the schema
+tree (§3); the tables below give the field law.
+
+`bind_address` (`host` for `api_gateways`) defaults to `"0.0.0.0"`. When the
+`EDUMATCHER_GATEWAY_BIND_HOST` environment variable is set it overrides both the
+YAML value and the default, for every block at once. The ZeroMQ addresses of
+the engine and index buses are not YAML-configurable, with the exception of the
+four `*_addr` fields of `ApiGwyProcSpec` (§6.5).
+
+### 6.1 `alf_gateway` — `pm-alf-gwy`
+
+Spec type: `AlfGwyProcSpec`.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | |
+| `name` | `Str` | – | `"alf-gwy01"` | |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | |
+| `port` | `Port` | – | `5565` | `1..65535` |
+| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0` |
+| `handshake_timeout_sec` | `Int` | – | `10` | `> 0` |
+| `idle_timeout_sec` | `Int` | – | `30` | `> 0` |
+| `max_connections` | `Int` | – | `64` | `> 0` |
+| `max_client_queue` | `Int` | – | `10000` | `> 0` |
+| `max_commands_per_second` | `Int` | – | `100` | `> 0` |
+| `max_errors_before_disconnect` | `Int` | – | `50` | `> 0` |
+| `error_window_sec` | `Int` | – | `60` | `> 0` |
+
+Also consumes `participants` for identity/role.
+
+### 6.2 `balf_gateway` — `pm-balf-gwy`
+
+Spec type: `BalfGwyProcSpec`.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | |
+| `name` | `Str` | – | `"balf-gwy01"` | |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | |
+| `port` | `Port` | – | `5560` | `1..65535` |
+| `heartbeat_interval_sec` | `Secs` | – | `1.0` | `> 0` |
+| `heartbeat_timeout_sec` | `Secs` | – | `5.0` | `> 0` |
+| `idle_timeout_sec` | `Secs` | – | `30.0` | `> 0` |
+| `auth_timeout_sec` | `Secs` | – | `10.0` | `> 0` |
+| `max_connections` | `Int` | – | `64` | `> 0` |
+| `max_client_queue` | `Int` | – | `10000` | `> 0` |
+| `max_messages_per_second` | `Int` | – | `100` | `> 0` |
+| `max_errors_before_disconnect` | `Int` | – | `10` | `> 0` |
+| `error_window_sec` | `Secs` | – | `60.0` | `> 0` |
+| `duplicate_session_policy` | `Enum<DuplicateSessionPolicy>` | – | `REJECT_NEW` | |
+
+Also consumes `participants` for identity, role, and `disconnect_behaviour`.
+
+### 6.3 `market_data_gateway` — `pm-md-gwy` (CALF)
+
+Spec type: `MdGwyProcSpec`.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | |
+| `name` | `Str` | – | `"md-gwy01"` | reported as `WELCOME\|GW=` |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | |
+| `port` | `Port` | – | `5570` | `1..65535` |
+| `heartbeat_interval_sec` | `Int` | – | `1` | `> 0`; advertised as `WELCOME\|HBINT=` |
+| `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
+| `replay_window_sec` | `Int` | – | `30` | `> 0`; advertised as `WELCOME\|REPLAY=` |
+| `max_connections` | `Int` | – | `64` | `> 0` |
+| `max_messages_per_second` | `Int` | – | `200` | `> 0` |
+| `max_symbols_per_client` | `Int` | – | `200` | `> 0` |
+| `max_client_queue` | `Int` | – | `10000` | `> 0` |
+| `depth_levels` | `Int` | – | `10` | `> 0` |
+
+### 6.4 `post_trade_gateway` — `pm-ralf-gwy` (RALF)
+
+Spec type: `RalfGwyProcSpec`.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `name` | `Str` | – | `"ralf-gwy01"` | |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | |
+| `port` | `Port` | – | `5580` | `1..65535` |
+| `replay_retention_sec` | `Int` | – | `86400` | `> 0` |
+| `heartbeat_interval_sec` | `Int` | – | `1` | `> 0` |
+| `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
+| `max_client_queue` | `Int` | – | `10000` | `> 0` |
+| `allowed_roles` | `List<Str>` | – | `[CLEARING, DROP_COPY, AUDIT]` | values upper-cased |
+
+This block has no `enabled` key.
+
+### 6.5 `api_gateways` — `pm-api-gwy` (REST / WebSocket)
+
+`api_gateways` is a `Map<Str, ApiGwyProcSpec>` of **named instances** (the map key
+is the instance name, non-empty). The singular key `api_gateway` is **NOT supported** and MUST
+be rejected. `ApiCredentialSpec`, `RateLimitSpec` and `TimeoutSpec` are defined in the
+schema tree (§3).
+
+`ApiGwyProcSpec`:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | |
+| `host` | `Str` | – | `"0.0.0.0"` | use `127.0.0.1` for loopback-only deployments |
+| `port` | `Port` | – | `8080` | `> 0` |
+| `log_level` | `Str` | – | `"info"` | |
+| `swagger_enabled` | `Bool` | – | `true` | |
+| `stats_db` | `Path` | – | resolved `stats.db` | `~` expanded |
+| `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}` uses it, and that endpoint returns 503 when the file is absent |
+| `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
+| `market_data_cache_sec` | `Int` | – | `60` | `>= 0`. TTL for cached market-data reads served by this instance |
+| `engine_pull_addr` | `Str` | – | `tcp://<engine host>:5555` | ZeroMQ endpoint the gateway sends orders to; `<engine host>` is `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`). Not validated; normally left unset |
+| `engine_pub_addr` | `Str` | – | `tcp://<engine host>:5556` | ZeroMQ endpoint of the engine event feed. Not validated; normally left unset |
+| `index_pull_addr` | `Str` | – | `tcp://<index bind host>:5559` | ZeroMQ endpoint of `pm-index` control; `<index bind host>` is `EDUMATCHER_INDEX_BIND_HOST` (default `127.0.0.1`). Not validated; normally left unset |
+| `index_pub_addr` | `Str` | – | `tcp://<index bind host>:5558` | ZeroMQ endpoint of the `pm-index` feed. Not validated; normally left unset |
+| `session_timezone` | `Str` | – | `null` | IANA timezone name (e.g. `"Europe/Stockholm"`) used to resolve which trading day a date-only query refers to; overrides the timezone recorded in the stats database. An unrecognised value is rejected. |
+| `credentials` | `List<ApiCredentialSpec>` | – | `[]` | api keys unique within instance |
+| `rate_limit` | `RateLimitSpec` | – | see below | |
+| `timeouts` | `TimeoutSpec` | – | see below | |
+
+`ApiCredentialSpec`:
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `api_key` | `Str` | ✔ | — | non-empty; unique within the instance |
+| `gateway_id` | `GatewayId` | – | `null` | a `gateway_id` MUST NOT map to two different instances |
+| `description` | `Str` | – | `""` | |
+
+`RateLimitSpec`: `writes_per_second` `Int > 0 = 10`, `burst` `Int > 0 = 20`.
+`TimeoutSpec`: `engine_auth_sec` `Secs > 0 = 3.0`, `engine_reply_sec` `Secs > 0 = 3.0`,
+`wait_ack_sec` `Secs > 0 = 3.0`.
+
+### 6.6 `dc_gateway` — `pm-dc-gwy` (drop-copy TCP relay)
+
+Spec type: `DcGwyProcSpec`.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
+| `port` | `Port` | – | `5590` | `1..65535` |
+| `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
+| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
+
+This block has no `enabled` key. The drop-copy source address (`tcp://127.0.0.1:5557`)
+is **not** configurable via YAML — use the `--engine-dc-pub` CLI flag on `pm-dc-gwy`
+to point at a non-default engine address.
+
+### 6.7 `log_server` — `pm-log-srv` (centralized LALF log collector) — `LogSrvProcSpec`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | master switch; `pm-log-srv` refuses to accept connections when `false` |
+| `name` | `Str` | – | `"log-srv01"` | echoed in the LALF `WELCOME\|SRV=` field |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | TCP listen interface (`127.0.0.1` for loopback-only) |
+| `port` | `Port` | – | `5600` | `> 0` |
+| `db_path` | `Path` | – | resolved `data/log.db` | SQLite database path where `log_events`/`processes`/`server_stats` are stored |
+| `retention_days` | `Int` \| `null` | – | `30` | `>= 0` or `null`; `0` is normalised to `null` (both mean unbounded retention — pruning disabled); pruning otherwise runs once per hour |
+| `max_message_bytes` | `Int` | – | `65536` | `> 0`; maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-connection outbound backlog limit before backpressure is applied |
+| `write_batch_size` | `Int` | – | `50` | `> 0`; maximum rows per SQLite transaction in the background writer thread |
+| `write_batch_interval_ms` | `Int` | – | `100` | `> 0`; maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
+| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; how often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in `WELCOME\|HBINT=` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |
+| `pubsub_enabled` | `Bool` | – | `true` | master switch for LALF-PS, the ZeroMQ log-distribution interface; when `false` no ZeroMQ socket is bound and `pm-log-srv` runs as a pure TCP collector |
+| `pub_port` | `Port` | – | `5601` | `> 0`; must differ from `port` and `pull_port`; ZeroMQ `PUB` port carrying live rows, notify ticks, backfill chunks and control acks |
+| `pull_port` | `Port` | – | `5602` | `> 0`; must differ from `port` and `pub_port`; ZeroMQ `PULL` port receiving subscriber control requests |
+| `lease_sec` | `Int` | – | `30` | `> 0`; default subscription lease TTL — a subscriber that stops sending `log.renew` within this window is reaped and its buffers discarded |
+| `max_lease_sec` | `Int` | – | `300` | `>= lease_sec`; upper bound on a subscriber's requested `lease_sec`, which is clamped rather than rejected |
+| `max_subscribers` | `Int` | – | `32` | `> 0`; maximum concurrent leased subscriptions before `log.subscribe` is answered with `TOO_MANY_SUBS` |
+| `notify_interval_ms` | `Int` | – | `250` | `> 0`; coalescing window for `NOTIFY`-mode ticks, and the floor on a subscriber's requested `notify_interval_ms` |
+| `backfill_chunk_rows` | `Int` | – | `500` | `> 0`; rows per `log.backfill` chunk, and the maximum rows per live `log.event` message |
+| `max_backfill_minutes` | `Int` | – | `1440` | `> 0`; largest "last n minutes" window a subscriber may request; a larger request is rejected with `INVALID_WINDOW` |
+| `max_backfill_rows` | `Int` | – | `100000` | `> 0`; hard cap on the rows returned by one backfill; the final chunk sets `truncated: true` when it bites |
+| `max_pending_rows` | `Int` | – | `20000` | `> 0`; per-subscription `STREAM` buffer cap — a subscriber that is alive but too slow loses its oldest buffered rows, reported back to it as `dropped` |
+| `pub_sndhwm` | `Int` | – | `10000` | `> 0`; ZeroMQ send high-water mark on the `PUB` socket |
+| `client` | `LogClientSpec` | – | see below | read by every `pm-*` process (not by `pm-log-srv`) to configure its `TcpLogHandler`; must be a mapping |
+
+`LogClientSpec` (`log_server.client`):
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `connect_timeout_sec` | `Secs` | – | `0.5` | `> 0`; TCP connect timeout for each attempt to reach the log server |
+| `failover_timeout_sec` | `Float` | – | `30.0` | `>= 0`; how long a process keeps retrying a dropped log-server connection before it switches, permanently for that process, to a local log file |
+| `failover_dir` | `Path` | – | resolved `<data dir>/logs` | directory for the local failover log files; `~` expanded |
+
+The `pubsub_*`/`pub_*`/`pull_*`/`lease_*`/`backfill_*` fields configure LALF-PS,
+described in full in [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface).
+
+This block has no interaction with `participants` or any other engine section —
+`pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
+not consume any engine-section fields. The `client` sub-block is the only part
+read by other processes. See [Configuring pm-log-srv](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#configuring-pm-log-srv)
+for worked examples and [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) for the operational
+guide; the wire protocol it serves is normatively specified in the
+[LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md).
+
+---
+
+## 7. Cross-field and semantic constraints
+
+A conforming document MUST satisfy all of the following. Violations MUST be
+rejected at load.
+
+| # | Rule |
+|---|------|
+| CV1 | `symbols` is present and a mapping; `participants` is present and a list with ≥ 1 entry. |
+| CV2 | `participants[].id` values are unique (after upper-casing). |
+| CV3 | If **any** gateway has `role: MARKET_MAKER`, then **every** symbol MUST define at least one `market_maker_quotes` entry, unless `require_mm_seed_quotes: false`. |
+| CV4 | Every `market_maker_quotes[].gateway_id` references a configured gateway whose role is `MARKET_MAKER`. |
+| CV5 | For each MM quote seed, `bid_price < ask_price` and `bid_qty, ask_qty > 0`. |
+| CV6 | A symbol's `level` (explicit, else `risk_controls.default_level`) MUST be a key of `risk_controls.levels`, when any level is in effect. |
+| CV7 | `risk_controls.default_level`, if set, MUST be a key of `risk_controls.levels`. |
+| CV8 | `risk_controls.levels.<L>.circuit_breaker` MUST NOT appear. |
+| CV9 | Each `market_maker_combos[]` has 2–10 legs; leg symbols are unique within the combo; every leg `symbol` exists in `symbols`. |
+| CV10 | `indices` has ≤ 5 entries; each `id` is alphanumeric and unique; each constituent exists in `symbols` and defines `outstanding_shares`; constituents are non-empty and duplicate-free. |
+| CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
+| CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
+| CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
+| CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `participants` id may be a prefix of another id. |
+| CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
+| CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
+| CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
+| CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
+| CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
+| CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
+| CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
+| CV22 | `participant_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
+
+---
+
+## 8. Processing model
+
+1. **Parse.** Load the document as YAML; a non-mapping root is rejected (§1.2).
+2. **Section ownership.** `pm-engine` reads the engine sections (§5) plus the
+   `SymbolSpec`/nested structures — with one exception, `country` (§5.10), which
+   is read only by `pm-scheduler`; each auxiliary process reads only its own
+   block (§6). No single process reads the whole file.
+3. **Normalisation.** Symbols, gateway ids, index ids, and enum values are
+   upper-cased (§1.6).
+4. **Validation.** Field-level constraints (§4–§6) are checked, then the
+   cross-field rules (§7). The first violation MAY abort loading.
+5. **Unknown keys** are ignored (§1.5).
+6. **Whole-file validation.** `pm-cverifier` validates every section — including
+   blocks no runtime process consumes on its own — across four layers (YAML,
+   schema, semantic, completeness). It is the reference conformance checker.
+7. **Whole-file presentation.** `pm-config-show` reads every section for
+   display only. It is read-only and non-normative: it neither validates nor
+   resolves defaults, and it MUST NOT be treated as a conformance signal — a
+   document it renders without complaint may still be rejected by a loader.
+   Where it reports an *effective* value the specification does define — most
+   notably the port a section binds when `port` is omitted (§6) — that value
+   MUST agree with this document.
+
+---
+
+## 9. Minimal conformant document
+
+The smallest document that loads and supports trading (informative):
+
+```yaml
+participants:
+  - id: TRADER01
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 149.90
+    last_sell_price: 150.10
+```
+
+If a `MARKET_MAKER` gateway is added, CV3 then requires a `market_maker_quotes`
+block on every symbol, unless `require_mm_seed_quotes: false` is also set.
+
+---
+
+## See also
+
+**Operator's Guide:**
+
+- Configuration — informative reference, generator, recipes
+- Config Verifier (`pm-cverifier`) — the reference validator
+- Inspect Configs (`pm-config-show`) — read-only viewer for a deployed document, including the effective port map
+- Risk Controls — collar and circuit-breaker behaviour
+- Market Index (`pm-index`) — index calculation using `indices`
+- Centralized Log Server — `pm-log-srv`/`pm-log-cli` operational guide
+
+**Protocols and Clients:**
+
+- External Protocols Overview — the gateways that read the auxiliary blocks
+- LALF Protocol Reference — the wire protocol `pm-log-srv` serves

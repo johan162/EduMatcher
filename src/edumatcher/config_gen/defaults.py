@@ -19,7 +19,7 @@ DEFAULT_CB_LEVEL_SPECS = (
     "L3:0.20",
 )
 
-# Automated Corridor Expansion (ACE) — see docs/user-guide/120-risk-controls.md.
+# Automated Corridor Expansion (ACE) — see ../../../docs/books/operator-guide/part-4-run-a-market/040-risk-controls.md.
 DEFAULT_ACE_ENABLED = True
 DEFAULT_ACE_INITIAL_BAND_PCT = 0.10
 DEFAULT_ACE_RANDOM_END_MAX_NS = 30_000_000_000

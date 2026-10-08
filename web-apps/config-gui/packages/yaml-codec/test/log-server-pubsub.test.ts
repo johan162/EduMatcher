@@ -2,7 +2,7 @@
  * LALF-PS coverage for the log_server section.
  *
  * The GUI, `pm-config-gen` and `pm-log-srv` itself must all agree about the
- * twelve LALF-PS fields (docs/user-guide/280-log-srv.md). These tests pin the
+ * twelve LALF-PS fields (../../../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md). These tests pin the
  * GUI's half: the YAML it emits, the YAML it can read back, and the two
  * cross-field rules that mirror pm-cverifier's S102/S103.
  */

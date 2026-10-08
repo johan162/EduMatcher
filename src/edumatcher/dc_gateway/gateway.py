@@ -13,7 +13,7 @@ number of concurrently connected TCP clients, each scoped to the gateway ID
 it asked for in ``HELLO``.
 
 Unlike ``pm-ralf-gwy``, there is no role/entitlement model here (drop copy
-has none -- see docs/user-guide/200-drop-copy.md) and no replay-by-sequence
+has none -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) and no replay-by-sequence
 protocol (``DropCopyPublisher.replay()`` is in-process only, not reachable
 over this wire -- see the same page). A client simply says which gateway ID
 it wants and receives that gateway's live fills for as long as it stays

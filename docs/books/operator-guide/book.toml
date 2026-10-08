@@ -1,0 +1,65 @@
+title = "Operator's Guide"
+subtitle = "Install, configure, run, and observe an EduMatcher exchange"
+slug = "operator-guide"
+
+[[parts]]
+title = "Part I: Install and deploy"
+dir = "part-1-install-and-deploy"
+files = [
+  "010-installation.md",
+  "020-vm-runtime-image.md",
+]
+
+[[parts]]
+title = "Part II: Configure"
+dir = "part-2-configure"
+files = [
+  "010-the-configuration-workflow.md",
+  "020-config-verifier.md",
+  "030-config-gui.md",
+  "040-example-configs.md",
+]
+
+[[parts]]
+title = "Part III: Run"
+dir = "part-3-run"
+files = [
+  "010-running-the-exchange.md",
+  "020-admin-console-and-commands.md",
+]
+
+[[parts]]
+title = "Part IV: Run a market"
+dir = "part-4-run-a-market"
+files = [
+  "010-new-symbols.md",
+  "020-valuation.md",
+  "030-sessions-and-scheduling.md",
+  "040-risk-controls.md",
+  "060-statistics-and-reporting.md",
+  "070-market-index.md",
+  "080-index-administration.md",
+]
+
+[[parts]]
+title = "Part V: Gateways"
+dir = "part-5-gateways"
+files = [
+  "010-alf-gateway.md",
+  "020-balf-gateway.md",
+  "030-calf-gateway.md",
+  "040-ralf-gateway.md",
+  "050-api-gateway.md",
+  "060-drop-copy-gateway.md",
+]
+
+[[parts]]
+title = "Part VI: Observe and recover"
+dir = "part-6-observe-and-recover"
+files = [
+  "010-persistence.md",
+  "020-audit-trail.md",
+  "030-audit-replay.md",
+  "040-log-server.md",
+  "050-log-console.md",
+]

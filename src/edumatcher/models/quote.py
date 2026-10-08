@@ -29,7 +29,7 @@ class QuoteRefreshPolicy(str, Enum):
 
 # Bounded per-gateway history of recently-inactivated quotes, used to answer
 # QLEGS SHOW=RECENT/ALL. Deliberately in-memory only — does not survive an
-# engine restart. See docs/user-guide/180-persistence.md for the rationale:
+# engine restart. See ../../../docs/books/operator-guide/part-6-observe-and-recover/010-persistence.md for the rationale:
 # only actionable, resting state (GTC orders/combos) is persisted; quote
 # inactivation history is neither resting nor actionable.
 DEFAULT_QUOTE_HISTORY_MAXLEN = 30

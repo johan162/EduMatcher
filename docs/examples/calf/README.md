@@ -41,7 +41,7 @@ renders every price at that symbol's own `tick_decimals`. The C client
 prints wire values verbatim and so needs no `REF` handling -- reformatting
 a decimal is what creates the chance to reformat it wrongly.
 
-See [docs/user-guide/920-app-calf-protocol.md](../../user-guide/920-app-calf-protocol.md)
+See [CALF protocol reference](../../books/protocols-and-clients/part-2-specifications/030-calf.md)
 for the normative wire contract both clients follow.
 
 ## CALF wire format

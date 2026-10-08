@@ -122,7 +122,7 @@ _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
-# (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
+# (non-replay) fill events -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 #: Wire limits `order_new` declares in spec/messages/order.yaml. Checked once
 #: each - symbols when the engine's snapshot lands, gateway ids at HELLO -
@@ -1014,7 +1014,7 @@ class AlfGateway:
         relays drop copy down a participant's own session rather than
         requiring a separate connection. ``DC|OFF`` unsubscribes. Mirrors
         the on/off semantics of a real FIX drop-copy session being
-        provisioned per participant -- see docs/user-guide/200-drop-copy.md.
+        provisioned per participant -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
         """
         state = self._required_str(fields, "STATE")
         gateway_id = self._require_gw(session)

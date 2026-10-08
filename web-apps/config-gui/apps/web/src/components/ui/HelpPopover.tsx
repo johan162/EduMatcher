@@ -5,7 +5,7 @@ interface Props {
   children: React.ReactNode;
   /** Equivalent CLI flag, shown for terminal users (design §10). */
   cliFlag?: string;
-  /** Optional deep link into docs/user-guide/. */
+  /** Optional deep link into the canonical documentation books. */
   docHref?: string;
 }
 

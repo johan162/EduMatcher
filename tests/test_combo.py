@@ -451,7 +451,7 @@ class TestComboValidation:
         """Each child leg gets its own order.ack before the parent combo.ack.
 
         No combo leg used to publish order.ack at all -- see
-        docs/user-guide/190-audit.md and Engine._accept_combo's leg-creation
+        ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md and Engine._accept_combo's leg-creation
         loop. The two leg acks come first because they are published as each
         leg is created, before the parent combo.ack that follows the loop.
         """

@@ -1,0 +1,66 @@
+pm_valuation: 1
+company:
+  name: Verisure plc
+  ticker: VSURE
+  sector: telecom_operator
+  dual_class: 'no'
+  market: se
+market:
+  tam: 55bn
+  tam_growth: 6%
+  sam_share: 40%
+  structure: dominant
+customers:
+  last_fy_revenue: 3.41bn
+  now: 5,831,400
+  arpu: 559
+  arpu_growth: 3%
+  churn: 7.4%
+  growth_y1: 9%
+people:
+  headcount: 24,767
+  loaded_cost: 48,000
+  wage_inflation: 4%
+  elasticity: '0.5'
+  growth_floor: 3%
+  split_rnd: 3%
+  split_snm: 12%
+  split_gna: 10%
+  split_ops: 75%
+costs:
+  infra_fixed: 80m
+  infra_per_customer: 60
+  other_cogs_pct: 5%
+  cac_paid: 1,000
+  rnd_nonstaff_pct: 1%
+  sbc_pct: 10%
+capital:
+  capex_pct: 25%
+  useful_life: '10'
+  nol: 300m
+  cash: 22m
+  debt: 7,754m
+rates:
+  beta_stage1: '1.1'
+  beta_stage2: '0.9'
+  size_premium_1: 0%
+  size_premium_2: 0%
+  execution_premium: 2%
+  debt_ratio: 35%
+  cost_of_debt: 6%
+offering:
+  shares_pre: 800,000,000
+  raise: 3.2bn
+  gross_spread: 3%
+  other_expenses: 30m
+investors:
+  inst_interest: very_high
+  n_institutions: '200'
+  avg_ticket: 300m
+  retail_interest: high
+  n_retail: 300,000
+  retail_application: 10,000
+  hype: '6'
+  comps_multiple: 5x
+management:
+  min_market_cap: none

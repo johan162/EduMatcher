@@ -7,7 +7,8 @@ Family version 1. Every symbol here is derived from ``spec/messages/system.yaml`
 the spec, not this file.
 
 ``pm-msgen check`` fails the build if this file and the spec disagree. See
-docs/developer/06-msgen.md.
+../../../../docs/books/architecture-and-development/part-4-developing/040-message-
+generation.md.
 """
 
 from __future__ import annotations
@@ -2548,9 +2549,10 @@ class StartupRecovery:
     config-seed step runs: how much of the previous session's resting state came
     back. Every one of these counts previously only reached `log.info`/`log.error`
     — invisible to `pm-audit`, which is a bare PUB subscriber and sees nothing
-    that is not published (see docs/user-guide/190-audit.md). A post-mortem
-    investigating "why does the book look different after a restart" needs this
-    the same way it needs `order.cancelled` for a live cancel.
+    that is not published (see ../../docs/books/operator-guide/part-6-observe-and-
+    recover/020-audit-trail.md). A post-mortem investigating "why does the book
+    look different after a restart" needs this the same way it needs
+    `order.cancelled` for a live cancel.
 
     A broadcast with no request, like `system.eod` — nothing asks for a recovery
     summary, the engine announces it once at startup.
@@ -2763,8 +2765,9 @@ class RecoveryItem:
     `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*;
     this says *which ones* — "which order failed to restore?" was unanswerable
     from either the counts alone or the process log, since a post-mortem
-    investigating a startup only sees what was published (see docs/user-
-    guide/190-audit.md). Published once per entity, before the single summary
+    investigating a startup only sees what was published (see
+    ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
+    trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
     `restored_orders + discarded_stale_day_orders + failed_orders` must equal the
     number of ORDER-kind recovery_item lines whose outcome is RESTORED,
@@ -2977,12 +2980,13 @@ class Diagnostic:
     still happened and a post-mortem needs to see it. Before this existed, a
     maintenance-flush exception, a handler crash, an undecodable inbound message,
     or a message on an unhandled topic reached only the process log — `pm-audit`'s
-    bare PUB subscription on the engine's :5556 socket (see docs/user-
-    guide/190-audit.md) never saw any of them, so a bug that only ever showed up
-    as "the book snapshot stopped updating" or "an order silently never got a
-    reply" had no trail to replay. This does not replace logging (the process log
-    keeps the full traceback); it is the wire-visible marker that something in
-    `component` happened, with enough detail to go find the log line.
+    bare PUB subscription on the engine's :5556 socket (see
+    ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md)
+    never saw any of them, so a bug that only ever showed up as "the book snapshot
+    stopped updating" or "an order silently never got a reply" had no trail to
+    replay. This does not replace logging (the process log keeps the full
+    traceback); it is the wire-visible marker that something in `component`
+    happened, with enough detail to go find the log line.
 
     Deliberately generic — a `component`/`detail`/`error` triple rather than one message
     type per failure mode, because the failure modes (a maintenance flush, a dispatch-
@@ -3530,8 +3534,8 @@ class Reference:
     `reference.symbols` becoming a list of records and `reference.schedule` gaining a
     level of nesting change `GET /reference/symbols` and `GET /reference/schedule`.
     Sanctioned, and the better JSON in both cases -- a list of objects each carrying its
-    own `symbol` is what a client can iterate without knowing the keys. `260-api-
-    gateway.md` moves with it.
+    own `symbol` is what a client can iterate without knowing the keys.
+    `../../docs/books/operator-guide/part-5-gateways/050-api-gateway.md` moves with it.
     """
 
     gateway_id: str

@@ -111,7 +111,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  When true (default), every symbol must define at least one",
             "  market_maker_quotes entry once any MARKET_MAKER gateway is configured.",
             "  Set to false to allow a MARKET_MAKER gateway with a genuinely empty",
-            "  book at startup (see docs/concepts/03-concepts-mm-quotes.md).",
+            "  book at startup (see ../../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md).",
             "",
         ]
     )

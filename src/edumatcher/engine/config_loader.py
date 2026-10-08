@@ -418,11 +418,11 @@ class EngineConfig:
     enforce_circuit_breakers: bool = True
     #: When True (default), the engine refuses to start any symbol that has
     #: a MARKET_MAKER gateway but no market_maker_quotes seed (see
-    #: docs/concepts/03-concepts-mm-quotes.md). Set to False to allow a
+    #: ../../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md). Set to False to allow a
     #: MARKET_MAKER gateway to exist with a genuinely empty book at startup.
     #: When True (default), the engine refuses to start any symbol that has
     #: a MARKET_MAKER gateway but no market_maker_quotes seed (see
-    #: docs/concepts/03-concepts-mm-quotes.md). Set to False to allow a
+    #: ../../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md). Set to False to allow a
     #: MARKET_MAKER gateway to exist with a genuinely empty book at startup.
     require_mm_seed_quotes: bool = True
     #: Seeds the generator that picks each reopening call phase's random end.

@@ -1,0 +1,53 @@
+title = "Participant Guide"
+subtitle = "Trading, market making, and participant-facing tools"
+slug = "participant-guide"
+
+[[parts]]
+title = "Part I: Trading basics"
+dir = "part-1-trading-basics"
+files = [
+  "010-gateways-and-how-you-connect.md",
+  "020-the-order-book.md",
+  "030-the-trading-day-and-auctions.md",
+]
+
+[[parts]]
+title = "Part II: Orders"
+dir = "part-2-orders"
+files = [
+  "010-the-trader-console.md",
+  "020-order-types.md",
+  "030-combo-and-oco-orders.md",
+  "040-implied-orders.md",
+]
+
+[[parts]]
+title = "Part III: Market making"
+dir = "part-3-market-making"
+files = [
+  "010-market-maker-quotes.md",
+  "020-market-making.md",
+  "030-the-market-maker-bot.md",
+]
+
+[[parts]]
+title = "Part IV: Automated trading"
+dir = "part-4-automated-trading"
+files = [
+  "010-ai-traders.md",
+  "020-how-the-bots-decide.md",
+]
+
+[[parts]]
+title = "Part V: Positions and results"
+dir = "part-5-positions-and-results"
+files = ["010-positions-and-pnl.md"]
+
+[[parts]]
+title = "Part VI: Front-ends"
+dir = "part-6-front-ends"
+files = [
+  "010-trading-info-terminal.md",
+  "020-trading-platform-gui.md",
+  "030-order-book-gui.md",
+]

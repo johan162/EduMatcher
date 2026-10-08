@@ -1,0 +1,26 @@
+title = "Reference Manual"
+subtitle = "Commands, configuration, data stores, and operational limits"
+slug = "reference-manual"
+
+[[parts]]
+title = "Part I: Command line"
+dir = "part-1-command-line"
+files = [
+  "010-processes-environment-and-ports.md",
+  "060-index-log-and-scheduler-tools.md",
+]
+
+[[parts]]
+title = "Part III: Configuration"
+dir = "part-3-configuration"
+files = [
+  "010-schema-and-process-blocks.md",
+  "030-formal-specification.md",
+]
+
+[backmatter]
+title = "Appendices"
+files = [
+  "90-backmatter/010-glossary.md",
+  "90-backmatter/020-known-limitations.md",
+]

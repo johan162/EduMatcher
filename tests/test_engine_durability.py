@@ -377,7 +377,7 @@ def _sent_ack(engine) -> dict:
     """The one order.ack the engine published, decoded.
 
     A handler exception now also publishes a system.diagnostic (see
-    docs/user-guide/190-audit.md) alongside the reject, so this filters for
+    ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md) alongside the reject, so this filters for
     the ack specifically rather than assuming it is the only message.
     """
     acks = [m for m in _sent_messages(engine) if m["topic"].startswith("order.ack.")]
@@ -612,7 +612,7 @@ def _run_one_receive_iteration(engine) -> None:
     Mirrors run()'s body rather than calling run(), so the test does not need
     a poller or a way to stop the loop. Kept in sync with that block
     (including its guarded system.diagnostic publish, see
-    docs/user-guide/190-audit.md) rather than a pre-diagnostic snapshot of
+    ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md) rather than a pre-diagnostic snapshot of
     it, so this helper cannot mask a regression there.
     """
     from edumatcher.models.message import decode as _decode, make_diagnostic_msg

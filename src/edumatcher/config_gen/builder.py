@@ -276,7 +276,7 @@ class LogServerSpec:
     write_batch_interval_ms: int = DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS
     heartbeat_interval_sec: int = DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC
 
-    # LALF-PS — the ZeroMQ log-distribution interface (docs/user-guide/280-log-srv.md)
+    # LALF-PS — the ZeroMQ log-distribution interface (../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md)
     pubsub_enabled: bool = DEFAULT_LOG_SERVER_PUBSUB_ENABLED
     pub_port: int = DEFAULT_LOG_SERVER_PUB_PORT
     pull_port: int = DEFAULT_LOG_SERVER_PULL_PORT
@@ -417,7 +417,7 @@ class ConfigBuilder:
             # and holiday overrides are opt-in (--weekend / --holidays);
             # per-individual-weekday overrides have no CLI flags of their
             # own and are left for hand-editing the generated YAML (see
-            # docs/user-guide/080-session-scheduling.md).
+            # ../../../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md).
             schedule: dict[str, Any] = {
                 "weekdays": {
                     "pre_open": self.spec.pre_open,

@@ -505,7 +505,7 @@ VERSION_NUMBER=${LATEST_TAG#v}
 
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
-USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_bundle-${FILE_VERSION_NUMBER}.zip"
+USER_GUIDE_ALL_ZIP="docs/dist/${PROGRAMNAME}_user_guide_all-${FILE_VERSION_NUMBER}.zip"
 USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_as_chapters_a4_bundle-${FILE_VERSION_NUMBER}.zip"
 
 USER_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_user_guide-${FILE_VERSION_NUMBER}.epub"
@@ -513,11 +513,11 @@ USER_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_user_guide-${FILE_VERSION_NUMBER}.epub
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
 
-if [[ ! -f "$USER_GUIDE_BUNDLE_ZIP" ]]; then
-    print_error "Required user guide bundle is missing: $USER_GUIDE_BUNDLE_ZIP"
+if [[ ! -f "$USER_GUIDE_ALL_ZIP" ]]; then
+    print_error "Required user guide all-format archive is missing: $USER_GUIDE_ALL_ZIP"
     exit 1
 fi
-print_success "Required artifacts found: $(basename "$USER_GUIDE_BUNDLE_ZIP")"
+print_success "Required artifacts found: $(basename "$USER_GUIDE_ALL_ZIP")"
 
 if [[ ! -f "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP" ]]; then
     print_error "Required user guide chapters bundle is missing: $USER_GUIDE_CHAPTERS_BUNDLE_ZIP"
@@ -581,12 +581,12 @@ else
 fi
 
 
-TRAINING_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_training-guide-bundle-${FILE_VERSION_NUMBER}.zip"
-if [[ ! -f "$TRAINING_GUIDE_BUNDLE_ZIP" ]]; then
-    print_error "Training Guide bundle not found: $TRAINING_GUIDE_BUNDLE_ZIP"
+TRAINING_GUIDE_ALL_ZIP="docs/dist/${PROGRAMNAME}_training_guide_all-${FILE_VERSION_NUMBER}.zip"
+if [[ ! -f "$TRAINING_GUIDE_ALL_ZIP" ]]; then
+    print_error "Training Guide all-format archive not found: $TRAINING_GUIDE_ALL_ZIP"
     exit 1
 else
-    print_success "Found Training Guide bundle: $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
+    print_success "Found Training Guide all-format archive: $(basename "$TRAINING_GUIDE_ALL_ZIP")"
 fi
 
 TRAINING_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_training-guide-${FILE_VERSION_NUMBER}.epub"
@@ -621,16 +621,16 @@ if [[ -z "$SDIST_FILE" ]]; then
     exit 1
 fi
 print_success "Found sdist: $(basename "$SDIST_FILE")"
-print_success "Found user guide bundle: $(basename "$USER_GUIDE_BUNDLE_ZIP")"
-print_success "Found training guide bundle: $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
+print_success "Found user guide all-format archive: $(basename "$USER_GUIDE_ALL_ZIP")"
+print_success "Found training guide all-format archive: $(basename "$TRAINING_GUIDE_ALL_ZIP")"
 print_success "Found training guide EPUB: $(basename "$TRAINING_GUIDE_EPUB")"
 
 # 4.6: Validate artifact sizes
 print_sub_step "Validating artifact sizes..."
 WHEEL_SIZE=$(stat -f%z "$WHEEL_FILE" 2>/dev/null || stat -c%s "$WHEEL_FILE" 2>/dev/null)
 SDIST_SIZE=$(stat -f%z "$SDIST_FILE" 2>/dev/null || stat -c%s "$SDIST_FILE" 2>/dev/null)
-USER_GUIDE_BUNDLE_SIZE=$(stat -f%z "$USER_GUIDE_BUNDLE_ZIP" 2>/dev/null || stat -c%s "$USER_GUIDE_BUNDLE_ZIP" 2>/dev/null || echo 1)
-TRAINING_GUIDE_BUNDLE_SIZE=$(stat -f%z "$TRAINING_GUIDE_BUNDLE_ZIP" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_BUNDLE_ZIP" 2>/dev/null || echo 1)
+USER_GUIDE_ALL_SIZE=$(stat -f%z "$USER_GUIDE_ALL_ZIP" 2>/dev/null || stat -c%s "$USER_GUIDE_ALL_ZIP" 2>/dev/null || echo 1)
+TRAINING_GUIDE_ALL_SIZE=$(stat -f%z "$TRAINING_GUIDE_ALL_ZIP" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_ALL_ZIP" 2>/dev/null || echo 1)
 TRAINING_GUIDE_EPUB_SIZE=$(stat -f%z "$TRAINING_GUIDE_EPUB" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_EPUB" 2>/dev/null || echo 1)
 
 if [[ "$WHEEL_SIZE" -lt 1000 ]]; then
@@ -644,13 +644,13 @@ if [[ "$SDIST_SIZE" -lt 1000 ]]; then
 fi
 
 
-if [[ "$USER_GUIDE_BUNDLE_SIZE" -lt 1000 ]]; then
-    print_error "User guide bundle suspiciously small: $USER_GUIDE_BUNDLE_SIZE bytes"
+if [[ "$USER_GUIDE_ALL_SIZE" -lt 1000 ]]; then
+    print_error "User guide all-format archive suspiciously small: $USER_GUIDE_ALL_SIZE bytes"
     exit 1
 fi
 
-if [[ "$TRAINING_GUIDE_BUNDLE_SIZE" -lt 1000 ]]; then
-    print_error "Training guide bundle suspiciously small: $TRAINING_GUIDE_BUNDLE_SIZE bytes"
+if [[ "$TRAINING_GUIDE_ALL_SIZE" -lt 1000 ]]; then
+    print_error "Training guide all-format archive suspiciously small: $TRAINING_GUIDE_ALL_SIZE bytes"
     exit 1
 fi
 
@@ -662,8 +662,8 @@ fi
 
 print_success "Wheel size:  $(numfmt --to=iec-i --suffix=B "$WHEEL_SIZE" 2>/dev/null || echo "$WHEEL_SIZE bytes")"
 print_success "Sdist size:  $(numfmt --to=iec-i --suffix=B "$SDIST_SIZE" 2>/dev/null || echo "$SDIST_SIZE bytes")"
-print_success "User Guide size:  $(numfmt --to=iec-i --suffix=B "$USER_GUIDE_BUNDLE_SIZE" 2>/dev/null || echo "$USER_GUIDE_BUNDLE_SIZE bytes")"
-print_success "Training Guide bundle size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_BUNDLE_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_BUNDLE_SIZE bytes")"
+print_success "User Guide all-format archive size:  $(numfmt --to=iec-i --suffix=B "$USER_GUIDE_ALL_SIZE" 2>/dev/null || echo "$USER_GUIDE_ALL_SIZE bytes")"
+print_success "Training Guide all-format archive size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_ALL_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_ALL_SIZE bytes")"
 print_success "Training Guide EPUB size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_EPUB_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_EPUB_SIZE bytes")"
 
 # =====================================
@@ -709,14 +709,14 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     --notes-file \"$RELEASE_NOTES_FILE\" \
     \"$WHEEL_FILE\" \
     \"$SDIST_FILE\" \
-    \"$USER_GUIDE_BUNDLE_ZIP\" \
+    \"$USER_GUIDE_ALL_ZIP\" \
     \"$USER_GUIDE_EPUB\" \
     \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_EPUB\" \
     \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP\" \
     \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
-    \"$TRAINING_GUIDE_BUNDLE_ZIP\" \
+    \"$TRAINING_GUIDE_ALL_ZIP\" \
     \"$TRAINING_GUIDE_EPUB\""
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then
@@ -873,12 +873,12 @@ else
     echo "Artifacts uploaded:"
     echo "  - $(basename "$WHEEL_FILE")"
     echo "  - $(basename "$SDIST_FILE")"
-    echo "  - $(basename "$USER_GUIDE_BUNDLE_ZIP")"
+    echo "  - $(basename "$USER_GUIDE_ALL_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
     echo "  - $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
-    echo "  - $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
+    echo "  - $(basename "$TRAINING_GUIDE_ALL_ZIP")"
     echo ""
     echo "Next steps:"
     echo "  1. Verify release on GitHub:"

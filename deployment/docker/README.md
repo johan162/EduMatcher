@@ -223,7 +223,7 @@ make up-all BUILD=1 GUI=log-gui    # both steps in one
 
 For the day-to-day inner loop — running a web app on your machine with hot
 reload against this container stack — see
-[The Development Loop](../../docs/developer/08-dev-workflow.md) and
+[The Development Loop](../../docs/books/architecture-and-development/part-4-developing/020-development-workflow.md) and
 `make dev-env GUI=<app>`.
 
 | GUI | URL | Talks to |

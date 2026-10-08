@@ -227,7 +227,10 @@ def render_man_page(
     if cmd.doc_anchor or cmd.doc_page:
         _heading(console, "SEE ALSO", use_color=use_color)
         if cmd.doc_anchor:
-            console.print(f"docs/user-guide/170-processes.md#{cmd.doc_anchor}")
+            console.print(
+                f"../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md#{cmd.doc_anchor}"
+            )
         if cmd.doc_page:
-            console.print(f"docs/user-guide/{cmd.doc_page}")
+            page = cmd.doc_page.removeprefix("../../../docs/books/")
+            console.print(f"docs/books/{page}")
         console.print("Run `pm-help` with no arguments for the full command index.")

@@ -7,7 +7,7 @@ that into the Python binding committed under
 the committed output no longer matches the spec.
 
 See ``docs-design/EduMatcher-Message-Generator.md`` for the design and
-``docs/developer/06-msgen.md`` for usage.
+``../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md`` for usage.
 
 Phase 1 generates the Python binding only. C generation and the documentation
 appendix are Phases 4 and 6.

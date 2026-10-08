@@ -1,0 +1,701 @@
+# Trader Information Terminal — "TapeDeck" (`pm-terminal`)
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - What the Trader Information Terminal is for, and when to use it instead
+      of a trading or administration tool
+    - Which services must be running before the display becomes useful
+    - How to start the terminal locally or in a container
+    - What each of the six screens is meant to help a viewer understand
+    - How to recognise normal disconnected, missing-history, and no-index
+      states without mistaking them for broken screens
+    - Which settings an operator is most likely to adjust
+
+
+## Overview
+
+**TapeDeck** is the friendly nickname this guide uses for the Trader
+Information Terminal, whose system name is `pm-terminal` and whose source code
+lives in `web-apps/terminal-gui/`. It is a read-only market display for the EduMatcher
+exchange: a browser window for watching live prices, trades, auctions, halts,
+indexes, and depth-of-book information.
+
+It is deliberately *not* a trading application. There is no order entry, no
+login screen, and no write path from the browser back into the exchange. Use it
+for a classroom wallboard, a demo display, an observer workstation, or a quick
+operator check that the market-data feed is alive. Use the trading client for
+placing orders, and the administration tools for changing exchange state.
+
+The terminal shows live data from the [CALF market-data feed](../../operator-guide/part-5-gateways/030-calf-gateway.md)
+and reads historical bars and index history through the [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md).
+The browser never sees an API key; the small bridge process running beside the
+web UI holds the upstream connections.
+
+
+### What starts when you run it
+
+Running TapeDeck starts one server process, `pm-terminal-bridge`, and serves
+the web page from that same process in the container setup. The bridge opens
+one live CALF connection to [`pm-md-gwy`](../../operator-guide/part-5-gateways/030-calf-gateway.md), shares that
+single feed across every open browser tab, and opens history requests to
+[`pm-api-gwy`](../../operator-guide/part-5-gateways/050-api-gateway.md) when charts or previous-close data are
+needed. Optional operational logs go to
+[the centralized log server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) when it is available.
+
+Most users do not need the following diagram to operate the terminal, but it
+is useful when deciding which host names and ports to put in the container
+environment.
+
+```mermaid
+flowchart LR
+    subgraph Browser["Browser tab(s)"]
+        UI["React app\n(Zustand + TanStack Query)"]
+    end
+    UI -->|"WS /ws/stream\n(JSON frames)"| BRIDGE["pm-terminal-bridge\nFastify + Node :8090"]
+    UI -->|"REST /api/history/*\n(proxied)"| BRIDGE
+    BRIDGE -->|"CALF TCP :5570\none session, shared by every tab"| MDGWY["pm-md-gwy"]
+    BRIDGE -->|"REST GET /history/*\n(server-held read-only key)"| APIGWY["pm-api-gwy :8081\n(dashboards instance)"]
+    BRIDGE -.->|"LALF TCP :5600\noperational logging"| LOGSRV["pm-log-srv"]
+```
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| **`pm-md-gwy`** ([CALF gateway](../../operator-guide/part-5-gateways/030-calf-gateway.md)) | Required for live prices, trades, session state, auctions, halts, indexes, and depth. The terminal can start without it, but it will show `RECONNECTING`/`OFFLINE` until the feed is reachable. |
+| **`pm-api-gwy`** ([API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md)) with a read-only API key | Required for charts, previous-close data, index history, and Overview/Movers `Open`/`Volume` columns. Live prices still tick without it. |
+| **`pm-log-srv`** ([Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md)) — optional | Used only for operational logs. If it is unavailable, the terminal still starts and writes to stdout or the local failover log directory. |
+| **Podman ≥ 4** or **Docker ≥ 24** with a Compose plugin | Needed for the recommended container run path. |
+| **Node.js ≥ 20** and **npm ≥ 10** | Needed only for local development without a container. |
+
+## Running the application
+
+TapeDeck needs three things from the exchange, and how you supply them is the
+only real difference between the ways of running it:
+
+| It needs | For | Without it |
+|---|---|---|
+| `pm-md-gwy` on 5570 | The live CALF feed — prices, depth, trades | The page loads but shows `RECONNECTING` |
+| `pm-api-gwy` on 8081, plus a read-only API key | Charts, previous close, historical index data | Live prices tick; history panels stay empty |
+| `pm-log-srv` on 5600 *(optional)* | Sending the bridge's own logs to the central log server | The bridge writes a fallback log to `./logs` |
+
+### The whole stack (recommended)
+
+This is the path that requires nothing of you: it starts the exchange and
+TapeDeck together, resolves the read-only API key out of the deployed
+configuration, and points the terminal at the backend by service name.
+
+**A released install:**
+
+```bash
+cd ~/.edumatcher
+./edumatcher.sh start
+```
+
+**From a source checkout:**
+
+```bash
+cd deployment/docker
+make up-all
+```
+
+Then open **<http://localhost:8090>**. The log console comes up on
+[8091](../../operator-guide/part-6-observe-and-recover/050-log-console.md), the trading GUI on [8093](020-trading-platform-gui.md) and
+the order book viewer on 8094 at the same time.
+
+There are no addresses to configure because every container shares one
+Compose network, on which the exchange answers to the hostname `edumatcher`.
+The API key is the one part that cannot be a fixed default — it is generated
+per engine configuration — so `up-all` reads it from the deployed
+configuration and injects it. See
+[Where the read-only API key comes from](#where-the-read-only-api-key-comes-from)
+and [Installation](../../operator-guide/part-1-install-and-deploy/010-installation.md).
+
+### This app alone, in a container
+
+Use this when the exchange is running somewhere else — another machine, a VM,
+or as processes on your host. From `web-apps/terminal-gui/`:
+
+```bash
+export EDUMATCHER_DATA_DIR=~/.local/share/edumatcher
+make up
+```
+
+Then open **<http://localhost:8090>**. `make logs` follows the bridge log,
+`make down` stops it.
+
+**How `make up` finds the API key.** An explicit `PM_TERMINAL_API_KEY` always
+wins:
+
+```bash
+make up PM_TERMINAL_API_KEY=key-readonly-...
+```
+
+Otherwise `make up` reads it from the deployed configuration
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`, picking the first
+credential with `gateway_id: null` (the `dashboards` instance is preferred when
+several carry one). It prints which instance and port the key came from, and
+warns when `API_GATEWAY_URL` points at a different port. When there is no key to
+be found it warns and starts anyway — the live feed needs no key, only the
+history panels do. Pass the key explicitly when the exchange runs on another
+machine or in a VM, since the look-up reads this host's data directory.
+
+Now the addresses matter, because the container is no longer beside the
+exchange. The compose file defaults to `host.docker.internal`, which resolves
+on Docker Desktop but not on Podman or Linux Docker:
+
+```bash
+export CALF_HOST=host.containers.internal
+export API_GATEWAY_URL=http://host.containers.internal:8081
+export LOG_SRV_HOST=host.containers.internal
+make up
+```
+
+!!! warning "The history key is valid on 8081, not 8080"
+    `API_GATEWAY_URL` must point at the `dashboards` instance. The read-only
+    credential (`gateway_id: null`) is issued there; `desk` on 8080 will reject
+    it, and the symptom is a live book with empty charts. The compose file
+    already defaults to `:8081` — keep the port when you change the host.
+
+If port 8090 is taken, move the *host* side of it. Pick something outside
+8090–8094, which the other applications use:
+
+```bash
+TERMINAL_GUI_PORT=8100 make up
+```
+
+The container serves the built React frontend, the WebSocket endpoint, and the
+small read-only history proxy from the same port. There is no database volume:
+the only bind mount is `./logs:/app/logs`, used when the optional log server is
+not reachable after startup.
+
+#### Alternative: direct Compose commands
+
+```bash
+PM_TERMINAL_API_KEY='...' docker compose up --build -d
+docker compose logs -f terminal-gui
+docker compose down
+```
+
+With Podman, use `podman-compose` for the same commands.
+
+### Running on a separate display server
+
+TapeDeck does not have to run on the same machine as the matching engine,
+`pm-md-gwy`, or `pm-api-gwy`. A common deployment is:
+
+- **Exchange server**: runs the engine, `pm-md-gwy`, `pm-api-gwy`, and
+  optionally `pm-log-srv`.
+- **Display server**: runs only the TapeDeck container and serves the browser
+  UI to viewers.
+
+No protocol change is needed on the exchange side. The terminal bridge is just
+another external CALF client plus a read-only history client. The practical
+requirements are:
+
+| Exchange-side item | What to check |
+|---|---|
+| `pm-md-gwy` | It normally binds to `0.0.0.0:5570`, so no application change is needed unless your config deliberately set `market_data_gateway.bind_address` to `127.0.0.1`. The display server must be able to open TCP `5570` on the exchange host. |
+| `pm-api-gwy` | It binds `0.0.0.0` by default, so no application change is needed unless your configuration deliberately narrows `api_gateways.<name>.host`. The display server must reach the instance that issues the **read-only** credential — the `dashboards` instance, HTTP `8081` in the bundled configurations, not `desk` on 8080. |
+| API key | Create or reuse a read-only `pm-api-gwy` key with `gateway_id: null`; TapeDeck only needs history reads and never sends the key to browsers. |
+| `pm-log-srv` | Optional. If you want centralized terminal logs, make TCP `5600` reachable and set `LOG_SRV_HOST` on the display server. If not, set `LOG_SRV_ENABLED=false` or let the container write its fallback log to `./logs`. |
+| Firewall / routing | Open only the ports the display server actually needs: TCP `5570` for CALF, TCP `8081` for history, and optionally TCP `5600` for logs. Browsers only need access to the display server's `8090` port, not to the exchange gateways. |
+
+On the display server, use the prepared image rather than building from source.
+The exact image name depends on how the release was delivered:
+
+```bash
+# Option A: the released image
+podman pull ghcr.io/johan162/edumatcher-terminal-gui:<VERSION>
+
+# Option B: an image tarball made with `make cdist` in web-apps/terminal-gui
+podman load --input edumatcher-terminal-gui-<VERSION>.tar.xz
+```
+
+Then run the container, pointing it at the exchange server's network name or IP
+address:
+
+```bash
+mkdir -p logs
+
+podman run -d --name terminal-gui \
+  --restart unless-stopped \
+  -p 8090:8090 \
+  -v "$PWD/logs:/app/logs" \
+  -e CALF_HOST=exchange.example.org \
+  -e CALF_PORT=5570 \
+  -e API_GATEWAY_URL=http://exchange.example.org:8081 \
+  -e PM_TERMINAL_API_KEY='...' \
+  -e INDEX_IDS=MAIN \
+  -e LOG_SRV_ENABLED=false \
+  ghcr.io/johan162/edumatcher-terminal-gui:<VERSION>
+```
+
+Use the image name you pulled or loaded — a loaded tarball is named
+`edumatcher-terminal-gui:<VERSION>` — and `docker` instead of `podman` if that
+is your container runtime. If
+centralized logging is available, replace `LOG_SRV_ENABLED=false` with:
+
+```bash
+-e LOG_SRV_ENABLED=true \
+-e LOG_SRV_HOST=exchange.example.org \
+-e LOG_SRV_PORT=5600
+```
+
+After startup, open **http://display-server.example.org:8090** from a browser.
+If the page loads but shows `RECONNECTING`, the display server can serve the
+UI but cannot reach `pm-md-gwy`. If live prices tick but charts or previous
+close values are missing, check `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
+
+### Local development
+
+From the `web-apps/terminal-gui/` directory:
+
+```bash
+make install    # npm workspace install; once, and after a dependency change
+make dev        # Vite dev server on :8190, bridge on :5190
+```
+
+Open **<http://localhost:8190>**. You do not talk to the bridge directly:
+`vite.config.ts` proxies `/api` and `/ws` from the dev server to the bridge on
+`127.0.0.1:5190`, so the browser sees a single origin.
+
+The bridge's own connect targets all default to `127.0.0.1`, which is exactly
+where the container stack publishes its ports — so `make up-all` in
+`deployment/docker` plus `make dev` here works with no configuration beyond the
+API key. `make dev-env GUI=terminal-gui` in `deployment/docker` prints the two
+values that cannot be defaulted:
+
+```bash
+eval "$(make -s -C ../../deployment/docker dev-env GUI=terminal-gui)"
+make dev
+```
+
+!!! warning "Keep `dev-env` out of the shell you start containers from"
+    `eval "$(make dev-env …)"` exports `API_GATEWAY_URL=http://127.0.0.1:8081`
+    and `PM_TERMINAL_API_KEY` into your shell, and they stay there. That is right
+    for `make dev`, whose bridge runs on your own machine. It is wrong for a
+    **container** started later from the same shell: Compose hands the
+    exported `API_GATEWAY_URL` to the container, where `127.0.0.1` is the
+    container itself. The app's own `make up` in `web-apps/terminal-gui` — or
+    `make up` in `web-apps/` without `VM_BACKEND_IP` — then starts a bridge
+    that cannot reach `pm-api-gwy`: live prices still tick, but the charts, previous close and Open/Volume columns stay empty, and the bridge log shows the history requests to `127.0.0.1:8081` failing. The exported key also takes
+    precedence over `make up`'s own look-up, and is stale once the exchange
+    runs another configuration.
+
+    `make up-all` and `./edumatcher.sh start` are not affected: whenever they
+    find the read-only credential they set both values themselves.
+
+    Either load the variables for the development server only, in a subshell:
+
+    ```bash
+    (eval "$(make -s -C ../../deployment/docker dev-env GUI=terminal-gui)"; make dev)
+    ```
+
+    or clear them before starting a container from that shell:
+
+    ```bash
+    unset API_GATEWAY_URL PM_TERMINAL_API_KEY
+    ```
+
+If `pm-md-gwy` is not running the page still loads, with the connection
+indicator showing `RECONNECTING`/`OFFLINE` until the feed appears.
+`make dev-bridge` runs only the bridge, `make dev-web` only the web server, and
+`make test` the Vitest suite. The full inner-loop workflow is
+[The Development Loop](../../architecture-and-development/part-4-developing/020-development-workflow.md).
+
+### Where the read-only API key comes from
+
+You never type the API key in the normal start paths, yet TapeDeck can read
+history. The key has always been there: it is part of the exchange's own
+configuration, and every start path looks it up and hands it to the bridge.
+
+**1. It is generated with the configuration.** `pm-config-gen`'s
+`--api-gateway-readonly-key` option adds one extra credential to the
+`dashboards` API gateway instance (port 8081), with `gateway_id: null` and a
+randomly generated key. Every bundled example configuration was generated with
+that option (see its `mkrefdata.sh`), so each carries one — and each a
+different one. In `docs/examples/ref_data/s1-basic-setup/engine_config.yaml`:
+
+```yaml
+api_gateways:
+  dashboards:
+    port: 8081
+    credentials:
+    - api_key: key-readonly-fq9m76
+      gateway_id: null
+      description: Generated read-only market-data key
+```
+
+When a configuration is deployed, the key travels with it into
+`<data dir>/ref_data/engine_config.json`, the file every exchange process
+reads.
+
+**2. The start path looks it up.** The bridge takes the key from the
+environment variable `PM_TERMINAL_API_KEY`, and each way of starting TapeDeck
+fills that variable from the deployed configuration:
+
+| Start path | How it finds the key |
+|---|---|
+| `make up-all` / `./edumatcher.sh start` | Starts the exchange first and waits for its configuration to be deployed, then reads `/data/ref_data/engine_config.json` inside the exchange container. It exports the key as `PM_TERMINAL_API_KEY` and sets `API_GATEWAY_URL=http://edumatcher:<that instance's port>`, and only then starts the web applications — which is why the whole-stack start runs in two phases |
+| `make up` in `web-apps/terminal-gui` | Reads `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json` on this host. A `PM_TERMINAL_API_KEY` you set yourself always wins |
+| `make dev-env GUI=terminal-gui` | Reads the key from the running exchange container and prints it as an `export` line for `make dev` |
+
+All three pick the first enabled gateway instance, in name order, that carries a
+credential with `gateway_id: null` — so `dashboards` is preferred over `desk`
+when both have one — and take that instance's port along with the key.
+
+**Why this is acceptable.** A read-only key is not a secret that grants
+anything worth protecting: it reads only public data — reference data, the
+market-data stream and history — and can neither place nor see orders. It still
+never reaches the browser; only the bridge holds it.
+
+**A configuration without one.** A configuration you built yourself may have no
+`gateway_id: null` credential. TapeDeck then still starts, with a warning: live
+prices work, because they come from `pm-md-gwy` and need no key, but the charts,
+previous close and Open/Volume columns stay empty. To fix it, add a credential
+with `gateway_id: null` to the `dashboards` instance — in the
+[Configuration GUI](../../operator-guide/part-2-configure/030-config-gui.md)'s gateway settings, by hand in
+`engine_config.yaml`, or by regenerating with `--api-gateway-readonly-key` —
+and redeploy.
+
+!!! note "Switching configuration changes the key"
+    Because every configuration has its own key, a key copied from one
+    configuration is rejected (HTTP 401) by an exchange running another. The
+    automatic look-up avoids this; a key you exported yourself, or one left
+    in your shell by `make dev-env`, does not.
+
+## A tour of the interface
+
+📷 **Figure 1 — The app shell.** Capture the Overview screen in dark theme,
+showing the full shell: the top bar (app name and version, the six view tabs,
+the density, theme and settings controls, the connection indicator) and the footer status strip.
+Suggested file: `images/terminal-gui/fig-01-app-shell.png`.
+
+### Top bar
+
+A single row (not a collapsible sidebar — six destinations is small enough
+for one row, and a data-dense terminal wants its horizontal space for
+numbers, not navigation chrome) holding:
+
+- **`EduMatcher pm-terminal v<version>`** — the app name and the release it
+  was built from.
+- The six view tabs: **Overview**, **Symbol**, **Index**, **Tape**,
+  **Movers**, **Session**.
+- A **density** control (gauge icon) that cycles **Lobby → Standard →
+  Dense**. This is a display preference, not a mode — every route and every
+  data point stays reachable at every setting; only defaults change (larger
+  type and a longer page delay under Lobby, tighter rows and shorter delay
+  under Dense). It persists to the browser's `localStorage`, so a different
+  browser or profile always starts on **Standard**.
+- A **theme** toggle (dark by default — the working default for a trading
+  screen — with a full light palette for bright rooms and projectors).
+- A **settings** cog holding **Font size** — XS, S, M, L, XL or XXL, XS by
+  default — which scales the whole page, for a projector or a screen read
+  from across a room. It is independent of density, persists to the
+  browser's `localStorage`, and (as the popover says) works in Chrome and
+  Safari only.
+- A **connection indicator**: `LIVE` (green), `RECONNECTING` (amber), or
+  `OFFLINE` (red), reflecting the bridge's own CALF session state, plus the
+  gateway id it is talking to.
+
+### Status strip (footer)
+
+A single-line summary meant to be readable from across a room: the current
+session phase (blank/no badge during `CONTINUOUS` — the absence of a badge
+*is* the "everything is normal" signal),
+a countdown to the next scheduled phase transition when the feed has named
+one, the number of currently-halted symbols, the total symbol count, the
+CALF connection state, **the age of the last market-data tick**, and a UTC
+clock.
+
+!!! note "Connection state and data age are two different readings, on purpose"
+    "CALF connected" only says the pipe is open — it says nothing about
+    whether anything is actually coming down it, and a feed that has gone
+    silent behind a healthy socket is exactly the failure a reader most needs
+    to catch. The status strip shows both: connection state, and separately,
+    how long it has been since the last tick arrived. A silently frozen
+    exchange still reads "CALF connected" but its tick age keeps climbing.
+
+## Screen tour
+
+### Market Overview
+
+The default landing view: every tradable symbol, paginated, meant to run
+unattended on a classroom or lobby display just as well as be actively
+browsed.
+
+📷 **Figure 2 — Market Overview.** Capture a multi-page symbol list mid-session
+with a mix of up/down movers and at least one halted symbol, the Watchlist
+toggle visible. Suggested file: `images/terminal-gui/fig-02-overview.png`.
+
+Key behaviors:
+
+- **Auto-paging.** Rows are split into pages sized to fit the viewport
+  (`⚙` control offers 3s/5s/8s/15s/30s dwell times, or a density-based
+  default), so the grid never needs to scroll — useful for an unattended
+  display with no mouse. Hovering the grid, sorting a column, or typing in
+  the symbol search **suspends** auto-advance (a reader who is actively
+  interacting with the board should not have it slide out from under them);
+  the manual `‹`/`›`/pause controls keep working regardless.
+- **Every row stays live on every page.** Paging is purely a rendering
+  concern — the bridge already holds one wildcard subscription covering
+  every symbol, so there is no per-page subscribe/unsubscribe to do, and
+  numbers on a page you are not currently viewing never go stale.
+- **Sortable columns** and a **type-ahead symbol search** — both narrow/order
+  what is shown without touching the underlying subscription.
+- **Watchlist.** Click the `☆` next to any symbol to pin it; the
+  `All`/`☆ Watchlist` toggle switches the grid between paging through every
+  symbol and paging through only pinned ones. This is client-only,
+  `localStorage`-persisted state — there is no server-side watchlist and
+  nothing to log into.
+- **A row fades after a configurable silence threshold** (`fade …` control —
+  choices from 1 minute to 1 hour, or off). The right value is a property of
+  the exchange, not of the terminal: a busy, liquid book and a thin classroom
+  exchange want very different thresholds, so it is exposed rather than
+  hardcoded.
+- **During a call auction phase**, the quote columns (`Bid`/`Ask`) are
+  replaced by auction-indicative columns (indicative uncross price/quantity,
+  imbalance) for symbols currently in an opening or closing auction — a call
+  phase is a different kind of market, not a display preference, so the grid
+  follows it automatically rather than offering a toggle.
+- **Not-executable banners.** When the whole board is outside continuous
+  trading (closed, or in a call auction), a banner says so explicitly rather
+  than merely dimming the numbers — the prices and volumes shown remain an
+  accurate record, they are just not currently tradable. A separate banner
+  appears if the previous-close lookup failed (percentage change is then
+  measured from today's open instead, and marked with a small `*`) or if the
+  history service itself is unreachable (Open/Volume/Turnover columns go
+  blank; live prices are unaffected).
+
+### Symbol Detail
+
+The deep-dive view for one instrument: a candlestick + midpoint chart, a
+values table, and an optional depth ladder. Large-screen only, by design —
+there is no responsive mobile layout.
+
+📷 **Figure 3 — Symbol Detail.** Capture a symbol with a visible price history
+(1D or 5D preset), both the OHLC and Midpoint series toggled on, and the
+Values panel. A second capture with the Depth toggle on instead of Values
+would usefully show the two-panel swap described below. Suggested files:
+`images/terminal-gui/fig-03-symbol-detail.png` and
+`images/terminal-gui/fig-03b-symbol-detail-depth.png`.
+
+- **Header.** Symbol, session badge, last price, change and %change (always
+  quoted against the *previous close*, footnoted when no previous close is
+  on record and the figure falls back to today's open instead), and today's
+  volume.
+- **Chart.** Time-window presets (`1D`/`5D`/`1M`/`3M`/`YTD`/`All`/`Live`),
+  free-form drag-zoom, and two independently toggleable series: OHLC
+  candlesticks (built from historical bars, with the live-forming bar updated
+  in place from CALF `TRADE` prints) and a spliced midpoint line — a coarser,
+  15-minute-resolution historical segment giving way to a tick-by-tick live
+  segment from CALF `TOP`, drawn in a slightly muted style where it is the
+  coarser data. A reference line for the previous close is always drawn, and
+  a VWAP line appears on the `1D`/`Live` presets only (VWAP is a same-session
+  benchmark; drawing it across a multi-day preset would be quoting today's
+  average against days it has nothing to do with).
+- **Auction and halt context.** An auction uncross fills a dismissible
+  banner (equilibrium price or "no cross," matched quantity, and any residual
+  imbalance) that distinguishes an opening/closing auction, a
+  circuit-breaker **reopening** auction, and a startup/recovery uncross by
+  name, rather than calling all three "auction uncrossed." A halted symbol
+  expands to show the circuit-breaker detail — trigger level, trigger and
+  reference price, and a **corridor bar** showing the price band the symbol
+  may reopen inside, with the last indicative price marked against it. This
+  is the visual explanation of *why* a halt is still running: if the marker
+  sits outside the band, the call phase was extended rather than printing.
+- **Values panel ↔ Depth ladder.** The `☐ Depth` toggle *replaces* the
+  Values panel with the [Depth-of-Book ladder](#depth-of-book) rather than
+  showing both side by side. This is deliberate, not a space-saving
+  afterthought: unlike `OHLC`/`Midpoint`, which reuse subscriptions the
+  bridge already holds for every symbol, turning Depth on causes the bridge
+  to open a brand-new per-symbol CALF subscription — so it is opt-in per
+  viewer, and the panel swap is a visible reminder that this is a heavier,
+  deliberately-requested data stream.
+
+### Depth-of-Book
+
+A Level 2 ladder (aggregated quantity per price level — never per-order
+identity, which CALF does not carry at any version) for whichever symbol
+currently has the Depth toggle on in Symbol Detail. It is not its own
+navigation tab.
+
+📷 **Figure 4 — Depth ladder.** Capture a symbol with resting orders on both
+sides, ideally with at least one row whose distance-from-touch marker is
+visible. Suggested file: `images/terminal-gui/fig-04-depth-ladder.png`.
+
+Columns run outward from the touch in both directions —
+`Cum | Qty | # | Bid ‖ Ask | # | Qty | Cum` — so the two best prices meet in
+the middle and the cumulative totals sit at the outer edges, where the eye
+ends up after scanning inward. Two things worth calling out:
+
+- **The `#` column** is the count of individual resting orders aggregated
+  into that price level — genuinely useful context a bare quantity doesn't
+  convey (1,400 shares from one order reads very differently than the same
+  1,400 split across four), and it costs nothing extra since `COUNT` is
+  already on the CALF wire.
+- **Rows are evenly spaced regardless of price gaps**, with the actual
+  distance from the touch shown as a percentage figure beside each row
+  instead. Spacing rows by price would collapse to unreadable slivers the
+  moment one level sat far out; the trade-off is that a lone level far from
+  a tight cluster would otherwise look like just the next rung down, which
+  is exactly what the percentage-distance figure (and a subtle highlight
+  when a level is unusually far out) corrects for.
+
+A **Bid depth / Ask depth / Imbalance** summary line below the ladder states
+the book's lean as a percentage (e.g. "62% bid") rather than a bid:ask ratio,
+since a ratio's useful range is lopsided (0.2 and 5.0 are the same imbalance
+mirrored) while a percentage reads the same distance from 50% either way.
+
+### Index View
+
+Headline level and a historical chart for a configured exchange index (see
+[Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md)).
+
+📷 **Figure 5 — Index View.** Capture the chart on a `1M`+ preset (to show the
+daily-bar rendering) alongside the Open/High/Low panel and, if any exist,
+the Recent changes strip. Suggested file: `images/terminal-gui/fig-05-index-view.png`.
+
+The headline level, change, and session badge always come from the **live**
+CALF `INDEX` stream, never from a historical REST row for the current date —
+`/history/index-daily`'s `close_level` is only guaranteed final once the
+session for that date has actually closed, so quoting it live for *today*
+would risk showing a figure that is still moving. Open/High/Low are safe to
+read from the REST row even intraday, since those are running-so-far values
+that only get more accurate as the day progresses. Switching indexes (when
+more than one is configured) costs nothing upstream — the bridge holds a
+standing subscription for every configured index regardless of which one a
+given tab is currently viewing. If the exchange has no index configured at
+all, the tab still exists and shows an explicit empty state rather than
+being hidden, so the tab row never shifts between differently-configured
+classroom exchanges.
+
+### Trade Tape / Time & Sales
+
+Every print on the exchange, newest first, filterable by symbol.
+
+📷 **Figure 6 — Trade Tape.** Capture the unfiltered tape with several
+symbols' prints visible. If reproducible, a second capture showing a gap
+marker row would be a good addition — see the callout below for how to
+trigger one deliberately in a test environment.
+Suggested file: `images/terminal-gui/fig-06-trade-tape.png`.
+
+The symbol filter narrows what is *displayed*; the bridge's underlying
+`SYM=*` wildcard subscription means every symbol's prints are already
+arriving regardless of the filter, so switching it is instant and free.
+`Pause` freezes the visible rows without losing anything — the tape keeps
+recording underneath, and `Resume` shows the current state rather than a
+gap where the pause was.
+
+!!! note "Gap markers are a real, shipped feature, not a hypothetical"
+    If the bridge's CALF connection drops and cannot fully repair a symbol's
+    trade sequence on reconnect (the replay window has already rolled past
+    the missed messages), the tape shows an explicit marker row — *"gap in
+    the tape — some prints for `SYMBOL` were missed"* — in place among the
+    prints it falls between, rather than silently omitting the missing
+    prints or, worse, saying nothing at all. A record with an unmarked hole
+    in it is worse than one that admits the hole, because a viewer has no
+    way to tell it apart from a genuinely quiet stretch. This is the direct
+    result of a real CALF protocol fix made while building TapeDeck.
+
+### Movers
+
+A different ranking over the same data the Overview grid already computes —
+no new subscriptions.
+
+📷 **Figure 7 — Movers.** Capture the Gainers tab with several bars of
+different lengths visible. Suggested file: `images/terminal-gui/fig-07-movers.png`.
+
+Three tabs: **Gainers** and **Losers** rank by percentage change from the
+previous close (falling back to today's open, and labelled as such, when no
+previous close is available); **Active** ranks by session turnover (value
+traded) instead — a common third view on real market boards, and cheap here
+since Overview already computes turnover per symbol. Each row's bar is
+scaled relative to the largest value currently shown on that tab.
+
+### Session & Halt Status Board
+
+Three panels in one view: the exchange-wide session phase, every symbol
+currently halted with its full circuit-breaker detail, and the auctions that
+have uncrossed since the tab was opened.
+
+📷 **Figure 8 — Session & Halt Status Board.** Capture a state with at least
+one active halt and one completed auction result, so both tables have
+content. Suggested file: `images/terminal-gui/fig-08-session-board.png`.
+
+- **Active halts** shows, per halted symbol: circuit-breaker level, trigger
+  and reference price (blank for an operator-initiated halt, which carries
+  neither), how and when it resumes (a converted wall-clock time for a timed
+  halt, or `Manual` for one that only ends on an explicit operator action),
+  and how long it has been halted.
+- **Recent auction results** is a session-scoped, client-side ring buffer of
+  every auction uncross seen since the tab opened — not a durable audit
+  trail (that is `pm-index`'s own structural log, surfaced separately via the
+  Index View's "Recent changes" strip). An omitted equilibrium price is
+  labelled `(no cross)` rather than shown as a blank, since "no crossable
+  interest at all" is a meaningfully different outcome from a price, just an
+  unusual one.
+- Opening this view is itself one of the two triggers for the bridge to hold
+  a per-symbol `CB` subscription (the other is opening that symbol's own
+  Symbol Detail view) — closing the tab releases every subscription it was
+  the sole reason for.
+
+## Configuration reference
+
+The container is configured with environment variables. Most installations only
+need to set `PM_TERMINAL_API_KEY` and, when the upstream services are not on the
+default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
+
+| Variable | Container default | Purpose |
+|---|---|---|
+| `TERMINAL_GUI_PORT` | `8090` | Host port exposed by `docker-compose.yml`; use this when `8090` is already in use. |
+| `HOST` / `PORT` | `0.0.0.0` / `8090` | Bridge bind address inside the container. |
+| `CORS_ORIGIN` | `*` | CORS allow-list |
+| `STATIC_DIR` | `/app/apps/web/dist` | Serve a built frontend from here (single-container mode); unset in development |
+| `MAX_WS_CLIENTS` | `200` | Browser-tab cap |
+| `WS_HEARTBEAT_INTERVAL_SEC` | `5` | How often every tab receives the bridge's status heartbeat |
+| `WS_PING_INTERVAL_SEC` / `WS_PING_MAX_MISSED` | `10` / `2` | Ping to each tab, and missed replies before a dead tab is dropped |
+| `WS_MAX_BUFFERED_BYTES` | `5000000` | A tab whose outgoing buffer exceeds this (a stalled browser) is disconnected |
+| `CALF_HOST` / `CALF_PORT` | `host.docker.internal` / `5570` | `pm-md-gwy`; use `host.containers.internal` for Podman if needed. |
+| `CALF_CLIENT_ID` | `pm-terminal-bridge` | CALF `HELLO.CLIENT` |
+| `CALF_PING_INTERVAL_SEC` | `60` | Keepalive; belt-and-braces now that the gateway's idle timer honours outbound traffic too |
+| `INDEX_IDS` | — | Comma-separated index ids to subscribe to (CALF has no "list the indexes" request) |
+| `API_GATEWAY_URL` | `http://host.docker.internal:8081` | `pm-api-gwy`, **the `dashboards` instance** — the read-only key is not valid on `desk` (8080). Use `host.containers.internal` for Podman. In the whole-stack path this is `http://edumatcher:8081`, set for you. |
+| `PM_TERMINAL_API_KEY` | — | Read-only (`gateway_id: null`) key, history reads only — never sent to the browser |
+| `LOG_SRV_ENABLED` | `true` | `false` skips even the startup probe |
+| `LOG_SRV_HOST` / `LOG_SRV_PORT` | `host.docker.internal` / `5600` | `pm-log-srv`; use `host.containers.internal` for Podman if needed. |
+| `LOG_SRV_CLIENT_ID` | `pm-terminal-bridge` | Name the bridge registers with at the log server |
+| `LOG_SRV_INSTANCE` | — | Optional suffix that tells several terminals' logs apart |
+| `LOG_CONNECT_TIMEOUT_SEC` | `0.5` | Startup probe and each reconnect attempt |
+| `LOG_FAILOVER_TIMEOUT_SEC` | `30` | Grace window before the one-way switch to a local log file |
+| `LOG_QUEUE_MAXSIZE` | `2000` | Bounded backlog while reconnecting |
+| `LOG_FAILOVER_DIR` | `/app/logs` | Where the post-failover log file goes; bind-mounted to `./logs` by Compose. |
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| Every screen shows the red "Disconnected from pm-terminal-bridge" banner | The browser's own WebSocket to the bridge is down | Confirm the bridge process is running and reachable at `HOST:PORT`; check the browser console for the WS connection error |
+| Connection indicator shows `RECONNECTING` and never returns to `LIVE` | The bridge cannot reach `pm-md-gwy` | Confirm `CALF_HOST`/`CALF_PORT` point at a running gateway, and that nothing (e.g. a firewall) blocks that TCP connection from the bridge's host |
+| Charts and Open/Volume columns are empty or show an "unavailable" banner, but live prices still tick | The bridge cannot reach `pm-api-gwy`, or `PM_TERMINAL_API_KEY` is missing/invalid | Check the bridge's startup log for a `PM_TERMINAL_API_KEY is unset` warning; confirm `API_GATEWAY_URL` is correct and the key is a valid read-only history key |
+| A container started with `make up` shows live prices but no history, and its log shows requests to `127.0.0.1:8081` failing | `API_GATEWAY_URL=http://127.0.0.1:8081` was left in the shell by `eval "$(make dev-env …)"` | `unset API_GATEWAY_URL PM_TERMINAL_API_KEY` and run `make up` again — see [Local development](#local-development) |
+| Index tab shows "This exchange has no index configured" | Expected, not an error, when no index is configured for this exchange | Set `INDEX_IDS` if an index should be shown |
+| A tape gap marker appears | The bridge's CALF connection dropped for long enough that the gateway's replay window rolled past the missed trades | Expected behavior under a real disconnect — see [Trade Tape](#trade-tape-time-sales) above; not itself a bug to fix |
+| Prices render to the wrong number of decimal places | The connected `pm-md-gwy` predates the `REF=` per-symbol precision field | Upgrade the gateway; TapeDeck falls back to two decimal places when `REF=` is absent, which is a compatibility fallback, not a defect in TapeDeck |
+
+## Related documentation
+
+- [CALF Gateway - Market Data Feed](../../operator-guide/part-5-gateways/030-calf-gateway.md) — the protocol
+  TapeDeck's bridge speaks upstream
+- [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md) — the REST history endpoints the bridge
+  proxies
+- [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) — the bridge's optional
+  operational-logging destination
+- [Configuration GUI (`config-gui`)](../../operator-guide/part-2-configure/030-config-gui.md) — the sibling
+  application TapeDeck shares its monorepo shape and deployment conventions
+  with
+- `docs-design/EduMatcher-Terminal-GUI.md` — the full design document (repository checkout only)
+- `web-apps/terminal-gui/README.md` — the implementation's own record of every
+  deviation from that design document (repository checkout only)

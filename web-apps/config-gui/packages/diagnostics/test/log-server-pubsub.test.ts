@@ -4,7 +4,7 @@
  * Mirrors pm-cverifier's S102 (pm-log-srv binds three ports and they must be
  * distinct) and S103 (the lease ceiling cannot sit below the default lease),
  * plus the cross-section port-collision case. See
- * docs/user-guide/280-log-srv.md for what the fields do.
+ * ../../../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md for what the fields do.
  */
 
 import { describe, expect, it } from "vitest";

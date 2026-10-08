@@ -15,7 +15,7 @@
 # and its events should not grow four empty fields to say so".
 #
 # LAYOUT AUTHORITY. Every offset, size and enum value below comes from
-# docs/user-guide/910-app-balf-protocol.md, which declares itself "the normative
+# ../../docs/books/protocols-and-clients/part-2-specifications/020-balf.md, which declares itself "the normative
 # reference for BALF 1.0.0", and is cross-checked against
 # src/edumatcher/balf_gwy/codec.py (the gateway that emits these frames) and
 # tests/test_balf_gwy_unit.py (which asserts side at body offset 48).
@@ -1231,7 +1231,7 @@ messages:
   # own resting orders); this pair is the admin-only, all-gateway analogue,
   # used by pm-admin's LEVEL command (see docs-design/EduMatcher-
   # engine-price-ticks.md's sibling investigation and
-  # docs/user-guide/*-app-admin-console.md for the operational motivation:
+  # docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md for the operational motivation:
   # book.* and order.orders_request only ever show aggregate {price, qty,
   # count} per level, never which orders and which gateways make it up).
   # --------------------------------------------------------------------------

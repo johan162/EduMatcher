@@ -10,7 +10,7 @@ by ``calf_spy``/``ralf_spy``.
 Unlike CALF/RALF, the drop-copy feed is a plain ZeroMQ PUB/SUB stream: there
 is no HELLO/WELCOME handshake and no heartbeat protocol to keep alive. A
 subscriber simply connects and applies a topic-prefix filter -- see
-``edumatcher.engine.drop_copy`` and ``docs/user-guide/200-drop-copy.md``.
+``edumatcher.engine.drop_copy`` and ``../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md``.
 """
 
 from __future__ import annotations

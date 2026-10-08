@@ -1,7 +1,7 @@
 """LALF-PS configuration coverage across pm-config-gen and pm-cverifier.
 
 The `log_server:` block now carries the twelve LALF-PS fields described in
-docs/user-guide/280-log-srv.md. Three tools must agree about them: the
+../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md. Three tools must agree about them: the
 generator that writes them, the verifier that checks them, and the runtime
 loader that consumes them. These tests pin all three together — in
 particular the round-trip case, since a generator that emits a file its own

@@ -2466,7 +2466,7 @@ _LOG_SERVER_POSITIVE_INT_FIELDS = (
     "write_batch_size",
     "write_batch_interval_ms",
     "heartbeat_interval_sec",
-    # LALF-PS (docs/user-guide/280-log-srv.md)
+    # LALF-PS (../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md)
     "lease_sec",
     "max_lease_sec",
     "max_subscribers",

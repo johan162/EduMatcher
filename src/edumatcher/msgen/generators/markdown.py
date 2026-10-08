@@ -9,7 +9,7 @@ is the argument for 6.2 generating the reference rather than maintaining it".
 
 What this module deliberately does **not** render is anything the spec cannot
 state. The narrative half of the page — how a bus works, what the transports
-are, the CALF protocol — lives in ``270-preamble.md`` and is copied through
+are, the CALF protocol — lives in ``../../../../docs/books/protocols-and-clients/part-5-message-reference/000-preamble.md`` and is copied through
 verbatim. Generating prose from a spec that has no field for it is how a
 documentation generator starts inventing things, which is the failure this one
 exists to remove rather than relocate.
@@ -26,7 +26,7 @@ _BANNER = """<!--
   `pm-msgen generate`. Edit the spec, not this file; `pm-msgen check` fails in
   CI when the two disagree.
 
-  The narrative sections come from docs/user-guide/270-preamble.md, which IS
+  The narrative sections come from ../../../../docs/books/protocols-and-clients/part-5-message-reference/000-preamble.md, which IS
   hand-written and is the right place for anything the spec cannot state.
 -->
 """

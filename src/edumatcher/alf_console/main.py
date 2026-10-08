@@ -198,7 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable drop-copy relay on startup (equivalent to sending "
         "DC|STATE=ON immediately after connecting). Default: off. Can also "
         "be toggled at runtime with the DC|STATE=ON / DC|STATE=OFF command. "
-        "See docs/user-guide/200-drop-copy.md",
+        "See ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md",
     )
     parser.add_argument(
         "--log-level",
@@ -428,7 +428,7 @@ class Gateway:
         """Toggle the drop-copy relay (DC|ON / DC|OFF / --drop-copy).
 
         Subscribes/unsubscribes ``drop_copy.event.<gateway_id>`` on the
-        dedicated drop-copy socket (:5557) -- see docs/user-guide/200-drop-copy.md.
+        dedicated drop-copy socket (:5557) -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
         Idempotent: calling with the same state twice is a no-op on the wire.
         """
         if enabled == self._dc_enabled:
@@ -766,7 +766,7 @@ class Gateway:
         ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
         ``DC_FILL``-style line for consistency with the wire message
         pm-alf-gwy sends its own TCP clients for the same event (see
-        docs/user-guide/270-message-reference.md).
+        ../../../docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md).
         """
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")

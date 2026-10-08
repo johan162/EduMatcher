@@ -2686,7 +2686,7 @@ class Engine:
         rows report the quote's identity, final state, removal reason, and
         removal time instead of reconstructing per-leg fill detail. The
         history is in-memory only, bounded, and does not survive an engine
-        restart — see docs/user-guide/180-persistence.md.
+        restart — see ../../../docs/books/operator-guide/part-6-observe-and-recover/010-persistence.md.
 
         ``complete`` is ``True`` whenever the reply honestly reflects what
         was asked for: ``ACTIVE`` is always complete, and ``RECENT``/``ALL``
@@ -2973,7 +2973,7 @@ class Engine:
         this gateway's resting quote legs in this book, at most 2) — rather
         than trusting ``QuoteIndex`` bookkeeping that has already been
         popped, and rather than scanning every resting order in the book.
-        See docs/architecture/02-architecture-guide.md §10 for the index's
+        See ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10 for the index's
         full rationale.
 
         Ordinary orders (``origin=ORDER``) are never touched here — this
@@ -2999,7 +2999,7 @@ class Engine:
         # three coordinated edits (this function, feed_schema, the reference
         # docs) and reached the C clients not at all. It now takes one edit to
         # the spec. Costs ~0.6 µs/trade against the literal; see
-        # docs-design/perf-notes.md and docs/developer/06-msgen.md.
+        # docs-design/perf-notes.md and ../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md.
         #
         # The *unchecked* constructor: this is a measured hot path and the
         # engine is the authority on its own trades. Every other producer uses
@@ -3816,7 +3816,7 @@ class Engine:
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
             # O(k) per book via OrderBook._orders_by_gateway (k = this
             # gateway's resting orders there), not a scan of every resting
-            # order in every book — see docs/architecture/02-architecture-guide.md
+            # order in every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md
             # §10. Quote-origin orders are excluded: the cancel_all_for_gateway
             # call above already handles those via QuoteIndex.
             for book in self.books.values():
@@ -3923,7 +3923,7 @@ class Engine:
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
-        # every book — see docs/architecture/02-architecture-guide.md §10.
+        # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
             if symbol_filter and book.symbol != symbol_filter:
                 continue
@@ -4025,7 +4025,7 @@ class Engine:
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
-        # every book — see docs/architecture/02-architecture-guide.md §10.
+        # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:

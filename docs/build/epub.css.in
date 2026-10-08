@@ -1,0 +1,75 @@
+body {
+  font-family: Georgia, "DejaVu Serif", serif;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Helvetica, Arial, "DejaVu Sans", sans-serif;
+}
+
+code, pre {
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 0.85em;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+img {
+  max-width: @@EPUB_FIGURE_MAX_WIDTH@@;
+  height: auto;
+  display: block;
+  margin: 1.2em auto;
+}
+
+div.admonition {
+  margin: 1.2em 0;
+  padding: 0.7em 1em;
+  border-left: 4px solid #4b5563;
+  background: #f5f5f5;
+}
+
+p.admonition-title {
+  font-family: Helvetica, Arial, "DejaVu Sans", sans-serif;
+  font-weight: bold;
+  margin: 0 0 0.4em 0;
+}
+
+div.admonition.note { border-left-color: #2b6cb0; background: #eef4fb; }
+div.admonition.tip { border-left-color: #2f855a; background: #eef8f1; }
+div.admonition.warning { border-left-color: #c53030; background: #fbeaea; }
+div.admonition.info { border-left-color: #4a5568; background: #f0f0f1; }
+div.admonition.abstract { border-left-color: #0e7490; background: #ecf7fa; }
+div.admonition.important { border-left-color: #0f766e; background: #ecf7f5; }
+div.admonition.question { border-left-color: #65750f; background: #f5f7ea; }
+div.admonition.danger { border-left-color: #991b1b; background: #f9e3e3; }
+div.admonition.bug { border-left-color: #9d174d; background: #f9e8ef; }
+
+div.admonition > *:last-child { margin-bottom: 0; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.2em 0;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  font-size: 0.92em;
+}
+
+th, td {
+  padding: 0.35em 0.6em;
+  vertical-align: top;
+  text-align: left;
+}
+
+thead th { border-bottom: 1px solid currentColor; }
+tbody tr + tr td { border-top: 1px solid #c8c8c8; }
+
+@media (prefers-color-scheme: dark) {
+  body { background: #121212; color: #e8e8e8; }
+  a { color: #8ab4f8; }
+  code, pre { background: #1e1e1e; color: #e8e8e8; }
+  th, td { border-color: #4a4a4a; }
+}

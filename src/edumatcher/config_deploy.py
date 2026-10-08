@@ -97,7 +97,7 @@ def resolve_example(name: str) -> Path:
     An optional trailing ``-nomm`` selects the no-market-maker-quotes variant
     of the same example (e.g. ``s3-basic-nomm`` ->
     ``docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml``)
-    — see docs/concepts/03-concepts-mm-quotes.md.
+    — see ../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md.
 
     Raises ``ValueError`` with the available names when *name* is not one of
     the bundled examples.

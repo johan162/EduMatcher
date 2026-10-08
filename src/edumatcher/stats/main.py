@@ -53,7 +53,7 @@ SQLite tables
     — which is guaranteed once the date has rolled over, or can be
     confirmed immediately by checking close_session_state == "CLOSED"
     (set from pm-index's forced EOD publish). See pm-stats-cli's
-    index-daily command and docs/user-guide/140-statistics-and-reporting.md
+    index-daily command and ../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md
     for how to query this reliably.
 
   index_level_snapshots
@@ -404,7 +404,7 @@ CREATE TABLE IF NOT EXISTS instruments (
 
 -- Price columns below are INTEGER *ticks*, not display money. Divide by
 -- 10^tick_decimals to get a display price. See the tick handling section of
--- docs/user-guide/140-statistics-and-reporting.md.
+-- ../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md.
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,
     symbol              TEXT NOT NULL,

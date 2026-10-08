@@ -130,7 +130,7 @@ class OrderBook:
         # book?" in O(k) (k = that gateway's resting orders here) instead
         # of a full scan of resting_orders() — see
         # Engine._handle_gateway_disconnect, _handle_kill_switch* and
-        # _handle_cancel_symbol, and docs/architecture/02-architecture-guide.md
+        # _handle_cancel_symbol, and ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md
         # §10 for the rationale.
         # Maintained by every funnel that can make an order resting or stop
         # it resting, since — unlike _order_index/_entry_index, which only

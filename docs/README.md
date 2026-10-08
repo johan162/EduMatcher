@@ -161,7 +161,7 @@ available in the Markdown source:
 **Inside a verbatim/code block** — inline marker line:
 
 ````markdown
-```yaml
+```text
 key: value
 !!! yaml-cbreak-b5
 key2: value2

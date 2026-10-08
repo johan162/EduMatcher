@@ -1,0 +1,17 @@
+title = "Quick Start Guide"
+subtitle = "From a first launch to a first trade"
+slug = "quick-start"
+
+[[parts]]
+title = "Part I: See it run"
+dir = "part-1-see-it-run"
+files = ["030-your-first-trade.md"]
+
+[[parts]]
+title = "Part II: Next steps"
+dir = "part-2-next-steps"
+files = ["020-choose-your-book.md"]
+
+[backmatter]
+title = "Appendix"
+files = ["90-backmatter/010-faq.md"]

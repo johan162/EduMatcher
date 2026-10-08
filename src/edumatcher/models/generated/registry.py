@@ -9,7 +9,8 @@ off the wire - ``order.ack.TRADER01`` - back to the message that defines it, and
 message's declared field units.
 
 Every symbol here is derived from the specification; edit the spec, not this file. See
-docs/developer/06-msgen.md.
+../../../../docs/books/architecture-and-development/part-4-developing/040-message-
+generation.md.
 """
 
 from __future__ import annotations

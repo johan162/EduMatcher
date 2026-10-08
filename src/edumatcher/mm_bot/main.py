@@ -3,7 +3,7 @@
 The command line is scoped by ``--symbol``: flags before the first one are
 gateway-wide defaults, flags after one apply to that symbol alone. A
 ``--config`` file expresses the same thing without a long command line. See
-docs/user-guide/100-mm-bot.md and docs-design/EduMatcher-mm-bot-multi.md for
+../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md and docs-design/EduMatcher-mm-bot-multi.md for
 the full grammar.
 """
 
