@@ -1,4 +1,4 @@
-# Gateway Concepts
+# Gateways and How You Connect
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -15,8 +15,12 @@
     - Why `pm-alf-console`, the interactive terminal used throughout this guide,
       is technically **not** a gateway, and where the real ALF gateway lives
 
-    **Prerequisites**: [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — gateway IDs and
-    roles are defined in `engine_config.yaml` before any client can connect.
+    **Prerequisites**: the Quick Start Guide's
+    [Your First Trade](../../quick-start/part-1-see-it-run/030-your-first-trade.md).
+    Your participant ID and role are set by the operator in the exchange's
+    configuration before you can connect; the Operator's Guide chapter
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md)
+    explains how.
 
 ## What is a gateway?
 
@@ -57,7 +61,7 @@ client population:
 | **Proprietary REST/WebSocket** | Text / JSON | Retail, algorithmic | Used by crypto exchanges and some retail venues; easy to integrate |
 
 EduMatcher's order-entry gateway speaks a **FIX-inspired pipe-delimited text format** that
-we call **ALF** (**AL**most **F**ix):
+we call **ALF** (**AL**most **F**IX):
 `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`.
 It borrows FIX's field=value concept but uses a simplified subset - no session
 layer, no checksums, no sequence numbers, and no standard FIX message set.
@@ -66,7 +70,7 @@ A production FIX gateway would add all of these.
 !!! note "Formal protocol reference"
     This page explains the general gateway concept and lists what EduMatcher
     provides. The formal syntax and semantics of the ALF protocol are defined
-    in [Appendix: ALF Protocol Reference](../../protocols-and-clients/part-2-specifications/010-alf.md), and a
+    in [ALF Protocol Reference](../../protocols-and-clients/part-2-specifications/010-alf.md), and a
     protocol-by-protocol comparison of ALF/BALF/CALF/RALF lives in
     [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md).
 
@@ -88,11 +92,11 @@ matching engine and of every other gateway.
 | **REST/WebSocket** | `pm-api-gwy` | Order entry + market data | HTTP/JSON and WebSocket interface for browser and API-native clients | [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md) |
 
 !!! note "`pm-alf-console` is not in this table"
-    `pm-alf-console`, the interactive trading terminal used throughout this
+    `pm-alf-console`, the interactive trader console used throughout this
     guide's examples, is deliberately absent from this list: it connects
     directly to the engine's internal ZeroMQ bus instead of terminating a TCP
     port, so it does not fit the definition of a gateway above. See
-    [`pm-alf-console` — Interactive ALF Trading Terminal](../part-2-orders/010-the-trader-console.md)
+    [The Trader Console (`pm-alf-console`)](../part-2-orders/010-the-trader-console.md)
     for what it is instead, and [ALF TCP Gateway](../../operator-guide/part-5-gateways/010-alf-gateway.md) for the
     process that *is* the real ALF gateway.
 
@@ -106,7 +110,7 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 - **DC1** — configured under the top-level `dc_gateway` key; used by `pm-dc-gwy`. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol.
 - **LALF** — configured under the top-level `log_server` key; used by `pm-log-srv`. Collects operational `logging`-module output from every other `pm-*` process over a persistent TCP connection into a queryable SQLite database. The same key also configures **LALF-PS**, the ZeroMQ `PUB`/`PULL` interface that distributes those rows back out to live log viewers.
 
-See [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for the full field-by-field schema of
+See [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for the full field-by-field schema of
 each gateway's configuration block, and [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md)
 for a protocol-centric comparison of ALF, BALF, CALF, and RALF.
 
@@ -188,7 +192,7 @@ regulated venue it would be a *compliance failure*.
 
 **In this book:**
 
-- [`pm-alf-console` — Interactive ALF Trading Terminal](../part-2-orders/010-the-trader-console.md) — the learning/demo ALF client, and why it is not itself a gateway
+- [The Trader Console (`pm-alf-console`)](../part-2-orders/010-the-trader-console.md) — the learning/demo ALF client, and why it is not itself a gateway
 
 **Operator's Guide:**
 

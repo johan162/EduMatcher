@@ -165,7 +165,7 @@ pm-opctl-cli list
 pm-opctl-cli stop
 ```
 
-To run processes by hand instead — the arrangement the User Guide assumes —
+To run processes by hand instead — the arrangement the Operator's Guide assumes —
 open a shell per process with `multipass shell ems` and start them separately:
 
 | Terminal | Command |
@@ -176,7 +176,7 @@ open a shell per process with `multipass shell ems` and start them separately:
 | 4 | `pm-viewer --symbol AAPL` |
 | 5 | `pm-alf-console --id TRADER01` |
 
-See [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) for what each one does and what
+See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) for what each one does and what
 the `default`, `mini` and `micro` profiles contain.
 
 

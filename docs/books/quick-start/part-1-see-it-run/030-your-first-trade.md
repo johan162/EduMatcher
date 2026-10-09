@@ -1,488 +1,386 @@
 # Your First Trade
 
-<a id="environment-variables"></a>
-<a id="how-the-default-is-selected"></a>
-<a id="installation"></a>
-<a id="pm-setup-session-bootstrap-tool"></a>
-
 !!! note "Learning objectives"
-    After completing this walkthrough you will have:
+    After this walkthrough you will have:
 
-    - Started EduMatcher and connected two trading terminals
-    - Submitted a limit order and watched it rest on the book
-    - Executed a trade between two gateways
-    - Read your fill confirmation, including who was maker and who was taker
-    - Checked P&L in the clearing window
-    - Cancelled and amended a resting order
-    - Submitted a MARKET order
+    - put a limit order into an empty order book and watched it rest there
+    - made it trade with an order from a second participant
+    - read the fill, and worked out who was the *maker* and who the *taker*
+    - checked your position and your realized profit or loss
+    - cancelled and amended a resting order
+    - sent a market order
 
-This is a step-by-step guided walkthrough. You need about 10 minutes and three
-terminal windows. No prior trading knowledge is assumed — every term is
-explained as it appears.
+**Time:** about 30 minutes. **You need:** the exchange from
+[Install and Start](020-install-and-start.md) and three terminal windows. No
+trading knowledge is assumed — every term is explained where it first
+appears.
 
-!!! tip "New to exchanges generally?"
-    If terms like "order book", "bid/ask" or "matching" are unfamiliar, read
-    [The Order Book](../../participant-guide/part-1-trading-basics/020-the-order-book.md) first — it explains the
-    structure this walkthrough exercises. This chapter assumes that concept
-    but not any EduMatcher-specific knowledge.
+!!! tip "Two ideas before you start"
+    An **order book** is the list of everyone currently willing to buy a
+    symbol (the *bids*) and everyone willing to sell it (the *asks*), best
+    price first. An order **rests** in the book until an order from the other
+    side arrives at a price that crosses it — then the two **match** and a
+    trade happens. If you would like a fuller picture first, read
+    [The Order Book](../../participant-guide/part-1-trading-basics/020-the-order-book.md)
+    in the Participant Guide; it takes ten minutes.
 
+## Step 1 — Prepare an empty market
 
+To see your own orders clearly, start from a market with no other orders in
+it: no seeded quotes and no market-maker bot. The bundled configuration
+`s3-basic-nomm` has three symbols (`AAPL`, `MSFT`, `TSLA`), the same four
+participants as before, no trading-day schedule and *no market-maker quotes*
+("nomm").
 
-## Prerequisites
-
-Install EduMatcher if you haven't yet — see
-[Installation](../../operator-guide/part-1-install-and-deploy/010-installation.md). This walkthrough uses the
-`pipx` / Poetry path, where each process runs in its own terminal:
+**Containers.** In `~/.edumatcher`, choose the configuration, switch the
+process profile from `mm-demo` to `default` (the same processes without the
+market-maker bot) and restart:
 
 ```bash
-pipx install edumatcher
-mkdir edumatcher-session && cd edumatcher-session
-pm-setup
+cd ~/.edumatcher
+./edumatcher.sh config s3-basic-nomm
+sed -i.bak 's/^EM_PROFILE=.*/EM_PROFILE=default/' .env
+./edumatcher.sh restart
 ```
 
-`pm-setup` creates a data directory and deploys a default sample
-configuration with three symbols (`AAPL`, `MSFT`, `TSLA`) and four gateways,
-including `TRADER01` and `TRADER02` — the two we'll use below. Session
-scheduling is disabled in the sample, so matching is available immediately;
-you don't need to worry about auctions or session phases for this
-walkthrough (see [A Full Trading Day](../../participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md) for that,
-later).
+The `sed` line just edits one setting in the file `.env`; you can make the
+same change in any text editor. Then open **two** terminals and run
+`./edumatcher.sh shell` in each, so both are inside the exchange.
 
-Verify the install worked:
+**Python package.** Deploy the same configuration and restart the processes:
 
 ```bash
-pm-engine --version
+pm-opctl-cli stop
+pm-setup --config s3-basic-nomm --force
+pm-opctl-cli start
 ```
 
-If this doesn't work, re-read the installation guide and its troubleshooting
-section.
+Then open two terminals with the same `EDUMATCHER_DATA_DIR`.
 
-!!! tip "Using the container install instead?"
-    The exchange is already running — skip Step 1 below and open a shell
-    inside the container for each terminal instead:
+!!! tip "The minimal exchange, by hand"
+    On the Python route you can also skip `pm-opctl-cli` and start only what
+    a trade needs: run `pm-engine --verbose` in a third terminal and leave it
+    running. That is the whole matching engine. Everything below works the
+    same, except Step 7's `pm-clearing-cli`, which needs the `pm-clearing`
+    recorder running *before* you trade.
 
-    ```bash
-    cd ~/.edumatcher
-    ./edumatcher.sh shell
-    ```
+## Step 2 — Connect two traders
 
-    The container's default configuration has the same symbols and gateway
-    IDs used here, so every command below works unchanged. You can also
-    watch the trade land in the browser terminal at
-    <http://localhost:8090>.
-
-
-
-## Step 1 — Start the engine
-
-Open a terminal and start the matching engine. Leave it running for the rest
-of this walkthrough.
+In the first terminal, connect as `TRADER01`; in the second, as `TRADER02`:
 
 ```bash
-# Terminal 1 — Matching engine
-pm-engine --verbose
-```
-
-Wait until it prints that it has bound its sockets and loaded the deployed
-configuration.
-
-
-
-## Step 2 — Connect two trading terminals
-
-Open two more terminals and connect a console to the engine from each, using
-the two gateway IDs from the sample configuration:
-
-```bash
-# Terminal 2 — First trader
 pm-alf-console --id TRADER01
 ```
 
 ```bash
-# Terminal 3 — Second trader
 pm-alf-console --id TRADER02
 ```
 
-Each terminal prints a short banner once connected:
+`pm-alf-console` is the **trader console**: it connects you to the engine as
+one participant, using the text order-entry protocol ALF. Each window prints a
+banner and a prompt:
 
-```
-Gateway TRADER01 connected.  Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
+```text
+Gateway TRADER01 connected.   — Student desk 1 Type HELP for commands.
+Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
 
 [TRADER01]>
 ```
 
-The `[TRADER01]>` prompt means you're ready to enter commands. Every event
-the engine sends back — fills, acknowledgements, rejections — appears
-inline in this same window, prefixed with a `[HH:MM:SS.mmm]` timestamp, so
-keep an eye on it after every command.
+Everything the engine sends back to you — acknowledgements, fills,
+rejections — appears in the same window with a `[HH:MM:SS.mmm]` timestamp.
+Type `HELP` at any time to list the commands.
 
-
-
-## Step 3 — Check what symbols are available
+## Step 3 — See what you can trade
 
 At the `[TRADER01]>` prompt, type:
 
-```
+```text
 SYMBOLS
 ```
 
-You should see a table of active instruments:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Active Instruments                   │
-├────┬────────┬──────┬────────────┬────────────┬─────────┤
-│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
-├────┼────────┼──────┼────────────┼────────────┼─────────┤
-│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
-│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
-└────┴────────┴──────┴────────────┴────────────┴─────────┘
+```text
+                       Active Instruments
+┏━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ #    ┃ Symbol     ┃ Tick ┃ MM Enforced ┃ Max Spread ┃ Min Qty ┃
+┡━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━┩
+│ 1    │ AAPL       │ 0.01 │     NO      │         20 │     100 │
+│ 2    │ MSFT       │ 0.01 │     NO      │         20 │     100 │
+│ 3    │ TSLA       │ 0.01 │     NO      │         20 │     100 │
+└──────┴────────────┴──────┴─────────────┴────────────┴─────────┘
 ```
 
-All examples in this walkthrough use `AAPL`.
+`Tick` is the smallest price step: AAPL prices are whole cents. The other
+columns are market-maker rules, which this configuration does not enforce.
+Every example below uses `AAPL`.
 
-!!! note
-    `SYMBOLS` only lists symbols that already have an active order book — one
-    is created the first time an order (or a seeded market-maker quote)
-    arrives for it. It's normal to see fewer symbols here than are defined in
-    `engine_config.yaml` if nothing has traded them yet.
+## Step 4 — Place a buy order that rests
 
+A **limit order** says: *"I want to buy (or sell) this many shares, but only
+at this price or better."* At the `[TRADER01]>` prompt:
 
-
-## Step 4 — Submit a passive LIMIT BUY (make liquidity)
-
-A **LIMIT BUY** order says: *"I want to buy X shares, but only at this price
-or lower."* If no one is selling at that price right now, the order **rests
-on the book** — it waits until someone is willing to sell at your price.
-
-At the `[TRADER01]>` prompt:
-
-```
+```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 ```
 
-**What each field means:**
-
 | Field | Value | Meaning |
-|-------|-------|---------|
-| `SYM` | `AAPL` | The symbol (instrument) you want to trade |
+|---|---|---|
+| `SYM` | `AAPL` | The symbol to trade |
 | `SIDE` | `BUY` | You want to buy |
-| `TYPE` | `LIMIT` | Price-limited order — won't fill above $150.00 |
+| `TYPE` | `LIMIT` | Never pay more than `PRICE` |
 | `QTY` | `100` | 100 shares |
-| `PRICE` | `150.00` | Maximum price you'll pay |
-| `TIF` | `DAY` | Time-in-force: expires at the end of the trading day if never filled |
+| `PRICE` | `150.00` | The most you will pay per share |
+| `TIF` | `DAY` | *Time in force*: the order expires at the end of the trading day if it has not traded |
 
-You should see the acknowledgement appear in the same window:
+The engine acknowledges it:
 
+```text
+[09:31:02.104] ACK       855b6f946fe9cb7ae96bbda1c8d1dc06  order accepted
 ```
-[09:31:02.104] ACK       a1b2c3d4  order accepted
-```
 
-The 8-character ID (`a1b2c3d4` here — yours will differ) is a short
-reference used only for display in this console. Hold onto the idea that a
-*full* order ID exists too — you'll need it for `AMEND` and `CANCEL` in
-Steps 9 and 10.
+The long hexadecimal string is the **order ID**. You will need it to cancel
+or amend an order, so it is worth knowing where to find it: here, and in the
+`ORDERS` list you will use in Step 9.
 
-Your order is now resting on the book, waiting for a seller at $150.00 or
-better.
+Nobody is selling, so nothing trades. Your order now **rests** in the book as
+the best bid. If you have the container route, look at AAPL in the Order Book
+Viewer (<http://localhost:8094>) or on TapeDeck (<http://localhost:8090>): a
+bid of 100 at 150.00 has appeared where there was nothing.
 
+## Step 5 — Sell into it
 
+Switch to the `[TRADER02]>` window and offer to sell at the same price:
 
-## Step 5 — Submit a matching LIMIT SELL (take liquidity)
-
-Switch to the `[TRADER02]>` terminal and submit a sell order at the same
-price:
-
-```
+```text
 NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 ```
 
-Because TRADER01 has a resting bid at $150.00 and TRADER02 is now willing to
-sell at $150.00, the prices **cross** — a trade happens immediately instead
-of resting.
-
-
+TRADER01 is willing to pay 150.00 and TRADER02 is willing to accept 150.00:
+the prices **cross**, so the engine matches the two orders at once instead of
+letting the sell order rest.
 
 ## Step 6 — Read the fill confirmation
 
-Both terminals receive a `FILL` line the moment the trade executes.
+Both windows receive a `FILL` line the moment the trade happens. In
+`TRADER01`'s window:
 
-In the `TRADER01` window:
-
-```
-[09:31:07.552] FILL      a1b2c3d4  qty=100 @150.00  remaining=0  [FILLED]
-```
-
-In the `TRADER02` window:
-
-```
-[09:31:07.552] FILL      e5f6a7b8  qty=100 @150.00  remaining=0  [FILLED]
+```text
+[09:31:07.552] FILL      855b6f946fe9cb7ae96bbda1c8d1dc06  qty=100 @150.0  remaining=0  [FILLED]
 ```
 
-`remaining=0` and `[FILLED]` mean the whole order is done; a partial fill
-would instead show `remaining=<n>` and `[PARTIAL]`, leaving the rest of the
-order still resting on the book.
+TRADER02 sees the same for its own order ID. `remaining=0` and `[FILLED]`
+mean the whole order traded. A partial fill would show `remaining=<n>` and
+`[PARTIAL]`, and the rest of the order would keep resting in the book.
 
-This is also the moment to connect the fill back to the maker/taker idea
-from [The Order Book](../../participant-guide/part-1-trading-basics/020-the-order-book.md#passive-vs-aggressive-orders):
-TRADER01's LIMIT BUY was already resting on the book when the trade
-happened, so TRADER01 was the **maker**; TRADER02's LIMIT SELL crossed the
-spread to match it, so TRADER02 was the **taker**.
+This is the moment to meet two words used everywhere on exchanges:
 
-You don't have to work that out from who submitted first, though. Every fill
-also carries the derived `liquidity_flag` directly — you just have to ask
-for it. The plain `FILL` line above doesn't print it (it's a terse,
-high-frequency console line by design), but two other views show it
-explicitly:
+- TRADER01's order was already resting in the book and *provided* the
+  liquidity: TRADER01 was the **maker**.
+- TRADER02's order arrived and *took* that liquidity: TRADER02 was the
+  **taker**.
 
-- **Drop-copy**, if you start the console with `--drop-copy` (or send
-  `DC|STATE=ON` once connected), prints one extra line per fill:
+You can ask the engine to state this for every fill. Start a console with
+`--drop-copy` (or type `DC|STATE=ON` in a connected one) and each of your fills
+is followed by a **drop-copy** line carrying the flag:
 
-  ```
-  [09:31:07.552] DC_FILL   a1b2c3d4  AAPL  qty=100 @150.00  [MAKER]  #4821  (drop_copy.event.TRADER01)
-  ```
-
-  TRADER02's window would show the mirror image, tagged `[TAKER]`.
-
-- The **REST/WebSocket API** puts it on every `order.fill` event as
-  `data.liquidity_flag`, no extra opt-in required — see
-  [order.fill in the API Gateway guide](../../operator-guide/part-5-gateways/050-api-gateway.md).
-
-If you'd rather see this live without switching consoles, reconnect with
-`pm-alf-console --id TRADER01 --drop-copy` and repeat Steps 4–6 — the
-`DC_FILL  ...  [MAKER]` / `[TAKER]` lines will appear right alongside the
-ordinary `FILL` lines.
-
-!!! note "Watching the book empty out"
-    If you have a fourth terminal free, run `pm-viewer --symbol AAPL` before
-    Step 4 and watch it live: the bid at $150.00 appears after Step 4 and
-    disappears the instant the trade in Step 6 consumes it. `pm-viewer` is
-    covered in [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md).
-
-
-
-## Step 7 — Check P&L in the clearing window
-
-Open a fourth terminal and start the clearing process:
-
-```bash
-# Terminal 4 — Clearing / P&L tracker
-pm-clearing
+```text
+[09:31:07.552] DC_FILL   855b6f946fe9cb7ae96bbda1c8d1dc06  AAPL  qty=100 @150.0  [MAKER]  #1  (drop_copy.event.TRADER01)
 ```
 
-After a moment it prints a P&L Summary table covering every position it has
-seen fills for:
+Drop copy is the independent copy of fills that a firm's risk and compliance
+staff receive. The Participant Guide covers it in
+[The Trader Console](../../participant-guide/part-2-orders/010-the-trader-console.md).
 
+## Step 7 — Check your position and P&L
+
+Your **position** is how many shares you hold: positive after buying (*long*),
+negative after selling shares you did not have (*short*). At the
+`[TRADER01]>` prompt:
+
+```text
+POS
 ```
-                              P&L Summary
-┌──────────┬────────┬─────────┬──────────┬────────┬──────────┬────────────┬───────────┐
-│ Gateway  │ Symbol │ Net Qty │ Avg Cost │  Mark  │ Realized │ Unrealized │ Total P&L │
-├──────────┼────────┼─────────┼──────────┼────────┼──────────┼────────────┼───────────┤
-│ TRADER01 │ AAPL   │    +100 │   150.00 │ 150.00 │    +0.00 │      +0.00 │     +0.00 │
-│ TRADER02 │ AAPL   │    -100 │   150.00 │ 150.00 │    +0.00 │      +0.00 │     +0.00 │
-└──────────┴────────┴─────────┴──────────┴────────┴──────────┴────────────┴───────────┘
+
+```text
+                                   Positions
+┏━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃ Symbol   ┃  Net Qty ┃   Avg Cost ┃    Last Px ┃   Unreal P&L ┃     Real P&L ┃
+┡━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ AAPL     │     +100 │     150.00 │     150.00 │        +0.00 │        +0.00 │
+└──────────┴──────────┴────────────┴────────────┴──────────────┴──────────────┘
 ```
 
-`pm-clearing` re-prints this table after every trade batch, so from now on
-just watch this window after each fill.
+TRADER01 is long 100 shares bought at an average cost of 150.00. The last
+trade price is also 150.00, so the **unrealized** P&L (the gain or loss you
+would make by closing the position at the last price) is zero. TRADER02 is
+short 100, also at zero. Nothing is **realized** yet, because neither has
+closed a position.
 
-**Reading the P&L:**
+## Step 8 — Close the position at a profit
 
-- **TRADER01** bought 100 shares at $150.00 and now has a **long position**
-  (`Net Qty +100`). Unrealized P&L is $0 because the mark price is still
-  $150.00 — no gain or loss yet.
-- **TRADER02** sold 100 shares it doesn't hold, so it is now **short** 100
-  shares (`Net Qty -100`). Its P&L is also $0 at this instant, for the same
-  reason.
+TRADER01 now offers the shares back at a higher price. From `[TRADER01]>`:
 
-For the full mechanics behind avg cost, realized and unrealized P&L —
-including what happens when a position adds, reduces, or flips sides — see
-[P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md).
-
-
-
-## Step 8 — Close the position for a profit
-
-From `[TRADER01]>`, post another order to close the long position at a
-higher price:
-
-```
+```text
 NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=GTC
 ```
 
-`TIF=GTC` (Good-Till-Cancelled) means this order isn't tied to today's
-trading day: it's persisted and reloaded automatically at the start of the
-next session if it doesn't fill today. It rests on the ask side of the book,
-waiting for a buyer at $152.00.
+`TIF=GTC` means *good till cancelled*: unlike a `DAY` order, it is saved when
+the trading day ends and comes back the next day if it has not traded. It
+rests on the ask side of the book. From `[TRADER02]>`, buy back the short
+position at that price:
 
-From `[TRADER02]>`, buy back the short position at that price:
-
-```
+```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=DAY
 ```
 
-Another trade executes immediately. The clearing window updates:
+The orders cross and trade. Type `POS` again at `[TRADER01]>`:
 
-```
-                              P&L Summary
-┌──────────┬────────┬─────────┬──────────┬────────┬──────────┬────────────┬───────────┐
-│ Gateway  │ Symbol │ Net Qty │ Avg Cost │  Mark  │ Realized │ Unrealized │ Total P&L │
-├──────────┼────────┼─────────┼──────────┼────────┼──────────┼────────────┼───────────┤
-│ TRADER01 │ AAPL   │      +0 │        — │ 152.00 │  +200.00 │      +0.00 │   +200.00 │
-│ TRADER02 │ AAPL   │      +0 │        — │ 152.00 │  -200.00 │      +0.00 │   -200.00 │
-└──────────┴────────┴─────────┴──────────┴────────┴──────────┴────────────┴───────────┘
+```text
+┃ Symbol   ┃  Net Qty ┃   Avg Cost ┃    Last Px ┃   Unreal P&L ┃     Real P&L ┃
+│ AAPL     │        0 │          — │          — │            — │      +200.00 │
 ```
 
-TRADER01 bought at $150 and sold at $152 — **$2 × 100 shares = $200 realized
-profit**. TRADER02 sold at $150 and bought back at $152 — **$200 realized
-loss**. Both are now flat (`Net Qty 0`, `Avg Cost —`).
+TRADER01 bought at 150 and sold at 152: 2.00 × 100 shares = **200.00 realized
+profit**, and a flat position. TRADER02 sold at 150 and bought back at 152 and
+has realized a 200.00 loss. Every profit on an exchange is someone else's
+loss or forgone gain: the exchange itself only matches.
 
+The same figures are recorded by the `pm-clearing` recorder, which the full
+process set starts for you. From any shell inside the exchange:
 
-
-## Step 9 — Submit and cancel a resting order
-
-Submit a new bid that won't fill immediately:
-
-```
-# From [TRADER01]>
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
+```bash
+pm-clearing-cli pnl
 ```
 
-You'll get an ACK with a short display ID, e.g.:
-
+```text
+gateway_id | symbol | realized_pnl | unrealized_pnl | total_pnl | net_qty | mark_price | tick_decimals
+-----------+--------+--------------+----------------+-----------+---------+------------+--------------
+TRADER01   | AAPL   | 200          | 0              | 200       | 0       | 152        | 2
+TRADER02   | AAPL   | -200         | 0              | -200      | 0       | 152        | 2
 ```
-[09:34:15.881] ACK       f9e8d7c6  order accepted
+
+!!! warning "Recorders only record what they see"
+    `pm-clearing`, `pm-stats` and `pm-audit` only capture trades that happen
+    while they are running. If you started the engine by hand and
+    `pm-clearing` afterwards, its figures miss the earlier trades and will
+    not match `POS`. That is why the process manager starts the recorders
+    before the engine.
+
+## Step 9 — Cancel a resting order
+
+Post a bid that will not trade straight away. From `[TRADER01]>`:
+
+```text
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00|TIF=DAY
 ```
 
-To cancel or amend it you need the *full* order ID, not the short one shown
-above. Ask the engine for it:
+To cancel an order you need its ID. Copy it from the `ACK` line, or list your
+orders:
 
-```
+```text
 ORDERS
 ```
 
-This prints your resting orders with their full UUIDs. Copy the one matching
-this order, then cancel it:
-
-```
-CANCEL|ID=<full-order-uuid>
-```
-
-The engine confirms:
-
-```
-[09:34:22.017] CANCELLED f9e8d7c6
+```text
+┃ ID                               ┃ Symbol ┃ Side ┃ Type  ┃ TIF ┃ Qty ┃ Rem ┃ Price ┃ Status ┃ Time     ┃
+│ a129aadacb20eaf85c4eef86386be6e9 │ AAPL   │ BUY  │ LIMIT │ DAY │  50 │  50 │ 148.0 │ NEW    │ 09:34:15 │
+│ 9ceca6d5db612b51d2dcb94ea880055f │ AAPL   │ SELL │ LIMIT │ GTC │ 100 │   0 │ 152.0 │ FILLED │ 09:32:40 │
+│ 855b6f946fe9cb7ae96bbda1c8d1dc06 │ AAPL   │ BUY  │ LIMIT │ DAY │ 100 │   0 │ 150.0 │ FILLED │ 09:31:02 │
 ```
 
-!!! warning "Short ID vs. full order ID"
-    The 8-character ID on `ACK`/`FILL` lines is display-only. `AMEND` and
-    `CANCEL` both require the full UUID from `ORDERS` — this is the single
-    most common mistake when scripting or typing commands by hand. See
-    [Common mistakes and fast triage](../../participant-guide/part-2-orders/010-the-trader-console.md#common-mistakes-and-fast-triage)
-    for more.
+Then cancel it with the full ID:
 
-
-
-## Step 10 — Amend an existing order
-
-Sometimes you want to change your mind without withdrawing completely —
-maybe you'd take a slightly higher price, or want fewer shares. `AMEND`
-updates a **resting** LIMIT order in place, without losing your spot in the
-queue any more than necessary.
-
-From `[TRADER01]>`, post a new resting bid and note its full ID via
-`ORDERS` as in Step 9:
-
-```
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
-ORDERS
+```text
+CANCEL|ID=a129aadacb20eaf85c4eef86386be6e9
 ```
 
-Now change the price to $149.00 and reduce the quantity to 30 shares:
-
-```
-AMEND|ID=<full-order-uuid>|PRICE=149.00|QTY=30
+```text
+[09:34:22.017] CANCELLED a129aadacb20eaf85c4eef86386be6e9
 ```
 
-The engine confirms the change:
+!!! tip "Use the whole ID"
+    `CANCEL` and `AMEND` need the complete 32-character order ID. In a narrow
+    terminal window the `ORDERS` table shortens the ID column (`a129aa…`);
+    widen the window, or copy the ID from the `ACK` line instead.
 
+## Step 10 — Amend a resting order
+
+Sometimes you want to change an order rather than withdraw it. Post a new bid,
+note its ID, and then change its price to 149.00 and its quantity to 30:
+
+```text
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00|TIF=DAY
+AMEND|ID=<the new order's ID>|PRICE=149.00|QTY=30
 ```
-[09:35:40.229] AMENDED   f9e8d7c6  price=149.0 qty=30 remaining=30
+
+```text
+[09:35:40.229] AMENDED   73cfaf47645825b341c93513a908bd81  price=149.0 qty=30 remaining=30 (priority reset)
 ```
 
-You can amend the price, the quantity, or both in a single command. You
-cannot amend a fully filled or cancelled order.
+`(priority reset)` matters. Orders at the same price trade in the order they
+arrived — **price-time priority** — and an amendment can cost you your place
+in that queue, just as on real exchanges:
 
-!!! warning "Queue priority"
-    Amending an order can cost you your **time priority** in the queue,
-    mirroring real exchanges:
+- **a price change** always sends the order to the back of the queue at its
+  new price;
+- **a quantity increase** does too;
+- **a quantity decrease** keeps your place, because offering less is no
+  disadvantage to anyone already waiting.
 
-    - **Price change** — always loses priority. The order moves to the back
-      of the new price level's queue.
-    - **Quantity increase** — loses priority, for the same reason.
-    - **Quantity decrease** — priority is **preserved**. Reducing your size
-      is a concession to the market, so exchanges reward it.
+Here the price changed, so the order lost its priority.
 
-    In the example above, both the price change ($148 → $149) *and* the
-    quantity reduction (50 → 30) happen in one command. The price change
-    dominates — the order goes to the back of the $149.00 queue.
+## Step 11 — Send a market order
 
+A **market order** has no price: it says *"buy (or sell) now, at the best
+prices available"*. First give it something to trade against. From
+`[TRADER02]>`:
 
-
-## Step 11 — Try a MARKET order
-
-A MARKET order doesn't specify a price — it says "buy/sell at whatever is
-available right now." First, make sure there's something to trade against.
-
-From `[TRADER02]>`, post a resting sell:
-
-```
+```text
 NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00|TIF=DAY
 ```
 
-Now from `[TRADER01]>`, sweep it with a market buy:
+Then, from `[TRADER01]>`:
 
-```
+```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-The fill confirms immediately at $151.00 — the resting sell's price, not a
-price TRADER01 chose:
-
-```
-[09:36:51.703] FILL      12ab34cd  qty=100 @151.00  remaining=0  [FILLED]
+```text
+[09:36:51.703] FILL      53d7d9eae488049000d4131a1729cd07  qty=100 @151.0  remaining=0  [FILLED]
 ```
 
-You didn't choose the price; you prioritized speed and certainty of
-execution over price control.
-
-
+It filled at 151.00 — the resting seller's price, not one you chose. A market
+order trades certainty of execution for control over the price. In a thin
+book that can be an expensive trade, which is why the Participant Guide's
+[Order Types](../../participant-guide/part-2-orders/020-order-types.md)
+chapter spends some time on it.
 
 ## Summary
 
-You have completed a full basic trading session:
+| Step | What you did | What it taught you |
+|---|---|---|
+| 1–2 | Prepared an empty market and connected two traders | Participants, the trader console |
+| 3 | Listed the symbols | Instruments and tick size |
+| 4 | Posted a limit buy that rested | Bids, resting orders, order IDs |
+| 5–6 | Sold into it and read the fills | Crossing prices, fills, maker and taker |
+| 7 | Looked at your position | Long, short, unrealized P&L |
+| 8 | Closed the position | Realized P&L, `GTC`, recorders |
+| 9 | Cancelled an order | Order IDs, `ORDERS` |
+| 10 | Amended an order | Price-time priority |
+| 11 | Sent a market order | Immediacy versus price |
 
-| Step | What you did | Concept learned |
-|------|-------------|-----------------|
-| 1–2 | Started the engine and connected two terminals | System topology |
-| 3 | Queried symbols | System state |
-| 4 | Posted a LIMIT BUY | Passive / maker order, resting on book |
-| 5 | Posted a matching LIMIT SELL | Aggressive / taker order, price crossing |
-| 6 | Read the fill confirmation | Order lifecycle, `liquidity_flag` (drop-copy / API) |
-| 7 | Checked P&L | Long/short positions, unrealized P&L |
-| 8 | Closed positions for profit/loss | Realized P&L |
-| 9 | Cancelled a resting order | Order cancellation, short ID vs. full order ID |
-| 10 | Amended a resting order | In-place price/qty update, queue priority |
-| 11 | Submitted a MARKET order | Immediacy vs. price certainty |
+!!! tip "Back to the full demo market"
+    To get the market-maker bot and the ten-symbol configuration back on the
+    container route, run `./edumatcher.sh config s10-basic`, set
+    `EM_PROFILE=mm-demo` again in `.env`, and `./edumatcher.sh restart`.
 
+## Where to go next
 
-
-## What next?
-
-- [Order Types](../../participant-guide/part-2-orders/020-order-types.md) — all order types with detailed mechanics
-- [A Full Trading Day](../../participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md) — auctions, session phases, and daily lifecycle
-- [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) — full explanation of VWAP cost basis and realized vs. unrealized
-- [ALF Console](../../participant-guide/part-2-orders/010-the-trader-console.md) — the full command reference for everything used in this walkthrough (quotes, OCO, combos, drop-copy, and more)
-
-
-[Glossary →](../../reference-manual/90-backmatter/010-glossary.md)
+- [The Browser Applications](040-the-browser-applications.md) — the same
+  market through the trading screen and the market displays.
+- [Order Types](../../participant-guide/part-2-orders/020-order-types.md) —
+  every order type, with its exact behavior.
+- [The Trader Console](../../participant-guide/part-2-orders/010-the-trader-console.md)
+  — every command you can type at the `[TRADER01]>` prompt.
+- The Training Guide's [The First Trade](../../training-guide/030-the-first-trade.md)
+  — the same ground as exercises with checkpoints.

@@ -1,4 +1,4 @@
-# CALF Protocol Spy
+# CALF Protocol Spy (`pm-calf-spy`)
 
 <a id="pm-calf-spy-calf-protocol-spy"></a>
 
@@ -101,7 +101,7 @@ explicit symbols for `INDEX`/`DEPTH`/`CB` rather than relying on `*`.
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process (see
-[Getting Started — Environment variables](../../quick-start/part-1-see-it-run/030-your-first-trade.md#environment-variables)).
+[Reference Manual → Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#environment-variables)).
 
 
 ## Keeping the connection alive

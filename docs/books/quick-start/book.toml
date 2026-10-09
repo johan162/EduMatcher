@@ -2,16 +2,32 @@ title = "Quick Start Guide"
 subtitle = "From a first launch to a first trade"
 slug = "quick-start"
 
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
 [[parts]]
 title = "Part I: See it run"
 dir = "part-1-see-it-run"
-files = ["030-your-first-trade.md"]
+files = [
+  "010-what-is-edumatcher.md",
+  "020-install-and-start.md",
+  "030-your-first-trade.md",
+  "040-the-browser-applications.md",
+]
 
 [[parts]]
 title = "Part II: Next steps"
 dir = "part-2-next-steps"
-files = ["020-choose-your-book.md"]
+files = [
+  "010-run-a-trading-session.md",
+  "020-your-own-configuration.md",
+  "030-choose-your-book.md",
+]
 
 [backmatter]
-title = "Appendix"
-files = ["90-backmatter/010-faq.md"]
+title = "Appendices"
+files = [
+  "90-backmatter/020-when-something-does-not-work.md",
+  "90-backmatter/010-faq.md",
+  "90-backmatter/030-quick-glossary.md",
+]

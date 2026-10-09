@@ -1,10 +1,15 @@
 # docs/ — Documentation Source
 
-This folder contains all documentation source files for `mcprojsim`.
-The documentation is built in two independent forms:
+This folder holds the source of the EduMatcher documentation library: seven
+books written here, plus the separately maintained *How an Exchange Works*
+book (built from `../docs-exchange-intro/`, copied here as
+`how-exchange-works.md`). Everything is built in two forms from the same
+Markdown:
 
-- **HTML site** — built by [MkDocs](https://www.mkdocs.org/) for the web / GitHub Pages.
-- **PDF User Guide** — built via pandoc → XeLaTeX from the same Markdown sources, in four variants (see below).
+- **HTML site** — built by [MkDocs](https://www.mkdocs.org/) (Material theme)
+  for GitHub Pages; configured in `../mkdocs.yml`.
+- **PDF and EPUB books** — pandoc → XeLaTeX (A4 and B5, light and dark) and
+  pandoc → EPUB3, plus one PDF per chapter.
 
 ---
 
@@ -12,114 +17,90 @@ The documentation is built in two independent forms:
 
 ```text
 docs/
-├── Makefile                                     — build targets for all documentation outputs
-├── index.md                                     — site home page
-├── README.md                                    - this file, explaining the structure
-├── faq.md                                       - FAQ for the EduMatcher
-├── glossary.md                                  - Extensive glossary
-├── how-exchange-works.md                        - Introduction to how a modern exchange works
-├── architecture                                 - Architecture folder
-│   ├── 01-architecture.md                       - A high level architecture overview
-│   └── 02-architecture-guide.md                 - A deep dive into the architecture
-├── assets                                       - Primarily image asssets for documentation
-├── concepts                                     - Explanation of exchange concepts
-│   ├── 01-concepts-order-book.md                - High level explanation of the order-book
-│   ├── 02-concepts-order-book-deep-dive.md      - A deep dive into explaining the code of the order book
-│   ├── 03-concepts-mm-quotes.md                 - Explanation of Market-Maker quotes
-│   ├── 04-concepts-first-trade.md               - How to get started doing a trade
-│   └── 05-concepts-trading-day.md               - Explanation of exchange sessions
-├── developer                                    - Developer information
-│   ├── 01-dev-practice.md                       - Developer on-boarding
-│   ├── 02-ai-bot.md                             - Explanation on the use of trading-bots
-│   ├── 03-experiments.md                        - Suggested experiments and exchange additions
-│   └── 04-verification.md                       - How to set-up test-framework and run tests
-├── javascripts                                  - Javascripts for documentation rendering
-│   ├── mathjax.js                               - Typeset of LaTeX equations
-│   └── mermaid-init.js                          - Render mermaid graphs
-└── user-guide                                   - The main user-guide
-    ├── 010-configuration.md
-    ├── 160-exchange-commands.md
-    ├── 040-running-the-exchange.md
-    ├── 060-order-types.md
-    ├── 070-combo-orders.md
-    ├── 080-session-scheduling.md
-    ├── 130-pnl-clearing.md
-    ├── 051-gateway-intro.md
-    ├── 055-alf-console.md
-    ├── 270-message-reference.md
-    ├── 170-processes.md
-    ├── 180-persistence.md
-    ├── 120-risk-controls.md
-    ├── 200-drop-copy.md
-    ├── 900-app-alf-protocol.md
-    ├── pagebreaks.lua                             - LUA filter for adding custom page-breaks
-    ├── template_a4.tex                            - Light A4 LaTeX template
-    ├── template_b5.tex                            - Light B5 LaTeX template
-    ├── template_dark_a4.tex                       - Dark A4 LaTeX template 
-    └── template_dark_b5.tex                       - Dark B5 LaTeX template
+├── Makefile                 build targets for every book, the site and the downloads (make help)
+├── index.md                 site home page: the library map and "start here"
+├── README.md                this file
+├── how-exchange-works.md    GENERATED from ../docs-exchange-intro — do not edit here
+├── books/                   one directory per book, each with a book.toml manifest
+│   ├── quick-start/                    Quick Start Guide
+│   ├── participant-guide/              Participant Guide
+│   ├── operator-guide/                 Operator's Guide
+│   ├── reference-manual/               Reference Manual
+│   ├── protocols-and-clients/          Protocols and Clients
+│   ├── architecture-and-development/   Architecture and Developer Guide
+│   └── training-guide/                 Training Guide
+├── build/                   shared build assets: book.mk, book_sources.py, gen_nav.py,
+│                            epub_a11y.py, LaTeX templates, pandoc Lua filters
+├── assets/                  images and the cover template/image of each book
+├── examples/                runnable example clients and the bundled engine configurations
+├── downloads/               EPUBs and example archives published with the site
+├── javascripts/, stylesheets/, hooks/, presentations/
+└── dist/, .build/           generated output
 ```
+
+### How a book is put together
+
+Each book directory contains a `book.toml` manifest: the title, subtitle and
+the ordered list of parts and chapter files, plus optional `frontmatter`
+(every book starts with `00-front/010-how-to-use-this-book.md`) and
+`backmatter`. **Order comes from the manifest, never from file names** — the
+three-digit prefixes only keep directory listings readable, and directory
+names (`part-4-developing`, …) may keep an old part number; readers only see
+the part titles from the manifest.
+
+To add a chapter: write the file (start with `# Title` and a
+`!!! note "Learning objectives"` box, end with "Where to go next"), add it to
+the book's `book.toml`, and regenerate the site navigation with `make nav`
+(it runs `build/gen_nav.py`, which rewrites the generated block in
+`../mkdocs.yml`). Images live in `docs/assets/` and are linked relative to the
+chapter (`../../../assets/x.png`); the PDF/EPUB build rewrites those paths.
+
+Cross-book links are ordinary relative links. Before committing, run
+`python scripts/checkdocs.py` from the repository root: it checks every link
+and anchor, every `pm-*` command and flag shown in a code block, every engine
+configuration snippet, and the `pm-help` documentation anchors.
 
 ---
 
 ## MkDocs
 
-The HTML site is configured in `mkdocs.yml` at the project root.
-
 ```bash
-# Build the static HTML site
-make docs
-
-# Serve locally with live reload (http://localhost:8100)
-make docs-serve
-
-# Deploy to GitHub Pages
-make docs-deploy
+make docs     # build the static HTML site (also refreshes nav and downloads)
+make serve    # serve locally with live reload
 ```
-
-The site uses the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
-API documentation is generated automatically from docstrings via `mkdocstrings[python]`.
-
-`docs/examples.md` is generated — do not edit it by hand.
-Edit `docs/examples_template.md` and run `make gen-examples` instead.
 
 ---
 
-## PDF User Guide
+## PDF and EPUB books
 
-The User Guide is produced in **four variants** from the same Markdown source files:
+Every book builds in four PDF variants, as an EPUB, and as one PDF per
+chapter. `make help` lists all targets; the common ones are:
 
-| Variant | Paper | Theme | Intended use |
-|---------|-------|-------|-------------|
-| `mcprojsim_user_guide-<ver>.pdf` | A4 | Light | Print |
-| `mcprojsim_user_guide-dark-<ver>.pdf` | A4 | Dark | Screen / tablet |
-| `mcprojsim_user_guide-b5-<ver>.pdf` | B5 | Light | Print (book trim) |
-| `mcprojsim_user_guide-dark-b5-<ver>.pdf` | B5 | Dark | Tablet (recommended) |
+| Target | Builds |
+|---|---|
+| `make pdf-<book>` | the four PDFs of one book (A4/B5 × light/dark), e.g. `make pdf-quick-start` |
+| `make epub-<book>` | the EPUB of one book |
+| `make chapters-<book>` | one A4 PDF per chapter |
+| `make book-<book>` | PDFs and EPUB of one book |
+| `make pdf-docs` / `make epub-docs` | every book |
+| `make docs-all` | everything, including *How an Exchange Works* |
 
-```bash
-# Build all four PDF variants in parallel
-make pdf-docs
-
-# Build a single variant (example)
-make ../dist/mcprojsim_user_guide-dark-b5-0.11.2.pdf
-```
-
-Output is written to `../dist/`.
+Output is written to `dist/`.
 
 ### Build pipeline
 
 ```
-Markdown sources
+book.toml → ordered Markdown sources
    │
-   ▼ cat (concatenate)
+   ▼ expand-shell-outputs.py, concatenate, normalise asset paths
    │
-   ▼ pandoc --lua-filter pagebreaks.lua --metadata paper_format=<a4|b5>
-   │         (converts Markdown → LaTeX body)
+   ▼ pandoc (Lua filters: parts, pagebreaks, admonitions; Mermaid filter)
    │
-   ▼ awk (inject body into LaTeX template at %%__USER_GUIDE_CONTENT__%%)
+   ▼ inject into the shared LaTeX template (a4, b5, dark_a4, dark_b5)
    │
-   ▼ xelatex × 2  (two passes for TOC and cross-references)
+   ▼ xelatex × 2  (TOC and cross-references)
    │
-   ▼ dist/mcprojsim_user_guide-<variant>-<version>.pdf
+   ▼ dist/edumatcher_<book>_<variant>-<version>.pdf
 ```
 
 ### Why dark theme and B5?
@@ -144,7 +125,7 @@ better suited for printed output.
 Because the same Markdown source is compiled into both A4 and B5 PDFs, page
 breaks that look right in one format often land in the wrong place in the
 other.  Rather than maintaining two copies of the source, a **pandoc Lua
-filter** (`user_guide/pagebreaks.lua`) handles this transparently.
+filter** (`build/filters/pagebreaks.lua`) handles this transparently.
 
 The filter is activated via `--metadata paper_format=a4` or `=b5` at pandoc
 invocation time (set automatically by the Makefile). Two marker syntaxes are

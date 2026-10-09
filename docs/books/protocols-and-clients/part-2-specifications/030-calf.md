@@ -1,4 +1,4 @@
-# Appendix: CALF Protocol Reference
+# CALF Protocol Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the CALF
 > `1.0.0` wire contract as implemented by `pm-md-gwy` (`md_gateway/`). For an

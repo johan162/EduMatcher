@@ -24,11 +24,11 @@ project**:
 | Image | Built from | Serves |
 |---|---|---|
 | `edumatcher` | `deployment/docker/` | Every `pm-*` process — engine, gateways, REST API |
-| `edumatcher-terminal-gui` | `web-apps/terminal-gui/` | Trading terminal, port 8090 |
-| `edumatcher-log-gui` | `web-apps/log-gui/` | Log viewer, port 8091 |
-| `edumatcher-config-gui` | `web-apps/config-gui/` | Configuration builder, port 8092 |
-| `edumatcher-trader-gui` | `web-apps/trader-gui/` | Trader GUI, port 8093 |
-| `edumatcher-book-gui` | `web-apps/book-gui/` | Order book viewer, port 8094 |
+| `edumatcher-terminal-gui` | `web-apps/terminal-gui/` | TapeDeck (`pm-terminal`), port 8090 |
+| `edumatcher-log-gui` | `web-apps/log-gui/` | Log Operator Console (`pm-log-ui`), port 8091 |
+| `edumatcher-config-gui` | `web-apps/config-gui/` | Configuration GUI (`config-gui`), port 8092 |
+| `edumatcher-trader-gui` | `web-apps/trader-gui/` | Trading GUI (`pm-trading-ui`), port 8093 |
+| `edumatcher-book-gui` | `web-apps/book-gui/` | Order Book Viewer (`pm-book`), port 8094 |
 
 The backend is one container by design — the engine's ZeroMQ bus binds
 loopback by default, so every `pm-*` process must share a network namespace,
@@ -427,7 +427,7 @@ The overlays are additive `-f` files, which is why they compose freely:
 
 ### Why `up-all` runs in two phases
 
-The trading terminal reads history through `pm-api-gwy` using the credential
+TapeDeck reads history through `pm-api-gwy` using the credential
 whose `gateway_id` is `null`. That key is **generated per engine
 configuration** — different in each of the twelve examples — and is issued on
 the `dashboards` instance (8081), not `desk` (8080). It does not exist until
@@ -617,7 +617,7 @@ Steps 2 and 3 are the pair that will drift.
 | GUI service definitions | `deployment/docker/compose.guis.yaml` and `deployment/curl/compose.yaml` | The script below |
 | The read-only-credential lookup | `deployment/docker/Makefile`, `deployment/curl/edumatcher.sh`, `web-apps/terminal-gui/Makefile` | Three copies in two languages; a change to the credential schema touches all three |
 | The image list | `Makefile:GUI_IMAGES` and both workflow matrices | A missing entry means an image silently is not published |
-| Port numbers | Both `.env.example` files, both compose files, three READMEs, the user guide | Grep |
+| Port numbers | Both `.env.example` files, both compose files, three READMEs, the Operator's Guide installation chapter | Grep |
 
 A drift check for the compose pair, worth running before a release:
 
@@ -821,7 +821,7 @@ discovers its address, nothing orchestrates the three hosts as one unit.
 - `deployment/curl/README.md` — the released, pull-only deployment
 - [Installation](../../operator-guide/part-1-install-and-deploy/010-installation.md) — the user-facing view of
   the same material, including every flag and directory
-- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — what each `pm-*` process does
+- [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — what each `pm-*` process does
   and what the profiles contain
 - `docs-design/EduMatcher-Cross-host-connection.md` — an earlier, broader
   *unimplemented* proposal for cross-host support: per-process `--bind-host`

@@ -7,6 +7,11 @@ LUA_FLAGS := --lua-filter $(FILTER_DIR)/parts.lua \
 
 shq = $(subst ','\'',$(1))
 
+# A chapter links its images relative to itself (../../../assets/x.png) so the
+# MkDocs site resolves them; the PDF/EPUB build symlinks assets/ beside book.md,
+# so strip the leading ../ segments there.
+NORMALISE_ASSETS = sed -i.bak -E 's@\]\((\.\./)+assets/@](assets/@g' $(1) && rm -f $(1).bak
+
 
 define RUN_LATEX
 printf '%b\n' "$(DARKYELLOW)  - Compiling $(BRIGHTCYAN)\"$(notdir $(2))\"$(DARKYELLOW) with $(BRIGHTCYAN)\"$(LATEX_ENGINE)\"$(DARKYELLOW)...$(NC)"
@@ -31,6 +36,7 @@ $(PY) $(SCRIPTS_DIR)/expand-shell-outputs.py --preserve-paths \
   --output-dir $(1)/expanded --cwd .. --format $(2) $(foreach file,$(6),../docs/$(file))
 printf '%b\n' "$(DARKYELLOW)  - Concatenating markdown sources...$(NC)"
 $(AWK_JOIN) $(foreach file,$(6),$(1)/expanded/docs/$(file)) > $(1)/book.md
+$(call NORMALISE_ASSETS,$(1)/book.md)
 printf '%b\n' "$(DARKYELLOW)  - Converting markdown to LaTeX...$(NC)"
 PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
 MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
@@ -65,6 +71,7 @@ $(PY) $(SCRIPTS_DIR)/expand-shell-outputs.py --preserve-paths \
   --output-dir $(1)/expanded --cwd .. --format a4 $(foreach file,$(4),../docs/$(file))
 printf '%b\n' "$(DARKYELLOW)  - Concatenating markdown sources...$(NC)"
 $(AWK_JOIN) $(foreach file,$(4),$(1)/expanded/docs/$(file)) > $(1)/book.md
+$(call NORMALISE_ASSETS,$(1)/book.md)
 sed -e 's/@@EPUB_FIGURE_MAX_WIDTH@@/$(EPUB_FIGURE_MAX_WIDTH)/g' \
   $(BUILD_ASSETS)/epub.css.in > $(1)/epub.css
 PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \

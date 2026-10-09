@@ -67,6 +67,7 @@ def test_disabled_mm_obligations_are_not_emitted(
     payload = yaml.safe_load(out_file.read_text(encoding="utf-8"))
     assert "mm_obligation_defaults" not in payload
     assert payload["symbols"]["AAPL"]["last_buy_price"] is not None
+    assert "market_maker_quotes" not in payload["symbols"]["AAPL"]
 
 
 def test_engine_tuning_is_omitted_without_tuning_options(

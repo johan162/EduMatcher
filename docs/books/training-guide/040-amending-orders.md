@@ -8,7 +8,7 @@ understand how amendments affect queue priority.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Order Amendment (AMEND)](../participant-guide/part-2-orders/020-order-types.md#order-amendment-amend)
     - [ALF Console](../participant-guide/part-2-orders/010-the-trader-console.md)
 
@@ -110,8 +110,9 @@ Try setting quantity to zero:
 [TRADER01]> AMEND|ID=<order_id>|QTY=0|RTAG=AMD-BAD-001
 ```
 
-Expected: rejection — quantity must be positive. The rejected ACK includes a
-stable `REJECT_CODE` as well as the text reason.
+Expected: rejection — `code=QTY_OUT_OF_RANGE  Quantity must be positive`. The
+rejection carries a stable code (`REJECT_CODE` on the wire) as well as the
+text reason, and echoes your `rtag`.
 
 Try amending a non-existent order:
 
@@ -119,7 +120,7 @@ Try amending a non-existent order:
 [TRADER01]> AMEND|ID=INVALID123|PRICE=100.00|RTAG=AMD-MISSING-001
 ```
 
-Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
+Expected: rejection — `code=ORDER_NOT_FOUND  Order not found`.
 
 :material-checkbox-blank-outline: **Checkpoint:** both invalid amendments rejected with clear errors.
 
@@ -133,10 +134,15 @@ Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
    ```
    (This may immediately fill partially against the MM ask.)
 
-2. If partially filled, amend the remaining quantity:
+2. If partially filled, amend it. `QTY=` in an `AMEND` is the order's new
+   **total** quantity, not the remainder. If, say, 500 shares filled against
+   the market maker's ask, the total must stay above 500; to cut the unfilled
+   part from 500 to 200, set the total to 700:
    ```
-    [TRADER01]> AMEND|ID=<order_id>|QTY=200|RTAG=AMD-PARTIAL-001
+    [TRADER01]> AMEND|ID=<order_id>|QTY=700|RTAG=AMD-PARTIAL-001
    ```
+   Try `QTY=200` too: it is rejected with `code=QTY_OUT_OF_RANGE  New quantity
+   must exceed already-filled quantity`.
 
 !!! note
     The new qty must be **strictly greater than** the already-filled quantity. Setting it equal to the filled quantity is rejected — use `CANCEL` if you want the remainder gone. You cannot amend below
@@ -150,6 +156,20 @@ Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
 
 The rules below are easy to state and easy to disbelieve. This exercise makes
 them visible, using two traders queued at the same price.
+
+**Step 0 — start from an empty book.** Anything already resting on AAPL at
+a better price would trade first and spoil the experiment, so clear the
+symbol from the operator console (this cancels every order and quote on it)
+and stop any `pm-mm-bot` quoting AAPL:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+```
+
+The seller in this exercise is the market maker's console, `MM_AAPL_01`. A
+market maker may send ordinary orders too, and using a third participant
+keeps either trader from selling into its own bid — a *self-trade*, which
+real exchanges prevent.
 
 **Step 1 — build a queue.** From `TRADER01`, then `TRADER02`, place the same
 buy at the same price. `TRADER01` is now *ahead* in the queue because it
@@ -173,33 +193,50 @@ amend *down* to 50:
 [TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=50|RTAG=AMD-KEEP-001
 ```
 
-Now have a third party sell 50 into the bid. Because `TRADER01` kept its
-place, `TRADER01` is filled and `TRADER02` is untouched:
+Now sell 50 into the bid:
 
 ```
-[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.50|TIF=DAY
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.50|TIF=DAY
 ```
 
-Check who filled with `STATUS` on each trader console.
+Because `TRADER01` kept its place, `TRADER01` is filled and `TRADER02` is
+untouched. Check who filled with `ORDERS` on each trader console.
 
-**Step 3 — increase quantity and prove priority is lost.** Rebuild the queue
-as in step 1, then amend `TRADER01` *up*:
+**Step 3 — increase quantity and prove priority is lost.** Clear the book
+again so step 2's leftovers (TRADER02's untouched bid is still there, and
+already first in line) cannot decide the outcome, then rebuild the queue
+exactly as in step 1:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+```
+
+Amend `TRADER01` *up*. The console confirms with `(priority reset)`:
 
 ```
 [TRADER01]> AMEND|ID=<TRADER01 order id>|QTY=200|RTAG=AMD-LOSE-001
 ```
 
-Sell 100 into the bid again. This time `TRADER02` fills first, because
-`TRADER01`'s increase sent it to the back of the queue at that price.
+Sell 100 into the bid again:
+
+```
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+```
+
+This time `TRADER02` fills, because `TRADER01`'s increase sent it to the back
+of the queue at that price.
 
 :material-checkbox-blank-outline: **Checkpoint:** in step 2 `TRADER01` filled;
 in step 3 `TRADER02` filled. You have now *observed* the rule in the table
 below rather than taking it on trust.
 
 !!! tip "Use the full order ID"
-    `ORDERS` truncates the order ID for display. `AMEND` and `CANCEL` need the
-    **complete** ID — copy it from the acknowledgement you received when the
-    order was placed, not from the truncated column.
+    `AMEND` and `CANCEL` need the **complete** 32-character order ID. The
+    acknowledgement line shows it in full; in a narrow terminal the `ORDERS`
+    table shortens the ID column, so widen the window or copy the ID from the
+    acknowledgement.
 
 !!! tip "Use one RTAG per request"
     `RTAG` is not the order ID. It is a request label, so use a fresh value for

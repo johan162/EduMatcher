@@ -1,4 +1,4 @@
-# Development Practice and Release Process
+# Development Practice
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -307,7 +307,7 @@ symbols:
         quote_id: MM-AAPL-SEED
 ```
 
-See [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for the full schema.
+See [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for the full schema.
 
 ### Recommended startup order
 

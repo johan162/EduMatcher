@@ -1,4 +1,4 @@
-# Exchange Commands
+# The Admin Console and Exchange Commands
 
 <a id="pm-admin-interactive-admin-console"></a>
 <a id="pm-admin-cli-cli-admin-commands"></a>
@@ -960,7 +960,7 @@ Under the hood this tool is built on the same `ExchangeCommandClient` class
 described below — specifically its `index_corp_action()`, `index_delist()`,
 `index_add_constituent()`, and `index_history()` methods. For the full
 subcommand reference, worked examples, and the confirmation-prompt/`--dry-run`
-behaviour, see [Index Admin CLI](../part-4-run-a-market/080-index-administration.md).
+behaviour, see [Index Administration (`pm-index-admin-cli`)](../part-4-run-a-market/080-index-administration.md).
 
 
 

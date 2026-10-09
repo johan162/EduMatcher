@@ -1,3 +1,10 @@
+# The Release Process
+
+How a version of EduMatcher is cut and published: the scripts and workflows
+involved, the developer checklist, and the pitfalls that catch newcomers. The
+day-to-day development loop that precedes a release is in
+[Development Practice](../part-4-developing/010-development-practice.md).
+
 ## How a release is produced
 
 Two scripts and two GitHub workflows. One tag produces the Python package and
@@ -41,10 +48,10 @@ The five published images are:
 
 ```text
 ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
-ghcr.io/johan162/edumatcher-terminal-gui    the trading terminal
-ghcr.io/johan162/edumatcher-log-gui         the log viewer
-ghcr.io/johan162/edumatcher-config-gui      the configuration builder
-ghcr.io/johan162/edumatcher-trader-gui      the trader GUI
+ghcr.io/johan162/edumatcher-terminal-gui    TapeDeck (pm-terminal)
+ghcr.io/johan162/edumatcher-log-gui         the Log Operator Console
+ghcr.io/johan162/edumatcher-config-gui      the Configuration GUI
+ghcr.io/johan162/edumatcher-trader-gui      the Trading GUI
 ```
 
 `latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release

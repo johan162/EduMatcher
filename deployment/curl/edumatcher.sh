@@ -204,12 +204,12 @@ cmd_urls() {
     # shellcheck disable=SC1091
     [[ -f .env ]] && source .env
     echo "Open:"
-    echo "  Trading terminal   http://localhost:${TERMINAL_GUI_PORT:-8090}"
-    echo "  Log viewer         http://localhost:${LOG_GUI_PORT:-8091}"
-    echo "  Config builder     http://localhost:${CONFIG_GUI_PORT:-8092}"
-    echo "  Trader GUI         http://localhost:${TRADER_GUI_PORT:-8093}"
-    echo "  Order book viewer  http://localhost:${BOOK_GUI_PORT:-8094}"
-    echo "  REST API docs      http://localhost:8080/docs"
+    echo "  TapeDeck (market display)  http://localhost:${TERMINAL_GUI_PORT:-8090}"
+    echo "  Log Operator Console       http://localhost:${LOG_GUI_PORT:-8091}"
+    echo "  Configuration GUI          http://localhost:${CONFIG_GUI_PORT:-8092}"
+    echo "  Trading GUI                http://localhost:${TRADER_GUI_PORT:-8093}"
+    echo "  Order Book Viewer          http://localhost:${BOOK_GUI_PORT:-8094}"
+    echo "  REST API docs              http://localhost:8080/docs"
 }
 
 # Which directory on your disk is behind each path inside each container.

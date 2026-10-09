@@ -23,6 +23,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 import pytest
+import zmq
 
 from edumatcher.commands import CommandError, CommandTimeoutError, ExchangeCommandClient
 from edumatcher.models.message import (
@@ -119,6 +120,43 @@ class TestLifecycle:
         client.connect()
         _, payload = _last_sent(push)
         assert payload["gateway_id"] == "GW_ADMIN"
+
+    def test_connect_retries_send_until_engine_reachable(self) -> None:
+        # The fail-fast PUSH socket raises zmq.Again until its TCP connection
+        # to the engine is up; connect() must retry instead of crashing.
+        class _NotYetConnectedPush(_FakePush):
+            failures_left: int = 2
+
+            def send_multipart(self, frames: list[bytes]) -> None:
+                if self.failures_left:
+                    self.failures_left -= 1
+                    raise zmq.Again()
+                super().send_multipart(frames)
+
+        push = _NotYetConnectedPush()
+        client = ExchangeCommandClient(
+            "GW_ADMIN",
+            _push_sock=push,
+            _sub_sock=None,
+            _recv_queue=_q(make_gateway_auth_msg("GW_ADMIN", True)),
+        )
+        assert client.connect()["accepted"] is True
+        assert len(push.sent) == 1
+
+    def test_connect_unreachable_engine_times_out(self) -> None:
+        class _NeverConnectedPush(_FakePush):
+            def send_multipart(self, frames: list[bytes]) -> None:
+                raise zmq.Again()
+
+        client = ExchangeCommandClient(
+            "GW_ADMIN",
+            timeout_ms=100,
+            _push_sock=_NeverConnectedPush(),
+            _sub_sock=None,
+            _recv_queue=deque(),
+        )
+        with pytest.raises(CommandTimeoutError):
+            client.connect()
 
     def test_disconnect_sends_correct_frames_no_recv(self) -> None:
         client, push = _client()

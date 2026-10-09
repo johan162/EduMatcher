@@ -167,7 +167,7 @@ def test_builder_require_mm_seed_quotes_false_omits_quotes() -> None:
     assert "market_maker_quotes" not in payload["symbols"]["AAPL"]
 
 
-def test_builder_require_mm_seed_quotes_false_still_seeds_when_range_given() -> None:
+def test_builder_require_mm_seed_quotes_false_never_seeds_quotes() -> None:
     spec = ConfigSpec(
         symbols=["AAPL"],
         gateways=[
@@ -178,12 +178,13 @@ def test_builder_require_mm_seed_quotes_false_still_seeds_when_range_given() -> 
         require_mm_seed_quotes=False,
         random_seed=7,
         seed_mm_mid_range=(20.0, 30.0),
+        seed_last_prices_from_mm=True,
     )
     payload = ConfigBuilder(spec).build()
 
-    quote = payload["symbols"]["AAPL"]["market_maker_quotes"][0]
-    assert quote["bid_price"] is not None
-    assert quote["ask_price"] is not None
+    aapl = payload["symbols"]["AAPL"]
+    assert "market_maker_quotes" not in aapl
+    assert aapl["last_buy_price"] is not None
 
 
 def test_builder_with_seeded_mm_quotes_emits_prices() -> None:

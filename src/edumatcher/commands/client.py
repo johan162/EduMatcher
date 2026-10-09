@@ -351,7 +351,21 @@ class ExchangeCommandClient:
         Returns the ``system.gateway_auth`` payload.  Check
         ``result["accepted"]`` before sending any other commands.
         """
-        self._send(make_gateway_connect_msg(self._gw_id))
+        # The PUSH socket fails fast (SNDTIMEO 0, IMMEDIATE) and its TCP
+        # connection to the engine completes asynchronously, so the very
+        # first send can find no peer yet. Retry it within the ack timeout.
+        frames = make_gateway_connect_msg(self._gw_id)
+        deadline = time.monotonic() + self._timeout_ms / 1000.0
+        while True:
+            try:
+                self._send(frames)
+                break
+            except zmq.Again:
+                if time.monotonic() >= deadline:
+                    raise CommandTimeoutError(
+                        f"Engine not reachable within {self._timeout_ms} ms"
+                    ) from None
+                time.sleep(0.05)
         return self._recv(topic_gateway_auth(self._gw_id))
 
     def disconnect(self) -> None:

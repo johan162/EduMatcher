@@ -1,3 +1,3 @@
-# External connectivity {.part}
+# Integration and advanced topics {.part}
 
-Connect to market-data, post-trade, order-entry, and API gateways.
+Chapters 20–28. Recover a drop-copy consumer, automate the operator, connect over every external protocol, run a market index and price an IPO.

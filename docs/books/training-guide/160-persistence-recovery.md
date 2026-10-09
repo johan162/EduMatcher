@@ -8,7 +8,7 @@ state across restart scenarios.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Persistence](../operator-guide/part-6-observe-and-recover/010-persistence.md)
     - [Audit Trail](../operator-guide/part-6-observe-and-recover/020-audit-trail.md)
 
@@ -31,7 +31,7 @@ files include:
 - `audit.log` — event log if `pm-audit` writes to disk.
 
 !!! note "A restart is not a day boundary"
-    `gtc_orders.json` is not just a "GTC file" any more: it also carries
+    Despite its name, `gtc_orders.json` also carries
     resting `TIF=DAY` orders across an **engine restart**, as long as the
     restart happens on the same business day the order was placed. The
     day-vs-restart distinction is the subject of Exercise 4 below — see
@@ -135,9 +135,6 @@ directory and config. Reconnect `TRADER01` and check:
 
 The DAY order should still be resting — restored exactly like the GTC order
 from Exercise 3, because the restart did not cross a business-day boundary.
-This is new behaviour: earlier versions of the engine excluded `TIF=DAY`
-orders from `gtc_orders.json` entirely, and any resting DAY order was gone
-after any restart, same-day or not.
 
 :material-checkbox-blank-outline: **Checkpoint:** the DAY order is still resting after a same-day restart.
 
@@ -158,7 +155,7 @@ after any restart, same-day or not.
     If you want to see the second case instead of the first, you would need
     to actually cross a calendar date between shutdown and restart — not
     practical to demonstrate live in this exercise, so take it as read from
-    the user guide.
+    the Operator's Guide.
 
  
 
@@ -222,7 +219,7 @@ since it was placed"?
 
 - [Persistence](../operator-guide/part-6-observe-and-recover/010-persistence.md)
 - [Statistics and Reporting](../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [A Full Trading Day](../participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md)
 
 **Next:** [17 — Capstone Scenario](170-capstone-scenario.md)

@@ -1,4 +1,4 @@
-# Appendix: RALF Protocol Reference
+# RALF Protocol Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the RALF
 > wire contract as implemented by `pm-ralf-gwy` (`ralf_gateway/`). For an operational,

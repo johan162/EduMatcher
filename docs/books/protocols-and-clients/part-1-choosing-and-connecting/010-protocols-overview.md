@@ -76,9 +76,9 @@ Where to read more:
 
 - ALF TCP gateway operational guide: [ALF TCP Gateway](../../operator-guide/part-5-gateways/010-alf-gateway.md)
 - Interactive client behavior and operator workflow (`pm-alf-console` is a client, not a gateway): [ALF Console](../../participant-guide/part-2-orders/010-the-trader-console.md)
-- Process-level role of `pm-alf-console`: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-alf-console-user-gateway)
-- Process-level role of `pm-alf-gwy`: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-alf-gwy-alf-tcp-gateway)
-- Engine configuration of allowed ALF IDs/roles: [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#participants)
+- Process-level role of `pm-alf-console`: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-alf-console-user-gateway)
+- Process-level role of `pm-alf-gwy`: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-alf-gwy-alf-tcp-gateway)
+- Engine configuration of allowed ALF IDs/roles: [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#participants)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](../part-2-specifications/010-alf.md)
 
 
@@ -100,9 +100,9 @@ Use BALF when you need:
 Where to read more:
 
 - Operational deployment and runbook: [BALF TCP Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md)
-- Runtime process and architecture placement: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- Runtime process and architecture placement: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - Protocol design details and message/frame definitions: [Appendix - BALF Protocol](../part-2-specifications/020-balf.md)
-- Configuration context and protocol family notes: [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md)
+- Configuration context and protocol family notes: [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md)
 
 
 ## CALF (Channel ALF)
@@ -124,7 +124,7 @@ Use CALF when you need:
 Where to read more:
 
 - Market-data concepts and channel model: [Market Data Feed (CALF)](../part-3-session-behaviour/030-calf-market-data-feed.md)
-- Runtime process and architecture placement: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-md-gwy-calf-market-data-gateway)
+- Runtime process and architecture placement: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-md-gwy-calf-market-data-gateway)
 - Operational client onboarding and examples: [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md)
 - Formal wire protocol reference: [Appendix - CALF Protocol](../part-2-specifications/030-calf.md)
 
@@ -144,8 +144,8 @@ Use RALF when you need:
 Where to read more:
 
 - Operational deployment and runbook: [Post-Trade Dissemination (RALF)](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
-- Process-level role in runtime topology: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-ralf-gwy-post-trade-dissemination-gateway)
-- RALF gateway configuration details: [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#configuring-pm-ralf-gwy)
+- Process-level role in runtime topology: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-ralf-gwy-post-trade-dissemination-gateway)
+- RALF gateway configuration details: [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#configuring-pm-ralf-gwy)
 - Formal wire protocol reference: [Appendix - RALF Protocol](../part-2-specifications/040-ralf.md)
 
 
@@ -237,7 +237,7 @@ Where to read more:
 
 **Quick Start Guide:**
 
-- Getting Started
+- What EduMatcher Is
 
 **Operator's Guide:**
 

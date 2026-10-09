@@ -1,4 +1,4 @@
-# AI Bot Traders
+# How the AI Traders Decide
 
 ## Background and Principle — How Bots Gain Intelligence
 

@@ -8,7 +8,7 @@ trade history for analysis and reporting.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Statistics and Reporting](../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md)
 
 ## Prerequisites
@@ -219,7 +219,7 @@ queries itself, in-process, for every connected client?
 ## Further Reading
 
 - [Statistics and Reporting](../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [Persistence](../operator-guide/part-6-observe-and-recover/010-persistence.md)
 - [Market Data Feed](../protocols-and-clients/part-3-session-behaviour/030-calf-market-data-feed.md)
 

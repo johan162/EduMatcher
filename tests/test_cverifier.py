@@ -1731,6 +1731,16 @@ class TestLayer4:
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C009" in _codes(results)
 
+    def test_c009_silent_when_sessions_enabled_absent(self) -> None:
+        # The engine defaults sessions_enabled to true, so an absent key is
+        # not "no sessions" and must not claim the exchange starts CONTINUOUS.
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "participants:\n    - id: GW01\n"
+        )
+        results = layer4_complete.check(raw, Path("x.yaml"))
+        assert "C009" not in _codes(results)
+
     def test_c011_unused_risk_level(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL:\n    tick_decimals: 2\n"

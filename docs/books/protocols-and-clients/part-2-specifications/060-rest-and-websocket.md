@@ -1,4 +1,4 @@
-# Appendix: REST API Reference
+# REST and WebSocket API Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the
 > `pm-api-gwy` REST contract as exposed under `/api/v1`. For an operational,

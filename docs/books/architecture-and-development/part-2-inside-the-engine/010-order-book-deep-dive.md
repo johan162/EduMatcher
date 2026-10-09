@@ -1,4 +1,4 @@
-# EduMatcher OrderBook — Deep Dive
+# The Order Book: Deep Dive
 
 !!! note "Learning objectives"
     After reading this page you will thoroughly understand:

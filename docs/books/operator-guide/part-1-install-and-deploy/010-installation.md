@@ -11,7 +11,13 @@
       and the service layer come by their different defaults
     - Every flag that controls a build or a start, and every directory the
       system reads or writes
-    - How a release is produced, and what a developer must do to cut one
+
+    New to EduMatcher? The Quick Start's
+    [Install and Start](../../quick-start/part-1-see-it-run/020-install-and-start.md)
+    is the short version of this chapter: one route, step by step. This
+    chapter is the complete reference. How a release is produced is described
+    in the Architecture and Developer Guide's
+    [The Release Process](../../architecture-and-development/part-5-releasing/010-release-process.md).
 
 
 ## Choosing an installation mode
@@ -53,7 +59,7 @@ installation.
 
 Pick a different location with `--dir`; the layout is the same underneath it.
 Two Compose volumes sit outside that directory, in your container engine's
-storage — the log viewer's acknowledgements and the trading terminal's failover
+storage — the Log Operator Console's acknowledgements and TapeDeck's failover
 log. Neither holds exchange data, and `./edumatcher.sh uninstall` removes both.
 
 !!! tip "`~/.edumatcher/data` is the directory to back up, and the one to delete"
@@ -75,11 +81,11 @@ no Node, no checkout. The only requirement is Podman or Docker.
 
 | Application | URL | What it is |
 |---|---|---|
-| Trading terminal | <http://localhost:8090> | Live order books, trades and market data |
-| Log viewer | <http://localhost:8091> | The centralized log, searchable, with acknowledgements |
-| Configuration builder | <http://localhost:8092> | Author an `engine_config.yaml` in the browser |
-| Trader GUI | <http://localhost:8093> | Submit and manage orders as a trading participant |
-| Order book viewer | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
+| TapeDeck market display (`pm-terminal`) | <http://localhost:8090> | Live order books, trades and market data |
+| Log Operator Console (`pm-log-ui`) | <http://localhost:8091> | The centralized log, searchable, with acknowledgements |
+| Configuration GUI (`config-gui`) | <http://localhost:8092> | Author an `engine_config.yaml` in the browser |
+| Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | Submit and manage orders as a trading participant |
+| Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 ### What the installer does
@@ -136,13 +142,13 @@ into this file.
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
-| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `default`, `mini` or `micro`. See [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
+| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
-| `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
-| `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
+| `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
+| `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
@@ -167,7 +173,7 @@ Everything else is a plain edit followed by `./edumatcher.sh restart`.
 
 #### Values you will not find in `.env`
 
-The trading terminal needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`, and the
+TapeDeck needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`, and the
 order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY` — the same read-only
 key. Those are **resolved at startup and injected**, not stored: the read-only
 API key is generated per engine configuration — a different one in each
@@ -279,7 +285,7 @@ alone) and `up-all` (the exchange plus the GUIs).
 |---|---|---|
 | `CONFIG=<name>` | `s10-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
-| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro` or `mm-demo`. See [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
+| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro` or `mm-demo`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
 | `SSH=1` | off | Run `sshd` in the container on `SSH_PORT`, authorised by your `~/.ssh/*.pub` |
 | `CONFIG_GUI=1` | off | Include the configuration builder in `up-all`. It is opt-in because it talks to nothing — it is a standalone authoring tool |
@@ -314,8 +320,8 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `SSH_PORT` | `2222` | Host port forwarded to `sshd` |
-| `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
-| `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
+| `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
+| `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
@@ -324,7 +330,7 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 
 Beyond these, the compose files read a few variables that have sensible
 defaults and no `.env` entry: `CORS_ORIGIN`, `MAX_WS_CLIENTS`, `CALF_CLIENT_ID`
-and `INDEX_IDS` for the trading terminal, `LOG_SRV_ENABLED` for its logging
+and `INDEX_IDS` for TapeDeck, `LOG_SRV_ENABLED` for its logging
 uplink, and `PIP_INDEX_URL` as a build argument. Export any of them in your
 shell before `make up-all` if you need to.
 
@@ -537,7 +543,7 @@ s.on("error", e => console.log("FAIL", e.code));'
 
 ### The read-only API key
 
-One value cannot be a fixed default. The trading terminal reads historical data,
+One value cannot be a fixed default. TapeDeck reads historical data,
 and the order book viewer reads everything, through `pm-api-gwy` using the
 credential whose `gateway_id` is `null`. That
 key is **generated per engine configuration** — every bundled example has a
@@ -547,7 +553,7 @@ different one — and it is issued on the `dashboards` gateway instance (port
 Both start paths therefore run in two phases: bring up the exchange, read the
 key out of the deployed configuration, then start the GUIs with it. If a
 configuration has no such credential the start still succeeds and says so — the
-trading terminal's live market-data feed needs no key, only its history panels
+TapeDeck's live market-data feed needs no key, only its history panels
 do; the order book viewer, which reads all its data through `pm-api-gwy`, then
 has nothing to show.
 
@@ -562,7 +568,7 @@ One variable decides where an exchange keeps its state:
 
 | Path | Controlled by | Contains |
 |---|---|---|
-| `<DATA_DIR>` | `EDUMATCHER_DATA_DIR`; see [Getting Started](../../quick-start/part-1-see-it-run/030-your-first-trade.md#environment-variables) for how the default is chosen | Everything below |
+| `<DATA_DIR>` | `EDUMATCHER_DATA_DIR`; see [Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#how-the-default-is-selected) in the Reference Manual for how the default is chosen | Everything below |
 | `<DATA_DIR>/ref_data/engine_config.json` | `pm-setup`, `pm-config-deploy` | The **compiled artifact every process reads** |
 | `<DATA_DIR>/ref_data/engine_config.yaml` | same | The authored source it was compiled from, kept for provenance |
 | `<DATA_DIR>/emo/` | `pm-opctl-cli` | One log per process, PID files, and the active profile name |
@@ -601,7 +607,7 @@ disk, not inside a container: it survives stop, start, rebuild and update.
 | `deployment/docker/config/` | `make up-all CONFIG=<file>` | As above, for the source-built stack |
 | `deployment/docker/.wheel/` | `make build` | The locally built wheel the image installs from |
 | `deployment/docker/.ssh/` | `make keys` | `authorized_keys` assembled from your `~/.ssh/*.pub`, for `SSH=1` |
-| `/backend-data` (in log-gui) | the `./data:/backend-data:ro` mount | Where the log viewer reads `log.db` — read-only by construction, so the viewer can never write the log server's database |
+| `/backend-data` (in log-gui) | the `./data:/backend-data:ro` mount | Where the Log Operator Console reads `log.db` — read-only by construction, so it can never write the log server's database |
 | `log-gui-acks`, `terminal-gui-logs`, `book-gui-logs` | Compose named volumes | Log acknowledgements; the terminal's and the order book viewer's failover logs |
 
 
@@ -766,11 +772,11 @@ registers nothing; always use `eval` for the zsh script.
 
 ## Where to go next
 
-- [Getting Started](../../quick-start/part-1-see-it-run/030-your-first-trade.md) — what EduMatcher is, and your
-  first trade in five minutes
+- [Quick Start Guide](../../quick-start/part-1-see-it-run/010-what-is-edumatcher.md) — what EduMatcher is, and your
+  first trade
 - [Engine Configuration](../part-2-configure/010-the-configuration-workflow.md) — authoring an
   `engine_config.yaml`
 - [Configuration GUI](../part-2-configure/030-config-gui.md) — doing it in the browser instead
 - [Running the Exchange](../part-3-run/010-running-the-exchange.md) — starting processes and
   keeping them healthy
-- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — what each `pm-*` process is for
+- [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — what each `pm-*` process is for

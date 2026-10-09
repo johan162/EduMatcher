@@ -29,8 +29,8 @@ meaningful in which of those three states.
     stops between Part A and Part B.
 
 
-!!! abstract "Pre-reading in the User Guide"
-    - [P&L & Clearing](../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)
+!!! abstract "Background reading"
+    - [Positions and P&L](../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)
 
 ## Prerequisites
 
@@ -87,12 +87,17 @@ the fill price for the newly-opened side.
 ## Part A — Intraday exercises
 
 !!! info "Engine: **running**"
-    Everything in Part A assumes a live exchange with trades flowing. If your
-    book is quiet, start `pm-mm-bot` or the AI traders from Chapter 14 so there
-    is something to clear.
+    Everything in Part A assumes a live exchange with the market open and a
+    market maker quoting AAPL — the market orders below need someone to trade
+    with. Chapters 05–11 cleared AAPL several times; re-quote it from
+    `MM_AAPL_01` (the chapter 02 `QUOTE` command) or start
+    `pm-mm-bot --symbol AAPL --gap 0.10 --qty 500`.
 
 
 ### Exercise 1: Start the clearing service
+
+If `pm-clearing` is still running from chapter 03, keep it and skip to
+Exercise 2 — two copies would record every trade twice. Otherwise:
 
 ```bash
 pm-clearing
@@ -147,7 +152,8 @@ Query the position:
 pm-clearing-cli positions --gateway TRADER01 --symbol AAPL
 ```
 
-Confirm:
+Confirm (if TRADER01 already held AAPL from earlier chapters, add that to
+the figures):
 
 - `net_qty` ≈ 300
 - `avg_cost` is the VWAP of the two fills (not the last price alone)
@@ -669,8 +675,8 @@ are live (moving).
 | Average cost (long) | $\frac{\sum(\text{buy\_price} \times \text{buy\_qty})}{\sum \text{buy\_qty}}$ |
 | Realized P&L (closing sell) | $(\text{sell\_price} - \text{avg\_cost}) \times \text{qty\_closed}$ |
 | Unrealized P&L (long) | $(\text{mark\_price} - \text{avg\_cost}) \times \text{net\_qty}$ |
-| Unrealized P&L (short) | $(\text{avg\_cost} - \text{mark\_price}) \times |\text{net\_qty}|$ |
-| Cross-zero realized | $(\text{fill\_price} - \text{avg\_cost}) \times |\text{old\_net\_qty}|$ |
+| Unrealized P&L (short) | $(\text{avg\_cost} - \text{mark\_price}) \times \lvert\text{net\_qty}\rvert$ |
+| Cross-zero realized | $(\text{fill\_price} - \text{avg\_cost}) \times \lvert\text{old\_net\_qty}\rvert$ |
 
 ---
 
@@ -731,7 +737,7 @@ run to tell them apart.
 
 ## Further Reading
 
-- [P&L & Clearing](../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)
+- [Positions and P&L](../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)
 - [Messages](../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 - [Statistics and Reporting](../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md)
 - [Your First Trade](../quick-start/part-1-see-it-run/030-your-first-trade.md)

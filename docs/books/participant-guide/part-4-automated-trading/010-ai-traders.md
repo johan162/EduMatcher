@@ -15,7 +15,7 @@
 
     **Prerequisites**: [Running the Engine](../../operator-guide/part-3-run/010-running-the-exchange.md) — the engine must be running
     before AI traders can connect.
-    [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — AI traders connect as regular gateways; their IDs
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — AI traders connect as regular gateways; their IDs
     must be listed in the deployed engine configuration (or the engine must be in unrestricted mode).
 
 ---
@@ -445,12 +445,12 @@ shown in display money:
 
 **In this book:**
 
-- [Market-Maker Bot (pm-mm-bot)](../part-3-market-making/030-the-market-maker-bot.md) — autonomous market-maker process; complements AI traders by providing liquidity
+- [The Market-Maker Bot (`pm-mm-bot`)](../part-3-market-making/030-the-market-maker-bot.md) — autonomous market-maker process; complements AI traders by providing liquidity
 - [Order Types](../part-2-orders/020-order-types.md) — AI bots submit LIMIT DAY orders only
 
 **Quick Start Guide:**
 
-- Getting Started — quick walkthrough including a swarm demo
+- Your First Trade — the basics of placing and matching orders by hand
 
 **Operator's Guide:**
 

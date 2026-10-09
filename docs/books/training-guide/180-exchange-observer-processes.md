@@ -9,13 +9,13 @@ orders, ticker tape, market board, audit trail, statistics, and clearing/P&L.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
-    - [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+!!! abstract "Background reading"
+    - [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 
 ## Prerequisites
 
-- Chapters 01–03 completed, with `pm-engine`, `pm-scheduler`, and at least
-  `TRADER01` connected.
+- Chapters 01–03 completed, with `pm-engine` running, the market open in
+  `CONTINUOUS`, and at least `TRADER01` connected.
 - Market-maker liquidity from chapter 02, or another gateway placing opposite-side
   orders so trades and book updates are visible.
 - Several terminals available. These observer processes are intentionally separate
@@ -44,11 +44,12 @@ visible from different angles.
 
 ## Exercise 1: Start the Baseline Exchange
 
-Start the engine and scheduler if they are not already running:
+Start the engine if it is not already running, and open the market from the
+operator console if it is closed (chapter 01, "Open the market for the
+chapters ahead"):
 
 ```bash
 pm-engine
-pm-scheduler
 ```
 
 Connect two trader gateways:
@@ -265,7 +266,7 @@ had to be restarted together?
 
 ## Further Reading
 
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [Messages](../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 - [Market Data & Drop Copy](130-market-data-drop-copy.md)
 - [Statistics & Reporting](150-statistics-reporting.md)

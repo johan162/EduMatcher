@@ -19,7 +19,7 @@ You will practise:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [BALF Gateway](../operator-guide/part-5-gateways/020-balf-gateway.md)
     - [BALF Protocol](../protocols-and-clients/part-2-specifications/020-balf.md)
 
@@ -68,8 +68,15 @@ pm-config-gen \
   --balf-gateway \
   --balf-port 5560 \
   --balf-bind-address 127.0.0.1 \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
+
+!!! note "Back up, check, deploy — then restart"
+    This chapter starts from a fresh configuration (its operator is `OPS01`),
+    and `--force` replaces your `engine_config.yaml`: save a copy first if you
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch27.yaml`).
+    As always, nothing changes until you deploy it and restart the engine:
+    `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
 
 Inspect the generated section:
 
@@ -478,6 +485,6 @@ can stop them and start fresh for the next chapter.
 
 - [BALF TCP Gateway](../operator-guide/part-5-gateways/020-balf-gateway.md) — configuration, lifecycle, and troubleshooting
 - [BALF Protocol Reference](../protocols-and-clients/part-2-specifications/020-balf.md) — formal frame layouts and enum/reference tables
-- [Configuration](../operator-guide/part-2-configure/010-the-configuration-workflow.md) — `balf_gateway:` generation with `pm-config-gen`
+- [The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md) — `balf_gateway:` generation with `pm-config-gen`
 - [Protocol Support Library Examples](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)

@@ -317,7 +317,7 @@ Each mutating subcommand prints a confirmation prompt before sending (skip it wi
 sending it, and blocks for the `index.corp_action_ack.{gateway_id}` response.
 `pm-index` applies the action in-process, immediately publishes an updated
 index value live, and writes a `CORP_ACTION` record to the structural/audit
-history file. See [Index Admin CLI](080-index-administration.md) for the full
+history file. See [Index Administration (`pm-index-admin-cli`)](080-index-administration.md) for the full
 subcommand reference, `--dry-run` output, and exit codes.
 
 !!! important "Apply corporate actions before the market opens"

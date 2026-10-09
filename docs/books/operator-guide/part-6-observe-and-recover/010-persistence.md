@@ -31,7 +31,7 @@ preserve market state and historical records.
     | Installed (pipx)   | `~/.local/share/edumatcher` |
     | Custom             | `$EDUMATCHER_DATA_DIR`      |
 
-    See [Getting Started → Environment variables](../../quick-start/part-1-see-it-run/030-your-first-trade.md#environment-variables) for override details.
+    See [Reference Manual → Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#environment-variables) for override details.
 
 
 
@@ -90,7 +90,7 @@ dedicated query tool.
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
 | `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) |
-| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
+| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
 | `audit.log` | `pm-audit` | Continuously (buffered flush); rotates at 10 MB × 5 backups | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) |
 | `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
 | `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`, or the API gateway's rebalance endpoint for `REBALANCE`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](../part-4-run-a-market/070-market-index.md) |
@@ -651,7 +651,7 @@ A SQLite database that accumulates across sessions. It holds an append-only
 `trade_events` fact table plus running-state tables for positions and daily
 summaries, and clearing-lifecycle tables for sessions and connections. The full
 schema (five tables and two views) and the VWAP/realized/unrealized P&L formulas
-are documented in [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md#sqlite-database-schema).
+are documented in [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md#sqlite-database-schema).
 
 If `pm-clearing` is not running when a trade executes, that trade is not recorded
 here (it is still in `stats.db` and `audit.log`).
@@ -799,7 +799,7 @@ engine state files (`gtc_orders.json`, `gtc_combos.json`, `book_stats.json`,
 **In this book:**
 
 - [Auctions & Scheduling](../part-4-run-a-market/030-sessions-and-scheduling.md) — how ATO/ATC orders expire at phase transitions
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
 
 **Participant Guide:**
 

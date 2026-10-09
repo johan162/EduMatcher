@@ -12,14 +12,15 @@ invocation.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Market Making](../participant-guide/part-3-market-making/020-market-making.md)
     - [Market-Maker Bot](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
 
 ## Prerequisites
 
 - Chapters 00–01 completed.
-- `pm-engine` and `pm-scheduler` running.
+- `pm-engine` running and the market open in `CONTINUOUS` (chapter 01,
+  "Open the market for the chapters ahead").
 - At least one trader gateway connected (for book checks).
 
  
@@ -140,7 +141,9 @@ pm-cverifier engine_config.yaml       # expect 0 errors
 pm-config-deploy engine_config.yaml
 ```
 
-Then restart `pm-engine` to pick up the new gateways.
+Then restart `pm-engine` to pick up the new gateways. A restarted engine
+starts in `CLOSED` again, so reopen the market from the operator console
+(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-cverifier` reports 0 errors,
 the deploy succeeds, and the engine logs show 6 gateways loaded.
@@ -597,7 +600,7 @@ someone at 09:29 on a trading morning?
 ## Further Reading
 
 - [Market Making](../participant-guide/part-3-market-making/020-market-making.md)
-- [Market-Maker Bot (pm-mm-bot)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
+- [The Market-Maker Bot (`pm-mm-bot`)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
 - [Market-Maker Bot — Per-symbol settings](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#per-symbol-settings)
 - [Market-Maker Bot CLI Reference](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#cli-reference)
 - [Market-Maker Bot — Config File](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#config-file)

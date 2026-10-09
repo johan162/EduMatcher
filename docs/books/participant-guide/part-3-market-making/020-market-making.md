@@ -1,4 +1,4 @@
-# Market Maker
+# Market Making
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -11,7 +11,7 @@
     - Why Market-Maker Protection (MMP) is a data model today, not an enforced engine feature
     - How `disconnect_behaviour` determines what happens to your quotes if your gateway drops
 
-    **Prerequisites**: [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — you need a gateway configured
+    **Prerequisites**: [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — you need a gateway configured
     with `role: MARKET_MAKER` before the engine accepts quotes.
     [ALF Console](../part-2-orders/010-the-trader-console.md) — understand how to connect a gateway terminal.
 
@@ -351,7 +351,7 @@ price discovery can begin from a known starting point.
     empty book)")` and the engine refuses to start. Set `require_mm_seed_quotes:
     false` at the top level of `engine_config.yaml` to opt out and allow a
     MARKET_MAKER-configured symbol to start with an empty book — see
-    [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for this flag. Each seed's
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for this flag. Each seed's
     `gateway_id` must also reference a gateway that is actually configured
     with `role: MARKET_MAKER` — a seed pointing at a `TRADER` gateway is
     rejected at load time too.
@@ -1229,8 +1229,8 @@ At this moment the operator should record or mentally associate:
 The minimum safe correlation set for a human operator is:
 
 - `Q123`
-- bid leg short ID
-- ask leg short ID
+- bid leg order ID
+- ask leg order ID
 
 ### Step 2: identify which leg filled
 
@@ -1392,8 +1392,8 @@ The operator should remember:
 
 - current symbol being quoted
 - current `quote_id`
-- bid leg short ID
-- ask leg short ID
+- bid leg order ID
+- ask leg order ID
 - whether the current policy auto-inactivates on any fill, only full fill, or never
 - whether a fill already happened and whether the quote is still active
 
@@ -1446,8 +1446,8 @@ Safe trigger points for re-quoting are:
 For manual terminal operation, the safest habit is:
 
 1. always supply your own `QUOTE_ID`
-2. after each `QUOTE ACK`, note the bid and ask short IDs
-3. after each `FILL`, identify which leg traded by matching the short ID
+2. after each `QUOTE ACK`, note the bid and ask leg order IDs
+3. after each `FILL`, identify which leg traded by matching the order ID
 4. wait for `QUOTE INACTIVE_*` if the gateway auto-inactivates
 5. submit the next `QUOTE` only once you know whether the old quote is still active
 
@@ -1663,7 +1663,7 @@ sequenceDiagram
 
 **In this book:**
 
-- [Market-Maker Bot (pm-mm-bot)](030-the-market-maker-bot.md) — autonomous quoting process that implements the strategies described on this page
+- [The Market-Maker Bot (`pm-mm-bot`)](030-the-market-maker-bot.md) — autonomous quoting process that implements the strategies described on this page
 - [Order Types](../part-2-orders/020-order-types.md) — the LIMIT orders that quote legs create under the hood
 - [ALF Console](../part-2-orders/010-the-trader-console.md) — full QUOTE and QUOTE_CANCEL command syntax
 

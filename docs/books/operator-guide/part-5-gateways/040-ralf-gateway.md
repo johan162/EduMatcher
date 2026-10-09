@@ -1,4 +1,4 @@
-# RALF Gateway - Post-Trade Dissemination
+# RALF Gateway — Post-Trade Dissemination
 
 <a id="pm-ralf-gwy-post-trade-dissemination-gateway"></a>
 

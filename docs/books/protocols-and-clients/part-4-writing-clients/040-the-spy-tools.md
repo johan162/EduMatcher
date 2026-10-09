@@ -1,4 +1,4 @@
-# Drop-Copy Spy
+# Drop-Copy Spy (`pm-dc-spy`)
 
 <a id="pm-dc-spy-drop-copy-spy"></a>
 
@@ -112,7 +112,7 @@ see any lines until a fill occurs.
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process (see
-[Getting Started — Environment variables](../../quick-start/part-1-see-it-run/030-your-first-trade.md#environment-variables)).
+[Reference Manual → Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#environment-variables)).
 
 
 ## Human-readable output

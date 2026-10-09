@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -18,7 +19,8 @@ def first_h1(path: Path) -> str:
         if line.lstrip().startswith(("```", "~~~")):
             fenced = not fenced
         elif not fenced and line.startswith("# "):
-            return line[2:].strip()
+            # Drop a trailing attribute list such as "{.part}" (LaTeX-only).
+            return re.sub(r"\s*\{[^}]*\}\s*$", "", line[2:]).strip()
     return path.stem
 
 

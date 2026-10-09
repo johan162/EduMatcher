@@ -1,10 +1,28 @@
-# Generic documentation build for the EduMatcher book library.
+# Makefile for building EduMatcher Documentation (user-guides,training-guide,chapters,site) and related artifacts.
+# For mermaid rendering we use a mermaid Node filter, installed once in a
+# shared top-level tools directory used by all doc builds.
+# npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli
 
+# ============================================================================================
+# Tool and platform detection
+# ============================================================================================
 POETRY := $(shell command -v poetry 2>/dev/null)
 ifeq ($(POETRY),)
 $(error poetry not found. Install with: pip install poetry)
 endif
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+	SED_INPLACE := -i ''
+else
+    PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
+	SED_INPLACE := -i
+endif
+
+# ============================================================================================
+# Directories, paths and version
+# ============================================================================================
 DOCS_DIR := .
 BOOKS_DIR := $(DOCS_DIR)/books
 BUILD_ASSETS := $(DOCS_DIR)/build
@@ -32,6 +50,9 @@ NODE_MODULES_PATH := ../build-tools/node_modules
 AWK_JOIN := awk 'FNR==1 && NR!=1{print ""; print ""}1'
 LUA_DEPS := $(wildcard $(FILTER_DIR)/*.lua)
 
+# ============================================================================================
+# Terminal colours
+# ============================================================================================
 BRIGHTCYAN := \033[1;36m
 BLUE := \033[0;34m
 DARKYELLOW := \033[0;33m
@@ -39,12 +60,18 @@ GREEN := \033[0;32m
 RED := \033[0;31m
 NC := \033[0m
 
+# ============================================================================================
+# Make behaviour
+# ============================================================================================
 SHELL := $(shell which bash)
 .SHELLFLAGS := -euo pipefail -c
 .ONESHELL:
 .DELETE_ON_ERROR:
 .DEFAULT_GOAL := help
 
+# ============================================================================================
+# Book list and cover titles
+# ============================================================================================
 BOOKS := quick-start participant-guide operator-guide reference-manual \
 		 protocols-and-clients architecture-and-development training-guide
 
@@ -56,12 +83,18 @@ COVER_TITLE_protocols-and-clients := PROTOCOLS<br><span class="accent">AND CLIEN
 COVER_TITLE_architecture-and-development := ARCHITECTURE<br><span class="accent">AND DEVELOPER</span><br>GUIDE
 COVER_TITLE_training-guide := TRAINING<br><span class="accent">GUIDE</span>
 
+# ============================================================================================
+# Per-book rules (book.mk) and phony targets
+# ============================================================================================
 include $(BUILD_ASSETS)/book.mk
 
 .PHONY: pdf-docs epub-docs chapters-pdf book-bundles covers book-all docs-all omnibus docs serve docs-check docs-ledger nav \
   pdf-training-guide epub-training-guide chapters-training-guide exchange-intro \
-  pdf-exchange-intro epub-exchange-intro epub-downloads example-downloads clean really-clean help check-latex-engine
+  pdf-exchange-intro epub-exchange-intro epub-downloads example-downloads mp-bump clean really-clean help check-latex-engine
 
+# ============================================================================================
+# Book formats: PDF, EPUB, chapters, all-format bundles, covers
+# ============================================================================================
 pdf-docs: $(addprefix pdf-,$(BOOKS))
 epub-docs: $(addprefix epub-,$(BOOKS))
 chapters-pdf: $(addprefix chapters-,$(BOOKS))
@@ -79,6 +112,9 @@ $(foreach book,$(BOOKS),$(eval $(call BOOK_BUNDLE_RULE,$(book))))
 covers: $(addprefix cover-,$(BOOKS))
 book-all: pdf-docs epub-docs
 
+# ============================================================================================
+# Site downloads: EPUBs and example sources
+# ============================================================================================
 EPUB_DOWNLOAD_TARGETS := $(foreach book,$(BOOKS),$($(book)_EPUB_DL))
 epub-downloads: $(EPUB_DOWNLOAD_TARGETS)
 
@@ -102,6 +138,9 @@ example-downloads:
 	done
 	@printf '%b\n' "$(GREEN)OK example downloads$(NC)"
 
+# ============================================================================================
+# MkDocs site
+# ============================================================================================
 docs: nav epub-downloads example-downloads
 	@printf '%b\n' "$(DARKYELLOW)- Building MkDocs site...$(NC)"
 	@cd .. && $(POETRY) run mkdocs build
@@ -109,10 +148,14 @@ docs: nav epub-downloads example-downloads
 serve: nav epub-downloads example-downloads
 	@cd .. && $(POETRY) run mkdocs serve
 
+# ============================================================================================
+# Exchange intro (delegated to docs-exchange-intro)
+# ============================================================================================
 pdf-exchange-intro:
 	@printf '%b\n' "$(DARKYELLOW)- Building Exchange Intro PDFs...$(NC)"
 	@$(MAKE) -C ../docs-exchange-intro pdf-docs
 	@printf '%b\n' "$(GREEN)OK Exchange Intro PDFs built$(NC)"
+
 # Must run after pdf-exchange-intro, not in parallel with it: pdf-docs does an
 # unconditional `rm -rf` of their shared build dir, which races epub-docs's use
 # of the same directory.
@@ -120,11 +163,20 @@ epub-exchange-intro: pdf-exchange-intro
 	@printf '%b\n' "$(DARKYELLOW)- Building Exchange Intro EPUB...$(NC)"
 	@$(MAKE) -C ../docs-exchange-intro epub-docs
 	@printf '%b\n' "$(GREEN)OK Exchange Intro EPUB built$(NC)"
+
+exchange-intro:
+	@$(MAKE) -C ../docs-exchange-intro -j 16 all
+
+
+# ============================================================================================
+# Main build targets
+# ============================================================================================
 docs-all: book-all pdf-exchange-intro epub-exchange-intro
 omnibus: docs-all chapters-pdf book-bundles
-exchange-intro:
-	@$(MAKE) -C ../docs-exchange-intro pdf-docs
 
+# ============================================================================================
+# Documentation checks and navigation
+# ============================================================================================
 PRE_SPLIT_TAG := docs-pre-split
 PRE_SPLIT_DIR := $(BUILD_DIR)/pre-split
 
@@ -140,6 +192,9 @@ docs-check: nav
 nav:
 	@$(PY) $(BUILD_ASSETS)/gen_nav.py --mkdocs ../mkdocs.yml --docs $(DOCS_DIR) --books $(BOOKS)
 
+# ============================================================================================
+# Build prerequisites and output directories
+# ============================================================================================
 check-latex-engine:
 	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then echo "LaTeX engine '$(LATEX_ENGINE)' not found" >&2; exit 1; fi
 
@@ -154,11 +209,17 @@ $(STAMP_DIR)/version-$(VERSION):
 	@rm -f $(STAMP_DIR)/version-*
 	@touch $@
 
+# ============================================================================================
+# Cleaning
+# ============================================================================================
 clean:
 	@rm -rf $(BUILD_DIR) $(DIST_DIR)/chapters-a4
 really-clean: clean
 	@rm -rf $(DIST_DIR) $(DOWNLOADS_DIR) $(STAMP_DIR)
 
+# ============================================================================================
+# Help
+# ============================================================================================
 help:
 	@printf '\n$(DARKYELLOW)EduMatcher documentation targets$(NC)\n'
 	@printf '\n$(BRIGHTCYAN)Documentation$(NC)\n'
@@ -194,3 +255,11 @@ help:
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'really-clean' 'Remove all generated documentation output'
 	@printf '  $(BLUE)%-30s$(NC) %s\n' 'check-latex-engine' 'Check that the LaTeX engine is available'
 	@printf '\n'
+
+# ============================================================================================
+# Version bumping
+# ============================================================================================
+mp-bump: ## Bump the version for the documented multipass bootstrap sctip to the current project version
+	@echo -e "$(DARKYELLOW)- Bumping multipass bootstrap script version to $(BRIGHTCYAN)$(VERSION)$(DARKYELLOW)...$(NC)"
+	@{ grep -rlE --include='*.md' -e '--version[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+' $(BOOKS_DIR) ../README.md || true; } | xargs -r perl -pi -e 's/(--version\s+)\d+\.\d+\.\d+/$${1}$(VERSION)/g'
+	@echo -e "$(GREEN)✓ All multipass bootstrap scripts version updated to $(BRIGHTCYAN)$(VERSION)$(GREEN)$(NC)"

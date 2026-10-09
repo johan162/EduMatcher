@@ -8,6 +8,7 @@ repo_url: https://github.com/johan162/EduMatcher
 
 exclude_docs: |
   README.md
+  books/**/book.toml
   examples/**
   hooks/README.md
   node_modules/
@@ -88,46 +89,56 @@ nav:
   - How an Exchange Works: how-exchange-works.md
 # BEGIN GENERATED NAV (build/gen_nav.py) - do not edit by hand
   - "Quick Start Guide":
+    - "How to Use This Book": books/quick-start/00-front/010-how-to-use-this-book.md
     - "Part I: See it run":
+      - "What EduMatcher Is": books/quick-start/part-1-see-it-run/010-what-is-edumatcher.md
+      - "Install and Start": books/quick-start/part-1-see-it-run/020-install-and-start.md
       - "Your First Trade": books/quick-start/part-1-see-it-run/030-your-first-trade.md
+      - "The Browser Applications": books/quick-start/part-1-see-it-run/040-the-browser-applications.md
     - "Part II: Next steps":
-      - "Choose your book": books/quick-start/part-2-next-steps/020-choose-your-book.md
+      - "Run a Trading Session": books/quick-start/part-2-next-steps/010-run-a-trading-session.md
+      - "Your Own Configuration": books/quick-start/part-2-next-steps/020-your-own-configuration.md
+      - "Choose Your Next Book": books/quick-start/part-2-next-steps/030-choose-your-book.md
+    - "When Something Does Not Work": books/quick-start/90-backmatter/020-when-something-does-not-work.md
     - "FAQ & Common Mistakes": books/quick-start/90-backmatter/010-faq.md
+    - "Quick Glossary": books/quick-start/90-backmatter/030-quick-glossary.md
   - "Participant Guide":
+    - "How to Use This Book": books/participant-guide/00-front/010-how-to-use-this-book.md
     - "Part I: Trading basics":
-      - "Gateway Concepts": books/participant-guide/part-1-trading-basics/010-gateways-and-how-you-connect.md
       - "The Order Book": books/participant-guide/part-1-trading-basics/020-the-order-book.md
       - "A Full Trading Day": books/participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md
+      - "Gateways and How You Connect": books/participant-guide/part-1-trading-basics/010-gateways-and-how-you-connect.md
     - "Part II: Orders":
-      - "`pm-alf-console` — Interactive ALF Trading Terminal": books/participant-guide/part-2-orders/010-the-trader-console.md
+      - "The Trader Console (`pm-alf-console`)": books/participant-guide/part-2-orders/010-the-trader-console.md
       - "Order Types": books/participant-guide/part-2-orders/020-order-types.md
       - "Combo Orders": books/participant-guide/part-2-orders/030-combo-and-oco-orders.md
-      - "Implied Orders (Synthetic Orders)": books/participant-guide/part-2-orders/040-implied-orders.md
+      - "Implied Orders (a Concept Not Yet Implemented)": books/participant-guide/part-2-orders/040-implied-orders.md
     - "Part III: Market making":
-      - "MM Quotes": books/participant-guide/part-3-market-making/010-market-maker-quotes.md
-      - "Market Maker": books/participant-guide/part-3-market-making/020-market-making.md
-      - "Market-Maker Bot (pm-mm-bot)": books/participant-guide/part-3-market-making/030-the-market-maker-bot.md
+      - "Market-Maker Quotes": books/participant-guide/part-3-market-making/010-market-maker-quotes.md
+      - "Market Making": books/participant-guide/part-3-market-making/020-market-making.md
+      - "The Market-Maker Bot (`pm-mm-bot`)": books/participant-guide/part-3-market-making/030-the-market-maker-bot.md
     - "Part IV: Automated trading":
       - "AI Traders": books/participant-guide/part-4-automated-trading/010-ai-traders.md
-      - "AI Bot Traders": books/participant-guide/part-4-automated-trading/020-how-the-bots-decide.md
+      - "How the AI Traders Decide": books/participant-guide/part-4-automated-trading/020-how-the-bots-decide.md
     - "Part V: Positions and results":
-      - "P&L & Clearing": books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md
+      - "Positions and P&L": books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md
     - "Part VI: Front-ends":
       - "Trader Information Terminal — \"TapeDeck\" (`pm-terminal`)": books/participant-guide/part-6-front-ends/010-trading-info-terminal.md
       - "Trading GUI (`pm-trading-ui`)": books/participant-guide/part-6-front-ends/020-trading-platform-gui.md
       - "Order Book Viewer (`pm-book`)": books/participant-guide/part-6-front-ends/030-order-book-gui.md
   - "Operator's Guide":
+    - "How to Use This Book": books/operator-guide/00-front/010-how-to-use-this-book.md
     - "Part I: Install and deploy":
       - "Installation": books/operator-guide/part-1-install-and-deploy/010-installation.md
       - "VM Runtime Image with Pinned PyPI Release": books/operator-guide/part-1-install-and-deploy/020-vm-runtime-image.md
     - "Part II: Configure":
-      - "Configuration": books/operator-guide/part-2-configure/010-the-configuration-workflow.md
+      - "The Configuration Workflow": books/operator-guide/part-2-configure/010-the-configuration-workflow.md
       - "Configuration Verifier (`pm-cverifier`)": books/operator-guide/part-2-configure/020-config-verifier.md
       - "Configuration GUI (`config-gui`)": books/operator-guide/part-2-configure/030-config-gui.md
       - "Example Engine Configs": books/operator-guide/part-2-configure/040-example-configs.md
     - "Part III: Run":
       - "Running the Exchange": books/operator-guide/part-3-run/010-running-the-exchange.md
-      - "Exchange Commands": books/operator-guide/part-3-run/020-admin-console-and-commands.md
+      - "The Admin Console and Exchange Commands": books/operator-guide/part-3-run/020-admin-console-and-commands.md
     - "Part IV: Run a market":
       - "Listing a New Symbol (`pm-new-symbol`)": books/operator-guide/part-4-run-a-market/010-new-symbols.md
       - "IPO Valuation (`pm-valuation`)": books/operator-guide/part-4-run-a-market/020-valuation.md
@@ -135,12 +146,12 @@ nav:
       - "Risk Controls": books/operator-guide/part-4-run-a-market/040-risk-controls.md
       - "Statistics and Reporting": books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md
       - "Market Index (`pm-index`)": books/operator-guide/part-4-run-a-market/070-market-index.md
-      - "Index Admin CLI": books/operator-guide/part-4-run-a-market/080-index-administration.md
+      - "Index Administration (`pm-index-admin-cli`)": books/operator-guide/part-4-run-a-market/080-index-administration.md
     - "Part V: Gateways":
-      - "ALF Gateway - Order-Entry": books/operator-guide/part-5-gateways/010-alf-gateway.md
-      - "BALF Gateway - Binary Order-Entry": books/operator-guide/part-5-gateways/020-balf-gateway.md
-      - "CALF Gateway - Market Data Feed": books/operator-guide/part-5-gateways/030-calf-gateway.md
-      - "RALF Gateway - Post-Trade Dissemination": books/operator-guide/part-5-gateways/040-ralf-gateway.md
+      - "ALF Gateway — Order Entry": books/operator-guide/part-5-gateways/010-alf-gateway.md
+      - "BALF Gateway — Binary Order Entry": books/operator-guide/part-5-gateways/020-balf-gateway.md
+      - "CALF Gateway — Market Data": books/operator-guide/part-5-gateways/030-calf-gateway.md
+      - "RALF Gateway — Post-Trade Dissemination": books/operator-guide/part-5-gateways/040-ralf-gateway.md
       - "API Gateway (REST/WebSocket)": books/operator-guide/part-5-gateways/050-api-gateway.md
       - "Drop-Copy Gateway (`pm-dc-gwy`)": books/operator-guide/part-5-gateways/060-drop-copy-gateway.md
     - "Part VI: Observe and recover":
@@ -150,90 +161,91 @@ nav:
       - "Centralized Log Server": books/operator-guide/part-6-observe-and-recover/040-log-server.md
       - "Log Operator Console (`pm-log-ui`)": books/operator-guide/part-6-observe-and-recover/050-log-console.md
   - "Reference Manual":
+    - "How to Use This Book": books/reference-manual/00-front/010-how-to-use-this-book.md
     - "Part I: Command line":
-      - "Processes": books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md
-      - "Index Admin CLI": books/reference-manual/part-1-command-line/060-index-log-and-scheduler-tools.md
-    - "Part III: Configuration":
-      - "010-schema-and-process-blocks": books/reference-manual/part-3-configuration/010-schema-and-process-blocks.md
-      - "Appendix: Engine Configuration Specification": books/reference-manual/part-3-configuration/030-formal-specification.md
-    - "010-glossary": books/reference-manual/90-backmatter/010-glossary.md
+      - "Processes, Environment and Ports": books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md
+    - "Part II: Configuration":
+      - "Configuration Schema and Process Blocks": books/reference-manual/part-3-configuration/010-schema-and-process-blocks.md
+      - "Engine Configuration Specification": books/reference-manual/part-3-configuration/030-formal-specification.md
+    - "Glossary": books/reference-manual/90-backmatter/010-glossary.md
     - "Known Limitations & Bugs": books/reference-manual/90-backmatter/020-known-limitations.md
   - "Protocols and Clients":
+    - "How to Use This Book": books/protocols-and-clients/00-front/010-how-to-use-this-book.md
     - "Part I: Choosing and connecting":
       - "Protocols Overview": books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md
     - "Part II: Specifications":
-      - "Appendix: ALF Protocol Reference": books/protocols-and-clients/part-2-specifications/010-alf.md
-      - "Appendix: BALF Protocol Reference": books/protocols-and-clients/part-2-specifications/020-balf.md
-      - "Appendix: CALF Protocol Reference": books/protocols-and-clients/part-2-specifications/030-calf.md
-      - "Appendix: RALF Protocol Reference": books/protocols-and-clients/part-2-specifications/040-ralf.md
-      - "Appendix: LALF Protocol Reference": books/protocols-and-clients/part-2-specifications/050-lalf.md
-      - "Appendix: REST API Reference": books/protocols-and-clients/part-2-specifications/060-rest-and-websocket.md
+      - "ALF Protocol Reference": books/protocols-and-clients/part-2-specifications/010-alf.md
+      - "BALF Protocol Reference": books/protocols-and-clients/part-2-specifications/020-balf.md
+      - "CALF Protocol Reference": books/protocols-and-clients/part-2-specifications/030-calf.md
+      - "RALF Protocol Reference": books/protocols-and-clients/part-2-specifications/040-ralf.md
+      - "LALF Protocol Reference": books/protocols-and-clients/part-2-specifications/050-lalf.md
+      - "REST and WebSocket API Reference": books/protocols-and-clients/part-2-specifications/060-rest-and-websocket.md
     - "Part III: Session behavior":
       - "Market Data Feed (CALF)": books/protocols-and-clients/part-3-session-behaviour/030-calf-market-data-feed.md
       - "Drop Copy": books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md
     - "Part IV: Writing clients":
       - "Protocol Support Library Examples": books/protocols-and-clients/part-4-writing-clients/030-example-libraries.md
-      - "Drop-Copy Spy": books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md
-      - "CALF Protocol Spy": books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md
+      - "Drop-Copy Spy (`pm-dc-spy`)": books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md
+      - "CALF Protocol Spy (`pm-calf-spy`)": books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md
       - "RALF Protocol Spy (`pm-ralf-spy`)": books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-ralf.md
     - "Part V: Message reference":
       - "Message Reference": books/protocols-and-clients/part-5-message-reference/010-message-reference.md
   - "Architecture and Developer Guide":
+    - "How to Use This Book": books/architecture-and-development/00-front/010-how-to-use-this-book.md
     - "Part I: Architecture":
       - "Architecture": books/architecture-and-development/part-1-architecture/010-architecture-overview.md
-      - "EduMatcher — Architecture, Data Structures, and Code Walkthrough": books/architecture-and-development/part-1-architecture/020-guided-tour.md
+      - "Guided Tour: Architecture, Data Structures and Code": books/architecture-and-development/part-1-architecture/020-guided-tour.md
     - "Part II: Inside the engine":
-      - "EduMatcher OrderBook — Deep Dive": books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md
+      - "The Order Book: Deep Dive": books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md
       - "Order Flow Through the Engine: A NEW LIMIT Order, Step by Step": books/architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end.md
-    - "Part IV: Developing":
-      - "Development Practice and Release Process": books/architecture-and-development/part-4-developing/010-development-practice.md
+    - "Part III: Developing":
+      - "Development Practice": books/architecture-and-development/part-4-developing/010-development-practice.md
       - "The Development Loop": books/architecture-and-development/part-4-developing/020-development-workflow.md
       - "Deterministic Verification of the Matching Engine": books/architecture-and-development/part-4-developing/030-verification.md
       - "Message Generator (`pm-msgen`)": books/architecture-and-development/part-4-developing/040-message-generation.md
       - "Container and Network Setup": books/architecture-and-development/part-4-developing/050-containers-and-networks.md
-      - "VM Runtime Image with Pinned PyPI Release": books/architecture-and-development/part-4-developing/060-vm-runtime-image.md
       - "Exchange Experiments Roadmap": books/architecture-and-development/part-4-developing/070-extension-experiments.md
-    - "Part V: Releasing":
-      - "010-release-process": books/architecture-and-development/part-5-releasing/010-release-process.md
+    - "Part IV: Releasing":
+      - "The Release Process": books/architecture-and-development/part-5-releasing/010-release-process.md
   - "Training Guide":
     - "Training Guide": books/training-guide/index.md
     - "Part I: Foundations":
-      - "Foundations {.part}": books/training-guide/00-part.md
+      - "Foundations": books/training-guide/00-part.md
       - "Installation & Setup": books/training-guide/000-installation.md
       - "Configuring & Starting Up": books/training-guide/010-configuring-startup.md
       - "Setting Up Market-Maker Liquidity": books/training-guide/020-setting-up-MM-bots.md
       - "The First Trade": books/training-guide/030-the-first-trade.md
-      - "Exchange Observer Processes": books/training-guide/180-exchange-observer-processes.md
     - "Part II: Trading mechanics":
-      - "Trading mechanics {.part}": books/training-guide/00-part-2.md
+      - "Trading mechanics": books/training-guide/00-part-2.md
       - "Amending Orders": books/training-guide/040-amending-orders.md
-      - "Cancelling & Managing Orders": books/training-guide/080-cancelling-orders.md
       - "Order Types Deep Dive": books/training-guide/050-order-types.md
       - "Time-in-Force & Sessions": books/training-guide/060-time-in-force-sessions.md
       - "Auctions": books/training-guide/070-auctions.md
-      - "Combo Orders": books/training-guide/100-combo-orders.md
-      - "Market Index (`pm-index`)": books/training-guide/250-index.md
-    - "Part III: Liquidity and automation":
-      - "Liquidity and automation {.part}": books/training-guide/00-part-3.md
+      - "Cancelling & Managing Orders": books/training-guide/080-cancelling-orders.md
+    - "Part III: Liquidity, risk and results":
+      - "Liquidity, risk and results": books/training-guide/00-part-3.md
       - "Market Making": books/training-guide/090-market-making.md
-      - "AI Traders & Swarm": books/training-guide/140-ai-traders.md
-      - "Automation with CommandClient & MM Bot Tuning": books/training-guide/210-automation-commandclient-mm-bot.md
-    - "Part IV: Operating the exchange":
-      - "Operating the exchange {.part}": books/training-guide/00-part-4.md
+      - "Combo Orders": books/training-guide/100-combo-orders.md
       - "Risk Controls": books/training-guide/110-risk-controls.md
-      - "Advanced Admin Operations": books/training-guide/190-advanced-admin-operations.md
       - "P&L & Clearing": books/training-guide/120-pnl-clearing.md
+      - "Market Data & Drop Copy": books/training-guide/130-market-data-drop-copy.md
+      - "AI Traders & Swarm": books/training-guide/140-ai-traders.md
+    - "Part IV: Running a full session":
+      - "Running a full session": books/training-guide/00-part-4.md
       - "Statistics & Reporting": books/training-guide/150-statistics-reporting.md
       - "Persistence & Recovery": books/training-guide/160-persistence-recovery.md
       - "Capstone Scenario": books/training-guide/170-capstone-scenario.md
-      - "IPO Valuation (`pm-valuation`)": books/training-guide/280-ipo-valuation.md
-    - "Part V: External connectivity":
-      - "External connectivity {.part}": books/training-guide/00-part-5.md
-      - "Market Data & Drop Copy": books/training-guide/130-market-data-drop-copy.md
+      - "Exchange Observer Processes": books/training-guide/180-exchange-observer-processes.md
+      - "Advanced Admin Operations": books/training-guide/190-advanced-admin-operations.md
+    - "Part V: Integration and advanced topics":
+      - "Integration and advanced topics": books/training-guide/00-part-5.md
       - "Drop-Copy Replay & Recovery Patterns": books/training-guide/200-drop-copy-replay-recovery.md
+      - "Automation with CommandClient & MM Bot Tuning": books/training-guide/210-automation-commandclient-mm-bot.md
+      - "RALF Post-Trade Gateway Protocol Training": books/training-guide/220-ralf.md
+      - "CALF Market-Data Gateway Protocol Training": books/training-guide/230-calf.md
+      - "API Gateway REST/WebSocket Training": books/training-guide/240-api-gwy.md
+      - "Market Index (`pm-index`)": books/training-guide/250-index.md
       - "ALF TCP Gateway Protocol Training": books/training-guide/260-alf-gwy.md
       - "BALF TCP Gateway Protocol Training": books/training-guide/270-balf-gwy.md
-      - "CALF Market-Data Gateway Protocol Training": books/training-guide/230-calf.md
-      - "RALF Post-Trade Gateway Protocol Training": books/training-guide/220-ralf.md
-      - "API Gateway REST/WebSocket Training": books/training-guide/240-api-gwy.md
+      - "IPO Valuation (`pm-valuation`)": books/training-guide/280-ipo-valuation.md
 # END GENERATED NAV

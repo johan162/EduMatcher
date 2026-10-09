@@ -1,4 +1,4 @@
-# Appendix: LALF Protocol Reference
+# LALF Protocol Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the LALF
 > `1` wire contract (`PROTO=LALF1`) as implemented by `pm-log-srv`

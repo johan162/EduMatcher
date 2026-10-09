@@ -396,6 +396,9 @@ class Gateway:
         # just a different topic namespace. No topic is subscribed until
         # DC|STATE=ON (or --drop-copy at startup) -- see _set_drop_copy().
         self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
+        # make_subscriber() with no topics subscribes to everything; drop that
+        # so no other participant's fills are relayed before DC|STATE=ON.
+        self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, b"")
         self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""

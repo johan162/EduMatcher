@@ -904,9 +904,7 @@ class ConfigBuilder:
                     cb_payload["reopening"] = sym_reopening
                 payload["circuit_breaker"] = cb_payload
 
-            if mm_gateways and (
-                seeded_midpoint is not None or self.spec.require_mm_seed_quotes
-            ):
+            if mm_gateways and self.spec.require_mm_seed_quotes:
                 payload["market_maker_quotes"] = [
                     self._build_mm_quote_seed(
                         gateway_id=gateway_id,

@@ -8,7 +8,7 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Market Making](../participant-guide/part-3-market-making/020-market-making.md)
 
 ## Prerequisites
@@ -30,10 +30,20 @@ nothing, because every process reads the compiled artifact:
 pm-config-deploy engine_config.yaml
 ```
 
-Then restart `pm-engine` and connect:
+Then restart `pm-engine`, reopen the market from the operator console
+(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`) and connect:
 
 ```bash
 pm-alf-console --id MM_MANUAL_01
+```
+
+In this chapter `MM_MANUAL_01` should be the only liquidity on AAPL —
+otherwise your trader's orders will trade with whichever market maker offers
+the better price, and the fills below will not be yours. Stop any `pm-mm-bot`
+quoting AAPL, and clear the symbol from the operator console:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
 ```
 
  
@@ -70,7 +80,7 @@ Expected: a `Quote legs` table with one row per leg. The columns are:
 | `Symbol` | The instrument |
 | `Quote` | Your `QUOTE_ID` — the label you chose when submitting |
 | `Leg` | `BID` or `ASK` |
-| `Order` | The leg's order ID, **truncated to 8 characters** for display |
+| `Order` | The leg's full order ID |
 | `Qty` | Original quantity of the leg |
 | `Rem` | Still resting |
 | `Filled` | Already executed |
@@ -86,8 +96,9 @@ misread:
   `PARTIAL`, `FILLED`, `CANCELLED`, `EXPIRED` or `PENDING`. The *quote* is
   `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED`.
   There is no `ACTIVE` leg status — a resting, untouched leg shows `NEW`.
-- **The `Order` column is truncated.** `AMEND` and `CANCEL` need the *full*
-  order ID; take it from the `QUOTE ACK` line, not from this column.
+- **The `Order` column holds the full order ID** — the same IDs the
+  `QUOTE ACK` line printed, ready for a `CANCEL` (but see Exercise 7 before
+  you cancel a single leg).
 
 Try the filters — `SHOW=` accepts `ALL`, `ACTIVE` or `RECENT`:
 
@@ -123,7 +134,9 @@ CANCELLED <bid_id>
 QUOTE INACTIVE_ASK_FILLED  Q001
 ```
 
-Under `INACTIVATE_ON_ANY_FILL`, both legs are pulled after any fill.
+Under `INACTIVATE_ON_ANY_FILL`, the first fill on either leg inactivates the
+quote and cancels the **other** leg; the hit leg's unfilled remainder (here
+400 at 150.10) keeps resting until you re-quote or cancel.
 
 :material-checkbox-blank-outline: **Checkpoint:** fill + sibling cancel + INACTIVE status.
 
@@ -184,8 +197,7 @@ QUOTE CANCELLED  Q003
 
 ## Exercise 7: Cancel a Single Leg Directly — and See Why You Shouldn't
 
-`QLEGS` gives you each leg's full order ID (Exercise 2's note about
-truncation). Nothing stops you from feeding that ID straight into a plain
+`QLEGS` gives you each leg's full order ID. Nothing stops you from feeding that ID straight into a plain
 `CANCEL`, bypassing `QUOTE_CANCEL` entirely. Try it.
 
 Submit a fresh quote and note the bid's full order ID from the `QUOTE ACK` line:
@@ -480,7 +492,7 @@ one leg without touching the other is exactly what you'd want?
 ## Further Reading
 
 - [Market Making](../participant-guide/part-3-market-making/020-market-making.md)
-- [Market-Maker Bot (pm-mm-bot)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
+- [The Market-Maker Bot (`pm-mm-bot`)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
 - [Market-Maker Bot CLI Reference](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#cli-reference)
 - [ALF Console (pm-alf-console)](../participant-guide/part-2-orders/010-the-trader-console.md)
 - [MM Quotes Concept](../participant-guide/part-3-market-making/010-market-maker-quotes.md)

@@ -55,10 +55,6 @@ recorder does not have to be running.
     [Trading GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md), the [drop copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) feed,
     or `pm-audit-cli`.
 
-    That is why this chapter sits at the end of the user guide, after the
-    examples and beside [Known Limitations & Bugs](../../reference-manual/90-backmatter/020-known-limitations.md),
-    rather than next to the audit-trail chapter it builds on.
-
 
 
 ## How it works

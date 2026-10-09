@@ -209,7 +209,7 @@ static band is checked first.
 !!! warning "Tick-based prices"
     All prices in EduMatcher are stored as integer tick counts.  The collar
     boundaries are in ticks, not display prices.  See
-    [Configuration](../part-2-configure/010-the-configuration-workflow.md) for the relationship between ticks and
+    [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) for the relationship between ticks and
     display prices.
 
 ### Validation logic
@@ -1744,7 +1744,7 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 
 **In this book:**
 
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) — full `engine_config.yaml` reference including collar, CB ladder, and `smp_action` config
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) — full `engine_config.yaml` reference including collar, CB ladder, and `smp_action` config
 - [Auctions & Session Scheduling](030-sessions-and-scheduling.md) — the equilibrium-price uncross algorithm that timed circuit-breaker resumption always runs
 
 **Participant Guide:**

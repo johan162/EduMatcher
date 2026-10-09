@@ -1,10 +1,10 @@
-# Appendix: Engine Configuration Specification
+# Engine Configuration Specification
 
 **Status: Normative.** This appendix defines the formal structure of
 `engine_config.yaml`, the single reference-data file for an EduMatcher exchange.
 It is the authoritative schema; where it and any tutorial disagree, this document
 governs. For worked examples, recipes, and rationale, see
-[Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) (informative).
+[The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) (informative).
 
 The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,

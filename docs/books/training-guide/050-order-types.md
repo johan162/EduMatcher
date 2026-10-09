@@ -8,7 +8,7 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Order Types](../participant-guide/part-2-orders/020-order-types.md)
 
 ## Prerequisites
@@ -20,31 +20,35 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 
 ## Deterministic Trigger Setup
 
-Stop and stop-limit orders only trigger when the market actually trades
-through their trigger price. Vague instructions like "sell aggressively" can
-leave the trigger price behind by chance rather than by design. Use this
-procedure before each stop exercise so the trigger is guaranteed:
+Stop and stop-limit orders only trigger when the market actually **trades**
+through their trigger price — quotes alone never trigger them. To make the
+exercises below behave exactly as described, build the AAPL book yourself
+before each one, with the market maker's console placing ordinary limit
+orders:
 
-1. Check the current best bid/offer with `BOOK|SYM=AAPL` in the **operator
-   console** (`pm-admin`).
-2. Set your sell stop's `STOP` price **below the last traded price**, so it
-   does not trigger the moment you submit it — for example, if the last trade
-   was 149.80, use `STOP=149.50`. A sell stop fires when the last trade price
-   falls to or below the stop price, so this is close enough to reach with one
-   aggressive sell but not already triggered.
-3. Place the stop order (Exercise 1/2 below).
-4. From `TRADER02`, place a **marketable limit sell** priced below your stop
-   trigger, sized to exceed available resting bids down to that level, e.g.:
+1. Clear AAPL from the operator console (this cancels every order and quote
+   on it), and stop any `pm-mm-bot` quoting AAPL:
 
-   ```
-   [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=149.00|TIF=DAY
-   ```
+    ```
+    [GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+    ```
 
-   This guarantees the trade prints at or below 149.50, deterministically
-   triggering your stop — rather than hoping an "aggressive" sell happens to
-   cross it.
-5. Re-check `BOOK|SYM=AAPL` in the operator console to confirm the last trade price is at/below your
-   stop level before concluding the exercise.
+2. Give the book two bids, one above and one below the trigger level you
+   will use (149.50):
+
+    ```
+    [MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.60|TIF=DAY
+    [MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.30|TIF=DAY
+    ```
+
+3. Make a trade **above** the trigger, so the last traded price is 149.60 and
+   a sell stop at 149.50 is not triggered the moment you place it:
+
+    ```
+    [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.60|TIF=DAY
+    ```
+
+Now only the 200-share bid at 149.30 is left in the book.
 
  
 
@@ -52,46 +56,77 @@ procedure before each stop exercise so the trigger is guaranteed:
 
 A stop order becomes a market order when the trigger price is reached.
 
-Place a stop-sell (protect a long position if price drops):
+After the setup above, place a stop-sell — the order a trader holding AAPL
+would use to limit the loss if the price falls:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
 ```
 
-The order is dormant until AAPL trades at or below 149.50. Once triggered, it
-executes as a market order.
+The order is acknowledged and then lies dormant: it is not in the visible
+book. Now let the market fall through 149.50 — `TRADER02` sells into the
+149.30 bid:
 
-Interpretation: 149.50 is the **trigger** level, not a guaranteed execution
-price.
+```
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.30|TIF=DAY
+```
 
-To test, follow the **Deterministic Trigger Setup** above: from TRADER02,
-place a marketable sell priced below 149.50 to force a trade through the
-trigger level.
+That trade at 149.30 is at or below the stop, so the stop triggers and becomes
+a market sell, which fills against the remaining 100 bid at 149.30:
 
-:material-checkbox-blank-outline: **Checkpoint:** stop order triggered and filled after price drop.
+```
+[<time>] FILL      <order_id>  qty=100 @149.3  remaining=0  [FILLED]
+```
+
+Interpretation: 149.50 was the **trigger**, not the execution price. A stop
+guarantees that you get out, not at what price — in a falling market the fill
+can be well below the stop.
+
+:material-checkbox-blank-outline: **Checkpoint:** the stop triggered on a trade below 149.50 and filled at 149.30.
 
  
 
 ## Exercise 2: Stop-Limit Order
 
-Like a stop, but becomes a limit order (not market) when triggered:
+Like a stop, but becomes a limit order (not a market order) when triggered.
+Repeat the setup, but with the lower bid at **149.00** instead of 149.30, so
+that the market will *gap* through your limit:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.60|TIF=DAY
+[MM_AAPL_01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.00|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.60|TIF=DAY
+```
+
+Place the stop-limit:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.40|TIF=DAY
 ```
 
-When the stop triggers at 149.50, a limit sell at 149.40 is placed. If the
-market gaps below 149.40, the order may not fill (unlike a plain stop).
+`STOP=149.50` controls **when** the order is activated; `PRICE=149.40` is the
+**worst price** you will accept once it is. Now trade through both levels:
 
-Interpretation: `STOP=149.50` controls **when** the order is activated, while
-`PRICE=149.40` controls the **worst acceptable execution price** after trigger.
+```
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=DAY
+```
 
-Use the same **Deterministic Trigger Setup** procedure to force the trigger.
-To specifically observe the "gaps below and doesn't fill" case, set your
-TRADER02 counter-sell price below `PRICE=149.40` (e.g. `PRICE=149.00`) so the
-book trades through both the stop and the limit level.
+The trade at 149.00 triggers the stop, and a limit sell at 149.40 is placed —
+but the only bid left is at 149.00, below your limit, so nothing fills. The
+order now **rests** on the ask side at 149.40 (check with `BOOK|SYM=AAPL` and
+`ORDERS`). A plain stop would have sold at 149.00; the stop-limit protected
+the price and gave up the certainty of getting out.
 
-:material-checkbox-blank-outline: **Checkpoint:** stop-limit triggers and rests as a limit order.
+:material-checkbox-blank-outline: **Checkpoint:** the stop-limit triggered and rests as a limit sell at 149.40.
+
+Before the next exercise, cancel the resting stop-limit and let the market
+maker quote AAPL again:
+
+```
+[TRADER01]> CANCEL|ID=<stop-limit order id>
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-005
+```
 
  
 
@@ -103,8 +138,9 @@ FOK demands the entire quantity in a single all-or-nothing execution (which may 
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=1000|PRICE=150.10
 ```
 
-If the ask side doesn't have 1000 shares at or below 150.10, the order is
-immediately cancelled.
+The market maker offers only 500, so the ask side doesn't have 1000 shares at
+or below 150.10, and the order is rejected at once with
+`code=INSUFFICIENT_LIQUIDITY` — nothing trades.
 
 Try with a smaller qty that the MM can fill:
 
@@ -112,7 +148,7 @@ Try with a smaller qty that the MM can fill:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** large FOK cancelled; small FOK filled.
+:material-checkbox-blank-outline: **Checkpoint:** large FOK rejected; small FOK filled.
 
  
 
@@ -135,7 +171,7 @@ If only 300 are available at the ask, you get 300 filled and 700 cancelled.
 An iceberg shows only a visible "peak" quantity while hiding the reserve:
 
 ```
-[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.75|VISIBLE=100|TIF=DAY
+[TRADER01]> NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.70|VISIBLE=100|TIF=DAY
 ```
 
 The book shows only 100 visible. When those 100 fill, another 100 automatically
@@ -147,7 +183,9 @@ Check the book:
 [GW_ADMIN|ADMIN]> BOOK|SYM=TSLA
 ```
 
-You should see a 100-lot bid, not 1000.
+You should see a 100-lot bid at 249.70, not 1000. (The price is one tick
+below the market maker's 249.75 bid on purpose: `BOOK` adds up all orders at
+one price, so at 249.75 you would see the market maker's 200 plus your 100.)
 
 :material-checkbox-blank-outline: **Checkpoint:** only peak quantity visible in the book.
 

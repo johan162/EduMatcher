@@ -1,6 +1,73 @@
-## Glossary
+# Glossary
 
-The following definitions are written to be concise and standalone, useful as a quick reference. 
+The following definitions are written to be concise and standalone, useful as
+a quick reference. The first section collects the words that are specific to
+EduMatcher; the alphabetical sections after it cover general exchange and
+market vocabulary.
+
+## EduMatcher terms
+
+**ADMIN / MARKET_MAKER / TRADER (roles):** The three participant roles. A
+`TRADER` sends orders; a `MARKET_MAKER` may also send two-sided quotes and
+carries quoting obligations; an `ADMIN` operates the exchange — session
+control, halts, kill switch — through `pm-admin`. The role is set per
+participant in the configuration.
+
+**ALF, BALF, CALF, RALF, LALF, DC1:** EduMatcher's protocols: ALF ("Almost
+FIX") is text order entry, BALF (Binary ALF) binary order entry, CALF (Channel
+ALF) the market-data feed, RALF (Reconciliation ALF) post-trade dissemination,
+LALF (Log ALF) centralized logging and DC1 the drop-copy feed over TCP.
+See [Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md).
+
+**Data directory (`EDUMATCHER_DATA_DIR`):** The one directory in which an
+exchange instance keeps its deployed configuration, databases, logs and saved
+state. All processes of one exchange must use the same one. See
+[Environment variables](../part-1-command-line/010-processes-environment-and-ports.md#environment-variables).
+
+**Deployed configuration:** The compiled configuration at
+`<data directory>/ref_data/engine_config.json` that every process reads. You
+edit `engine_config.yaml` and install it with `pm-config-deploy` (or
+`pm-setup`); editing the YAML alone changes nothing.
+
+**Engine (`pm-engine`):** EduMatcher's matching engine, the single process that
+owns every order book and decides every trade.
+
+**Gateway ID:** The identity a participant presents when it connects, for
+example `TRADER01`. It is the participant's `id` from the configuration;
+messages and protocols call it `gateway_id`. See also *Gateway*.
+
+**Participant:** Anyone configured to connect to the exchange — a student, a
+bot or the operator — with an ID and a role. Listed under `participants:` in
+the configuration.
+
+**Process profile:** A named set of `pm-*` processes that `pm-opctl-cli` starts
+and stops together: `micro`, `mini`, `default` or `mm-demo` (the default set
+plus a market-maker bot).
+
+**Recorder:** A process that turns the engine's live events into durable
+records: `pm-stats` (prices and volumes), `pm-clearing` (positions and P&L) and
+`pm-audit` (the full event log). A recorder only captures what happens while
+it is running.
+
+**Seed quote:** A market maker's starting quote, defined per symbol under
+`market_maker_quotes` in the configuration and injected by the engine at
+startup so that a book is not empty. The `-nomm` example configurations have
+none.
+
+**Session phase:** Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`,
+`CONTINUOUS`, `CLOSING_AUCTION` or `CLOSED`, plus the halt-related phases.
+Also called the *session state*.
+
+**TapeDeck (`pm-terminal`):** The read-only browser market display. The other
+browser applications are the Trading GUI (`pm-trading-ui`), the Order Book
+Viewer (`pm-book`), the Log Operator Console (`pm-log-ui`) and the
+Configuration GUI (`config-gui`).
+
+**Trading date:** The exchange-local calendar date that daily statistics and
+P&L summaries are grouped by, as opposed to the UTC date of an event's
+timestamp.
+
+## General terms
 
 ### A
 
@@ -455,7 +522,7 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Reserve Refresh Priority:** The queue position rule for iceberg replenishment. Most exchanges place a newly replenished iceberg peak at the back of the queue at its price level, equivalent to a brand-new arrival, rather than preserving the original queue position.
 
-**Resting order** (also called a **passive order**) — an order that has been accepted
+**Resting order:** (also called a **passive order**) — an order that has been accepted
 by the exchange and is sitting in the book waiting for a counterparty. It does not
 execute immediately.
 
@@ -490,8 +557,6 @@ execute immediately.
 
 **Short Position:** Selling shares you do not own (borrowed from a broker). You profit if the
 price falls. Expressed as a negative number in EduMatcher's P&L ledger.
-
-**Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
 
 **Slippage:** The difference between the expected fill price and the actual average fill
 price, caused by executing against multiple price levels in the book. Large
@@ -532,9 +597,7 @@ orders in thin books experience more slippage.
 
 ### T
 
-**T+1 / T+2 Settlement:** Settlement occurring 1 or 2 business days after the trade date. The US moved from T+3 to T+2 in 2017 and to T+1 in 2024.
-
-**T+2 Settlement:** Settlement occurring two business days after the trade date. The US standard until 2024; most US equities now settle T+1. T+2 remains the standard in many other markets.
+**T+1 / T+2 Settlement:** Settlement occurring 1 or 2 business days after the trade date. The US moved from T+3 to T+2 in 2017 and to T+1 in 2024; T+2 remains the standard in many other markets.
 
 **Tick:** The minimum price movement for an instrument.
 
@@ -567,12 +630,10 @@ instrument, the price, the quantity, and which orders were involved.
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
 
-**Uncross**
-The single atomic batch execution that occurs at the end of an auction phase.
+**Uncross:** The single atomic batch execution that occurs at the end of an auction phase.
 All crossable orders execute at the **equilibrium price** simultaneously.
 
-**Unrealized P&L**
-The theoretical profit or loss on an open position if it were closed at the
+**Unrealized P&L:** The theoretical profit or loss on an open position if it were closed at the
 current market price. Changes continuously as the market moves. Becomes
 realized P&L when the position is closed.
 

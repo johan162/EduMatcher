@@ -13,8 +13,8 @@ In addition you have become familiar with the three tools:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
-    - [Configuration](../operator-guide/part-2-configure/010-the-configuration-workflow.md)
+!!! abstract "Background reading"
+    - [The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md)
     - [Config Verifier](../operator-guide/part-2-configure/020-config-verifier.md)
     - [Running the Exchange](../operator-guide/part-3-run/010-running-the-exchange.md)
 
@@ -118,10 +118,11 @@ pm-config-gen \
   --static-band 0.10 \
   --dynamic-band 0.05 \
   --sessions-enabled \
-  --output engine_config.yaml --force
+  --output generated.yaml --force
 ```
 
-This produces a ready-to-use `engine_config.yaml` with:
+This writes `generated.yaml` beside your hand-written file — it does **not**
+replace it — with:
 
 - Three symbols (AAPL, MSFT, TSLA) with 2-decimal tick precision.
 - Two trader gateways and one admin gateway.
@@ -131,8 +132,18 @@ This produces a ready-to-use `engine_config.yaml` with:
 Inspect the generated file:
 
 ```bash
-cat engine_config.yaml
+cat generated.yaml
 ```
+
+Compare it with your hand-written `engine_config.yaml`. Two differences
+matter. The generated file spells out many settings you left to their
+defaults, with a comment on each — a good way to discover what can be
+configured. And it has **no reference prices** (`last_buy_price` /
+`last_sell_price`): `pm-config-gen` cannot know what a stock is worth, and the
+verifier will warn about it (`C001`) in the next exercise. Price collars and
+several later exercises need those prices, so **keep using your hand-written
+`engine_config.yaml`** for the rest of the training; `generated.yaml` is for
+reference.
 
 !!! tip "Dry-run mode"
     Add `--dry-run` to preview the output without writing a file:
@@ -147,10 +158,12 @@ cat engine_config.yaml
       --symbols AAPL MSFT TSLA \
       --participants TRADER01 TRADER02 GW_ADMIN:ADMIN MM_AAPL_01:MARKET_MAKER \
       --enforce-mm-obligations \
-      --output engine_config.yaml --force
+      --output mm-example.yaml --force
     ```
 
-:material-checkbox-blank-outline: **Checkpoint:** generated config matches the manual one; symbols and gateways present.
+    Chapter 02 explains what a market maker needs in the configuration.
+
+:material-checkbox-blank-outline: **Checkpoint:** `generated.yaml` has the same three symbols and three participants as your hand-written `engine_config.yaml`.
 
  
 
@@ -206,12 +219,20 @@ Run verifier:
 pm-cverifier engine_config.bad.yaml
 ```
 
-You should see at least:
+You should see only one finding:
 
-- `M013` warning (no ADMIN gateway).
 - `S010` error (invalid `tick_decimals`).
 
-Now fix the file and rerun until verdict is `OK` or your expected warning-only state.
+Where is the missing admin gateway? The verifier works in layers — YAML
+syntax, then the schema of every field (`S` codes), then the rules *between*
+fields (`M` codes), then completeness advice (`C` codes) — and it stops after
+the first layer that finds an error, because later checks would be judging a
+file it already knows is broken. Fix `tick_decimals` and run it again: now
+you see
+
+- `M013` warning (no gateway with role `ADMIN`).
+
+Put the `GW_ADMIN` entry back and rerun until the verdict is `OK`.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
 
@@ -276,21 +297,26 @@ sentence, the difference between `engine_config.yaml` and
 Open a terminal and run:
 
 ```bash
-pm-engine
+pm-engine --verbose
 ```
 
 `pm-engine` takes no config path on its command line — it always reads
 whatever is currently deployed at `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`,
 which is exactly the artifact Exercise 5 just installed.
 
-Expected output includes (exact wording/log format may vary by version — this
-is illustrative, not a literal match target):
+`--verbose` shows the engine's informational log lines; without it the engine
+prints only warnings and errors. Expected output includes lines like these
+(timestamps and paths will differ):
 
 ```
-[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
-[INFO] Loaded 3 gateways
-[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
+... INFO edumatcher.engine.main - Loaded config from .../ref_data/engine_config.yaml  (3 symbol(s): AAPL, MSFT, TSLA; 3 gateway id(s))
+... INFO edumatcher.engine.main - Session handling: enabled
+... INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
+
+`Session handling: enabled` means the engine starts in the `CLOSED` phase and
+waits to be told when the day begins: your configuration does not set
+`sessions_enabled`, and its default is `true`.
 
 The stable way to confirm the engine actually loaded your config, independent
 of log wording, is to query it from a gateway once connected (Exercise 8) with
@@ -326,6 +352,13 @@ pm-scheduler --now --delay 5
 `--now` starts the day's sequence from this moment instead of the configured
 wall-clock times; `--delay 5` gives you five seconds between phases.
 
+!!! warning "`--now` runs the whole day"
+    `--now` does not stop at continuous trading: it carries on through the
+    closing auction to `CLOSED`, about half a minute later, and exits. That is
+    fine for watching the phases go by, but afterwards the market is closed
+    and orders are rejected with `MARKET_CLOSED`. Exercise 10 shows how to
+    open it again by hand, which is how the following chapters keep it open.
+
 !!! note "If nothing was deployed"
     `pm-scheduler` refuses to guess a schedule the engine has never seen. If
     Exercise 5 was skipped, it exits immediately with a fatal error naming
@@ -347,8 +380,9 @@ pm-alf-console --id TRADER01
 You should see:
 
 ```
-[INFO] Connected as TRADER01
-TRADER01>
+Gateway TRADER01 connected.   Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-A/E=line start/end
+
+[TRADER01]>
 ```
 
 Try typing `ORDERS` — it should report no resting orders for this gateway.
@@ -367,6 +401,10 @@ a tiny limit order:
 ```
 
 You should see an acknowledgement (the order rests since no matching ask exists).
+
+If instead you see `REJECTED ... code=MARKET_CLOSED  Market is closed`, the
+scheduler is outside its timetable or has finished its `--now` day. Do
+Exercise 10 first — it ends by opening the market — then come back.
 
 Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
@@ -401,8 +439,8 @@ In a **fourth terminal**, start the operator console. Note this is
 pm-admin --id GW_ADMIN
 ```
 
-`GW_ADMIN` must be a gateway with `role: ADMIN` in your configuration — that
-is what Exercise 2 created.
+`GW_ADMIN` must be a gateway with `role: ADMIN` in your configuration — your
+hand-written file from Exercise 1 has one.
 
 Now look at the order book, which no trader console can do:
 
@@ -422,6 +460,23 @@ Try two more operator queries:
 `GATEWAYS` lists every configured gateway and whether it is connected;
 `SESSION_STATUS` reports the current trading phase.
 
+### Open the market for the chapters ahead
+
+Chapters 02–05 need the market in continuous trading, whatever the time of
+day. Stop `pm-scheduler` (Ctrl-C in its terminal) and move the phase yourself:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
+[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
+[GW_ADMIN|ADMIN]> SESSION_STATUS
+```
+
+`SESSION_STATUS` should now report `CONTINUOUS`. The engine only accepts the
+phase changes of a real trading day, in order — from `CLOSED` the only legal
+step is `PRE_OPEN` — so it takes two commands. Chapter 06 explains this
+"freeze and advance" technique properly; whenever a later exercise says the
+market must be open, this is how you open it.
+
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin` is connected, `BOOK|SYM=AAPL`
 shows the book, and you can state which of the two consoles a given command
 belongs to.
@@ -440,11 +495,16 @@ From any connected gateway:
 [TRADER01]> SYMBOLS
 ```
 
-In addition to symbol IDs, inspect metadata fields exposed by the gateway view,
-including symbol description and matching constraints such as tick size and MM
-obligation settings when configured.
+Besides the symbol names, the table shows each symbol's tick size and its
+market-maker obligation settings — whether they are enforced, the maximum
+spread in ticks and the minimum quoted quantity:
 
-:material-checkbox-blank-outline: **Checkpoint:** you can identify at least `description` and `tick_size` for each symbol from `SYMBOLS` output.
+```
+┃ #    ┃ Symbol     ┃ Tick ┃ MM Enforced ┃ Max Spread ┃ Min Qty ┃
+│ 1    │ AAPL       │ 0.01 │     NO      │         20 │     100 │
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** you can read the tick size and the market-maker settings of each symbol from the `SYMBOLS` output.
 
  
 
@@ -720,13 +780,13 @@ invalid or incomplete schedule block does? What's different about getting
 
 ## Further Reading
 
-- [Configuration](../operator-guide/part-2-configure/010-the-configuration-workflow.md)
+- [The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md)
 - [Configuration — Verifying the Deployed Artifact](../operator-guide/part-2-configure/010-the-configuration-workflow.md#verifying-the-deployed-artifact)
 - [Config Verifier (`pm-cverifier`)](../operator-guide/part-2-configure/020-config-verifier.md)
 - [Session Scheduling and Auctions](../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md)
 - [Session Scheduling — Bank holidays and weekends](../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#bank-holidays-and-weekends)
 - [Running the Engine](../operator-guide/part-3-run/010-running-the-exchange.md)
-- [Gateway Concepts](../participant-guide/part-1-trading-basics/010-gateways-and-how-you-connect.md)
+- [Gateways and How You Connect](../participant-guide/part-1-trading-basics/010-gateways-and-how-you-connect.md)
 - [ALF Console (pm-alf-console)](../participant-guide/part-2-orders/010-the-trader-console.md)
 - [Message Types (system.symbols)](../protocols-and-clients/part-5-message-reference/010-message-reference.md)
 

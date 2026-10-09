@@ -274,7 +274,7 @@ check-latex-engine:
 		exit 1; \
 	fi
 
-all: cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz
+all: cover cover-parts pdf-docs pdf-parts-a4 bundle-quiz epub-docs
 
 pdfs: ## Build all PDF documentation variants in parallel
 	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz 

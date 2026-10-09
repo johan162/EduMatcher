@@ -2,6 +2,9 @@ title = "Architecture and Developer Guide"
 subtitle = "System architecture, development practice, and release engineering"
 slug = "architecture-and-development"
 
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
 [[parts]]
 title = "Part I: Architecture"
 dir = "part-1-architecture"
@@ -19,7 +22,7 @@ files = [
 ]
 
 [[parts]]
-title = "Part IV: Developing"
+title = "Part III: Developing"
 dir = "part-4-developing"
 files = [
   "010-development-practice.md",
@@ -27,11 +30,10 @@ files = [
   "030-verification.md",
   "040-message-generation.md",
   "050-containers-and-networks.md",
-  "060-vm-runtime-image.md",
   "070-extension-experiments.md",
 ]
 
 [[parts]]
-title = "Part V: Releasing"
+title = "Part IV: Releasing"
 dir = "part-5-releasing"
 files = ["010-release-process.md"]

@@ -529,42 +529,28 @@ if [ "$NO_DOCS" = false ]; then
     fi
     
     # Clean up any previous PDF artifacts
-    run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+   
     
     if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-        run_parallel_commands3 \
-            "make -C docs-exchange-intro -j4" \
-            "Building Exchange Intro Booklet" \
-            "make -C docs -j4 pdf-docs" \
-            "Building User Guide PDFs (v${VERSION}) with Makefile" \
-            "make -C docs -j4 pdf-training" \
-            "Building Training Guide PDFs (v${VERSION}) with Makefile"
+        
+        run_command "make -C docs-exchange-intro clean" "Cleaning previous PDF artifacts"
+        print_sub_step "Building Exchange Intro Booklet"
+        run_command "make -C docs-exchange-intro -j16 all" "Building Exchange Intro Booklet" 
 
-        run_parallel_commands2 \
-            "make -C docs -j20 chapters-pdf" "Building User Guide Chapters PDF bundle" \
-            "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
+        run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+        print_sub_step "Building User Guide Omnibus"
+        run_command "make -C docs -j16 omnibus" "Building User Guide EPUB" 
 
-        run_parallel_commands2 \
-            "make -C docs epub-docs" "Building User Guide EPUB" \
-            "make -C docs epub-training" "Building Training Guide EPUB"
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
             print_sub_step "Building Exchange Intro Booklet"
-            run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
-            run_command "make -C docs-exchange-intro epub-docs" "Building Exchange Intro EPUB"
+            run_command "make -C docs-exchange-intro -j16 all" "Building Exchange Intro Booklet" 
+
         fi
     
         if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-            run_parallel_commands2 \
-                "make -C docs -j4 pdf-docs" \
-                "Building User Guide PDFs (v${VERSION}) with Makefile" \
-                "make -C docs -j4 pdf-training" \
-                "Building Training Guide PDFs (v${VERSION}) with Makefile"
-
-            run_command "make -C docs -j20 chapters-pdf" "Building User Guide Chapters PDF bundle"
-            run_parallel_commands2 \
-                "make -C docs epub-docs" "Building User Guide EPUB" \
-                "make -C docs epub-training" "Building Training Guide EPUB"
+            print_sub_step "Building User Guide Omnibus"
+            run_command "make -C docs -j16 omnibus" "Building User Guide Omnibus"
         fi
     fi
     

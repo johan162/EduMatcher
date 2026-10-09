@@ -22,9 +22,9 @@ You will practice:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Market Index](../operator-guide/part-4-run-a-market/070-market-index.md)
-    - [Index Admin CLI](../operator-guide/part-4-run-a-market/080-index-administration.md)
+    - [Index Administration (`pm-index-admin-cli`)](../operator-guide/part-4-run-a-market/080-index-administration.md)
 
 ## Prerequisites
 
@@ -102,8 +102,17 @@ pm-config-gen \
   --seed 20260625 \
   --index EDU100:"EduMatcher broad index" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
+
+!!! note "Back up, check, deploy — then restart"
+    This chapter starts from a fresh configuration (its operator is `OPS01`),
+    and `--force` replaces your `engine_config.yaml`: save a copy first if you
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch25.yaml`).
+    As always, nothing changes until you deploy it and restart the engine:
+    `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`. Sessions are enabled, so the restarted engine starts in `CLOSED`: open
+    the market from the operator console (`pm-admin --id OPS01`, then
+    `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`).
 
 Open `engine_config.yaml` and locate the `indices:` block. It should look like:
 
@@ -529,7 +538,7 @@ pm-config-gen \
   --index-constituents TECH2:AAPL,MSFT \
   --index-base-value TECH2:500.0 \
   --index-interval TECH2:2.0 \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
 
 Restart `pm-index` with `--reset` to clear state and re-initialise:
@@ -653,7 +662,7 @@ types?
 
 **Operator's Guide:**
 
-- Market Index — User Guide — full reference for config fields, formulas, and history record types
+- Market Index — Operator's Guide — full reference for config fields, formulas, and history record types
 - Index Admin CLI — full `pm-index-admin-cli` subcommand reference, `--dry-run`, and confirmation-prompt behaviour
 - pm-index-cli reference — `events`/`indices` subcommands, column descriptions, and output-format options
 - Statistics and Reporting — `pm-stats-cli index-daily` / `index-snapshots` / `index-ids` reference

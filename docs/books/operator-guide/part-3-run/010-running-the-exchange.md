@@ -15,10 +15,10 @@
     - How to monitor, troubleshoot, restart and shut down a running exchange
     - Which operator playbook to follow for common scenarios
 
-    **Prerequisites**: read [Getting Started](../../quick-start/part-1-see-it-run/030-your-first-trade.md) first. For
+    **Prerequisites**: work through the [Quick Start Guide](../../quick-start/part-1-see-it-run/020-install-and-start.md) first. For
     configuration syntax and validation rules, read
-    [Configuration](../part-2-configure/010-the-configuration-workflow.md). For the full process catalog, read
-    [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md).
+    [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md). For the full process catalog, read
+    [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md).
 
 
 ## Operator model
@@ -35,7 +35,7 @@ The operator's job is to make five things true before trading starts:
 4. Gateways and external feeds are started only after the engine is ready.
 5. There is a clear shutdown and recovery plan.
 
-For the deep architectural explanation, see [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md). This
+For the deep architectural explanation, see [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md). This
 chapter is the practical runbook.
 
 ## Three ways to run it
@@ -362,7 +362,7 @@ flowchart TD
 | 6 | `pm-scheduler` | `pm-scheduler` or `pm-scheduler --now --delay 5` | Only needed when scheduled sessions are enabled | The scheduler drives phase transitions. Start it after the engine so transitions have a live target and before participants are invited to trade. |
 | 7 | `pm-md-gwy` | `pm-md-gwy` | Optional `--bind`, `--port`, `--engine-pub` | CALF market data is the live feed used by external clients and TapeDeck. Start after the engine is alive. |
 | 8 | `pm-ralf-gwy` | `pm-ralf-gwy` | Optional `--bind`, `--port`, `--engine-pub` | Post-trade dissemination (RALF). Start after the engine is alive. |
-| 9 | `pm-dc-gwy` | `pm-dc-gwy` | Optional `--bind`, `--port`, `--engine-dc-pub` | Drop-copy feed (DCLF). Start after the engine is alive. |
+| 9 | `pm-dc-gwy` | `pm-dc-gwy` | Optional `--bind`, `--port`, `--engine-dc-pub` | Drop-copy feed (DC1). Start after the engine is alive. |
 | 10 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
 | 11 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
 | 12 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
@@ -393,7 +393,7 @@ depend on the services underneath them.
 ## Starting each process
 
 This section gives operational startup commands. The full flag reference for
-each command lives in [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md).
+each command lives in [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md).
 
 ### Core engine
 
@@ -520,7 +520,7 @@ cd deployment/docker && make up-all      # or: ./edumatcher.sh start
 ```
 
 Then open <http://localhost:8090>. The same applies to the log console (8091),
-the browser trading terminal (8093) and the order book viewer (8094).
+the Trading GUI (8093) and the order book viewer (8094).
 
 To run it against an exchange you started by hand instead, start it from
 `web-apps/terminal-gui/` with the key and the gateway URL in its environment:
@@ -934,7 +934,7 @@ TapeDeck runbook.
 | The stack starts but the terminal's history panels are empty | The read-only API key was not resolved — the configuration has no credential with `gateway_id: null` | Add one under `api_gateways` and redeploy. The live feed does not need it; history does |
 | `make status` is all green but a sibling container cannot connect | A listener was narrowed to loopback inside the container | Check `EDUMATCHER_GATEWAY_BIND_HOST` and any `bind_address:` in your configuration — see [Installation](../part-1-install-and-deploy/010-installation.md#what-0000-does-and-does-not-expose) |
 | A source change has no effect | The image was not rebuilt | `make build` for the backend, `make build-guis` for a web app |
-| No entries in the log viewer's live tab | `pm-log-srv`'s ZeroMQ sockets are not published | Only matters when running the app outside the stack; inside it, nothing needs publishing |
+| No entries in the Log Operator Console's live tab | `pm-log-srv`'s ZeroMQ sockets are not published | Only matters when running the app outside the stack; inside it, nothing needs publishing |
 
 A container that will not start at all is usually explained by its own output:
 `./edumatcher.sh logs` or `make logs` shows the entrypoint's configuration
@@ -1221,7 +1221,7 @@ configuration.
 
 **In this book:**
 
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) - authored YAML and deployed artifact
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) - authored YAML and deployed artifact
 - [Auctions & Scheduling](../part-4-run-a-market/030-sessions-and-scheduling.md) - session phases and trading date
 - [Risk Controls](../part-4-run-a-market/040-risk-controls.md) - collars, circuit breakers and halts
 - [Persistence](../part-6-observe-and-recover/010-persistence.md) - all files written by the exchange
@@ -1229,7 +1229,8 @@ configuration.
 
 **Quick Start Guide:**
 
-- Getting Started - first concepts and first trade
+- What EduMatcher Is, Install and Start, Your First Trade - first concepts and a first trade
+- Run a Trading Session - phases, auctions and the records, by hand
 
 **Participant Guide:**
 

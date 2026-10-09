@@ -20,7 +20,7 @@ You will practice:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [IPO Valuation](../operator-guide/part-4-run-a-market/020-valuation.md)
     - [Listing a New Symbol](../operator-guide/part-4-run-a-market/010-new-symbols.md)
 
@@ -335,7 +335,7 @@ does your opening auction in Exercise 7 say?
 
 ## See Also
 
-- IPO Valuation — User Guide — every key, field format, report section and option
+- IPO Valuation — Operator's Guide — every key, field format, report section and option
 - Listing a New Symbol — what `--list` does to the configuration, and the IPO-day checklist
 - Auctions & Scheduling — how the opening price is found
 - Market Index — the index inclusion the report predicts

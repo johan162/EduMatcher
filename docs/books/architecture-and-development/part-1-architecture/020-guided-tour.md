@@ -1,4 +1,4 @@
-# EduMatcher — Architecture, Data Structures, and Code Walkthrough
+# Guided Tour: Architecture, Data Structures and Code
 
 
 !!! note "Learning objectives"

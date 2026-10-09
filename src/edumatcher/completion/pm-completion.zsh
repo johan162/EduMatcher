@@ -1941,7 +1941,7 @@ _shtab_pm_config_gen_options=(
   "--seed[Deterministic RNG seed for generated training values.]:N:"
   "--seed-mm-mid-range[Seed MM quotes from a random midpoint in the inclusive MIN\:MAX range, rounded to the symbol tick grid.]:MIN:MAX:"
   "--seed-last-prices-from-mm[When seeding MM quotes, set last_buy_price\/last_sell_price to the same midpoint used for the generated quote.]"
-  "--no-mm-seed-quotes[Set require_mm_seed_quotes\: false. Allows a MARKET_MAKER gateway to be configured with no market_maker_quotes seed for any symbol, so the book starts genuinely empty. Without --seed-mm-mid-range, no market_maker_quotes entries are emitted at all.]"
+  "--no-mm-seed-quotes[Set require_mm_seed_quotes\: false and emit no market_maker_quotes entries, so the book starts genuinely empty even though a MARKET_MAKER gateway is configured. --seed-mm-mid-range then only seeds last prices (with --seed-last-prices-from-mm).]"
   "--post-trade-gateway[Emit a top-level post_trade_gateway section for pm-ralf-gwy.]"
   "--post-trade-name[post_trade_gateway.name override.]:NAME:"
   "--post-trade-bind-address[post_trade_gateway.bind_address override.]:ADDR:"

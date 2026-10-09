@@ -8,7 +8,7 @@ observe how auction orders are collected and matched in a single uncrossing even
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Equilibrium price](../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#equilibrium-price)
     - [What are auctions?](../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#what-are-auctions)
 
@@ -47,6 +47,17 @@ only legal move is to `PRE_OPEN` — so get there first, then go on to
 
 ```
 [GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
+```
+
+Before the auction starts, empty the AAPL book. The market-maker quotes from
+chapter 02 would otherwise take part in the auction too, and the calculation
+in Exercise 2 assumes only the four orders below. Stop any `pm-mm-bot` and AI
+traders, then cancel everything resting on AAPL — orders and quotes — and
+check the book is empty:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 [GW_ADMIN|ADMIN]> SESSION|STATE=OPENING_AUCTION
 ```
 
@@ -91,7 +102,9 @@ equilibrium price here is **149.80** — the lower of the two tied prices —
 not a value in between.
 
 Expected: all fills print execution price `149.80`, for a total matched
-quantity of 400 shares.
+quantity of 400 shares. TRADER01's second order fills 100 of its 200 shares
+and reports `[PARTIAL]`; its unfilled 100, and TRADER02's sell at 150.30, then
+expire, because an `ATO` order only lives for the opening auction.
 
 What to observe: identify the one common execution price printed across all
 fill events, and confirm it equals `149.80` and the total filled quantity
@@ -105,7 +118,7 @@ second, against TRADER02's 400-share sell).
 ## Exercise 3: Unfilled Auction Orders
 
 If an ATO order does not cross (e.g. a buy at 148.00 with no matching sell),
-it is cancelled when CONTINUOUS begins.
+it expires when CONTINUOUS begins.
 
 Place:
 
@@ -113,22 +126,39 @@ Place:
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=400.00|TIF=ATO
 ```
 
-After auction uncrossing, this should be cancelled (no sell at 400.00).
+After the auction uncrosses this order is not filled — the MSFT market maker
+from chapter 02 asks about 420, far above 400 — and the console reports it
+`EXPIRED`. (The console's explanation reads *DAY order — trading day ended*;
+for an `ATO` order, read it as *the opening auction ended*.)
 
-:material-checkbox-blank-outline: **Checkpoint:** out-of-range ATO order cancelled.
+:material-checkbox-blank-outline: **Checkpoint:** the unmatched ATO order expired at the start of CONTINUOUS.
 
  
 
 ## Exercise 4: Closing Auction
 
-When the session reaches CLOSING_AUCTION:
+Move the session to the closing auction:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
+```
+
+Then enter:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.60|TIF=ATC
 ```
 
-On transition to CLOSED, the auction uncrosses and fills are generated.
+Close the day; on the transition to CLOSED the auction uncrosses and fills
+are generated:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
+```
+
+Remember to reopen the market (`PRE_OPEN`, then `CONTINUOUS`) before the next
+chapter.
 
 :material-checkbox-blank-outline: **Checkpoint:** closing auction produces fills.
 
@@ -161,6 +191,17 @@ selects the price that:
    only replaces the current best on a strict improvement. There is no
    separate "nearest to last trade" tie-break — the tie always resolves to
    the lower of the tied candidate prices.
+
+!!! note "How real exchanges break the tie"
+    Most real exchanges use more steps after rules 1 and 2. If the surplus is
+    on the buy side at every tied price, they pick the *highest* tied price
+    (buyers are pressing, so the price moves up); if it is on the sell side,
+    the lowest; and only if there is no clear pressure do they fall back to
+    the price closest to a reference price, such as the last trade. In this
+    chapter's example the surplus is on the buy side, so a typical exchange
+    would uncross at 150.20, not 149.80. EduMatcher keeps the simpler rule so
+    the result is easy to compute by hand — a good discussion point for the
+    Reflection below.
 
  
 

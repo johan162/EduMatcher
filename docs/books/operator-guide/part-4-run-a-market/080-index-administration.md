@@ -1,4 +1,4 @@
-# Index Admin CLI
+# Index Administration (`pm-index-admin-cli`)
 
 <a id="pm-index-admin-cli-index-corporate-action-constituent-change-cli"></a>
 
@@ -417,6 +417,6 @@ pm-index-admin-cli --id BATCH01 --yes dividend --index TECH10 --sym MSFT --amoun
 - [Market Index](070-market-index.md) — `pm-index` process, corporate-action
   semantics, divisor math, and the state/history file formats this tool
   writes to
-- [Exchange Commands](../part-3-run/020-admin-console-and-commands.md) — `pm-admin-cli`, `ExchangeCommandClient`,
+- [The Admin Console and Exchange Commands](../part-3-run/020-admin-console-and-commands.md) — `pm-admin-cli`, `ExchangeCommandClient`,
   and the sibling `pm-index-cli` read-only query tool
-- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — full process/command reference table
+- [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — full process/command reference table

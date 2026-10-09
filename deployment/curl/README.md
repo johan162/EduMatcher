@@ -13,11 +13,11 @@ no Node, no checkout of this repository.
 
 | | |
 |---|---|
-| Trading terminal | <http://localhost:8090> |
-| Log viewer | <http://localhost:8091> |
-| Configuration builder | <http://localhost:8092> |
-| Trader GUI | <http://localhost:8093> |
-| Order book viewer | <http://localhost:8094> |
+| TapeDeck market display (`pm-terminal`) | <http://localhost:8090> |
+| Log Operator Console (`pm-log-ui`) | <http://localhost:8091> |
+| Configuration GUI (`config-gui`) | <http://localhost:8092> |
+| Trading GUI (`pm-trading-ui`) | <http://localhost:8093> |
+| Order Book Viewer (`pm-book`) | <http://localhost:8094> |
 | REST API docs | <http://localhost:8080/docs> |
 
 ## Choosing what the exchange trades

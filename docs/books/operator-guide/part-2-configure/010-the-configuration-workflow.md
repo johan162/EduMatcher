@@ -1,4 +1,4 @@
-# Configuration
+# The Configuration Workflow
 
 <a id="configuring-pm-log-srv"></a>
 <a id="participants"></a>
@@ -125,8 +125,8 @@ module. `EDUMATCHER_DATA_DIR` takes precedence; without it, a source checkout
 uses `<repo>/src/data/`, while an installed production package uses
 `~/.local/share/edumatcher`. Source mode is determined from the installed
 location of `edumatcher/config.py` (its package parent is named `src`), not from
-the current working directory. See [Getting Started — how the default is
-selected](../../quick-start/part-1-see-it-run/030-your-first-trade.md#how-the-default-is-selected) for the exact
+the current working directory. See [Reference Manual — how the default is
+selected](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#how-the-default-is-selected) for the exact
 precedence rules.
 
 The same resolver places configured relative runtime paths, such as
@@ -243,7 +243,7 @@ pm-config-gen \
 - `--no-mm-seed-quotes` sets `require_mm_seed_quotes: false`. A `MARKET_MAKER`
   gateway may then exist with no `market_maker_quotes` entries at all — a
   genuinely empty book at startup — instead of the null-priced stub. See
-  [MM Quotes](../../participant-guide/part-3-market-making/010-market-maker-quotes.md#opting-out-require_mm_seed_quotes-false)
+  [Market-Maker Quotes](../../participant-guide/part-3-market-making/010-market-maker-quotes.md#opting-out-require_mm_seed_quotes-false)
   for why this differs from real-market practice and when to use it.
 
 MM quote generation decision matrix:
@@ -254,6 +254,7 @@ MM quote generation decision matrix:
 | `MARKET_MAKER` present, no `--seed-mm-mid-range` | Stub quotes with `bid_price: null`, `ask_price: null` | `null` placeholders only if `--seed-last-prices` is set |
 | `MARKET_MAKER` present, with `--seed-mm-mid-range MIN:MAX` | Concrete bid/ask quote prices generated on tick grid | If `--seed-last-prices-from-mm` is set, both are set to the same midpoint used for seeded quotes |
 | `MARKET_MAKER` present, with `--no-mm-seed-quotes`, no `--seed-mm-mid-range` | No MM quote section emitted (`require_mm_seed_quotes: false` recorded instead) | Only emitted if `--seed-last-prices` is set (as `null` placeholders) |
+| `MARKET_MAKER` present, with `--no-mm-seed-quotes` and `--seed-mm-mid-range MIN:MAX` | No MM quote section emitted — `--no-mm-seed-quotes` always wins; the mid range is used only for last prices | If `--seed-last-prices-from-mm` is set, both are set to the generated midpoint (this is how the `*-nomm` examples get reference prices with an empty book) |
 
 In this guide, "MM stub" means a quote row exists but prices are `null` and must
 be filled manually. "Full MM setup" means concrete bid/ask prices are generated
@@ -317,7 +318,7 @@ Market-maker and symbol defaults:
 | `--seed-last-prices` | Flag | off | Emit `last_buy_price`/`last_sell_price` placeholders |
 | `--seed N` | int | random source default | Deterministic RNG seed for generated training values |
 | `--seed-mm-mid-range MIN:MAX` | string | none | Seed MM quotes from a random midpoint in the inclusive price range |
-| `--mm-seed-spread-ticks N` | int (`> 0`) | `30` | Half-spread, in ticks, for seeded MM stub quotes (bid/ask sit this many ticks either side of the seeded midpoint) |
+| `--mm-seed-spread-ticks N` | int (`> 0`) | `10` | Half-spread, in ticks, for seeded MM stub quotes (bid/ask sit this many ticks either side of the seeded midpoint) |
 | `--no-mm-seed-quotes` | flag | off | Set `require_mm_seed_quotes: false` — allow a `MARKET_MAKER` gateway with no seeded quotes |
 | `--seed-last-prices-from-mm` | Flag | off | Set `last_buy_price`/`last_sell_price` to the same midpoint used for seeded MM quotes |
 

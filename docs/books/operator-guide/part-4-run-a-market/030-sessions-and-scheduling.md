@@ -715,7 +715,7 @@ expired if they did *not* fill.
 
 **In this book:**
 
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `country`, and `sessions_enabled`
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `country`, and `sessions_enabled`
 - [Running the Engine](../part-3-run/010-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](040-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
 

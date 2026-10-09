@@ -1679,7 +1679,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-config-gen", "pm-config-deploy", "pm-opctl-cli"),
         doc_anchor="pm-setup-session-bootstrap-tool",
-        doc_page="../../../docs/books/quick-start/part-1-see-it-run/030-your-first-trade.md",
+        doc_page="../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
         ),

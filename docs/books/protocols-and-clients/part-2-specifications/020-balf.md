@@ -1,4 +1,4 @@
-# Appendix: BALF Protocol Reference
+# BALF Protocol Reference
 
 > **Status: Normative.** This appendix is the single source of truth for the BALF
 > `1.0.0` wire contract as implemented by `pm-balf-gwy` (`balf_gwy/`). For an
@@ -603,6 +603,9 @@ If you are writing another BALF client, the most important exact behaviors are:
 
 **Operator's Guide:**
 
-- BALF TCP Gateway — operational user guide: setup, configuration, session lifecycle, Python client example, and troubleshooting
-- ALF TCP Gateway — text-protocol alternative when binary parsing is not required
-- Configuration — `balf_gateway:` section reference
+- [BALF Gateway — Binary Order Entry](../../operator-guide/part-5-gateways/020-balf-gateway.md) — setup, configuration, session lifecycle, Python client example, and troubleshooting
+- [ALF Gateway — Order Entry](../../operator-guide/part-5-gateways/010-alf-gateway.md) — text-protocol alternative when binary parsing is not required
+
+**Reference Manual:**
+
+- [Configuring `pm-balf-gwy`](../../reference-manual/part-3-configuration/010-schema-and-process-blocks.md#configuring-pm-balf-gwy) — `balf_gateway:` section reference

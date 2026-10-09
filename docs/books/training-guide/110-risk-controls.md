@@ -9,9 +9,9 @@ breakers, symbol halts, and the kill switch. You will use both the interactive
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md)
-    - [Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
+    - [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
 
 ## Prerequisites
 
@@ -110,7 +110,7 @@ Expected: rejection — price outside static collar.
 Circuit-breaker trigger percentages and halt durations come from a global
 ladder, `circuit_breaker_defaults`, applied to every symbol unless a symbol
 defines its own `circuit_breaker.levels` override (see the `TSLA` pattern in
-[Configuration](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)).
+[The Configuration Workflow](../operator-guide/part-2-configure/010-the-configuration-workflow.md#risk-controls-and-collars)).
 Add a two-level ladder:
 
 ```yaml
@@ -140,27 +140,63 @@ Then restart `pm-engine`.
 
 ## Exercise 4: Trigger a Circuit Breaker
 
-Push AAPL's price 5% within the 5-minute reference window by trading
-aggressively (you may need to adjust MM bot gap or trade in volume). When the
-threshold is breached, the exact halt announcement wording may vary by
-version — the reliable way to confirm the halt fired is to check that new
-AAPL orders are rejected (see the verification drill below), not to match a
-literal log line. Illustratively:
+A circuit breaker does not compare a trade with the previous one. It compares
+it with the **average price of the trades in the last `reference_window_ns`**
+(5 minutes here) — on a fresh start, the opening reference price of 150.00.
+A gradual climb therefore has to go further than 5% before it trips, while
+the 5% dynamic collar from Exercise 1 stops any single jump of more than 5%.
+Walk the price up in steps.
+
+First give the two traders the book to themselves: stop any `pm-mm-bot` and
+clear AAPL so no market-maker quote trades in between:
 
 ```
-[HALT] AAPL — circuit breaker triggered (~5% move)
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
 ```
 
-Ordinary resting limit orders on AAPL are preserved and no new matching occurs — but **market-maker quote legs are cancelled** by the halt. If the only liquidity was MM quotes, the book will look empty.
+Then, for each price in turn — 154.00, 158.00, 161.00, 164.50 — let TRADER02
+offer 100 shares and TRADER01 buy them:
 
-Verification drill:
+```
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
+[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=154.00|TIF=DAY
+```
 
-1. Run `BOOK|SYM=AAPL` in the operator console and confirm ordinary limit
-   orders remain visible. Any market-maker quote legs will be gone — the halt
-   cancels them.
-2. Submit a fresh AAPL order and confirm rejection while halted.
+| Trade at | Reference (average of earlier trades in the window) | Move | Result |
+|---|---|---|---|
+| 154.00 | 150.00 (opening reference) | 2.7% | trades |
+| 158.00 | (150 + 154) / 2 = 152.00 | 3.9% | trades |
+| 161.00 | (150 + 154 + 158) / 3 = 154.00 | 4.5% | trades |
+| 164.50 | (150 + 154 + 158 + 161) / 4 = 155.75 | 5.6% | trades, then **halts AAPL** |
 
-:material-checkbox-blank-outline: **Checkpoint:** AAPL halted by circuit breaker.
+The trade at 164.50 still happens; the halt applies from that moment on. The
+engine log records it (in `pm-engine --verbose`, or the Log Operator
+Console):
+
+```
+CIRCUIT BREAKER HALT AAPL: level=L1 trigger=16450, ref=15575 ticks, corridor=[14017, 17132] ticks (+/-10.0%)
+```
+
+During the halt, **market-maker quote legs are cancelled**, no matching takes
+place, `MARKET`, `FOK` and `IOC` orders are rejected, and `LIMIT` orders are
+accepted and rest: a halt is the collection phase of a *reopening auction*,
+which uncrosses when the 30-second halt ends.
+
+Verification drill, while the halt lasts:
+
+1. Send a market order — it is rejected with `code=CIRCUIT_BREAKER_ACTIVE`:
+
+    ```
+    [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+    ```
+
+2. Send a limit order — it is accepted and rests, waiting for the reopening:
+
+    ```
+    [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=160.00|TIF=DAY
+    ```
+
+:material-checkbox-blank-outline: **Checkpoint:** AAPL halted by the circuit breaker after the fourth step; a market order is rejected and a limit order rests until the halt ends.
 
  
 
@@ -205,7 +241,8 @@ Try trading MSFT from TRADER01:
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
 ```
 
-Expected: rejection — symbol halted.
+Expected: rejection — `code=INSTRUMENT_HALTED`. (A *limit* order would be
+accepted and rest for the reopening, as in Exercise 4.)
 
 Resume:
 
@@ -314,7 +351,7 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 |---------|-------|---------|--------|
 | Static collar | Per symbol | Order price vs reference | Order rejected |
 | Dynamic collar | Per symbol | Order price vs last trade | Order rejected |
-| Circuit breaker | Per symbol | Price move % in session | Symbol halted |
+| Circuit breaker | Per symbol | Price move vs. average of recent trades | Symbol halted, then reopened by auction |
 | Symbol halt | Per symbol | `pm-admin` / `pm-admin-cli` | Trading paused |
 | Exchange halt | All symbols | `pm-admin` / `pm-admin-cli` | All trading paused |
 | Kill switch | Per gateway | `pm-admin` / `pm-admin-cli` | All orders cancelled |
@@ -332,7 +369,7 @@ designed to stop that per-order collars cannot?
 
 - [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md)
 - [Controlling the Exchange](../operator-guide/part-3-run/020-admin-console-and-commands.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)
 - [A Full Trading Day](../participant-guide/part-1-trading-basics/030-the-trading-day-and-auctions.md)
 

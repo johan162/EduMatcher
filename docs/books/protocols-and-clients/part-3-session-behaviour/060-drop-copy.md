@@ -13,7 +13,7 @@
       standalone `pm-dc-gwy` TCP gateway for non-ZeroMQ clients
     - How this compares to how real exchanges deliver drop copy
 
-    **Prerequisite**: [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) gives an overview of the
+    **Prerequisite**: [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) gives an overview of the
     ZeroMQ topology that drop copy sits within.
 
 

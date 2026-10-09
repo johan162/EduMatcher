@@ -687,7 +687,7 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 
 ## Related documentation
 
-- [CALF Gateway - Market Data Feed](../../operator-guide/part-5-gateways/030-calf-gateway.md) — the protocol
+- [CALF Gateway — Market Data](../../operator-guide/part-5-gateways/030-calf-gateway.md) — the protocol
   TapeDeck's bridge speaks upstream
 - [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md) — the REST history endpoints the bridge
   proxies

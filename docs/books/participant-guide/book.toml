@@ -2,13 +2,16 @@ title = "Participant Guide"
 subtitle = "Trading, market making, and participant-facing tools"
 slug = "participant-guide"
 
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
 [[parts]]
 title = "Part I: Trading basics"
 dir = "part-1-trading-basics"
 files = [
-  "010-gateways-and-how-you-connect.md",
   "020-the-order-book.md",
   "030-the-trading-day-and-auctions.md",
+  "010-gateways-and-how-you-connect.md",
 ]
 
 [[parts]]

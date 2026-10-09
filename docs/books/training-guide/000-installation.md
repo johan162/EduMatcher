@@ -13,9 +13,9 @@ holds your trades and logs.
 
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Installation](../operator-guide/part-1-install-and-deploy/010-installation.md)
-    - [A Path Through the Guide](../quick-start/part-2-next-steps/020-choose-your-book.md)
+    - [Quick Start Guide](../quick-start/part-1-see-it-run/020-install-and-start.md)
 
 ## Exercise 0: Read [How an Exchange Works](../../how-exchange-works.md)
 
@@ -101,14 +101,14 @@ When it finishes you have a complete exchange **and** five web applications:
 
 | Application | URL | What it is |
 |---|---|---|
-| Trading terminal | <http://localhost:8090> | Live order books, trades and market data |
-| Log viewer | <http://localhost:8091> | The centralized log, searchable |
-| Configuration builder | <http://localhost:8092> | Author an `engine_config.yaml` in your browser |
-| Trader GUI | <http://localhost:8093> | Submit and manage orders as a participant |
-| Order book viewer | <http://localhost:8094> | One symbol's full order book, statistics and trade tape — `pm-viewer` in the browser |
+| TapeDeck market display (`pm-terminal`) | <http://localhost:8090> | Live order books, trades and market data |
+| Log Operator Console (`pm-log-ui`) | <http://localhost:8091> | The centralized log, searchable |
+| Configuration GUI (`config-gui`) | <http://localhost:8092> | Author an `engine_config.yaml` in your browser |
+| Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | Submit and manage orders as a participant |
+| Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, statistics and trade tape — `pm-viewer` in the browser |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
-Open the trading terminal. You should see order books with live quotes: the
+Open TapeDeck. You should see order books with live quotes: the
 bundled `s10-basic` configuration seeds each symbol with a resting
 market-maker bid and ask the moment `pm-engine` starts, so there is a two-sided
 book before anyone has traded.
@@ -164,8 +164,8 @@ To run a single command without staying inside, pass it along:
 ```
 
 One difference matters. The container **starts the processes for you** — the
-`default` profile is already running, which is why the terminal showed a live
-market. The training chapters assume you start them yourself, so stop them
+`mm-demo` profile (the full process set plus a slow market-maker bot) is
+already running, which is why TapeDeck showed a live market. The training chapters assume you start them yourself, so stop them
 first:
 
 ```bash
@@ -369,7 +369,7 @@ cd ~/.edumatcher
 
 The directory is `~/.edumatcher/data` on your disk, mounted as `/data`
 inside the container. Both names refer to the same files — that is why the
-log viewer's health page says `/backend-data/log.db` while on your machine
+Log Operator Console's health page says `/backend-data/log.db` while on your machine
 the file is `~/.edumatcher/data/log.db`.
 
 **If you installed with pipx, the VM, or Poetry:**
@@ -441,8 +441,10 @@ You should see a `symbols:` section and a `participants:` section. This is the s
 you keep your own copy under version control rather than editing the deployed
 one.
 
-EduMatcher ships twelve ready-made configurations: one, three, ten or thirty
-order books, each as a `basic`, `nominal` or `complex` variant. See
+EduMatcher ships thirty ready-made configurations: 1, 3, 10, 30 or 150 order
+books (`s1` … `s150`), each as a `basic`, `nominal` or `complex` variant, and
+each of those also as a `-nomm` variant whose books start empty, with no
+market-maker quotes. See
 [Example Engine Configs](../operator-guide/part-2-configure/040-example-configs.md) for what each
 contains.
 
@@ -494,16 +496,16 @@ so updating does not discard your edits.
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
-| `EM_PROFILE` | `default` | Which processes start: `default`, `mini` or `micro` |
+| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full set plus a market-maker bot), `default` (the full set), `mini` or `micro` |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on — **the setting that decides whether the exchange is on your network** |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus, and tells the engine and `pm-index` to bind the container interface so host tools can attach |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the gateways *inside* the container. This is what makes them reachable from the GUI containers; it is not a host-exposure setting |
-| `TERMINAL_GUI_PORT` | `8090` | Host port for the trading terminal |
-| `LOG_GUI_PORT` | `8091` | Host port for the log viewer |
-| `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
-| `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
-| `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
+| `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
+| `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
+| `CONFIG_GUI_PORT` | `8092` | Host port for the Configuration GUI (`config-gui`) |
+| `TRADER_GUI_PORT` | `8093` | Host port for the Trading GUI (`pm-trading-ui`) |
+| `BOOK_GUI_PORT` | `8094` | Host port for the Order Book Viewer (`pm-book`) |
 
 Change any of them and run `./edumatcher.sh restart`. Two have their own
 commands, because they need more than an edit — `./edumatcher.sh config` keeps
@@ -570,7 +572,7 @@ handled in full:
 | `command not found: pm-engine` right after `pipx install edumatcher` | `pipx ensurepath` only takes effect in a *new* shell | Open a new terminal (or `exec $SHELL`) and try again |
 | `pm-engine --version` works in one terminal but not another | `EDUMATCHER_DATA_DIR` was exported in one shell but never added to your shell profile | Add the `export` line from `pm-setup`'s output to `~/.zshrc` or `~/.bashrc`, then open a new terminal |
 | `multipass version` reports `command not found` | Multipass did not finish installing, or your shell has not picked up its PATH change | Reinstall from [multipass.run](https://multipass.run/install), then open a new terminal |
-| Container route: chapter exercises see a market that already has orders in it | The `default` profile is still running from install | `pm-opctl-cli stop` inside `./edumatcher.sh shell`, as the "Before You Continue" checklist below requires |
+| Container route: chapter exercises see a market that already has orders in it | The `mm-demo` profile is still running from install | `pm-opctl-cli stop` inside `./edumatcher.sh shell`, as the "Before You Continue" checklist below requires |
 
 If something goes wrong that is not on this list, `./edumatcher.sh logs` (container
 route) or the relevant process's own `--verbose` output is the next place to
@@ -612,7 +614,7 @@ file, insisting instead on one deployed artifact per data directory? What would
 break in Chapter 16 (Persistence & Recovery) if two terminals ended up pointing
 at two different data directories?
 
-And if you took the container route: the log viewer reports its database as
+And if you took the container route: the Log Operator Console reports its database as
 `/backend-data/log.db` while the exchange reports the same file as
 `/data/log.db`. Why do two names for one file make the system safer rather than
 more confusing?
@@ -621,8 +623,8 @@ more confusing?
 
 - [Installation](../operator-guide/part-1-install-and-deploy/010-installation.md) — the reference version of
   this chapter, with every flag, directory and build option
-- [Getting Started](../quick-start/part-1-see-it-run/030-your-first-trade.md)
+- [Quick Start Guide](../quick-start/part-1-see-it-run/020-install-and-start.md) — the short version of this chapter
 - [Running the Exchange](../operator-guide/part-3-run/010-running-the-exchange.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 
 **Next:** [01 — Configuring & Starting Up](010-configuring-startup.md)

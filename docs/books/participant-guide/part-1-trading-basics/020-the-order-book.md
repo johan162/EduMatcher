@@ -31,7 +31,7 @@ The matching engine continuously checks whether the best bid and the best ask
 overlap in price. When they do, a **trade** is produced.
 
 
-![Order book illustration](assets/order-book-illustration.png)
+![Order book illustration](../../../assets/order-book-illustration.png)
 **Figure 1: The orderbook.**
 
 ## A concrete order book

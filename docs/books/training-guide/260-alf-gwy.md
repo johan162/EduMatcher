@@ -19,7 +19,7 @@ You will practise:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [ALF Gateway](../operator-guide/part-5-gateways/010-alf-gateway.md)
     - [ALF Protocol](../protocols-and-clients/part-2-specifications/010-alf.md)
 
@@ -42,7 +42,7 @@ Recommended startup terminals:
 
 ## Background
 
-`pm-alf-gwy` is the TCP gateway for the ALF (ALmost Fix) protocol.
+`pm-alf-gwy` is the TCP gateway for the ALF (Almost FIX) protocol.
 It accepts multiple simultaneous connections from external bots and scripts
 written in any language, and translates ALF commands into the same engine ZMQ
 messages used by the interactive `pm-alf-console` terminal.
@@ -69,7 +69,7 @@ config, then add `alf_gateway:` by hand:
 pm-config-gen \
   --symbols AAPL MSFT \
   --participants TRADER01 TRADER02 MM01:MARKET_MAKER \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
 
 Append the `alf_gateway:` section yourself:
@@ -94,6 +94,13 @@ grep -A10 '^alf_gateway:' engine_config.yaml
 See [ALF TCP Gateway → Configuration](../operator-guide/part-5-gateways/010-alf-gateway.md#configuration)
 for the full field reference and defaults (the section is optional — omitting
 it entirely still works, using every default shown there).
+
+!!! note "Back up, check, deploy — then restart"
+    This chapter starts from a fresh configuration (its operator is `OPS01`),
+    and `--force` replaces your `engine_config.yaml`: save a copy first if you
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch26.yaml`).
+    As always, nothing changes until you deploy it and restart the engine:
+    `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
 
 Start processes with that config:
 
@@ -593,4 +600,4 @@ chapter.
 - [ALF Protocol Reference](../protocols-and-clients/part-2-specifications/010-alf.md) — formal wire syntax and full field/enum definitions
 - [ALF Console (pm-alf-console)](../participant-guide/part-2-orders/010-the-trader-console.md) — interactive command reference for `pm-alf-console`
 - [Protocol Support Library Examples](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)

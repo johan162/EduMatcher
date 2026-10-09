@@ -1,4 +1,4 @@
-# MM Quotes
+# Market-Maker Quotes
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -76,7 +76,7 @@ to allow exactly that: a `MARKET_MAKER` gateway configured with zero
 `market_maker_quotes` entries for one, some, or all symbols. Everything else
 about seeding is unchanged — a symbol that *does* define quote seeds still
 has them validated and injected the normal way. `pm-config-gen
---no-mm-seed-quotes` generates this shape (see [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md)).
+--no-mm-seed-quotes` generates this shape (see [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md)).
 
 ### Exact startup sequence
 
@@ -227,7 +227,7 @@ Quote status values used by the engine:
 
 ## Refresh Policies
 
-Each gateway can define quote refresh behavior in [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md):
+Each gateway can define quote refresh behavior in [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md):
 
 - `INACTIVATE_ON_ANY_FILL`: any fill on one leg inactivates the quote
 - `INACTIVATE_ON_FULL_FILL`: only full fill inactivates the quote

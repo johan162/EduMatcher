@@ -8,7 +8,7 @@ where the engine's drop-copy feed fits into the architecture.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)
     - [DC Gateway](../operator-guide/part-5-gateways/060-drop-copy-gateway.md)
     - [DC Spy CLI](../protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md)
@@ -113,7 +113,7 @@ that, and it is worth knowing both:
 | Tool | What it is | Use it for |
 |---|---|---|
 | `pm-dc-spy` | A CLI that subscribes to the engine's drop-copy PUB socket (5557) | Looking at the feed yourself, right now |
-| `pm-dc-gwy` | A **gateway process** serving the DCLF protocol over TCP 5590 | Letting an *external* system consume drop copy, the way a real back office would |
+| `pm-dc-gwy` | A **gateway process** serving the DC1 protocol over TCP 5590 | Letting an *external* system consume drop copy, the way a real back office would |
 
 Start the spy:
 
@@ -226,7 +226,7 @@ high-volume book/viewer traffic?
 - [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)
 - [Drop-Copy Gateway (`pm-dc-gwy`)](../operator-guide/part-5-gateways/060-drop-copy-gateway.md)
 - [Drop-Copy Spy CLI (`pm-dc-spy`)](../protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [CALF Protocol Reference](../protocols-and-clients/part-2-specifications/030-calf.md)
 - [Market Data Feed](../protocols-and-clients/part-3-session-behaviour/030-calf-market-data-feed.md)
 

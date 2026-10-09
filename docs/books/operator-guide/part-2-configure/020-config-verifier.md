@@ -12,7 +12,7 @@
 
 ## Why a Config Verifier?
 
-`engine_config.yaml` (see [Configuration](010-the-configuration-workflow.md) for the full
+`engine_config.yaml` (see [The Configuration Workflow](010-the-configuration-workflow.md) for the full
 guide and [App Config Spec](../../reference-manual/part-3-configuration/030-formal-specification.md) for the normative field
 reference) covers symbols, gateways, risk controls, collar bands,
 circuit breakers, market-maker obligations, session schedules, combo seeds,
@@ -579,7 +579,7 @@ built-in L1/L2/L3 ladder is in effect).
 
 | Tool                             | Purpose                                             |
 |----------------------------------|------------------------------------------------------|
-| `pm-config-gen` (see [Configuration](010-the-configuration-workflow.md)) | *Generate* an `engine_config.yaml` from CLI flags |
+| `pm-config-gen` (see [The Configuration Workflow](010-the-configuration-workflow.md)) | *Generate* an `engine_config.yaml` from CLI flags |
 | Config GUI (see [Config GUI](030-config-gui.md))            | *Generate/edit* an `engine_config.yaml` visually, with a built-in "Verify with pm-cverifier" action |
 | `pm-cverifier`                   | *Verify* an existing config file before use         |
 | `pm-engine` (see [Running the Engine](../part-3-run/010-running-the-exchange.md)) | *Load* the config and start the matching engine |

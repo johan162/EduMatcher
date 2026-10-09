@@ -1,4 +1,4 @@
-# Market-Maker Bot (pm-mm-bot)
+# The Market-Maker Bot (`pm-mm-bot`)
 
 <a id="pm-mm-bot-autonomous-market-maker-bot"></a>
 
@@ -19,7 +19,7 @@
 
     **Prerequisites**: [Market Making](020-market-making.md) — understand the `QUOTE` command,
     `quote_refresh_policy`, and `disconnect_behaviour` before using the bot.
-    [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — each bot instance needs a pre-registered
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — each bot instance needs a pre-registered
     `MARKET_MAKER` gateway in the engine config.
 
 ---

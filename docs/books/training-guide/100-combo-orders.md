@@ -8,7 +8,7 @@ reaches, and use OCO (One-Cancels-Other) linked orders.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Combo Orders](../participant-guide/part-2-orders/030-combo-and-oco-orders.md)
     - [OCO](../participant-guide/part-2-orders/020-order-types.md#oco-one-cancels-other)
 
@@ -54,8 +54,16 @@ The combo's lifecycle states are `PENDING`, `PARTIALLY_MATCHED`, `MATCHED`,
 ## Exercise 1: Simple Two-Leg Combo
 
 To see the combo **fill atomically**, first guarantee liquidity on both legs
-with explicit counter-orders (don't rely on ambient MM quotes, which may not
-be at the exact combo prices):
+with explicit counter-orders, and nothing else. Market-maker quotes from
+earlier chapters would get in the way — TRADER02's MSFT buy at 420.50, for
+example, would trade straight away with a market maker's cheaper ask instead
+of resting. So stop any `pm-mm-bot`, clear both symbols from the operator
+console, and then place the counter-orders:
+
+```
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=AAPL
+[GW_ADMIN|ADMIN]> CANCEL_SYM|SYM=MSFT
+```
 
 ```
 [TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY
@@ -71,7 +79,7 @@ Now submit the combo — buy AAPL and sell MSFT atomically:
 Because both counter-orders above match the combo's leg prices exactly, the
 engine can fill both legs simultaneously.
 
-:material-checkbox-blank-outline: **Checkpoint:** combo acknowledged; both legs fill in the same event (check `BOOK|SYM=AAPL` and `BOOK|SYM=MSFT` in the operator console for matching fill reports).
+:material-checkbox-blank-outline: **Checkpoint:** the trader console shows a fill on each leg followed by `COMBO MATCHED  PAIR-001`, and `BOOK|SYM=AAPL` / `BOOK|SYM=MSFT` in the operator console show both counter-orders gone.
 
 Observation: when the pre-check passes, both legs execute in the same pass —
 this is the case the AON guarantee is designed for.
@@ -83,8 +91,8 @@ this is the case the AON guarantee is designed for.
 Now check the pre-check: when liquidity is missing on **one** leg, *no* leg
 matches, even the one that could have:
 
-1. Confirm AAPL has a resting sell at 150.10 (from Exercise 1, or place a new
-   one: `TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY`).
+1. Exercise 1 used up the AAPL sell, so place a new one:
+   `[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY`.
 2. Do **not** place any MSFT buy at 420.50 — cancel or avoid resting MSFT
    liquidity at that price so the second leg has nothing to match against.
 3. Submit a new combo with a fresh ID:
@@ -165,11 +173,17 @@ Clean up before continuing:
 
 ## Exercise 4: Cancel a Resting Combo
 
+Exercise 3's clean-up already cancelled `PAIR-002`. Submit one more combo that
+cannot fill — there is no MSFT bid at 420.50 now — so it rests, then cancel
+it as a whole:
+
 ```
-[TRADER01]> CANCEL|COMBO_ID=PAIR-002
+[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+[TRADER01]> CANCEL|COMBO_ID=PAIR-003
 ```
 
-All legs are cancelled together.
+All legs are cancelled together, and the console reports
+`COMBO CANCELLED  PAIR-003`.
 
 :material-checkbox-blank-outline: **Checkpoint:** full combo cancellation confirmed.
 
@@ -184,8 +198,17 @@ is automatically cancelled:
 [TRADER01]> NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
 ```
 
-When the first order fills (price drops to 149.50), the second order at 148.00
-is automatically cancelled.
+Make the first leg fill by selling into it from `TRADER02`:
+
+```
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY
+```
+
+The 149.50 leg fills, and the console reports the sibling at 148.00
+cancelled: `OCO CANCEL OCO-AAPL-ENTRY  sibling=…  OCO sibling … reached FILLED`.
+(If the AAPL book still holds asks at or below 149.50 from earlier
+exercises, the OCO's first leg fills on entry instead — clear AAPL with
+`CANCEL_SYM` first for a clean run.)
 
 To pull an OCO pair yourself before either leg fills, cancel it by its
 `OCO_ID` rather than cancelling each leg individually:

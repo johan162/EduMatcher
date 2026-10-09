@@ -1226,7 +1226,7 @@ startup, and subscriber **data stores** written continuously during the session.
 | `indexes/<ID>_history.jsonl` | pm-index | on structural/corporate-action event only | accumulates | structural/audit trail (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) — level/EOD history lives in `stats.db` instead |
 | `indexes/<ID>_state.json` | pm-index | on EOD / corporate action | rewritten | divisor, last prices, and intraday OHLC checkpoint for restart |
 
-(Full field-level detail is in the user guide's
+(Full field-level detail is in the Operator's Guide's
 [Persistence chapter](../../operator-guide/part-6-observe-and-recover/010-persistence.md#data-files-at-a-glance).)
 
 **Shutdown is an ordered sequence**, not a hard stop — this is what makes GTC

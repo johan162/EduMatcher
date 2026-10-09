@@ -19,7 +19,7 @@ You will practice:
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [API Gateway](../operator-guide/part-5-gateways/050-api-gateway.md)
     - [REST API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)
 
@@ -32,7 +32,7 @@ You will practice:
 - Optional: `pm-audit` running, if you want to see a populated reply instead of
   `AUDIT_INDEX_UNAVAILABLE` from the audited order-lifecycle call in Exercise 10.
 - This chapter is a hands-on tour of the normative
-  [Appendix: REST API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
+  [REST and WebSocket API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
   keep it open alongside this chapter for the full endpoint-by-endpoint
   contract (arguments, replies, and error codes) behind every call made here.
 
@@ -114,8 +114,15 @@ pm-config-gen \
   --api-gateway-host 127.0.0.1 \
   --api-gateway-port 8080 \
   --seed 20260624 \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
+
+!!! note "Back up, check, deploy — then restart"
+    This chapter starts from a fresh configuration (its operator is `OPS01`),
+    and `--force` replaces your `engine_config.yaml`: save a copy first if you
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch24.yaml`).
+    As always, nothing changes until you deploy it and restart the engine:
+    `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`.
 
 Inspect the generated section:
 
@@ -549,7 +556,7 @@ pm-config-gen \
   --api-gateway-instance desk:TRADER01:8080 \
   --api-gateway-instance algos:ALGO01:8081 \
   --seed 20260624 \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
 
 Start each named process in a separate terminal:
@@ -660,7 +667,7 @@ You can now:
   configured `api_gateways` process, and why ADMIN access is resolved from the
   engine rather than stored on the API key.
 
-See [Appendix: REST API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)
+See [REST and WebSocket API Reference](../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)
 for the full normative contract behind every endpoint used in this chapter.
 
 ## Reflection

@@ -228,11 +228,11 @@ reload against this container stack — see
 
 | GUI | URL | Talks to |
 |---|---|---|
-| Trading terminal | <http://localhost:8090> | `pm-md-gwy` 5570, `pm-api-gwy` 8081, `pm-log-srv` 5600 |
-| Log viewer | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
-| Config builder | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
-| Trader GUI | <http://localhost:8093> | `pm-api-gwy` 8080 |
-| Order book viewer | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
+| TapeDeck market display (`pm-terminal`) | <http://localhost:8090> | `pm-md-gwy` 5570, `pm-api-gwy` 8081, `pm-log-srv` 5600 |
+| Log Operator Console (`pm-log-ui`) | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
+| Configuration GUI (`config-gui`) | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
+| Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | `pm-api-gwy` 8080 |
+| Order Book Viewer (`pm-book`) | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
 
 ### How the GUIs reach the exchange
 

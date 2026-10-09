@@ -2,6 +2,9 @@ title = "Protocols and Clients"
 subtitle = "External protocols, session behavior, and client examples"
 slug = "protocols-and-clients"
 
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
 [[parts]]
 title = "Part I: Choosing and connecting"
 dir = "part-1-choosing-and-connecting"

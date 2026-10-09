@@ -1,3 +1,3 @@
 # Foundations {.part}
 
-Start with the installation route, the first market-maker liquidity, and the first trade.
+Chapters 00–03. Install EduMatcher, write and deploy a configuration, start the exchange, give it market-maker liquidity and make the first trade.

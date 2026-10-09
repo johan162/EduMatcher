@@ -8,9 +8,9 @@ trading, risk controls, clearing, market data, persistence, and reporting.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Running the Exchange](../operator-guide/part-3-run/010-running-the-exchange.md)
-    - [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+    - [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 
 ## Prerequisites
 
@@ -62,22 +62,25 @@ pm-config-gen \
   --sessions-enabled \
   --static-band 0.10 \
   --dynamic-band 0.05 \
-  --seed-mm-mid-range 90:430 \
-  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --output engine_config.yaml --force
 ```
 
-The two `--seed-*` flags are not optional decoration. Four `MARKET_MAKER`
-gateways with no `market_maker_quotes` would fail verification with **M001
-(ERROR)**, and `pm-config-deploy` refuses any configuration containing an
-error — so without them this capstone stops at Exercise 2. Chapter 02
-Exercise 1 covered the same rule.
+`--no-mm-seed-quotes` is not optional decoration. Normally every symbol must
+have a seeded market-maker quote once a `MARKET_MAKER` gateway exists (the
+**M001** rule from Chapter 02); this flag records
+`require_mm_seed_quotes: false` instead, so the venue starts with **empty
+books** and your market makers open them by hand in Exercise 5 — the way a
+venue is stood up from nothing. Seeding random prices with
+`--seed-mm-mid-range` would not work here: the hand-typed quotes below assume
+AAPL near 150, MSFT near 420 and TSLA near 250, and seeded prices elsewhere
+would make the collars and circuit breakers reject them.
 
 Open the file and confirm the symbol and gateway sections are present.
 
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols,
 5 traders (`TRADER01`, `TRADER02`, `AI01`–`AI03`), 1 admin, and 4 market
-makers — and every symbol has a `market_maker_quotes` block.
+makers, `require_mm_seed_quotes: false`, and no `market_maker_quotes`.
 
  
 
@@ -92,7 +95,9 @@ pm-config-deploy engine_config.yaml
 pm-config-deploy --show               # confirm where it landed
 ```
 
-Warnings and advisories are fine here; errors are not. If `pm-cverifier`
+Warnings and advisories are fine here; errors are not. Expect warning
+`C001` (no reference prices): the books have no price until the market makers
+quote, so the static collar only takes effect from the first trades on. If `pm-cverifier`
 reports an error, fix it before deploying — a refused deploy leaves the
 *previous* configuration running, which is the confusing case where the
 exchange starts but has the wrong gateways.
@@ -108,12 +113,15 @@ Use separate terminals:
 
 ```bash
 pm-engine --verbose
-pm-scheduler
 pm-stats
 pm-clearing
 pm-audit --terminal
 pm-viewer --symbol AAPL
 ```
+
+`pm-scheduler` is left out on purpose: you will drive the trading day by hand
+from the operator console, as in Chapter 06, so the capstone works at any
+time of day.
 
 :material-checkbox-blank-outline: **Checkpoint:** every process starts cleanly and connects.
 
@@ -150,9 +158,17 @@ configured identities, and the six consoles you opened authenticate.
 
  
 
-## Exercise 5: Provide Manual MM Liquidity
+## Exercise 5: Open the Market and Provide Liquidity
 
-Submit quotes:
+Open the trading day from the operator console. You could stop in the opening
+auction on the way; here, go straight to continuous trading:
+
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=PRE_OPEN
+[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
+```
+
+Then let each market maker quote its symbol:
 
 ```
 [MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
@@ -174,13 +190,16 @@ From `TRADER01`:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 [TRADER01]> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=419.50|TIF=DAY
 [TRADER01]> ORDERS
-[TRADER01]> AMEND|ID=<msft_order_id>|PRICE=419.70|RTAG=CAP-AMD-001
+[TRADER01]> AMEND|ID=<msft_order_id>|PRICE=419.95|RTAG=CAP-AMD-001
 ```
 
-From `TRADER02`:
+The amendment improves TRADER01's bid to 419.95 — inside the market maker's
+419.90 / 420.10 spread — so it is now the **best bid**. From `TRADER02`, sell
+at that price; it trades with TRADER01, not with the market maker, whose bid
+is lower:
 
 ```
-[TRADER02]> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
+[TRADER02]> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.95|TIF=DAY
 ```
 
 Now add background flow, so the later P&L and statistics exercises have more
@@ -254,7 +273,9 @@ Place a GTC order, restart the engine, and confirm whether it restores:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
 ```
 
-Restart `pm-engine`, reconnect `TRADER01`, then run:
+Restart `pm-engine` (it comes back in `CLOSED`; reopen it with
+`SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS` if you want to keep
+trading), reconnect `TRADER01`, then run:
 
 ```
 [TRADER01]> ORDERS
@@ -276,7 +297,7 @@ Answer these without looking at earlier chapters:
 6. What happens to DAY vs GTC orders at session close?
 7. How do you halt and resume a single symbol?
 
-:material-checkbox-blank-outline: **Checkpoint:** you can answer every question from memory or by using the user guide.
+:material-checkbox-blank-outline: **Checkpoint:** you can answer every question from memory or by using the other books.
 
 Review map:
 
@@ -293,7 +314,7 @@ Review map:
 ## Further Reading
 
 - [How an Exchange Works](../../how-exchange-works.md)
-- [User Guide](../quick-start/part-1-see-it-run/030-your-first-trade.md)
+- [Operator's Guide — Running the Exchange](../operator-guide/part-3-run/010-running-the-exchange.md)
 - [Architecture Overview](../architecture-and-development/part-1-architecture/010-architecture-overview.md)
 - [Glossary](../reference-manual/90-backmatter/010-glossary.md)
 - [Exchange Observer Processes](180-exchange-observer-processes.md)

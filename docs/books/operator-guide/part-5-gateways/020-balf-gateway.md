@@ -1,4 +1,4 @@
-# BALF Gateway - Binary Order-Entry
+# BALF Gateway — Binary Order Entry
 
 <a id="pm-balf-gwy-balf-tcp-gateway"></a>
 
@@ -14,7 +14,7 @@
     - how to write a minimal Python BALF client
     - the error conditions that close the connection
 
-See [Appendix: BALF Protocol Reference](../../protocols-and-clients/part-2-specifications/020-balf.md) for exact
+See [BALF Protocol Reference](../../protocols-and-clients/part-2-specifications/020-balf.md) for exact
 frame layouts, byte offsets, and encoding rules.
 
 
@@ -863,7 +863,7 @@ EOF
 **In this book:**
 
 - [ALF TCP Gateway](010-alf-gateway.md) — text-protocol alternative for Python/any-language clients where binary parsing is not required
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) — `balf_gateway:` section and `participants` allowlist
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) — `balf_gateway:` section and `participants` allowlist
 
 **Reference Manual:**
 

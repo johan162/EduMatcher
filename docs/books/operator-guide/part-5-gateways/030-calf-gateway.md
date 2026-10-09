@@ -1,4 +1,4 @@
-# CALF Gateway - Market Data Feed
+# CALF Gateway — Market Data
 
 <a id="pm-md-gwy-calf-market-data-gateway"></a>
 
@@ -239,7 +239,7 @@ on another host): `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`) and
 `EDUMATCHER_INDEX_PUB_PORT` (default `5558`). The engine configuration itself
 is not overridable: like every other `pm-*` process, `pm-md-gwy` reads
 `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` — see
-[Getting Started → Environment variables](../../quick-start/part-1-see-it-run/030-your-first-trade.md#environment-variables).
+[Reference Manual → Environment variables](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#environment-variables).
 
 This matters more for `pm-md-gwy` than for most processes. Its symbol
 universe comes from that file, and it is what `WELCOME|SYMBOLS=` and the

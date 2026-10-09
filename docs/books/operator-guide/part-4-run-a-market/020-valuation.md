@@ -1792,5 +1792,5 @@ are Expert fields. See
 - [Listing a New Symbol](010-new-symbols.md) - what `--list` does to the configuration
 - [Auctions & Scheduling](030-sessions-and-scheduling.md) - the opening auction that tests the price
 - [Market Index](070-market-index.md) - the index the report's inclusion verdict refers to
-- [Index Admin CLI](080-index-administration.md) - adding the stock to an index after seasoning
+- [Index Administration (`pm-index-admin-cli`)](080-index-administration.md) - adding the stock to an index after seasoning
 - [IPO Valuation training chapter](../../training-guide/280-ipo-valuation.md) - the classroom exercise

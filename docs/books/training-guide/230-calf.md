@@ -11,7 +11,7 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [CALF Gateway](../operator-guide/part-5-gateways/030-calf-gateway.md)
     - [CALF Protocol](../protocols-and-clients/part-2-specifications/030-calf.md)
 
@@ -73,8 +73,17 @@ pm-config-gen \
   --market-data-replay-window-sec 30 \
   --market-data-heartbeat-interval-sec 1 \
   --market-data-idle-timeout-sec 5 \
-  --output engine_config.yaml
+  --output engine_config.yaml --force
 ```
+
+!!! note "Back up, check, deploy — then restart"
+    This chapter starts from a fresh configuration (its operator is `OPS01`),
+    and `--force` replaces your `engine_config.yaml`: save a copy first if you
+    want to come back to it (`cp engine_config.yaml engine_config.before-ch23.yaml`).
+    As always, nothing changes until you deploy it and restart the engine:
+    `pm-cverifier engine_config.yaml`, then `pm-config-deploy engine_config.yaml`. Sessions are enabled, so the restarted engine starts in `CLOSED`: open
+    the market from the operator console (`pm-admin --id OPS01`, then
+    `SESSION|STATE=PRE_OPEN` and `SESSION|STATE=CONTINUOUS`).
 
 Start or restart processes with that config:
 
@@ -576,5 +585,5 @@ events vs. price/quote state) rather than just their names.
 - [CALF Protocol Spy (pm-calf-spy)](../protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md)
 - [CALF Protocol Appendix](../protocols-and-clients/part-2-specifications/030-calf.md)
 - [Protocol Support Library Examples](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 

@@ -8,7 +8,7 @@ demonstrations, classroom sessions, and stress testing.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [AI Traders](../participant-guide/part-4-automated-trading/010-ai-traders.md)
 
 ## Prerequisites
@@ -58,10 +58,6 @@ so the bots can authenticate:
       role: TRADER
 ```
 
-!!! tip "Unrestricted mode"
-    If your engine is started with no `engine_config.yaml` gateway restrictions,
-    any gateway ID can connect — this step can be skipped for a quick demo.
-
 Deploy the change, then restart the engine — editing the YAML alone changes
 nothing, because every process reads the compiled artifact:
 
@@ -69,7 +65,8 @@ nothing, because every process reads the compiled artifact:
 pm-config-deploy engine_config.yaml
 ```
 
-Then restart `pm-engine`.
+Then restart `pm-engine` and reopen the market from the operator console
+(`SESSION|STATE=PRE_OPEN`, then `SESSION|STATE=CONTINUOUS`).
 
 :material-checkbox-blank-outline: **Checkpoint:** 3 additional gateways loaded (`AI01`–`AI03`).
 
@@ -112,7 +109,7 @@ pm-ai-trader --id AI03 --profile many-small --symbols TSLA &
 ## Exercise 4: Observe Market Dynamics
 
 With MMs and AI traders running, the exchange simulates a realistic market.
-From your trader gateway:
+From the operator console:
 
 ```
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
@@ -174,7 +171,7 @@ if you launched only `aggressive` bots with no market maker running?
 ## Further Reading
 
 - [AI Traders](../participant-guide/part-4-automated-trading/010-ai-traders.md)
-- [Market-Maker Bot (pm-mm-bot)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — sibling automation tool for liquidity provision
+- [The Market-Maker Bot (`pm-mm-bot`)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — sibling automation tool for liquidity provision
 - [Developer AI Bot Traders](../participant-guide/part-4-automated-trading/020-how-the-bots-decide.md)
 - [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md)
 - [Order Book Deep Dive](../architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md)

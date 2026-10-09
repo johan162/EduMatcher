@@ -12,7 +12,7 @@
     - The proposed fix, and an honest assessment of its impact on the
       existing test suite
 
-    **Prerequisite**: Read [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) first — this page
+    **Prerequisite**: Read [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) first — this page
     builds directly on the VWAP average-cost formula described there.
 
 ## What this page covers
@@ -80,7 +80,7 @@ reported for the **entire** filled quantity.
 ## How the gateway turns a fill into a position
 
 A trading gateway tracks positions with VWAP average-cost accounting (see
-[P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)). On every `order.fill` it calls
+[Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md)). On every `order.fill` it calls
 `_update_position(symbol, side, fill_qty, fill_price)`, which folds the fill
 into the running average:
 

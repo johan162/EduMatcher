@@ -2,6 +2,9 @@ title = "Operator's Guide"
 subtitle = "Install, configure, run, and observe an EduMatcher exchange"
 slug = "operator-guide"
 
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
 [[parts]]
 title = "Part I: Install and deploy"
 dir = "part-1-install-and-deploy"

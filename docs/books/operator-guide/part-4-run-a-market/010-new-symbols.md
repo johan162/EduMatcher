@@ -74,7 +74,7 @@ the YAML and the deployed artifact exactly as they were.
 
 ## Which file is edited
 
-[Configuration](../part-2-configure/010-the-configuration-workflow.md) separates the YAML you **author** from
+[The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) separates the YAML you **author** from
 the compiled artifact the exchange **runs**. Every artifact records the file
 it was compiled from in `meta.source_path`. `pm-new-symbol` edits that
 source, never the artifact.
@@ -249,7 +249,7 @@ The command handles the configuration. These steps are yours:
 8. **Index membership** is a separate decision. The symbol does not join any
    index. Add it later as a constituent (see
    [Market Index](070-market-index.md) and
-   [Index Admin CLI](080-index-administration.md)).
+   [Index Administration (`pm-index-admin-cli`)](080-index-administration.md)).
 9. **Start** the exchange. With `sessions_enabled: true`, the new symbol takes
    part in the opening auction like every other symbol. That is where a real
    IPO's opening price is discovered (see
@@ -284,7 +284,7 @@ The command handles the configuration. These steps are yours:
 ## Where to go next
 
 - [IPO Valuation](020-valuation.md) - finding the offer price with `pm-valuation`
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) - authored YAML, the compiled artifact and `pm-config-deploy`
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) - authored YAML, the compiled artifact and `pm-config-deploy`
 - [Config Verifier](../part-2-configure/020-config-verifier.md) - what the validation codes mean
 - [Running the Exchange](../part-3-run/010-running-the-exchange.md) - stopping and starting with `pm-opctl-cli`
 - [Market Making](../../participant-guide/part-3-market-making/020-market-making.md) - seed quotes and obligations

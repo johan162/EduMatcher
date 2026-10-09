@@ -774,8 +774,8 @@ not, the deploy output names the finding.
 
 See [Configuration — File Location](010-the-configuration-workflow.md#file-location) for what
 compiling does, [Running the Engine](../part-3-run/010-running-the-exchange.md) for starting
-the processes, and [Getting Started](../../quick-start/part-1-see-it-run/030-your-first-trade.md) for a first
-end-to-end run.
+the processes, and the Quick Start's [Your Own Configuration](../../quick-start/part-2-next-steps/020-your-own-configuration.md)
+for a first end-to-end run.
 
 !!! note "📷 Figure 12 — Review & Export with YAML preview"
     _Screenshot placeholder._ Capture the Review tab showing the diagnostics

@@ -1,4 +1,4 @@
-# Processes
+# Processes, Environment and Ports
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -163,8 +163,10 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
     pm-engine --verbose
     ```
 
-    See [Getting Started → Installation](../../quick-start/part-1-see-it-run/030-your-first-trade.md#installation)
-    for the full setup guide and the `pm-setup` bootstrap command.
+    See the Quick Start's [Install and Start](../../quick-start/part-1-see-it-run/020-install-and-start.md)
+    for a first installation, and the Operator's Guide
+    [Installation](../../operator-guide/part-1-install-and-deploy/010-installation.md)
+    chapter for every installation mode and the `pm-setup` bootstrap command.
 
 ## Environment variables
 
@@ -195,6 +197,57 @@ pm-engine --verbose
 ```
 
 See [`pm-config-deploy`](#pm-config-deploy-compile-and-install-a-configuration) for installing a configuration.
+
+### How the default is selected
+
+The data directory is selected when the EduMatcher Python package is
+imported, not from the process's current working directory:
+
+1. If `EDUMATCHER_DATA_DIR` is set, its expanded, absolute path wins — in a
+   source checkout and in an installed deployment alike.
+2. Otherwise EduMatcher checks where `edumatcher/config.py` is installed. If
+   its package parent is named `src`, the process is treated as running from
+   a source checkout and uses `<repo>/src/data/`.
+3. Otherwise the package is treated as installed and uses
+   `~/.local/share/edumatcher` (for example
+   `/Users/<user>/.local/share/edumatcher` on macOS). This path is fixed; it
+   does not follow `XDG_DATA_HOME`.
+4. If the directory chosen above does not exist, but `./data` exists in the
+   current working directory, that is used instead, with a warning on
+   stderr. The chosen directory is used anyway, also with a warning, when
+   neither exists.
+
+So running an installed command from inside a repository does not turn it
+into a source checkout, and running a Poetry command from another directory
+does not move the source-checkout data location. When several processes must
+share one exchange, give them all the same explicit `EDUMATCHER_DATA_DIR`.
+
+The authored YAML may live anywhere, but deployment always installs the
+compiled artifact, with a copy of its source, under the selected directory:
+
+```text
+<DATA_DIR>/ref_data/engine_config.json
+<DATA_DIR>/ref_data/engine_config.yaml
+```
+
+Relative runtime paths in the configuration, such as `data/stats.db`, are
+resolved under `<DATA_DIR>` too, so they name the same files whatever the
+command's working directory. Absolute paths remain explicit overrides.
+
+A container sets the variable for you: `EDUMATCHER_DATA_DIR` is `/data`
+inside it, bind-mounted from `~/.edumatcher/data` (or
+`deployment/docker/data` in a checkout), so the databases and logs are
+ordinary files on your disk.
+
+The container's data directory is deliberately **not** the installed default
+`~/.local/share/edumatcher`. Keeping it inside the install directory makes an
+install self-contained (one folder to back up or delete, separate data for
+each `--dir` install). It also stops a container and a `pipx` install from
+overwriting each other's deployed configuration and databases, and keeps the
+container's root-owned files (Docker on Linux) out of your own data
+directory. A host-side `pm-*` command therefore needs
+`EDUMATCHER_DATA_DIR=~/.edumatcher/data` to read the container's data, or
+must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 
 **Core processes:**
 
@@ -284,7 +337,7 @@ process's own `config.py`.
     outside clients — by default bound to `0.0.0.0`. Every port shown is a
     default; production or multi-host deployments should bind internal ports
     to a private interface and firewall external ports as appropriate. See
-    [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for how to override any of these.
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for how to override any of these.
 
 !!! tip "The same table, for the config you actually deployed"
     This table lists the shipped defaults. To see the ports *one particular
@@ -375,7 +428,7 @@ None. `pm-engine` is a long-running background process after startup.
 6. Tries to bind the dedicated drop-copy PUB :5557 socket
 7. Publishes initial book snapshots for populated books and enters the poll loop
 
-See [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for full details on the config file.
+See [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) for full details on the config file.
 
 **Shutdown (Ctrl-C)**:
 1. Publishes `order.expired` for all resting DAY orders
@@ -901,7 +954,7 @@ price-derived values for table/JSON/CSV rendering.
 | `system.gateway_auth.` | Gateway connect (accepted) — opens a `gateway_sessions` row |
 | `system.gateway_bye.` | Gateway disconnect — closes the matching `gateway_sessions` row |
 
-See [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) for the full accounting model.
+See [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) for the full accounting model.
 
 
 ## pm-clearing-cli - Clearing Query CLI
@@ -994,7 +1047,7 @@ pm-clearing-cli prune --days 90
 - `json`: prints `[]`
 - `csv`: prints only header row unless `--no-header` is set
 
-See [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) for the accounting model and schema-level details.
+See [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) for the accounting model and schema-level details.
 
 
 
@@ -1559,7 +1612,7 @@ pm-ai-swarm [options]
 
 None.
 
-See [AI Bot Traders](../../participant-guide/part-4-automated-trading/020-how-the-bots-decide.md) for strategy and orchestration details.
+See [How the AI Traders Decide](../../participant-guide/part-4-automated-trading/020-how-the-bots-decide.md) for strategy and orchestration details.
 
 
 
@@ -2452,7 +2505,7 @@ pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN -
 | `--seed-last-prices` | off | Emit null last-price placeholders |
 | `--seed N` | — | RNG seed for generated training values |
 | `--seed-mm-mid-range MIN:MAX` | — | Seed MM quotes from a random midpoint |
-| `--mm-seed-spread-ticks N` | `30` | Half-spread, in ticks, either side of the seeded MM midpoint |
+| `--mm-seed-spread-ticks N` | `10` | Half-spread, in ticks, either side of the seeded MM midpoint |
 | `--seed-last-prices-from-mm` | off | Set last prices from the seeded MM midpoint |
 
 #### Gateway sections
@@ -2617,7 +2670,7 @@ This tool has no `connect()`/authentication step, unlike `pm-admin-cli`:
 `pm-index`'s PULL socket accepts any non-empty `gateway_id`, using it only as
 an ack-routing key.
 
-See [Index Admin CLI](../../operator-guide/part-4-run-a-market/080-index-administration.md) for the full subcommand
+See [Index Administration (`pm-index-admin-cli`)](../../operator-guide/part-4-run-a-market/080-index-administration.md) for the full subcommand
 reference, confirmation-prompt behaviour, and worked examples.
 
 ## pm-opctl-cli — Operational Process Control
@@ -2707,7 +2760,7 @@ subprocesses and reads their PID/log files, but binds no ZeroMQ or TCP port
 of its own and does not participate in the runtime message bus.
 
 See [Running the Exchange](../../operator-guide/part-3-run/010-running-the-exchange.md) and
-[Getting Started](../../quick-start/part-1-see-it-run/030-your-first-trade.md) for the recommended startup sequence.
+the Quick Start's [Install and Start](../../quick-start/part-1-see-it-run/020-install-and-start.md) for the recommended startup sequence.
 
 
 ## pm-help / pm-man — Command Index and Man-Page Reference

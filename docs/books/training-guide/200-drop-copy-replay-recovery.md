@@ -9,7 +9,7 @@ and does not exist in the current EduMatcher runtime.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)
     - [DC Gateway](../operator-guide/part-5-gateways/060-drop-copy-gateway.md)
 

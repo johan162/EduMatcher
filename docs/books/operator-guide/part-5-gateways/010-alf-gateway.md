@@ -1,4 +1,4 @@
-# ALF Gateway - Order-Entry
+# ALF Gateway — Order Entry
 
 <a id="configuration-reference"></a>
 <a id="pm-alf-gwy-alf-tcp-gateway"></a>
@@ -1082,7 +1082,7 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 
 **In this book:**
 
-- [Configuration](../part-2-configure/010-the-configuration-workflow.md) — `alf_gateway:` section and `participants` allowlist
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md) — `alf_gateway:` section and `participants` allowlist
 
 **Participant Guide:**
 

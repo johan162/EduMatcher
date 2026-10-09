@@ -9,8 +9,8 @@ manual session overrides via `SESSION|STATE=...`.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
-    - [Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
+!!! abstract "Background reading"
+    - [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
 
 ## Prerequisites
 
@@ -199,7 +199,7 @@ choice available?
 ## Further Reading
 
 - [Controlling the Exchange](../operator-guide/part-3-run/020-admin-console-and-commands.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 - [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md)
 
 **Next:** [20 - Drop-Copy Replay & Recovery Patterns](200-drop-copy-replay-recovery.md)

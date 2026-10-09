@@ -8,9 +8,9 @@ state, inspecting resting orders, and managing the order lifecycle.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [ALF Console](../participant-guide/part-2-orders/010-the-trader-console.md)
-    - [Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
+    - [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
 
 ## Prerequisites
 
@@ -121,7 +121,9 @@ Find your order in the table. The response includes:
 [TRADER01]> CANCEL|ID=DOES_NOT_EXIST|RTAG=CXL-MISSING-001
 ```
 
-Expected: rejection — order not found, with `REJECT_CODE=ORDER_NOT_FOUND`.
+Expected: rejection, shown in the console as
+`REJECTED  DOES_NOT_EXIST code=ORDER_NOT_FOUND rtag=CXL-MISSING-001  Order not found`
+(`REJECT_CODE` is the field's name on the wire).
 
 :material-checkbox-blank-outline: **Checkpoint:** error message returned cleanly.
 
@@ -135,8 +137,8 @@ Try cancelling an order belonging to TRADER02:
 [TRADER01]> CANCEL|ID=<trader02_order_id>|RTAG=CXL-NOTOWNER-001
 ```
 
-Expected: rejection — you can only cancel your own orders, with
-`REJECT_CODE=NOT_OWNER`.
+Expected: rejection — you can only cancel your own orders:
+`code=NOT_OWNER  Cannot cancel an order owned by another gateway`.
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway cancel rejected.
 
@@ -170,8 +172,9 @@ Request the symbol catalog:
 [TRADER01]> SYMBOLS
 ```
 
-Look for metadata fields exposed in the gateway output (for example
-`description`, `tick_size`, and any MM policy fields configured by the engine).
+The table shows each symbol's tick size and its market-maker obligation
+settings (enforced or not, maximum spread in ticks, minimum quoted quantity) —
+the parts of the configuration a trader needs while trading.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain how `SYMBOLS` complements config-file inspection during operations.
 
@@ -181,13 +184,20 @@ Look for metadata fields exposed in the gateway output (for example
 
 ```mermaid
 stateDiagram-v2
+    [*] --> REJECTED : refused on entry
     [*] --> NEW : accepted
     NEW --> PARTIAL : partial fill
     NEW --> FILLED : full fill
-    NEW --> CANCELLED : cancel/expire
+    NEW --> CANCELLED : cancel, kill switch
+    NEW --> EXPIRED : end of its time in force
     PARTIAL --> FILLED : remaining filled
     PARTIAL --> CANCELLED : cancel remainder
+    PARTIAL --> EXPIRED : remainder expires
 ```
+
+`EXPIRED` is the engine ending an order because its time in force ran out —
+a `DAY` order at the close, an `ATO`/`ATC` order after its auction — as
+opposed to `CANCELLED`, which is someone's decision.
 
  
 

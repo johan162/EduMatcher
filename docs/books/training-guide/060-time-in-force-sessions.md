@@ -8,13 +8,15 @@ and how to use the scheduler to drive the exchange through a full trading day.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [Auctions & Scheduling](../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md)
 
 ## Prerequisites
 
 - Chapters 01–05 completed.
-- `pm-engine`, `pm-scheduler`, and at least one trader gateway running.
+- `pm-engine`, at least one trader gateway and the operator console running.
+  Exercise 1 runs `pm-scheduler` once to show the phases; after that the
+  chapter controls them by hand (see the Freeze/Advance Procedure below).
 
  
 
@@ -30,7 +32,7 @@ Different TIF values control when orders are active and when they expire.
 
 | TIF | Meaning | Valid During |
 |-----|---------|--------------|
-| `DAY` | Lives until end of session (cancelled at CLOSED) | CONTINUOUS |
+| `DAY` | Lives until the end of the trading day (expires at CLOSED) | PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION |
 | `GTC` | Good-Till-Cancelled; survives session boundaries | Any |
 | `ATO` | At-The-Open only; participates in opening auction | OPENING_AUCTION |
 | `ATC` | At-The-Close only; participates in closing auction | CLOSING_AUCTION |
@@ -137,15 +139,21 @@ procedure above), place a DAY order:
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
 ```
 
-When you advance the session to CLOSED (`SESSION|STATE=CLOSED`), the order is
-automatically cancelled.
+Advance the session to CLOSED — from CONTINUOUS that is two steps, through
+the closing auction:
 
-Watch for the cancellation message right after you issue the transition.
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSED
+```
+
+Watch the trader console right after the second transition: the order is
+reported `EXPIRED`.
 
 Operational note: DAY is best for intraday intent where stale overnight orders
 must not persist.
 
-:material-checkbox-blank-outline: **Checkpoint:** DAY order cancelled at session close.
+:material-checkbox-blank-outline: **Checkpoint:** DAY order expired at session close.
 
  
 
@@ -186,24 +194,34 @@ order:
     `SESSION_STATUS`) before running this exercise.
 
 This order only participates in the opening auction. If not filled during the
-auction, it is cancelled the moment the session leaves `OPENING_AUCTION`
+auction, it expires the moment the session leaves `OPENING_AUCTION`
 (e.g. when CONTINUOUS begins).
 
-:material-checkbox-blank-outline: **Checkpoint:** ATO order participates in auction or is cancelled.
+:material-checkbox-blank-outline: **Checkpoint:** ATO order participates in the auction or expires.
 
  
 
 ## Exercise 5: ATC Order
 
-During CONTINUOUS, place an At-The-Close order:
+First try an At-The-Close order during CONTINUOUS:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 ```
 
-This order is held until the closing auction. It only matches during that phase.
+It is rejected: `ATC orders only accepted during closing auction`. An `ATC`
+order is not parked until the close — it can only be entered *during* the
+closing auction. Freeze there and send it again:
 
-:material-checkbox-blank-outline: **Checkpoint:** ATC order does not match during CONTINUOUS.
+```
+[GW_ADMIN|ADMIN]> SESSION|STATE=CLOSING_AUCTION
+[TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
+```
+
+Now it is accepted and waits in the auction; it can only trade when the
+closing auction uncrosses, on the move to `CLOSED`.
+
+:material-checkbox-blank-outline: **Checkpoint:** ATC is rejected in CONTINUOUS and accepted in CLOSING_AUCTION.
 
  
 
@@ -229,7 +247,6 @@ summary below and the rule you saw in Exercise 4.
 | Phase | Accepts | Cancels on **entry** |
 |-------|---------|---------|
 | PRE_OPEN | DAY, GTC (not ATO — see Exercise 4) | — |
-
 | OPENING_AUCTION | DAY, GTC, ATO | ATO (unfilled, on **exit** to any other phase) |
 | CONTINUOUS | DAY, GTC (not ATO or ATC) | — |
 | CLOSING_AUCTION | DAY, GTC, ATC | ATC (unfilled, on **exit** to CLOSED) |

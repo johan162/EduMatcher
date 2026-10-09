@@ -1,4 +1,4 @@
-# P&L & Clearing
+# Positions and P&L
 
 <a id="pm-clearing-clearing-pl"></a>
 <a id="pm-clearing-cli-clearing-query-cli"></a>

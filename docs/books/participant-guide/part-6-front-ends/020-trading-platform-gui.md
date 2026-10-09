@@ -1746,11 +1746,11 @@ outside that network, and it has to be told how to get back in.
 - [Combo Orders](../part-2-orders/030-combo-and-oco-orders.md) — the engine's multi-leg semantics
 - [Session Scheduling](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md) — the phases Session
   Control transitions between
-- [Market Maker](../part-3-market-making/020-market-making.md) — quoting obligations and the engine's
+- [Market Making](../part-3-market-making/020-market-making.md) — quoting obligations and the engine's
   quote model
 - [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — the collar and circuit-breaker
   concepts shown read-only in the ADMIN Risk Controls screen
-- [Index Admin CLI](../../operator-guide/part-4-run-a-market/080-index-administration.md) — the write path for index
+- [Index Administration (`pm-index-admin-cli`)](../../operator-guide/part-4-run-a-market/080-index-administration.md) — the write path for index
   rebalancing, which this UI deliberately does not expose
 - [Audit](../../operator-guide/part-6-observe-and-recover/020-audit-trail.md) — the trail behind the ADMIN cross-gateway order
   drill-down

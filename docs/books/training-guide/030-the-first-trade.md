@@ -9,15 +9,17 @@ lifecycle.
  
 
 
-!!! abstract "Pre-reading in the User Guide"
+!!! abstract "Background reading"
     - [ALF Console](../participant-guide/part-2-orders/010-the-trader-console.md)
     - [Order Types](../participant-guide/part-2-orders/020-order-types.md)
 
 ## Prerequisites
 
-- Engine and scheduler running from chapters 01–02.
-- MM liquidity running from chapter 02 (manual MM gateways or `pm-mm-bot`).
-- `TRADER01` gateway connected.
+- Engine running from chapters 01–02, with the market open in `CONTINUOUS`.
+- The manual AAPL quote from chapter 02 active: `MM_AAPL_01` bidding 149.95
+  and asking 150.05, 500 shares each side, and its console still open. (With
+  `pm-mm-bot` quoting instead, the prices and sizes below will differ.)
+- `TRADER01` gateway connected, and the operator console open.
 - One spare terminal for the clearing process.
 
  
@@ -27,14 +29,20 @@ lifecycle.
 In a new terminal, start the clearing process before you trade:
 
 ```bash
-pm-clearing
+pm-clearing --print-every 1
 ```
 
 `pm-clearing` subscribes to executed trades, updates per-gateway positions and
 P&L, and writes batched results to `clearing.db` (SQLite) in the data
 directory — not a CSV file. Use `pm-clearing-cli --format csv ...` afterward
-if you want a CSV export. Leave `pm-clearing` running while you work through
-this chapter.
+if you want a CSV export. `--print-every 1` makes it print its P&L summary
+after every trade; by default it prints only every 100 trades. Leave
+`pm-clearing` running while you work through this chapter.
+
+!!! note "Start recorders before the trading"
+    `pm-clearing` only sees trades that happen while it is running. Started
+    after a trade, it never learns about it, and its positions will be wrong
+    from then on.
 
 :material-checkbox-blank-outline: **Checkpoint:** clearing is running and waiting for trades.
 
@@ -58,15 +66,41 @@ those from the order you just sent):
 
 The order matched against the MM's ask at 150.05.
 
-Now switch to the `pm-clearing` terminal. You should see the trade reflected in
-the clearing output: `TRADER01` has bought AAPL, the market-maker gateway has
-sold AAPL, and positions/P&L are updated from the execution price.
+Now switch to the `pm-clearing` terminal. Within a few seconds it prints a P&L
+summary: `TRADER01` is long 100 AAPL at 150.05, and `MM_AAPL_01` is short 100
+at the same price.
+
+Look at the market maker's console too:
+
+```
+[<time>] FILL      <ask leg id>  qty=100 @150.05  remaining=400  [PARTIAL]
+[<time>] CANCELLED <bid leg id>
+[<time>] QUOTE INACTIVE_ASK_FILLED  AAPL-MM-001
+```
+
+Chapter 02 configured `MM_AAPL_01` with `quote_refresh_policy:
+INACTIVATE_ON_ANY_FILL`: the moment either side of its quote is hit, the
+engine **pulls the other side** and marks the quote inactive, while the
+remaining 400 on the hit side keep resting. This protects a market maker from
+being hit again before it has had time to reprice — and it means AAPL now has
+no bid at all.
 
 :material-checkbox-blank-outline: **Checkpoint:** you received a fill confirmation and can see the trade in `pm-clearing`.
 
  
 
 ## Exercise 3: Sell at Market — Hit the Bid
+
+With no bid in the book, a market sell would have nothing to trade against —
+try it and the order is accepted and immediately `CANCELLED`. So let the
+market maker re-quote first, as a real one would after a fill:
+
+```
+[MM_AAPL_01]> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-002
+```
+
+The new quote replaces the old one (its 400-share remainder is cancelled).
+Now sell:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
@@ -78,7 +112,10 @@ Expected output, in the same format as Exercise 2:
 [<time>] FILL      <order_id>  qty=100 @149.95  remaining=0  [FILLED]
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** sell fill at the bid price.
+This time the market maker's **ask** is pulled, and 400 shares remain bid at
+149.95.
+
+:material-checkbox-blank-outline: **Checkpoint:** sell fill at the bid price, and you can explain why the market maker had to re-quote first.
 
  
 
@@ -98,7 +135,8 @@ Verify in the **operator console** — a trader cannot see the whole book:
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
 ```
 
-You should see your 200-lot bid at 149.80 below the MM's bid.
+You should see two bids: the market maker's 400 at 149.95 on top, and your
+200 at 149.80 below it — the book is sorted best price first.
 
 :material-checkbox-blank-outline: **Checkpoint:** limit order visible in the book.
 
@@ -113,15 +151,19 @@ pm-alf-console --id TRADER02
 ```
 
 ```
-[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.80|TIF=DAY
+[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=450|PRICE=149.80|TIF=DAY
 ```
 
-This sell crosses TRADER01's resting bid at 149.80 → immediate fill.
+TRADER02 will sell 450 shares at 149.80 *or better*. The engine fills it
+against the best bids first — **price priority**:
 
-Both gateways receive fill notifications:
+- 400 shares at **149.95** against the market maker, a better price than
+  TRADER02 asked for (this is *price improvement*);
+- the last 50 shares at **149.80** against TRADER01.
 
-- TRADER01: partial fill (200→150 remaining)
-- TRADER02: full fill (50 filled)
+TRADER01 receives a partial fill (200 → 150 remaining). TRADER02's console
+reports the whole order filled at the average price,
+`qty=450 @149.9333…` — (400 × 149.95 + 50 × 149.80) / 450.
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway fill confirmed on both sides.
 

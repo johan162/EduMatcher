@@ -14,7 +14,6 @@ files = [
   "010-configuring-startup.md",
   "020-setting-up-MM-bots.md",
   "030-the-first-trade.md",
-  "180-exchange-observer-processes.md",
 ]
 
 [[parts]]
@@ -23,48 +22,49 @@ dir = "."
 files = [
   "00-part-2.md",
   "040-amending-orders.md",
-  "080-cancelling-orders.md",
   "050-order-types.md",
   "060-time-in-force-sessions.md",
   "070-auctions.md",
-  "100-combo-orders.md",
-  "250-index.md",
+  "080-cancelling-orders.md",
 ]
 
 [[parts]]
-title = "Part III: Liquidity and automation"
+title = "Part III: Liquidity, risk and results"
 dir = "."
 files = [
   "00-part-3.md",
   "090-market-making.md",
+  "100-combo-orders.md",
+  "110-risk-controls.md",
+  "120-pnl-clearing.md",
+  "130-market-data-drop-copy.md",
   "140-ai-traders.md",
-  "210-automation-commandclient-mm-bot.md",
 ]
 
 [[parts]]
-title = "Part IV: Operating the exchange"
+title = "Part IV: Running a full session"
 dir = "."
 files = [
   "00-part-4.md",
-  "110-risk-controls.md",
-  "190-advanced-admin-operations.md",
-  "120-pnl-clearing.md",
   "150-statistics-reporting.md",
   "160-persistence-recovery.md",
   "170-capstone-scenario.md",
-  "280-ipo-valuation.md",
+  "180-exchange-observer-processes.md",
+  "190-advanced-admin-operations.md",
 ]
 
 [[parts]]
-title = "Part V: External connectivity"
+title = "Part V: Integration and advanced topics"
 dir = "."
 files = [
   "00-part-5.md",
-  "130-market-data-drop-copy.md",
   "200-drop-copy-replay-recovery.md",
+  "210-automation-commandclient-mm-bot.md",
+  "220-ralf.md",
+  "230-calf.md",
+  "240-api-gwy.md",
+  "250-index.md",
   "260-alf-gwy.md",
   "270-balf-gwy.md",
-  "230-calf.md",
-  "220-ralf.md",
-  "240-api-gwy.md",
+  "280-ipo-valuation.md",
 ]

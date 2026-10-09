@@ -1,3 +1,12 @@
+# Configuration Schema and Process Blocks
+
+This chapter is the field-by-field reference for `engine_config.yaml`: every
+top-level key, which process reads it, and the settings of each section. For
+how to write, check and deploy a configuration, read the Operator's Guide
+chapter [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md);
+for the formal grammar and validation rules, see
+[Engine Configuration Specification](030-formal-specification.md).
+
 ## Current Schema
 
 The current parser recognizes these top-level keys:

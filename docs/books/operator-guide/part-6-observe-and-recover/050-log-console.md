@@ -131,7 +131,7 @@ That property is exactly why the console cannot use it. A viewer needs to
 exposes a second, separate interface — LALF-PS — and the console subscribes to
 that.
 
-Read [Appendix: LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) when you are
+Read [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) when you are
 instrumenting a process to send its logs. Read it for this console only to
 understand the shape of the rows that eventually arrive: the `LOG` header field
 set in §"`LOG`" is what becomes a row in every table and detail pane described

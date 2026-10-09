@@ -1,4 +1,4 @@
-# `pm-alf-console` — Interactive ALF Trading Terminal
+# The Trader Console (`pm-alf-console`)
 
 <a id="pm-alf-console-user-gateway"></a>
 
@@ -12,9 +12,9 @@
     - The full ALF command set: order entry, amendments, cancels, quotes,
       combos, OCO, monitoring, and session control
 
-    **Prerequisites**: [Gateway Concepts](../part-1-trading-basics/010-gateways-and-how-you-connect.md) — what a gateway
+    **Prerequisites**: [Gateways and How You Connect](../part-1-trading-basics/010-gateways-and-how-you-connect.md) — what a gateway
     is, why real exchanges have several, and why this process is not one.
-    [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — you need a valid `engine_config.yaml`
+    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — you need a valid `engine_config.yaml`
     with your gateway ID and role configured before connecting.
     [Order Types](020-order-types.md) — understand what NEW, AMEND, OCO, and COMBO
     mean before using the commands here.
@@ -24,7 +24,7 @@
 ## `pm-alf-console` is not a gateway
 
 Despite sitting alongside the gateway chapters in this guide, `pm-alf-console`
-is not a gateway by the definition in [Gateway Concepts](../part-1-trading-basics/010-gateways-and-how-you-connect.md#what-is-a-gateway):
+is not a gateway by the definition in [Gateways and How You Connect](../part-1-trading-basics/010-gateways-and-how-you-connect.md#what-is-a-gateway):
 it does not terminate a TCP port and it cannot accept a connection from another
 process or another host. Instead, it is an **ALF client** that connects
 directly to the matching engine's internal ZeroMQ bus — a PUSH socket to the
@@ -49,7 +49,7 @@ does, how to start it, its full command set, and how to read its responses.
 
 ## What this process does
 
-`pm-alf-console` is the **interactive ALF trading terminal** for local, in-session
+`pm-alf-console` is the **trader console**, the interactive ALF terminal, for local, in-session
 use.  It is designed for humans sitting at the same machine as the running engine:
 it connects **directly to the engine's ZMQ sockets**, reads commands from stdin,
 and prints responses to stdout.
@@ -246,7 +246,7 @@ All commands use the ALF pipe-separated key=value format.
 
 !!! note
     For the precise ALF grammar, parser rules, field semantics, and full command
-    catalog, see [Appendix: ALF Protocol Reference](../../protocols-and-clients/part-2-specifications/010-alf.md).
+    catalog, see [ALF Protocol Reference](../../protocols-and-clients/part-2-specifications/010-alf.md).
 
 ### Command families at a glance
 
@@ -290,7 +290,7 @@ If a command is not allowed for your configured role, the terminal prints a reje
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
 !!! tip
-    For automated quoting, see [Market-Maker Bot (pm-mm-bot)](../part-3-market-making/030-the-market-maker-bot.md).
+    For automated quoting, see [The Market-Maker Bot (`pm-mm-bot`)](../part-3-market-making/030-the-market-maker-bot.md).
 
 ```
 QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC>][|QUOTE_ID=<label>]
@@ -721,7 +721,7 @@ CANCEL|COMBO_ID=<combo-label>      # combo and all its resting legs
 CANCEL|OCO_ID=<oco-label>          # both legs of an OCO pair
 ```
 
-The full order ID is shown in the `ORDERS` table. Only the first 8 characters appear in inline fill/cancel messages — use `ORDERS` to copy the full UUID.
+Every event line (`ACK`, `FILL`, `CANCELLED`, `AMENDED`, quote and OCO events) and the `ORDERS` table show the full 32-character order ID; copy it from either. In a narrow terminal the `ORDERS` table may shorten the ID column with `…` — widen the window, or copy the ID from the event line.
 
 For a single-order cancel, `RTAG` is echoed on the `CANCELLED` event or rejected
 ACK. Group cancels are identified by `COMBO_ID` or `OCO_ID` and do not use
@@ -969,17 +969,17 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 
 | Message                                                  | Meaning                                                                    |
 |------------------------------------------------------------|-------------------------------------------------------------------------------|
-| `QUOTE ACK  <quote_id>  bid=<8-char-id> ask=<8-char-id>` | Both quote legs accepted and posted to the book                            |
+| `QUOTE ACK  <quote_id>  bid=<order-id> ask=<order-id>` | Both quote legs accepted and posted to the book; full leg order IDs       |
 | `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected (e.g. "Quote requires bid_price < ask_price", missing gateway role) |
-| `QUOTE <status>  <quote_id>  [reason]`                   | Quote lifecycle update — status is `INACTIVATED`, `CANCELLED`, or `FILLED` |
+| `QUOTE <status>  <quote_id>  [reason]`                   | Quote lifecycle update — status is `ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED` or `CANCELLED` |
 
 ### OCO Events
 
 | Message                                                 | Meaning                                                                           |
 |------------------------------------------------------------|----------------------------------------------------------------------------------|
-| `OCO ACK  <oco_id>  legs=<leg1_8char>/<leg2_8char>`     | Both legs linked; IDs are first 8 chars of each order UUID                        |
+| `OCO ACK  <oco_id>  legs=<leg1-id>/<leg2-id>`           | Both legs linked; full order IDs of the two legs                                  |
 | `OCO REJ  <oco_id>  <reason>`                           | OCO rejected (invalid legs, symbol mismatch, etc.)                                |
-| `OCO CANCEL  <oco_id>  sibling=<order_8char>  <reason>` | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled |
+| `OCO CANCEL  <oco_id>  sibling=<order-id>  <reason>`    | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled |
 
 ### Combo Events
 
@@ -1134,7 +1134,7 @@ the command prompt. You can continue typing while events arrive.
 
 **In this book:**
 
-- [Gateway Concepts](../part-1-trading-basics/010-gateways-and-how-you-connect.md) — what a gateway is, and why `pm-alf-console` is not one
+- [Gateways and How You Connect](../part-1-trading-basics/010-gateways-and-how-you-connect.md) — what a gateway is, and why `pm-alf-console` is not one
 - [Order Types](020-order-types.md) — full semantics for every order type accepted by the terminal
 
 **Operator's Guide:**

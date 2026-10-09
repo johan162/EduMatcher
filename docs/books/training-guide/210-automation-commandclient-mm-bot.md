@@ -6,8 +6,8 @@ Use EduMatcher's programmatic command client for repeatable admin workflows and
 practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 
  
-!!! abstract "Pre-reading in the User Guide"
-    - [Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
+!!! abstract "Background reading"
+    - [The Admin Console and Exchange Commands](../operator-guide/part-3-run/020-admin-console-and-commands.md)
     - [Market-Maker Bot](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
 
 ## Prerequisites
@@ -254,10 +254,10 @@ engineer reruns a non-idempotent halt/clear/resume script by mistake?
 ## Further Reading
 
 - [Controlling the Exchange](../operator-guide/part-3-run/020-admin-console-and-commands.md)
-- [Market-Maker Bot (pm-mm-bot)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
+- [The Market-Maker Bot (`pm-mm-bot`)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
 - [Market-Maker Bot CLI Reference](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#cli-reference)
 - [Market-Maker Bot — Per-symbol failure isolation](../participant-guide/part-3-market-making/030-the-market-maker-bot.md#per-symbol-failure-isolation)
 - [02 — Setting Up Market-Maker Liquidity — one bot, multiple symbols](020-setting-up-MM-bots.md)
-- [Processes](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
+- [Processes, Environment and Ports](../reference-manual/part-1-command-line/010-processes-environment-and-ports.md)
 
 You have completed the operator track. The remaining chapters (22–27) cover the external protocols — RALF, CALF, the REST/WebSocket API, the market index, and the ALF/BALF TCP gateways.

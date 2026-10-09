@@ -505,97 +505,40 @@ VERSION_NUMBER=${LATEST_TAG#v}
 
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
-USER_GUIDE_ALL_ZIP="docs/dist/${PROGRAMNAME}_user_guide_all-${FILE_VERSION_NUMBER}.zip"
-USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user_guide_as_chapters_a4_bundle-${FILE_VERSION_NUMBER}.zip"
 
-USER_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_user_guide-${FILE_VERSION_NUMBER}.epub"
+# One "all formats" archive per book, versioned with the project.
+DOC_BOOKS=(architecture_and_development operator_guide participant_guide \
+           protocols_and_clients quick_start reference_manual training_guide)
+DOC_ARTIFACTS=()
+for book in "${DOC_BOOKS[@]}"; do
+    DOC_ARTIFACTS+=("docs/dist/${PROGRAMNAME}_${book}_all-${FILE_VERSION_NUMBER}.zip")
+done
 
-# 4.4: Fail fast if required release artifacts are missing
-print_sub_step "Checking required release artifacts..."
-
-if [[ ! -f "$USER_GUIDE_ALL_ZIP" ]]; then
-    print_error "Required user guide all-format archive is missing: $USER_GUIDE_ALL_ZIP"
-    exit 1
-fi
-print_success "Required artifacts found: $(basename "$USER_GUIDE_ALL_ZIP")"
-
-if [[ ! -f "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP" ]]; then
-    print_error "Required user guide chapters bundle is missing: $USER_GUIDE_CHAPTERS_BUNDLE_ZIP"
-    exit 1
-fi
-print_success "Required artifacts found: $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
-
-if [[ ! -f "$USER_GUIDE_EPUB" ]]; then
-    print_error "Required user guide EPUB is missing: $USER_GUIDE_EPUB"
-    exit 1
-fi
-print_success "Required artifacts found: $(basename "$USER_GUIDE_EPUB")"
-
-
-if [ -f "docs-exchange-intro/version.toml" ]; then
+# The Exchange Introduction is a separate book with its own version.
+if [[ -f "docs-exchange-intro/version.toml" ]]; then
     EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
     print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
 else
-    print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
-    exit 1;
-fi
-
-EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_bundle-${EXCHANGE_INTRO_VERSION}.zip"
-EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_parts_a4_bundle-${EXCHANGE_INTRO_VERSION}.zip"
-EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP="docs-exchange-intro/dist/exchange_intro_quiz_bundle-${EXCHANGE_INTRO_VERSION}.zip"
-EXCHANGE_INTRO_EPUB="docs-exchange-intro/dist/exchange_intro-${EXCHANGE_INTRO_VERSION}.epub"
-
-if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
-    print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
+    print_error "docs-exchange-intro/version.toml not found"
     exit 1
-else
-    print_success "Found Exchange Intro bundle: $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
 fi
 
-if [[ ! -f "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP" ]]; then
-    print_error "Exchange Intro parts A4 bundle not found: $EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP"
-    exit 1
-else
-    print_success "Found Exchange Intro parts A4 bundle: $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
-fi
+DOC_ARTIFACTS+=(
+    "docs-exchange-intro/dist/exchange_intro-${EXCHANGE_INTRO_VERSION}.epub"
+    "docs-exchange-intro/dist/exchange_intro_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+    "docs-exchange-intro/dist/exchange_intro_parts_a4_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+    "docs-exchange-intro/dist/exchange_intro_quiz_bundle-${EXCHANGE_INTRO_VERSION}.zip"
+)
 
-if [[ ! -f "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP" ]]; then
-    print_error "Exchange Intro quiz bundle not found: $EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP"
-    exit 1
-else
-    print_success "Found Exchange Intro quiz bundle: $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
-fi
-
-if [[ ! -f "$EXCHANGE_INTRO_EPUB" ]]; then
-    print_error "Exchange Intro EPUB not found: $EXCHANGE_INTRO_EPUB"
-    exit 1
-else
-    print_success "Found Exchange Intro EPUB: $(basename "$EXCHANGE_INTRO_EPUB")"
-fi
-
-if [[ ! -f "$USER_GUIDE_EPUB" ]]; then
-    print_error "User Guide EPUB not found: $USER_GUIDE_EPUB"
-    exit 1
-else
-    print_success "Found User Guide EPUB: $(basename "$USER_GUIDE_EPUB")"
-fi
-
-
-TRAINING_GUIDE_ALL_ZIP="docs/dist/${PROGRAMNAME}_training_guide_all-${FILE_VERSION_NUMBER}.zip"
-if [[ ! -f "$TRAINING_GUIDE_ALL_ZIP" ]]; then
-    print_error "Training Guide all-format archive not found: $TRAINING_GUIDE_ALL_ZIP"
-    exit 1
-else
-    print_success "Found Training Guide all-format archive: $(basename "$TRAINING_GUIDE_ALL_ZIP")"
-fi
-
-TRAINING_GUIDE_EPUB="docs/dist/${PROGRAMNAME}_training-guide-${FILE_VERSION_NUMBER}.epub"
-if [[ ! -f "$TRAINING_GUIDE_EPUB" ]]; then
-    print_error "Training Guide EPUB not found: $TRAINING_GUIDE_EPUB"
-    exit 1
-else
-    print_success "Found Training Guide EPUB: $(basename "$TRAINING_GUIDE_EPUB")"
-fi
+# 4.4: Fail fast if any documentation artifact is missing
+print_sub_step "Checking documentation artifacts..."
+for artifact in "${DOC_ARTIFACTS[@]}"; do
+    if [[ ! -f "$artifact" ]]; then
+        print_error "Required documentation artifact is missing: $artifact"
+        exit 1
+    fi
+    print_success "Found $(basename "$artifact")"
+done
 
 # 4.5: Locate expected python artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
@@ -621,17 +564,11 @@ if [[ -z "$SDIST_FILE" ]]; then
     exit 1
 fi
 print_success "Found sdist: $(basename "$SDIST_FILE")"
-print_success "Found user guide all-format archive: $(basename "$USER_GUIDE_ALL_ZIP")"
-print_success "Found training guide all-format archive: $(basename "$TRAINING_GUIDE_ALL_ZIP")"
-print_success "Found training guide EPUB: $(basename "$TRAINING_GUIDE_EPUB")"
 
 # 4.6: Validate artifact sizes
 print_sub_step "Validating artifact sizes..."
 WHEEL_SIZE=$(stat -f%z "$WHEEL_FILE" 2>/dev/null || stat -c%s "$WHEEL_FILE" 2>/dev/null)
 SDIST_SIZE=$(stat -f%z "$SDIST_FILE" 2>/dev/null || stat -c%s "$SDIST_FILE" 2>/dev/null)
-USER_GUIDE_ALL_SIZE=$(stat -f%z "$USER_GUIDE_ALL_ZIP" 2>/dev/null || stat -c%s "$USER_GUIDE_ALL_ZIP" 2>/dev/null || echo 1)
-TRAINING_GUIDE_ALL_SIZE=$(stat -f%z "$TRAINING_GUIDE_ALL_ZIP" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_ALL_ZIP" 2>/dev/null || echo 1)
-TRAINING_GUIDE_EPUB_SIZE=$(stat -f%z "$TRAINING_GUIDE_EPUB" 2>/dev/null || stat -c%s "$TRAINING_GUIDE_EPUB" 2>/dev/null || echo 1)
 
 if [[ "$WHEEL_SIZE" -lt 1000 ]]; then
     print_error "Wheel file suspiciously small: $WHEEL_SIZE bytes"
@@ -643,28 +580,17 @@ if [[ "$SDIST_SIZE" -lt 1000 ]]; then
     exit 1
 fi
 
-
-if [[ "$USER_GUIDE_ALL_SIZE" -lt 1000 ]]; then
-    print_error "User guide all-format archive suspiciously small: $USER_GUIDE_ALL_SIZE bytes"
-    exit 1
-fi
-
-if [[ "$TRAINING_GUIDE_ALL_SIZE" -lt 1000 ]]; then
-    print_error "Training guide all-format archive suspiciously small: $TRAINING_GUIDE_ALL_SIZE bytes"
-    exit 1
-fi
-
-if [[ "$TRAINING_GUIDE_EPUB_SIZE" -lt 1000 ]]; then
-    print_error "Training guide EPUB suspiciously small: $TRAINING_GUIDE_EPUB_SIZE bytes"
-    exit 1
-fi
-
-
 print_success "Wheel size:  $(numfmt --to=iec-i --suffix=B "$WHEEL_SIZE" 2>/dev/null || echo "$WHEEL_SIZE bytes")"
 print_success "Sdist size:  $(numfmt --to=iec-i --suffix=B "$SDIST_SIZE" 2>/dev/null || echo "$SDIST_SIZE bytes")"
-print_success "User Guide all-format archive size:  $(numfmt --to=iec-i --suffix=B "$USER_GUIDE_ALL_SIZE" 2>/dev/null || echo "$USER_GUIDE_ALL_SIZE bytes")"
-print_success "Training Guide all-format archive size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_ALL_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_ALL_SIZE bytes")"
-print_success "Training Guide EPUB size:  $(numfmt --to=iec-i --suffix=B "$TRAINING_GUIDE_EPUB_SIZE" 2>/dev/null || echo "$TRAINING_GUIDE_EPUB_SIZE bytes")"
+
+for artifact in "${DOC_ARTIFACTS[@]}"; do
+    ARTIFACT_SIZE=$(stat -f%z "$artifact" 2>/dev/null || stat -c%s "$artifact" 2>/dev/null || echo 1)
+    if [[ "$ARTIFACT_SIZE" -lt 1000 ]]; then
+        print_error "$(basename "$artifact") suspiciously small: $ARTIFACT_SIZE bytes"
+        exit 1
+    fi
+    print_success "$(basename "$artifact"):  $(numfmt --to=iec-i --suffix=B "$ARTIFACT_SIZE" 2>/dev/null || echo "$ARTIFACT_SIZE bytes")"
+done
 
 # =====================================
 # PHASE 5: RELEASE NOTES PREPARATION
@@ -708,16 +634,10 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     --title \"${PROGRAMNAME_PRETTY} $LATEST_TAG\" \
     --notes-file \"$RELEASE_NOTES_FILE\" \
     \"$WHEEL_FILE\" \
-    \"$SDIST_FILE\" \
-    \"$USER_GUIDE_ALL_ZIP\" \
-    \"$USER_GUIDE_EPUB\" \
-    \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
-    \"$EXCHANGE_INTRO_EPUB\" \
-    \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
-    \"$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP\" \
-    \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
-    \"$TRAINING_GUIDE_ALL_ZIP\" \
-    \"$TRAINING_GUIDE_EPUB\""
+    \"$SDIST_FILE\""
+for artifact in "${DOC_ARTIFACTS[@]}"; do
+    GH_RELEASE_CMD+=" \"$artifact\""
+done
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then
     GH_RELEASE_CMD="$GH_RELEASE_CMD --prerelease"
@@ -873,12 +793,9 @@ else
     echo "Artifacts uploaded:"
     echo "  - $(basename "$WHEEL_FILE")"
     echo "  - $(basename "$SDIST_FILE")"
-    echo "  - $(basename "$USER_GUIDE_ALL_ZIP")"
-    echo "  - $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
-    echo "  - $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
-    echo "  - $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
-    echo "  - $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
-    echo "  - $(basename "$TRAINING_GUIDE_ALL_ZIP")"
+    for artifact in "${DOC_ARTIFACTS[@]}"; do
+        echo "  - $(basename "$artifact")"
+    done
     echo ""
     echo "Next steps:"
     echo "  1. Verify release on GitHub:"

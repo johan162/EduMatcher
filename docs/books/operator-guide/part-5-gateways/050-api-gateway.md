@@ -277,7 +277,7 @@ Read-only WebSocket auth:
 ```
 
 For strict endpoint-by-endpoint access rules, see
-[Appendix: REST API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
+[REST and WebSocket API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
 
 | Error code | Status | Cause |
 |---|---|---|
@@ -1909,7 +1909,7 @@ curl -v --no-buffer \
 Quick index of the endpoints on this page, grouped by how the UI uses them.
 
 For the full normative request/response contract for each endpoint, see the
-[Appendix: REST API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
+[REST and WebSocket API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
 
 ### Bootstrap
 

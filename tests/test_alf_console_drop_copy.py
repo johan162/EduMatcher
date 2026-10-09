@@ -41,6 +41,10 @@ def _make_gateway(gw_id: str = "GW01", drop_copy: bool = False):
         ),
     ):
         gw = Gateway(gw_id, drop_copy=drop_copy)
+    # make_subscriber() with no topics subscribes to everything; construction
+    # must drop that so no other participant's fills arrive before DC|ON.
+    fake_dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"")
+    fake_dc_sub.reset_mock()
     return gw, fake_sub, fake_index_sub, fake_dc_sub
 
 

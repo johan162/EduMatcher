@@ -1,4 +1,4 @@
-# Implied Orders (Synthetic Orders)
+# Implied Orders (a Concept Not Yet Implemented)
 
 This section explains an advanced but very important exchange concept:
 **implied orders** (also called **synthetic orders**).

@@ -529,6 +529,7 @@ wire-format specification in the
 **Reference Manual:**
 
 - Processes — which process subscribes to which topic prefix
+
 ## Topic index
 
 Every topic in the system, and which process puts it on the wire.
