@@ -539,7 +539,8 @@ if [ "$NO_DOCS" = false ]; then
 
         run_command "make -C docs clean" "Cleaning previous PDF artifacts"
         print_sub_step "Building User Guide Omnibus"
-        run_command "make -C docs -j16 omnibus" "Building User Guide EPUB" 
+        run_command "make -C docs -j7 covers" "Building Books Covers" 
+        run_command "make -C docs -j16 omnibus" "Building Books" 
 
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
@@ -550,7 +551,8 @@ if [ "$NO_DOCS" = false ]; then
     
         if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
             print_sub_step "Building User Guide Omnibus"
-            run_command "make -C docs -j16 omnibus" "Building User Guide Omnibus"
+            run_command "make -C docs -j7 covers" "Building Books Covers" 
+            run_command "make -C docs -j16 omnibus" "Building Books" 
         fi
     fi
     

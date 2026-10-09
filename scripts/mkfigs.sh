@@ -184,12 +184,18 @@ for html in "${HTML_FILES[@]}"; do
 
     TRIM_FILE="${html%.html}.trim"
 
+    # Each invocation gets its own profile dir: without one, concurrent
+    # headless Chrome processes (e.g. parallel `make -jN`) race on the
+    # shared default profile's lock and fail to render.
+    CHROME_PROFILE_DIR="$(mktemp -d)"
+
     if "$CHROME" \
         --headless=new \
         --disable-gpu \
         --no-sandbox \
         --disable-dev-shm-usage \
         --hide-scrollbars \
+        --user-data-dir="$CHROME_PROFILE_DIR" \
         --window-size=2560,4096 \
         --screenshot="$OUTPUT_PNG" \
         "file://${html}" \
@@ -228,6 +234,8 @@ for html in "${HTML_FILES[@]}"; do
         echo "ERROR: rendering failed for $html" >&2
         ERRORS=$(( ERRORS + 1 ))
     fi
+
+    rm -rf "$CHROME_PROFILE_DIR"
 done
 
 _say ""
