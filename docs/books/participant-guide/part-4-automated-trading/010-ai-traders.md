@@ -27,7 +27,7 @@ EduMatcher ships two processes that generate autonomous order flow:
 | Process | Command | Purpose |
 |---|---|---|
 | `pm-ai-trader` | `poetry run pm-ai-trader` | A **single autonomous bot** — connects as a gateway, watches the book, submits limit orders |
-| `pm-ai-swarm` | `poetry run pm-ai-swarm` | A **swarm launcher** — spawns `N` bots in one command, assigns each a profile and exactly one symbol (round-robin) |
+| `pm-ai-swarm` | `poetry run pm-ai-swarm` | A **swarm launcher** — spawns `N` bots in one command, assigns each a profile and a share of the symbols so every symbol is traded |
 
 They are designed to simulate realistic human order behaviour so that a
 classroom exchange has live activity even when students are not yet trading.
@@ -39,17 +39,19 @@ occasionally in large blocks — giving the order book variety and depth.
 ## How a bot works
 
 Each bot is a fully independent participant. It connects to the engine via
-ZeroMQ, authenticates as a gateway, requests the symbol list, then enters a
-decision loop:
+ZeroMQ, authenticates as a gateway, requests the symbol list and the current
+session state, asks the engine for a book snapshot of each of its symbols, then
+enters a decision loop:
 
 ```mermaid
 flowchart TD
     CONN[Connect to engine\nPUSH :5555 / SUB :5556]
     AUTH[Send gateway_connect\nwait for gateway_auth ack]
-    SYM[Request symbol list\nwait for system.symbols]
+    SYM[Request symbol list and session state\nrequest a book snapshot per symbol]
     LOOP{Decision loop\nevery decision_interval_ms}
-    PAUSE{Risk pause\nactive?}
+    PAUSE{Risk pause active\nor market CLOSED?}
     STALE{Market data\nfresh?}
+    REFRESH[Request a fresh\nbook snapshot]
     PICK[Pick a symbol\ncheck position limit]
     SIDE[Choose side\n50/50 BUY or SELL, forced at the position limit]
     PRICE[Calculate order price\ncross_probability → best opposite price,\nelse best price ± offset]
@@ -62,7 +64,7 @@ flowchart TD
     LOOP --> PAUSE
     PAUSE -->|yes, wait| LOOP
     PAUSE -->|no| STALE
-    STALE -->|stale or no data| LOOP
+    STALE -->|stale or no data| REFRESH --> LOOP
     STALE -->|fresh| PICK
     PICK --> SIDE --> PRICE --> SUBMIT
     SUBMIT --> EVENTS
@@ -70,6 +72,13 @@ flowchart TD
     REJECT -->|yes| BREAKER --> LOOP
     REJECT -->|no| LOOP
 ```
+
+The engine publishes a book only when it changes, so a bot whose symbol has gone
+quiet asks for a snapshot instead of waiting for one; without that a quiet
+market would stay "stale" forever. While the session is `CLOSED` the bot does
+not submit; it starts again when the scheduler moves the market to `PRE_OPEN`,
+and its limit orders take part in the opening and closing auctions. With
+sessions disabled the bot always trades.
 
 All orders are `LIMIT DAY` orders at prices derived from the current book.
 AI traders **never** submit market orders, FOK, or IOC — only resting limit
@@ -189,8 +198,13 @@ When the run ends by reaching `--duration`, the bot logs a summary at `INFO`
 
 ## Launching a swarm
 
-`pm-ai-swarm` starts `N` bots simultaneously, distributing profiles and symbols
-round-robin:
+`pm-ai-swarm` starts `N` bots simultaneously, cycling through the profiles and
+spreading the symbols over the bots. With fewer bots than symbols each bot gets
+every `N`-th symbol, so all symbols are traded (10 bots on 150 symbols: 15
+symbols each); with more bots than symbols each bot gets one symbol and several
+bots share it. Before launching, the swarm checks that every bot ID is a
+participant in the deployed configuration and stops with the list of missing
+IDs if not:
 
 ```bash
 poetry run pm-ai-swarm --count 10 --duration 60
@@ -223,17 +237,17 @@ order**: `aggressive`, `cautious`, `few-large`, `many-small`.
 ```mermaid
 flowchart LR
     SWARM["pm-ai-swarm\n--count 4"]
-    BOT1["AI01\nprofile=aggressive\nsymbol=AAPL"]
-    BOT2["AI02\nprofile=cautious\nsymbol=MSFT"]
-    BOT3["AI03\nprofile=few-large\nsymbol=AAPL"]
-    BOT4["AI04\nprofile=many-small\nsymbol=MSFT"]
+    BOT1["AI01\nprofile=aggressive\nsymbols=AAPL,AMZN"]
+    BOT2["AI02\nprofile=cautious\nsymbols=MSFT,META"]
+    BOT3["AI03\nprofile=few-large\nsymbols=TSLA,NVDA"]
+    BOT4["AI04\nprofile=many-small\nsymbols=GOOGL,NFLX"]
     ENG["pm-engine"]
 
     SWARM --> BOT1 & BOT2 & BOT3 & BOT4
     BOT1 & BOT2 & BOT3 & BOT4 --> ENG
 ```
 
-(Profile order shown is the default alphabetical cycle. Passing an explicit
+(Eight symbols over four bots. Profile order shown is the default alphabetical cycle. Passing an explicit
 `--profiles` list uses that order verbatim instead.)
 
 The swarm waits for all bots to finish (or until Ctrl-C), then exits. Each
@@ -241,10 +255,14 @@ bot's output is interleaved in the terminal.
 
 !!! tip "Graceful shutdown"
     Pressing Ctrl-C makes the swarm send SIGTERM to all child bots, wait up to
-    2 seconds, and then kill any that remain. Bots do **not** cancel their
-    resting orders and do not log the `stopped` summary when interrupted;
-    resting DAY orders stay on the book until they fill or expire at the
-    `CLOSED` transition. Use `--duration` for a clean exit that logs the summary.
+    2 seconds, and then kill any that remain. Each bot sends
+    `system.gateway_disconnect` on its way out, so the engine applies the
+    participant's `disconnect_behaviour` (`CANCEL_ALL` cancels its resting
+    orders; `LEAVE_ALL` leaves them until they fill or expire at `CLOSED`) and
+    the same ID can reconnect straight away. Interrupted bots do not log the
+    `stopped` summary; use `--duration` for a clean exit that does. A bot
+    killed outright also sends heartbeats while running, so the engine frees
+    its ID after three missed heartbeats.
 
 ---
 
@@ -408,35 +426,36 @@ own configuration, but not individual order submissions:
 ```
 2026-09-20 14:30:00,001 INFO edumatcher.ai_trader.main - [AI01] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
 2026-09-20 14:30:00,050 INFO edumatcher.ai_trader.main - [AI01] authenticated
+2026-09-20 14:30:00,060 INFO edumatcher.ai_trader.main - [AI01] session unknown -> CONTINUOUS
 2026-09-20 14:30:01,200 INFO edumatcher.ai_trader.main - [AI01] reject breaker tripped; pausing submissions for 5.0s
 2026-09-20 14:30:06,201 INFO edumatcher.ai_trader.main - [AI01] reject breaker cooldown ended; resuming submissions
-2026-09-20 14:31:59,900 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=312 acked=308 rejected=4 (Market is closed=3, Gateway not configured: AI01=1) fills=72
+2026-09-20 14:31:59,900 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=312 acked=311 rejected=1 (STATIC_COLLAR_BREACH: price 16600 ticks is outside [13500, 16500] ticks (±10% from reference 15000)=1) fills=72
 ```
 
 (`symbols=all` is what a single bot without `--symbols` logs; a swarm child is
-assigned one symbol and logs e.g. `symbols=['AAPL']`.)
+assigned its share and logs e.g. `symbols=['AAPL', 'AMZN']`.)
 
-Rejects normally come from submitting while the market is closed (sessions
-enabled and the scheduler has not opened it yet), from a gateway ID that is not
-in the engine configuration, or from price-collar breaches. A halted symbol
+Rejects normally come from price-collar breaches. The bot does not submit while
+the market is `CLOSED`, and a gateway ID that is not in the engine
+configuration fails authentication, so neither shows up as order rejects. A halted symbol
 does not reject the bot's LIMIT orders — they rest without matching. If the
 count is very high, check that the bot's gateway IDs are configured in the
-engine and that the market is open. The `stopped` line's parenthetical breaks the
+engine and that the collars suit the bot's prices. The `stopped` line's parenthetical breaks the
 rejects down by reason, taken directly from the engine's `order.ack`
 rejection payloads.
 
 With `--verbose` (`-v`), the bot additionally logs every order submission,
 fill, individual rejection, and reasons for skipping a trading decision
-(stale market data, position limit reached). The `SUBMIT` price is in
+(stale market data, position limit reached), and every session change. The `SUBMIT` price is in
 **ticks** (with `tick_decimals: 2`, `14997` means 149.97); fill prices are
 shown in display money:
 
 ```
 2026-09-20 14:30:01,010 INFO edumatcher.ai_trader.main - [AI01] order SUBMIT BUY 45@14997 AAPL
-2026-09-20 14:30:01,020 INFO edumatcher.ai_trader.main - [AI01] order REJECTED: Market is closed
+2026-09-20 14:30:01,020 INFO edumatcher.ai_trader.main - [AI01] order REJECTED: STATIC_COLLAR_BREACH: price 16600 ticks is outside [13500, 16500] ticks (±10% from reference 15000)
 2026-09-20 14:30:05,030 INFO edumatcher.ai_trader.main - [AI01] fill: BUY 45@149.97 AAPL pos=45
 2026-09-20 14:30:12,040 INFO edumatcher.ai_trader.main - [AI01] position limit reached on AAPL (pos=1000); forcing SELL
-2026-09-20 14:30:18,050 INFO edumatcher.ai_trader.main - [AI01] skip AAPL: stale market data (4.2s > 4.0s)
+2026-09-20 14:30:18,050 INFO edumatcher.ai_trader.main - [AI01] skip AAPL: stale market data (4.2s > 4.0s); requesting a fresh snapshot
 ```
 
 ---

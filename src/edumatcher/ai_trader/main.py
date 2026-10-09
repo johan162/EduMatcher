@@ -12,6 +12,7 @@ from collections import defaultdict
 from collections import deque
 import logging
 import random
+import signal
 import time
 import uuid
 from dataclasses import dataclass
@@ -29,9 +30,14 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     decode,
+    make_book_snapshot_request_msg,
     make_gateway_connect_msg,
+    make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_order_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
 )
 from edumatcher.models.order import TIF, Order, OrderType, Side
@@ -48,8 +54,10 @@ from edumatcher.models.generated.order import (
     topic_order_expired,
     topic_order_fill,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
     topic_gateway_auth,
+    topic_session_status,
     topic_symbols,
 )
 
@@ -117,6 +125,12 @@ class AITraderBot:
         self._known_symbols: list[str] = []
         self._positions: dict[str, int] = {}
         self._last_market_update: dict[str, float] = {}
+        self._last_snapshot_request: dict[str, float] = {}
+        # None until the engine answers system.session_state_request; with
+        # sessions disabled the state is advisory and the bot always trades.
+        self._session_state: str | None = None
+        self._sessions_enabled = True
+        self._last_heartbeat = 0.0
         self._reject_times: deque[float] = deque()
         self._reject_reason_counts: defaultdict[str, int] = defaultdict(int)
         self._risk_pause_until = 0.0
@@ -137,6 +151,8 @@ class AITraderBot:
             ENGINE_PUB_ADDR,
             topic_gateway_auth(self.gateway_id),
             topic_symbols(self.gateway_id),
+            topic_session_status(self.gateway_id),
+            TOPIC_SESSION_STATE,
             topic_order_ack(self.gateway_id),
             topic_order_fill(self.gateway_id),
             topic_order_cancelled(self.gateway_id),
@@ -187,6 +203,8 @@ class AITraderBot:
             return "order"
         if topic.startswith("system."):
             return "system"
+        if topic.startswith("session."):
+            return "session"
         return "other"
 
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
@@ -228,6 +246,41 @@ class AITraderBot:
         self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
         self._dbg_count("symbols_requests")
 
+    def _request_snapshot(self, symbol: str) -> None:
+        """Ask the engine to publish this symbol's book now.
+
+        The engine publishes book.* only when a book changes, so a bot that
+        starts on a quiet market -- or whose symbol simply went quiet -- would
+        otherwise never see a price and never trade. Rate-limited per symbol
+        to one request per stale-data window.
+        """
+        now = time.monotonic()
+        last = self._last_snapshot_request.get(symbol)
+        if last is not None and now - last < max(self._stale_data_sec, 1.0):
+            return
+        self._last_snapshot_request[symbol] = now
+        self.push_sock.send_multipart(make_book_snapshot_request_msg(symbol))
+        self._dbg_count("snapshot_requests")
+
+    def _can_trade(self) -> bool:
+        """Whether the engine accepts new orders right now."""
+        if not self._sessions_enabled:
+            return True
+        return self._session_state is not None and self._session_state != "CLOSED"
+
+    def _on_session_state(self, state: str) -> None:
+        state = state.upper()
+        if state == self._session_state:
+            return
+        previous = self._session_state
+        self._session_state = state
+        self._log(f"session {previous or 'unknown'} -> {state}")
+        if previous == "CLOSED" and state != "CLOSED":
+            # A new trading day: the books may have changed while closed.
+            self._last_snapshot_request.clear()
+            for sym in self._active_symbols():
+                self._request_snapshot(sym)
+
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
         bids = payload.get("bids", [])
         asks = payload.get("asks", [])
@@ -235,7 +288,9 @@ class AITraderBot:
             self._market[symbol] = MarketSnapshot()
 
         snap = self._market[symbol]
-        snap.last_price = _as_float(payload.get("last_price"))
+        last_price = _as_float(payload.get("last_price"))
+        if last_price is not None:
+            snap.last_price = last_price
         snap.best_bid = _as_float(bids[0].get("price")) if bids else None
         snap.best_ask = _as_float(asks[0].get("price")) if asks else None
         self._last_market_update[symbol] = time.monotonic()
@@ -306,6 +361,15 @@ class AITraderBot:
             self._on_trade(payload)
             return
 
+        if topic == TOPIC_SESSION_STATE:
+            self._on_session_state(str(payload.get("state", "")))
+            return
+
+        if topic == topic_session_status(self.gateway_id):
+            self._sessions_enabled = bool(payload.get("sessions_enabled", True))
+            self._on_session_state(str(payload.get("state", "")))
+            return
+
         if topic == topic_symbols(self.gateway_id):
             # One record per instrument, each carrying its own symbol and tick
             # precision. This read the list as bare strings, which stringified
@@ -329,6 +393,8 @@ class AITraderBot:
                 self._known_symbols = [sym for sym in all_syms if sym in allowed]
             else:
                 self._known_symbols = all_syms
+            for sym in self._known_symbols:
+                self._request_snapshot(sym)
             return
 
         if topic == topic_order_ack(self.gateway_id):
@@ -385,11 +451,16 @@ class AITraderBot:
         ):
             self._debug(
                 f"skip {symbol}: stale market data "
-                f"({now - last_update:.1f}s > {self._stale_data_sec:.1f}s)"
+                f"({now - last_update:.1f}s > {self._stale_data_sec:.1f}s); "
+                "requesting a fresh snapshot"
             )
+            self._request_snapshot(symbol)
             return None
 
-        snap = self._market.get(symbol, MarketSnapshot())
+        if symbol not in self._market:
+            self._request_snapshot(symbol)
+            return None
+        snap = self._market[symbol]
         pos = self._positions.get(symbol, 0)
         if pos >= self._max_position:
             side = "SELL"
@@ -471,6 +542,10 @@ class AITraderBot:
             self._was_risk_paused = False
             self._log("reject breaker cooldown ended; resuming submissions")
 
+        if not self._can_trade():
+            self._dbg_count("skips_market_closed")
+            return
+
         interval = self.profile.decision_interval_ms / 1000.0
         if now - self._last_submit_ts < interval:
             self._dbg_count("skips_interval_gate")
@@ -495,6 +570,10 @@ class AITraderBot:
             f"{payload['price_ticks']} {payload['symbol']}"
         )
 
+    def stop(self, *_args: object) -> None:
+        """Ask the run loop to finish (SIGTERM handler)."""
+        self._running = False
+
     def run(self, duration_sec: float) -> int:
         log.info(
             "starting ai_trader runtime gateway_id=%s profile=%s duration=%s run_id=%s",
@@ -514,28 +593,51 @@ class AITraderBot:
             return 1
 
         self._request_symbols()
+        self.push_sock.send_multipart(make_session_state_request_msg(self.gateway_id))
 
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
 
         started = time.monotonic()
         next_symbols_refresh = started + 2.0
-        while self._running:
-            if duration_sec > 0 and (time.monotonic() - started) >= duration_sec:
-                self._running = False
-                break
+        try:
+            while self._running:
+                now = time.monotonic()
+                if duration_sec > 0 and (now - started) >= duration_sec:
+                    self._running = False
+                    break
 
-            socks = dict(poller.poll(timeout=100))
-            if self.sub_sock in socks:
-                topic, payload = decode(self.sub_sock.recv_multipart())
-                self._handle_event(topic, payload)
+                # The heartbeat lets the engine free this gateway id if the
+                # process dies without saying goodbye (kill -9, crash).
+                if now - self._last_heartbeat >= GATEWAY_HEARTBEAT_INTERVAL_SEC / 2:
+                    self.push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(self.gateway_id)
+                    )
+                    self._last_heartbeat = now
 
-            if time.monotonic() >= next_symbols_refresh and not self._known_symbols:
-                self._request_symbols()
-                next_symbols_refresh = time.monotonic() + 2.0
+                socks = dict(poller.poll(timeout=100))
+                if self.sub_sock in socks:
+                    topic, payload = decode(self.sub_sock.recv_multipart())
+                    self._handle_event(topic, payload)
 
-            self._maybe_submit_order()
-            self._flush_debug_summary()
+                if time.monotonic() >= next_symbols_refresh and (
+                    not self._known_symbols or self._session_state is None
+                ):
+                    self._request_symbols()
+                    self.push_sock.send_multipart(
+                        make_session_state_request_msg(self.gateway_id)
+                    )
+                    next_symbols_refresh = time.monotonic() + 2.0
+
+                self._maybe_submit_order()
+                self._flush_debug_summary()
+        finally:
+            # Without this the engine keeps the session marked connected, so
+            # restarting a bot under the same id is refused ("Gateway already
+            # connected") until the engine restarts.
+            self.push_sock.send_multipart(
+                make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")
+            )
 
         self._flush_debug_summary(force=True)
         reasons = ", ".join(
@@ -757,6 +859,7 @@ def main() -> None:
             stale_data_sec=float(args.stale_data),
             verbose=bot_verbose,
         )
+        signal.signal(signal.SIGTERM, bot.stop)
         rc = bot.run(duration_sec=float(args.duration))
         raise SystemExit(rc)
     except KeyboardInterrupt:

@@ -9,12 +9,19 @@ import pytest
 import edumatcher.ai_trader.swarm as swarm_main
 
 from edumatcher.ai_trader.swarm import (
-    assign_primary_symbols,
+    assign_symbols,
     build_bot_command,
     build_gateway_ids,
+    missing_participants,
     _load_symbols,
     _parse_profile_cycle,
 )
+
+
+@pytest.fixture(autouse=True)
+def _all_bots_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() checks bot ids against the deployed config; tests have none."""
+    monkeypatch.setattr(swarm_main, "missing_participants", lambda _ids, _cfg: [])
 
 
 def _fake_parser(namespace: argparse.Namespace) -> argparse.ArgumentParser:
@@ -29,22 +36,41 @@ class TestSwarmHelpers:
         ids = build_gateway_ids("AI", 1, 3)
         assert ids == ["AI01", "AI02", "AI03"]
 
-    def test_assign_primary_symbols_round_robin(self) -> None:
-        mapping = assign_primary_symbols(
+    def test_assign_symbols_more_bots_than_symbols(self) -> None:
+        mapping = assign_symbols(
             ["AI01", "AI02", "AI03", "AI04"],
             ["AAPL", "MSFT"],
         )
-        assert mapping["AI01"] == "AAPL"
-        assert mapping["AI02"] == "MSFT"
-        assert mapping["AI03"] == "AAPL"
-        assert mapping["AI04"] == "MSFT"
+        assert mapping == {
+            "AI01": ["AAPL"],
+            "AI02": ["MSFT"],
+            "AI03": ["AAPL"],
+            "AI04": ["MSFT"],
+        }
+
+    def test_assign_symbols_fewer_bots_covers_every_symbol(self) -> None:
+        symbols = [f"S{i:03d}" for i in range(150)]
+        mapping = assign_symbols(build_gateway_ids("AI", 1, 10), symbols)
+        traded = sorted(sym for syms in mapping.values() for sym in syms)
+        assert traded == symbols
+        assert all(len(syms) == 15 for syms in mapping.values())
+
+    def test_missing_participants(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        class _Cfg:
+            allowed_fix_gateways = frozenset({"AI01", "TRADER01"})
+
+        monkeypatch.setattr(swarm_main, "load_engine_config", lambda _p: _Cfg())
+        missing = missing_participants(["AI01", "AI02"], tmp_path / "cfg.yaml")
+        assert missing == ["AI02"]
 
     def test_build_bot_command_contains_required_flags(self) -> None:
         cmd = build_bot_command(
             python_executable="python",
             gateway_id="AI01",
             profile="aggressive",
-            symbol="AAPL",
+            symbols=["AAPL", "MSFT"],
             seed=42,
             duration=30.0,
             run_id="swarm-1",
@@ -58,7 +84,7 @@ class TestSwarmHelpers:
         assert "edumatcher.ai_trader.main" in joined
         assert "--id AI01" in joined
         assert "--profile aggressive" in joined
-        assert "--symbols AAPL" in joined
+        assert "--symbols AAPL,MSFT" in joined
         assert "--max-position 500" in joined
         assert "--stale-data 4.5" in joined
 

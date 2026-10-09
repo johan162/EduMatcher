@@ -4,6 +4,16 @@ from edumatcher.ai_trader.main import AITraderBot, MarketSnapshot, _as_float
 from edumatcher.ai_trader.personality import available_profiles, get_profile
 
 
+class _Sink:
+    """Stands in for the PUSH socket; records what the bot sends."""
+
+    def __init__(self, sent: list[list[bytes]]) -> None:
+        self._sent = sent
+
+    def send_multipart(self, frames: list[bytes]) -> None:
+        self._sent.append(frames)
+
+
 class TestPersonalityProfiles:
     def test_available_profiles(self) -> None:
         names = available_profiles()
@@ -49,10 +59,14 @@ class TestAITraderHelpers:
             reject_cooldown_sec=2.0,
             stale_data_sec=4.0,
         )
-        payload = bot._make_order_payload("AAPL")
         bot.push_sock.close()
+        sent: list[list[bytes]] = []
+        bot.push_sock = _Sink(sent)
+        payload = bot._make_order_payload("AAPL")
         bot.sub_sock.close()
         assert payload is None
+        # No price yet: the bot asks for the book instead of waiting forever.
+        assert [frames[0] for frames in sent] == [b"book.snapshot_request"]
 
     def test_make_order_payload_uses_snapshot(self) -> None:
         bot = AITraderBot(

@@ -151,6 +151,7 @@ class TestAITraderRuntime:
         )
         bot._last_market_update["AAPL"] = now
         bot._last_submit_ts = now - 10.0
+        bot._session_state = "CONTINUOUS"
 
         monkeypatch.setattr(
             bot_main,
@@ -165,6 +166,65 @@ class TestAITraderRuntime:
 
         bot.push_sock.close()
         bot.sub_sock.close()
+
+    def test_no_orders_while_market_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, push, _sub = _make_bot(monkeypatch, profile_name="aggressive")
+        bot._known_symbols = ["AAPL"]
+        bot._market["AAPL"] = bot_main.MarketSnapshot(
+            best_bid=100.0, best_ask=100.2, last_price=100.1
+        )
+        bot._last_market_update["AAPL"] = time.monotonic()
+
+        bot._handle_event(
+            "system.session_status.AI01",
+            {"state": "CLOSED", "sessions_enabled": True},
+        )
+        bot._maybe_submit_order()
+        assert bot.metrics.submitted == 0
+
+        # The session opening for the day asks for fresh books, then trades.
+        bot._handle_event("session.state", {"state": "PRE_OPEN"})
+        requested = [frames[0] for frames in push.sent]
+        assert b"book.snapshot_request" in requested
+        bot._maybe_submit_order()
+        assert bot.metrics.submitted == 1
+
+    def test_sessions_disabled_always_trades(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, _push, _sub = _make_bot(monkeypatch)
+        bot._handle_event(
+            "system.session_status.AI01",
+            {"state": "CLOSED", "sessions_enabled": False},
+        )
+        assert bot._can_trade() is True
+
+    def test_symbols_reply_requests_book_snapshots(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, push, _sub = _make_bot(monkeypatch, symbols=["AAPL", "MSFT"])
+        bot._handle_event(
+            "system.symbols.AI01",
+            {
+                "symbols": [
+                    {"symbol": "AAPL", "tick_decimals": 2},
+                    {"symbol": "MSFT", "tick_decimals": 2},
+                    {"symbol": "TSLA", "tick_decimals": 2},
+                ]
+            },
+        )
+        topics = [frames[0] for frames in push.sent]
+        assert topics.count(b"book.snapshot_request") == 2
+
+    def test_book_without_last_price_keeps_trade_price(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, _push, _sub = _make_bot(monkeypatch)
+        bot._handle_event("trade.executed", {"symbol": "AAPL", "price": 101.5})
+        bot._handle_event("book.AAPL", {"last_price": None, "bids": [], "asks": []})
+        assert bot._market["AAPL"].last_price == 101.5
 
     def test_run_auth_failure_returns_one(
         self, monkeypatch: pytest.MonkeyPatch
@@ -237,6 +297,9 @@ class TestMainEntryPoint:
                 _ = duration_sec
                 return 0
 
+            def stop(self, *_args: object) -> None:
+                return
+
         monkeypatch.setattr(bot_main, "AITraderBot", _FakeBot)
         monkeypatch.setattr(
             bot_main,
@@ -274,6 +337,9 @@ class TestMainEntryPoint:
             def run(self, duration_sec: float) -> int:
                 _ = duration_sec
                 return 7
+
+            def stop(self, *_args: object) -> None:
+                return
 
         monkeypatch.setattr(
             bot_main,

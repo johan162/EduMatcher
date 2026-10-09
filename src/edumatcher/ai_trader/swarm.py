@@ -3,6 +3,10 @@
 Usage examples:
   poetry run pm-ai-swarm --count 10 --duration 30
   poetry run pm-ai-swarm --count 30 --symbols AAPL,MSFT,TSLA
+
+Every bot id (PREFIX01, PREFIX02, ...) must be a participant in the deployed
+engine config. With fewer bots than symbols each bot trades a slice of the
+symbol list, so every symbol is traded.
 """
 
 from __future__ import annotations
@@ -36,15 +40,32 @@ def build_gateway_ids(prefix: str, start_index: int, count: int) -> list[str]:
     return [f"{prefix}{i:02d}" for i in range(start_index, start_index + count)]
 
 
-def assign_primary_symbols(
-    gateway_ids: list[str], symbols: list[str]
-) -> dict[str, str]:
+def assign_symbols(gateway_ids: list[str], symbols: list[str]) -> dict[str, list[str]]:
+    """Spread the symbols over the bots so that every symbol is traded.
+
+    Fewer bots than symbols: bot i trades every symbol j with j % count == i.
+    More bots than symbols: each bot trades one symbol, round-robin, so
+    several bots share a symbol. One bot per symbol used to leave every symbol
+    past the bot count untraded -- 140 of 150 with the default --count 10.
+    """
     if not symbols:
         raise ValueError("At least one symbol is required for swarm assignment")
-    out: dict[str, str] = {}
+    count = len(gateway_ids)
+    upper = [s.upper() for s in symbols]
+    out: dict[str, list[str]] = {}
     for i, gw in enumerate(gateway_ids):
-        out[gw] = symbols[i % len(symbols)].upper()
+        out[gw] = upper[i::count] or [upper[i % len(upper)]]
     return out
+
+
+def missing_participants(gateway_ids: list[str], config_path: Path) -> list[str]:
+    """Bot ids the deployed engine config does not list as participants.
+
+    The engine refuses to authenticate those, so the swarm checks up front
+    instead of launching bots that all exit with "Gateway not configured".
+    """
+    allowed = load_engine_config(config_path).allowed_fix_gateways
+    return [gw for gw in gateway_ids if gw not in allowed]
 
 
 def _parse_profile_cycle(raw: str) -> list[str]:
@@ -71,7 +92,7 @@ def build_bot_command(
     python_executable: str,
     gateway_id: str,
     profile: str,
-    symbol: str,
+    symbols: list[str],
     seed: int,
     duration: float,
     run_id: str,
@@ -90,7 +111,7 @@ def build_bot_command(
         "--profile",
         profile,
         "--symbols",
-        symbol,
+        ",".join(symbols),
         "--seed",
         str(seed),
         "--duration",
@@ -244,7 +265,16 @@ def main() -> None:
     gateway_ids = build_gateway_ids(
         str(args.prefix).upper(), int(args.start_index), int(args.count)
     )
-    symbol_by_gw = assign_primary_symbols(gateway_ids, symbols)
+    missing = missing_participants(gateway_ids, ENGINE_CONFIG_FILE)
+    if missing:
+        log.error("swarm bot ids are not configured participants: %s", missing)
+        raise SystemExit(
+            f"{len(missing)} bot id(s) are not participants in "
+            f"{ENGINE_CONFIG_FILE}: {', '.join(missing)}. Add them to "
+            "`participants:` with role TRADER (pm-config-gen --participants "
+            f"{missing[0]}:TRADER:CANCEL_ALL ...) and redeploy."
+        )
+    symbols_by_gw = assign_symbols(gateway_ids, symbols)
     run_id = f"swarm-{uuid.uuid4().hex[:8]}"
     child_verbose = int(getattr(args, "verbose", 0) or 0)
     child_quiet = bool(getattr(args, "quiet", False))
@@ -262,12 +292,12 @@ def main() -> None:
     try:
         for i, gw in enumerate(gateway_ids):
             profile = profiles[i % len(profiles)]
-            symbol = symbol_by_gw[gw]
+            gw_symbols = symbols_by_gw[gw]
             cmd = build_bot_command(
                 python_executable=str(args.python),
                 gateway_id=gw,
                 profile=profile,
-                symbol=symbol,
+                symbols=gw_symbols,
                 seed=int(args.seed_base) + i,
                 duration=float(args.duration),
                 run_id=run_id,
@@ -283,7 +313,7 @@ def main() -> None:
                 cmd.extend(["-" + ("v" * child_verbose)])
             if child_quiet:
                 cmd.append("-q")
-            log.info("launching %s profile=%s symbol=%s", gw, profile, symbol)
+            log.info("launching %s profile=%s symbols=%s", gw, profile, len(gw_symbols))
             log.debug("launch command for %s: %s", gw, " ".join(cmd))
             procs.append(subprocess.Popen(cmd))
             time.sleep(0.02)

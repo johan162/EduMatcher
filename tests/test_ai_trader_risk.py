@@ -46,16 +46,28 @@ class TestAITraderRisk:
 
         assert bot._risk_pause_until > time.monotonic()
 
-    def test_stale_data_blocks_submission(self) -> None:
+    def test_stale_data_blocks_submission_and_requests_refresh(self) -> None:
         bot = self._make_bot()
+        bot.push_sock.close()
+        sent: list[list[bytes]] = []
+
+        class _Sink:
+            def send_multipart(self, frames: list[bytes]) -> None:
+                sent.append(frames)
+
+        bot.push_sock = _Sink()
         bot._market["AAPL"] = MarketSnapshot(
             best_bid=100.0, best_ask=100.2, last_price=100.1
         )
         bot._last_market_update["AAPL"] = time.monotonic() - 1.0
 
         payload = bot._make_order_payload("AAPL")
+        # A second stale decision inside the same window does not re-ask.
+        assert bot._make_order_payload("AAPL") is None
 
-        bot.push_sock.close()
         bot.sub_sock.close()
 
         assert payload is None
+        # The engine only publishes changed books, so a quiet symbol stays
+        # stale forever unless the bot asks for a fresh snapshot.
+        assert [frames[0] for frames in sent] == [b"book.snapshot_request"]

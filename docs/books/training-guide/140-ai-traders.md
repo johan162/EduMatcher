@@ -23,8 +23,8 @@ demonstrations, classroom sessions, and stress testing.
 EduMatcher ships with AI trader bots that simulate real market participants:
 
 - **pm-ai-trader** — a single autonomous trader with configurable personality.
-- **pm-ai-swarm** — launches multiple AI traders simultaneously, distributing
-  profiles and symbols round-robin.
+- **pm-ai-swarm** — launches multiple AI traders simultaneously, cycling
+  profiles and spreading the symbols so that every symbol is traded.
 
 Bots submit only `LIMIT DAY` orders derived from the current book — they never
 send `MARKET`, `FOK`, or `IOC` orders.
@@ -93,8 +93,8 @@ Launch multiple traders across all configured symbols with one command:
 pm-ai-swarm --count 3 --duration 60
 ```
 
-This spawns `AI01`, `AI02`, `AI03`, cycling through all four profiles and
-symbols round-robin. Or launch bots manually with matching IDs:
+This spawns `AI01`, `AI02`, `AI03`, cycling through the profiles; each bot
+trades every third symbol, so all symbols get order flow. Or launch bots manually with matching IDs:
 
 ```bash
 pm-ai-trader --id AI01 --profile aggressive --symbols AAPL &

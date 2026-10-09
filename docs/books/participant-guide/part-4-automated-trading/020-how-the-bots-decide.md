@@ -98,7 +98,8 @@ Guardrails are configurable per bot:
 - `--max-rejects`: reject threshold before breaker triggers
 - `--reject-window`: rolling window for reject counting
 - `--reject-cooldown`: pause after breaker trip
-- `--stale-data`: maximum market-data age before pausing submissions
+- `--stale-data`: maximum market-data age; an older book makes the bot skip the
+  decision and ask the engine for a fresh snapshot
 
 ```bash
 poetry run pm-ai-trader \
