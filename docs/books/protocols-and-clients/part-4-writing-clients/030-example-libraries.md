@@ -89,7 +89,7 @@ from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 # Parse one line received from the gateway
 msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001")
 print(msg.msg_type)   # "ACK"
-print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", "SYMBOL": "AAPL"}
+print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", "SYMBOL": "AAPL", "TAG": "ORDER-001"}
 
 # Build a line to send
 line: str = build_alf_line("NEW", {
@@ -129,10 +129,14 @@ values.  Command history is persisted to `~/.alf_client_history`.
 [TRADER01]> SYMBOLS
 [TRADER01]> ORDERS
 [TRADER01]> POS
+[TRADER01]> SESSION
 [TRADER01]> STATUS
 [TRADER01]> HELP
 [TRADER01]> EXIT
 ```
+
+`AMEND` and `CANCEL` need the order's full 32-character ID, exactly as the
+`ACK` line or the `ORDERS` table prints it.
 
 ### C API — `alf_parser.h`
 
@@ -203,7 +207,7 @@ ORDERS
 See also:
 
 - [ALF Gateway](../../operator-guide/part-5-gateways/010-alf-gateway.md)
-- [Appendix - ALF Protocol](../part-2-specifications/010-alf.md)
+- [ALF Protocol Reference](../part-2-specifications/010-alf.md)
 
 
 ---
@@ -346,7 +350,7 @@ SUB|CH=TOP,TRADE|SYM=AAPL
 See also:
 
 - [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md)
-- [Appendix - CALF Protocol](../part-2-specifications/030-calf.md)
+- [CALF Protocol Reference](../part-2-specifications/030-calf.md)
 
 
 ---
@@ -496,7 +500,7 @@ SUB|CH=CLEARING|SYM=*
 See also:
 
 - [Post-Trade Dissemination (RALF)](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
-- [Appendix - RALF Protocol](../part-2-specifications/040-ralf.md)
+- [RALF Protocol Reference](../part-2-specifications/040-ralf.md)
 
 
 ---
@@ -639,7 +643,7 @@ library or a binary client tool to verify connectivity.
 See also:
 
 - [BALF Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md)
-- [Appendix - BALF Protocol](../part-2-specifications/020-balf.md)
+- [BALF Protocol Reference](../part-2-specifications/020-balf.md)
 
 
 ---

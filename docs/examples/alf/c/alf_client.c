@@ -322,9 +322,9 @@ static void flush_collected(void)
 
     case COL_ORDERS:
         event_print("%sOrders — %s%s", COL_BOLD, g_collect_gw, COL_RESET);
-        event_print("  %-8s  %-6s %-5s %-11s %6s %6s %8s  %s",
+        event_print("  %-32s  %-6s %-5s %-11s %6s %6s %8s  %s",
                     "ID", "SYM", "SIDE", "TYPE", "QTY", "REM", "PRICE", "STATUS");
-        event_print("  %s", "----------------------------------------------------------------------");
+        event_print("  %s", "----------------------------------------------------------------------------------------------");
         for (i = 0; i < g_collect_count && i < MAX_COLLECT_ROWS; i++) {
             const alf_message_t *r = &g_collect_rows[i];
             const char *id  = alf_get_field(r, "ID");
@@ -335,10 +335,10 @@ static void flush_collected(void)
             const char *rem = alf_get_field(r, "REMAINING");
             const char *prc = alf_get_field(r, "PRICE");
             const char *st  = alf_get_field(r, "STATUS");
-            char short_id[9] = "?";
-            if (id) snprintf(short_id, sizeof(short_id), "%s", id);
-            event_print("  %-8s  %-6s %-5s %-11s %6s %6s %8s  %s",
-                        short_id,
+            char id_text[ALF_MAX_VAL_LEN] = "?";
+            if (id) snprintf(id_text, sizeof(id_text), "%s", id);
+            event_print("  %-32s  %-6s %-5s %-11s %6s %6s %8s  %s",
+                        id_text,
                         sym ? sym : "?",
                         sid ? sid : "?",
                         typ ? typ : "?",
@@ -379,21 +379,21 @@ static void flush_collected(void)
             if (strcmp(r->msg_type, "LEG") != 0) continue;
             if (!shown_header) {
                 event_print("%sQuote legs%s", COL_BOLD, COL_RESET);
-                event_print("  %-6s %-20s %-5s %-8s %10s %6s %6s %6s  %-10s %s",
+                event_print("  %-6s %-20s %-5s %-32s %10s %6s %6s %6s  %-10s %s",
                             "SYM", "QUOTE_ID", "SIDE", "ORDER_ID", "PRICE",
                             "QTY", "REM", "FILLED", "STATUS", "QUOTE_STATUS");
                 shown_header = 1;
             }
-            char short_id[9] = "?";
+            char id_text[ALF_MAX_VAL_LEN] = "?";
             const char *oid = alf_get_field(r, "ORDER_ID");
-            if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+            if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
             char price_buf[PRICE_BUF_LEN];
             fmt_price(alf_get_field(r, "PRICE"), price_buf, sizeof(price_buf));
-            event_print("  %-6s %-20s %-5s %-8s %10s %6s %6s %6s  %-10s %s",
+            event_print("  %-6s %-20s %-5s %-32s %10s %6s %6s %6s  %-10s %s",
                         alf_get_field(r, "SYM")          ? alf_get_field(r, "SYM")          : "?",
                         alf_get_field(r, "QUOTE_ID")     ? alf_get_field(r, "QUOTE_ID")     : "?",
                         alf_get_field(r, "SIDE")         ? alf_get_field(r, "SIDE")         : "?",
-                        short_id,
+                        id_text,
                         price_buf,
                         alf_get_field(r, "QTY")          ? alf_get_field(r, "QTY")          : "?",
                         alf_get_field(r, "REMAINING")    ? alf_get_field(r, "REMAINING")    : "?",
@@ -422,14 +422,14 @@ static void flush_collected(void)
                             alf_get_field(r, "QUOTE_STATUS") ? alf_get_field(r, "QUOTE_STATUS") : "?",
                             alf_get_field(r, "REASON")   ? alf_get_field(r, "REASON")   : "");
             } else {
-                char short_id[9] = "?";
+                char id_text[ALF_MAX_VAL_LEN] = "?";
                 const char *oid = alf_get_field(r, "ORDER_ID");
-                if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+                if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
                 char rprice_buf[PRICE_BUF_LEN];
                 fmt_price(alf_get_field(r, "PRICE"), rprice_buf, sizeof(rprice_buf));
                 event_print("      %s_leg  order=%s  px=%s qty=%s rem=%s filled=%s status=%s",
                             is_bid ? "bid" : "ask",
-                            short_id,
+                            id_text,
                             rprice_buf,
                             alf_get_field(r, "QTY")       ? alf_get_field(r, "QTY")       : "?",
                             alf_get_field(r, "REMAINING") ? alf_get_field(r, "REMAINING") : "?",
@@ -486,9 +486,12 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *st   = alf_get_field(msg, "STATE");
         const char *prev = alf_get_field(msg, "PREV_STATE");
         if (st) snprintf(g_session_state, sizeof(g_session_state), "%s", st);
-        event_print("[%s] %sSESSION%s  %s → %s",
-                    ts, COL_YELLOW, COL_RESET,
-                    prev ? prev : "?", st ? st : "?");
+        if (prev && *prev)
+            event_print("[%s] %sSESSION%s  %s → %s",
+                        ts, COL_YELLOW, COL_RESET, prev, st ? st : "?");
+        else
+            event_print("[%s] %sSESSION%s  %s",
+                        ts, COL_YELLOW, COL_RESET, st ? st : "?");
         return;
     }
 
@@ -533,11 +536,11 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     if (strcmp(t, "ACK") == 0) {
         const char *oid      = alf_get_field(msg, "ORDER_ID");
         const char *accepted = alf_get_field(msg, "ACCEPTED");
-        char short_id[9] = "?";
-        if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+        char id_text[ALF_MAX_VAL_LEN] = "?";
+        if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
         if (accepted && strcmp(accepted, "TRUE") == 0) {
             const char *tag = alf_get_field(msg, "TAG");
-            event_print("[%s] %sACK%s      %s%s%s  order accepted", ts, COL_GREEN, COL_RESET, short_id,
+            event_print("[%s] %sACK%s      %s%s%s  order accepted", ts, COL_GREEN, COL_RESET, id_text,
                         tag ? " tag=" : "", tag ? tag : "");
             if (oid)
                 cache_order(oid, alf_get_field(msg, "SYMBOL"),
@@ -547,7 +550,7 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
             const char *tag = alf_get_field(msg, "TAG");
             const char *rtag = alf_get_field(msg, "RTAG");
             event_print("[%s] %sREJECTED%s %s%s%s%s%s%s%s  %s",
-                        ts, COL_RED, COL_RESET, short_id,
+                        ts, COL_RED, COL_RESET, id_text,
                         reject_code ? " code=" : "", reject_code ? reject_code : "",
                         tag ? " tag=" : "", tag ? tag : "",
                         rtag ? " rtag=" : "", rtag ? rtag : "",
@@ -563,11 +566,11 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *rem  = alf_get_field(msg, "REMAINING");
         const char *st   = alf_get_field(msg, "STATUS");
         const char *tag  = alf_get_field(msg, "TAG");
-        char short_id[9] = "?";
-        if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+        char id_text[ALF_MAX_VAL_LEN] = "?";
+        if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
         event_print("[%s] %sFILL%s     %s  qty=%s @%s  remaining=%s  [%s]%s%s",
                     ts, COL_CYAN, COL_RESET,
-                    short_id,
+                    id_text,
                     qty ? qty : "?",
                     px  ? px  : "?",
                     rem ? rem : "?",
@@ -588,10 +591,10 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *oid = alf_get_field(msg, "ORDER_ID");
         const char *tag = alf_get_field(msg, "TAG");
         const char *rtag = alf_get_field(msg, "RTAG");
-        char short_id[9] = "?";
-        if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
+        char id_text[ALF_MAX_VAL_LEN] = "?";
+        if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
         event_print("[%s] %sAMENDED%s  %s  price=%s qty=%s remaining=%s priority_reset=%s%s%s%s%s",
-                    ts, COL_MAGENTA, COL_RESET, short_id,
+                    ts, COL_MAGENTA, COL_RESET, id_text,
                     alf_get_field(msg, "PRICE")          ? alf_get_field(msg, "PRICE")          : "-",
                     alf_get_field(msg, "QTY")            ? alf_get_field(msg, "QTY")            : "-",
                     alf_get_field(msg, "REMAINING")      ? alf_get_field(msg, "REMAINING")      : "-",
@@ -605,9 +608,9 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *oid = alf_get_field(msg, "ORDER_ID");
         const char *tag = alf_get_field(msg, "TAG");
         const char *rtag = alf_get_field(msg, "RTAG");
-        char short_id[9] = "?";
-        if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sCANCELLED%s %s%s%s%s%s", ts, COL_YELLOW, COL_RESET, short_id,
+        char id_text[ALF_MAX_VAL_LEN] = "?";
+        if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
+        event_print("[%s] %sCANCELLED%s %s%s%s%s%s", ts, COL_YELLOW, COL_RESET, id_text,
                     tag ? " tag=" : "", tag ? tag : "",
                     rtag ? " rtag=" : "", rtag ? rtag : "");
         return;
@@ -616,9 +619,9 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
     if (strcmp(t, "EXPIRED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
         const char *tag = alf_get_field(msg, "TAG");
-        char short_id[9] = "?";
-        if (oid) snprintf(short_id, sizeof(short_id), "%s", oid);
-        event_print("[%s] %sEXPIRED%s  %s%s%s", ts, COL_DIM, COL_RESET, short_id,
+        char id_text[ALF_MAX_VAL_LEN] = "?";
+        if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
+        event_print("[%s] %sEXPIRED%s  %s%s%s", ts, COL_DIM, COL_RESET, id_text,
                     tag ? " tag=" : "", tag ? tag : "");
         return;
     }
@@ -866,7 +869,8 @@ static void process_socket_data(void)
 
 static const char *g_top_cmds[] = {
     "NEW", "AMEND", "CANCEL", "QUOTE", "QUOTE_CANCEL", "QBOOT", "QLEGS",
-    "KILL", "SYMBOLS", "ORDERS", "PING", "POS", "STATUS", "HELP", "EXIT", "QUIT",
+    "KILL", "SYMBOLS", "ORDERS", "PING", "SESSION", "POS", "STATUS", "HELP", "EXIT",
+    "QUIT",
     NULL
 };
 
@@ -1066,7 +1070,7 @@ static void cmd_help(void)
     puts("  QUOTE_CANCEL|SYM=<s>");
     puts("  KILL[|SYM=<s>]    SYMBOLS    ORDERS    QBOOT[|SYM=<s>]");
     puts("  QLEGS[|SYM=<s>][|SHOW=ACTIVE|RECENT|ALL]   Quote leg detail (engine round trip)");
-    puts("  PING    POS    POS|GW=<gateway_id>    STATUS    HELP    EXIT / QUIT\n");
+    puts("  PING    SESSION    POS    POS|GW=<gateway_id>    STATUS    HELP    EXIT / QUIT\n");
 }
 
 /* --------------------------------------------------------------------------
@@ -1280,6 +1284,10 @@ int main(int argc, char **argv)
 
     printf("Type %sHELP%s for commands.  Tab=complete  ↑↓=history\n\n",
            COL_BOLD, COL_RESET);
+
+    /* Ask once for the session state, so STATUS is right from the start
+     * rather than only after the next phase change. */
+    gwy_send("SESSION\n");
 
     /* History file */
     const char *home = getenv("HOME");

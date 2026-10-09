@@ -19,6 +19,14 @@ def test_parse_alf_line_last_value_wins() -> None:
     assert frame.fields["QTY"] == "2"
 
 
+def test_parse_alf_line_keeps_order_id_case() -> None:
+    # Order IDs are lowercase hex; uppercasing them made every AMEND/CANCEL
+    # by ID miss the order. Other values are still normalized.
+    frame = parse_alf_line("amend|id=7304050140eaba0d|rtag=r1")
+    assert frame.fields["ID"] == "7304050140eaba0d"
+    assert frame.fields["RTAG"] == "R1"
+
+
 def test_parse_alf_line_skips_segment_without_equals() -> None:
     frame = parse_alf_line("NEW|SYM=AAPL|BROKEN|QTY=1")
     assert frame.command == "NEW"

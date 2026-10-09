@@ -71,6 +71,8 @@ def parse_alf_line(raw_line: str) -> AlfFrame:
     - Strip full-line whitespace
     - Split on '|'
     - Command token and field names are uppercased
+    - Field values are uppercased, except ``ID``: order IDs are lowercase
+      hex and must reach the engine exactly as the gateway sent them out
     - Duplicate keys resolve last-value-wins
     - Tokens without '=' are ignored
     """
@@ -91,7 +93,8 @@ def parse_alf_line(raw_line: str) -> AlfFrame:
         key_u = key.strip().upper()
         if not key_u:
             continue
-        fields[key_u] = value.strip().upper()
+        value = value.strip()
+        fields[key_u] = value if key_u == "ID" else value.upper()
 
     return AlfFrame(command=command, fields=fields)
 

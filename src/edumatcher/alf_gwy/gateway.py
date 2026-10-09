@@ -114,6 +114,7 @@ from edumatcher.models.generated.system import (
     topic_gateway_auth,
     topic_position_snapshot,
     topic_quote_bootstrap,
+    topic_quote_legs,
     topic_session_status,
     topic_symbols,
 )
@@ -2063,6 +2064,7 @@ class AlfGateway:
             topic_kill_switch_ack(gateway_id),
             topic_symbols(gateway_id),
             topic_quote_bootstrap(gateway_id),
+            topic_quote_legs(gateway_id),
             topic_session_status(gateway_id),
         )
 

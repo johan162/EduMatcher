@@ -166,6 +166,31 @@ def test_hello_then_auth_success_sends_welcome(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_lowercase_hello_id_still_authenticates_as_uppercase(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=trader01")
+    gateway._handle_gateway_auth("TRADER01", {"accepted": True})
+
+    assert session.authenticated is True
+    assert session.gateway_id == "TRADER01"
+    peer.close()
+
+
+def test_auth_subscribes_the_qlegs_reply_topic(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=MM01")
+    gateway._handle_gateway_auth("MM01", {"accepted": True})
+
+    assert "system.quote_legs.MM01" in session.subscriptions
+    peer.close()
+
+
 def test_engine_refused_auth_does_not_emit_gateway_disconnect(
     gateway: AlfGateway,
 ) -> None:
@@ -282,6 +307,29 @@ def test_amend_and_cancel_forward_request_tag(gateway: AlfGateway) -> None:
     assert amend_payload["request_tag"] == "RT-AMD-001"
     assert cancel_topic == "order.cancel"
     assert cancel_payload["request_tag"] == "RT-CXL-001"
+    peer.close()
+
+
+def test_amend_and_cancel_forward_the_order_id_unchanged(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+    order_id = "28e03c65479ad4e0dbdb05b7d9b9b498"
+
+    gateway._handle_client_line(session, f"AMEND|ID={order_id}|PRICE=11.00")
+    session.rate_tokens = 10.0
+    gateway._handle_client_line(session, f"CANCEL|ID={order_id}")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    _, amend_payload = decode(fake_push.sent[-2])
+    _, cancel_payload = decode(fake_push.sent[-1])
+    assert amend_payload["order_id"] == order_id
+    assert cancel_payload["order_id"] == order_id
     peer.close()
 
 

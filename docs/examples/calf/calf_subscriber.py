@@ -20,7 +20,7 @@ Two things here are worth copying rather than reinventing:
   change -- replay overlapping live traffic, and `SNAP` as a baseline --
   are commented at `SequenceTracker` below.
 
-See docs/user-guide/920-app-calf-protocol.md for the normative wire
+See docs/books/protocols-and-clients/part-2-specifications/030-calf.md for the normative wire
 contract this client follows.
 
 Uses calf_parser.py to parse and build CALF lines.

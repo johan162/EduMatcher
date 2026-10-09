@@ -7,7 +7,7 @@
  * path for all of them.
  *
  * See docs-design/EduMatcher-Message-Generator.md section 5.2 and
- * docs/developer/06-msgen.md.
+ * docs/books/architecture-and-development/part-4-developing/040-message-generation.md.
  */
 #ifndef EDUMATCHER_MSG_H
 #define EDUMATCHER_MSG_H

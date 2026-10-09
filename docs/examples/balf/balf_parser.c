@@ -137,7 +137,8 @@ static void parse_logon_ack(const uint8_t *body, size_t len) {
  * a u64, making it eight bytes too large on all six messages that carry one.
  * The generated parser cannot drift that way -- its offsets come from
  * spec/messages/order.yaml, and `pm-msgen check` fails the build if the two
- * disagree. See docs/developer/06-msgen.md.
+ * disagree. See
+ * docs/books/architecture-and-development/part-4-developing/040-message-generation.md.
  */
 static void parse_execution_report_generated(const uint8_t *frame, size_t len) {
     edu_execution_report_balf_t er;

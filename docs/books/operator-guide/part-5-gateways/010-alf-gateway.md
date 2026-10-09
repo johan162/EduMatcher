@@ -301,8 +301,10 @@ and shuts down the TCP connection after flushing pending output.
 ## Command reference
 
 All commands follow the ALF line format: `VERB|FIELD=VALUE|FIELD=VALUE\n`.
-Field names are **case-insensitive** — the gateway normalises everything to
-uppercase before parsing.
+Field names are **case-insensitive** — the gateway normalises names and values
+to uppercase before parsing. The exception is the order `ID` on `AMEND` and
+`CANCEL`, which is passed through unchanged, since order IDs are lowercase
+hexadecimal.
 
 ### `NEW` — submit order
 

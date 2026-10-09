@@ -6,10 +6,10 @@ Wire format:
 This module parses messages *received from* pm-alf-gwy, so it must reflect
 what the gateway actually puts on the wire in its responses -- not the
 normalization the gateway applies while validating commands it receives.
-See docs/user-guide/900-app-alf-protocol.md ("Case handling"): that
+See "Case handling" in the ALF protocol reference
+(docs/books/protocols-and-clients/part-2-specifications/010-alf.md): that
 uppercasing rule describes how pm-alf-gwy parses inbound commands, not how
-it formats outbound messages. docs/user-guide/220-alf-gateway.md's own
-wire examples show the gateway sending mixed-case data back (e.g.
+it formats outbound messages. The gateway sends mixed-case data back (e.g.
 ``GW=alf-gwy01``, ``ORDER|ID=abc123``), so order IDs, free-text
 ``REASON``/``DETAIL`` fields, and similar values must round-trip with
 their original case intact -- forcing them to uppercase would corrupt an
