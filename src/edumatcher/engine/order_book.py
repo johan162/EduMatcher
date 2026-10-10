@@ -56,6 +56,11 @@ _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
     }
 )
 
+#: Rebuild the heaps once they hold more than this many entries per live order
+#: (plus _COMPACT_SLACK) -- see OrderBook._compact_heaps.
+_COMPACT_FACTOR = 2
+_COMPACT_SLACK = 64
+
 
 # __slots__ keeps this hot, high-frequency wrapper small and fast
 # (see docs-design/perf-notes.md).
@@ -1483,8 +1488,31 @@ class OrderBook:
         entry = self._entry_index.pop(order.id, None)
         if entry is not None:
             entry.valid = False
+            self._compact_heaps()
         self._order_index.pop(order.id, None)
         self._discard_from_gateway_index(order)
+
+    def _compact_heaps(self) -> None:
+        """Drop dead heap entries once they outnumber the live ones.
+
+        A removed order only has its heap entry marked invalid; ``_peek`` pops
+        it when it reaches the top. An entry deep in the book never does, so
+        without this the heaps -- every entry holding its Order alive, and
+        walked in full by every ``snapshot`` -- grow with each cancel for the
+        life of the process (an AI swarm cancels thousands of stale orders a
+        minute). Rebuilding when the heaps exceed twice the live orders keeps
+        the cost amortised O(1) per removal.
+        """
+        heaps = (self._bids, self._asks, self._buy_stops, self._sell_stops)
+        if sum(map(len, heaps)) <= (
+            _COMPACT_FACTOR * len(self._entry_index) + _COMPACT_SLACK
+        ):
+            return
+        for heap in heaps:
+            heap[:] = [
+                e for e in heap if e.valid and e.order.status not in _DEAD_STATUSES
+            ]
+            heapq.heapify(heap)
 
     def _discard_from_gateway_index(self, order: Order) -> None:
         """Remove ``order`` from ``_orders_by_gateway``, pruning the

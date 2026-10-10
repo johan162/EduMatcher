@@ -4,6 +4,7 @@
  */
 import { apiFetch } from "./apiFetch.js";
 import type {
+  NewsSnapshot,
   StatusResponse,
   Order,
   Position,
@@ -68,6 +69,10 @@ export const getSession = () => apiFetch<SessionStatusDTO>("/api/v1/session");
 // Trading-role equivalent of GET /admin/halts — same engine query, no ADMIN
 // gate, so the market-data reconnect resync (WebSocketManager) can call it.
 export const getHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/halts");
+
+// ── News (WP-E5) ──────────────────────────────────────────────────────────────
+// pm-market-sim's latest headlines; live ones arrive on the market-data socket.
+export const getNews = (limit = 200) => apiFetch<NewsSnapshot>(`/api/v1/news?limit=${limit}`);
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 // Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin

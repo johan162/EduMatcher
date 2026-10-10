@@ -2,7 +2,7 @@ Version: 1.0.0
 
 Date: 2026-10-09
 
-Status: Plan — ready for implementation (decisions settled 2026-10-09)
+Status: Implemented 2026-10-09/10 (deviations in §15; results in `docs-design/reviews/ai-traders-v3/`)
 
 # EduMatcher — AI Traders v3: Implementation Plan
 
@@ -30,6 +30,7 @@ Status: Plan — ready for implementation (decisions settled 2026-10-09)
 12. [Dependencies and ordering](#12-dependencies-and-ordering)
 13. [Risks](#13-risks)
 14. [Open points for review](#14-open-points-for-review)
+15. [Change log — implementation deviations](#15-change-log--implementation-deviations)
 
 ---
 
@@ -649,3 +650,33 @@ D1–D3 can start as soon as B1 has fixed the agent interfaces.
 None. All points raised during planning are settled in §3 (D19–D25).
 Anything new found during implementation is recorded as a deviation in the
 WP's review file and in this plan's change log.
+
+## 15. Change log — implementation deviations
+
+Found while implementing; each is recorded with its numbers in the WP's
+results file under `docs-design/reviews/ai-traders-v3/`.
+
+| WP | Deviation | Why |
+|---|---|---|
+| B2 | Orders correlated by ALF `TAG`, not a client order id | ALF `NEW` cannot carry one; the engine assigns order ids |
+| B2 | A resting order is stale against its own side's touch, not the mid | Measured against the mid, every passive order in a wide spread was stale on arrival |
+| B3–B7 | Presets `iceberg-seller`, `market-taker`, `block-taker` added; strategies and execution are single modules | Every order type exercised; simplicity |
+| C2 | `pm-alf-gwy` subscribes every gateway-scoped topic family by prefix at start-up | Per-session subscribe-then-request lost replies in logon bursts |
+| C3 | `pm-alf-gwy` heartbeats the engine every 5 s (expiry 15 s); agent back-off capped at 10 s | The engine freed an ID only after 180 s, so the 30 s reconnect criterion was unreachable |
+| C5 | `symbols.per_agent` / `--symbols-per-agent` | One symbol per agent capped a 500-agent swarm at ~130 actions/s |
+| C5 | `pm-ai-swarm --swarm FILE` instead of `--config` | No runtime process may take a `--config` path (the single-source rule, `test_config_single_source`) |
+| C6 | `pm-opctl` profile `ai-swarm` instead of compose services; it also runs `pm-market-sim` | The container is one container by design; value and news presets idle without the model |
+| C6 | `pm-alf-gwy` probes the engine's gateway list every 5 s; the worker re-reads the market until answered | The engine's start-up broadcast is often missed (slow joiner) |
+| C7 | Engine fixes: silent-gateway check at 1 Hz; order-book heap compaction | 9 % engine CPU at 500 sessions; cancelled entries deep in the book were never freed (steady memory growth, ever slower snapshots) |
+| C7 | Latency criterion (probe p99 < 20 ms) not met: 33 ms on 4 vCPUs | Engine persistence checkpoints (up to ~60 ms) and snapshot flushes stall the loop; see C7 results for proposals |
+| D1/D4 | No `sim_time`/`speed`; the model follows the engine's phases | A compressed day's variance accrues over the continuous phase the engine reports, so no second clock is needed |
+| D5/E4 | Intents carry a limit price; `news` strategy gains `move` | Crossing one or two ticks past the touch could not price in a 10 % move (E4 first run: +0.03 % in 60 s) |
+| D5 | `s150-*` `swarm.yaml`: `per_agent: 150` | With ~1 agent per symbol, a symbol whose only agent is a noise trader never tracks its value |
+| D5 | Passive, unanchored `pm-mm-bot` pins prices (RMS gap 3.8 %); the `ai-swarm` profile's maker is anchored (`--anchor-sim 0.3`, RMS 0.52 %) and its agents trade every symbol | It refills its quotes at its own mid, so informed flow cannot move the price |
+| D5 | Criterion "positive \|r\| autocorrelation at lags 1–10" not met (lag 1 only) | The model has no stochastic volatility; see D5 results |
+| D5 | `--anchor-sim`: once a value is known, the value sets the maker's mid every model step; the book no longer does | Anchoring on book updates left quiet books behind and blended the value with stale orders |
+| E6 | Exercises 6–7 (rumours) stop the market maker first | A maker quoting around the true value absorbs every rumour trade |
+| E3/E6 | `pm-news play` asks the engine for the current phase | A scenario started during continuous trading never fired |
+| E5 | TapeDeck reads news through its bridge's REST proxy, not CALF | A few headlines a day do not justify a CALF protocol change |
+| — | Pre-existing bugs fixed on the way: `pm-mm-bot` exit when started mid-phase; audit-replay lexicon lacked the new enums | Found by the live runs and the full suite |
+

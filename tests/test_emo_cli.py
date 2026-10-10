@@ -53,8 +53,21 @@ def test_start_debug_defaults_to_false() -> None:
 
 def test_load_profiles_returns_builtins_when_no_config_file() -> None:
     profiles = load_profiles()
-    assert set(profiles) == {"default", "micro", "mini", "mm-demo"}
+    assert set(profiles) == {"default", "micro", "mini", "mm-demo", "ai-swarm"}
     assert profiles["default"] == DEFAULT_PROCESSES
+
+
+def test_ai_swarm_profile_anchors_the_market_maker_and_adds_model_and_traders() -> None:
+    processes = load_profiles()["ai-swarm"]
+    mm_demo = load_profiles()["mm-demo"]
+    assert processes[: len(mm_demo) - 1] == mm_demo[:-1]
+    mm = processes[len(mm_demo) - 1]["command"]
+    assert mm[: len(mm_demo[-1]["command"])] == mm_demo[-1]["command"]
+    assert mm[mm.index("--anchor-sim") + 1] == "0.3"
+    assert processes[-2]["command"][0] == "pm-market-sim"
+    command = processes[-1]["command"]
+    assert command[0] == "pm-ai-swarm"
+    assert command[command.index("--count") + 1] == "20"
 
 
 def test_mm_demo_profile_is_default_plus_a_passive_mm01_bot() -> None:
@@ -201,7 +214,13 @@ def test_init_creates_editable_profiles_but_never_overwrites(
 ) -> None:
     assert emo_cli.create_config() == 0
     created = emo_cli.config_path().read_text(encoding="utf-8")
-    assert set(emo_cli.load_profiles()) == {"default", "micro", "mini", "mm-demo"}
+    assert set(emo_cli.load_profiles()) == {
+        "default",
+        "micro",
+        "mini",
+        "mm-demo",
+        "ai-swarm",
+    }
 
     assert emo_cli.create_config() == 1
     assert emo_cli.config_path().read_text(encoding="utf-8") == created

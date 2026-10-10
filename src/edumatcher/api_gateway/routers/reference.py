@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.models.generated.system import (
@@ -154,6 +154,19 @@ async def symbols(
     return await _request_reply(
         request, "symbols", topic_symbols(gateway_id), gateway_id
     )
+
+
+@router.get("/news")
+async def news(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> dict[str, Any]:
+    """The latest headlines from pm-market-sim, oldest first, plus which
+    symbols each sector holds. Any key, read-only ones included: news is
+    public. Empty when pm-market-sim is not running."""
+    snapshot: dict[str, Any] = request.app.state.sim.news_snapshot(limit)
+    return snapshot
 
 
 @router.get("/session")

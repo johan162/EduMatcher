@@ -41,8 +41,8 @@ bot or the operator — with an ID and a role. Listed under `participants:` in
 the configuration.
 
 **Process profile:** A named set of `pm-*` processes that `pm-opctl-cli` starts
-and stops together: `micro`, `mini`, `default` or `mm-demo` (the default set
-plus a market-maker bot).
+and stops together: `micro`, `mini`, `default`, `mm-demo` (the default set
+plus a market-maker bot) or `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders).
 
 **Recorder:** A process that turns the engine's live events into durable
 records: `pm-stats` (prices and volumes), `pm-clearing` (positions and P&L) and

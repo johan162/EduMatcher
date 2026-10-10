@@ -230,7 +230,7 @@ high-volume book/viewer traffic?
 - [CALF Protocol Reference](../protocols-and-clients/part-2-specifications/030-calf.md)
 - [Market Data Feed](../protocols-and-clients/part-3-session-behaviour/030-calf-market-data-feed.md)
 
-**Next:** [14 — AI Traders & Swarm](140-ai-traders.md)
+**Next:** [14 — AI Traders & News](140-ai-traders.md)
 
 For a fuller hands-on tour of every viewer and observer process, see
 [18 — Exchange Observer Processes](180-exchange-observer-processes.md).

@@ -373,7 +373,7 @@ ALF gateway options:
 | `--alf-heartbeat-interval-sec` | int (`> 0`) | `5` | `alf_gateway.heartbeat_interval_sec` |
 | `--alf-handshake-timeout-sec` | int (`> 0`) | `10` | `alf_gateway.handshake_timeout_sec` |
 | `--alf-idle-timeout-sec` | int (`> 0`) | `30` | `alf_gateway.idle_timeout_sec` |
-| `--alf-max-connections` | int (`> 0`) | `64` | `alf_gateway.max_connections` |
+| `--alf-max-connections` | int (`> 0`) | `1024` | `alf_gateway.max_connections` |
 | `--alf-max-client-queue` | int (`> 0`) | `10000` | `alf_gateway.max_client_queue` |
 | `--alf-max-commands-per-second` | int (`> 0`) | `100` | `alf_gateway.max_commands_per_second` |
 | `--alf-max-errors-before-disconnect` | int (`> 0`) | `50` | `alf_gateway.max_errors_before_disconnect` |
@@ -1132,10 +1132,13 @@ The available examples are all located in the directory `docs/examples/ref_data/
 | `s150-basic-nomm-setup` | `s150-basic-nomm` | basic | 150 | no | no |
 | `s150-nominal-nomm-setup` | `s150-nominal-nomm` | nominal | 150 | yes | no |
 | `s150-complex-nomm-setup` | `s150-complex-nomm` | complex | 150 | yes | no |
+| `s300-load-setup` | `s300-load` | load | 300 | yes | yes |
 
 The shorthand is always `s<count>-<profile>`, where `<count>` is one of `1`,
 `3`, `10`, `30`, or `150` and `<profile>` is one of `basic`, `nominal`, or
-`complex`. Any shorthand also accepts an optional trailing `-nomm`
+`complex`. The one exception is `s300-load`, the AI-trader load test bed
+(300 symbols, participants `AI001`–`AI500`), which has no profile and no
+`-nomm` variant. Any other shorthand also accepts an optional trailing `-nomm`
 (`s<count>-<profile>-nomm`, e.g. `s3-basic-nomm`) to deploy the
 no-market-maker-quotes variant of that same example — the `MARKET_MAKER`
 gateway is still present so a market maker can connect and quote, but the

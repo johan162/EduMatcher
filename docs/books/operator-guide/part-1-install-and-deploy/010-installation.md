@@ -117,7 +117,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.46.0
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.50.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -142,7 +142,7 @@ into this file.
 | `GHCR_OWNER` | `johan162` | The GHCR namespace the images are pulled from. Change it only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
-| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
+| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
@@ -285,7 +285,7 @@ alone) and `up-all` (the exchange plus the GUIs).
 |---|---|---|
 | `CONFIG=<name>` | `s10-basic` | Deploy a bundled example |
 | `CONFIG=<file>` | — | Deploy an `engine_config.yaml` of your own; the file is copied to `deployment/docker/config/` and mounted read-only |
-| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro` or `mm-demo`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
+| `PROFILE=<name>` | `default` | Which processes `pm-opctl-cli` starts: `default`, `mini`, `micro`, `mm-demo` or `ai-swarm`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `ZMQ=1` | off | Also publish the raw ZeroMQ bus (5555-5559, 5601-5602) to the host, and set the engine and index sockets to bind `0.0.0.0` inside the container |
 | `SSH=1` | off | Run `sshd` in the container on `SSH_PORT`, authorised by your `~/.ssh/*.pub` |
 | `CONFIG_GUI=1` | off | Include the configuration builder in `up-all`. It is opt-in because it talks to nothing — it is a standalone authoring tool |
@@ -621,7 +621,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.46.0 --snapshot
+    bash -s -- --version 0.50.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -644,7 +644,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.46.0 --snapshot
+bash curl_setup_vm.sh --version 0.50.0 --snapshot
 ```
 
 

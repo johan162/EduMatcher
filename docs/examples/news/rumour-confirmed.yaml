@@ -1,0 +1,19 @@
+# Instructor scenario: a takeover rumour that turns out true (training guide,
+# AI Traders & News).
+#
+# Sixty seconds into continuous trading a rumour says JPM is a takeover
+# target. A rumour moves nothing in the true value: whatever the price does
+# now is traders betting on it. Three minutes later the bid is confirmed and
+# the value jumps about 12%.
+#
+#   pm-news --id OPS01 play docs/examples/news/rumour-confirmed.yaml
+#
+# Works with every s150-* and s300-load example (pm-market-sim running).
+version: 1
+steps:
+  - at: {phase: CONTINUOUS, after_sec: 60}
+    name: bid
+    inject: {symbol: JPM, kind: MNA, sentiment: 0.7, impact: 0.12, rumour: true,
+             credibility: 0.5, headline: "JPM said to be in talks over a takeover bid"}
+  - at: {phase: CONTINUOUS, after_sec: 240}
+    confirm: bid

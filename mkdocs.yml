@@ -139,6 +139,7 @@ nav:
     - "Part III: Run":
       - "Running the Exchange": books/operator-guide/part-3-run/010-running-the-exchange.md
       - "The Admin Console and Exchange Commands": books/operator-guide/part-3-run/020-admin-console-and-commands.md
+      - "Running the AI-Trader Swarm": books/operator-guide/part-3-run/030-ai-trader-swarm.md
     - "Part IV: Run a market":
       - "Listing a New Symbol (`pm-new-symbol`)": books/operator-guide/part-4-run-a-market/010-new-symbols.md
       - "IPO Valuation (`pm-valuation`)": books/operator-guide/part-4-run-a-market/020-valuation.md
@@ -147,6 +148,7 @@ nav:
       - "Statistics and Reporting": books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md
       - "Market Index (`pm-index`)": books/operator-guide/part-4-run-a-market/070-market-index.md
       - "Index Administration (`pm-index-admin-cli`)": books/operator-guide/part-4-run-a-market/080-index-administration.md
+      - "The Market Model (`pm-market-sim`)": books/operator-guide/part-4-run-a-market/090-market-model.md
     - "Part V: Gateways":
       - "ALF Gateway — Order Entry": books/operator-guide/part-5-gateways/010-alf-gateway.md
       - "BALF Gateway — Binary Order Entry": books/operator-guide/part-5-gateways/020-balf-gateway.md
@@ -229,7 +231,7 @@ nav:
       - "Risk Controls": books/training-guide/110-risk-controls.md
       - "P&L & Clearing": books/training-guide/120-pnl-clearing.md
       - "Market Data & Drop Copy": books/training-guide/130-market-data-drop-copy.md
-      - "AI Traders & Swarm": books/training-guide/140-ai-traders.md
+      - "AI Traders & News": books/training-guide/140-ai-traders.md
     - "Part IV: Running a full session":
       - "Running a full session": books/training-guide/00-part-4.md
       - "Statistics & Reporting": books/training-guide/150-statistics-reporting.md

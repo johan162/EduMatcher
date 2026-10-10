@@ -94,7 +94,7 @@ export const DEFAULT_ALF_GATEWAY = {
   heartbeatIntervalSec: 5,
   handshakeTimeoutSec: 10,
   idleTimeoutSec: 30,
-  maxConnections: 64,
+  maxConnections: 1024,
   maxClientQueue: 10_000,
   maxCommandsPerSecond: 100,
   maxErrorsBeforeDisconnect: 50,

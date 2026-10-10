@@ -105,7 +105,7 @@ alf_gateway:
   heartbeat_interval_sec: 5
   handshake_timeout_sec: 10
   idle_timeout_sec: 30
-  max_connections: 64
+  max_connections: 1024
   max_client_queue: 10000
   max_commands_per_second: 100
   max_errors_before_disconnect: 50
@@ -125,7 +125,7 @@ can connect to `pm-alf-gwy`.
 | `heartbeat_interval_sec` | `5` | Seconds between `HB` lines when no other outbound traffic |
 | `handshake_timeout_sec` | `10` | Disconnect a connection that hasn't sent `HELLO` within this many seconds |
 | `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence. This default applies only when an `alf_gateway:` section is present but omits the key; if the section is absent entirely, the effective default is `3600` |
-| `max_connections` | `64` | Maximum simultaneous TCP connections |
+| `max_connections` | `1024` | Maximum simultaneous TCP connections. At start the gateway raises its open-file limit to `max_connections + 64` (up to the hard limit) and refuses to start if the hard limit is lower |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity |
 | `max_commands_per_second` | `100` | Token-bucket rate limit per client |
 | `max_errors_before_disconnect` | `50` | Error threshold in a sliding window before forced disconnect |
@@ -143,14 +143,16 @@ would cancel the other's orders.)
 
 A process that dies without saying goodbye (`kill -9`, a crashed host, a pulled
 network cable) must not keep its ID locked for ever.  So every process that
-holds an ID sends the engine a `system.gateway_heartbeat` every **60 seconds**
+holds an ID sends the engine a `system.gateway_heartbeat`
 (see [Message Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md#systemgateway_heartbeat)).
-`pm-alf-gwy` sends one per authenticated session, starting right after
-`WELCOME`, and a session that closes stops being reported.  After **3
-consecutive missed beats** (180 s) the engine disconnects the session as if it
-had said goodbye: the participant's `disconnect_behaviour` is applied and the
-ID can be connected again.  Worst case, an ID is locked for about three
-minutes after its process dies.
+`pm-alf-gwy` sends one per authenticated session every **5 seconds**, starting
+right after `WELCOME`, and a session that closes stops being reported.  After
+**3 consecutive missed beats** (15 s) the engine disconnects the session as if
+it had said goodbye: the participant's `disconnect_behaviour` is applied and
+the ID can be connected again.  So if `pm-alf-gwy` itself dies, its clients can
+log back on through a restarted gateway within about 15 seconds.  (Single-ID
+processes such as `pm-alf-console` beat every 60 seconds, so their ID stays
+locked for up to three minutes.)
 
 This engine heartbeat is **separate from** the `HB` / `PING` / `idle_timeout_sec`
 mechanism above, which is between your TCP client and the gateway and is much
@@ -268,6 +270,7 @@ HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
 | `CLIENT` | Yes | Free-text label for logging (max 32 chars) |
 | `PROTO` | Yes | Must be exactly `ALF1` |
 | `ID` | Yes | Gateway ID that must be in `participants` in config; max 32 characters (connection closed with `INVALID_VALUE` if exceeded) |
+| `FEED` | No | `ALL` (default) or `ORDERS`. `ORDERS` turns off the public [broadcast events](#broadcast-events) (`SESSION`, `HALT`, `RESUME`, `TRADE`) for this session, for clients that take market data elsewhere — such as the AI traders, which would otherwise each parse every trade on the exchange. Replies to your own commands and your own order events are unaffected |
 
 On any other first line the gateway sends `ERR|CODE=AUTH_REQUIRED|...` and closes
 the connection.
@@ -362,6 +365,11 @@ and matched immediately. It is the same maker/taker attribution the drop-copy
 `DC_FILL` line has always carried, now on the ordinary session fill too — no
 need to enable `DC` or cross-reference the drop-copy feed just to know which
 side of a trade you were on.
+
+`FILL` also names the order's `SYMBOL` and `SIDE`, so a client can book a fill
+into the right position even for an order it is not (or no longer) tracking —
+an OCO leg that fills before its `OCO_ACK` arrives, or an order placed before a
+reconnect.
 
 On rejected order ACKs, `REJECT_CODE` is the stable machine-readable rejection
 classification. `REASON` remains the human-readable explanation.
@@ -669,7 +677,8 @@ QUIT        → (connection closed)
 
 ## Broadcast events
 
-These messages arrive **unsolicited** on every authenticated session.
+These messages arrive **unsolicited** on every authenticated session that
+did not log on with `FEED=ORDERS`.
 
 | Message type | Key fields | Trigger |
 |---|---|---|
@@ -690,7 +699,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | Message type | Key fields |
 |---|---|
 | `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `REJECT_CODE`, `SYMBOL`, `SIDE`, `TYPE`, `TAG`, `RTAG` |
-| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `TRADE_IDS`, `LIQUIDITY`, `TAG` |
+| `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `SYMBOL`, `SIDE`, `TRADE_IDS`, `LIQUIDITY`, `TAG` |
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET`, `TAG`, `RTAG` |
 | `CANCELLED` | `ORDER_ID`, `TAG`, `RTAG`, `CANCEL_REASON` — see [Unsolicited cancels](#unsolicited-cancels) |
 | `EXPIRED` | `ORDER_ID`, `TAG` |
@@ -784,6 +793,7 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 | `SLOW_CLIENT` | Outbound queue full | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 | `MAX_ERRORS` | Too many errors in the sliding error window | No |
+| `SESSION_LOST` | The engine no longer holds the session: it restarted, or it expired the session. The gateway closes every session when it sees the engine's startup broadcast, and every 5 seconds asks the engine which participants it holds and closes the ones it no longer does. Log on again (after an engine restart the engine's positions start flat) | No |
 | `ENGINE_UNAVAILABLE` | Command could not be forwarded to the engine (engine unreachable); retry shortly | Yes |
 | `INTERNAL_ERROR` | Unexpected gateway-internal exception | Yes |
 

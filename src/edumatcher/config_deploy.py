@@ -22,7 +22,10 @@ the result. Two consequences worth knowing:
     cannot drift apart between subsystems.
 
 The authored YAML is installed alongside the artifact, purely so the deployed
-directory records what the running exchange was built from.
+directory records what the running exchange was built from. A
+``market_sim.yaml`` next to the source (the market model's parameters, read by
+``pm-market-sim``) is checked against the engine's symbols and installed with
+it; deploying a source without one removes a previously installed one.
 
 Usage
 -----
@@ -60,6 +63,11 @@ from edumatcher.cverifier.models import CheckResult, Severity
 from edumatcher.dc_gateway.config import load_dc_gateway_config
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.log_srv.config import load_log_client_config, load_log_server_config
+from edumatcher.market_sim.config import (
+    FILE_NAME as SIM_FILE_NAME,
+    SimConfigError,
+    load_sim_config,
+)
 from edumatcher.md_gateway.config import load_market_data_gateway_config
 from edumatcher.ralf_gateway.config import load_ralf_gateway_config
 
@@ -82,6 +90,8 @@ _EXAMPLE_PREFIXES = {
     "s150": "s150",
 }
 _EXAMPLE_PROFILES = ("basic", "nominal", "complex")
+#: Examples outside the count x profile grid, by shorthand -> folder.
+_STANDALONE_EXAMPLES = {"s300-load": "s300-load-setup"}
 
 
 def examples_root() -> Path:
@@ -102,6 +112,13 @@ def resolve_example(name: str) -> Path:
     Raises ``ValueError`` with the available names when *name* is not one of
     the bundled examples.
     """
+    standalone = _STANDALONE_EXAMPLES.get(name)
+    if standalone is not None:
+        path = examples_root() / standalone / "engine_config.yaml"
+        if not path.is_file():
+            raise ValueError(f"Example {name!r} not found (expected {path})")
+        return path
+
     base = name
     nomm = False
     if base.endswith("-nomm"):
@@ -112,10 +129,13 @@ def resolve_example(name: str) -> Path:
     prefix = _EXAMPLE_PREFIXES.get(count)
     if prefix is None or profile not in _EXAMPLE_PROFILES:
         available = ", ".join(
-            f"{count}-{profile}{suffix}"
-            for count in _EXAMPLE_PREFIXES
-            for profile in _EXAMPLE_PROFILES
-            for suffix in ("", "-nomm")
+            [
+                f"{count}-{profile}{suffix}"
+                for count in _EXAMPLE_PREFIXES
+                for profile in _EXAMPLE_PROFILES
+                for suffix in ("", "-nomm")
+            ]
+            + list(_STANDALONE_EXAMPLES)
         )
         raise ValueError(f"Unknown example {name!r}. Available: {available}")
 
@@ -191,6 +211,13 @@ def compile_config(source: Path) -> CompiledConfig:
     except Exception as exc:
         raise CompileError(f"{source} could not be resolved: {exc}") from exc
 
+    sim_source = source.with_name(SIM_FILE_NAME)
+    if sim_source.is_file():
+        try:
+            load_sim_config(sim_source, set(compiled.engine.symbols))
+        except SimConfigError as exc:
+            raise CompileError(str(exc)) from exc
+
     # Stamp the payload digest last: it covers every section but not the meta
     # block that carries it, so it has to be computed once the sections exist.
     return replace(
@@ -223,6 +250,13 @@ def deploy(source: Path, dest: Path = COMPILED_CONFIG_FILE) -> CompiledConfig:
     _write_atomically(
         dest.with_name(ENGINE_CONFIG_FILE.name), source.read_text("utf-8")
     )
+    sim_source = source.with_name(SIM_FILE_NAME)
+    sim_dest = dest.with_name(SIM_FILE_NAME)
+    if sim_source.is_file():
+        _write_atomically(sim_dest, sim_source.read_text("utf-8"))
+    else:
+        # A model for some other configuration's symbols would be wrong here.
+        sim_dest.unlink(missing_ok=True)
     return config
 
 

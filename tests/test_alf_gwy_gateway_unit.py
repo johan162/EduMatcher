@@ -180,14 +180,53 @@ def test_lowercase_hello_id_still_authenticates_as_uppercase(
     peer.close()
 
 
-def test_auth_subscribes_the_qlegs_reply_topic(gateway: AlfGateway) -> None:
+def test_startup_subscribes_every_gateway_scoped_reply_by_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A per-session SUBSCRIBE sent just before the request it answers races
+    # the engine's reply; every reply family must be covered from startup.
+    topics: list[str] = []
+
+    def _capture(_addr: str, *subscribed: str) -> _FakeSub:
+        topics.extend(subscribed)
+        return _FakeSub()
+
+    monkeypatch.setattr(
+        "edumatcher.alf_gwy.gateway.make_pusher", lambda _a: _FakePush()
+    )
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_subscriber", _capture)
+    AlfGateway(AlfGatewayConfig(bind_address="127.0.0.1", port=5565))
+
+    for prefix in (
+        "system.gateway_auth.",
+        "system.symbols.",
+        "system.quote_legs.",
+        "system.quote_bootstrap.",
+        "system.session_status.",
+        "system.position_snapshot.",
+        "order.ack.",
+        "order.fill.",
+        "order.cancelled.",
+        "order.expired.",
+        "order.amended.",
+        "order.orders.",
+        "oco.ack.",
+        "oco.cancelled.",
+    ):
+        assert prefix in topics, prefix
+
+
+def test_auth_makes_no_per_session_subscription(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     gateway._clients[session.sock.fileno()] = session
 
     gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=MM01")
     gateway._handle_gateway_auth("MM01", {"accepted": True})
 
-    assert "system.quote_legs.MM01" in session.subscriptions
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    assert session.authenticated is True
+    assert fake_sub.ops == []
     peer.close()
 
 
@@ -228,6 +267,8 @@ def test_engine_heartbeat_sent_once_per_interval(gateway: AlfGateway) -> None:
     assert [f[0].decode("utf-8") for f in fake_push.sent] == [
         "system.gateway_heartbeat"
     ]
+    # The engine frees a dead gateway's IDs after three missed beats.
+    assert decode(fake_push.sent[0])[1]["interval_sec"] == 5
     peer.close()
 
 
@@ -1035,7 +1076,7 @@ def test_pos_without_gw_is_rejected_as_missing_field(gateway: AlfGateway) -> Non
     peer.close()
 
 
-def test_pos_gw_sends_position_request_and_subscribes(gateway: AlfGateway) -> None:
+def test_pos_gw_sends_position_request(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
     session.gateway_id = "TRADER01"
@@ -1050,8 +1091,6 @@ def test_pos_gw_sends_position_request_and_subscribes(gateway: AlfGateway) -> No
     topic = fake_push.sent[-1][0].decode("utf-8")
     assert topic == "system.position_request"
     assert session.pending_position_query == "MM_AAPL_01"
-    assert "system.position_snapshot.MM_AAPL_01" in session.subscriptions
-    assert gateway._topic_refcounts["system.position_snapshot.MM_AAPL_01"] == 1
     peer.close()
 
 
@@ -1068,7 +1107,7 @@ def test_pos_gw_lowercase_is_uppercased(gateway: AlfGateway) -> None:
     peer.close()
 
 
-def test_second_pos_gw_query_unsubscribes_the_first(gateway: AlfGateway) -> None:
+def test_second_pos_gw_query_replaces_the_first(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
     session.gateway_id = "TRADER01"
@@ -1080,9 +1119,6 @@ def test_second_pos_gw_query_unsubscribes_the_first(gateway: AlfGateway) -> None
     gateway._handle_client_line(session, "POS|GW=MM_MSFT_01")
 
     assert session.pending_position_query == "MM_MSFT_01"
-    assert "system.position_snapshot.MM_AAPL_01" not in session.subscriptions
-    assert "system.position_snapshot.MM_MSFT_01" in session.subscriptions
-    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
     peer.close()
 
 
@@ -1123,8 +1159,6 @@ def test_position_snapshot_reply_routed_to_querying_client(
     assert end.command == "END"
     assert end.fields["TYPE"] == "POSITION"
     assert session.pending_position_query is None
-    assert "system.position_snapshot.MM_AAPL_01" not in session.subscriptions
-    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
     peer.close()
 
 
@@ -1201,24 +1235,6 @@ def test_position_snapshot_reply_for_different_gateway_is_ignored(
     peer.close()
 
 
-def test_disconnect_while_position_query_outstanding_unsubscribes(
-    gateway: AlfGateway,
-) -> None:
-    session, peer = _make_session()
-    session.authenticated = True
-    session.gateway_id = "TRADER01"
-    gateway._clients[session.sock.fileno()] = session
-    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
-
-    gateway._handle_client_line(session, "POS|GW=MM_AAPL_01")
-    assert "system.position_snapshot.MM_AAPL_01" in gateway._topic_refcounts
-
-    gateway._disconnect(session, reason="client closed")
-
-    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
-    peer.close()
-
-
 def test_two_sessions_querying_the_same_gateway_are_both_answered(
     gateway: AlfGateway,
 ) -> None:
@@ -1236,7 +1252,6 @@ def test_two_sessions_querying_the_same_gateway_are_both_answered(
 
     gateway._handle_client_line(session_a, "POS|GW=MM_AAPL_01")
     gateway._handle_client_line(session_b, "POS|GW=MM_AAPL_01")
-    assert gateway._topic_refcounts["system.position_snapshot.MM_AAPL_01"] == 2
     session_a.out_queue.clear()
     session_b.out_queue.clear()
 
@@ -1255,7 +1270,6 @@ def test_two_sessions_querying_the_same_gateway_are_both_answered(
     assert session_b.out_queue
     assert session_a.pending_position_query is None
     assert session_b.pending_position_query is None
-    assert "system.position_snapshot.MM_AAPL_01" not in gateway._topic_refcounts
     peer_a.close()
     peer_b.close()
 
@@ -1450,3 +1464,82 @@ def test_recent_leg_snapshots_carry_their_removal_price(
     # prices, so there is no single price to put on it.
     assert "PRICE" not in lines["RECENT_LEG"][0]
     peer.close()
+
+
+def _authed(gateway: AlfGateway, gw_id: str) -> tuple[ClientSession, socket.socket]:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = gw_id
+    session.connect_emitted = True
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions[gw_id] = session.sock.fileno()
+    return session, peer
+
+
+def test_engine_restart_closes_every_session(gateway: AlfGateway) -> None:
+    a, peer_a = _authed(gateway, "TRADER01")
+    b, peer_b = _authed(gateway, "MM01")
+    gateway._symbols_reply = [b"SYMBOLS|COUNT=0\n"]
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(encode("system.startup_recovery", {"restored_orders": 0}))
+
+    gateway._poll_engine_events()
+
+    for session in (a, b):
+        frame = parse_alf_line(session.out_queue[-1].decode("utf-8"))
+        assert frame.command == "ERR" and frame.fields["CODE"] == "SESSION_LOST"
+        assert session.closing and not session.connect_emitted
+    assert gateway._symbols_reply is None
+    peer_a.close()
+    peer_b.close()
+
+
+def test_session_probe_drops_sessions_the_engine_lost(gateway: AlfGateway) -> None:
+    held, peer_a = _authed(gateway, "TRADER01")
+    lost, peer_b = _authed(gateway, "MM01")
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    fake_push.sent.clear()
+    gateway._probe_engine_sessions_if_due(100.0)
+    gateway._probe_engine_sessions_if_due(101.0)  # not due again yet
+    assert [decode(f) for f in fake_push.sent] == [
+        ("system.gateways_request", {"gateway_id": "ALF-PROBE-1"})
+    ]
+    late, peer_c = _authed(gateway, "TRADER02")
+    late.authenticated_at = 100.5  # logged on after the probe left
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.gateways.ALF-PROBE-1",
+            {
+                "gateways": [
+                    {"id": "TRADER01", "connected": True},
+                    {"id": "MM01", "connected": False},
+                    {"id": "TRADER02", "connected": False},
+                ]
+            },
+        )
+    )
+    held.authenticated_at = lost.authenticated_at = 50.0
+    gateway._poll_engine_events()
+
+    assert not held.closing and not late.closing
+    frame = parse_alf_line(lost.out_queue[-1].decode("utf-8"))
+    assert frame.fields["CODE"] == "SESSION_LOST" and lost.closing
+    # an unknown or repeated probe id is ignored
+    fake_sub._queue.append(encode("system.gateways.ALF-PROBE-1", {"gateways": []}))
+    gateway._poll_engine_events()
+    assert not held.closing
+    for peer in (peer_a, peer_b, peer_c):
+        peer.close()
+
+
+def test_no_probe_without_sessions(gateway: AlfGateway) -> None:
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    fake_push.sent.clear()
+    gateway._probe_engine_sessions_if_due(100.0)
+    assert fake_push.sent == []

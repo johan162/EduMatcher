@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 vi.mock("@/api/endpoints", () => ({
   getSession: vi.fn(),
   getHalts: vi.fn(),
+  getNews: vi.fn(),
 }));
 
 interface FakeOpts {

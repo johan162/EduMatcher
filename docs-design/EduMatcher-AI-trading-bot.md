@@ -2,9 +2,15 @@ Version: 1.0.0
 
 Date: 2026-06-28
 
-Status: Design Specification
+Status: Superseded by `EduMatcher-AI-Traders-v3-Plan.md` (2026-10-09)
 
 # EduMatcher - AI Trading Bot (`pm-ai-trader`, `pm-ai-swarm`)
+
+> **Superseded.** The AI traders were rebuilt to
+> [`EduMatcher-AI-Traders-v3-Plan.md`](EduMatcher-AI-Traders-v3-Plan.md)
+> (presets, ALF routing, sharded swarm, market model and news). This
+> document is kept for its history; it no longer describes the code.
+
 
 ## Table of Contents
 

@@ -14,6 +14,7 @@ import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 import { LoginPage } from "@/pages/LoginPage.js";
 import { MarketOverviewPage } from "@/pages/MarketOverviewPage.js";
 import { WatchlistPage } from "@/pages/WatchlistPage.js";
+import { NewsPage } from "@/pages/NewsPage.js";
 import { TradingWorkspacePage } from "@/pages/TradingWorkspacePage.js";
 import { OrderEntryPage } from "@/pages/OrderEntryPage.js";
 import { ActiveOrdersPage } from "@/pages/ActiveOrdersPage.js";
@@ -69,6 +70,7 @@ export default function App() {
         {/* All roles */}
         <Route path="/market" element={<MarketOverviewPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
+        <Route path="/news" element={<NewsPage />} />
 
         {/* TRADER only */}
         <Route element={<RoleGuard roles={["TRADER"]} />}>

@@ -408,7 +408,7 @@ After authentication, send a subscription control message:
 > {"api_key": "key-readonly-demo"}
 < {"type": "authenticated"}
 > {"action": "subscribe", "symbols": ["AAPL"], "channels": ["book", "trades"]}
-< {"type": "subscription", "data": {"items": [...], "always": ["session", "circuit_breaker"], "rejected": []}}
+< {"type": "subscription", "data": {"items": [...], "always": ["session", "circuit_breaker", "news"], "rejected": []}}
 ```
 
 Each rule can have its own symbols, so one socket can carry an overview plus a
@@ -428,7 +428,7 @@ Expected behavior:
 - stale or unknown bearer keys are rejected
 - every event carries `topic` and a per-topic `seq`; a jump in `seq` for a
   topic means your client read too slowly and events were dropped
-- `session` and `circuit_breaker` arrive whether or not you subscribed — the
+- `session`, `circuit_breaker` and `news` arrive whether or not you subscribed — the
   ack lists them under `always`
 - an `order.fill` event's `data.liquidity_flag` tells you whether *your*
   order supplied liquidity (`MAKER`, it was resting) or removed it

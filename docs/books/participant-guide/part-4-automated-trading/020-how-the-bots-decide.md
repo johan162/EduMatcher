@@ -1,249 +1,159 @@
 # How the AI Traders Decide
 
-## Background and Principle — How Bots Gain Intelligence
-
-EduMatcher bot traders are designed to be **autonomous, reproducible, and explainable**.
-Instead of using opaque model inference on every decision, the MVP bot layer uses a
-policy engine with configurable traits and live market signals.
-
-This gives three practical benefits:
-
-1. Deterministic simulations for debugging and regression tests
-2. Clear behavior tuning per trader personality
-3. Fast decisions suitable for high-frequency event loops
-
-### Core intelligence loop
-
-Each bot continuously runs this loop:
-
-1. Subscribe to market events from the engine (`book.*`, `trade.executed`)
-2. Maintain local state (best bid/ask, last trade, symbol activity)
-3. Apply personality policy (aggression, cadence, size style, etc.)
-4. Build an order candidate (side, quantity, limit price)
-5. Apply risk guardrails (position cap, reject breaker, stale-data pause)
-6. Submit order and observe lifecycle feedback (`order.ack.*`, `order.fill.*`)
-7. Update state and adapt next decision
-
-### Why this is called intelligence
-
-The intelligence is not a single AI model call. It is the **combination** of:
-
-- Live perception from market data
-- A configurable decision policy
-- Feedback adaptation through acknowledgements, fills, and rejects
-- Safety constraints that prevent unstable behavior
-
-Over time, each trader behaves in a distinct way because the policy parameters,
-seed, symbol set, and event stream differ.
-
-### Data sources used by bots
-
-Bots consume the same data foundations that drive market displays:
-
-- Market board and viewer signals via `book.<SYMBOL>` snapshots
-- Ticker-compatible trade flow via `trade.executed`
-- Private execution feedback via per-gateway order topics
-
-This ensures bot behavior is based on the same observable market reality as
-human operators.
-
-
-
-## How to Control Each Trader
-
-You control each bot through CLI flags and profile selection.
-
-###  Select gateway identity
-
-Every bot must use a unique gateway ID that is allowed in `engine_config.yaml`.
-
-```bash
-poetry run pm-ai-trader --id AI01
-```
-
-###  Choose personality profile
-
-Available profile presets:
-
-- `aggressive`
-- `cautious`
-- `many-small`
-- `few-large`
-
-```bash
-poetry run pm-ai-trader --id AI01 --profile aggressive
-```
-
-###  Restrict symbols per trader
-
-Assign one symbol or a comma-separated set.
-
-```bash
-poetry run pm-ai-trader --id AI01 --symbols AAPL,MSFT
-```
-
-###  Make runs reproducible
-
-Control randomness with `--seed` and group runs with `--run-id`.
-
-```bash
-poetry run pm-ai-trader --id AI01 --seed 42 --run-id demo-2026-05-07
-```
-
-###  Control risk behavior
-
-Guardrails are configurable per bot:
-
-- `--max-position`: absolute per-symbol position cap
-- `--max-rejects`: reject threshold before breaker triggers
-- `--reject-window`: rolling window for reject counting
-- `--reject-cooldown`: pause after breaker trip
-- `--stale-data`: maximum market-data age; an older book makes the bot skip the
-  decision and ask the engine for a fresh snapshot
-
-```bash
-poetry run pm-ai-trader \
-  --id AI01 \
-  --profile cautious \
-  --symbols AAPL \
-  --max-position 500 \
-  --max-rejects 10 \
-  --reject-window 10 \
-  --reject-cooldown 5 \
-  --stale-data 4
-```
-
-###  Run many traders at once
-
-Use swarm mode to launch multiple bots with profile cycling and symbol allocation.
-
-```bash
-poetry run pm-ai-swarm --count 30 --duration 60
-```
-
-Useful swarm controls:
-
-- `--count`: number of bots
-- `--prefix`: gateway ID prefix (example: `AI`)
-- `--start-index`: first trader index
-- `--profiles`: profile cycle list
-- `--symbols`: symbol universe override
-- `--seed-base`: deterministic seed start
-
-## How to Start a Swarm of Bots
-
-Use this sequence for reliable startup.
-
-### Step 1: Ensure gateway IDs exist in config
-
-Your swarm IDs must be listed under `participants` in `engine_config.yaml`.
-For example, if you launch with `--prefix AI --start-index 1 --count 30`,
-the engine must allow `AI01` through `AI30`.
-
-### Step 2: Start core exchange processes
-
-At minimum, start engine first and then optional observers:
-
-```bash
-# Terminal 1
-poetry run pm-engine --verbose
-
-# Terminal 2 (optional, recommended)
-poetry run pm-audit --terminal
-
-# Terminal 3 (optional)
-poetry run pm-board
-
-# Terminal 4 (optional)
-poetry run pm-ticker
-```
-
-### Step 3: Launch swarm
-
-Use one command to start all bot traders:
-
-```bash
-poetry run pm-ai-swarm \
-  --count 30 \
-  --prefix AI \
-  --start-index 1 \
-  --profiles aggressive,cautious,many-small,few-large \
-  --duration 300
-```
-
-### Step 4: Validate swarm health
-
-Quick checks:
-
-1. No authentication rejects in engine output
-2. Bot logs show submitted and acknowledged orders increasing
-3. Board/ticker keep updating without stalls
-4. No runaway reject breaker trips unless intentionally stress testing
-
-### Step 5: Stop and rerun deterministic scenarios
-
-- `Ctrl-C` in swarm terminal stops spawned bots gracefully.
-- Reuse the same `--seed-base` and profile list to replay similar behavior.
-- Change one parameter at a time for controlled experiments.
-
-###  Example control setups
-
-Conservative liquidity set:
-
-```bash
-poetry run pm-ai-swarm \
-  --count 12 \
-  --profiles cautious,many-small \
-  --symbols AAPL,MSFT,TSLA \
-  --duration 120
-```
-
-High-impact mixed flow:
-
-```bash
-poetry run pm-ai-swarm \
-  --count 20 \
-  --profiles aggressive,few-large,many-small \
-  --duration 120
-```
-
-
-
-## Practical Notes
-
-1. Keep engine and subscribers running before bots start.
-2. Ensure all bot IDs are listed under `participants` in `engine_config.yaml`.
-3. Start small (2–5 bots), verify flow, then scale to 30.
-4. Use fixed seeds for scenario replay and performance comparisons.
-
-## Prices and ticks
-
-- Bots choose human-readable decimal prices from their profile settings; the
-  gateway converts to integer ticks at the boundary, so the engine never does
-  float arithmetic on a price.
-- A profile does **not** carry a tick size. `PersonalityProfile`
-  (`ai_trader/personality.py`) has `passive_offset_ticks` — how far off the
-  touch to post — expressed in *ticks*, so it follows the symbol's own
-  `tick_decimals` automatically and cannot drift off-grid.
-- The fields a profile actually has are `decision_interval_ms`,
-  `order_size_min`, `order_size_max`, `cross_probability`,
-  `passive_offset_ticks` and `size_distribution`.
-
-## Logging
-
-Every bot is a normal EduMatcher process, so it takes the shared
-log-server flags: `--log-level`, `--log-target`, `--log-file` and
-`--log-failover-timeout`. With `pm-log-srv` running, a swarm's output is
-collectable in one place instead of scattered across thirty terminals —
-which is the difference between a readable swarm run and an unreadable one.
+!!! note "Learning objectives"
+    After reading this page you will be able to:
+
+    - Follow one AI trader from a decision to the orders it sends
+    - Explain each strategy, execution style, tempo and risk setting
+    - Predict how a preset will behave, and write your own
+
+    **Prerequisites**: [AI Traders](010-ai-traders.md).
+
+## The loop
+
+An AI trader does nothing on a fixed timer. Decisions arrive at random — a
+Poisson process at the tempo's `decisions_per_min` — so a swarm's orders do
+not come in bursts. In between, it keeps its house in order. Each time it
+wakes, in this order:
+
+1. **Housekeeping.** Cancel resting orders older than `max_order_age_sec`, or
+   more than `stale_price_ticks` behind the touch on their own side (a buy
+   order behind the best bid, a sell order behind the best ask).
+2. **Slices due** of a `twap` parent order.
+3. **Protection.** Place, resize or remove the protective orders for each
+   open position (continuous trading only).
+4. **A decision**, if one is due: the strategy names a symbol, a side, an
+   urgency and a size multiplier — an *intent* — or nothing. The execution
+   style turns the intent into orders, within the risk limits.
+
+During continuous trading the decision rate follows the day's U shape:
+about twice the average after the open and before the close, half of it at
+midday. A swarm's `budget` scales every trader's rate so the swarm as a
+whole sends the actions per second it was given.
+
+The trader reads the market from the engine's public feed — book snapshots,
+trades, the session, halts — and from `pm-market-sim` the true values and
+the news. It sends nothing for a halted symbol, nothing while the market is
+closed, and only what each phase allows: resting LIMIT and ICEBERG orders in
+the call phases, ATO in the opening auction, ATC in the closing auction,
+everything during continuous trading.
+
+## Strategies: what to trade
+
+A strategy says which way it leans with a *score* from −1 to 1 and buys with
+probability `(1 + score × strength) / 2`, so it leans without becoming
+predictable.
+
+| Strategy | Looks at | Buys when | Parameters |
+|---|---|---|---|
+| `noise` | one random symbol | at random (score 0) | `urgency` |
+| `trend` | `sample` random symbols, acts on the strongest signal | its fast average price (30 s) is above its slow one (300 s) | `strength`, `sample`, `urgency` |
+| `reversion` | the same way | the price is below its slow average | `strength`, `sample`, `urgency` |
+| `value` | `sample` random symbols, acts on the widest gap | the price is below its view of the true value by more than `threshold` | `threshold`, `bias_std`, `redraw`, `sample`, `urgency`, `rumour_shift` |
+| `news` | the news touching its symbols | the headline is good news | `lag_sec`, `lag_sigma`, `half_life_sec`, `threshold`, `urgency`, `move` |
+
+**Trend and reversion** need about 30 seconds and 20 prices of a symbol
+before they have an opinion on it. Both scale the difference by the symbol's
+own recent volatility, so a 1% move means more in a quiet stock than in a
+wild one. The stronger the signal, the more urgent the intent.
+
+**Value** sees each symbol's true value through a bias of its own — a
+persistent error, drawn per symbol with standard deviation `bias_std` and
+re-drawn now and then (`redraw`). That is why two value traders disagree,
+and trade with each other. It acts once the log gap between its view and the
+price exceeds `threshold`; the wider the gap, the more urgent and the larger
+the order, up to three times its usual size. When it crosses the spread it
+pays up to its view of the value less `threshold` — not one tick past the
+touch — so a jump in the value is priced in by a few orders rather than a
+thousand one-tick steps. An open rumour shifts its view by
+`rumour_shift × sentiment × credibility`.
+
+**News** hears each headline after a delay of its own (lognormal, median
+`lag_sec`), so news traders do not all hit the book in the same millisecond.
+From then on its conviction is the headline's |sentiment| — times the
+credibility for a rumour — halving every `half_life_sec`. While conviction is
+above `threshold` it trades the headline's symbols in the headline's
+direction, urgently and in up to three times its usual size, paying up to
+`move × conviction` (a log move) beyond the price it saw when it first acted
+on the headline. A confirmation
+turns a rumour into news known to be true; a retraction leaves an impulse the
+other way, as large as the rumour was believable.
+
+## Execution styles: how to trade it
+
+| Style | Sends | Parameters |
+|---|---|---|
+| `passive` | A LIMIT `offset_ticks` behind the touch (0 joins it) | `offset_ticks`, `tif` |
+| `marketable` | A LIMIT `cross_ticks` through the touch; what does not fill rests | `cross_ticks`, `tif` |
+| `sweep` | A MARKET, IOC or FOK order against the other side | `sweep_type`, `cross_ticks` |
+| `iceberg` | An ICEBERG behind the touch showing `visible_fraction` of its size | `offset_ticks`, `visible_fraction` |
+| `twap` | A parent order cut into `slices` child orders over `horizon_sec` | `slices`, `horizon_sec`, `child_style` |
+
+Any style becomes marketable when the intent's urgency reaches
+`urgency_cross`. A crossing order (marketable, IOC, FOK) is priced at the
+strategy's limit when it gives one (`value` and `news` do), otherwise
+`cross_ticks` past the touch. In the call phases — pre-open and the auctions — a trader
+takes part in a decision with probability `auction_participation`, and then
+sends a limit order straddling the reference price (with TIF ATO or ATC in
+the auctions), so that buyers and sellers overlap at the uncross. Prices are
+kept inside the symbol's price collar and quantities inside its order
+limits: an AI trader does not send what the engine would refuse.
+
+## Tempo: how often and how big
+
+| Tempo | Decisions per minute | Order size | Sizes |
+|---|---|---|---|
+| `many-small` | 30 | 1–25 | mostly small |
+| `aggressive` | 20 | 20–120 | even |
+| `cautious` | 6 | 10–60 | even |
+| `few-large` | 2 | 150–700 | mostly large |
+
+A preset can give its own instead:
+`tempo: {decisions_per_min: 12, size_min: 5, size_max: 80, size_distribution: small-heavy}`
+(`balanced`, `small-heavy` or `block-heavy`). The strategy's size multiplier
+applies on top.
+
+## Risk: what it will not do
+
+| Setting | Effect |
+|---|---|
+| `max_position` | No order that could take the position past ± this many shares, counting open orders as if filled |
+| `max_live_orders_per_symbol` | At most this many working orders per symbol |
+| `max_order_age_sec` | Cancel resting orders older than this |
+| `stale_price_ticks` | Cancel resting orders this far behind their own side's touch |
+| `protection`, `protection_pct` | Protective orders for open positions, `protection_pct` of the price away |
+
+`protection` is one of `none`, `stop` (a STOP order), `stop_limit`,
+`trailing` (a TRAILING_STOP) or `bracket` (an OCO of a take-profit LIMIT and
+a STOP). It follows the position: a new fill resizes it, a flat position
+removes it.
+
+A trader that gets 25 orders refused within 10 seconds pauses for 5 seconds
+— the *reject breaker* — so a misconfigured preset cannot flood the
+exchange with refused orders. A cancel that lost the race with a fill, or an
+order in flight when the market closed, does not count.
+
+## Writing a preset
+
+Start from the closest built-in preset in `src/edumatcher/ai_trader/presets/`
+and change one part at a time:
+
+| You want | Change |
+|---|---|
+| More flow | `tempo` |
+| Takes liquidity instead of providing it | `execution.style: sweep` or `marketable` |
+| Holds bigger positions | `risk.max_position` |
+| Reacts to news faster | `strategy.lag_sec` (news), `execution.urgency_cross` |
+| Disagrees more with other value traders | `strategy.bias_std` (value) |
+
+Every parameter has a range; a value outside it is refused with the file and
+the key named. [AI Traders](010-ai-traders.md#your-own-preset) shows how to
+run your preset.
 
 ## The other bot: `pm-mm-bot`
 
-`pm-ai-trader` takes liquidity and behaves like a directional participant.
-The **market-maker bot** is a separate program with a different job: it
-posts two-sided `quote.new` quotes and manages its obligation, quoting one
-or several symbols from a single gateway id. Reach for it when you need a
-book that *has* resting liquidity to trade against — a swarm of AI traders
-alone tends to produce a thin, jumpy book. See
-`docs-design/EduMatcher-MM-bots.md` and
-`docs-design/EduMatcher-MM-Bot-review.md`.
+`pm-ai-trader` trades like a directional participant. The
+[market-maker bot](../part-3-market-making/030-the-market-maker-bot.md) has
+a different job: it posts two-sided quotes on many symbols from one
+participant ID. Run one with the swarm — AI traders alone make a thin, jumpy
+book.

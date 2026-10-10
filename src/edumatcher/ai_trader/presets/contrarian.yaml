@@ -1,0 +1,6 @@
+name: contrarian
+description: Fades moves with patient passive orders; takes profit or stops out with a bracket.
+strategy: {name: reversion, strength: 0.8, sample: 3, urgency: 0.3}
+execution: {style: passive, offset_ticks: 2, tif: GTC, urgency_cross: 0.95, auction_participation: 0.5}
+tempo: cautious
+risk: {max_position: 1000, max_live_orders_per_symbol: 2, max_order_age_sec: 120, stale_price_ticks: 20, protection: bracket, protection_pct: 0.04}

@@ -78,7 +78,7 @@ The three sockets are not all opened by every role:
 | Socket | Carries | Opened by |
 |---|---|---|
 | `/api/v1/events` | Your own `order.*`, `quote.*`, `oco.*`, `combo.*` events, plus an `orders.snapshot` on every connect | **TRADER, MARKET_MAKER only** |
-| `/api/v1/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker` | Every role |
+| `/api/v1/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker`, `news` | Every role |
 | `/api/v1/admin/monitor` | Cross-gateway order activity and the audit tail | **ADMIN only** |
 
 The consequence worth remembering: **ADMIN has no private order stream.**
@@ -538,6 +538,26 @@ The active symbol leads the set so it survives if the set hits
 
 The watchlist is client-only and lives in memory for the tab — it is not
 persisted between sessions.
+
+### News
+
+The headlines `pm-market-sim` publishes (see
+[The market model](../../operator-guide/part-4-run-a-market/090-market-model.md)),
+newest first: time, status, what the headline is about (symbols, a sector, or
+`MARKET`) and the headline itself, green for good news and red for bad. The
+screen loads the latest headlines when the market-data socket connects (and
+again on every reconnect); new ones arrive live.
+
+- **`RUMOUR 60%`** marks an unconfirmed headline; the percentage is its
+  credibility, how believable it is. Nothing has happened to the company yet.
+- When a rumour resolves, a second headline arrives marked **`CONFIRMED`** or
+  **`RETRACTED`**. A retracted rumour and its retraction are both struck
+  through.
+- The filter box takes a symbol or a sector name. A symbol shows its own news,
+  its sector's news and market-wide news; a sector shows its own news and its
+  symbols' news.
+
+The screen shows the latest 50 matching headlines; the gateway keeps 200.
 
 ### Symbol Detail overlay
 

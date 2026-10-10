@@ -36,10 +36,13 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
 )
 from edumatcher.mm_bot.params import TIER2_DEFAULTS
 from edumatcher.mm_bot.pricer import PassiveParams, PricingStrategy, create_strategy
+from edumatcher.config import SIM_PUB_ADDR
+from edumatcher.models.generated.sim import TOPIC_SIM_VALUE
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.circuit_breaker import (
@@ -62,6 +65,7 @@ from edumatcher.models.generated.system import (
     topic_gateway_auth,
     topic_quote_bootstrap,
     topic_quote_legs,
+    topic_session_status,
     topic_symbols,
 )
 
@@ -190,6 +194,10 @@ class _SymbolState:
     min_cover_qty: int = TIER2_DEFAULTS["min_cover_qty"]
     fade_ticks: int = TIER2_DEFAULTS["fade_ticks"]
     fade_sec: float = TIER2_DEFAULTS["fade_sec"]
+    # Pull the mid toward pm-market-sim's true value (0 = off), and the last
+    # value seen for this symbol.
+    anchor_sim: float = TIER2_DEFAULTS["anchor_sim"]
+    sim_value: float | None = None
     # Where this bot's own legs rest and how much of each is left, so the
     # passive strategy can remove them from book snapshots (_others_levels).
     # Set when a quote is sent or adopted; cleared with the quote state.
@@ -231,6 +239,7 @@ _DIRECT_PARAM_KEYS = (
     "min_cover_qty",
     "fade_ticks",
     "fade_sec",
+    "anchor_sim",
 )
 
 
@@ -763,8 +772,13 @@ class MMBot:
             topic_quote_ack(self.gateway_id),
             topic_quote_status(self.gateway_id),
             TOPIC_SESSION_STATE,
+            topic_session_status(self.gateway_id),
             *per_symbol_topics,
         )
+        if any(st.anchor_sim > 0 for st in self._symbols_state.values()):
+            # The same socket also listens to pm-market-sim's own PUB.
+            self._sub_sock.connect(SIM_PUB_ADDR)
+            self._sub_sock.setsockopt(zmq.SUBSCRIBE, TOPIC_SIM_VALUE.encode())
 
     def _close_sockets(self) -> None:
         if self._push_sock:
@@ -1004,11 +1018,18 @@ class MMBot:
         return False
 
     def _wait_for_session(self, timeout_sec: float) -> bool:
-        """Wait for first session.state event. Returns True if received."""
+        """Learn the session phase. Returns True if known in time.
+
+        ``session.state`` is only broadcast on a transition, so the phase is
+        also asked for: a bot started while the market sits in one phase
+        (closed overnight, say) would otherwise wait for the next transition
+        and give up.
+        """
         if self._session_state is not None:
             return True
 
         assert self._sub_sock is not None
+        self._send(make_session_state_request_msg(self.gateway_id))
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
         deadline = time.monotonic() + timeout_sec
@@ -1019,7 +1040,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == TOPIC_SESSION_STATE:
+            if topic in (TOPIC_SESSION_STATE, topic_session_status(self.gateway_id)):
                 self._session_state = str(payload.get("state", "")).upper()
                 return True
             self._buffer_event(topic, payload)
@@ -1139,6 +1160,9 @@ class MMBot:
             return
         bids = payload.get("bids", [])
         asks = payload.get("asks", [])
+        # Anchored to a known value, the value sets the mid (see _anchor);
+        # the book still feeds the passive plan's levels.
+        held = st.pricer.mid_price if st.anchor_sim > 0 and st.sim_value else None
         update_book = getattr(st.pricer, "update_book", None)
         if update_book is not None:
             # passive: price off other traders' liquidity only.
@@ -1146,14 +1170,55 @@ class MMBot:
                 _others_levels(bids, st.own_bid_price, st.own_bid_qty, st.tick_size),
                 _others_levels(asks, st.own_ask_price, st.own_ask_qty, st.tick_size),
             )
-            self._debug(f"[{symbol}] book mid (others only)={st.pricer.mid_price}")
-            return
-        best_bid_raw = bids[0].get("price") if bids else None
-        best_ask_raw = asks[0].get("price") if asks else None
-        best_bid = float(best_bid_raw) if best_bid_raw is not None else None
-        best_ask = float(best_ask_raw) if best_ask_raw is not None else None
-        st.pricer.update_mid(best_bid, best_ask)
+        else:
+            best_bid_raw = bids[0].get("price") if bids else None
+            best_ask_raw = asks[0].get("price") if asks else None
+            best_bid = float(best_bid_raw) if best_bid_raw is not None else None
+            best_ask = float(best_ask_raw) if best_ask_raw is not None else None
+            st.pricer.update_mid(best_bid, best_ask)
+        if held is not None:
+            st.pricer.set_mid(held)
         self._debug(f"[{symbol}] book mid={st.pricer.mid_price}")
+
+    def _anchor(self, st: _SymbolState) -> None:
+        """Close ``anchor_sim`` of the gap between the mid and the true value.
+
+        Applied at every ``sim.value`` (once per model step). Once a value is
+        known the book no longer moves the mid, so the mid converges on the
+        value: re-deriving it from the book at every update made it a fixed
+        blend of the value and whatever stale order sat in the book.
+        """
+        if st.anchor_sim <= 0 or st.sim_value is None or st.pricer is None:
+            return
+        mid = st.pricer.mid_price
+        if mid is None:
+            st.pricer.set_mid(st.sim_value)
+        else:
+            st.pricer.set_mid(mid + st.anchor_sim * (st.sim_value - mid))
+
+    def _handle_sim_value(self, payload: dict[str, Any]) -> None:
+        """Take in the true values and anchor to them now: a quiet book
+        publishes no updates, and a mid anchored only on book updates would
+        stay wherever the value was when the book last changed."""
+        for entry in payload.get("values", []):
+            symbol = str(entry.get("symbol", "")).upper()
+            st = self._symbols_state.get(symbol)
+            if st is not None and st.anchor_sim > 0:
+                st.sim_value = float(entry["value"])
+                self._anchor(st)
+                self._reprice_if_drifted(symbol)
+
+    def _reprice_if_drifted(self, symbol: str) -> None:
+        st = self._symbols_state[symbol]
+        if (
+            st.state == BotState.QUOTING
+            and st.pricer
+            and st.quoted_at_mid is not None
+            and st.pricer.has_drifted(st.quoted_at_mid)
+        ):
+            self._debug(f"[{symbol}] drift detected — repricing")
+            self._set_state(symbol, BotState.REPRICING)
+            self._cancel_and_reissue(symbol)
 
     def _handle_trade(self, payload: dict[str, Any]) -> None:
         """Handle trade.executed — update mid if no book data."""
@@ -1412,17 +1477,7 @@ class MMBot:
         book_symbol = self._symbol_for_book_topic(topic)
         if book_symbol is not None:
             self._handle_book(payload, symbol=book_symbol)
-            st = self._symbols_state[book_symbol]
-            # Check drift while quoting
-            if (
-                st.state == BotState.QUOTING
-                and st.pricer
-                and st.quoted_at_mid is not None
-                and st.pricer.has_drifted(st.quoted_at_mid)
-            ):
-                self._debug(f"[{book_symbol}] drift detected — repricing")
-                self._set_state(book_symbol, BotState.REPRICING)
-                self._cancel_and_reissue(book_symbol)
+            self._reprice_if_drifted(book_symbol)
             return
 
         halt_symbol = self._symbol_for_topic(topic, topic_circuit_breaker_halt)
@@ -1437,6 +1492,8 @@ class MMBot:
 
         if topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
+        elif topic == TOPIC_SIM_VALUE:
+            self._handle_sim_value(payload)
         elif topic == topic_quote_ack(self.gateway_id):
             self._handle_quote_ack(payload)
         elif topic == topic_quote_status(self.gateway_id):

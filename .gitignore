@@ -210,5 +210,7 @@ ralf_subscriber
 calf_subscriber
 balf_parser
 alf_client
+# ...the C example binary above, not the Python package of the same name
+!src/edumatcher/alf_client/
 demo_info
 

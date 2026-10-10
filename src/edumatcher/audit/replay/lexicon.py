@@ -105,6 +105,10 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "PARTIALLY_MATCHED": "partially matched",
         "MATCHED": "matched",
         "FAILED": "failed",
+        # news.event
+        "RUMOUR": "a rumour",
+        "CONFIRMED": "confirmed",
+        "RETRACTED": "retracted",
     },
     "cancel_reason": {
         "SELF_MATCH_PREVENTED": "self-match prevention",
@@ -180,10 +184,28 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "SPLIT": "a share split",
         "CASH_DIVIDEND": "a cash dividend",
         "SHARES_ISSUANCE": "a share issuance",
+        # pm-market-sim commands (sim.command)
+        "STATUS": "a status request",
+        "NEWS_INJECT": "a news injection",
+        "NEWS_CONFIRM": "a rumour confirmation",
+        "NEWS_RETRACT": "a rumour retraction",
     },
     "change_type": {"ADD": "added to", "DELIST": "delisted from"},
     # -- recovery and diagnostics ------------------------------------------
-    "kind": {"ORDER": "order", "COMBO": "combo"},
+    "kind": {
+        "ORDER": "order",
+        "COMBO": "combo",
+        # news.event
+        "EARNINGS": "earnings",
+        "GUIDANCE": "guidance",
+        "MNA": "a merger or acquisition",
+        "REGULATORY": "regulation",
+        "PRODUCT": "a product",
+        "LEGAL": "a legal matter",
+        "MANAGEMENT": "management",
+        "MACRO": "the economy",
+    },
+    "scope": {"SYMBOL": "a symbol", "SECTOR": "a sector", "MARKET": "the whole market"},
     # Each gloss carries its own verb: "failed to restore" and "was restored"
     # cannot share one, and a template that tried would have to branch.
     "outcome": {
@@ -201,7 +223,7 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     # -- query and subscription surfaces -----------------------------------
     "event_type": {"order.fill": "a fill"},
     "mode": {"STREAM": "streaming", "NOTIFY": "notify-only"},
-    "state": {"UP": "up", "DOWN": "down"},
+    "state": {"UP": "up", "DOWN": "down", "RUNNING": "running", "PAUSED": "paused"},
     "show": {"ACTIVE": "active only", "RECENT": "recent", "ALL": "all"},
     "show_requested": {"ACTIVE": "active only", "RECENT": "recent", "ALL": "all"},
 }

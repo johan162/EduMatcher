@@ -24,10 +24,12 @@ from edumatcher.models.generated import circuit_breaker as _circuit_breaker
 from edumatcher.models.generated import drop_copy as _drop_copy
 from edumatcher.models.generated import index as _index
 from edumatcher.models.generated import log as _log
+from edumatcher.models.generated import news as _news
 from edumatcher.models.generated import order as _order
 from edumatcher.models.generated import quote as _quote
 from edumatcher.models.generated import risk as _risk
 from edumatcher.models.generated import session as _session
+from edumatcher.models.generated import sim as _sim
 from edumatcher.models.generated import structure as _structure
 from edumatcher.models.generated import system as _system
 from edumatcher.models.generated import trade as _trade
@@ -324,6 +326,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "transport": ("engine_pub",),
         "params": (),
         "fields": _log.describe_log_server_state(),
+    },
+    _news.TOPIC_NEWS_EVENT: {
+        "family": "news",
+        "message": "news_event",
+        "prefix": _news.TOPIC_NEWS_EVENT,
+        "transport": ("sim_pub",),
+        "params": (),
+        "fields": _news.describe_news_event(),
     },
     _order.TOPIC_ORDER_ACK: {
         "family": "order",
@@ -652,6 +662,38 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "transport": ("engine_pub",),
         "params": ("gateway_id",),
         "fields": _session.describe_session_transition_ack(),
+    },
+    _sim.TOPIC_SIM_VALUE: {
+        "family": "sim",
+        "message": "sim_value",
+        "prefix": _sim.TOPIC_SIM_VALUE,
+        "transport": ("sim_pub",),
+        "params": (),
+        "fields": _sim.describe_sim_value(),
+    },
+    _sim.TOPIC_SIM_STATE: {
+        "family": "sim",
+        "message": "sim_state",
+        "prefix": _sim.TOPIC_SIM_STATE,
+        "transport": ("sim_pub",),
+        "params": (),
+        "fields": _sim.describe_sim_state(),
+    },
+    _sim.TOPIC_SIM_COMMAND: {
+        "family": "sim",
+        "message": "sim_command",
+        "prefix": _sim.TOPIC_SIM_COMMAND,
+        "transport": ("sim_push",),
+        "params": (),
+        "fields": _sim.describe_sim_command(),
+    },
+    _sim.TOPIC_SIM_COMMAND_ACK: {
+        "family": "sim",
+        "message": "sim_command_ack",
+        "prefix": _sim.PREFIX_SIM_COMMAND_ACK,
+        "transport": ("sim_pub",),
+        "params": ("gateway_id",),
+        "fields": _sim.describe_sim_command_ack(),
     },
     _structure.TOPIC_COMBO_ACK: {
         "family": "structure",

@@ -7,7 +7,7 @@ and shuts them down again.
 
 Profiles
 --------
-A *profile* is a named list of processes to run together. Four profiles are
+A *profile* is a named list of processes to run together. Five profiles are
 built in:
 
 ``micro``
@@ -23,6 +23,10 @@ built in:
     deliberately slow pace, so a student can watch a market maker work. It
     quotes as gateway ``MM01``, which the bundled example configs register, on
     every symbol of the deployed configuration.
+``ai-swarm``
+    ``mm-demo`` plus ``pm-ai-swarm`` running the AI traders ``AI001``-``AI020``
+    (one worker, about 40 order actions a second). Needs a configuration that
+    registers them, such as the ``s150`` examples or ``s300-load``.
 
 The built-ins are used as-is when no configuration file exists. Running
 ``init`` writes them to ``<DATA_DIR>/emo-config.yaml`` so they can be edited.
@@ -285,6 +289,37 @@ MM_DEMO_PROCESSES: list[dict[str, Any]] = [
     },
 ]
 
+# The default set, the market model, mm-demo's market maker quoting around the
+# model's true values, and twenty AI traders (AI001-AI020, as the s150 examples
+# register), every built-in preset in equal shares, each trading every symbol
+# (--symbols-per-agent is capped at the number of symbols). An unanchored
+# passive market maker refills its quotes at its own mid and pins prices, so
+# informed flow could not move them. --verbose logs one status line per
+# minute and one summary per trading day.
+AI_SWARM_PROCESSES: list[dict[str, Any]] = [
+    *DEFAULT_PROCESSES,
+    {
+        "name": "mm-bot",
+        "command": [*MM_DEMO_PROCESSES[-1]["command"], "--anchor-sim", "0.3"],
+    },
+    # The value and news presets trade on the market model's values and
+    # headlines; without it they stand idle.
+    {"name": "market-sim", "command": ["pm-market-sim", "--verbose"]},
+    {
+        "name": "ai-swarm",
+        "command": [
+            "pm-ai-swarm",
+            "--count",
+            "20",
+            "--budget",
+            "40",
+            "--symbols-per-agent",
+            "1000",
+            "--verbose",
+        ],
+    },
+]
+
 # {"name": "trader", "command": ["pm-alf-console", "--id", "TRADER01", "--verbose"]},
 
 BUILTIN_PROFILES = {
@@ -292,6 +327,7 @@ BUILTIN_PROFILES = {
     "micro": MICRO_PROCESSES,
     "mini": MINI_PROCESSES,
     "mm-demo": MM_DEMO_PROCESSES,
+    "ai-swarm": AI_SWARM_PROCESSES,
 }
 
 

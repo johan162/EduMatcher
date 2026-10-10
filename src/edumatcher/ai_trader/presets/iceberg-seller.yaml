@@ -1,0 +1,6 @@
+name: iceberg-seller
+description: Noise flow hidden behind iceberg orders showing a fifth of their size.
+strategy: {name: noise, urgency: 0.1}
+execution: {style: iceberg, offset_ticks: 1, visible_fraction: 0.2, urgency_cross: 1.0, auction_participation: 0.2}
+tempo: few-large
+risk: {max_position: 3000, max_live_orders_per_symbol: 2, max_order_age_sec: 120, stale_price_ticks: 20}

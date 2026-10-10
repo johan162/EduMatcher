@@ -369,20 +369,20 @@ and redeploy.
 ## A tour of the interface
 
 📷 **Figure 1 — The app shell.** Capture the Overview screen in dark theme,
-showing the full shell: the top bar (app name and version, the six view tabs,
+showing the full shell: the top bar (app name and version, the seven view tabs,
 the density, theme and settings controls, the connection indicator) and the footer status strip.
 Suggested file: `images/terminal-gui/fig-01-app-shell.png`.
 
 ### Top bar
 
-A single row (not a collapsible sidebar — six destinations is small enough
+A single row (not a collapsible sidebar — seven destinations is small enough
 for one row, and a data-dense terminal wants its horizontal space for
 numbers, not navigation chrome) holding:
 
 - **`EduMatcher pm-terminal v<version>`** — the app name and the release it
   was built from.
-- The six view tabs: **Overview**, **Symbol**, **Index**, **Tape**,
-  **Movers**, **Session**.
+- The seven view tabs: **Overview**, **Symbol**, **Index**, **Tape**,
+  **Movers**, **Session**, **News**.
 - A **density** control (gauge icon) that cycles **Lobby → Standard →
   Dense**. This is a display preference, not a mode — every route and every
   data point stays reachable at every setting; only defaults change (larger
@@ -641,6 +641,21 @@ content. Suggested file: `images/terminal-gui/fig-08-session-board.png`.
   a per-symbol `CB` subscription (the other is opening that symbol's own
   Symbol Detail view) — closing the tab releases every subscription it was
   the sole reason for.
+
+### News
+
+The headlines `pm-market-sim` publishes (see
+[The market model](../../operator-guide/part-4-run-a-market/090-market-model.md)),
+newest first, with the same badges and filter as the trading GUI's
+[News](020-trading-platform-gui.md#news) screen: `RUMOUR` with its
+credibility, `CONFIRMED`/`RETRACTED` when a rumour resolves (a retracted
+rumour and its retraction struck through), and a filter that takes a symbol
+or a sector.
+
+CALF carries no news, so this view reads them through the bridge's
+`/api/news` proxy to `pm-api-gwy`'s `GET /api/v1/news` — the same read-only
+key as the charts — once a second while it is open. Without `pm-api-gwy` it
+says the news is unavailable; without `pm-market-sim` the list stays empty.
 
 ## Configuration reference
 

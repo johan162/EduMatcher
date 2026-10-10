@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.46.0"
+version = "0.50.0"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -100,6 +100,8 @@ pm-valuation = "edumatcher.valuation.main:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
 pm-config-show = "edumatcher.config_show.cli:main"
 pm-msgen      = "edumatcher.msgen.cli:main"
+pm-market-sim = "edumatcher.market_sim.main:main"
+pm-news       = "edumatcher.market_sim.news_cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
 pm-opctl-cli    = "edumatcher.emo.cli:main"

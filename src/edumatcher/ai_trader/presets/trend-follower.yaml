@@ -1,0 +1,6 @@
+name: trend-follower
+description: Follows momentum with marketable limit orders; protects positions with a stop.
+strategy: {name: trend, strength: 0.8, sample: 3, urgency: 0.6}
+execution: {style: marketable, cross_ticks: 0, auction_participation: 0.4}
+tempo: cautious
+risk: {max_position: 1000, max_live_orders_per_symbol: 2, max_order_age_sec: 60, stale_price_ticks: 10, protection: stop, protection_pct: 0.03}

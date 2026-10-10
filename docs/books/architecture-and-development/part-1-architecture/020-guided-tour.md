@@ -1927,9 +1927,11 @@ registry. Just connect and start sending.
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
 core message-flow processes. Display processes (`pm-viewer`, `pm-board`, `pm-ticker`)
-and the AI trader (`pm-ai-trader`) also connect to the PUB socket on port 5556 but
-are omitted for clarity — they are pure subscribers that display data and never send
-orders to the engine.
+also connect to the PUB socket on port 5556 but are omitted for clarity — they are
+pure subscribers that display data and never send orders to the engine. The AI
+traders (`pm-ai-trader`, `pm-ai-swarm`) read the same PUB socket but send their
+orders as ALF clients through `pm-alf-gwy`, like a student's console; the market
+model (`pm-market-sim`) has PUB/PULL sockets of its own on ports 5553/5554.
 
 ```mermaid
 graph TB

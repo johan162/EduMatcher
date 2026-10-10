@@ -38,8 +38,8 @@ earlier chapters introduced, so nothing you learned to use disappears.
 
 !!! warning "`--force` overwrites the configuration you have been building"
     This command replaces `engine_config.yaml` outright. Everything you added
-    by hand in earlier chapters — `MM_MANUAL_01` from Chapter 09, the `AI01`–
-    `AI03` gateways from Chapter 14, any collar or circuit-breaker tuning from
+    by hand in earlier chapters — `MM_MANUAL_01` from Chapter 09, the `AI001`–
+    `AI003` gateways from Chapter 14, any collar or circuit-breaker tuning from
     Chapter 11 — is gone unless the command below re-creates it.
 
     Back it up first so you can compare, or return to it afterwards:
@@ -58,7 +58,7 @@ pm-config-gen \
   --participants TRADER01:TRADER TRADER02:TRADER GW_ADMIN:ADMIN \
              MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER MM_TSLA_01:MARKET_MAKER \
              MM_MANUAL_01:MARKET_MAKER \
-             AI01:TRADER AI02:TRADER AI03:TRADER \
+             AI001:TRADER AI002:TRADER AI003:TRADER \
   --sessions-enabled \
   --static-band 0.10 \
   --dynamic-band 0.05 \
@@ -79,7 +79,7 @@ would make the collars and circuit breakers reject them.
 Open the file and confirm the symbol and gateway sections are present.
 
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols,
-5 traders (`TRADER01`, `TRADER02`, `AI01`–`AI03`), 1 admin, and 4 market
+5 traders (`TRADER01`, `TRADER02`, `AI001`–`AI003`), 1 admin, and 4 market
 makers, `require_mm_seed_quotes: false`, and no `market_maker_quotes`.
 
  
@@ -140,7 +140,7 @@ pm-alf-console --id MM_MSFT_01
 pm-alf-console --id MM_TSLA_01
 ```
 
-`MM_MANUAL_01` and `AI01`–`AI03` are configured but do not need a console of
+`MM_MANUAL_01` and `AI001`–`AI003` are configured but do not need a console of
 their own yet: `MM_MANUAL_01` is there if you want to repeat Chapter 09's
 manual quoting against this venue, and the AI gateways are driven by
 `pm-ai-trader` in Exercise 6 rather than typed at.
@@ -204,13 +204,13 @@ is lower:
 
 Now add background flow, so the later P&L and statistics exercises have more
 than a handful of hand-typed trades to work with. Start the three AI gateways
-you configured in Exercise 1, each with a different personality, in their own
+you configured in Exercise 1, each with a different preset, in their own
 terminals:
 
 ```bash
-pm-ai-trader --id AI01 --profile aggressive  --duration 300
-pm-ai-trader --id AI02 --profile cautious    --duration 300
-pm-ai-trader --id AI03 --profile many-small  --duration 300
+pm-ai-trader --id AI001 --preset scalper  --duration 300
+pm-ai-trader --id AI002 --preset contrarian    --duration 300
+pm-ai-trader --id AI003 --preset noise-retail  --duration 300
 ```
 
 `--duration 300` stops them after five minutes, which is long enough for the

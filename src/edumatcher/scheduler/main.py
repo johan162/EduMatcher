@@ -16,6 +16,9 @@ Usage:
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
   poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
+  poetry run pm-scheduler --daily --speed 600 --start 2026-11-02T08:55
+                                           # compressed: 10 simulated minutes
+                                           # per second, from that local time
 
 Logging:
   Operational messages go through the ``logging`` module (configured at the
@@ -166,6 +169,44 @@ _ENGINE_START_STATE = SessionState.CLOSED
 WALLCLOCK_RECHECK_SEC = 30.0
 
 
+class _Clock:
+    """Local time the schedule runs on.
+
+    By default the wall clock. Under ``--speed`` (compressed mode) a
+    simulated local clock that starts at ``start`` and runs ``speed`` times
+    faster than the wall clock: days, weekends and holidays pass in sim time,
+    while waits and the countdown instants sent to the engine are wall time.
+    """
+
+    def __init__(self, speed: float = 1.0, start: datetime | None = None) -> None:
+        self.speed = speed
+        self._start = start
+        self._wall0 = time.time()
+
+    def now(self) -> datetime:
+        if self._start is None:
+            return datetime.now()
+        elapsed = (time.time() - self._wall0) * self.speed
+        return self._start + timedelta(seconds=elapsed)
+
+    def seconds_until(self, target: datetime) -> float:
+        """Wall seconds until the local schedule time ``target``."""
+        if self._start is None:
+            return _seconds_until_local(target)
+        return (target - self.now()).total_seconds() / self.speed
+
+    def wall_instant(self, target: datetime) -> datetime:
+        """The (aware) wall-clock instant at which ``target`` falls."""
+        if self._start is None:
+            return target.astimezone()
+        return datetime.now().astimezone() + timedelta(
+            seconds=self.seconds_until(target)
+        )
+
+
+_clock = _Clock()
+
+
 def _hhmm_to_minutes(hhmm: str) -> int:
     """Return minutes-since-midnight for a normalized ``"HH:MM"`` string."""
     h, m = hhmm.split(":")
@@ -279,7 +320,7 @@ def _time_today(hhmm: str) -> datetime:
     an hour right at a DST boundary.
     """
     h, m = hhmm.split(":")
-    now = datetime.now()
+    now = _clock.now()
     return now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
 
 
@@ -383,7 +424,7 @@ def _to_utc_iso(target: datetime) -> str:
     another timezone has to be anchored to an absolute instant rather than to
     a wall-clock reading the client would interpret as its own.
     """
-    aware = target.astimezone() if target.tzinfo is None else target
+    aware = _clock.wall_instant(target) if target.tzinfo is None else target
     return (
         aware.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     )
@@ -391,7 +432,7 @@ def _to_utc_iso(target: datetime) -> str:
 
 def _wait_until(target: datetime) -> Callable[[], float]:
     """Return a pre-send wait that counts down to an absolute local time."""
-    return lambda: _seconds_until_local(target)
+    return lambda: _clock.seconds_until(target)
 
 
 def _send_transition(
@@ -621,7 +662,7 @@ def _run_scheduled(
     """
     running = is_running or (lambda: True)
 
-    today = datetime.now().date()
+    today = _clock.now().date()
     today_schedule = resolve_day(schedule_cfg, today, country)
     if today_schedule is None:
         if is_bank_holiday(today, country):
@@ -651,7 +692,7 @@ def _run_scheduled(
             log.warning("could not determine engine state; assuming a " "CLOSED start")
 
     # Partition the schedule against a single "now" snapshot.
-    now = datetime.now()
+    now = _clock.now()
     past: list[tuple[str, str]] = []
     upcoming: list[tuple[str, str, datetime]] = []
     for hhmm, state in schedule:
@@ -714,7 +755,7 @@ def _run_forever(
         if not is_running():
             break
 
-        target_day = _next_scheduled_day(schedule_cfg, datetime.now().date(), country)
+        target_day = _next_scheduled_day(schedule_cfg, _clock.now().date(), country)
         target_midnight = datetime.combine(target_day, datetime.min.time())
         log.info(
             "Day complete; sleeping until the next scheduled day (%s)",
@@ -779,6 +820,23 @@ def build_parser() -> argparse.ArgumentParser:
             "Seconds between transitions in --now mode "
             f"(default: {NOW_MODE_DELAY}; ignored outside --now)"
         ),
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=None,
+        metavar="F",
+        help=(
+            "Compressed mode (with --daily): simulated time runs F times "
+            "faster than the wall clock"
+        ),
+    )
+    parser.add_argument(
+        "--start",
+        type=datetime.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DDTHH:MM",
+        help="Compressed mode: local time the simulated clock starts at (default: now)",
     )
     parser.add_argument(
         "--no-confirm",
@@ -881,6 +939,18 @@ def main() -> None:
     if args.delay is not None and not args.now:
         log.warning("--delay is ignored outside --now mode")
     now_mode_delay = args.delay if args.delay is not None else NOW_MODE_DELAY
+
+    global _clock
+    if args.speed is not None or args.start is not None:
+        if not args.daily:
+            parser.error("--speed and --start need --daily")
+        speed = 1.0 if args.speed is None else args.speed
+        if speed <= 0:
+            parser.error("--speed must be > 0")
+        _clock = _Clock(speed, args.start or datetime.now())
+        log.info(
+            "compressed mode: x%g from simulated %s", speed, _clock.now().isoformat()
+        )
 
     running = True
 

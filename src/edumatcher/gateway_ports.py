@@ -89,6 +89,22 @@ DEFAULT_API_GATEWAY_PORT = 8080
 # Either way they are invisible in engine_config.yaml, which is exactly why a
 # viewer must show them.
 FIXED_LISTENERS: tuple[FixedListener, ...] = (
+    FixedListener(
+        5553,
+        "ZMQ PUB",
+        "pm-market-sim",
+        "True values and heartbeat",
+        "env",
+        "EDUMATCHER_SIM_PUB_PORT",
+    ),
+    FixedListener(
+        5554,
+        "ZMQ PULL",
+        "pm-market-sim",
+        "Instructor commands",
+        "env",
+        "EDUMATCHER_SIM_PULL_PORT",
+    ),
     FixedListener(5555, "ZMQ PULL", "pm-engine", "Order intake (CALF)", "fixed"),
     FixedListener(5556, "ZMQ PUB", "pm-engine", "Event + book feed", "fixed"),
     FixedListener(5557, "ZMQ PUB", "pm-engine", "Drop-copy feed", "fixed"),

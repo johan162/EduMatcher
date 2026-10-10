@@ -3,8 +3,9 @@
  * global connection indicator.
  *
  * Tabs live here rather than in a left nav rail, which is where log-gui puts
- * them. Design §7.2 argues the case explicitly — six destinations fit one row,
- * and a terminal wants its horizontal space for data, not chrome.
+ * them. Design §7.2 argues the case explicitly — six destinations (seven with
+ * News) fit one row, and a terminal wants its horizontal space for data, not
+ * chrome.
  */
 
 import clsx from "clsx";
@@ -23,6 +24,7 @@ const VIEWS = [
   { to: "/tape", label: "Tape", end: false },
   { to: "/movers", label: "Movers", end: false },
   { to: "/session", label: "Session", end: false },
+  { to: "/news", label: "News", end: false },
 ] as const;
 
 const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; label: string }> = {

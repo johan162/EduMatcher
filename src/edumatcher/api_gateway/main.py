@@ -21,6 +21,9 @@ from edumatcher.api_gateway.config import (
 )
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
+from edumatcher.api_gateway.sim_client import SimClient
+from edumatcher.config import REF_DATA_DIR, SIM_PUB_ADDR
+from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME, load_sectors
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import (
     admin,
@@ -119,6 +122,11 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         engine.start_listener()
         index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
         index_client.start_listener()
+        sim = SimClient(
+            SIM_PUB_ADDR, loop, sectors=load_sectors(REF_DATA_DIR / SIM_FILE_NAME)
+        )
+        sim.start_listener()
+        app.state.sim = sim
         app.state.config = config
         app.state.engine = engine
         app.state.index_client = index_client
@@ -173,6 +181,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                 )
             engine.stop_listener()
             index_client.stop_listener()
+            sim.stop_listener()
 
     docs_url = "/docs" if config.swagger_enabled else None
     openapi_url = "/openapi.json" if config.swagger_enabled else None

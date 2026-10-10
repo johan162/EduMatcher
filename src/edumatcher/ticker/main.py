@@ -5,7 +5,8 @@ Usage:
   poetry run pm-ticker [--db data/stats.db] [--db-interval 900]
 
 Subscribes to:
-  book.*  — live last price, best bid/ask per symbol
+  book.*      — live last price, best bid/ask per symbol
+  news.event  — pm-market-sim's headlines (latest one shown under the tape)
 
 Queries:
   daily_stats table in the statistics SQLite DB every --db-interval seconds
@@ -14,8 +15,8 @@ Queries:
 Display:
   A bordered box is drawn across the top rows of the terminal. It holds a
   header (the "EduMatcher" brand, today's total trade volume and the current
-  date/time) and a single ticker line that scrolls the symbols leftward like
-  a classic ticker tape.
+  date/time), a ticker line that scrolls the symbols leftward like a classic
+  ticker tape, and the latest headline.
 
   • If every symbol fits within the current width the line stays static and
     does not scroll.
@@ -50,6 +51,7 @@ from rich.text import Text
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
+    SIM_PUB_ADDR,
     STATS_DB_FILE,
     resolve_data_path,
 )
@@ -69,6 +71,7 @@ from edumatcher.models.generated.system import topic_symbols
 from edumatcher.stats.query import resolve_session_timezone
 from edumatcher.stats.trading_day import resolve_timezone, trading_date
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.news import TOPIC_NEWS_EVENT
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -81,7 +84,7 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _SCROLL_FPS = 12  # marquee refresh rate
 _SCROLL_STEP = 1  # columns advanced per frame while scrolling
 _MIN_TICKER_WIDTH = 24  # below this inner width the line is ellipsised
-_BOX_HEIGHT = 5  # header + rule + ticker + top/bottom border
+_BOX_HEIGHT = 6  # header + rule + ticker + news + top/bottom border
 _FRAME_PADDING = 4  # 2 border cells + 2 horizontal padding cells
 _SEP = "  \u25c6  "  # inter-symbol separator (also the marquee wrap gap)
 _GAP_LEN = len(_SEP)
@@ -290,8 +293,35 @@ def _build_header(total_volume: int, symbol_count: int, now: datetime) -> Table:
     return grid
 
 
+def _format_news(item: dict[str, Any] | None, inner: int) -> Text:
+    """One headline line: time, status, and the headline coloured by its
+    sentiment; a retracted one struck through."""
+    if item is None:
+        text = Text("no news yet", style="dim italic")
+    else:
+        status = str(item.get("status", ""))
+        sentiment = float(item.get("sentiment") or 0.0)
+        colour = "green" if sentiment > 0 else "red" if sentiment < 0 else "white"
+        when = datetime.fromtimestamp(int(item.get("ts_ns") or 0) / 1e9)
+        text = Text.assemble(("NEWS ", "bold white on dark_red"), " ")
+        text.append(when.strftime("%H:%M:%S "), style="dim")
+        if status == "RUMOUR":
+            credibility = item.get("credibility")
+            label = "RUMOUR" if credibility is None else f"RUMOUR {credibility:.0%}"
+            text.append(f"[{label}] ", style="bold yellow")
+        elif status in ("CONFIRMED", "RETRACTED"):
+            text.append(f"[{status}] ", style="bold")
+        style = colour + (" strike" if status == "RETRACTED" else "")
+        text.append(str(item.get("headline", "")), style=style)
+    return _fit_static(text, inner)
+
+
 def _build_panel(
-    total_volume: int, symbol_count: int, now: datetime, ticker_line: Text
+    total_volume: int,
+    symbol_count: int,
+    now: datetime,
+    ticker_line: Text,
+    news_line: Text,
 ) -> Panel:
     """Assemble the full top-of-screen ticker box."""
     return Panel(
@@ -299,6 +329,7 @@ def _build_panel(
             _build_header(total_volume, symbol_count, now),
             Rule(style="grey35"),
             ticker_line,
+            news_line,
         ),
         box=box.ROUNDED,
         border_style="blue",
@@ -338,6 +369,8 @@ class TickerProcess:
         self._daily: dict[str, dict[str, Any]] = {}
         # Stable sorted list of known symbols
         self._symbols: list[str] = []
+        # Latest pm-market-sim headline
+        self._news: dict[str, Any] | None = None
 
         # Marquee horizontal scroll offset (columns)
         self._scroll_offset = 0
@@ -351,6 +384,9 @@ class TickerProcess:
             PREFIX_BOOK_SNAPSHOT,
             topic_symbols(TICKER_GATEWAY_ID),
         )
+        # Headlines come from pm-market-sim's own PUB socket.
+        self.sub.connect(SIM_PUB_ADDR)
+        self.sub.setsockopt_string(zmq.SUBSCRIBE, TOPIC_NEWS_EVENT)
         # PUSH socket to ask the engine for the symbol list and, per symbol,
         # a book snapshot -- otherwise a symbol whose book was only ever
         # seeded with startup market-maker quotes (no order/trade since)
@@ -468,6 +504,10 @@ class TickerProcess:
                         self._symbols.sort()
                 self._dbg_count("book_events")
                 self._dbg_count("symbols_seen", 1 if symbol not in self._daily else 0)
+            elif topic == TOPIC_NEWS_EVENT:
+                with self._lock:
+                    self._news = payload
+                self._dbg_count("news_events")
             elif topic == topic_symbols(TICKER_GATEWAY_ID):
                 self._symbols_received = True
                 self._dbg_count("symbols_reply")
@@ -487,6 +527,7 @@ class TickerProcess:
         symbols: list[str],
         daily: dict[str, dict[str, Any]],
         live: dict[str, dict[str, Any]],
+        news: dict[str, Any] | None,
     ) -> Panel:
         """Build the ticker box for the current terminal width, advancing the
         marquee offset only when the content is wider than the box."""
@@ -510,7 +551,9 @@ class TickerProcess:
             ticker = Text("waiting for market data…", style="dim italic")
             ticker.no_wrap = True
 
-        return _build_panel(total_volume, len(symbols), now, ticker)
+        return _build_panel(
+            total_volume, len(symbols), now, ticker, _format_news(news, inner)
+        )
 
     # ------------------------------------------------------------------
     # Main loop
@@ -564,8 +607,9 @@ class TickerProcess:
                         syms = list(self._symbols)
                         daily = dict(self._daily)
                         live_data = dict(self._live)
+                        news = self._news
 
-                    live.update(self._render(syms, daily, live_data))
+                    live.update(self._render(syms, daily, live_data, news))
                     live.refresh()
                     self._dbg_count("frames_rendered")
                     self._flush_debug_summary()

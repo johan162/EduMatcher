@@ -330,6 +330,22 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 | `index.constituent_change` | GW → pm-index | Add or remove an index constituent |
 | `index.constituent_change_ack.{GW_ID}` | pm-index → GW | Constituent-change acknowledgement |
 
+### Market-model bus — pm-market-sim ↔ clients (PUB :5553 / PULL :5554)
+
+`pm-market-sim` binds its own pair of sockets, on loopback by default
+(`EDUMATCHER_SIM_BIND_HOST`). It follows the engine's session from :5556 and
+publishes the market model: true values for the AI traders, ADMIN and
+`pm-mm-bot --anchor-sim`, and headlines for everyone. See
+[The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md).
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `sim.value` | pm-market-sim → all | Every symbol's true value, once per step during continuous trading |
+| `sim.state` | pm-market-sim → all | Heartbeat: `RUNNING` or `PAUSED`, the session, the step |
+| `news.event` | pm-market-sim → all | One headline, or a rumour confirmed or retracted |
+| `sim.command` | ADMIN → pm-market-sim | Status request; inject, confirm or retract news (`pm-news`) |
+| `sim.command_ack.{GW_ID}` | pm-market-sim → ADMIN | Command acknowledgement |
+
 
 
 ## Process Roles
@@ -346,9 +362,11 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 | pm-audit | SUB→:5556 | Connects | Universal event log (subscribes to all topics) |
 | pm-clearing | SUB→:5556 | Connects | P&L tracking and trade settlement |
 | pm-stats | SUB→:5556 | Connects | OHLCV statistics and SQLite persistence |
-| pm-ticker | SUB→:5556 | Connects | Scrolling market data display |
+| pm-ticker | SUB→:5556, SUB→:5553 | Connects | Scrolling market data display, with the latest headline |
 | pm-board | SUB→:5556 | Connects | Multi-symbol paged market display |
 | pm-index | PULL :5559, PUB :5558, SUB→:5556 | **Binds** :5558 and :5559; connects→:5556 | Index calculation, OHLC, corporate actions |
+| pm-market-sim | PUB :5553, PULL :5554, PUSH→:5555, SUB→:5556 | **Binds** :5553 and :5554; connects→:5555, :5556 | Market model: true values and news |
+| pm-ai-trader / pm-ai-swarm | SUB→:5556, SUB→:5553, PUSH→:5555; ALF TCP to pm-alf-gwy | Connects | AI traders; orders go through `pm-alf-gwy`, only read requests to :5555 |
 | pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |
 | pm-ralf-gwy (RALF) | SUB→:5556 | Connects | Translates trade events to RALF TCP for external post-trade / clearing parties |
 
@@ -389,8 +407,8 @@ drop-copy feed on `:5557` feeds compliance consumers and `pm-ralf-gwy` (RALF).
 
 **4. Index sub-bus.** `pm-index` is a *second-tier publisher*: it subscribes to the
 engine's `:5556`, recomputes index levels, and publishes `index.update` on its own
-bus (`:5558`), accepting commands on `:5559`. It is the one process besides the
-engine that binds sockets.
+bus (`:5558`), accepting commands on `:5559`. It and `pm-market-sim` (`:5553`,
+`:5554`) are the only processes besides the engine that bind ZeroMQ sockets.
 
 Where each of these ends up on disk is covered in
 [Persistence & crash recovery](#persistence-crash-recovery); how they behave when a
@@ -414,8 +432,9 @@ other process connects to the engine.  This has three practical consequences:
 - **Restart isolation.** Any subscriber can crash and restart without disturbing
   the engine or other subscribers.  It simply reconnects and resumes.
 
-`pm-index` is the one exception: it binds its own pair of sockets (:5558, :5559)
-because it is a second-tier publisher, not a consumer of the engine.
+`pm-index` and `pm-market-sim` are the exceptions: each binds its own pair of
+sockets (:5558/:5559 and :5553/:5554) because it is a second-tier publisher, not
+a consumer of the engine.
 
 ### Two Tiers of Gateways
 

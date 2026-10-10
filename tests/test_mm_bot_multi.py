@@ -250,6 +250,7 @@ class TestPerSymbolIsolation:
         "min_cover_qty": ("--min-cover-qty", 300),
         "fade_ticks": ("--fade-ticks", 4),
         "fade_sec": ("--fade-sec", 6.5),
+        "anchor_sim": ("--anchor-sim", 0.25),
     }
 
     @pytest.mark.parametrize("key", sorted(OVERRIDES))
@@ -2199,3 +2200,68 @@ def test_build_parser_still_accepts_a_plain_single_symbol_invocation() -> None:
         True,
         "ERROR",
     )
+
+
+class TestAnchorSim:
+    """--anchor-sim pulls the quoted mid toward pm-market-sim's value."""
+
+    def test_range_is_checked(self) -> None:
+        with pytest.raises(ValueError, match="anchor_sim"):
+            resolve_cli(["--symbol", "AAPL", "--anchor-sim", "1.5"])
+
+    def test_mid_moves_toward_the_true_value(self) -> None:
+        from edumatcher.mm_bot.bot import _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        bot._symbols_state = {"AAPL": st}
+        bot._anchor(st)  # no value yet: nothing to do
+        assert st.pricer.mid_price is None
+        bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 110.0}]})
+        bot._anchor(st)
+        assert st.pricer.mid_price == 110.0  # no mid of its own: take the value
+        st.pricer.set_mid(100.0)
+        bot._anchor(st)
+        assert st.pricer.mid_price == pytest.approx(105.0)
+
+    def test_a_quiet_book_still_follows_the_value(self) -> None:
+        # No book update arrives for a quiet symbol, so the value itself must
+        # move the mid and, once it has drifted, trigger a requote.
+        from edumatcher.mm_bot.bot import BotState, _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        st.pricer.set_mid(100.0)
+        st.state = BotState.QUOTING
+        st.quoted_at_mid = 100.0
+        bot._symbols_state = {"AAPL": st}
+        repriced: list[str] = []
+        bot._set_state = lambda sym, state: None
+        bot._cancel_and_reissue = repriced.append
+        bot._debug = lambda msg: None
+        bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 110.0}]})
+        assert st.pricer.mid_price == pytest.approx(105.0)
+        assert repriced == ["AAPL"]
+
+    def test_once_anchored_the_book_does_not_reset_the_mid(self) -> None:
+        # A stale order in the book used to set the mid at every update, so
+        # the anchored mid was a fixed blend of value and stale order.
+        from edumatcher.mm_bot.bot import _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        bot._symbols_state = {"AAPL": st}
+        bot._debug = lambda msg: None
+        stale = {"bids": [{"price": 90.0}], "asks": [{"price": 90.2}]}
+        bot._handle_book(stale, symbol="AAPL")
+        assert st.pricer.mid_price == pytest.approx(90.1)  # no value yet
+        for _ in range(10):
+            bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 100.0}]})
+            bot._handle_book(stale, symbol="AAPL")
+        assert st.pricer.mid_price == pytest.approx(100.0, abs=0.02)

@@ -1,0 +1,20 @@
+# Instructor scenario: a sector rumour that is retracted (training guide,
+# AI Traders & News).
+#
+# Sixty seconds into continuous trading a rumour says the ENERGY sector faces
+# a new windfall tax. Nothing happens to the true values; prices drop only
+# because traders believe the rumour. Three minutes later it is retracted and
+# prices drift back to where the values are.
+#
+#   pm-news --id OPS01 play docs/examples/news/rumour-retracted.yaml
+#
+# Works with every s150-* and s300-load example (pm-market-sim running).
+version: 1
+steps:
+  - at: {phase: CONTINUOUS, after_sec: 60}
+    name: tax
+    inject: {sector: ENERGY, kind: REGULATORY, sentiment: -0.7, impact: -0.06,
+             rumour: true, credibility: 0.6,
+             headline: "Energy producers said to face a new windfall tax"}
+  - at: {phase: CONTINUOUS, after_sec: 240}
+    retract: tax

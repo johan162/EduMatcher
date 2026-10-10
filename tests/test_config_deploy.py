@@ -278,6 +278,7 @@ class TestExamples:
             ("s150-basic-nomm", "s150-basic-nomm-setup"),
             ("s150-nominal-nomm", "s150-nominal-nomm-setup"),
             ("s150-complex-nomm", "s150-complex-nomm-setup"),
+            ("s300-load", "s300-load-setup"),
         ],
     )
     def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
@@ -306,6 +307,36 @@ class TestExamples:
         path = resolve_example("s3-basic")
         assert path.parts[-2:] == ("s3-basic-setup", "engine_config.yaml")
         assert path.is_file()
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "s150-basic",
+            "s150-nominal",
+            "s150-complex",
+            "s150-basic-nomm",
+            "s150-nominal-nomm",
+            "s150-complex-nomm",
+        ],
+    )
+    def test_s150_examples_carry_twenty_ai_traders(self, name: str) -> None:
+        # pm-ai-swarm --count 20 must run against every s150 variant unchanged.
+        gateways = compile_config(resolve_example(name)).engine.fix_gateways
+        ai = sorted(gw for gw in gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 21)]
+        assert {gateways[gw].role.value for gw in ai} == {"TRADER"}
+
+    def test_s300_load_has_the_ai_trader_design_limit(self) -> None:
+        # The design-limit test bed for the AI traders (v3 plan WP-A3).
+        engine = compile_config(resolve_example("s300-load")).engine
+        assert len(engine.symbols) == 300
+        ai = sorted(gw for gw in engine.fix_gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 501)]
+        assert engine.sessions_enabled is True
+
+    def test_s300_load_has_no_nomm_variant(self) -> None:
+        with pytest.raises(ValueError, match="Unknown example"):
+            resolve_example("s300-load-nomm")
 
     def test_every_resolved_example_compiles(self) -> None:
         # These are the files shown to newcomers; one that fails to compile
@@ -358,3 +389,40 @@ class TestProvenance:
             compile_config(source).meta.content_sha256
             == compile_config(source).meta.content_sha256
         )
+
+
+class TestMarketSimConfig:
+    """A market_sim.yaml beside the source travels with it, checked."""
+
+    def _dest(self, tmp_path: Path) -> Path:
+        return tmp_path / "deployed" / "engine_config.json"
+
+    def test_installed_next_to_the_artifact(self, tmp_path: Path) -> None:
+        source = _source(tmp_path, name="engine_config.yaml")
+        (tmp_path / "market_sim.yaml").write_text(
+            "version: 1\nsymbols: {AAPL: {vol: 0.2}}\n"
+        )
+        dest = self._dest(tmp_path)
+        deploy(source, dest)
+        assert (dest.parent / "market_sim.yaml").read_text().startswith("version: 1")
+
+    def test_a_symbol_the_engine_lacks_blocks_the_deploy(self, tmp_path: Path) -> None:
+        source = _source(tmp_path, name="engine_config.yaml")
+        (tmp_path / "market_sim.yaml").write_text(
+            "version: 1\nsymbols: {TSLA: {vol: 0.2}}\n"
+        )
+        dest = self._dest(tmp_path)
+        with pytest.raises(CompileError, match="TSLA"):
+            deploy(source, dest)
+        assert not dest.exists()
+
+    def test_a_stale_one_is_removed(self, tmp_path: Path) -> None:
+        dest = self._dest(tmp_path)
+        dest.parent.mkdir(parents=True)
+        (dest.parent / "market_sim.yaml").write_text("old")
+        deploy(_source(tmp_path, name="engine_config.yaml"), dest)
+        assert not (dest.parent / "market_sim.yaml").exists()
+
+    @pytest.mark.parametrize("example", ["s150-nominal", "s300-load"])
+    def test_examples_carry_one(self, example: str) -> None:
+        assert resolve_example(example).with_name("market_sim.yaml").is_file()

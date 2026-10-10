@@ -59,3 +59,4 @@ $(CONFIGS): %/engine_config.yaml: %/mkrefdata.sh
 	@echo -e "$(GREEN)✓ $@ done$(NC)"
 
 $(S150_CONFIGS): mks150.sh
+s300-load-setup/engine_config.yaml: mks300.sh

@@ -80,6 +80,7 @@ PUBLISHERS = (
     "admin",
     "log_server",
     "log_client",
+    "market_sim",
 )
 
 #: ZeroMQ / external-protocol patterns (design section B.4).

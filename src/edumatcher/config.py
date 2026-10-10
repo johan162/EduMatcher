@@ -92,6 +92,17 @@ ENGINE_PUB_ADDR = (
 )
 DROP_COPY_PUB_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:5557"  # engine drop-copy feed (per-participant fills)
 
+# pm-market-sim endpoints: true values and heartbeat out (PUB), instructor
+# commands in (PULL). Off the engine bus on purpose, and loopback by default:
+# nothing a student's client reaches carries a true value.
+EDUMATCHER_SIM_BIND_HOST = os.getenv("EDUMATCHER_SIM_BIND_HOST", "127.0.0.1")
+EDUMATCHER_SIM_PUB_PORT = int(os.getenv("EDUMATCHER_SIM_PUB_PORT", "5553"))
+EDUMATCHER_SIM_PULL_PORT = int(os.getenv("EDUMATCHER_SIM_PULL_PORT", "5554"))
+SIM_PUB_BIND_ADDR = f"tcp://{EDUMATCHER_SIM_BIND_HOST}:{EDUMATCHER_SIM_PUB_PORT}"
+SIM_PULL_BIND_ADDR = f"tcp://{EDUMATCHER_SIM_BIND_HOST}:{EDUMATCHER_SIM_PULL_PORT}"
+SIM_PUB_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_SIM_PUB_PORT}"
+SIM_PULL_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_SIM_PULL_PORT}"
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------

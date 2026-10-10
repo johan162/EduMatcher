@@ -470,13 +470,14 @@ Rules:
 | `--gateway-id ID`                  | gateway      | *derived*              | Use this exact gateway ID (e.g. `MM01`) instead of `MM_<label>_<id-suffix>`; it must be a `MARKET_MAKER` gateway in the engine config |
 | `--engine-pull ADDR`               | gateway      | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
 | `--engine-pub ADDR`                | gateway      | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
-| `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait for first `session.state`                                 |
+| `--startup-session-timeout-sec F`  | gateway      | `5.0`                  | Max wait to learn the session phase (asked for, or a `session.state`)|
 | `--shutdown-timeout-sec F`         | gateway      | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                              |
 | `--strategy NAME`                  | per-symbol   | `symmetric`            | Pricing strategy: `symmetric`, `inventory_skew` or `passive` (see [Pricing strategies](#pricing-strategies)) |
 | `--gap PRICE`                      | per-symbol   | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
 | `--max-position N`                 | per-symbol   | *unset*                | Net position at which inventory skewing saturates — required with `--strategy inventory_skew`, rejected otherwise |
 | `--qty N`                          | per-symbol   | `500`                  | Quote size on each leg                                             |
 | `--drift-ticks N`                  | per-symbol   | `3`                    | Reprice when mid moves by more than this many ticks (`passive`: when a side's target price does) |
+| `--anchor-sim W`                   | per-symbol   | `0` (off)              | Quote around [`pm-market-sim`](../../operator-guide/part-4-run-a-market/090-market-model.md#anchoring-a-market-maker)'s true value: each model step closes `W` (0–1) of the gap, and the book stops setting the mid |
 | `--retreat-ticks N`                | per-symbol   | `5`                    | `passive` only: how far beyond home each side may step back (see [The control knobs](#the-control-knobs)) |
 | `--behind-ticks N`                 | per-symbol   | `1`                    | `passive` only: ticks behind other traders' best price on a covered side |
 | `--min-cover-qty N`                | per-symbol   | `1`                    | `passive` only: others' quantity inside the band before a side counts as covered |

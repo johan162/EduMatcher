@@ -40,6 +40,7 @@ TIER2_KEYS: tuple[str, ...] = (
     "min_cover_qty",
     "fade_ticks",
     "fade_sec",
+    "anchor_sim",
 )
 
 #: Tier-2 keys read only by the ``passive`` strategy; every other strategy
@@ -96,6 +97,7 @@ TIER2_DEFAULTS: dict[str, Any] = {
     "min_cover_qty": 1,
     "fade_ticks": 2,
     "fade_sec": 3.0,
+    "anchor_sim": 0.0,
 }
 
 GATEWAY_DEFAULTS: dict[str, Any] = {
@@ -227,6 +229,11 @@ def validate_symbol_params(symbol: str, values: dict[str, Any]) -> dict[str, Any
     if fade_sec < 0:
         raise ValueError(f"{where}fade_sec must be non-negative (got {fade_sec})")
     out["fade_sec"] = fade_sec
+
+    anchor = _as_float(where, "anchor_sim", out["anchor_sim"])
+    if not 0.0 <= anchor <= 1.0:
+        raise ValueError(f"{where}anchor_sim must lie in [0, 1] (got {anchor})")
+    out["anchor_sim"] = anchor
 
     for key in ("initial_min", "initial_max"):
         if out[key] is not None:

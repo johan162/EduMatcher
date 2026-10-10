@@ -273,7 +273,7 @@ pm-opctl-cli stop           # stop what it started
 `start` is idempotent: a process it finds already running is left alone and
 reported as such, so it is safe to re-run after adding one by hand.
 
-### The four built-in profiles
+### The five built-in profiles
 
 | Profile | Processes | Use it for |
 |---|---|---|
@@ -281,9 +281,10 @@ reported as such, so it is safe to re-run after adding one by hand.
 | `mini` | `micro` plus `pm-stats`, `pm-scheduler`, `pm-md-gwy`, `pm-api-gwy` (desk), `pm-alf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy` | A trading-capable venue with external access, without clearing or audit |
 | `default` | `mini` plus `pm-audit`, `pm-clearing`, `pm-index`, `pm-balf-gwy` and the second `pm-api-gwy` instance (`dashboards`) | Everything — the operational baseline below |
 | `mm-demo` | `default` plus one `pm-mm-bot` (`passive` strategy, gateway `MM01`, every symbol of the deployed configuration) | Showing students a market maker at work; the default of the `deployment/curl` installer |
+| `ai-swarm` | `mm-demo` with its market maker anchored to the model (`--anchor-sim 0.3`), plus `pm-market-sim` and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000` (AI traders `AI001`–`AI020`, every built-in preset, each on every symbol) | A market with background flow and news; needs a config that registers `AI001`–`AI020` and ships a `market_sim.yaml` (the `s150` examples, `s300-load`) |
 
 The built-ins are used as they are when no configuration file exists.
-`pm-opctl-cli init` writes all four to `<DATA_DIR>/emo-config.yaml`, and once
+`pm-opctl-cli init` writes all five to `<DATA_DIR>/emo-config.yaml`, and once
 that file exists **its profiles replace the built-ins entirely**. That is the
 supported way to add a process, change a flag or define a profile of your own.
 
@@ -458,12 +459,14 @@ running and has observed trades.
 
 ```bash
 pm-mm-bot --symbol AAPL
-pm-ai-trader --id AI01 --profile aggressive --symbols AAPL,MSFT
+pm-ai-trader --id AI001 --preset scalper --symbols AAPL,MSFT
 pm-ai-swarm --count 5 --duration 60
 ```
 
 Automated participants still use gateway IDs and must be allowed by the
-configuration. For market making, see [Market Making](../../participant-guide/part-3-market-making/020-market-making.md) and
+configuration. The AI traders log on through `pm-alf-gwy`, which must be
+running; the `value` and `news` presets also need `pm-market-sim` (see
+[Running the AI-Trader Swarm](030-ai-trader-swarm.md)). For market making, see [Market Making](../../participant-guide/part-3-market-making/020-market-making.md) and
 [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md).
 
 ### External order entry

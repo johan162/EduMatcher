@@ -1,0 +1,6 @@
+name: block-taker
+description: Takes whole blocks with fill-or-kill orders, or nothing; protects with a stop-limit.
+strategy: {name: trend, strength: 0.5, sample: 3, urgency: 0.7}
+execution: {style: sweep, sweep_type: FOK, cross_ticks: 2, auction_participation: 0.1}
+tempo: few-large
+risk: {max_position: 3000, max_live_orders_per_symbol: 1, max_order_age_sec: 30, protection: stop_limit, protection_pct: 0.03}

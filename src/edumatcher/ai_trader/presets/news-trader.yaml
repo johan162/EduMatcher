@@ -1,0 +1,6 @@
+name: news-trader
+description: Trades headlines within seconds, hard and in their direction (needs pm-market-sim news).
+strategy: {name: news, lag_sec: 5, lag_sigma: 0.8, half_life_sec: 120, threshold: 0.15, urgency: 0.8, move: 0.08}
+execution: {style: marketable, cross_ticks: 2, tif: DAY, urgency_cross: 0.3, auction_participation: 0.2}
+tempo: aggressive
+risk: {max_position: 1500, max_live_orders_per_symbol: 2, max_order_age_sec: 30, stale_price_ticks: 10}

@@ -29,6 +29,7 @@ dir = "part-3-run"
 files = [
   "010-running-the-exchange.md",
   "020-admin-console-and-commands.md",
+  "030-ai-trader-swarm.md",
 ]
 
 [[parts]]
@@ -42,6 +43,7 @@ files = [
   "060-statistics-and-reporting.md",
   "070-market-index.md",
   "080-index-administration.md",
+  "090-market-model.md",
 ]
 
 [[parts]]

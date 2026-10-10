@@ -1,0 +1,20 @@
+# pm-ai-swarm --swarm docs/examples/ref_data/s150-complex-nomm-setup/swarm.yaml
+# The AI001-AI020 participants of this example, with a mixed population.
+version: 1
+agents: {prefix: AI, start: 1, count: 20}
+budget: 40            # order actions per second for the whole swarm
+seed: 1000
+symbols:
+  per_agent: 150      # every agent trades every symbol: each symbol sees every kind of trader
+composition:          # preset: weight; value-investor, institutional, news-trader need pm-market-sim
+  noise-retail: 25
+  value-investor: 22
+  news-trader: 5
+  institutional: 8
+  scalper: 8
+  trend-follower: 10
+  contrarian: 10
+  iceberg-seller: 4
+  market-taker: 4
+  block-taker: 2
+  auction-player: 2

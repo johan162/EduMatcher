@@ -63,10 +63,18 @@ for n in $(seq 1 10); do
 done
 trader_list=$(IFS=,; echo "${trader_ids[*]}")
 
+# AI traders for pm-ai-swarm (AI001..AI020): plain TRADER participants. They
+# trade through the ALF gateway, so they are not in the API gateway desk list.
+ai_gateways=()
+for n in $(seq 1 20); do
+  ai_gateways+=("$(printf 'AI%03d' "$n"):TRADER:CANCEL_ALL:AI trader ${n}")
+done
+
 gateways=(
   "${trader_gateways[@]}"
   "OPS01:ADMIN:LEAVE_ALL:Instructor console"
   "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
+  "${ai_gateways[@]}"
 )
 desk_gateways="${trader_list},MM01,OPS01"
 if [[ "$profile" == complex ]]; then
@@ -75,6 +83,7 @@ if [[ "$profile" == complex ]]; then
     "OPS01:ADMIN:LEAVE_ALL:Instructor console"
     "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
     "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker"
+    "${ai_gateways[@]}"
   )
   desk_gateways="${trader_list},MM01,MM02,OPS01"
 fi

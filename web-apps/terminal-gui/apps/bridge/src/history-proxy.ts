@@ -10,6 +10,10 @@
  * Responses pass through unmodified, so the frontend's history code stays
  * interchangeable with `pm-trading-ui`'s.
  *
+ * `/api/news` (pm-market-sim's headlines, WP-E5) rides the same proxy: live
+ * rather than history, but likewise absent from CALF and readable with the
+ * same read-only key. The frontend polls it.
+ *
  * `GET /symbols` is deliberately absent. It requires a *trading* credential
  * (`require_trading` in `api_gateway/routers/reference.py`), which would mean
  * the bridge holding a second, higher-privilege key to read a tick size —
@@ -35,6 +39,12 @@ const HISTORY_ENDPOINTS = [
   "index-events",
 ] as const;
 
+/** Local path -> upstream path, for every proxied endpoint. */
+const ROUTES: readonly (readonly [string, string])[] = [
+  ...HISTORY_ENDPOINTS.map((e) => [`/api/history/${e}`, `/api/v1/history/${e}`] as const),
+  ["/api/news", "/api/v1/news"],
+];
+
 export interface HistoryProxyOptions {
   baseUrl: string;
   apiKey: string;
@@ -48,10 +58,11 @@ export function registerHistoryRoutes(app: FastifyInstance, opts: HistoryProxyOp
   const timeoutMs = opts.timeoutMs ?? 10_000;
   const base = opts.baseUrl.replace(/\/+$/, "");
 
-  for (const endpoint of HISTORY_ENDPOINTS) {
-    app.get(`/api/history/${endpoint}`, async (request: FastifyRequest, reply: FastifyReply) => {
+  for (const [path, upstreamPath] of ROUTES) {
+    const endpoint = upstreamPath.replace("/api/v1/history/", "").replace("/api/v1/", "");
+    app.get(path, async (request: FastifyRequest, reply: FastifyReply) => {
       const query = request.url.includes("?") ? request.url.slice(request.url.indexOf("?")) : "";
-      const target = `${base}/api/v1/history/${endpoint}${query}`;
+      const target = `${base}${upstreamPath}${query}`;
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);

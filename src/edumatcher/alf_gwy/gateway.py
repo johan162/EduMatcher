@@ -8,14 +8,15 @@ from __future__ import annotations
 
 import errno
 import logging
-import select
+import resource
+import selectors
 import signal
 import socket
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import zmq
 
@@ -37,9 +38,9 @@ from edumatcher.models.message import (
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
-    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
+    make_gateways_request_msg,
     make_kill_switch_msg,
     make_oco_cancel_msg,
     make_oco_order_msg,
@@ -71,12 +72,6 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
     PREFIX_ORDERS,
-    topic_order_ack,
-    topic_orders,
-    topic_order_amended,
-    topic_order_cancelled,
-    topic_order_expired,
-    topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
@@ -86,42 +81,46 @@ from edumatcher.models.generated.circuit_breaker import (
 )
 from edumatcher.models.generated.risk import (
     PREFIX_KILL_SWITCH_ACK,
-    topic_kill_switch_ack,
 )
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,
     PREFIX_OCO_CANCELLED,
-    topic_combo_ack,
-    topic_combo_status,
-    topic_oco_ack,
-    topic_oco_cancelled,
 )
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
-    topic_quote_ack,
-    topic_quote_status,
 )
 from edumatcher.models.generated.system import (
     PREFIX_GATEWAY_AUTH,
+    PREFIX_GATEWAYS,
     PREFIX_POSITION_SNAPSHOT,
     PREFIX_QUOTE_BOOTSTRAP,
     PREFIX_QUOTE_LEGS,
     PREFIX_SESSION_STATUS,
     PREFIX_SYMBOLS,
-    topic_gateway_auth,
-    topic_position_snapshot,
-    topic_quote_bootstrap,
-    topic_quote_legs,
-    topic_session_status,
-    topic_symbols,
+    TOPIC_STARTUP_RECOVERY,
 )
 
 _MAX_LINE_BYTES = 4096
+#: Seconds between the engine heartbeats sent for each session. Shorter than
+#: the 60 s other processes use: one gateway holds hundreds of IDs, and if it
+#: dies they must be free again within ~3x this so the clients can log back
+#: on through the restarted gateway.
+_ENGINE_HEARTBEAT_SEC = 5
+#: How often the gateway asks the engine which participants it holds, to
+#: catch sessions the engine has lost (a restart whose startup broadcast was
+#: missed, an expiry). The reply topic carries the probe's id.
+_SESSION_PROBE_SEC = 5.0
+_PROBE_ID_PREFIX = "ALF-PROBE-"
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
+#: Longest the event loop sleeps when nothing is pending; housekeeping
+#: (heartbeats, idle checks) runs at this cadence.
+_LOOP_WAIT_MS = 100
+#: File descriptors needed beyond one per client (listener, ZMQ, logging).
+_FD_HEADROOM = 64
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
 _DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
@@ -146,12 +145,18 @@ class ClientSession:
     authenticated: bool = False
     auth_pending: bool = False
     dc_enabled: bool = False
+    # FEED=ORDERS on HELLO: the session takes market data elsewhere and wants
+    # only its own order events, not the public SESSION/HALT/RESUME/TRADE
+    # broadcasts (an AI agent among hundreds would otherwise parse every
+    # trade print of the exchange).
+    public_feed: bool = True
     # Target gateway_id of an outstanding POS|GW=<gateway_id> query, or
     # None. Set when the request is sent, cleared when the matching
     # system.position_snapshot.<target> reply arrives (see
     # _handle_position_snapshot_response) or the session disconnects.
     pending_position_query: str | None = None
-    subscriptions: set[str] = field(default_factory=set)
+    #: monotonic time the engine accepted the logon
+    authenticated_at: float = 0.0
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
@@ -193,12 +198,16 @@ class AlfGateway:
         self._server: socket.socket | None = None
         self._clients: dict[int, ClientSession] = {}
         self._active_gateway_sessions: dict[str, int] = {}
-        self._topic_refcounts: dict[str, int] = {}
         self._dc_topic_refcounts: dict[str, int] = {}
         self._gateway_roles = {gw_id: role for gw_id, role in config.gateway_roles}
         # Shared ref-data snapshot state loaded from engine symbols responses.
         self._known_symbols: set[str] = set()
         self._symbols_snapshot_loaded = False
+        # The SYMBOLS/SYMBOL.../END reply, built once from the engine's answer
+        # and replayed to every later logon. Asking the engine per session
+        # cost a 300-symbol reply per logon: 600 agents logging on together
+        # took 12 s and timed some out.
+        self._symbols_reply: list[bytes] | None = None
 
         self._push: PushSocket = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
@@ -207,6 +216,34 @@ class AlfGateway:
             TOPIC_TRADE_EXECUTED,
             PREFIX_CIRCUIT_BREAKER_HALT,
             PREFIX_CIRCUIT_BREAKER_RESUME,
+            # Every gateway-scoped family is subscribed once, by prefix, for
+            # all gateways. A per-session SUBSCRIBE sent right before the
+            # request it answers (connect, symbols, POS) races the engine's
+            # reply: ZMQ applies the subscription asynchronously, and in a
+            # burst of logons the reply often arrived first and was dropped
+            # (AUTH_TIMEOUT, SYMBOLS_NOT_READY). Events for gateways with no
+            # session here are discarded in the routing below.
+            PREFIX_GATEWAY_AUTH,
+            PREFIX_ORDER_ACK,
+            PREFIX_ORDER_FILL,
+            PREFIX_ORDER_AMENDED,
+            PREFIX_ORDER_CANCELLED,
+            PREFIX_ORDER_EXPIRED,
+            PREFIX_ORDERS,
+            PREFIX_QUOTE_ACK,
+            PREFIX_QUOTE_STATUS,
+            PREFIX_COMBO_ACK,
+            PREFIX_COMBO_STATUS,
+            PREFIX_OCO_ACK,
+            PREFIX_OCO_CANCELLED,
+            PREFIX_KILL_SWITCH_ACK,
+            PREFIX_SYMBOLS,
+            PREFIX_QUOTE_BOOTSTRAP,
+            PREFIX_QUOTE_LEGS,
+            PREFIX_SESSION_STATUS,
+            PREFIX_POSITION_SNAPSHOT,
+            TOPIC_STARTUP_RECOVERY,
+            PREFIX_GATEWAYS + _PROBE_ID_PREFIX,
         )
         # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
         # distinct from self._sub (:5556) because it is a different ZMQ PUB
@@ -214,6 +251,14 @@ class AlfGateway:
         # subscribed here at startup; DC|ON subscribes this session's own
         # drop_copy.event.<GW_ID> topic on demand (see _dc_subscribe_topic).
         self._dc_sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
+        # Sessions with queued output. Flushing only these keeps the loop
+        # O(active) instead of O(connected).
+        self._dirty: set[int] = set()
+        self._probe_seq = 0
+        self._probes: dict[str, float] = {}
+        self._next_probe = 0.0
+        self._selector = selectors.DefaultSelector()
+        self._next_housekeeping = 0.0
 
         self._global_stats: dict[str, int] = {
             "connected_clients": 0,
@@ -226,12 +271,45 @@ class AlfGateway:
             "auth_failures": 0,
         }
 
+    def _ensure_fd_limit(self) -> None:
+        """Make sure the process may open one socket per allowed client.
+
+        The default soft limit is often 1024, below what a full gateway
+        needs; raise it up to the hard limit, and refuse to start with a
+        clear message when even that is too low.
+        """
+        needed = self.config.max_connections + _FD_HEADROOM
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft == resource.RLIM_INFINITY or soft >= needed:
+            return
+        target = needed if hard == resource.RLIM_INFINITY else min(needed, hard)
+        if target > soft:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+        if target < needed:
+            raise RuntimeError(
+                f"alf_gateway.max_connections={self.config.max_connections} needs "
+                f"{needed} file descriptors but the hard limit is {hard}; raise it "
+                "(ulimit -Hn) or lower max_connections"
+            )
+
     def run(self) -> None:
+        self._ensure_fd_limit()
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._server.bind((self.config.bind_address, self.config.port))
-        self._server.listen(128)
+        self._server.listen(
+            min(socket.SOMAXCONN, max(128, self.config.max_connections))
+        )
         self._server.setblocking(False)
+        # epoll/kqueue: one wait costs O(ready sockets), not O(connected).
+        # The ZMQ sockets join through their notification fds, which are
+        # edge-triggered: the loop drains them and checks zmq.EVENTS before
+        # it waits, so a message left over from a capped drain is never stuck.
+        self._selector.register(self._server, selectors.EVENT_READ, None)
+        for zsock in (self._sub, self._dc_sub):
+            self._selector.register(
+                cast(int, zsock.getsockopt(zmq.FD)), selectors.EVENT_READ, None
+            )
 
         self._running = True
         if threading.current_thread() is threading.main_thread():
@@ -239,24 +317,44 @@ class AlfGateway:
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
         log.info(
-            "listening on %s:%s (engine_pull=%s engine_pub=%s)",
+            "listening on %s:%s (engine_pull=%s engine_pub=%s max_connections=%s)",
             self.config.bind_address,
             self.config.port,
             self.config.engine_pull_addr,
             self.config.engine_pub_addr,
+            self.config.max_connections,
         )
 
         try:
             while self._running:
-                self._accept_new_clients()
-                self._read_client_data()
+                # Wait for work instead of sleeping a fixed 10 ms. (The old
+                # select() also broke once a descriptor passed 1024.)
+                busy = bool(self._dirty) or any(
+                    cast(int, z.getsockopt(zmq.EVENTS)) & zmq.POLLIN
+                    for z in (self._sub, self._dc_sub)
+                )
+                ready: list[ClientSession] = []
+                accept = False
+                for key, _mask in self._selector.select(
+                    0 if busy else _LOOP_WAIT_MS / 1000
+                ):
+                    if isinstance(key.data, ClientSession):
+                        ready.append(key.data)
+                    elif key.fileobj is self._server:
+                        accept = True
+                if accept:
+                    self._accept_new_clients()
+                self._read_client_data(ready)
                 self._poll_engine_events()
                 self._poll_dc_events()
-                self._send_heartbeats_if_due()
-                self._send_engine_heartbeats_if_due()
+                now = time.monotonic()
+                if now >= self._next_housekeeping:
+                    self._next_housekeeping = now + _LOOP_WAIT_MS / 1000
+                    self._send_heartbeats_if_due()
+                    self._send_engine_heartbeats_if_due()
+                    self._probe_engine_sessions_if_due(now)
+                    self._drop_idle_clients()
                 self._flush_client_writes()
-                self._drop_idle_clients()
-                time.sleep(0.01)
         finally:
             self.close()
 
@@ -274,6 +372,7 @@ class AlfGateway:
         if self._server is not None:
             self._server.close()
             self._server = None
+        self._selector.close()
 
         if not self._push.closed:
             self._push.close()
@@ -309,23 +408,14 @@ class AlfGateway:
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_commands_per_second)
             self._clients[conn.fileno()] = session
+            self._selector.register(conn, selectors.EVENT_READ, session)
             self._global_stats["connected_clients"] = len(self._clients)
             log.debug("ALF new connection from %s", addr)
 
-    def _read_client_data(self) -> None:
-        if not self._clients:
-            return
-
-        readable = [session.sock for session in self._clients.values()]
-        try:
-            ready, _, _ = select.select(readable, [], [], 0)
-        except OSError:
-            return
-
-        for sock_obj in ready:
-            session = self._clients.get(sock_obj.fileno())
-            if session is None:
-                continue
+    def _read_client_data(self, ready: list[ClientSession]) -> None:
+        for session in ready:
+            if session.sock.fileno() not in self._clients:
+                continue  # disconnected earlier in this pass
 
             try:
                 chunk = session.sock.recv(4096)
@@ -396,7 +486,11 @@ class AlfGateway:
                 )
 
     def _flush_client_writes(self) -> None:
-        for session in list(self._clients.values()):
+        for fileno in list(self._dirty):
+            session = self._clients.get(fileno)
+            if session is None:
+                self._dirty.discard(fileno)
+                continue
             while session.out_queue:
                 payload = session.out_queue[0]
                 unsent = payload[session.out_offset :]
@@ -415,8 +509,10 @@ class AlfGateway:
                     session.lines_sent += 1
                     session.last_outbound = time.monotonic()
 
-            if session.closing and not session.out_queue:
-                self._disconnect(session, reason="session_closed")
+            if not session.out_queue:
+                self._dirty.discard(fileno)
+                if session.closing:
+                    self._disconnect(session, reason="session_closed")
 
     # ------------------------------------------------------------------
     # Protocol dispatch
@@ -632,14 +728,15 @@ class AlfGateway:
             )
             return
 
+        feed = fields.get("FEED", "ALL")
+        if feed not in ("ALL", "ORDERS"):
+            raise ValidationError("INVALID_VALUE", "FEED must be ALL or ORDERS")
+        session.public_feed = feed == "ALL"
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
         session.connect_emitted = False
 
-        auth_topic = topic_gateway_auth(gateway_id)
-        self._subscribe_topic(auth_topic)
-        session.subscriptions.add(auth_topic)
         try:
             self._send_to_engine(
                 make_gateway_connect_msg(gateway_id), count_as_command=False
@@ -648,9 +745,6 @@ class AlfGateway:
             session.auth_pending = False
             session.gateway_id = None
             session.client_name = ""
-            if auth_topic in session.subscriptions:
-                session.subscriptions.remove(auth_topic)
-                self._unsubscribe_topic(auth_topic)
             raise
         session.connect_emitted = True
 
@@ -1047,25 +1141,14 @@ class AlfGateway:
         any gateway may ask about any ``gateway_id`` (see
         ``engine/main.py::_handle_position_request``, which looks the id up
         directly with no sender-identity check). The reply arrives on
-        ``system.position_snapshot.<target>``, a topic this session's own
-        static ``_gateway_topics`` set does not include, so it is
-        subscribed on demand here (ref-counted via ``_subscribe_topic`` --
-        the same primitive ``QBOOT``/``QLEGS`` never needed, since their
-        replies always land on the caller's own already-subscribed topic)
-        and dropped again once the reply is routed back -- see
+        ``system.position_snapshot.<target>``, covered by the prefix
+        subscription made at startup, and is routed back by
         ``_handle_position_snapshot_response``.
         """
         target = fields.get("GW", "").upper()
         if not target:
             raise ValidationError("MISSING_FIELD", "POS requires GW=<gateway_id>")
-        if session.pending_position_query is not None:
-            old_topic = topic_position_snapshot(session.pending_position_query)
-            self._unsubscribe_topic(old_topic)
-            session.subscriptions.discard(old_topic)
         session.pending_position_query = target
-        new_topic = topic_position_snapshot(target)
-        self._subscribe_topic(new_topic)
-        session.subscriptions.add(new_topic)
         self._send_to_engine(make_position_request_msg(target))
 
     def _handle_position_snapshot_response(
@@ -1073,7 +1156,7 @@ class AlfGateway:
     ) -> None:
         """Route a system.position_snapshot.<gateway_id> reply back to
         whichever session(s) currently have a POS|GW=<gateway_id> query
-        outstanding, then drop the subscription.
+        outstanding.
 
         Cannot reuse ``_session_for_gateway`` here (that looks up the
         session whose *own* gateway_id matches -- always true for
@@ -1085,7 +1168,6 @@ class AlfGateway:
         positions = payload.get("positions", [])
         if not isinstance(positions, list):
             positions = []
-        topic = topic_position_snapshot(gateway_id)
         for session in self._clients.values():
             if session.pending_position_query != gateway_id:
                 continue
@@ -1105,13 +1187,7 @@ class AlfGateway:
                         "AVG_COST": str(pos.get("avg_cost", "")),
                     },
                 )
-            session.subscriptions.discard(topic)
             self._queue_line(session, "END", {"TYPE": "POSITION"})
-            # One _unsubscribe_topic call per matched session -- the
-            # refcount was incremented once per session's _handle_pos call,
-            # so it must be decremented the same number of times (matters
-            # when >1 session concurrently queries the same gateway_id).
-            self._unsubscribe_topic(topic)
 
     # ------------------------------------------------------------------
     # Engine event polling
@@ -1169,6 +1245,14 @@ class AlfGateway:
             if topic.startswith(PREFIX_SESSION_STATUS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_session_status_response(gateway_id, payload)
+                continue
+
+            if topic == TOPIC_STARTUP_RECOVERY:
+                self._handle_engine_restart()
+                continue
+
+            if topic.startswith(PREFIX_GATEWAYS + _PROBE_ID_PREFIX):
+                self._handle_session_probe(topic.rsplit(".", 1)[-1], payload)
                 continue
 
             if topic == TOPIC_SESSION_STATE:
@@ -1287,14 +1371,10 @@ class AlfGateway:
 
         target.auth_pending = False
         target.authenticated = True
+        target.authenticated_at = time.monotonic()
         target.gateway_id = gateway_id
         target.role = self._gateway_roles.get(gateway_id, "TRADER")
         self._active_gateway_sessions[gateway_id] = target.sock.fileno()
-
-        for topic in self._gateway_topics(gateway_id):
-            if topic not in target.subscriptions:
-                self._subscribe_topic(topic)
-                target.subscriptions.add(topic)
 
         self._queue_line(
             target,
@@ -1308,17 +1388,17 @@ class AlfGateway:
             },
         )
 
-        self._send_to_engine(
-            make_symbols_request_msg(gateway_id), count_as_command=False
-        )
+        if self._symbols_reply is not None:
+            for line in self._symbols_reply:
+                self._queue_raw(target, line)
+        else:
+            self._send_to_engine(
+                make_symbols_request_msg(gateway_id), count_as_command=False
+            )
 
     def _handle_symbols_response(
         self, gateway_id: str, payload: dict[str, Any]
     ) -> None:
-        session = self._session_for_gateway(gateway_id)
-        if session is None:
-            return
-
         entries = [e for e in payload.get("symbols", []) if isinstance(e, dict)]
         ticks: dict[str, int] = {}
         symbols: list[str] = []
@@ -1350,15 +1430,22 @@ class AlfGateway:
         self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
-        self._queue_line(session, "SYMBOLS", {"COUNT": str(len(symbols))})
+        reply = [build_line("SYMBOLS", {"COUNT": str(len(symbols))})]
         for sym in symbols:
             # TICK stays the tick size on the CALF wire — the value a client
             # multiplies a price by. The engine now sends the exponent, so the
             # conversion happens here instead of `_infer_decimals` undoing it.
             decimals = ticks.get(sym)
             tick = "" if decimals is None else f"{10 ** -decimals:.{decimals}f}"
-            self._queue_line(session, "SYMBOL", {"SYM": sym, "TICK": tick})
-        self._queue_line(session, "END", {"TYPE": "SYMBOLS"})
+            reply.append(build_line("SYMBOL", {"SYM": sym, "TICK": tick}))
+        reply.append(build_line("END", {"TYPE": "SYMBOLS"}))
+        self._symbols_reply = reply
+
+        session = self._session_for_gateway(gateway_id)
+        if session is None:
+            return
+        for line in reply:
+            self._queue_raw(session, line)
 
     def _handle_orders_response(self, gateway_id: str, payload: dict[str, Any]) -> None:
         session = self._session_for_gateway(gateway_id)
@@ -1583,6 +1670,11 @@ class AlfGateway:
                 "FILL_PRICE": str(payload.get("fill_price", "")),
                 "REMAINING": str(payload.get("remaining_qty", "")),
                 "STATUS": str(payload.get("status", "")),
+                # SYMBOL/SIDE let a client book a fill it no longer (or not
+                # yet) tracks -- an OCO leg filling before its ack, an order
+                # from before a reconnect -- into the right position.
+                "SYMBOL": str(payload.get("symbol", "")),
+                "SIDE": str(payload.get("side", "")),
                 "TRADE_IDS": ",".join(
                     str(trade_id) for trade_id in payload.get("trade_ids", [])
                 ),
@@ -1690,6 +1782,67 @@ class AlfGateway:
         if msg_type is not None and fields is not None:
             self._queue_line(session, msg_type, fields)
 
+    def _probe_engine_sessions_if_due(self, now: float) -> None:
+        if now < self._next_probe:
+            return
+        self._next_probe = now + _SESSION_PROBE_SEC
+        # A probe the engine never answered (it was down) is forgotten.
+        self._probes = {pid: at for pid, at in self._probes.items() if now - at < 60.0}
+        if not any(s.authenticated for s in self._clients.values()):
+            return
+        self._probe_seq += 1
+        probe_id = f"{_PROBE_ID_PREFIX}{self._probe_seq}"
+        self._probes[probe_id] = now
+        self._send_to_engine(
+            make_gateways_request_msg(probe_id),
+            count_as_command=False,
+            require_engine=False,
+        )
+
+    def _handle_session_probe(self, probe_id: str, payload: dict[str, Any]) -> None:
+        """Drop every session the engine does not hold, of those that were
+        logged on before the probe was sent."""
+        sent_at = self._probes.pop(probe_id, None)
+        if sent_at is None:
+            return
+        held = {
+            str(g.get("id", "")).upper()
+            for g in payload.get("gateways", [])
+            if isinstance(g, dict) and g.get("connected")
+        }
+        for session in list(self._clients.values()):
+            if (
+                session.authenticated
+                and session.authenticated_at < sent_at
+                and session.gateway_id not in held
+            ):
+                self._drop_lost_session(
+                    session, "The exchange no longer holds this session"
+                )
+
+    def _drop_lost_session(self, session: ClientSession, detail: str) -> None:
+        """Close a session the engine has forgotten, so its client logs on again."""
+        # Nothing to disconnect on the engine side.
+        session.connect_emitted = False
+        self._register_error(
+            session,
+            "SESSION_LOST",
+            f"{detail} - log on again",
+            close_connection=True,
+        )
+
+    def _handle_engine_restart(self) -> None:
+        """A restarted engine holds no sessions: every one here is dead."""
+        lost = [s for s in self._clients.values() if s.authenticated or s.auth_pending]
+        log.warning(
+            "engine restarted; closing %d session(s) so their clients log on again",
+            len(lost),
+        )
+        # Its configuration may have changed with it.
+        self._symbols_reply = None
+        for session in lost:
+            self._drop_lost_session(session, "The exchange engine restarted")
+
     # ------------------------------------------------------------------
     # Maintenance
     # ------------------------------------------------------------------
@@ -1713,12 +1866,12 @@ class AlfGateway:
         for session in self._clients.values():
             if not session.authenticated or session.closing or not session.gateway_id:
                 continue
-            if now - session.last_engine_heartbeat < GATEWAY_HEARTBEAT_INTERVAL_SEC:
+            if now - session.last_engine_heartbeat < _ENGINE_HEARTBEAT_SEC:
                 continue
             session.last_engine_heartbeat = now
             log.debug("engine heartbeat sent gateway_id=%s", session.gateway_id)
             self._send_to_engine(
-                make_gateway_heartbeat_msg(session.gateway_id),
+                make_gateway_heartbeat_msg(session.gateway_id, _ENGINE_HEARTBEAT_SEC),
                 count_as_command=False,
                 require_engine=False,
             )
@@ -1890,8 +2043,10 @@ class AlfGateway:
                 b"ERR|CODE=SLOW_CLIENT|DETAIL=Outbound queue full - disconnecting\n"
             )
             session.closing = True
+            self._dirty.add(session.sock.fileno())
             return
         session.out_queue.append(payload)
+        self._dirty.add(session.sock.fileno())
 
     def _send_to_engine(
         self,
@@ -1979,6 +2134,7 @@ class AlfGateway:
 
     def _close_after_flush(self, session: ClientSession) -> None:
         session.closing = True
+        self._dirty.add(session.sock.fileno())
 
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
         gateway_id = session.gateway_id
@@ -1989,10 +2145,6 @@ class AlfGateway:
             and self._active_gateway_sessions.get(gateway_id) == session.sock.fileno()
         ):
             self._active_gateway_sessions.pop(gateway_id, None)
-
-        for topic in list(session.subscriptions):
-            self._unsubscribe_topic(topic)
-        session.subscriptions.clear()
 
         if gateway_id and session.dc_enabled:
             self._dc_unsubscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
@@ -2007,31 +2159,21 @@ class AlfGateway:
             session.connect_emitted = False
 
         fileno = session.sock.fileno()
+        try:
+            self._selector.unregister(session.sock)
+        except (KeyError, ValueError):
+            pass
+        self._dirty.discard(fileno)
         session.close()
         self._clients.pop(fileno, None)
         self._global_stats["connected_clients"] = len(self._clients)
         self._global_stats["disconnects_total"] += 1
 
-    def _subscribe_topic(self, topic: str) -> None:
-        ref = self._topic_refcounts.get(topic, 0)
-        if ref == 0:
-            self._sub.setsockopt(zmq.SUBSCRIBE, topic.encode("utf-8"))
-        self._topic_refcounts[topic] = ref + 1
-
-    def _unsubscribe_topic(self, topic: str) -> None:
-        ref = self._topic_refcounts.get(topic, 0)
-        if ref <= 1:
-            self._topic_refcounts.pop(topic, None)
-            self._sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
-            return
-        self._topic_refcounts[topic] = ref - 1
-
     def _dc_subscribe_topic(self, topic: str) -> None:
         """Refcounted SUBSCRIBE on the drop-copy socket (:5557).
 
-        Kept separate from :meth:`_subscribe_topic` because it targets
-        ``self._dc_sub`` rather than ``self._sub`` -- a different ZMQ PUB
-        address entirely, not just a different topic namespace.
+        Targets ``self._dc_sub`` -- a different ZMQ PUB address from the
+        main event bus, not just a different topic namespace.
         """
         ref = self._dc_topic_refcounts.get(topic, 0)
         if ref == 0:
@@ -2045,28 +2187,6 @@ class AlfGateway:
             self._dc_sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
             return
         self._dc_topic_refcounts[topic] = ref - 1
-
-    def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
-        return (
-            topic_gateway_auth(gateway_id),
-            topic_order_ack(gateway_id),
-            topic_order_fill(gateway_id),
-            topic_order_amended(gateway_id),
-            topic_order_cancelled(gateway_id),
-            topic_order_expired(gateway_id),
-            topic_orders(gateway_id),
-            topic_quote_ack(gateway_id),
-            topic_quote_status(gateway_id),
-            topic_combo_ack(gateway_id),
-            topic_combo_status(gateway_id),
-            topic_oco_ack(gateway_id),
-            topic_oco_cancelled(gateway_id),
-            topic_kill_switch_ack(gateway_id),
-            topic_symbols(gateway_id),
-            topic_quote_bootstrap(gateway_id),
-            topic_quote_legs(gateway_id),
-            topic_session_status(gateway_id),
-        )
 
     def _gateway_in_use(self, gateway_id: str) -> bool:
         if gateway_id in self._active_gateway_sessions:
@@ -2091,6 +2211,9 @@ class AlfGateway:
         return None
 
     def _broadcast(self, msg_type: str, fields: dict[str, str]) -> None:
+        line: bytes | None = None
         for session in self._clients.values():
-            if session.authenticated:
-                self._queue_line(session, msg_type, fields)
+            if session.authenticated and session.public_feed:
+                if line is None:
+                    line = build_line(msg_type, fields)  # once, not per session
+                self._queue_raw(session, line)

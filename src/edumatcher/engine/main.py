@@ -305,6 +305,9 @@ _PERSIST_INTERVAL_SEC = 5.0
 #: A session that has sent a system.gateway_heartbeat is disconnected once
 #: this many of its own beat intervals pass without another one.
 _HEARTBEAT_MISSED_LIMIT = 3
+#: How often sessions are checked for missed heartbeats. Checking on every
+#: loop pass cost ~9% of the engine at 500 sessions and 1 000 orders/s.
+_SILENCE_CHECK_SEC = 1.0
 
 #: Topics whose payload names an order the submitting gateway is waiting on an
 #: ack for. If a handler for one of these raises, the client is left with no
@@ -461,6 +464,7 @@ class Engine:
         # so the first tick writes one immediately rather than waiting out an
         # interval on a freshly started engine.
         self._last_persist = 0.0
+        self._next_silence_check = 0.0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -3853,6 +3857,9 @@ class Engine:
         ``gateway_bye`` broadcast apply exactly as for a clean exit.
         """
         now = time.monotonic()
+        if now < self._next_silence_check:
+            return
+        self._next_silence_check = now + _SILENCE_CHECK_SEC
         for session in list(self._sessions.values()):
             if not session.connected or session.heartbeat_interval_sec <= 0:
                 continue

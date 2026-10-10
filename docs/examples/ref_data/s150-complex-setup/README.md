@@ -4,4 +4,5 @@ This folder contains a generated reference configuration for a 150-symbol **comp
 
 - Sessions: enabled with an explicit trading-day schedule
 - Advanced risk, circuit-breaker, market-data, and post-trade settings: enabled
+- AI traders: participants `AI001`–`AI020` (`TRADER`); start them with `pm-ai-swarm --swarm swarm.yaml` (this directory)
 - Regenerate: `./mkrefdata.sh [--seed INTEGER]`

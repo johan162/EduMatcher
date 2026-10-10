@@ -1283,7 +1283,7 @@ Every event on every one of the three sockets uses the same envelope:
 
 | Field | Meaning |
 |---|---|
-| `type` | Stable public event type (`trade`, `book`, `depth`, `auction`, `session`, `circuit_breaker`, `order.fill`, …) |
+| `type` | Stable public event type (`trade`, `book`, `depth`, `auction`, `session`, `circuit_breaker`, `news`, `order.fill`, …) |
 | `topic` | The engine topic the event came from, and what `seq` counts within |
 | `seq` | Monotonic sequence number **within `topic`**, starting at 1 |
 | `stream_seq` | Monotonic across **all** of one gateway's private events. Private events only — see [Private event recovery](#private-event-recovery) |
@@ -1557,7 +1557,7 @@ subscription:
     ],
     "symbols": ["AAPL"],
     "channels": ["auction", "book", "depth", "trades"],
-    "always": ["session", "circuit_breaker"],
+    "always": ["session", "circuit_breaker", "news"],
     "rejected": []
   }
 }
@@ -1575,11 +1575,15 @@ silently:
 | `no_channels` | The item named symbols but no channels, so it subscribed to nothing |
 | `wildcard_still_subscribed` | You unsubscribed a named symbol on a channel that also has a `"*"` rule, so events for it keep arriving |
 
-!!! warning "`session` and `circuit_breaker` are not subscribable"
+!!! warning "`session`, `circuit_breaker` and `news` are not subscribable"
     They are delivered to every market-data client regardless of subscription,
     and are reported under `always` in the ack. This is deliberate: a halt or a
     session transition changes the meaning of every other channel, and a client
     displaying a stale book during a halt is displaying something false.
+    `news` carries `pm-market-sim`'s headlines (a `news.event` payload as
+    `data`); there are a handful a day, and a headline can be about a whole
+    sector or the market, which no symbol subscription could express. Without
+    [`pm-market-sim`](../part-4-run-a-market/090-market-model.md) none arrive.
 
 !!! note "Behaviour change: accumulated subscriptions no longer widen"
     Subscriptions are held as symbol/channel *pairs*. Previously they were two
@@ -1958,6 +1962,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `GET /api/v1/reference/config-version` | Bundle version hash |
 | `GET /api/v1/reference/symbols` | Tick sizes and per-symbol config |
 | `GET /api/v1/reference/risk` | Risk bands and CB levels |
+| `GET /api/v1/news?limit=50` | The latest `limit` (1–200) headlines from `pm-market-sim`, oldest first, as `{"news": [...], "sectors": {"TECH": ["AAPL", …], …}}`. `sectors` (from the deployed `market_sim.yaml`) says which symbols a `SECTOR` headline is about. Empty without `pm-market-sim`; new headlines arrive on the market-data socket |
 | `GET /api/v1/reference/indexes` | Index definitions |
 | `GET /api/v1/reference/schedule` | Session schedule metadata |
 

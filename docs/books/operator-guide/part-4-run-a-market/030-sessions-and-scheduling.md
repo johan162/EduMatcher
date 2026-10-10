@@ -236,6 +236,9 @@ poetry run pm-scheduler --now
 # Custom delay between transitions in --now mode (default 3 s)
 poetry run pm-scheduler --now --delay 5
 
+# Compressed mode: whole days (weekends and holidays included) in minutes
+poetry run pm-scheduler --daily --speed 600 --start 2026-11-02T08:55
+
 # pm-scheduler always reads the deployed compiled artifact (like pm-engine) --
 # there is no flag to point it at a different config file; see
 # [Configuration -- Missing-file Behavior](../part-2-configure/010-the-configuration-workflow.md) for why.
@@ -249,6 +252,8 @@ poetry run pm-scheduler
 | `--now`                  | off                 | Rapid-fire all five transitions immediately (for testing / demos)             |
 | `--delay SECONDS`        | `3.0`                | Seconds between transitions in `--now` mode; ignored (with a warning) otherwise |
 | `--daily`                | off                 | Run continuously, repeating the schedule every calendar day instead of exiting after today |
+| `--speed F`              | off                 | Compressed mode (needs `--daily`): simulated time runs F times faster than the wall clock; see [Compressed mode](#compressed-mode) |
+| `--start YYYY-MM-DDTHH:MM` | now               | Compressed mode: local time the simulated clock starts at                    |
 | `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
 | `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
 | `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
@@ -516,6 +521,19 @@ Output:
 ```
 
 
+### Compressed mode
+
+`--daily --speed F` runs the scheduler on a simulated local clock that starts
+at `--start` (default: now) and runs F times faster than the wall clock. The
+schedule, weekends and bank holidays are resolved in simulated time, so a
+month of trading days passes in minutes — this is how the AI-trader swarm is
+soak-tested. With `--speed 600`, a 09:00–16:05 day takes about 43 seconds and
+a 5-minute auction half a second.
+
+The countdown the engine publishes with each transition (`next.at`) is the
+*wall-clock* instant the next transition will happen, so terminal countdowns
+stay correct. Everything else in the exchange runs on the wall clock: order
+ages, heartbeats and the bots' decision rates are not compressed.
 
 ## Equilibrium price
 

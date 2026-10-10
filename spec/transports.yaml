@@ -44,6 +44,16 @@ transports:
     subscriber_pattern: SUB
     address_config_key: INDEX_PUB_ADDR
 
+  sim_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: SIM_PUB_ADDR
+
+  sim_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: SIM_PULL_ADDR
+
   ralf:
     pattern: TCP
     address_config_key: POST_TRADE_GATEWAY_PORT

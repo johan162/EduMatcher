@@ -29,8 +29,9 @@ These reference configs are organized by book count and setup profile:
 - `s150-basic-setup`
 - `s150-nominal-setup`
 - `s150-complex-setup`
+- `s300-load-setup` — AI-trader load test bed: 300 symbols, 500 AI participants (`AI001`–`AI500`); no `-nomm` variant
 
-Each profile also has a `-nomm` variant without seeded market-maker quotes. Every directory contains a small generator script, `mkrefdata.sh`, and the resulting `engine_config.yaml`.
+The `s150-*` configs also list `AI001`–`AI020` so a 20-bot `pm-ai-swarm` runs unchanged. Each profile also has a `-nomm` variant without seeded market-maker quotes. Every directory contains a small generator script, `mkrefdata.sh`, and the resulting `engine_config.yaml`.
 
 
 ## How they are generated

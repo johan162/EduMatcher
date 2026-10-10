@@ -1,0 +1,6 @@
+name: noise-retail
+description: Uninformed retail flow. Small random orders resting near the touch.
+strategy: {name: noise, urgency: 0.2}
+execution: {style: passive, offset_ticks: 1, urgency_cross: 0.9, auction_participation: 0.3}
+tempo: many-small
+risk: {max_position: 500, max_live_orders_per_symbol: 2, max_order_age_sec: 45, stale_price_ticks: 8}

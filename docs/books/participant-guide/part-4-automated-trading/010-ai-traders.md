@@ -6,477 +6,186 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What `pm-ai-trader` and `pm-ai-swarm` are and when to use them
-    - The four personality profiles and how they differ
-    - How to launch a single bot or a swarm of bots
-    - How bots manage risk (position limits, reject breaker)
-    - How to configure your engine to allow AI gateway IDs
-    - How to set up a realistic classroom simulation
+    - What `pm-ai-trader` and `pm-ai-swarm` are and how they reach the exchange
+    - What a *preset* is, and which built-in presets there are
+    - How to run one AI trader, a swarm of them, and your own preset
+    - Which traders need the market model (`pm-market-sim`) and why
 
-    **Prerequisites**: [Running the Engine](../../operator-guide/part-3-run/010-running-the-exchange.md) — the engine must be running
-    before AI traders can connect.
-    [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — AI traders connect as regular gateways; their IDs
-    must be listed in the deployed engine configuration (or the engine must be in unrestricted mode).
+    **Prerequisites**: [Running the Exchange](../../operator-guide/part-3-run/010-running-the-exchange.md),
+    [ALF Gateway](../../operator-guide/part-5-gateways/010-alf-gateway.md) — AI
+    traders log on through `pm-alf-gwy` like any ALF client, so their IDs must
+    be participants in the deployed configuration.
 
 ---
 
 ## What are the AI trader processes?
 
-EduMatcher ships two processes that generate autonomous order flow:
+| Process | Purpose |
+|---|---|
+| `pm-ai-trader` | One AI trader, logged on as one participant |
+| `pm-ai-swarm` | Many AI traders — tens to hundreds — in a few worker processes, each trader logged on as its own participant |
 
-| Process | Command | Purpose |
+An AI trader is a participant like a student desk. It logs on to
+`pm-alf-gwy` with its own ID (`AI001`, `AI002`, …, role `TRADER`), sends its
+orders over that ALF session, and reads market data from the engine's public
+feed. Everything it does is visible to everyone else exactly as a person's
+orders are: in the books, the trades, the audit trail. When its session ends,
+the participant's `disconnect_behaviour` applies (`CANCEL_ALL` for the
+example AI participants).
+
+The `s150-*` examples register `AI001`–`AI020`, the `s300-load` example
+`AI001`–`AI500`; both ship a `swarm.yaml` and a `market_sim.yaml`.
+
+---
+
+## Presets
+
+What a trader does is set by its *preset*, four parts:
+
+| Part | Decides | Choices |
 |---|---|---|
-| `pm-ai-trader` | `poetry run pm-ai-trader` | A **single autonomous bot** — connects as a gateway, watches the book, submits limit orders |
-| `pm-ai-swarm` | `poetry run pm-ai-swarm` | A **swarm launcher** — spawns `N` bots in one command, assigns each a profile and a share of the symbols so every symbol is traded |
+| **Strategy** | *What* it wants to trade, which way, how urgently | `noise`, `trend`, `reversion`, `value`, `news` |
+| **Execution** | *How* a wish becomes orders | `passive`, `marketable`, `sweep`, `iceberg`, `twap` |
+| **Tempo** | How often it decides, and how big its orders are | `many-small`, `aggressive`, `cautious`, `few-large`, or your own |
+| **Risk** | Position limit, live orders per symbol, order age, protective orders | per preset |
 
-They are designed to simulate realistic human order behaviour so that a
-classroom exchange has live activity even when students are not yet trading.
-Each bot behaves differently — some trade frequently in small sizes, others
-occasionally in large blocks — giving the order book variety and depth.
+[How the AI Traders Decide](020-how-the-bots-decide.md) explains each in
+detail. The built-in presets (`pm-ai-trader --list-presets`):
 
----
+| Preset | Strategy | Execution | Tempo | Protection | Character |
+|---|---|---|---|---|---|
+| `noise-retail` | noise | passive | many-small | — | Uninformed retail flow: small random orders resting near the touch |
+| `market-taker` | noise | sweep (MARKET) | cautious | — | Impatient noise trader that takes liquidity |
+| `iceberg-seller` | noise | iceberg | few-large | — | Large orders showing a fifth of their size |
+| `scalper` | trend | sweep (IOC) | aggressive | trailing stop | Fast momentum trader |
+| `trend-follower` | trend | marketable | cautious | stop | Follows momentum with marketable limits |
+| `block-taker` | trend | sweep (FOK) | few-large | stop-limit | Takes whole blocks or nothing |
+| `contrarian` | reversion | passive (GTC) | cautious | bracket (OCO) | Fades moves patiently |
+| `auction-player` | reversion | passive | cautious | — | Trades mostly in the opening and closing auctions (ATO/ATC) |
+| `value-investor` | value | passive | cautious | — | Buys below its view of the true value, sells above |
+| `institutional` | value | twap | few-large | — | Large parent orders toward the value, worked in slices over minutes |
+| `news-trader` | news | marketable | aggressive | — | Trades headlines within seconds, in their direction |
 
-## How a bot works
+Between them the presets send every order type and time in force the
+exchange has: LIMIT, MARKET, IOC, FOK, ICEBERG, STOP, STOP_LIMIT,
+TRAILING_STOP, OCO; DAY, GTC, ATO, ATC.
 
-Each bot is a fully independent participant. It connects to the engine via
-ZeroMQ, authenticates as a gateway, requests the symbol list and the current
-session state, asks the engine for a book snapshot of each of its symbols, then
-enters a decision loop:
+### Value and news need the market model
 
-```mermaid
-flowchart TD
-    CONN[Connect to engine\nPUSH :5555 / SUB :5556]
-    AUTH[Send gateway_connect\nwait for gateway_auth ack]
-    SYM[Request symbol list and session state\nrequest a book snapshot per symbol]
-    LOOP{Decision loop\nevery decision_interval_ms}
-    PAUSE{Risk pause active\nor market CLOSED?}
-    STALE{Market data\nfresh?}
-    REFRESH[Request a fresh\nbook snapshot]
-    PICK[Pick a symbol\ncheck position limit]
-    SIDE[Choose side\n50/50 BUY or SELL, forced at the position limit]
-    PRICE[Calculate order price\ncross_probability → best opposite price,\nelse best price ± offset]
-    SUBMIT[Submit LIMIT DAY order]
-    EVENTS[Handle events\nfill, ack, reject, book, trade]
-    REJECT{Reject count\n≥ max_rejects\nin window?}
-    BREAKER[Reject breaker trips\npause for cooldown_sec]
-
-    CONN --> AUTH --> SYM --> LOOP
-    LOOP --> PAUSE
-    PAUSE -->|yes, wait| LOOP
-    PAUSE -->|no| STALE
-    STALE -->|stale or no data| REFRESH --> LOOP
-    STALE -->|fresh| PICK
-    PICK --> SIDE --> PRICE --> SUBMIT
-    SUBMIT --> EVENTS
-    EVENTS --> REJECT
-    REJECT -->|yes| BREAKER --> LOOP
-    REJECT -->|no| LOOP
-```
-
-The engine publishes a book only when it changes, so a bot whose symbol has gone
-quiet asks for a snapshot instead of waiting for one; without that a quiet
-market would stay "stale" forever. While the session is `CLOSED` the bot does
-not submit; it starts again when the scheduler moves the market to `PRE_OPEN`,
-and its limit orders take part in the opening and closing auctions. With
-sessions disabled the bot always trades.
-
-All orders are `LIMIT DAY` orders at prices derived from the current book.
-AI traders **never** submit market orders, FOK, or IOC — only resting limit
-orders that contribute to book depth.
+The `value` and `news` strategies trade on what
+[`pm-market-sim`](../../operator-guide/part-4-run-a-market/090-market-model.md)
+publishes: a hidden *true value* per symbol, and news. Without it running,
+`value-investor`, `institutional` and `news-trader` stand idle — they log on
+but send nothing. The true values never reach students: only the AI traders,
+`pm-mm-bot --anchor-sim` and ADMIN keys see them. The headlines are public.
 
 ---
 
-## Personality profiles
-
-A profile controls *how* the bot trades: how often, how large, and how
-aggressively it crosses the spread. The four built-in profiles are:
-
-| Profile | Decision interval | Order size | Cross probability | Offset | Size distribution | Character |
-|---|---|---|---|---|---|---|
-| `aggressive` | 250 ms | 20–120 | 35% | 0 ticks | balanced | Frequent trader; crosses the spread often; medium sizes |
-| `cautious` | 900 ms | 10–60 | 5% | 2 ticks away | balanced | Slow, patient; rarely crosses; small passive orders |
-| `many-small` | 180 ms | 1–25 | 18% | 1 tick away | small-heavy | High-frequency tiny orders; generates many executions |
-| `few-large` | 1400 ms | 150–700 | 12% | 1 tick away | block-heavy | Infrequent institutional-style block orders |
-
-**cross_probability** is the probability that the bot places a **marketable
-limit order**, priced exactly at the opposite best price (a buy at the best
-ask, a sell at the best bid), rather than a passive limit order.
-
-**passive_offset_ticks** is how many ticks *behind* its own side's best price a
-passive order is placed (a buy at best bid − offset, a sell at best ask +
-offset). Offset = 0 means posting at the best bid/ask; offset = 2 means
-posting 2 ticks behind the best price.
-
-### Size distributions
-
-```mermaid
-flowchart LR
-    A["balanced\n(uniform random between min and max)"]
-    B["small-heavy\n(quadratic — skews toward min)"]
-    C["block-heavy\n(quadratic — skews toward max)"]
-```
-
----
-
-## Risk management
-
-Each bot has two built-in safety mechanisms:
-
-### Position limit
-
-The bot tracks its own `position` per symbol (net quantity of shares held).
-Each order's quantity is capped so that `|position|` cannot exceed
-`max_position` (default: 1000). Once the limit is reached the bot forces the
-opposite side: a long bot at +1000 will only submit sell orders; a short bot at
-−1000 will only submit buy orders. Positions are tracked from fills within the
-current run only.
-
-### Reject breaker
-
-If the engine rejects `max_rejects` orders within `reject_window_sec`, the bot
-pauses for `reject_cooldown_sec` before submitting again. This prevents a
-misconfigured bot from flooding the engine with invalid orders.
-
-```
-2026-09-20 14:30:05,120 WARNING edumatcher.ai_trader.main - reject breaker tripped gateway_id=AI01 cooldown=5.0s
-```
-
-The tripped warning is visible at the default log level. The bot also logs
-`[AI01] reject breaker tripped; pausing submissions for 5.0s` at `INFO`
-(shown with `-v`).
-
----
-
-## Launching a single bot
+## Running one AI trader
 
 ```bash
-poetry run pm-ai-trader --id AI01 --profile aggressive
+pm-ai-trader --id AI001 --preset noise-retail --symbols AAPL,MSFT -v
 ```
 
-Common options:
-
-| Option | Default | Description |
+| Flag | Default | Meaning |
 |---|---|---|
-| `--id` | required | Gateway ID — must be listed under `participants` in the deployed engine configuration (or the engine must be unrestricted) |
-| `--profile` | `cautious` | One of: `aggressive`, `cautious`, `many-small`, `few-large` |
-| `--symbols` | all | Comma-separated list of symbols this bot watches; default is all symbols from engine |
-| `--seed` | `1` | Random seed — same seed produces identical order sequence (useful for reproducibility) |
-| `--duration` | `0` (forever) | Stop automatically after this many seconds |
-| `--run-id` | *autogenerated* | Optional run identifier; a value is generated automatically if omitted |
-| `--max-position` | `1000` | Absolute position limit per symbol |
-| `--max-rejects` | `25` | Reject breaker threshold within the window |
-| `--reject-window` | `10.0` | Rolling window in seconds for reject counting |
-| `--reject-cooldown` | `5.0` | Pause duration in seconds after reject breaker trips |
-| `--stale-data` | `4.0` | Seconds before a symbol's market data is considered too old to trade on (0 disables the check) |
-| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
-| `-v`, `--verbose` | off | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q`, `--quiet` | off | Reduce output to warnings/errors (the default level already, so currently a no-op) |
-| `--log-target` | `server` | Where operational logs go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
-| `--log-file PATH` | — | Log file path; required with `--log-target file` |
-| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file when `pm-log-srv` is unreachable |
+| `--id` | — | Participant ID to log on as |
+| `--preset` / `--preset-file` | `noise-retail` | A built-in preset, or your own preset YAML |
+| `--list-presets` | — | Print the built-in presets and exit |
+| `--symbols` | every symbol | Comma-separated symbols to trade |
+| `--seed` | `1` | Same seed, same decisions given the same market |
+| `--alf-host` / `--alf-port` | engine host / deployed `alf_gateway.port` | Where `pm-alf-gwy` listens |
+| `--duration` | `0` | Seconds to run; `0` = until Ctrl+C |
+| `-v` | off | Log a status line a minute and every session change |
 
-Example with all options:
-
-```bash
-poetry run pm-ai-trader \
-  --id AI01 \
-  --profile many-small \
-  --symbols AAPL,MSFT \
-  --seed 42 \
-  --duration 120 \
-  --max-position 500
-```
-
-When the run ends by reaching `--duration`, the bot logs a summary at `INFO`
-(visible with `-v`, or `--log-target stdout -v` to see it in the terminal):
-
-```
-2026-09-20 14:32:01,004 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=284 acked=281 rejected=3 fills=68
-```
+Stop it with Ctrl+C: it closes its session, and its orders are cancelled.
 
 ---
 
-## Launching a swarm
-
-`pm-ai-swarm` starts `N` bots simultaneously, cycling through the profiles and
-spreading the symbols over the bots. With fewer bots than symbols each bot gets
-every `N`-th symbol, so all symbols are traded (10 bots on 150 symbols: 15
-symbols each); with more bots than symbols each bot gets one symbol and several
-bots share it. Before launching, the swarm checks that every bot ID is a
-participant in the deployed configuration and stops with the list of missing
-IDs if not:
+## Running a swarm
 
 ```bash
-poetry run pm-ai-swarm --count 10 --duration 60
+pm-ai-swarm --swarm docs/examples/ref_data/s150-nominal-setup/swarm.yaml -v
 ```
 
-The swarm assigns gateway IDs `AI01` through `AI10` automatically and, when
-`--profiles` is not given, cycles through all four profiles in **alphabetical
-order**: `aggressive`, `cautious`, `few-large`, `many-small`.
-
-### Swarm options
-
-| Option | Default | Description |
-|---|---|---|
-| `--count` | `10` | Number of bots to launch |
-| `--prefix` | `AI` | Gateway ID prefix (e.g. `BOT` → `BOT01`, `BOT02`, …) |
-| `--start-index` | `1` | Starting index for gateway IDs |
-| `--profiles` | all | Comma-separated profile cycle, e.g. `aggressive,cautious` |
-| `--symbols` | all from the engine config | Comma-separated symbols to trade; when omitted, the symbols in `<DATA_DIR>/ref_data/engine_config.yaml` are used (the path is fixed — there is no `--config` option) |
-| `--seed-base` | `1000` | Seeds are `seed_base + i` for bot `i` |
-| `--duration` | `60.0` | Seconds each bot runs; 0 = run until Ctrl-C |
-| `--max-position` | `1000` | Position limit per bot per symbol |
-| `--python` | current Python | Path to Python executable |
-| `--log-level` | `WARNING` | Logging level for swarm launcher; also forwarded to child bots |
-| `-v`, `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
-| `-q`, `--quiet` | off | Reduce output to warnings/errors (the default level already); forwarded to child bots |
-| `--log-target` | `server` | Where operational logs go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
-| `--log-file PATH` | — | Log file path; required with `--log-target file` |
-| `--log-failover-timeout SECONDS` | `30` | Grace window before falling back to a local log file when `pm-log-srv` is unreachable |
-
-```mermaid
-flowchart LR
-    SWARM["pm-ai-swarm\n--count 4"]
-    BOT1["AI01\nprofile=aggressive\nsymbols=AAPL,AMZN"]
-    BOT2["AI02\nprofile=cautious\nsymbols=MSFT,META"]
-    BOT3["AI03\nprofile=few-large\nsymbols=TSLA,NVDA"]
-    BOT4["AI04\nprofile=many-small\nsymbols=GOOGL,NFLX"]
-    ENG["pm-engine"]
-
-    SWARM --> BOT1 & BOT2 & BOT3 & BOT4
-    BOT1 & BOT2 & BOT3 & BOT4 --> ENG
-```
-
-(Eight symbols over four bots. Profile order shown is the default alphabetical cycle. Passing an explicit
-`--profiles` list uses that order verbatim instead.)
-
-The swarm waits for all bots to finish (or until Ctrl-C), then exits. Each
-bot's output is interleaved in the terminal.
-
-!!! tip "Graceful shutdown"
-    Pressing Ctrl-C makes the swarm send SIGTERM to all child bots, wait up to
-    2 seconds, and then kill any that remain. Each bot sends
-    `system.gateway_disconnect` on its way out, so the engine applies the
-    participant's `disconnect_behaviour` (`CANCEL_ALL` cancels its resting
-    orders; `LEAVE_ALL` leaves them until they fill or expire at `CLOSED`) and
-    the same ID can reconnect straight away. Interrupted bots do not log the
-    `stopped` summary; use `--duration` for a clean exit that does. A bot
-    killed outright also sends heartbeats while running, so the engine frees
-    its ID after three missed heartbeats.
-
----
-
-## Configuring gateway IDs
-
-### Unrestricted mode (no config file)
-
-Unrestricted mode applies only when the engine finds no configuration at all
-(neither a deployed compiled artifact nor `<DATA_DIR>/ref_data/engine_config.yaml`).
-In that case any gateway ID can connect and trade any symbol. If a
-configuration is deployed, every bot ID must be listed under `participants`
-and the engine reads only the deployed artifact (`pm-config-deploy`). This is the
-easiest way to test:
-
-```bash
-poetry run pm-engine               # unrestricted
-poetry run pm-ai-swarm --count 5
-```
-
-### With a config file
-
-Add the bot gateway IDs to the `participants:` list. AI traders are ordinary
-`TRADER` participants:
+`swarm.yaml` says how many traders, which presets in what mix, which symbols,
+and how many order actions a second the whole swarm may send:
 
 ```yaml
+version: 1
+agents: {prefix: AI, start: 1, count: 20}
+budget: 40            # order actions per second, whole swarm
+seed: 1000            # agent i gets seed + i
 symbols:
-  AAPL:
-    tick_decimals: 2
-  MSFT:
-    tick_decimals: 2
-
-participants:
-  - id: AI01
-    description: AI bot 1
-  - id: AI02
-    description: AI bot 2
-  - id: AI03
-    description: AI bot 3
-  # ... as many as --count
-  - id: ST01
-    description: Student 1
-  - id: ST02
-    description: Student 2
+  per_agent: 150      # every agent trades every symbol
+composition:          # preset: weight
+  noise-retail: 25
+  value-investor: 22
+  news-trader: 5
+  institutional: 8
+  scalper: 8
+  trend-follower: 10
+  contrarian: 10
+  iceberg-seller: 4
+  market-taker: 4
+  block-taker: 2
+  auction-player: 2
 ```
 
-!!! tip "Using a range pattern"
-    If you use the swarm default prefix `AI` and `--count 10`, the IDs will be
-    `AI01` through `AI10`. Add all ten to your config. With `--start-index 1`
-    (default) and `--prefix AI` the IDs are zero-padded to two digits.
+Command-line flags override the file (`--count`, `--budget`, `--workers`,
+`--presets noise-retail:3,scalper:1`, `--symbols-per-agent`, `--duration`).
+The operator's [swarm runbook](../../operator-guide/part-3-run/030-ai-trader-swarm.md)
+has every key, how to size a swarm, the logs, the daily summaries and what
+happens when a process goes down.
 
 ---
 
-## Classroom demo setup
+## Your own preset
 
-A typical classroom simulation uses a swarm of bots to provide realistic
-background order flow while students trade alongside them. The bots generate
-price discovery, spread variation, and occasional large moves that students
-must react to.
-
-### Recommended setup
+Copy a built-in preset and change it. A preset file names its four parts:
 
 ```yaml
-# engine_config.yaml
-sessions_enabled: true   # run opening and closing auctions
-
-symbols:
-  AAPL:
-    tick_decimals: 2
-    last_buy_price: 149.90
-    last_sell_price: 150.10
-  MSFT:
-    tick_decimals: 2
-    last_buy_price: 415.00
-    last_sell_price: 415.50
-  TSLA:
-    tick_decimals: 2
-    last_buy_price: 250.00
-    last_sell_price: 250.50
-
-participants:
-  # Instructor / operator
-  - id: OPS01
-    description: Operator console
-    role: ADMIN
-
-  # Market maker (optional, adds liquidity — see pm-mm-bot below).
-  # Gateway ID follows pm-mm-bot's MM_<SYMBOL>_<nn> convention; see
-  # [Market-Maker Bot](../part-3-market-making/030-the-market-maker-bot.md#gateway-identity-convention).
-  - id: MM_AAPL_01
-    description: Market maker (AAPL)
-    role: MARKET_MAKER
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 20
-    mm_min_qty: 100
-
-  # AI bots (30 bots, IDs AI01–AI30)
-  - id: AI01
-    description: AI bot 1
-  - id: AI02
-    description: AI bot 2
-  # ... repeat through AI30
-
-  # Students (adjust count for your class size)
-  - id: ST01
-    description: Student 1
-  - id: ST02
-    description: Student 2
-  # ...
+name: nervous-scalper
+description: A scalper with a tight trailing stop and small positions.
+strategy: {name: trend, strength: 0.9, sample: 4, urgency: 0.9}
+execution: {style: sweep, sweep_type: IOC, cross_ticks: 1}
+tempo: {decisions_per_min: 30, size_min: 10, size_max: 50}
+risk: {max_position: 200, max_live_orders_per_symbol: 2, max_order_age_sec: 15,
+       protection: trailing, protection_pct: 0.005}
 ```
-
-### Launch sequence
 
 ```bash
-# Terminal 1: matching engine
-poetry run pm-engine
-
-# Terminal 2: session scheduler (default schedule: PRE_OPEN 09:00, OPENING_AUCTION 09:25,
-# CONTINUOUS 09:30, CLOSING_AUCTION 16:00, CLOSED 16:05). With sessions enabled the
-# engine starts CLOSED and rejects orders ("Market is closed") until the scheduler
-# opens it — start the swarm only after that, or use `pm-scheduler --now`.
-poetry run pm-scheduler
-
-# Terminal 3: clearing and stats
-poetry run pm-clearing &
-poetry run pm-stats &
-
-# Terminal 4: market maker for AAPL (optional — omit if you skipped the
-# MM_AAPL_01 gateway entry above)
-poetry run pm-mm-bot --symbol AAPL
-
-# Terminal 5: AI swarm (30 bots, all 4 profiles, run for 30 minutes)
-poetry run pm-ai-swarm \
-  --count 30 \
-  --duration 1800 \
-  --profiles aggressive,cautious,many-small,few-large
-
-# Students connect individually
-poetry run pm-alf-console --id ST01
+pm-ai-trader --id AI001 --preset-file nervous-scalper.yaml -v
 ```
 
-For a quick demo without scheduling, use the launch script:
-
-```bash
-./tools/launch_all.sh
-```
+In a `swarm.yaml`, a composition key that ends in `.yaml` is a preset file,
+relative to the `swarm.yaml`. Unknown keys and out-of-range values are
+refused before anything starts, naming the file and the key.
 
 ---
 
-## Understanding bot output
+## Reading its output
 
-Bots log through the standard EduMatcher logger
-(`<timestamp> <LEVEL> <logger> - <message>`), and every bot message is tagged
-with the gateway ID in brackets. Records go to `pm-log-srv` by default; add
-`--log-target stdout` to see them in the terminal. The default level is
-`WARNING`, so the bot's milestone lines (all `INFO`) appear only with `-v`
-(or `--log-level INFO`); at the default level you see just the reject-breaker
-warning. With `-v` you get the milestones and a startup summary of the bot's
-own configuration, but not individual order submissions:
+With `-v`, each trader (or each swarm worker, for its traders together) logs
+one line a minute:
 
-```
-2026-09-20 14:30:00,001 INFO edumatcher.ai_trader.main - [AI01] starting: profile=aggressive symbols=all duration=120s run_id=botrun-...
-2026-09-20 14:30:00,050 INFO edumatcher.ai_trader.main - [AI01] authenticated
-2026-09-20 14:30:00,060 INFO edumatcher.ai_trader.main - [AI01] session unknown -> CONTINUOUS
-2026-09-20 14:30:01,200 INFO edumatcher.ai_trader.main - [AI01] reject breaker tripped; pausing submissions for 5.0s
-2026-09-20 14:30:06,201 INFO edumatcher.ai_trader.main - [AI01] reject breaker cooldown ended; resuming submissions
-2026-09-20 14:31:59,900 INFO edumatcher.ai_trader.main - [AI01] stopped submitted=312 acked=311 rejected=1 (STATIC_COLLAR_BREACH: price 16600 ticks is outside [13500, 16500] ticks (±10% from reference 15000)=1) fills=72
+```text
+[AI001] t=120s session=CONTINUOUS actions=96 (0.8/s) live_orders=2 fills=31 rejects=0
 ```
 
-(`symbols=all` is what a single bot without `--symbols` logs; a swarm child is
-assigned its share and logs e.g. `symbols=['AAPL', 'AMZN']`.)
-
-Rejects normally come from price-collar breaches. The bot does not submit while
-the market is `CLOSED`, and a gateway ID that is not in the engine
-configuration fails authentication, so neither shows up as order rejects. A halted symbol
-does not reject the bot's LIMIT orders — they rest without matching. If the
-count is very high, check that the bot's gateway IDs are configured in the
-engine and that the collars suit the bot's prices. The `stopped` line's parenthetical breaks the
-rejects down by reason, taken directly from the engine's `order.ack`
-rejection payloads.
-
-With `--verbose` (`-v`), the bot additionally logs every order submission,
-fill, individual rejection, and reasons for skipping a trading decision
-(stale market data, position limit reached), and every session change. The `SUBMIT` price is in
-**ticks** (with `tick_decimals: 2`, `14997` means 149.97); fill prices are
-shown in display money:
-
-```
-2026-09-20 14:30:01,010 INFO edumatcher.ai_trader.main - [AI01] order SUBMIT BUY 45@14997 AAPL
-2026-09-20 14:30:01,020 INFO edumatcher.ai_trader.main - [AI01] order REJECTED: STATIC_COLLAR_BREACH: price 16600 ticks is outside [13500, 16500] ticks (±10% from reference 15000)
-2026-09-20 14:30:05,030 INFO edumatcher.ai_trader.main - [AI01] fill: BUY 45@149.97 AAPL pos=45
-2026-09-20 14:30:12,040 INFO edumatcher.ai_trader.main - [AI01] position limit reached on AAPL (pos=1000); forcing SELL
-2026-09-20 14:30:18,050 INFO edumatcher.ai_trader.main - [AI01] skip AAPL: stale market data (4.2s > 4.0s); requesting a fresh snapshot
-```
+`actions` counts new orders and cancels. A trader whose orders keep being
+refused pauses itself for a few seconds (the *reject breaker*); a cancel that
+lost the race with a fill, or an order in flight when the market closed, does
+not count. After each close the swarm writes a summary per trader — orders,
+fills, position, P&L — see the runbook.
 
 ---
 
 ## See also
 
-**In this book:**
-
-- [The Market-Maker Bot (`pm-mm-bot`)](../part-3-market-making/030-the-market-maker-bot.md) — autonomous market-maker process; complements AI traders by providing liquidity
-- [Order Types](../part-2-orders/020-order-types.md) — AI bots submit LIMIT DAY orders only
-
-**Quick Start Guide:**
-
-- Your First Trade — the basics of placing and matching orders by hand
-
-**Operator's Guide:**
-
-- Running the Engine — startup order and launch scripts
-- Configuration — how to register gateway IDs and symbols
-- Risk Controls — price collars and halts that affect bot activity
-
-**Reference Manual:**
-
-- Processes — where `pm-ai-trader` and `pm-ai-swarm` fit in the architecture
+- [How the AI Traders Decide](020-how-the-bots-decide.md) — strategies, execution styles, tempo and risk in detail
+- [Running the AI-Trader Swarm](../../operator-guide/part-3-run/030-ai-trader-swarm.md) — the operator's runbook
+- [The Market Model (`pm-market-sim`)](../../operator-guide/part-4-run-a-market/090-market-model.md) — true values and news
+- [The Market-Maker Bot (`pm-mm-bot`)](../part-3-market-making/030-the-market-maker-bot.md) — liquidity for the AI traders to trade against
+- [Order Types](../part-2-orders/020-order-types.md)
+- [AI Traders & News](../../training-guide/140-ai-traders.md) — classroom exercises

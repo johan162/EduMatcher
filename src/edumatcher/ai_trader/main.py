@@ -1,679 +1,44 @@
-"""Autonomous AI trader process.
+"""pm-ai-trader: one AI trading agent.
+
+Runs a worker hosting a single agent. The agent's behaviour comes from a
+preset (strategy x execution x tempo x risk); see ``--list-presets``.
 
 Usage examples:
-  poetry run pm-ai-trader --id AI01 --profile aggressive
-  poetry run pm-ai-trader --id AI07 --profile cautious --symbols AAPL,MSFT
+  poetry run pm-ai-trader --id AI001 --preset noise-retail
+  poetry run pm-ai-trader --id AI007 --preset trend-follower --symbols AAPL,MSFT
+  poetry run pm-ai-trader --id AI009 --preset-file my-preset.yaml
 """
 
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from collections import deque
 import logging
-import random
 import signal
-import time
-import uuid
-from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
 
-import zmq
-
-from edumatcher.ai_trader.personality import available_profiles, get_profile
-from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.ai_trader.preset import (
+    Preset,
+    PresetError,
+    builtin_presets,
+    get_preset,
+    load_preset_file,
+)
+from edumatcher.ai_trader.transport import AlfTransport
+from edumatcher.ai_trader.worker import AgentSpec, Worker
+from edumatcher.alf_gwy.config import load_default_alf_gateway_config
+from edumatcher.config import EDUMATCHER_ENGINE_HOST
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_pusher, make_subscriber
-from edumatcher.models.message import (
-    GATEWAY_HEARTBEAT_INTERVAL_SEC,
-    decode,
-    make_book_snapshot_request_msg,
-    make_gateway_connect_msg,
-    make_gateway_disconnect_msg,
-    make_gateway_heartbeat_msg,
-    make_order_new_msg,
-    make_session_state_request_msg,
-    make_symbols_request_msg,
-)
-from edumatcher.models.order import TIF, Order, OrderType, Side
-from edumatcher.models.price import (
-    get_tick_decimals,
-    register_tick_decimals,
-    to_ticks,
-)
-from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
-from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
-from edumatcher.models.generated.order import (
-    topic_order_ack,
-    topic_order_cancelled,
-    topic_order_expired,
-    topic_order_fill,
-)
-from edumatcher.models.generated.session import TOPIC_SESSION_STATE
-from edumatcher.models.generated.system import (
-    topic_gateway_auth,
-    topic_session_status,
-    topic_symbols,
-)
 
-_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
-
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+DEFAULT_PRESET = "noise-retail"
 
 log = logging.getLogger(__name__)
-
-
-def _tick_size(symbol: str) -> float:
-    """This symbol's tick size in display money.
-
-    The personality profiles used to carry a fixed 0.01, which is right for
-    the two-decimal symbols in the demo configs and wrong for every other
-    one: on a 0-decimal instrument a one-tick offset rounded back to the
-    reference price, so the bot quoted on top of the book forever, and on a
-    4-decimal one it moved a hundred ticks instead of one. Tick precision is
-    a property of the instrument, not of the trader's personality.
-    """
-    return float(10 ** -get_tick_decimals(symbol))
-
-
-@dataclass
-class MarketSnapshot:
-    best_bid: float | None = None
-    best_ask: float | None = None
-    last_price: float | None = None
-
-
-@dataclass
-class BotMetrics:
-    submitted: int = 0
-    acknowledged: int = 0
-    rejected: int = 0
-    filled: int = 0
-    cancelled: int = 0
-
-
-class AITraderBot:
-    def __init__(
-        self,
-        gateway_id: str,
-        profile_name: str,
-        symbols: list[str],
-        seed: int,
-        run_id: str,
-        max_position: int,
-        max_rejects: int,
-        reject_window_sec: float,
-        reject_cooldown_sec: float,
-        stale_data_sec: float,
-        verbose: bool = False,
-    ) -> None:
-        self.gateway_id = gateway_id.upper()
-        self.profile = get_profile(profile_name)
-        self._symbols_filter = [sym.upper() for sym in symbols]
-        self._rng = random.Random(seed)
-        self._run_id = run_id
-
-        self._running = True
-        self._last_submit_ts = 0.0
-        self._market: dict[str, MarketSnapshot] = {}
-        self._known_symbols: list[str] = []
-        self._positions: dict[str, int] = {}
-        self._last_market_update: dict[str, float] = {}
-        self._last_snapshot_request: dict[str, float] = {}
-        # None until the engine answers system.session_state_request; with
-        # sessions disabled the state is advisory and the bot always trades.
-        self._session_state: str | None = None
-        self._sessions_enabled = True
-        self._last_heartbeat = 0.0
-        self._reject_times: deque[float] = deque()
-        self._reject_reason_counts: defaultdict[str, int] = defaultdict(int)
-        self._risk_pause_until = 0.0
-        self._was_risk_paused = False
-        self.metrics = BotMetrics()
-        self.verbose = bool(verbose)
-
-        self._max_position = max_position
-        self._max_rejects = max_rejects
-        self._reject_window_sec = reject_window_sec
-        self._reject_cooldown_sec = reject_cooldown_sec
-        self._stale_data_sec = stale_data_sec
-        self._debug_counts: defaultdict[str, int] = defaultdict(int)
-        self._debug_last_summary = time.monotonic()
-
-        self.push_sock = make_pusher(ENGINE_PULL_ADDR)
-        self.sub_sock = make_subscriber(
-            ENGINE_PUB_ADDR,
-            topic_gateway_auth(self.gateway_id),
-            topic_symbols(self.gateway_id),
-            topic_session_status(self.gateway_id),
-            TOPIC_SESSION_STATE,
-            topic_order_ack(self.gateway_id),
-            topic_order_fill(self.gateway_id),
-            topic_order_cancelled(self.gateway_id),
-            topic_order_expired(self.gateway_id),
-            PREFIX_BOOK_SNAPSHOT,
-            TOPIC_TRADE_EXECUTED,
-        )
-
-    def _log(self, text: str) -> None:
-        log.info("[%s] %s", self.gateway_id, text)
-
-    def _debug(self, text: str) -> None:
-        # verbose (-v/-vv) previously gated this via a private print() channel;
-        # kept at INFO (rather than DEBUG) so -v alone still shows these, same
-        # as before the print()-to-logger conversion.
-        if self.verbose:
-            self._log(text)
-
-    def _dbg_count(self, key: str, amount: int = 1) -> None:
-        if not self.verbose:
-            return
-        self._debug_counts[key] += amount
-        self._flush_debug_summary()
-
-    def _flush_debug_summary(self, force: bool = False) -> None:
-        if not self.verbose:
-            return
-        now = time.monotonic()
-        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
-            return
-        if not self._debug_counts:
-            self._debug_last_summary = now
-            return
-        summary = ", ".join(
-            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
-        )
-        self._debug(f"flow summary: {summary}")
-        self._debug_counts.clear()
-        self._debug_last_summary = now
-
-    @staticmethod
-    def _topic_family(topic: str) -> str:
-        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
-            return "book"
-        if topic.startswith("trade."):
-            return "trade"
-        if topic.startswith("order."):
-            return "order"
-        if topic.startswith("system."):
-            return "system"
-        if topic.startswith("session."):
-            return "session"
-        return "other"
-
-    def _authenticate(self, timeout_sec: float = 3.0) -> bool:
-        log.info("starting ai_trader authentication gateway_id=%s", self.gateway_id)
-        time.sleep(0.1)
-        self.push_sock.send_multipart(make_gateway_connect_msg(self.gateway_id))
-
-        poller = zmq.Poller()
-        poller.register(self.sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + timeout_sec
-
-        while time.monotonic() < deadline:
-            remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
-            socks = dict(poller.poll(timeout=min(remaining_ms, 200)))
-            if self.sub_sock not in socks:
-                continue
-            topic, payload = decode(self.sub_sock.recv_multipart())
-            self._dbg_count("auth_messages")
-            if topic == topic_gateway_auth(self.gateway_id):
-                accepted = bool(payload.get("accepted", False))
-                if accepted:
-                    self._log("authenticated")
-                    log.info("authentication accepted gateway_id=%s", self.gateway_id)
-                else:
-                    reason = str(payload.get("reason", "unknown reason"))
-                    self._log(f"authentication rejected: {reason}")
-                    log.warning(
-                        "authentication rejected gateway_id=%s reason=%s",
-                        self.gateway_id,
-                        reason,
-                    )
-                return accepted
-
-        self._log("authentication timed out")
-        log.warning("authentication timed out gateway_id=%s", self.gateway_id)
-        return False
-
-    def _request_symbols(self) -> None:
-        self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
-        self._dbg_count("symbols_requests")
-
-    def _request_snapshot(self, symbol: str) -> None:
-        """Ask the engine to publish this symbol's book now.
-
-        The engine publishes book.* only when a book changes, so a bot that
-        starts on a quiet market -- or whose symbol simply went quiet -- would
-        otherwise never see a price and never trade. Rate-limited per symbol
-        to one request per stale-data window.
-        """
-        now = time.monotonic()
-        last = self._last_snapshot_request.get(symbol)
-        if last is not None and now - last < max(self._stale_data_sec, 1.0):
-            return
-        self._last_snapshot_request[symbol] = now
-        self.push_sock.send_multipart(make_book_snapshot_request_msg(symbol))
-        self._dbg_count("snapshot_requests")
-
-    def _can_trade(self) -> bool:
-        """Whether the engine accepts new orders right now."""
-        if not self._sessions_enabled:
-            return True
-        return self._session_state is not None and self._session_state != "CLOSED"
-
-    def _on_session_state(self, state: str) -> None:
-        state = state.upper()
-        if state == self._session_state:
-            return
-        previous = self._session_state
-        self._session_state = state
-        self._log(f"session {previous or 'unknown'} -> {state}")
-        if previous == "CLOSED" and state != "CLOSED":
-            # A new trading day: the books may have changed while closed.
-            self._last_snapshot_request.clear()
-            for sym in self._active_symbols():
-                self._request_snapshot(sym)
-
-    def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
-        bids = payload.get("bids", [])
-        asks = payload.get("asks", [])
-        if symbol not in self._market:
-            self._market[symbol] = MarketSnapshot()
-
-        snap = self._market[symbol]
-        last_price = _as_float(payload.get("last_price"))
-        if last_price is not None:
-            snap.last_price = last_price
-        snap.best_bid = _as_float(bids[0].get("price")) if bids else None
-        snap.best_ask = _as_float(asks[0].get("price")) if asks else None
-        self._last_market_update[symbol] = time.monotonic()
-        self._dbg_count("book_updates")
-
-    def _on_trade(self, payload: dict[str, Any]) -> None:
-        symbol = str(payload.get("symbol", "")).upper()
-        if not symbol:
-            return
-        if symbol not in self._market:
-            self._market[symbol] = MarketSnapshot()
-        self._market[symbol].last_price = _as_float(payload.get("price"))
-        self._last_market_update[symbol] = time.monotonic()
-        self._dbg_count("trade_updates")
-
-    def _trim_reject_times(self, now: float) -> None:
-        threshold = now - self._reject_window_sec
-        while self._reject_times and self._reject_times[0] < threshold:
-            self._reject_times.popleft()
-
-    def _on_reject(self, reason: str = "unknown") -> None:
-        now = time.monotonic()
-        self._reject_times.append(now)
-        self._reject_reason_counts[reason] += 1
-        self._trim_reject_times(now)
-        if len(self._reject_times) >= self._max_rejects:
-            self._risk_pause_until = now + self._reject_cooldown_sec
-            self._reject_times.clear()
-            log.warning(
-                "reject breaker tripped gateway_id=%s cooldown=%ss",
-                self.gateway_id,
-                self._reject_cooldown_sec,
-            )
-            self._log(
-                "reject breaker tripped; pausing submissions "
-                f"for {self._reject_cooldown_sec:.1f}s"
-            )
-
-    def _update_position_from_fill(self, payload: dict[str, Any]) -> None:
-        symbol = str(payload.get("symbol", "")).upper()
-        side = str(payload.get("side", "")).upper()
-        fill_qty_raw = payload.get("fill_qty")
-        if not symbol or side not in {"BUY", "SELL"}:
-            return
-        if fill_qty_raw is None:
-            return
-        try:
-            fill_qty = int(fill_qty_raw)
-        except (TypeError, ValueError):
-            return
-        if fill_qty <= 0:
-            return
-        pos = self._positions.get(symbol, 0)
-        if side == "BUY":
-            pos += fill_qty
-        else:
-            pos -= fill_qty
-        self._positions[symbol] = pos
-
-    def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
-        self._dbg_count("incoming_total")
-        self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
-        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
-            self._on_book(topic.split(".", 1)[1].upper(), payload)
-            return
-
-        if topic == TOPIC_TRADE_EXECUTED:
-            self._on_trade(payload)
-            return
-
-        if topic == TOPIC_SESSION_STATE:
-            self._on_session_state(str(payload.get("state", "")))
-            return
-
-        if topic == topic_session_status(self.gateway_id):
-            self._sessions_enabled = bool(payload.get("sessions_enabled", True))
-            self._on_session_state(str(payload.get("state", "")))
-            return
-
-        if topic == topic_symbols(self.gateway_id):
-            # One record per instrument, each carrying its own symbol and tick
-            # precision. This read the list as bare strings, which stringified
-            # the record instead ("{'symbol': 'AAPL', ...}"), so _known_symbols
-            # only ever held usable values via the --symbols fallback below --
-            # and tick precision, which the bot needs to price on the grid, was
-            # never registered at all.
-            all_syms: list[str] = []
-            for entry in payload.get("symbols", []):
-                if not isinstance(entry, dict):
-                    continue
-                sym = str(entry.get("symbol", "")).strip().upper()
-                if not sym:
-                    continue
-                all_syms.append(sym)
-                decimals = entry.get("tick_decimals")
-                if isinstance(decimals, int):
-                    register_tick_decimals(sym, decimals)
-            if self._symbols_filter:
-                allowed = set(self._symbols_filter)
-                self._known_symbols = [sym for sym in all_syms if sym in allowed]
-            else:
-                self._known_symbols = all_syms
-            for sym in self._known_symbols:
-                self._request_snapshot(sym)
-            return
-
-        if topic == topic_order_ack(self.gateway_id):
-            if payload.get("accepted", False):
-                self.metrics.acknowledged += 1
-            else:
-                reason = str(payload.get("reason") or "unknown")
-                self.metrics.rejected += 1
-                self._debug(f"order REJECTED: {reason}")
-                self._on_reject(reason)
-            return
-
-        if topic == topic_order_fill(self.gateway_id):
-            self.metrics.filled += 1
-            symbol = str(payload.get("symbol", "")).upper()
-            side = str(payload.get("side", "")).upper()
-            self._update_position_from_fill(payload)
-            self._debug(
-                f"fill: {side} {payload.get('fill_qty', '?')}@"
-                f"{payload.get('fill_price', '?')} {symbol} "
-                f"pos={self._positions.get(symbol, 0)}"
-            )
-            return
-
-        if topic in {
-            topic_order_cancelled(self.gateway_id),
-            topic_order_expired(self.gateway_id),
-        }:
-            self.metrics.cancelled += 1
-            return
-
-        self._dbg_count("incoming_unhandled")
-
-    def _active_symbols(self) -> list[str]:
-        if self._known_symbols:
-            return self._known_symbols
-        if self._symbols_filter:
-            return self._symbols_filter
-        return sorted(self._market)
-
-    def _pick_symbol(self) -> str | None:
-        universe = self._active_symbols()
-        if not universe:
-            return None
-        return self._rng.choice(universe)
-
-    def _make_order_payload(self, symbol: str) -> dict[str, Any] | None:
-        now = time.monotonic()
-        last_update = self._last_market_update.get(symbol)
-        if (
-            self._stale_data_sec > 0
-            and last_update is not None
-            and (now - last_update) > self._stale_data_sec
-        ):
-            self._debug(
-                f"skip {symbol}: stale market data "
-                f"({now - last_update:.1f}s > {self._stale_data_sec:.1f}s); "
-                "requesting a fresh snapshot"
-            )
-            self._request_snapshot(symbol)
-            return None
-
-        if symbol not in self._market:
-            self._request_snapshot(symbol)
-            return None
-        snap = self._market[symbol]
-        pos = self._positions.get(symbol, 0)
-        if pos >= self._max_position:
-            side = "SELL"
-            self._debug(f"position limit reached on {symbol} (pos={pos}); forcing SELL")
-        elif pos <= -self._max_position:
-            side = "BUY"
-            self._debug(f"position limit reached on {symbol} (pos={pos}); forcing BUY")
-        else:
-            side = "BUY" if self._rng.random() < 0.5 else "SELL"
-
-        qty = self.profile.sample_qty(self._rng)
-
-        if side == "BUY":
-            allowed = self._max_position - pos
-        else:
-            allowed = self._max_position + pos
-        if allowed <= 0:
-            return None
-        qty = min(qty, allowed)
-        if qty <= 0:
-            return None
-
-        # Build a limit price around top-of-book and personality aggression.
-        # If no market data exists yet, avoid blind orders.
-        if side == "BUY":
-            ref = snap.best_bid if snap.best_bid is not None else snap.last_price
-            if ref is None:
-                return None
-            if (
-                snap.best_ask is not None
-                and self._rng.random() < self.profile.cross_probability
-            ):
-                price = snap.best_ask
-            else:
-                tick = _tick_size(symbol)
-                price = max(
-                    tick,
-                    ref - self.profile.passive_offset_ticks * tick,
-                )
-        else:
-            ref = snap.best_ask if snap.best_ask is not None else snap.last_price
-            if ref is None:
-                return None
-            if (
-                snap.best_bid is not None
-                and self._rng.random() < self.profile.cross_probability
-            ):
-                price = snap.best_bid
-            else:
-                price = ref + self.profile.passive_offset_ticks * _tick_size(symbol)
-
-        # The bot talks straight to the engine, so it builds a complete order
-        # (id, remaining_qty, timestamp, status) in ticks, exactly as a gateway
-        # would; run/strategy provenance rides in the declared client_tag,
-        # echoed on every lifecycle event, not undeclared keys the engine drops.
-        order = Order.create(
-            symbol=symbol,
-            side=Side.BUY if side == "BUY" else Side.SELL,
-            order_type=OrderType.LIMIT,
-            quantity=qty,
-            gateway_id=self.gateway_id,
-            tif=TIF.DAY,
-            price_ticks=to_ticks(price, symbol),
-        )
-        order.client_tag = f"{self.profile.name}:{self._run_id}"
-        return order.to_dict()
-
-    def _maybe_submit_order(self) -> None:
-        now = time.monotonic()
-        self._trim_reject_times(now)
-        self._dbg_count("decision_ticks")
-
-        if now < self._risk_pause_until:
-            self._dbg_count("skips_risk_pause")
-            self._was_risk_paused = True
-            return
-
-        if self._was_risk_paused:
-            self._was_risk_paused = False
-            self._log("reject breaker cooldown ended; resuming submissions")
-
-        if not self._can_trade():
-            self._dbg_count("skips_market_closed")
-            return
-
-        interval = self.profile.decision_interval_ms / 1000.0
-        if now - self._last_submit_ts < interval:
-            self._dbg_count("skips_interval_gate")
-            return
-
-        symbol = self._pick_symbol()
-        if symbol is None:
-            self._dbg_count("skips_no_symbol")
-            return
-
-        payload = self._make_order_payload(symbol)
-        if payload is None:
-            self._dbg_count("skips_no_payload")
-            return
-
-        self.push_sock.send_multipart(make_order_new_msg(payload))
-        self.metrics.submitted += 1
-        self._last_submit_ts = now
-        self._dbg_count("orders_submitted")
-        self._debug(
-            f"order SUBMIT {payload['side']} {payload['quantity']}@"
-            f"{payload['price_ticks']} {payload['symbol']}"
-        )
-
-    def stop(self, *_args: object) -> None:
-        """Ask the run loop to finish (SIGTERM handler)."""
-        self._running = False
-
-    def run(self, duration_sec: float) -> int:
-        log.info(
-            "starting ai_trader runtime gateway_id=%s profile=%s duration=%s run_id=%s",
-            self.gateway_id,
-            self.profile.name,
-            duration_sec,
-            self._run_id,
-        )
-        duration_desc = "until stopped" if duration_sec <= 0 else f"{duration_sec:.0f}s"
-        self._log(
-            f"starting: profile={self.profile.name} "
-            f"symbols={self._symbols_filter or 'all'} "
-            f"duration={duration_desc} run_id={self._run_id}"
-        )
-        if not self._authenticate():
-            log.error("startup failed: authentication gateway_id=%s", self.gateway_id)
-            return 1
-
-        self._request_symbols()
-        self.push_sock.send_multipart(make_session_state_request_msg(self.gateway_id))
-
-        poller = zmq.Poller()
-        poller.register(self.sub_sock, zmq.POLLIN)
-
-        started = time.monotonic()
-        next_symbols_refresh = started + 2.0
-        try:
-            while self._running:
-                now = time.monotonic()
-                if duration_sec > 0 and (now - started) >= duration_sec:
-                    self._running = False
-                    break
-
-                # The heartbeat lets the engine free this gateway id if the
-                # process dies without saying goodbye (kill -9, crash).
-                if now - self._last_heartbeat >= GATEWAY_HEARTBEAT_INTERVAL_SEC / 2:
-                    self.push_sock.send_multipart(
-                        make_gateway_heartbeat_msg(self.gateway_id)
-                    )
-                    self._last_heartbeat = now
-
-                socks = dict(poller.poll(timeout=100))
-                if self.sub_sock in socks:
-                    topic, payload = decode(self.sub_sock.recv_multipart())
-                    self._handle_event(topic, payload)
-
-                if time.monotonic() >= next_symbols_refresh and (
-                    not self._known_symbols or self._session_state is None
-                ):
-                    self._request_symbols()
-                    self.push_sock.send_multipart(
-                        make_session_state_request_msg(self.gateway_id)
-                    )
-                    next_symbols_refresh = time.monotonic() + 2.0
-
-                self._maybe_submit_order()
-                self._flush_debug_summary()
-        finally:
-            # Without this the engine keeps the session marked connected, so
-            # restarting a bot under the same id is refused ("Gateway already
-            # connected") until the engine restarts.
-            self.push_sock.send_multipart(
-                make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")
-            )
-
-        self._flush_debug_summary(force=True)
-        reasons = ", ".join(
-            f"{reason}={count}"
-            for reason, count in sorted(
-                self._reject_reason_counts.items(), key=lambda kv: -kv[1]
-            )
-        )
-        reasons_suffix = f" ({reasons})" if reasons else ""
-        self._log(
-            "stopped "
-            f"submitted={self.metrics.submitted} "
-            f"acked={self.metrics.acknowledged} "
-            f"rejected={self.metrics.rejected}{reasons_suffix} "
-            f"fills={self.metrics.filled}"
-        )
-        log.info(
-            "ai_trader stopped gateway_id=%s submitted=%s acked=%s rejected=%s fills=%s",
-            self.gateway_id,
-            self.metrics.submitted,
-            self.metrics.acknowledged,
-            self.metrics.rejected,
-            self.metrics.filled,
-        )
-        self.push_sock.close()
-        self.sub_sock.close()
-        return 0
-
-
-def _as_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -681,64 +46,46 @@ def build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-ai-trader")
-    parser.add_argument("--id", required=True, help="Gateway ID, e.g. AI01")
+    parser.add_argument("--id", help="Participant id, e.g. AI001")
+    which = parser.add_mutually_exclusive_group()
+    which.add_argument(
+        "--preset",
+        default=None,
+        choices=sorted(builtin_presets()),
+        help=f"Built-in preset (default: {DEFAULT_PRESET}); see --list-presets",
+    )
+    which.add_argument(
+        "--preset-file",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Preset YAML file",
+    )
     parser.add_argument(
-        "--profile",
-        default="cautious",
-        choices=available_profiles(),
-        help="Personality profile",
+        "--list-presets", action="store_true", help="List the built-in presets and exit"
     )
     parser.add_argument(
         "--symbols",
         default="",
-        help="Optional comma-separated symbol allowlist, e.g. AAPL,MSFT",
+        help="Comma-separated symbols to trade (default: every symbol)",
+    )
+    parser.add_argument("--seed", type=int, default=1, help="Random seed")
+    parser.add_argument(
+        "--alf-host",
+        default=EDUMATCHER_ENGINE_HOST,
+        help="Host of pm-alf-gwy (default: EDUMATCHER_ENGINE_HOST or 127.0.0.1)",
     )
     parser.add_argument(
-        "--seed",
+        "--alf-port",
         type=int,
-        default=1,
-        help="Random seed for deterministic behavior",
+        default=None,
+        help="Port of pm-alf-gwy (default: alf_gateway.port of the deployed config)",
     )
     parser.add_argument(
         "--duration",
         type=float,
         default=0.0,
         help="Run duration in seconds; 0 means run until stopped",
-    )
-    parser.add_argument(
-        "--run-id",
-        default="",
-        help="Optional run identifier, autogenerated if omitted",
-    )
-    parser.add_argument(
-        "--max-position",
-        type=int,
-        default=1000,
-        help="Absolute position limit per symbol",
-    )
-    parser.add_argument(
-        "--max-rejects",
-        type=int,
-        default=25,
-        help="Reject count threshold for breaker",
-    )
-    parser.add_argument(
-        "--reject-window",
-        type=float,
-        default=10.0,
-        help="Rolling window in seconds for reject threshold",
-    )
-    parser.add_argument(
-        "--reject-cooldown",
-        type=float,
-        default=5.0,
-        help="Pause duration in seconds after reject breaker trips",
-    )
-    parser.add_argument(
-        "--stale-data",
-        type=float,
-        default=4.0,
-        help="Max age in seconds for market data before pausing submissions",
     )
     parser.add_argument(
         "--log-level",
@@ -750,7 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="count",
         default=0,
-        help="Increase verbosity (-v: INFO + bot debug prints, -vv: DEBUG)",
+        help="Increase verbosity (-v: INFO, -vv: DEBUG)",
     )
     parser.add_argument(
         "-q",
@@ -825,49 +172,50 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def resolve_preset(args: argparse.Namespace) -> Preset:
+    if args.preset_file is not None:
+        return load_preset_file(args.preset_file)
+    return get_preset(args.preset or DEFAULT_PRESET)
+
+
+def list_presets() -> str:
+    lines = []
+    for name, p in sorted(builtin_presets().items()):
+        lines.append(
+            f"{name:16} {p.strategy:10} {p.execution.style:11} "
+            f"{p.risk.protection:10} {p.description}"
+        )
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    log_level = _configure_logging(args)
-    log.info(
-        "starting pm-ai-trader with log level %s",
-        logging.getLevelName(log_level),
-    )
-    symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
-    run_id = args.run_id or f"botrun-{uuid.uuid4().hex[:12]}"
-    bot_verbose = bool(int(getattr(args, "verbose", 0)) >= 1)
-    log.debug(
-        "resolved ai_trader config: id=%s profile=%s symbols=%s duration=%s run_id=%s",
-        args.id,
-        args.profile,
-        symbols,
-        args.duration,
-        run_id,
-    )
-
+    if args.list_presets:
+        print(list_presets())
+        raise SystemExit(0)
+    if not args.id:
+        parser.error("--id is required")
+    _configure_logging(args)
     try:
-        bot = AITraderBot(
-            gateway_id=str(args.id),
-            profile_name=str(args.profile),
-            symbols=symbols,
-            seed=int(args.seed),
-            run_id=run_id,
-            max_position=int(args.max_position),
-            max_rejects=int(args.max_rejects),
-            reject_window_sec=float(args.reject_window),
-            reject_cooldown_sec=float(args.reject_cooldown),
-            stale_data_sec=float(args.stale_data),
-            verbose=bot_verbose,
-        )
-        signal.signal(signal.SIGTERM, bot.stop)
-        rc = bot.run(duration_sec=float(args.duration))
-        raise SystemExit(rc)
+        preset = resolve_preset(args)
+    except PresetError as exc:
+        raise SystemExit(f"pm-ai-trader: {exc}") from exc
+    symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+    spec = AgentSpec(str(args.id).upper(), preset, symbols, int(args.seed))
+    port = args.alf_port or load_default_alf_gateway_config().port
+    transport = AlfTransport(args.alf_host, port, seed=int(args.seed))
+    worker = Worker([spec], transport, name=spec.gateway_id)
+    signal.signal(signal.SIGTERM, worker.stop)
+    try:
+        if not worker.start():
+            raise SystemExit(1)
+        worker.run(duration=float(args.duration))
     except KeyboardInterrupt:
         log.info("pm-ai-trader interrupted")
-        raise SystemExit(0)
-    except Exception as exc:
-        log.error("pm-ai-trader fatal: %s", exc)
-        raise SystemExit(1)
+    finally:
+        worker.close()
+    raise SystemExit(0)
 
 
 if __name__ == "__main__":

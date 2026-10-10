@@ -297,7 +297,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.46.0
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.50.0
 ```
 
 If `multipass version` fails with `command not found`, the install did not
@@ -496,7 +496,7 @@ so updating does not discard your edits.
 | `GHCR_OWNER` | `johan162` | The registry namespace images come from. Change only for a fork |
 | `EM_CONFIG` | `s10-basic` | Which bundled example the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set when you run a configuration of your own; non-empty wins over `EM_CONFIG` |
-| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full set plus a market-maker bot), `default` (the full set), `mini` or `micro` |
+| `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full set plus a market-maker bot), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders), `default` (the full set), `mini` or `micro` |
 | `TZ` | `UTC` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on — **the setting that decides whether the exchange is on your network** |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus, and tells the engine and `pm-index` to bind the container interface so host tools can attach |

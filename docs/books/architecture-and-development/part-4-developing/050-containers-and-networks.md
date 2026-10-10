@@ -411,7 +411,7 @@ make down-all       # stop and remove everything
 |---|---|---|
 | `CONFIG=<name>` | `up`, `up-all` | Deploy a bundled example |
 | `CONFIG=<file>` | `up-all` | Copy the file to `config/`, mount it read-only at `/config`, deploy it |
-| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini`, `micro` or `mm-demo` |
+| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini`, `micro`, `mm-demo` or `ai-swarm` |
 | `ZMQ=1` | `up`, `up-all` | Add `compose.zmq.yaml`: publish the raw bus and set the engine/index bind hosts to `0.0.0.0` |
 | `SSH=1` | `up`, `up-all` | Add `compose.ssh.yaml` and prepare `authorized_keys` |
 | `CONFIG_GUI=1` | `up-all` | Add `compose.config-gui.yaml` |
@@ -459,7 +459,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and five multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.46.0`
+the same version. That coupling is what lets `install.sh --version 0.50.0`
 pin an entire system with one number.
 
 ```mermaid

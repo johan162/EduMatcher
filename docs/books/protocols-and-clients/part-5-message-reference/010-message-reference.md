@@ -575,6 +575,7 @@ Every topic in the system, and which process puts it on the wire.
 | `log.subscribe_ack.{sub_id}` | `log` | `log_server` |
 | `log.unsubscribe` | `log` | `log_client` |
 | `log.unsubscribe_ack.{sub_id}` | `log` | `log_server` |
+| `news.event` | `news` | `market_sim` |
 | `oco.ack.{gateway_id}` | `structure` | `engine` |
 | `oco.cancelled.{gateway_id}` | `structure` | `engine` |
 | `order.ack.{gateway_id}` | `order` | `engine` |
@@ -618,6 +619,10 @@ Every topic in the system, and which process puts it on the wire.
 | `session.state` | `session` | `engine` |
 | `session.transition` | `session` | `scheduler` |
 | `session.transition_ack.{gateway_id}` | `session` | `engine` |
+| `sim.command` | `sim` | `admin` |
+| `sim.command_ack.{gateway_id}` | `sim` | `market_sim` |
+| `sim.state` | `sim` | `market_sim` |
+| `sim.value` | `sim` | `market_sim` |
 | `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
 | `system.gateway_auth.{gateway_id}` | `system` | `engine` |
@@ -1769,6 +1774,41 @@ Periodic server heartbeat and configuration, broadcast to everyone rather than a
 | `inbox_dropped` | `int` | required | unit `dimensionless` |  |
 | `default_lease_sec` | `float` | required | unit `dimensionless` |  |
 | `timestamp` | `float` | required | unit `epoch_seconds` |  |
+
+## Family `news`
+
+### `news.event`
+
+**Published by:** `market_sim`
+
+**Transport:** `sim_pub`
+
+**Since:** 1.0
+
+pm-market-sim to everyone: one headline, or a change in what an earlier one is known to be (a rumour confirmed or retracted).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `id` | `string` | required | max_len 32 |  |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
+| `scope` | enum: `SYMBOL`, `SECTOR`, `MARKET` | required | — |  |
+| `targets` | list of `string` | required | — | Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET. |
+| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO` | required | — |  |
+| `status` | enum: `RUMOUR`, `CONFIRMED`, `RETRACTED` | required | — |  |
+| `headline` | `string` | required | max_len 200 |  |
+| `sentiment` | `float` | required | ge -1, le 1, unit `dimensionless` | Tone of the news, -1 (bad) to 1 (good); not its size. |
+| `credibility` | `float` | omitted when unset | ge 0, le 1, unit `dimensionless` | How believable a rumour is; absent on confirmed news. |
+| `related_id` | `string` | defaults to `''` | max_len 32 | The rumour a CONFIRMED or RETRACTED event resolves. |
+
+!!! note
+
+    A rumour comes first with status RUMOUR and a credibility; when it resolves, a second event with a new id carries status CONFIRMED or RETRACTED and points back with `related_id`.
+
+    A confirmation is when the value moves; a retraction moves nothing.
+
+    Published on pm-market-sim's PUB socket; the API gateway relays it to every key and pm-ticker shows it.
+
+**See also:** `sim.value`
 
 ## Family `order`
 
@@ -2975,6 +3015,130 @@ Engine to the requesting gateway: the outcome of a transition request.
     AR-0.6 revisited that: session.state now echoes just the command_id (never gateway_id, accepted, or reason) when one caused the transition, because pm-audit-replay needs a CERTAIN link from session.transition to session.state and adjacency in the stream (a STRONG link) is not enough to build one.
 
     A bare id is a small enough disclosure to be worth that; the rest of the reply still is not, so it stays here.
+
+## Family `sim`
+
+### Record types
+
+#### `NewsRequest`
+
+A headline the instructor wants published (NEWS_INJECT).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `scope` | enum: `SYMBOL`, `SECTOR`, `MARKET` | required | — |  |
+| `targets` | list of `string` | required | — | Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET. |
+| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO` | required | — |  |
+| `sentiment` | `float` | required | ge -1, le 1, unit `dimensionless` |  |
+| `impact` | `float` | required | ge -1, le 1, unit `dimensionless` | Move of the log true value when the news is (or becomes) confirmed: 0.10 is about +10.5%. Sector and market news move each symbol by its beta to that factor. Never published. |
+| `headline` | `string` | defaults to `''` | max_len 200 | Empty: pm-market-sim writes one from the kind and sentiment. |
+| `rumour` | `bool` | defaults to `False` | — | Publish as a RUMOUR; the value moves only on NEWS_CONFIRM. |
+| `credibility` | `float` | omitted when unset | ge 0, le 1, unit `dimensionless` |  |
+
+#### `SymbolValue`
+
+One symbol's true value at the step's simulated time.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `value` | `float` | required | gt 0, unit `display_price` | Display money, like every price on the engine bus. |
+
+### `sim.value`
+
+**Published by:** `market_sim`
+
+**Transport:** `sim_pub`
+
+**Since:** 1.0
+
+pm-market-sim to the bots, the market makers that anchor to it and the instructor's tools: every symbol's true value after one model step.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `seq` | `int` | required | gt 0, unit `dimensionless` | Step counter; continues across a pm-market-sim restart. |
+| `ts_ns` | `int` | required | unit `epoch_nanos` | Publication time. |
+| `values` | list of [`SymbolValue`](#symbolvalue) | required | min_items 1 |  |
+
+!!! note
+
+    Batched: one message per step carries every symbol (300 symbols are about 11 KB), so a subscriber sees one consistent cross-section rather than 300 messages from different instants.
+
+    Published during continuous trading only: that is when the model steps.
+
+    A trading day's variance accrues over the continuous phase as the engine reports it, so a day compressed by `pm-scheduler --speed` moves as much as a real one.
+
+**See also:** `sim.state`
+
+### `sim.state`
+
+**Published by:** `market_sim`
+
+**Transport:** `sim_pub`
+
+**Since:** 1.0
+
+pm-market-sim's heartbeat: whether the model is stepping and how far it has got.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `state` | enum: `RUNNING`, `PAUSED` | required | — | RUNNING during continuous trading, PAUSED otherwise. |
+| `session` | `string` | required | max_len 32 | The engine session state the model follows. |
+| `seq` | `int` | required | unit `dimensionless` | The last sim.value published (0 = none yet). |
+| `ts_ns` | `int` | required | unit `epoch_nanos` |  |
+| `step_ns` | `int` | required | gt 0, unit `duration_nanos` | Time between steps while running. |
+| `symbols` | `int` | required | unit `dimensionless` |  |
+| `seed` | `int` | required | unit `dimensionless` |  |
+
+!!! note
+
+    Published once a second whatever the session, so a subscriber can tell "the exchange is closed" (PAUSED) from "pm-market-sim is gone" (no heartbeat).
+
+**See also:** `sim.value`
+
+### `sim.command`
+
+**Published by:** `admin`
+
+**Transport:** `sim_push`
+
+**Since:** 1.0
+
+Instructor tooling to pm-market-sim: one command.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `command_id` | `string` | required | max_len 64 |  |
+| `gateway_id` | `string` | required | max_len 32 | The sender; the reply goes to sim.command_ack.<gateway_id>. |
+| `action` | enum: `STATUS`, `NEWS_INJECT`, `NEWS_CONFIRM`, `NEWS_RETRACT` | required | — |  |
+| `news` | [`NewsRequest`](#newsrequest) | omitted when unset | — | The headline to publish (NEWS_INJECT). |
+| `news_id` | `string` | defaults to `''` | max_len 32 | The rumour to confirm or retract. |
+
+!!! note
+
+    pm-market-sim binds its PULL socket to loopback and accepts a command only when `gateway_id` is an ADMIN participant of the deployed configuration.
+
+**See also:** `sim.command_ack.{GW_ID}`
+
+### `sim.command_ack.{gateway_id}`
+
+**Published by:** `market_sim`
+
+**Transport:** `sim_pub`
+
+**Since:** 1.0
+
+pm-market-sim to the commanding tool: the outcome of one command.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `command_id` | `string` | required | max_len 64 |  |
+| `accepted` | `bool` | required | — |  |
+| `reason` | `string` | defaults to `''` | max_len 256 | Refusal detail, or what was done. |
+| `news_id` | `string` | defaults to `''` | max_len 32 | The news.event published, if any. |
+
+**See also:** `sim.command`
 
 ## Family `structure`
 

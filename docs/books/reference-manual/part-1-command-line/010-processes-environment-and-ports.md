@@ -320,6 +320,7 @@ process's own `config.py`.
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
 | `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+| `pm-market-sim` | `5553` PUB (bind) · `5554` PULL (bind); connects out to `5555`, `5556` | – | ZeroMQ (PUB/PULL) | The market model: every symbol's true value, and news. `5553` publishes `sim.value`, the `sim.state` heartbeat and `news.event`; `5554` takes `sim.command` from ADMIN participants. Loopback only by default (`EDUMATCHER_SIM_BIND_HOST`). See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md). |
 
 **Internal-only utilities** (ZeroMQ clients; no listening port of their own):
 
@@ -328,7 +329,7 @@ process's own `config.py`.
 | `pm-alf-console` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Interactive ALF order-entry terminal for a human trader; the same PUSH/SUB pattern as a gateway, without a TCP front end. |
 | `pm-viewer` | connects out to `5556` | ZeroMQ (SUB) | Live single/multi-symbol order book display. |
 | `pm-board` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Full-screen multi-symbol market board. |
-| `pm-ticker` | connects out to `5556` | ZeroMQ (SUB) | Scrolling market-data ticker (reads recent trades from `pm-stats`'s `stats.db` as well). |
+| `pm-ticker` | connects out to `5556`, `5553` | ZeroMQ (SUB) | Scrolling market-data ticker (reads recent trades from `pm-stats`'s `stats.db` as well); headlines from `pm-market-sim`. |
 
 !!! note "Reading the table"
     "Internal ZMQ port(s)" are ZeroMQ endpoints intended for EduMatcher's own
@@ -363,6 +364,8 @@ process's own `config.py`.
 |------------------|--------------------------|-----------------------------------------------------------------|-----------|
 | **pm-ai-trader** | `pm-ai-trader`           | Single AI trading bot gateway                                   | No        |
 | **pm-ai-swarm**  | `pm-ai-swarm`            | Coordinated multi-agent AI trading swarm                        | No        |
+| **pm-market-sim** | `pm-market-sim`         | Market model: true values and news for the AI traders           | No        |
+| **pm-news**      | `pm-news --id ADMIN_ID …` | Instructor's news desk for `pm-market-sim`                     | No        |
 | **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) for a single symbol | No        |
 
 !!! warning "Start the engine first"
@@ -1365,9 +1368,12 @@ and session-phase documentation.
 
 Draws a bordered ticker box across the top rows of the terminal. The box has a
 header (the `EduMatcher` brand, today's total trade volume, and the current
-date/time) and a single ticker line listing all active symbols with live
-prices, OHLCV, and bid/ask spreads. The symbol line scrolls leftward like a
-classic ticker tape.
+date/time), a ticker line listing all active symbols with live prices, OHLCV,
+and bid/ask spreads, and a news line. The symbol line scrolls leftward like a
+classic ticker tape. The news line shows the latest `pm-market-sim` headline:
+its time, `[RUMOUR 60%]` (with the credibility) or `[CONFIRMED]`/`[RETRACTED]`
+when a rumour resolves, and the headline in green (good news) or red (bad),
+struck through when retracted; `no news yet` until the first.
 
 ```bash
 pm-ticker [--db data/stats.db] [--db-interval 900] [--timezone TZ] \
@@ -1517,103 +1523,150 @@ auto-rotate interval, and the current clock time.
 
 ## pm-ai-trader — Autonomous Trader Bot
 
-Runs one autonomous trading gateway with a selectable behaviour profile.
+Runs one AI trader: a participant driven by a *preset* (strategy × execution
+style × tempo × risk limits). It logs on to `pm-alf-gwy` as its own
+participant, sends its orders over that ALF session and reads market data
+from the engine's PUB socket (and the true values and news from
+`pm-market-sim`'s). See [AI Traders](../../participant-guide/part-4-automated-trading/010-ai-traders.md).
 
 ```bash
-pm-ai-trader --id AI01 [options]
+pm-ai-trader --id AI001 [--preset NAME | --preset-file PATH] [options]
+pm-ai-trader --list-presets
 ```
 
 **Startup options:**
 
-| Flag                | Default       | Description                                         |
-|---------------------|---------------|-----------------------------------------------------|
-| `--id`              | required      | Gateway ID used by the bot (e.g. `AI01`)            |
-| `--profile`         | `cautious`    | Personality profile (`available_profiles()` set)    |
-| `--symbols`         | empty         | Comma-separated symbol allowlist (e.g. `AAPL,MSFT`) |
-| `--seed`            | `1`           | RNG seed for deterministic behaviour                |
-| `--duration`        | `0`           | Runtime in seconds; `0` means run until stopped     |
-| `--run-id`          | autogenerated | Optional run label for audit/traceability           |
-| `--max-position`    | `1000`        | Absolute per-symbol position limit                  |
-| `--max-rejects`     | `25`          | Reject threshold before cooldown breaker trips      |
-| `--reject-window`   | `10.0`        | Rolling reject window in seconds                    |
-| `--reject-cooldown` | `5.0`         | Pause interval after reject breaker trips           |
-| `--stale-data`      | `4.0`         | Max market-data age (seconds) before pausing orders |
-| `--log-level`       | `WARNING`     | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
-| `-v` / `--verbose`  | off           | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
-| `-q` / `--quiet`    | off           | Reduce output to warnings/errors                    |
-| `--log-target`      | `server`      | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
-| `--log-file`        | none          | Operational log file path — required when `--log-target file` |
+| Flag | Default | Description |
+|---|---|---|
+| `--id` | required | Participant ID to log on as (e.g. `AI001`); must be a `TRADER` in the deployed configuration |
+| `--preset` | `noise-retail` | Built-in preset: `auction-player`, `block-taker`, `contrarian`, `iceberg-seller`, `institutional`, `market-taker`, `news-trader`, `noise-retail`, `scalper`, `trend-follower`, `value-investor` |
+| `--preset-file` | none | Preset YAML file instead of a built-in |
+| `--list-presets` | — | Print the built-in presets (strategy, execution, protection, description) and exit |
+| `--symbols` | every deployed symbol | Comma-separated symbols to trade |
+| `--seed` | `1` | Random seed; same seed and same market, same decisions |
+| `--alf-host` | `EDUMATCHER_ENGINE_HOST` or `127.0.0.1` | Host of `pm-alf-gwy` |
+| `--alf-port` | `alf_gateway.port` of the deployed config | Port of `pm-alf-gwy` |
+| `--duration` | `0` | Runtime in seconds; `0` means run until stopped |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | `-v` → `INFO` (a status line a minute, session changes), `-vv` → `DEBUG` (every reject) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
-| `--version`         | —             | Print version and exit                              |
+| `--version` | — | Print version and exit |
 
 **Expected runtime input arguments:**
 
 None.
 
-**Connect / restart handshake:**
+**Connect and reconnect:**
 
-On every startup (or reconnect) the bot performs the following initialization
-sequence before it begins submitting orders:
-
-1. Send `gateway_connect`; wait for `system.gateway_auth.<ID>`.
-2. Send `system.symbols_request`; receive `system.symbols.<ID>` to populate
-   the symbol universe and resolve per-symbol `tick_size` and `prev_close`.
-3. Send `system.session_state_request`; receive `system.session_status.<ID>`
-   to seed the current trading phase.  Session broadcasts are edge-triggered —
-   without this explicit query, a bot that connects mid-session would not know
-   it is in `OPENING_AUCTION` or `CLOSED` until the next phase transition.
-4. Send `system.halt_status_request`; receive `system.halt_status.<ID>` to
-   seed the per-symbol halt flags so the bot never submits into a halted symbol.
-5. Send `system.position_request`; receive `system.position_snapshot.<ID>` to
-   re-seed per-symbol net position and average cost from the engine's ledger.
-   This ensures risk guards (position cap, drawdown guard) are accurate even
-   when the bot restarts while the engine is still running.
-
-Steps 3–5 are idempotent: if the engine returns an empty list or a
-`CONTINUOUS` state the bot simply starts from a flat / unhalt / continuous
-state, which is correct for a fresh session.
-
-
+On logon, and after every reconnect, the trader reads the symbols, the
+session, the halts and its own positions from the engine before it sends an
+order. If the ALF session drops it retries with jittered back-off (at most
+10 s apart); when the engine restarts, it logs on again and re-reads
+everything.
 
 ## pm-ai-swarm — Multi-Agent Trading Swarm
 
-Launches and supervises multiple `pm-ai-trader` bots as a coordinated swarm.
+Runs many AI traders: a supervisor process splits them into contiguous ID
+blocks and runs each block in one worker process, restarting a worker that
+dies. Each trader is its own ALF session. Settings come from a `swarm.yaml`
+(`--swarm`), overridden by flags. See
+[Running the AI-Trader Swarm](../../operator-guide/part-3-run/030-ai-trader-swarm.md).
 
 ```bash
-pm-ai-swarm [options]
+pm-ai-swarm --swarm swarm.yaml [options]
 ```
 
 **Startup options:**
 
-| Flag                | Default              | Description                                |
-|---------------------|----------------------|--------------------------------------------|
-| `--count`           | `10`                 | Number of bot processes to launch          |
-| `--prefix`          | `AI`                 | Gateway-ID prefix                          |
-| `--start-index`     | `1`                  | First numeric suffix for generated IDs     |
-| `--profiles`        | all profiles         | Comma-separated profile cycle              |
-| `--symbols`         | from config          | Comma-separated symbol list override       |
-| `--seed-base`       | `1000`               | Base seed; bot `i` gets `seed-base + i`    |
-| `--duration`        | `60.0`               | Per-bot runtime in seconds                 |
-| `--python`          | current interpreter  | Python executable used for child processes |
-| `--max-position`    | `1000`               | Passed through to child bots               |
-| `--max-rejects`     | `25`                 | Passed through to child bots               |
-| `--reject-window`   | `10.0`               | Passed through to child bots               |
-| `--reject-cooldown` | `5.0`                | Passed through to child bots               |
-| `--stale-data`      | `4.0`                | Passed through to child bots               |
-| `--log-level`       | `WARNING`            | Logging level for swarm launcher; also forwarded to child bots |
-| `-v` / `--verbose`  | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
-| `-q` / `--quiet`    | off                  | Reduce output to warnings/errors; forwarded to child bots |
-| `--log-target`      | `server`             | Where the launcher's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
-| `--log-file`        | none                 | Operational log file path — required when `--log-target file` |
+| Flag | Default | Description |
+|---|---|---|
+| `--swarm` | none | `swarm.yaml` file; flags override it |
+| `--count` | `10` | Number of traders |
+| `--prefix` | `AI` | Participant ID prefix |
+| `--start-index` | `1` | First ID number (`AI001`) |
+| `--presets` | every built-in, equal weights | Composition: `a,b` (equal weights) or `a:3,b:1` |
+| `--symbols` | every deployed symbol | Comma-separated symbol universe |
+| `--symbols-per-agent` | just enough to cover the universe | Consecutive symbols each trader trades |
+| `--seed-base` | `1000` | Trader *i* gets seed `seed-base + i` |
+| `--duration` | `0` | Runtime in seconds; `0` means run until stopped |
+| `--workers` | `min(cpus − 1, ceil(count / 100))` | Worker processes |
+| `--budget` | `0` | Order actions per second for the whole swarm; `0` lets the presets decide |
+| `--alf-host` | `EDUMATCHER_ENGINE_HOST` or `127.0.0.1` | Host of `pm-alf-gwy` |
+| `--alf-port` | `alf_gateway.port` of the deployed config | Port of `pm-alf-gwy` |
+| `--log-level` | `WARNING` | Logging level of the supervisor and the workers |
+| `-v` / `--verbose` | off | `-v` → `INFO`, `-vv` → `DEBUG`; applies to the workers too |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors; applies to the workers too |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
-| `--version`         | —                    | Print version and exit                              |
+| `--version` | — | Print version and exit |
+
+**Expected runtime input arguments:**
+
+None. `SIGTERM` or Ctrl+C stops every worker; workers get 10 s before they
+are killed.
+
+**Output files:**
+
+`<DATA_DIR>/ai_swarm/<date>-<worker>.jsonl` — one JSON line per trader, five
+seconds after each close.
+
+## pm-market-sim — Market Model
+
+Publishes every symbol's true value from a seeded market model, and news.
+See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md).
+
+```bash
+pm-market-sim [options]
+pm-market-sim --init [--seed N] > market_sim.yaml
+pm-market-sim --status --id ADMIN_ID [--top N]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--init` | off | Print a `market_sim.yaml` for the deployed configuration's symbols and exit |
+| `--seed` | `1` | Seed written by `--init` |
+| `--status` | off | Ask the running process for its state and the widest market-vs-value gaps, and exit |
+| `--id` | none | ADMIN participant ID that `--status` asks as |
+| `--top` | `10` | Gaps `--status` lists |
+| `--log-level`, `-v`, `-q`, `--log-target`, `--log-file`, `--log-failover-timeout`, `--version` | — | As for the other processes |
+
+**Expected runtime input arguments:**
+
+None. It reads `market_sim.yaml` from the deployed configuration directory
+and keeps its state in `<DATA_DIR>/market_sim_state.json`.
+
+## pm-news — News Desk
+
+The instructor's news desk: sends commands to the running `pm-market-sim` as
+an ADMIN participant. See
+[The Market Model — News](../../operator-guide/part-4-run-a-market/090-market-model.md#news).
+
+```bash
+pm-news --id ADMIN_ID inject (--symbol SYM | --sector SECTOR | --market) \
+    --kind KIND --sentiment S --impact I [--headline TEXT] [--rumour [--credibility C]]
+pm-news --id ADMIN_ID confirm NEWS_ID
+pm-news --id ADMIN_ID retract NEWS_ID
+pm-news --id ADMIN_ID play scenario.yaml
+pm-news list [--duration SECONDS]
+```
+
+| Subcommand | Does |
+|---|---|
+| `inject` | Publish a headline; prints its ID. `--symbol` and `--sector` repeat; `--kind` is one of `EARNINGS`, `GUIDANCE`, `LEGAL`, `MACRO`, `MANAGEMENT`, `MNA`, `PRODUCT`, `REGULATORY`; `--sentiment` −1 to 1 is public; `--impact` (log move of the value when confirmed) is not |
+| `confirm` | Confirm a rumour: the values move now |
+| `retract` | Retract a rumour: nothing moves |
+| `play` | Run a timed scenario YAML |
+| `list` | Print headlines as they are published; `--duration 0` (default) until Ctrl+C |
 
 **Expected runtime input arguments:**
 
 None.
-
-See [How the AI Traders Decide](../../participant-guide/part-4-automated-trading/020-how-the-bots-decide.md) for strategy and orchestration details.
-
 
 
 ## pm-mm-bot — Autonomous Market-Maker Bot
@@ -1644,10 +1697,11 @@ pm-mm-bot --symbol AAPL [options]
 | `--id-suffix`                    | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                     |
 | `--gateway-id`                   | *derived*              | Exact gateway ID (e.g. `MM01`); overrides `MM_<symbols>_<id-suffix>` |
 | `--drift-ticks`                  | `3`                    | Reprice when mid moves by this many ticks                        |
+| `--anchor-sim`                   | `0` (off)              | Quote around `pm-market-sim`'s true value; share of the gap closed per model step (0–1) |
 | `--reissue-delay-ms`             | `200`                  | Milliseconds to wait after fill before re-issuing                |
 | `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
 | `--heartbeat-interval-sec`       | `5.0`                  | Periodic live-quote check interval                               |
-| `--startup-session-timeout-sec`  | `5.0`                  | Max wait for first `session.state` event                         |
+| `--startup-session-timeout-sec`  | `5.0`                  | Max wait to learn the session phase (asked for, or a `session.state`)|
 | `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for QBOOT reply                                         |
 | `--cancel-timeout-sec`           | `1.0`                  | Max wait for cancel confirmation                                 |
 | `--shutdown-timeout-sec`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                            |
@@ -2703,6 +2757,7 @@ that file exists:
 | `mini`    | A trading-capable subset: logging, stats, engine, scheduler, market data, the desk API gateway, and the ALF/post-trade/drop-copy gateways |
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, and the BALF gateway |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
+| `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing

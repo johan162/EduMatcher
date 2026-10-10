@@ -20,6 +20,7 @@ import {
   History,
   Quote,
   Star,
+  Newspaper,
 } from "lucide-react";
 
 interface NavItem {
@@ -31,6 +32,7 @@ interface NavItem {
 const ALL_ROLES: NavItem[] = [
   { to: "/market", label: "Market Overview", Icon: BarChart2 },
   { to: "/watchlist", label: "Watchlist", Icon: Star },
+  { to: "/news", label: "News", Icon: Newspaper },
 ];
 
 const TRADER_ITEMS: NavItem[] = [

@@ -381,7 +381,10 @@ way `pm-config-deploy --example` names them:
 s1-basic     s3-basic     s10-basic     s30-basic     s150-basic
 s1-nominal   s3-nominal   s10-nominal   s30-nominal   s150-nominal
 s1-complex   s3-complex   s10-complex   s30-complex   s150-complex
+s300-load
 ```
+
+(`s300-load` is the AI-trader load test bed: 300 symbols, 500 AI participants.)
 
 ```bash
 make up CONFIG=s10-nominal
@@ -397,6 +400,8 @@ Changing it redeploys the configuration in `./data` on the next `make up`
 | `default` | The full nominal stack: logging, audit, stats, clearing, engine, scheduler, all gateways, both API instances, index |
 | `mini` | A trading-capable subset |
 | `micro` | Centralized logging plus the engine |
+| `mm-demo` | `default` plus a slow, passive market-maker bot (`MM01`) |
+| `ai-swarm` | `mm-demo` with its market maker anchored to the market model (`pm-mm-bot --anchor-sim 0.3`), plus `pm-market-sim` and twenty AI traders (`AI001`–`AI020`); use an `s150` config or `s300-load` |
 
 ```bash
 make up PROFILE=micro
