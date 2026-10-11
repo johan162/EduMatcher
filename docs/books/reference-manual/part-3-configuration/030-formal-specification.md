@@ -10,7 +10,7 @@ The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
 `ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`,
 `dc_gateway/config.py`, `log_srv/config.py`, and `scheduler/main.py`
-(`schedule` and `country` only). `pm-cverifier` is the reference validator.
+(`schedule` and `locale.country` only). `pm-cverifier` is the reference validator.
 
 ---
 
@@ -126,7 +126,7 @@ circuit_breaker_defaults:   ? CircuitBreakerSpec
 market_maker_combos:        ? List<ComboSeedSpec>              # each: 2..10 legs
 indices:                    ? List<IndexSpec>                  # ≤ 5
 schedule:                   ? WeeklyScheduleSpec
-country:                    ? Country = "Sweden"               # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+locale:                      ? LocaleSpec                       # where this exchange is: country + session timezone
 
 # ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
 alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
@@ -147,6 +147,10 @@ SymbolSpec:
   collar:                   ? CollarSpec
   order_limits:             ? OrderLimitsSpec            # per-symbol override
   circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+
+LocaleSpec:                                  # top-level locale
+  country:                  ? Country = "Sweden"         # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+  session_timezone:         ? Str = "Europe/Stockholm"   ∈ IANA timezone name
 
 ParticipantSpec:                             # one entry of participants
   id:                       ! GatewayId
@@ -240,7 +244,6 @@ ApiGwyProcSpec:                              # one value of api_gateways (pm-api
   audit_db:                     ? Path = <data dir>/audit_index.db
   order_retention_sec:          ? Int = 3600                  ∈ >= 0
   market_data_cache_sec:        ? Int = 60                    ∈ >= 0
-  session_timezone:             ? Str | null = null           ∈ IANA timezone name
   engine_pull_addr:             ? Str = tcp://<engine host>:5555
   engine_pub_addr:              ? Str = tcp://<engine host>:5556
   index_pull_addr:              ? Str = tcp://<index bind host>:5559
@@ -401,7 +404,7 @@ entering small and amending up.
 | `mon`, `tue`, `wed`, `thu`, `fri` | `DayScheduleSpec` | – | one weekday; overrides `weekdays` for that day |
 | `weekend` | `DayScheduleSpec` | – | `sat`+`sun`, for either not given its own key below; ∈ mutually exclusive with `sat`/`sun` (CV20) |
 | `sat`, `sun` | `DayScheduleSpec` | – | one weekend day; overrides `weekend` for that day; ∈ mutually exclusive with `weekend` (CV20) |
-| `holidays` | `DayScheduleSpec` | – | days the configured `country` observes as a bank holiday |
+| `holidays` | `DayScheduleSpec` | – | days the configured `locale.country` observes as a bank holiday |
 
 A key absent from `schedule` (and, for `mon`..`sun`, not covered by
 `weekdays`/`weekend` either) resolves to CLOSED for that day/holiday-set — no
@@ -581,30 +584,51 @@ without re-implementing the `weekdays`/`weekend` shortcut rules: `pm-engine`
 `system.session_schedule`) and, independently, `pm-scheduler` (to decide
 which transitions to send today).
 
-### 5.10 `country` (OPTIONAL)
+### 5.10 `locale` (OPTIONAL)
+
+`LocaleSpec` — see §3. Groups the two facts about where this exchange is:
+its country (for bank-holiday gating) and its session timezone (for
+trading-day bucketing). Every runtime consumer of either field reads the
+*compiled* artifact's `engine.locale`, never the authored YAML directly.
 
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `country` | `Country` | – | `"Sweden"` | MUST be a country name or ISO 3166-1 alpha-2 code recognised by `python-holidays`; an unrecognised value falls back to the default rather than being rejected |
+| `session_timezone` | `Str` | – | `"Europe/Stockholm"` | MUST be `"UTC"` or an IANA timezone name recognised by `zoneinfo`; an unrecognised value is rejected |
 
-`country` is a top-level key, a sibling of `schedule` rather than nested under
-it. Unlike every other field in this document, an invalid `country` value does
-**not** abort loading (contrast §1.4's general rule and CV16 below). The two
-consumers handle an invalid value differently: `engine/config_loader.py`
-substitutes `"Sweden"` silently, with no `python-holidays` recognition check
-and no log message; `pm-scheduler` (`scheduler/main.py`) separately validates
-the value against `python-holidays`, logs a warning, and substitutes
-`"Sweden"` if it is unrecognised (CV16).
+`locale.country` and `locale.session_timezone` are validated independently
+and are not otherwise related: changing one does not affect the other's
+default or validation. Unlike every other field in this document,
+`locale.country` is also the sole exception to §1.4's general
+"MUST be rejected" rule for an invalid value — an unrecognised country falls
+back to the default rather than aborting loading (contrast CV16 below).
+`locale.session_timezone` has no such exception: an unrecognised value is
+rejected like any other field.
 
-`pm-engine` reads this key for two purposes: it derives the ISO alpha-2
-country code reported in outbound reference messages, and it uses the same
-`python-holidays` lookup `pm-scheduler` does to resolve the `today`/
+`locale.country`'s two consumers handle an invalid value differently:
+`engine/config_loader.py` substitutes `"Sweden"` silently, with no
+`python-holidays` recognition check and no log message; `pm-scheduler`
+(`scheduler/main.py`) separately validates the value against
+`python-holidays`, logs a warning, and substitutes `"Sweden"` if it is
+unrecognised (CV16).
+
+`pm-engine` reads `locale.country` for two purposes: it derives the ISO
+alpha-2 country code reported in outbound reference messages, and it uses
+the same `python-holidays` lookup `pm-scheduler` does to resolve the `today`/
 `today_is_holiday` convenience fields on `system.reference` and
 `system.session_schedule` (§4.7, §5.9) — which of `holidays` or the
-calendar day's own entry applies right now. `pm-scheduler` uses `country`
-for the same bank-holiday lookup to decide which block of the resolved
-`schedule` (§5.9) — if any — to run today — see
+calendar day's own entry applies right now. `pm-scheduler` uses
+`locale.country` for the same bank-holiday lookup to decide which block of
+the resolved `schedule` (§5.9) — if any — to run today — see
 [Session Scheduling → Bank holidays and weekends](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#bank-holidays-and-weekends).
+
+`locale.session_timezone` is read by `pm-stats` and `pm-clearing` to decide
+which calendar date, in that timezone, a UTC-timestamped event falls into —
+the trading-day boundary used for daily rollups and clearing's `trade_date`.
+Both processes persist the timezone name they first run with (`stats_meta`,
+`clearing_meta`) and refuse to start if the configured value later
+contradicts what is already recorded, rather than silently re-bucketing an
+existing database under a new boundary.
 
 ---
 
@@ -726,7 +750,6 @@ schema tree (§3).
 | `engine_pub_addr` | `Str` | – | `tcp://<engine host>:5556` | ZeroMQ endpoint of the engine event feed. Not validated; normally left unset |
 | `index_pull_addr` | `Str` | – | `tcp://<index bind host>:5559` | ZeroMQ endpoint of `pm-index` control; `<index bind host>` is `EDUMATCHER_INDEX_BIND_HOST` (default `127.0.0.1`). Not validated; normally left unset |
 | `index_pub_addr` | `Str` | – | `tcp://<index bind host>:5558` | ZeroMQ endpoint of the `pm-index` feed. Not validated; normally left unset |
-| `session_timezone` | `Str` | – | `null` | IANA timezone name (e.g. `"Europe/Stockholm"`) used to resolve which trading day a date-only query refers to; overrides the timezone recorded in the stats database. An unrecognised value is rejected. |
 | `credentials` | `List<ApiCredentialSpec>` | – | `[]` | api keys unique within instance |
 | `rate_limit` | `RateLimitSpec` | – | see below | |
 | `timeouts` | `TimeoutSpec` | – | see below | |
@@ -832,7 +855,7 @@ rejected at load.
 | CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `participants` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
-| CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
+| CV16 | (`pm-scheduler`) An unrecognised `locale.country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` sends no `schedule` transitions on a calendar day whose resolved entry (§4.7 — a `locale.country` bank holiday resolves to `holidays`, otherwise the day's own `mon`..`sun` entry) is CLOSED; weekends are not treated specially, only whatever their resolved entry says. |
 | CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
 | CV18 | Every `Price` in the file is a whole multiple of its symbol's tick size — `symbols.<S>.last_buy_price`/`last_sell_price`, `market_maker_quotes[].bid_price`/`ask_price`, and `market_maker_combos[].legs[].price`/`stop_price`. The scale is the owning symbol's `tick_decimals`; for a combo leg that is the **leg's** symbol, not the combo's first. An off-grid price is rejected, not rounded. |
 | CV19 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
@@ -846,8 +869,8 @@ rejected at load.
 
 1. **Parse.** Load the document as YAML; a non-mapping root is rejected (§1.2).
 2. **Section ownership.** `pm-engine` reads the engine sections (§5) plus the
-   `SymbolSpec`/nested structures — with one exception, `country` (§5.10), which
-   is read only by `pm-scheduler`; each auxiliary process reads only its own
+   `SymbolSpec`/nested structures — with one exception, `locale.country` (§5.10),
+   which is read only by `pm-scheduler`; each auxiliary process reads only its own
    block (§6). No single process reads the whole file.
 3. **Normalisation.** Symbols, gateway ids, index ids, and enum values are
    upper-cased (§1.6).

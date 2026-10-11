@@ -174,7 +174,7 @@ Run this before a classroom, demo, test session, or integration exercise.
 | Deployed paths are expected | `pm-config-deploy --show` | Confirms where the runtime artifact lives |
 | Ports are free | `lsof -i :5555 -i :5556 -i :5557` | Finds an old engine before bind failure |
 | Recorder policy is clear | Decide whether `pm-stats`, `pm-audit`, `pm-clearing` start before trading | Missed early events cannot always be reconstructed |
-| Timezone is consistent | Choose `--timezone` for `pm-stats` and `pm-clearing`, or leave both default UTC | Daily reports must reconcile |
+| Timezone is consistent | Set `locale.session_timezone` in the deployed config, or leave it at the default | Both `pm-stats` and `pm-clearing` read it from the same config, so daily reports always reconcile |
 | Operator gateway exists | Confirm an `ADMIN` gateway ID if using halts/resumes | Admin-only commands require an admin role |
 | External clients are expected | Decide whether to start ALF/BALF/CALF/RALF/API/DC gateways | Avoid exposing unused ports |
 
@@ -358,8 +358,8 @@ flowchart TD
 | 0 | Preflight | `pm-config-deploy --check engine_config.yaml` then `pm-config-deploy engine_config.yaml` | `EDUMATCHER_DATA_DIR` set consistently | Every later process reads the deployed artifact; do this before anything long-running starts. |
 | 1 | `pm-log-srv` | `pm-log-srv` | Optional `--host`, `--port`, `--db`; usually none | Operational logs should have somewhere to go before other long-running services start. No process fails to start without it — each one queues log records and falls back to a local log file after a 30-second grace window — but starting it first keeps every process's logs centralized instead of scattered on disk. |
 | 2 | `pm-audit` | `pm-audit --terminal` | Optional `--audit-log-file`; use `--terminal` when watching live | Audit is the durable event trail. Start it before the engine so initial session, seed and trade events are not missed. |
-| 3 | `pm-stats` | `pm-stats --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-clearing`; optional `--snapshot-interval` | Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete. |
-| 4 | `pm-clearing` | `pm-clearing --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-stats`, or omit both for UTC | Clearing records trades, positions and P&L. Start it before trading; daily reconciliation depends on timezone consistency. |
+| 3 | `pm-stats` | `pm-stats` | Optional `--snapshot-interval`; the session timezone comes from the deployed config's `locale.session_timezone` | Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete. |
+| 4 | `pm-clearing` | `pm-clearing` | Reads the same `locale.session_timezone` as `pm-stats` from the deployed config, so the two always agree | Clearing records trades, positions and P&L. Start it before trading; daily reconciliation depends on timezone consistency. |
 | 5 | `pm-engine` | `pm-engine --verbose` | Usually none; all config comes from the deployed artifact | The engine owns the books and binds `:5555`, `:5556`, `:5557`. Start it after subscribers that must not miss early events. |
 | 6 | `pm-scheduler` | `pm-scheduler` or `pm-scheduler --now --delay 5` | Only needed when scheduled sessions are enabled | The scheduler drives phase transitions. Start it after the engine so transitions have a live target and before participants are invited to trade. |
 | 7 | `pm-md-gwy` | `pm-md-gwy` | Optional `--bind`, `--port`, `--engine-pub` | CALF market data is the live feed used by external clients and TapeDeck. Start after the engine is alive. |
@@ -412,12 +412,13 @@ Start these before the first trade if you want complete records:
 
 ```bash
 pm-audit --terminal
-pm-stats --timezone Europe/Stockholm
-pm-clearing --timezone Europe/Stockholm
+pm-stats
+pm-clearing
 ```
 
-Use the same timezone for `pm-stats` and `pm-clearing`. If the exchange runs in
-UTC, omit both `--timezone` flags.
+Both read the session timezone from the deployed config's
+`locale.session_timezone`, so they always agree. If the exchange runs in
+UTC, set `session_timezone: UTC` under `locale:` in the config.
 
 ### Session scheduler
 
@@ -860,9 +861,10 @@ directory and that at least one trade has occurred.
 
 ### Clearing and stats do not reconcile
 
-The most common operator error is running `pm-stats` and `pm-clearing` with
-different timezones. Stop both, restart with the same `--timezone`, and document
-the choice in the session launcher.
+Since both `pm-stats` and `pm-clearing` read `locale.session_timezone` from
+the same deployed config, they cannot disagree unless the config is changed
+and redeployed between restarts. If they do disagree, stop both, redeploy a
+consistent config, and restart.
 
 ### Scheduler transitions do not happen
 
@@ -870,7 +872,7 @@ Check these in order:
 
 1. Is `pm-scheduler` running?
 2. Is `sessions_enabled: true` in the deployed config?
-3. Does the schedule use the timezone and country you expect?
+3. Does the schedule use the `locale.session_timezone` and `locale.country` you expect?
 4. Is today a trading day under that country calendar?
 5. Did the scheduler start before the transition time passed?
 
@@ -1078,8 +1080,8 @@ Goal: run a session with complete audit, stats and clearing records.
     ```bash
     pm-engine --verbose
     pm-audit --terminal
-    pm-stats --timezone Europe/Stockholm
-    pm-clearing --timezone Europe/Stockholm
+    pm-stats
+    pm-clearing
     ```
 
 3. Start session control and participants:

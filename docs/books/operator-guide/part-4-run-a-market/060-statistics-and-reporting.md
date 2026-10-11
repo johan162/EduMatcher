@@ -53,13 +53,15 @@ no longer describe a single trading session.
 
 ### Setting the session timezone
 
-Set it once, on the recorder:
+Set it once, in the deployed config:
 
-```bash
-pm-stats --timezone Europe/Stockholm
+```yaml
+locale:
+  session_timezone: Europe/Stockholm
 ```
 
-`pm-stats` writes that value into the database's `stats_meta` table, and every
+`pm-stats` reads `locale.session_timezone` from the compiled config and
+writes that value into the database's `stats_meta` table, and every
 reader — `pm-stats-cli`, `pm-ticker`, `pm-viewer`, the API Gateway — picks it up
 from there.
 **Readers need no timezone configuration at all**, and cannot disagree with the
@@ -72,8 +74,9 @@ pm-stats-cli daily --date 2026-06-14   # resolves in Europe/Stockholm automatica
 Two guardrails back this up:
 
 - Restarting `pm-stats` against an existing database with a *different*
-  `--timezone` is **refused**, because the `date` column would then mean two
-  different things within one file. Use a different `--db` instead.
+  `locale.session_timezone` is **refused**, because the `date` column would
+  then mean two different things within one file. Use a different `--db`
+  instead.
 - Passing `--timezone` to a reader overrides the recorded value and prints a
   warning when the two disagree:
 
@@ -84,14 +87,16 @@ Two guardrails back this up:
          trading day than pm-stats used
   ```
 
-!!! note "`pm-clearing` still needs its own `--timezone`"
-    `pm-clearing` keeps a separate database and takes the same flag with the
-    same meaning for `trade_events.trade_date`. Give it the same value you
-    gave `pm-stats`, or `daily_stats.volume` will not reconcile against
-    `gateway_daily_summary.traded_qty` — that pairing spans two files and is
-    not checked automatically.
+!!! note "`pm-clearing` reads the same setting"
+    `pm-clearing` keeps a separate database but reads the same
+    `locale.session_timezone` from the same compiled config, for
+    `trade_events.trade_date`. Since both recorders read one config, they
+    cannot disagree with each other unless the config changes between
+    restarts — if `daily_stats.volume` ever fails to reconcile against
+    `gateway_daily_summary.traded_qty`, redeploy a consistent config and
+    restart both.
 
-    If your exchange runs in UTC, leave everything at the default and none of
+    If your exchange runs in UTC, set `session_timezone: UTC` and none of
     this applies.
 
 ### Inspecting what a database was recorded with
@@ -797,7 +802,6 @@ pm-stats
 | Flag                     | Default         | Description                                                                            |
 |--------------------------|-----------------|----------------------------------------------------------------------------------------|
 | `--db`                   | `<DATA_DIR>/stats.db` | Custom statistics database path                                                  |
-| `--timezone`             | `UTC`           | Exchange session timezone defining the trading date written to the `date` columns (IANA name). Recorded into the database, so readers pick it up automatically. Restarting against an existing database with a different value is refused |
 | `--snapshot-interval`    | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol; minimum `1`. Lower values give finer intraday resolution at the cost of more database writes. Anything under a second is **rejected at startup**: `price_snapshots` is keyed on `(ts, symbol)` at second precision, so it cannot hold more than one row per second per symbol and the extras would be silently discarded |
 | `--sql-trace`            | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
 | `--log-level`            | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
@@ -1957,8 +1961,9 @@ If the figures disagree, check in this order:
 1. **Are you comparing ticks against money?** By far the most common cause.
 2. **Was the output truncated?** A `[WARN]` line on stderr means the awk sum
    covered only part of the day.
-3. **Do `pm-stats` and `pm-stats-cli` use the same `--timezone`?** If not,
-   `--date` selects a different set of trades than the one folded into the
+3. **Does `pm-stats-cli --timezone`, if passed, match the
+   `locale.session_timezone` `pm-stats` recorded with?** If not, `--date`
+   selects a different set of trades than the one folded into the
    `daily_stats` row, and the two will never match.
 
 

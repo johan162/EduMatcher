@@ -26,7 +26,7 @@ The current parser recognizes these top-level keys:
 | `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
 | `market_maker_combos`      |                         No | Engine                          | Startup multi-symbol combo seeds                                          |
 | `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
-| `country`                  |                         No | `pm-scheduler`                  | Country used for the scheduler's bank-holiday/weekend calendar            |
+| `locale`                   |                         No | `pm-scheduler`, Engine          | Country (bank-holiday/weekend calendar) and session timezone (trading-day bucketing) |
 | `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
@@ -61,7 +61,7 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 | `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector, plus the LALF-PS ZeroMQ log-distribution ports and subscription limits |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
-| `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
+| `pm-scheduler` | `scheduler/main.py` | `schedule`, `locale.country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
 
 !!! note "Tooling reads everything"
     `pm-cverifier` and `pm-config-show` are the exceptions: the linter parses
@@ -1240,7 +1240,7 @@ schedule:
 | `mon`..`fri`|       No | One weekday, overriding `weekdays` for that day |
 | `weekend`   |       No | Saturday and Sunday — mutually exclusive with `sat`/`sun` |
 | `sat`, `sun`|       No | One weekend day, overriding `weekend` for that day |
-| `holidays`  |       No | Bank holidays for the configured `country`     |
+| `holidays`  |       No | Bank holidays for the configured `locale.country` |
 
 Every block that is present MUST define all five transition times
 (`pre_open`, `opening_auction_start`, `continuous_start`,
@@ -1258,15 +1258,21 @@ The default session path is:
 PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED
 ```
 
-### `country`
+### `locale`
 
 ```yaml
-country: Sweden
+locale:
+  country: Sweden
+  session_timezone: Europe/Stockholm
 ```
 
-`country` is a top-level key — a sibling of `schedule`, not nested under it.
-`pm-scheduler` uses it to decide, for a given calendar day, whether the
-`holidays:` block applies (see the table above), using the
+`locale` is a top-level key, a sibling of `schedule`, grouping the two facts
+about where this exchange is: its country and its session timezone. Both
+sub-fields are optional and independent of each other — setting one does not
+change the other's default or validation.
+
+`locale.country` — `pm-scheduler` uses it to decide, for a given calendar
+day, whether the `holidays:` block applies (see the table above), using the
 [`python-holidays`](https://pypi.org/project/holidays/) package to resolve
 the holiday calendar.
 
@@ -1283,6 +1289,24 @@ In single-shot mode (the default, no `--daily`), the scheduler simply sends
 no transitions and exits if today is CLOSED. See
 [Session Scheduling → Bank holidays and weekends](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#bank-holidays-and-weekends)
 for the full behavior breakdown by run mode.
+
+`locale.session_timezone` — the IANA timezone (e.g. `"Europe/Stockholm"`,
+`"UTC"`) used to decide which calendar date, in that timezone, a
+UTC-timestamped event falls into. `pm-stats` and `pm-clearing` both read it
+from the *compiled* config to bucket events into trading days; neither takes
+a `--timezone` CLI flag any more.
+
+| Aspect | Value |
+|---|---|
+| Accepted forms | `"UTC"` or any IANA timezone name recognized by `zoneinfo` |
+| Default when omitted | `"Europe/Stockholm"` |
+| Behavior on an unrecognized value | Rejected — the process refuses to start |
+
+Both `pm-stats` and `pm-clearing` persist the timezone name they first run
+with and refuse to start if the configured value later contradicts what is
+already recorded in their database, since re-bucketing an existing
+database's events under a different trading-day boundary would silently
+change already-published figures.
 
 
 ## Formal Specification
@@ -1317,7 +1341,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `market_maker_combos`      | list    |       No | `[]`                                                  | —                      | Each entry must be a mapping             |
 | `schedule`                 | mapping |       No | —                                                     | —                      | Parsed by scheduler and stored by engine |
 | `require_mm_seed_quotes`   | bool    |       No | `true`                                                | `true`, `false`        | If `false`, a `MARKET_MAKER` gateway may exist with no `market_maker_quotes` (see [Mandatory Fields](#mandatory-fields)) |
-| `country`                  | str     |       No | `"Sweden"`                                            | Any non-empty string   | Used for the scheduler's holiday calendar; an unrecognized value falls back to the default (see `M026` in [Config Verifier](../../operator-guide/part-2-configure/020-config-verifier.md)) |
+| `locale`                   | mapping |       No | —                                                      | —                      | Country and session timezone; see [`locale` fields](#locale-fields) |
 | `indices`                  | list    |       No | `[]`                                                  | —                      | At most 5 entries; see [Configuring `pm-index`](#configuring-pm-index) for the per-index field reference |
 | `auction_indicative_interval_sec` | float | No | `1.0`                                            | Any number             | Must be `> 0`                            |
 | `participant_defaults`     | mapping |       No | —                                                     | `smp_action`, `disconnect_behaviour` | Inherited by `participants` entries that omit them; see [Participant Defaults](#participant-defaults) |
@@ -1338,6 +1362,15 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `drop_copy_buffer_size` | int | No | `10000` | Positive integer | Must be `> 0` |
 | `recent_trades_maxlen` | int | No | `20` | Positive integer | Must be `> 0` |
 | `depth_snapshot_tolerance_ticks` | int | No | `100` | Positive integer | Must be `> 0` |
+
+---
+
+### `locale` fields
+
+| Field | Type | Required | Default | Allowed values / range | Constraint |
+|---|---|---:|---|---|---|
+| `country` | str | No | `"Sweden"` | Country name or ISO 3166-1 alpha-2 code | Unrecognized value falls back to the default (see `M026` in [Config Verifier](../../operator-guide/part-2-configure/020-config-verifier.md)) |
+| `session_timezone` | str | No | `"Europe/Stockholm"` | `"UTC"` or an IANA timezone name | Unrecognized value is rejected |
 
 ---
 
@@ -1527,7 +1560,7 @@ Top level:
 | `mon`, `tue`, `wed`, `thu`, `fri` | day block | No | one weekday | overrides `weekdays` for that day only |
 | `weekend` | day block | No | Sat+Sun, for either day not overridden below | mutually exclusive with `sat`/`sun` |
 | `sat`, `sun` | day block | No | one weekend day | overrides `weekend` for that day only; mutually exclusive with `weekend` |
-| `holidays` | day block | No | bank holidays for `country` | applies instead of the calendar day's own entry |
+| `holidays` | day block | No | bank holidays for `locale.country` | applies instead of the calendar day's own entry |
 
 Each **day block** (the value of `weekdays`, `weekend`, `holidays`, or any
 individual `mon`..`sun` key) is:

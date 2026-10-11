@@ -87,12 +87,13 @@ two is exactly the job of the session timezone.
 
 ### Setting the session timezone
 
-The two **recorders** each take a `--timezone` argument, an IANA timezone name,
-defaulting to `UTC`:
+The two **recorders**, `pm-stats` and `pm-clearing`, both read
+`locale.session_timezone` from the engine config, an IANA timezone name
+defaulting to `"Europe/Stockholm"`:
 
-```bash
-pm-stats    --timezone Europe/Stockholm
-pm-clearing --timezone Europe/Stockholm
+```yaml
+locale:
+  session_timezone: Europe/Stockholm
 ```
 
 Each writes the value into its own database. Every **reader** then picks it up
@@ -103,35 +104,41 @@ pm-stats-cli daily --date 2026-06-14   # resolves in Europe/Stockholm
 pm-ticker                              # same
 ```
 
-`pm-stats-cli --timezone`, `pm-ticker --timezone` and the API Gateway's
-`session_timezone:` config key remain available as explicit overrides, and warn
-when they contradict what the database records.
+`pm-stats-cli --timezone` and `pm-ticker --timezone` remain available as
+explicit overrides on the reader side, and warn when they contradict what
+the database records.
 
 !!! warning "The two recorders must agree with each other"
     `pm-stats` and `pm-clearing` write separate databases, and nothing
-    cross-checks them. If they are started with different `--timezone` values,
-    `daily_stats.volume` will not reconcile against
-    `gateway_daily_summary.traded_qty`, and neither process will report an
-    error.
+    cross-checks them while running. If they are started against different
+    `locale.session_timezone` values, `daily_stats.volume` will not reconcile
+    against `gateway_daily_summary.traded_qty`, and neither process will
+    report an error.
 
     Within a single database the value is enforced: restarting a recorder
-    against an existing file with a different `--timezone` is refused outright,
-    since its `date` column would otherwise mean two different things.
+    against an existing file with a different `locale.session_timezone` is
+    refused outright, since its `date` column would otherwise mean two
+    different things.
 
-    Set it once, in whatever starts your processes. If your exchange runs in
-    UTC, leave both at the default.
+    Since both processes read the same compiled config, this can only happen
+    by redeploying the config with a changed `session_timezone` between
+    restarts — set it once and leave it alone. If your exchange runs in UTC,
+    set `session_timezone: UTC`.
 
-### Relationship to `country:`
+### Relationship to `locale.country`
 
-`country:` (used by `pm-scheduler` for the bank-holiday calendar, see
-[Bank holidays and weekends](#bank-holidays-and-weekends)) and `--timezone` are
-**separate settings and are not derived from one another**. `country:` decides
-*which days* the schedule runs on; `--timezone` decides *which calendar day* a
-timestamp is filed under. A country can span several timezones, so one cannot
-be inferred from the other.
+`locale.country` (used by `pm-scheduler` for the bank-holiday calendar, see
+[Bank holidays and weekends](#bank-holidays-and-weekends)) and
+`locale.session_timezone` are **separate settings and are not derived from
+one another**, even though they are grouped under the same `locale:` block
+and share a Swedish default. `locale.country` decides *which days* the
+schedule runs on; `locale.session_timezone` decides *which calendar day* a
+timestamp is filed under. A country can span several timezones, so one
+cannot be inferred from the other.
 
-Keep them consistent: an exchange configured with `country: Sweden` should be
-recording with `--timezone Europe/Stockholm`.
+Keep them consistent: an exchange configured with `locale.country: Sweden`
+should also be recording with `locale.session_timezone: Europe/Stockholm`
+(the default for both).
 
 ### Trading days are not always 24 hours
 
@@ -386,7 +393,7 @@ Times are `HH:MM` in local time. Any day left with no resolved schedule —
 not covered by `weekdays`/`weekend` and not individually specified —
 defaults to **CLOSED**, exactly like an omitted `holidays:` block. See
 [Bank holidays and weekends](#bank-holidays-and-weekends) below for how the
-`holidays:` entry and the `country` key interact.
+`holidays:` entry and the `locale.country` key interact.
 
 ### Session handling toggle
 
@@ -419,7 +426,7 @@ Which block of the resolved weekly table applies to a given calendar day is
 decided in two steps, using the
 [`python-holidays`](https://pypi.org/project/holidays/) package:
 
-1. If the day is a bank holiday for the configured `country`, the
+1. If the day is a bank holiday for the configured `locale.country`, the
    `holidays:` entry applies — or CLOSED, if no `holidays:` block is
    configured.
 2. Otherwise, the day's own entry from the weekly table applies (`mon`..`sun`,
@@ -427,14 +434,16 @@ decided in two steps, using the
    described above) — or CLOSED, if that day has no resolved entry.
 
 ```yaml
-country: Sweden
+locale:
+  country: Sweden
 ```
 
-- `country` accepts either a country name (`"Sweden"`) or an ISO 3166-1
-  alpha-2 code (`"SE"`).
-- `country` selects the **holiday calendar** only. It does not set the session
-  timezone used to bucket daily statistics — that is `--timezone`, described
-  under [The trading date](#the-trading-date).
+- `locale.country` accepts either a country name (`"Sweden"`) or an ISO
+  3166-1 alpha-2 code (`"SE"`).
+- `locale.country` selects the **holiday calendar** only. It does not set the
+  session timezone used to bucket daily statistics — that is
+  `locale.session_timezone`, described under
+  [The trading date](#the-trading-date).
 - If omitted, or if the value is not a country `python-holidays` recognizes,
   it **falls back to `"Sweden"`** and logs a warning.
 - Weekends are no longer forced CLOSED — a `weekend:` or `sat:`/`sun:` block
@@ -451,8 +460,9 @@ Behavior when today resolves to CLOSED depends on the run mode:
 | `--now`                   | Unaffected — `--now` ignores wall-clock scheduling (and therefore schedule resolution) entirely, since it's intended for testing/demos. |
 
 ```yaml
-# Germany's holiday calendar instead of the default (Sweden)
-country: DE
+locale:
+  # Germany's holiday calendar instead of the default (Sweden)
+  country: DE
 ```
 
 ```text
@@ -733,7 +743,7 @@ expired if they did *not* fill.
 
 **In this book:**
 
-- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `country`, and `sessions_enabled`
+- [The Configuration Workflow](../part-2-configure/010-the-configuration-workflow.md#session-schedule) — `schedule:` YAML keys, `locale.country`, and `sessions_enabled`
 - [Running the Engine](../part-3-run/010-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](040-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
 

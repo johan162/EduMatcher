@@ -105,9 +105,6 @@ pm-clearing [OPTIONS]
                          at every close and on each system.eod (default: 90).
                          0 does NOT disable pruning: it deletes every row dated before
                          today (use a large value such as 36500 to keep rows)
-  --timezone TZ          Exchange session timezone (IANA name, e.g.
-                         America/New_York) used to bucket trades into a
-                         trading day (default: UTC)
   --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
                          INFO, DEBUG (default: WARNING)
   --log-target TARGET    Where operational logs go: server (default,
@@ -126,10 +123,10 @@ pm-clearing [OPTIONS]
 !!! note "Trade-date bucketing and the session timezone"
     Each trade is assigned a `trade_date` (used by `gateway_daily_summary`,
     the `daily`/`dates` verbs, and the EOD row) based on the calendar day of
-    its timestamp in the `--timezone` you pass. The default is UTC. Set it to
-    the exchange's local timezone so an evening session — or any session that
-    straddles 00:00 UTC — stays in a single `trade_date` bucket instead of
-    being split across two days.
+    its timestamp in the deployed config's `locale.session_timezone`. The
+    default is `Europe/Stockholm`. Set it to the exchange's local timezone so
+    an evening session — or any session that straddles 00:00 UTC — stays in
+    a single `trade_date` bucket instead of being split across two days.
 
 ### What pm-clearing subscribes to
 
@@ -246,7 +243,7 @@ and must be recreated; the system does not migrate historical short IDs.
 |---|---|---|
 | `id` | TEXT (PK) | Durable engine trade id, formatted as `run_seq-counter` |
 | `ts_ns` | INTEGER | Engine event timestamp in nanoseconds |
-| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`) derived from `ts_ns` (default UTC; see `--timezone`) |
+| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`) derived from `ts_ns` (default `Europe/Stockholm`; see `locale.session_timezone`) |
 | `symbol` | TEXT | Instrument symbol |
 | `quantity` | INTEGER | Matched trade size |
 | `price` | INTEGER | Execution price in ticks |
@@ -295,7 +292,7 @@ Daily incremental aggregates. Updated in the same transaction as
 
 | Column | Type | Description |
 |---|---|---|
-| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`); default UTC (see `--timezone`) |
+| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`); default `Europe/Stockholm` (see `locale.session_timezone`) |
 | `gateway_id` | TEXT | Gateway identifier |
 | `symbol` | TEXT | Instrument symbol |
 | `traded_qty` | INTEGER | Daily total filled quantity for this key |

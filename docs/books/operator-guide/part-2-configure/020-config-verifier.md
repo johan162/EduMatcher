@@ -246,7 +246,9 @@ the key if it appears on a risk level.
 | `S114` | `symbols.<SYMBOL>.order_limits` present but not a mapping              |
 | `S115` | `symbols.<SYMBOL>.order_limits.max_order_qty` not a positive integer   |
 | `S116` | `symbols.<SYMBOL>.order_limits.max_order_value` not a positive number  |
-| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping — **also reused** for top-level `country` present but not a non-empty string (unrelated condition, same code) |
+| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping — **also reused** for `locale.country` present but not a non-empty string (unrelated condition, same code) |
+| `S122` | `locale` present but not a mapping |
+| `S123` | `locale.session_timezone` present but not a non-empty string |
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
 | `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
 | `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
@@ -507,7 +509,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M023` | ERROR    | A `schedule` time value doesn't parse as a valid 24-hour `HH:MM` time |
 | `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
 | `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |
-| `M026` | WARN     | Top-level `country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
+| `M026` | WARN     | `locale.country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 

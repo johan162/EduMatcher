@@ -56,7 +56,7 @@ it: the model starts again from the engine's previous closes.
 
 **Why is there no trading at 09:00 on a Monday in January?** Swedish public
 holidays — Epiphany, 6 January, for one — are closed days on the
-`s300-sim` calendar. Use your own configuration's `country` and `holidays`
+`s300-sim` calendar. Use your own configuration's `locale.country` and `holidays`
 settings to change the calendar.
 
 **Can I run it in the cloud?** Yes; any machine with Docker and two cores

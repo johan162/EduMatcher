@@ -906,7 +906,7 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q] \
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q] \
   [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
@@ -920,7 +920,6 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
 | `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
 | `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup and at every close of the market (`0` disables pruning) |
-| `--timezone` | `UTC` | Exchange session timezone (IANA name) used to bucket trades into a trading day; keeps a single wall-clock session in one `trade_date` |
 | `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
@@ -1062,7 +1061,7 @@ both trading statistics and index levels — `pm-index`'s own JSONL file only
 retains structural/corporate-action audit records, not level ticks.
 
 ```bash
-pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ] \
+pm-stats [--db data/stats.db] [--snapshot-interval SEC] \
   [--keep-days N] [--keep-order-events-days N] [--sql-trace] \
   [--log-level LEVEL] [-v|-vv] [-q]
 ```
@@ -1073,7 +1072,6 @@ pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ] \
 |-----------------------|-----------------|-------------------------------------------------------------------------------------------------|
 | `--db`                | `data/stats.db` | SQLite database file path                                                                       |
 | `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
-| `--timezone`          | `UTC`           | Exchange session timezone (IANA name, e.g. `Europe/Stockholm`) that defines the trading date used by `daily_stats`/`index_daily_stats` date columns. Must match `pm-clearing`'s `--timezone` or the two daily rollups will not reconcile. |
 | `--keep-days`         | `0` (keep all)  | Keep N days of `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`; older rows are deleted at startup and once an hour. Daily rollups are always kept. The file stops growing at N days (SQLite reuses the freed pages) |
 | `--keep-order-events-days` | as `--keep-days` | Keep N days of `order_events` alone, overriding `--keep-days` for them. Fractions are fine (`0.05` is about an hour); under an AI swarm order events are most of the file |
 | `--sql-trace`         | off             | Log executed SQLite SQL statements from the stats writer connection                             |
@@ -1256,7 +1254,7 @@ prints output, and exits.
 | `--db`        | `data/stats.db` | SQLite database file path                |
 | `--format`    | `table`         | Output format: `table`, `json`, or `csv` |
 | `--no-header` | off             | Suppress header row in `csv` output      |
-| `--timezone`  | DB-recorded timezone | Override the session timezone that `--date` resolves in; rarely needed, and a mismatched value triggers a warning since `--date` would then select a different trading day than `pm-stats` used |
+| `--timezone`  | DB-recorded timezone | Override the session timezone that `--date` resolves in; rarely needed, and a mismatched value triggers a warning since `--date` would then select a different trading day than `pm-stats` used. `pm-stats` itself takes no `--timezone` flag — it reads `locale.session_timezone` from the deployed config |
 | `--version`   | —               | Print version and exit                   |
 
 **Subcommands:**
@@ -2599,6 +2597,7 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 | `--closing-auction HH:MM` | `16:00` | Closing auction start time |
 | `--closing-end HH:MM` | `16:05` | Closing auction end time |
 | `--country CODE` | — | Holiday calendar country code (ISO 3166-1 alpha-2) |
+| `--session-timezone TZ` | — | Session timezone, an IANA name (e.g. `Europe/Stockholm`) |
 
 #### Combos
 
