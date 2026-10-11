@@ -27,6 +27,7 @@ a fairly complex market with all shares having a true but hidden value. Through 
 - Fixed concurrent documentation cover generation sharing a Chrome profile
 - Fixed linked example sources being unavailable on the documentation website
 - Fixed a memory leak in orderbook handling where cancelled orders were only made "dead" but never removed
+- Fixed two bash 3.2 (in MacOS) vs. bash 4+ (everywhere else) incompatibilities in the ref_data generation scripts
 
 ### 📚 Documentation
 - Reorganised the user documentation into dedicated Quick Start, Participant, Operator, Reference, Protocols and Clients, Architecture and Development, and Training guides
