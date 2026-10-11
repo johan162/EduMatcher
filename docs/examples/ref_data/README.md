@@ -20,6 +20,25 @@ make configs  # same
 Each subdirectory's `mkrefdata.sh` is discovered automatically via wildcard
 expansion, so new setups are picked up without editing the Makefile.
 
+Each `mkrefdata.sh` is a one-line wrapper that delegates to a shared
+generator, driven entirely by its own directory name (size/profile/mm):
+
+- `s1-*`, `s3-*`, `s10-*`, `s30-*` setups delegate to `mkrefdata_common.py`
+  (requires `python3`).
+- `s150-*` setups delegate to `mks150.sh`; `s300-*` setups delegate to
+  `mks300.sh`.
+
+### Seed reuse
+
+Running a setup's `mkrefdata.sh` without `--seed`:
+
+- generates a new random seed, if `engine_config.yaml` doesn't exist yet;
+- otherwise reuses the seed already recorded in that file's header comment,
+  so re-running (e.g. via `make force`) reproduces the same book instead of
+  drawing a new random one.
+
+Pass `--seed <integer>` explicitly to override either way.
+
 ## Notes
 
 - `pm-config-gen` supports emitting both RALF (`post_trade_gateway`) and CALF (`market_data_gateway`) sections via native flags.

@@ -35,8 +35,18 @@ if [[ -n "$seed" && ! "$seed" =~ ^-?[0-9]+$ ]]; then
   exit 1
 fi
 if [[ -z "$seed" ]]; then
-  seed=$(( RANDOM * 32768 + RANDOM ))
-  echo "[INFO] Auto-generated seed $seed -- re-run with --seed $seed for identical output." >&2
+  # Reuse the seed recorded in an existing engine_config.yaml's header
+  # comment, if there is one, instead of drawing a new random seed -- a
+  # re-run with no --seed should reproduce the same book.
+  existing_seed=$(awk '/^#/{sub(/^#/,""); sub(/\\$/,""); printf "%s ", $0; next} {exit}' engine_config.yaml 2>/dev/null \
+    | grep -oE -- '--seed +-?[0-9]+' | head -1 | awk '{print $2}')
+  if [[ -n "$existing_seed" ]]; then
+    seed="$existing_seed"
+    echo "[INFO] Reusing seed $seed from existing engine_config.yaml -- pass --seed to override." >&2
+  else
+    seed=$(( RANDOM * 32768 + RANDOM ))
+    echo "[INFO] Auto-generated seed $seed -- re-run with --seed $seed for identical output." >&2
+  fi
 fi
 
 if command -v pm-config-gen >/dev/null 2>&1; then
