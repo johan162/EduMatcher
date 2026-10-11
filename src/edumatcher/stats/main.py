@@ -19,10 +19,11 @@ Retention
 Dates and timestamps
 --------------------
   ``ts`` columns are UTC instants. ``date`` columns hold the *trading date* —
-  the calendar date in the exchange's session timezone (``--timezone``,
-  default UTC) that the event's own timestamp falls on. Start pm-stats and
-  pm-clearing with the same ``--timezone`` or their daily rollups will not
-  reconcile. See edumatcher/stats/trading_day.py.
+  the calendar date in the exchange's session timezone (engine config's
+  ``locale.session_timezone``, default Europe/Stockholm) that the event's
+  own timestamp falls on. pm-stats and pm-clearing both read it from the
+  same engine config, so their daily rollups reconcile by construction. See
+  edumatcher/stats/trading_day.py.
 
 Subscribes to (engine PUB, ENGINE_PUB_ADDR):
   trade.executed  — to track OHLCV, VWAP, min/max, volume
@@ -759,7 +760,7 @@ def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) 
     under, so it cannot change part-way through a database's life without
     making the ``date`` column mean two different things. Recording it also
     lets readers resolve it themselves instead of relying on every operator
-    passing a matching ``--timezone``.
+    rereading engine config.
     """
     row = conn.execute(
         "SELECT value FROM stats_meta WHERE key = 'session_timezone'"
@@ -767,9 +768,10 @@ def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) 
     if row is not None and row[0] != session_tz_name:
         raise IncompatibleDatabaseError(
             f"{path} was recorded with session timezone {row[0]!r}, but "
-            f"pm-stats was started with {session_tz_name!r}. Its date columns "
-            f"would then mean two different things. Use --timezone {row[0]} or "
-            f"record into a different --db."
+            f"engine config now says {session_tz_name!r}. Its date columns "
+            f"would then mean two different things. Fix engine config's "
+            f"locale.session_timezone back to {row[0]!r}, or record into a "
+            f"different --db."
         )
     conn.execute(UPSERT_META, ("session_timezone", session_tz_name))
 
@@ -2061,17 +2063,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--timezone",
-        metavar="TZ",
-        default="UTC",
-        help=(
-            "Exchange session timezone that defines the trading date used by "
-            "the date columns of daily_stats and index_daily_stats (IANA name, "
-            "e.g. Europe/Stockholm; default: UTC). Must match pm-clearing's "
-            "--timezone or the two daily rollups will not reconcile."
-        ),
-    )
-    parser.add_argument(
         "--keep-days",
         type=float,
         default=0.0,
@@ -2205,10 +2196,9 @@ def main() -> None:
         _enable_sql_trace_logging()
     log.info("starting pm-stats with log level %s", logging.getLevelName(log_level))
     log.debug(
-        "resolved stats config: db=%s snapshot_interval=%s timezone=%s",
+        "resolved stats config: db=%s snapshot_interval=%s",
         args.db,
         args.snapshot_interval,
-        args.timezone,
     )
     if args.keep_days < 0:
         parser.error("--keep-days must be >= 0")
@@ -2224,9 +2214,20 @@ def main() -> None:
             f"second: price_snapshots stores at most one row per second per "
             f"symbol, so a shorter interval would silently discard rows"
         )
-    session_tz = resolve_timezone(args.timezone)
+    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
+
+    compiled = load_compiled_config()
+    session_tz_name = (
+        DEFAULT_SESSION_TIMEZONE
+        if compiled is None
+        else compiled.engine.locale.session_timezone
+    )
+    session_tz = resolve_timezone(session_tz_name)
     if session_tz is None:
-        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
+        parser.error(
+            f"engine config locale.session_timezone: unknown timezone {session_tz_name!r}"
+        )
     try:
         process = StatsProcess(
             resolve_data_path(args.db),

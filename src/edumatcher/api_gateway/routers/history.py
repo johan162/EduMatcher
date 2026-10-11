@@ -44,14 +44,12 @@ router = APIRouter(prefix="/api/v1/history", tags=["history"])
 def _session_tz(request: Request, conn: sqlite3.Connection) -> tzinfo:
     """Session timezone that ``date`` filters resolve their trading day in.
 
-    Read from the statistics database, so the gateway cannot disagree with the
-    recorder about which trading day a ``date`` refers to. ``session_timezone``
-    in the gateway config is an explicit override for the unusual case where
-    it must differ; it is validated at config load, so an unknown name cannot
-    reach here.
+    Read from the statistics database, which pm-stats recorded using the
+    exchange-wide ``session_timezone`` from engine config — so the gateway
+    cannot disagree with the recorder about which trading day a ``date``
+    refers to.
     """
-    override = request.app.state.config.session_timezone
-    resolved, warning = resolve_session_timezone(conn, override)
+    resolved, warning = resolve_session_timezone(conn)
     if warning is not None:
         log.warning("history: %s", warning)
     return resolved

@@ -464,7 +464,7 @@ def test_builder_country_emitted() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    assert payload["country"] == "Germany"
+    assert payload["locale"]["country"] == "Germany"
 
 
 def test_builder_country_omitted_when_not_set() -> None:
@@ -474,7 +474,7 @@ def test_builder_country_omitted_when_not_set() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    assert "country" not in payload
+    assert "locale" not in payload
 
 
 def test_builder_index_section_emitted() -> None:

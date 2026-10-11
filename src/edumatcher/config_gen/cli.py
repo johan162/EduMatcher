@@ -17,7 +17,7 @@ import holidays
 
 from edumatcher.cli_version import package_version
 
-from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.engine.config_loader import is_known_timezone, load_engine_config
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.price import TickViolation, to_ticks_exact_at
@@ -343,6 +343,9 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.country is not None:
         _validate_country(args.country)
 
+    if args.session_timezone is not None:
+        _validate_session_timezone(args.session_timezone)
+
 
 _LOG_SERVER_PUBSUB_POSITIVE_INT_FLAGS = (
     ("log_server_pub_port", "--log-server-pub-port"),
@@ -489,6 +492,16 @@ def _validate_country(country: str) -> None:
         raise ValueError(
             f"--country {country!r} is not recognised by the holidays package"
         ) from exc
+
+
+def _validate_session_timezone(name: str) -> None:
+    """Reject a --session-timezone value zoneinfo will not recognise."""
+    if not name.strip():
+        raise ValueError("--session-timezone must not be blank")
+    if not is_known_timezone(name):
+        raise ValueError(
+            f"--session-timezone {name!r} is not a recognised IANA timezone"
+        )
 
 
 def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
@@ -1938,6 +1951,11 @@ def main() -> None:
             ),
             sessions_enabled=bool(args.sessions_enabled),
             country=str(args.country) if args.country is not None else None,
+            session_timezone=(
+                str(args.session_timezone)
+                if args.session_timezone is not None
+                else None
+            ),
             snapshot_interval_sec=float(args.snapshot_interval),
             quote_history_maxlen=int(args.quote_history_maxlen),
             drop_copy_buffer_size=int(args.drop_copy_buffer_size),

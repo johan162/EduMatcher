@@ -2050,7 +2050,7 @@ class Engine:
         schedule = engine_cfg.schedule
         # Config accepts country names such as ``Sweden``, while the bounded
         # reference wire field carries an ISO alpha-2 code.
-        country = _country_wire_code(engine_cfg.country)
+        country = _country_wire_code(engine_cfg.locale.country)
         reference: dict[str, Any] = {
             "symbols": symbols,
             "risk": {
@@ -2069,7 +2069,7 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": country,
-                "schedule": _weekly_schedule_wire(schedule, engine_cfg.country),
+                "schedule": _weekly_schedule_wire(schedule, engine_cfg.locale.country),
             },
         }
         digest = hashlib.sha256(
@@ -2399,7 +2399,7 @@ class Engine:
         schedule: dict[str, Any] | None = None
         if self._engine_config and self._engine_config.schedule:
             schedule = _weekly_schedule_wire(
-                self._engine_config.schedule, self._engine_config.country
+                self._engine_config.schedule, self._engine_config.locale.country
             )
         self.pub_sock.send_multipart(
             make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)

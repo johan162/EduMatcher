@@ -1215,6 +1215,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--session-timezone",
+        type=str,
+        default=None,
+        metavar="TZ",
+        help=(
+            "IANA timezone every process bucketing events into a trading day "
+            "(pm-stats, pm-clearing, ...) uses, e.g. America/New_York. "
+            'Defaults to "UTC" when omitted.'
+        ),
+    )
+
+    parser.add_argument(
         "--index",
         action="append",
         default=[],

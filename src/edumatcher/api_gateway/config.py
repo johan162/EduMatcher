@@ -27,7 +27,6 @@ from edumatcher.config import (
     resolve_data_path,
     resolve_gateway_bind_host,
 )
-from edumatcher.stats.trading_day import resolve_timezone
 
 
 @dataclass(frozen=True)
@@ -94,12 +93,6 @@ class ApiGatewayConfig:
     #: bounded. 30–60s is enough for a browser to repair a brief drop; 0
     #: disables the trade buffer while still serving latest snapshots.
     market_data_cache_sec: int = 60
-    #: Optional override for the session timezone that ``date`` filters on the
-    #: history endpoints resolve their trading day in. ``None`` — the default —
-    #: means "use the timezone ``stats_db`` was recorded with", which is what
-    #: keeps the gateway and the recorder from disagreeing. Set this only when
-    #: it must deliberately differ.
-    session_timezone: str | None = None
     log_level: str = "info"
     swagger_enabled: bool = True
     credentials: tuple[ApiCredential, ...] = ()
@@ -225,15 +218,6 @@ def _load_api_gateway_section(
     if market_data_cache_sec < 0:
         raise ValueError(f"{section_name}.market_data_cache_sec must be >= 0")
 
-    session_timezone_raw = section.get("session_timezone")
-    session_timezone = (
-        None if session_timezone_raw is None else str(session_timezone_raw)
-    )
-    if session_timezone is not None and resolve_timezone(session_timezone) is None:
-        raise ValueError(
-            f"{section_name}.session_timezone: unknown timezone {session_timezone!r}"
-        )
-
     return ApiGatewayConfig(
         name=gateway_name,
         enabled=bool(section.get("enabled", True)),
@@ -247,7 +231,6 @@ def _load_api_gateway_section(
         audit_db=audit_db,
         order_retention_sec=order_retention_sec,
         market_data_cache_sec=market_data_cache_sec,
-        session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),
         credentials=_load_credentials(section.get("credentials"), section_name),

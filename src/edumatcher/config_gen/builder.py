@@ -128,6 +128,7 @@ class ConfigSpec:
     gateway_default_disconnect: DisconnectBehaviour | None = None
     sessions_enabled: bool = False
     country: str | None = None
+    session_timezone: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
     quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
@@ -372,8 +373,13 @@ class ConfigBuilder:
                 "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
             }
 
+        locale: dict[str, str] = {}
         if self.spec.country is not None:
-            cfg["country"] = self.spec.country
+            locale["country"] = self.spec.country
+        if self.spec.session_timezone is not None:
+            locale["session_timezone"] = self.spec.session_timezone
+        if locale:
+            cfg["locale"] = locale
 
         if self._should_emit_mm_defaults():
             cfg["mm_obligation_defaults"] = self._build_mm_defaults()

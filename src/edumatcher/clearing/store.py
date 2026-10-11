@@ -43,6 +43,11 @@ from typing import Any
 
 _sql_log = logging.getLogger("edumatcher.clearing.sql")
 
+
+class IncompatibleClearingDatabaseError(Exception):
+    """The clearing DB was recorded with a session timezone that no longer matches."""
+
+
 # ---------------------------------------------------------------------------
 # Pragmas — applied to every new connection.
 # ---------------------------------------------------------------------------
@@ -210,6 +215,11 @@ CREATE TABLE IF NOT EXISTS gateway_sessions (
 
 CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
   ON gateway_sessions(gateway_id);
+
+CREATE TABLE IF NOT EXISTS clearing_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 """
 
 # ---------------------------------------------------------------------------
@@ -374,6 +384,36 @@ def open_writer_connection(
         conn.close()
         raise
     return conn
+
+
+_UPSERT_CLEARING_META = """
+INSERT INTO clearing_meta (key, value) VALUES (?,?)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value
+"""
+
+
+def reconcile_session_timezone(
+    conn: sqlite3.Connection, db_path: Path, session_tz_name: str
+) -> None:
+    """Record the session timezone, or refuse if it contradicts the file.
+
+    The session timezone determines which trading date every trade is bucketed
+    under (finding CL-M3), so it cannot change part-way through a database's
+    life without making ``trade_date`` mean two different things.
+    """
+    row = conn.execute(
+        "SELECT value FROM clearing_meta WHERE key = 'session_timezone'"
+    ).fetchone()
+    if row is not None and row[0] != session_tz_name:
+        raise IncompatibleClearingDatabaseError(
+            f"{db_path} was recorded with session timezone {row[0]!r}, but "
+            f"engine config now says {session_tz_name!r}. Its trade_date column "
+            f"would then mean two different things. Fix engine config's "
+            f"locale.session_timezone back to {row[0]!r}, or record into a "
+            f"different DB."
+        )
+    conn.execute(_UPSERT_CLEARING_META, ("session_timezone", session_tz_name))
+    conn.commit()
 
 
 def open_readonly_connection(db_path: Path) -> sqlite3.Connection:

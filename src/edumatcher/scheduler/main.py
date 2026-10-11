@@ -1015,7 +1015,7 @@ def main() -> None:
             schedule_cfg = (
                 DEFAULT_SCHEDULE if engine_cfg.schedule is None else engine_cfg.schedule
             )
-            country = engine_cfg.country
+            country = engine_cfg.locale.country
             if not _is_supported_country(country):
                 log.warning(
                     "unrecognised country %r for holiday calendar; using default %r",

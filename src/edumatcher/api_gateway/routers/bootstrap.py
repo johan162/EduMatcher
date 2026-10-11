@@ -106,7 +106,7 @@ def _query_fills_sync(
     """
     conn = open_readonly_connection(config.stats_db)
     with closing(conn) as conn:
-        tz, warning = resolve_session_timezone(conn, config.session_timezone)
+        tz, warning = resolve_session_timezone(conn)
         if warning is not None:
             log.warning("bootstrap fills: %s", warning)
         today = trading_date(time.time(), tz)

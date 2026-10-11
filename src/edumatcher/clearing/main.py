@@ -54,6 +54,7 @@ from edumatcher.clearing.store import (
     flush_batch,
     open_writer_connection,
     prune_old_events,
+    reconcile_session_timezone,
     record_gateway_connect,
     record_session_event,
 )
@@ -233,6 +234,7 @@ class ClearingProcess:
         self._debug_last_summary = time.monotonic()
 
         self._conn = open_writer_connection(self._db_path, sql_trace=self._sql_trace)
+        reconcile_session_timezone(self._conn, self._db_path, str(session_tz))
         log.info("opened clearing DB connection path=%s", self._db_path.resolve())
         if self._sql_trace:
             log.info("SQLite SQL trace enabled for clearing writer connection")
@@ -960,15 +962,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--timezone",
-        metavar="TZ",
-        default="UTC",
-        help=(
-            "Exchange session timezone used to bucket trades into a trading day"
-            " (IANA name, e.g. America/New_York; default: UTC)"
-        ),
-    )
-    parser.add_argument(
         "--sql-trace",
         action="store_true",
         help="Log executed SQLite statements from the clearing writer connection",
@@ -1072,9 +1065,20 @@ def main() -> None:
     if args.retention_days < 0:
         parser.error("--retention-days must be >= 0")
 
-    session_tz = _resolve_timezone(args.timezone)
+    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
+
+    compiled = load_compiled_config()
+    session_tz_name = (
+        DEFAULT_SESSION_TIMEZONE
+        if compiled is None
+        else compiled.engine.locale.session_timezone
+    )
+    session_tz = _resolve_timezone(session_tz_name)
     if session_tz is None:
-        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
+        parser.error(
+            f"engine config locale.session_timezone: unknown timezone {session_tz_name!r}"
+        )
 
     if args.datapath is not None:
         dp = resolve_data_path(args.datapath)

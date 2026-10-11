@@ -15,9 +15,10 @@ different from each other:
     participants actually traded, which is the same reasoning behind
     ``clearing/ledger.py::trade_date`` (finding CL-M3).
 
-The session timezone comes from ``pm-stats --timezone`` (default ``UTC``),
-matching ``pm-clearing --timezone``. Both processes must be started with the
-same value or their daily rollups will not reconcile.
+The session timezone comes from engine config's ``locale.session_timezone``
+(default ``Europe/Stockholm``), read by both pm-stats and pm-clearing so
+their daily rollups reconcile by construction rather than by operators
+passing matching CLI flags.
 
 Comparing bounds against stored text
 ------------------------------------

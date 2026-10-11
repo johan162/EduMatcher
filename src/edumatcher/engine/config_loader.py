@@ -68,6 +68,11 @@ _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
 
 DEFAULT_COUNTRY = "Sweden"
 
+#: IANA timezone name every process bucketing events into a trading day
+#: (pm-stats, pm-clearing, ...) must use. The single, ubiquitous source —
+#: no process reads its own CLI override any more. Matches DEFAULT_COUNTRY.
+DEFAULT_SESSION_TIMEZONE = "Europe/Stockholm"
+
 #: Longest circuit-breaker level name a config may declare. Matches the
 #: `max_len` `spec/messages/circuit_breaker.yaml` puts on `halt.level`, which
 #: carries this name to every subscriber.
@@ -387,6 +392,20 @@ class ScheduleConfig:
 
 
 @dataclass
+class LocaleConfig:
+    """Where this exchange is -- its country and its session timezone."""
+
+    #: Country whose bank-holiday calendar pm-scheduler runs against.
+    #: Validated against python-holidays by the scheduler, which is the
+    #: only consumer; the loader only checks it is a non-empty string.
+    country: str = DEFAULT_COUNTRY
+    #: IANA timezone name that every process bucketing events into a
+    #: trading day (pm-stats, pm-clearing, ...) must use. Validated against
+    #: zoneinfo by the loader.
+    session_timezone: str = DEFAULT_SESSION_TIMEZONE
+
+
+@dataclass
 class EngineConfig:
     symbols: dict[str, SymbolConfig] = field(default_factory=dict)
     fix_gateways: dict[str, FixGatewayConfig] = field(default_factory=dict)
@@ -410,10 +429,10 @@ class EngineConfig:
     depth_snapshot_tolerance_ticks: int = _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     sessions_enabled: bool = False
     schedule: ScheduleConfig | None = None
-    #: Country whose bank-holiday calendar and local wall clock pm-scheduler
-    #: runs against. Validated against python-holidays by the scheduler, which
-    #: is the only consumer; the loader only checks it is a non-empty string.
-    country: str = DEFAULT_COUNTRY
+    #: Where this exchange is: the country whose bank-holiday calendar
+    #: pm-scheduler runs against, and the IANA timezone every process
+    #: bucketing events into a trading day (pm-stats, pm-clearing, ...) uses.
+    locale: LocaleConfig = field(default_factory=lambda: LocaleConfig())
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
     #: When True (default), the engine refuses to start any symbol that has
@@ -474,6 +493,19 @@ def _parse_gateway_default(
                 "Engine config 'participant_defaults.smp_action' is invalid"
             ) from exc
     return disconnect, smp
+
+
+def is_known_timezone(name: str) -> bool:
+    """Return True if *name* is 'UTC' or a zoneinfo-recognised IANA name."""
+    if name.upper() == "UTC":
+        return True
+    try:
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(name)
+        return True
+    except Exception:
+        return False
 
 
 def load_engine_config(path: Path) -> EngineConfig:
@@ -1575,10 +1607,32 @@ def load_engine_config(path: Path) -> EngineConfig:
 
         schedule_cfg = ScheduleConfig(days=resolved_days, holidays=holidays_cfg)
 
-    country_raw = raw.get("country")
+    locale_raw = raw.get("locale")
     country = DEFAULT_COUNTRY
-    if isinstance(country_raw, str) and country_raw.strip():
-        country = country_raw.strip()
+    session_timezone = DEFAULT_SESSION_TIMEZONE
+    if locale_raw is not None:
+        if not isinstance(locale_raw, dict):
+            raise ValueError("Engine config 'locale' must be a mapping")
+
+        country_raw = locale_raw.get("country")
+        if isinstance(country_raw, str) and country_raw.strip():
+            country = country_raw.strip()
+
+        session_timezone_raw = locale_raw.get("session_timezone")
+        if session_timezone_raw is not None:
+            if (
+                not isinstance(session_timezone_raw, str)
+                or not session_timezone_raw.strip()
+            ):
+                raise ValueError(
+                    "Engine config 'locale.session_timezone' must be a non-empty string"
+                )
+            session_timezone = session_timezone_raw.strip()
+            if not is_known_timezone(session_timezone):
+                raise ValueError(
+                    "Engine config 'locale.session_timezone': unknown timezone "
+                    f"{session_timezone!r}"
+                )
 
     return EngineConfig(
         symbols=symbols,
@@ -1597,7 +1651,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         depth_snapshot_tolerance_ticks=depth_snapshot_tolerance_ticks,
         sessions_enabled=sessions_enabled_raw,
         schedule=schedule_cfg,
-        country=country,
+        locale=LocaleConfig(country=country, session_timezone=session_timezone),
         enforce_collars=enforce_collars_raw,
         enforce_circuit_breakers=enforce_cb_raw,
         require_mm_seed_quotes=require_mm_seed_quotes_raw,

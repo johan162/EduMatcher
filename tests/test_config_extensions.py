@@ -713,7 +713,8 @@ class TestCountryReachesTheEngineConfig:
             _write_yaml(
                 tmp_path,
                 """
-                country: Germany
+                locale:
+                  country: Germany
                 symbols:
                   AAPL: {tick_decimals: 2}
                 participants:
@@ -722,7 +723,7 @@ class TestCountryReachesTheEngineConfig:
                 """,
             )
         )
-        assert cfg.country == "Germany"
+        assert cfg.locale.country == "Germany"
 
     def test_country_defaults_when_absent(self, tmp_path) -> None:
         cfg = load_engine_config(
@@ -737,7 +738,7 @@ class TestCountryReachesTheEngineConfig:
                 """,
             )
         )
-        assert cfg.country == "Sweden"
+        assert cfg.locale.country == "Sweden"
 
     def test_a_blank_country_falls_back_rather_than_being_stored(
         self, tmp_path
@@ -746,7 +747,8 @@ class TestCountryReachesTheEngineConfig:
             _write_yaml(
                 tmp_path,
                 """
-                country: "   "
+                locale:
+                  country: "   "
                 symbols:
                   AAPL: {tick_decimals: 2}
                 participants:
@@ -755,7 +757,7 @@ class TestCountryReachesTheEngineConfig:
                 """,
             )
         )
-        assert cfg.country == "Sweden"
+        assert cfg.locale.country == "Sweden"
 
 
 class TestScheduleTimesAreCanonical:

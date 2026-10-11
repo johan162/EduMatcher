@@ -77,12 +77,12 @@ class TestCountryFromCompiledConfig:
 
         source = tmp_path / "authored.yaml"
         source.write_text(
-            "country: Germany\n"
+            "locale:\n  country: Germany\n"
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
             "participants: [{id: TRADER01, role: TRADER}]\n"
         )
 
-        country = compile_config(source).engine.country
+        country = compile_config(source).engine.locale.country
 
         assert country == "Germany"
         assert _is_supported_country(country)
@@ -97,12 +97,12 @@ class TestCountryFromCompiledConfig:
 
         source = tmp_path / "authored.yaml"
         source.write_text(
-            "country: Narnia\n"
+            "locale:\n  country: Narnia\n"
             "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
             "participants: [{id: TRADER01, role: TRADER}]\n"
         )
 
-        country = compile_config(source).engine.country
+        country = compile_config(source).engine.locale.country
 
         assert country == "Narnia"
         assert not _is_supported_country(country)

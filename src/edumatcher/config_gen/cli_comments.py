@@ -40,16 +40,22 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
-    # country
+    # locale
     lines.extend(
         [
-            "country: Sweden",
-            "  Country pm-scheduler uses for two purposes: (1) deciding which calendar",
-            "  days are trading days -- the scheduler will not run the daily schedule on",
-            "  weekends or on that country's bank holidays (via the python-holidays",
-            "  package), and (2) the local timezone/wall-clock used to evaluate schedule",
-            '  times and bank holidays. Accepts either a country name (e.g. "Sweden") or',
-            '  an ISO 3166-1 alpha-2 code (e.g. "SE"). Defaults to "Sweden" when omitted.',
+            "locale:",
+            "  Where this exchange is.",
+            "  country: Sweden",
+            "    Country pm-scheduler uses to decide which calendar days are trading",
+            "    days -- it will not run the daily schedule on weekends or on that",
+            "    country's bank holidays (via the python-holidays package). Accepts",
+            '    either a country name (e.g. "Sweden") or an ISO 3166-1 alpha-2 code',
+            '    (e.g. "SE"). Defaults to "Sweden" when omitted.',
+            "  session_timezone: Europe/Stockholm",
+            "    IANA timezone every process that buckets events into a trading day",
+            "    (pm-stats, pm-clearing, ...) uses -- the single, ubiquitous source. An",
+            '    unrecognised name is rejected. Defaults to "Europe/Stockholm" when',
+            "    omitted (matching the default country).",
             "",
         ]
     )
@@ -440,7 +446,6 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "    audit_db: data/audit_index.db",
             "    order_retention_sec: 3600",
             "    market_data_cache_sec: 60",
-            "    session_timezone: null",
             "    engine_pull_addr: tcp://127.0.0.1:5555",
             "    engine_pub_addr: tcp://127.0.0.1:5556",
             "    index_pull_addr: tcp://127.0.0.1:5559",
@@ -993,9 +998,6 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Seconds a terminal order stays in the in-memory cache; 0 disables eviction.",
             "market_data_cache_sec: 60",
             "  TTL for cached market-data reads served by this instance; 0 disables the trade buffer.",
-            "session_timezone: null",
-            "  IANA timezone (e.g. Europe/Stockholm) used to resolve date-only history queries;",
-            "  null uses the timezone recorded in stats_db. An unknown name is rejected.",
             "engine_pull_addr / engine_pub_addr / index_pull_addr / index_pub_addr:",
             "  ZeroMQ endpoints of the engine and index buses. Not validated; normally left unset.",
             "credentials:",

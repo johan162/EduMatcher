@@ -160,6 +160,10 @@ def build_header(view: ConfigView, width: int) -> RenderableType:
         chips.append_text(onoff(view.flags.get(key)).append(f" {label}   "))
     if view.flags.get("country"):
         chips.append(f"{T.THEME.on_glyph} {view.flags['country']}", style=T.S_ON)
+    if view.flags.get("session_timezone"):
+        chips.append(
+            f"{T.THEME.on_glyph} {view.flags['session_timezone']}", style=T.S_ON
+        )
 
     counts = Text(
         f"{len(view.symbols)} symbols   {len(view.participants)} participants   "

@@ -197,11 +197,12 @@ def test_country_emitted_and_parses(
         ],
     )
 
-    # The engine loader ignores country (pm-scheduler-only), but the file
+    # country only drives pm-scheduler's holiday calendar, but the file
     # must still parse and contain the value verbatim.
-    load_engine_config(out_file)
+    cfg = load_engine_config(out_file)
+    assert cfg.locale.country == "Germany"
     raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
-    assert raw["country"] == "Germany"
+    assert raw["locale"]["country"] == "Germany"
 
 
 def test_country_omitted_when_not_given(

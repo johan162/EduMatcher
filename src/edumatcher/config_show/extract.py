@@ -51,7 +51,7 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "sessions_enabled",
         "enforce_collars",
         "enforce_circuit_breakers",
-        "country",
+        "locale",
         "auction_indicative_interval_sec",
         "engine_tuning",
         "mm_obligation_defaults",
@@ -429,6 +429,7 @@ def build_view(raw: Any, source: Source) -> ConfigView:
     cb_levels, cb_window, cb_reopening = _circuit_breakers(raw)
     mm_defaults = _as_dict(raw.get("mm_obligation_defaults"))
     schedule = _as_dict(raw.get("schedule"))
+    locale = _as_dict(raw.get("locale"))
 
     return ConfigView(
         source=source,
@@ -438,7 +439,8 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             "enforce_circuit_breakers": raw.get("enforce_circuit_breakers"),
             "enforce_mm_obligation": mm_defaults.get("enforce_mm_obligation"),
             "require_mm_seed_quotes": raw.get("require_mm_seed_quotes"),
-            "country": raw.get("country"),
+            "country": locale.get("country"),
+            "session_timezone": locale.get("session_timezone"),
         },
         listeners=_listeners(raw),
         participants=participants,

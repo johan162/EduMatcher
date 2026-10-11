@@ -1965,20 +1965,54 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
         )
 
-    country = raw.get("country")
-    if country is not None and (not isinstance(country, str) or not country.strip()):
+    locale = raw.get("locale")
+    if locale is not None and not isinstance(locale, dict):
         results.append(
             CheckResult(
-                code="S065",
+                code="S122",
                 severity=Severity.ERROR,
-                message=f"'country' must be a non-empty string when provided. Got '{country}'.",
-                suggestion=(
-                    'Set country to a country name (e.g. "Sweden") or an '
-                    'ISO 3166-1 alpha-2 code (e.g. "SE").'
-                ),
-                path="country",
+                message=f"'locale' must be a mapping when provided. Got '{locale}'.",
+                suggestion="Set locale to a mapping with country/session_timezone fields.",
+                path="locale",
             )
         )
+    elif locale is not None:
+        country = locale.get("country")
+        if country is not None and (
+            not isinstance(country, str) or not country.strip()
+        ):
+            results.append(
+                CheckResult(
+                    code="S065",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'locale.country' must be a non-empty string when "
+                        f"provided. Got '{country}'."
+                    ),
+                    suggestion=(
+                        'Set locale.country to a country name (e.g. "Sweden") or an '
+                        'ISO 3166-1 alpha-2 code (e.g. "SE").'
+                    ),
+                    path="locale.country",
+                )
+            )
+
+        session_timezone = locale.get("session_timezone")
+        if session_timezone is not None and (
+            not isinstance(session_timezone, str) or not session_timezone.strip()
+        ):
+            results.append(
+                CheckResult(
+                    code="S123",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'locale.session_timezone' must be a non-empty string "
+                        f"when provided. Got '{session_timezone}'."
+                    ),
+                    suggestion="Set locale.session_timezone to an IANA timezone name.",
+                    path="locale.session_timezone",
+                )
+            )
 
 
 def _check_mm_obligation_defaults_schema(
@@ -2829,7 +2863,6 @@ _API_INSTANCE_KEYS = frozenset(
         "audit_db",
         "order_retention_sec",
         "market_data_cache_sec",
-        "session_timezone",
         "engine_pull_addr",
         "engine_pub_addr",
         "index_pull_addr",

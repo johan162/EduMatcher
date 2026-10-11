@@ -333,7 +333,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         title="Statistics Recorder",
         summary="Records OHLCV, trade log, and index-level history to stats.db.",
         synopsis=(
-            "pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ]",
+            "pm-stats [--db data/stats.db] [--snapshot-interval SEC]",
             "         [--keep-days N] [--keep-order-events-days N]",
             "         [--sql-trace] [-v|-vv] [--log-level LEVEL]",
         ),
@@ -350,11 +350,6 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "--snapshot-interval SEC",
                 "900",
                 "Seconds between price_snapshots rows per symbol",
-            ),
-            Option(
-                "--timezone TZ",
-                "UTC",
-                "Session timezone (IANA name) defining the trading date; must match pm-clearing's --timezone",
             ),
             Option(
                 "--keep-days N",
@@ -391,7 +386,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         summary="SQLite-backed clearing writer computing realized/unrealized P&L and positions.",
         synopsis=(
             "pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N]",
-            "            [--flush-interval SEC] [--retention-days N] [--timezone TZ]",
+            "            [--flush-interval SEC] [--retention-days N]",
         ),
         description=(
             "Subscribes to trade.executed and writes gateway positions, daily "
@@ -428,11 +423,6 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "90",
                 "Prune trade_events rows older than N days on startup and at "
                 "every close of the market (0 disables)",
-            ),
-            Option(
-                "--timezone TZ",
-                "UTC",
-                "Session timezone (IANA name); must match pm-stats's --timezone or daily rollups won't reconcile",
             ),
             Option(
                 "--sql-trace",
