@@ -20,6 +20,7 @@ a fairly complex market with all shares having a true but hidden value. Through 
 ### 🚀 Improvements
 - Added participant heartbeats so the engine can release a participant ID after its process dies
 - Unified trading-day timezone settings across exchange services through the shared locale configuration
+- Refactor all existing ref-data generating scripts under `docs/examples/ref_data/*` to use a central data driven script instead of individual scripts. 
 
 ### 🐛 Bug Fixes
 - Fixed ALF order IDs losing their original case and missing responses to `QLEGS` requests
