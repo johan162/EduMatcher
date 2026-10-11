@@ -76,9 +76,13 @@ for n in $(seq 1 10); do
   trader_ids+=("$trader_id")
 done
 participants+=("OPS01:ADMIN:LEAVE_ALL:Instructor console")
-declare -A mm_description=([MM01]="Primary market maker" [MM02]="Backup market maker")
 for mm in "${market_makers[@]}"; do
-  participants+=("${mm}:MARKET_MAKER:CANCEL_QUOTES_ONLY:${mm_description[$mm]}")
+  case "$mm" in
+    MM01) mm_desc="Primary market maker" ;;
+    MM02) mm_desc="Backup market maker" ;;
+    *) echo "Error: unknown market maker $mm" >&2; exit 1 ;;
+  esac
+  participants+=("${mm}:MARKET_MAKER:CANCEL_QUOTES_ONLY:${mm_desc}")
 done
 for n in $(seq 1 "$ai_count"); do
   participants+=("$(printf 'AI%03d' "$n"):TRADER:CANCEL_ALL:AI trader ${n}")
