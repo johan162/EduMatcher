@@ -9,7 +9,7 @@
 #          TRADER05:CANCEL_AGGRESSOR --participant-smp OPS01:CANCEL_AGGRESSOR --participant-smp \
 #          MM01:CANCEL_AGGRESSOR --participant-smp MM02:CANCEL_AGGRESSOR --seed-mm-mid-range \
 #          20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm --output engine_config.yaml \
-#          --force --comment-default-config-fields --seed 91137624 --outstanding-shares \
+#          --force --comment-default-config-fields --seed 518408068 --outstanding-shares \
 #          AAPL:15400000000 --api-gateway-instance \
 #          desk:TRADER01,TRADER02,TRADER03,TRADER04,TRADER05,MM01,MM02,OPS01:8080 \
 #          --api-gateway-instance dashboards::8081 --api-gateway-readonly-key --sessions-enabled \
@@ -1034,28 +1034,28 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-dlbvib
+    - api_key: key-trader01-4byx5h
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-bgyajy
+    - api_key: key-trader02-o5p5n8
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-trader03-y0pyca
+    - api_key: key-trader03-abnfn8
       gateway_id: TRADER03
       description: Generated key for TRADER03
-    - api_key: key-trader04-llyts6
+    - api_key: key-trader04-a2r4of
       gateway_id: TRADER04
       description: Generated key for TRADER04
-    - api_key: key-trader05-f7avxe
+    - api_key: key-trader05-1zg3wx
       gateway_id: TRADER05
       description: Generated key for TRADER05
-    - api_key: key-ops01-go92ee
+    - api_key: key-ops01-dvhm8i
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-3rvw26
+    - api_key: key-mm01-0z2y7a
       gateway_id: MM01
       description: Generated key for MM01
-    - api_key: key-mm02-mzii0x
+    - api_key: key-mm02-jmuig9
       gateway_id: MM02
       description: Generated key for MM02
     rate_limit:
@@ -1074,7 +1074,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-0h38mp
+    - api_key: key-readonly-9n2b6h
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -1091,19 +1091,19 @@ symbols:
   AAPL:
     tick_decimals: 2
     level: CORE
-    last_buy_price: 32.53
-    last_sell_price: 32.53
+    last_buy_price: 139.74
+    last_sell_price: 139.74
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 32.43
-      ask_price: 32.63
+      bid_price: 139.64
+      ask_price: 139.84
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
       seed_once: true
     - gateway_id: MM02
-      bid_price: 32.43
-      ask_price: 32.63
+      bid_price: 139.64
+      ask_price: 139.84
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY

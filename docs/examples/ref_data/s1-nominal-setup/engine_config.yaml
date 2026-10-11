@@ -6,7 +6,7 @@
 #          OPS01:CANCEL_AGGRESSOR --participant-smp MM01:CANCEL_AGGRESSOR --seed-mm-mid-range \
 #          20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm --no-collars \
 #          --enforce-mm-obligations --output engine_config.yaml --force \
-#          --comment-default-config-fields --seed 537752934 --outstanding-shares AAPL:15400000000 \
+#          --comment-default-config-fields --seed 548195529 --outstanding-shares AAPL:15400000000 \
 #          --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 --api-gateway-instance \
 #          dashboards::8081 --api-gateway-readonly-key --sessions-enabled --post-trade-gateway \
 #          --post-trade-bind-address 0.0.0.0 --post-trade-port 5580 \
@@ -939,16 +939,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-euo6ez
+    - api_key: key-trader01-67opi7
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-nw8ujg
+    - api_key: key-trader02-youfy0
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-9zx4cm
+    - api_key: key-ops01-2dssfw
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-ptvnbs
+    - api_key: key-mm01-0gnm8u
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -967,7 +967,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-mz9pqo
+    - api_key: key-readonly-fjtmxr
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -983,12 +983,12 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 125.43
-    last_sell_price: 125.43
+    last_buy_price: 198.2
+    last_sell_price: 198.2
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 125.33
-      ask_price: 125.53
+      bid_price: 198.1
+      ask_price: 198.3
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY

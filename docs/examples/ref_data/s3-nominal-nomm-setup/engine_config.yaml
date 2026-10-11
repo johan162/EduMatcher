@@ -6,7 +6,7 @@
 #          TRADER02:CANCEL_AGGRESSOR --participant-smp OPS01:CANCEL_AGGRESSOR --participant-smp \
 #          MM01:CANCEL_AGGRESSOR --no-collars --no-enforce-mm-obligations --seed-mm-mid-range \
 #          20:300 --seed-last-prices-from-mm --no-mm-seed-quotes --output engine_config.yaml \
-#          --force --comment-default-config-fields --seed 760712555 --outstanding-shares \
+#          --force --comment-default-config-fields --seed 770511662 --outstanding-shares \
 #          AAPL:15400000000 --outstanding-shares MSFT:7430000000 --outstanding-shares \
 #          TSLA:3200000000 --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 \
 #          --api-gateway-instance dashboards::8081 --api-gateway-readonly-key --sessions-enabled \
@@ -933,16 +933,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-1eoozc
+    - api_key: key-trader01-7e1x82
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-h41n9t
+    - api_key: key-trader02-2onnb2
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-g6j8gb
+    - api_key: key-ops01-dg3tjb
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-n0fcnr
+    - api_key: key-mm01-reu4e5
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -961,7 +961,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-dbompm
+    - api_key: key-readonly-u9aake
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -977,18 +977,18 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 174.55
-    last_sell_price: 174.55
+    last_buy_price: 279.55
+    last_sell_price: 279.55
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 193.05
-    last_sell_price: 193.05
+    last_buy_price: 59.62
+    last_sell_price: 59.62
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 52.91
-    last_sell_price: 52.91
+    last_buy_price: 170.24
+    last_sell_price: 170.24
     outstanding_shares: 3200000000
 
 # -- Session schedule --

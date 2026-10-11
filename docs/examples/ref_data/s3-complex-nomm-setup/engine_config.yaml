@@ -9,7 +9,7 @@
 #          TRADER03:CANCEL_AGGRESSOR --participant-smp TRADER04:CANCEL_AGGRESSOR --participant-smp \
 #          TRADER05:CANCEL_AGGRESSOR --participant-smp OPS01:CANCEL_AGGRESSOR --participant-smp \
 #          MM01:CANCEL_AGGRESSOR --participant-smp MM02:CANCEL_AGGRESSOR --no-mm-seed-quotes \
-#          --output engine_config.yaml --force --comment-default-config-fields --seed 75928627 \
+#          --output engine_config.yaml --force --comment-default-config-fields --seed 40120556 \
 #          --outstanding-shares AAPL:15400000000 --outstanding-shares MSFT:7430000000 \
 #          --outstanding-shares TSLA:3200000000 --api-gateway-instance \
 #          desk:TRADER01,TRADER02,TRADER03,TRADER04,TRADER05,MM01,MM02,OPS01:8080 \
@@ -1025,28 +1025,28 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-vywc5w
+    - api_key: key-trader01-vs1386
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-am158v
+    - api_key: key-trader02-8cunrb
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-trader03-be0jyp
+    - api_key: key-trader03-xp30x8
       gateway_id: TRADER03
       description: Generated key for TRADER03
-    - api_key: key-trader04-i6ma6z
+    - api_key: key-trader04-fidcc8
       gateway_id: TRADER04
       description: Generated key for TRADER04
-    - api_key: key-trader05-t8vagi
+    - api_key: key-trader05-0rc4qt
       gateway_id: TRADER05
       description: Generated key for TRADER05
-    - api_key: key-ops01-0eno3l
+    - api_key: key-ops01-v2pzmb
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-kbpkym
+    - api_key: key-mm01-ea40gg
       gateway_id: MM01
       description: Generated key for MM01
-    - api_key: key-mm02-gyqmcb
+    - api_key: key-mm02-57mdja
       gateway_id: MM02
       description: Generated key for MM02
     rate_limit:
@@ -1065,7 +1065,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-m6blv4
+    - api_key: key-readonly-4zixfg
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -1082,19 +1082,19 @@ symbols:
   AAPL:
     tick_decimals: 2
     level: CORE
-    last_buy_price: 32.8
-    last_sell_price: 32.8
+    last_buy_price: 132.73
+    last_sell_price: 132.73
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 248.59
-    last_sell_price: 248.59
+    last_buy_price: 209.12
+    last_sell_price: 209.12
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
     level: HIGH_BETA
-    last_buy_price: 67.95
-    last_sell_price: 67.95
+    last_buy_price: 172.42
+    last_sell_price: 172.42
     collar:
       dynamic_band_pct: 0.04
     circuit_breaker:

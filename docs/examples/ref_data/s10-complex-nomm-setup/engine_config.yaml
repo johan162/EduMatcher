@@ -9,7 +9,7 @@
 #          TRADER03:CANCEL_AGGRESSOR --participant-smp TRADER04:CANCEL_AGGRESSOR --participant-smp \
 #          TRADER05:CANCEL_AGGRESSOR --participant-smp OPS01:CANCEL_AGGRESSOR --participant-smp \
 #          MM01:CANCEL_AGGRESSOR --participant-smp MM02:CANCEL_AGGRESSOR --no-mm-seed-quotes \
-#          --output engine_config.yaml --force --comment-default-config-fields --seed 849431450 \
+#          --output engine_config.yaml --force --comment-default-config-fields --seed 637525145 \
 #          --outstanding-shares AAPL:15400000000 --outstanding-shares MSFT:7430000000 \
 #          --outstanding-shares TSLA:3200000000 --outstanding-shares AMZN:10600000000 \
 #          --outstanding-shares GOOGL:12200000000 --outstanding-shares META:2560000000 \
@@ -1029,28 +1029,28 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-cobg39
+    - api_key: key-trader01-x7uus2
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-gtnol4
+    - api_key: key-trader02-ao98pz
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-trader03-zftqyl
+    - api_key: key-trader03-14btw4
       gateway_id: TRADER03
       description: Generated key for TRADER03
-    - api_key: key-trader04-hcn35o
+    - api_key: key-trader04-nik3rc
       gateway_id: TRADER04
       description: Generated key for TRADER04
-    - api_key: key-trader05-l2yx7i
+    - api_key: key-trader05-iy9ojy
       gateway_id: TRADER05
       description: Generated key for TRADER05
-    - api_key: key-ops01-a3xje9
+    - api_key: key-ops01-19xw7c
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-revnp9
+    - api_key: key-mm01-osvi6c
       gateway_id: MM01
       description: Generated key for MM01
-    - api_key: key-mm02-k3vzwu
+    - api_key: key-mm02-bfrm2n
       gateway_id: MM02
       description: Generated key for MM02
     rate_limit:
@@ -1069,7 +1069,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-s9c1jm
+    - api_key: key-readonly-7ec8ez
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -1086,19 +1086,19 @@ symbols:
   AAPL:
     tick_decimals: 2
     level: CORE
-    last_buy_price: 171.56
-    last_sell_price: 171.56
+    last_buy_price: 278.22
+    last_sell_price: 278.22
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 172.64
-    last_sell_price: 172.64
+    last_buy_price: 200.38
+    last_sell_price: 200.38
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
     level: HIGH_BETA
-    last_buy_price: 104.45
-    last_sell_price: 104.45
+    last_buy_price: 178.33
+    last_sell_price: 178.33
     collar:
       dynamic_band_pct: 0.04
     circuit_breaker:
@@ -1108,38 +1108,38 @@ symbols:
     outstanding_shares: 3200000000
   AMZN:
     tick_decimals: 2
-    last_buy_price: 222.09
-    last_sell_price: 222.09
+    last_buy_price: 269.72
+    last_sell_price: 269.72
     outstanding_shares: 10600000000
   GOOGL:
     tick_decimals: 2
-    last_buy_price: 218.23
-    last_sell_price: 218.23
+    last_buy_price: 137.87
+    last_sell_price: 137.87
     outstanding_shares: 12200000000
   META:
     tick_decimals: 2
-    last_buy_price: 206.54
-    last_sell_price: 206.54
+    last_buy_price: 166.64
+    last_sell_price: 166.64
     outstanding_shares: 2560000000
   NVDA:
     tick_decimals: 2
-    last_buy_price: 222.42
-    last_sell_price: 222.42
+    last_buy_price: 176.35
+    last_sell_price: 176.35
     outstanding_shares: 24600000000
   NFLX:
     tick_decimals: 2
-    last_buy_price: 43.33
-    last_sell_price: 43.33
+    last_buy_price: 98.75
+    last_sell_price: 98.75
     outstanding_shares: 430000000
   INTC:
     tick_decimals: 2
-    last_buy_price: 122.38
-    last_sell_price: 122.38
+    last_buy_price: 24.69
+    last_sell_price: 24.69
     outstanding_shares: 4300000000
   ORCL:
     tick_decimals: 2
-    last_buy_price: 28.85
-    last_sell_price: 28.85
+    last_buy_price: 243.16
+    last_sell_price: 243.16
     outstanding_shares: 2800000000
 
 # -- Startup market-maker combo seeds --

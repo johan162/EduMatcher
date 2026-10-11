@@ -6,7 +6,7 @@
 #          OPS01:CANCEL_AGGRESSOR --participant-smp MM01:CANCEL_AGGRESSOR --no-mm-seed-quotes \
 #          --no-collars --no-circuit-breakers --no-enforce-mm-obligations --seed-mm-mid-range \
 #          20:300 --seed-last-prices-from-mm --output engine_config.yaml --force \
-#          --comment-default-config-fields --seed 360978443 --outstanding-shares AAPL:15400000000 \
+#          --comment-default-config-fields --seed 458865914 --outstanding-shares AAPL:15400000000 \
 #          --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 --api-gateway-instance \
 #          dashboards::8081 --api-gateway-readonly-key --post-trade-gateway \
 #          --post-trade-bind-address 0.0.0.0 --post-trade-port 5580 \
@@ -932,16 +932,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-697a6d
+    - api_key: key-trader01-nizvxr
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-7g90i8
+    - api_key: key-trader02-vnjqqf
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-dsr43k
+    - api_key: key-ops01-getv1t
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-2r0u30
+    - api_key: key-mm01-l9wobo
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -960,7 +960,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-q7x9di
+    - api_key: key-readonly-ovby7p
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -976,8 +976,8 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 131.18
-    last_sell_price: 131.18
+    last_buy_price: 209.28
+    last_sell_price: 209.28
     outstanding_shares: 15400000000
 
 # -- Additional fields --

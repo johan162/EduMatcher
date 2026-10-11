@@ -8,7 +8,7 @@
 #          OPS01:CANCEL_AGGRESSOR --participant-smp MM01:CANCEL_AGGRESSOR --no-mm-seed-quotes \
 #          --no-collars --no-circuit-breakers --no-enforce-mm-obligations --seed-mm-mid-range \
 #          20:300 --seed-last-prices-from-mm --output engine_config.yaml --force \
-#          --comment-default-config-fields --seed 834222454 --outstanding-shares AAPL:15400000000 \
+#          --comment-default-config-fields --seed 337896864 --outstanding-shares AAPL:15400000000 \
 #          --outstanding-shares MSFT:7430000000 --outstanding-shares TSLA:3200000000 \
 #          --outstanding-shares AMZN:10600000000 --outstanding-shares GOOGL:12200000000 \
 #          --outstanding-shares META:2560000000 --outstanding-shares NVDA:24600000000 \
@@ -949,16 +949,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-0nyqrv
+    - api_key: key-trader01-frcw9o
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-4oslke
+    - api_key: key-trader02-6a1nwi
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-3r0wd8
+    - api_key: key-ops01-ba04r1
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-oe49sj
+    - api_key: key-mm01-kwcj7t
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -977,7 +977,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-2r1e53
+    - api_key: key-readonly-2z0uj7
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -993,153 +993,153 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 118.0
-    last_sell_price: 118.0
+    last_buy_price: 117.63
+    last_sell_price: 117.63
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 169.66
-    last_sell_price: 169.66
+    last_buy_price: 245.01
+    last_sell_price: 245.01
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 42.98
-    last_sell_price: 42.98
+    last_buy_price: 134.61
+    last_sell_price: 134.61
     outstanding_shares: 3200000000
   AMZN:
     tick_decimals: 2
-    last_buy_price: 80.96
-    last_sell_price: 80.96
+    last_buy_price: 232.26
+    last_sell_price: 232.26
     outstanding_shares: 10600000000
   GOOGL:
     tick_decimals: 2
-    last_buy_price: 107.36
-    last_sell_price: 107.36
+    last_buy_price: 114.2
+    last_sell_price: 114.2
     outstanding_shares: 12200000000
   META:
     tick_decimals: 2
-    last_buy_price: 197.21
-    last_sell_price: 197.21
+    last_buy_price: 291.34
+    last_sell_price: 291.34
     outstanding_shares: 2560000000
   NVDA:
     tick_decimals: 2
-    last_buy_price: 128.17
-    last_sell_price: 128.17
+    last_buy_price: 204.77
+    last_sell_price: 204.77
     outstanding_shares: 24600000000
   NFLX:
     tick_decimals: 2
-    last_buy_price: 263.38
-    last_sell_price: 263.38
+    last_buy_price: 229.37
+    last_sell_price: 229.37
     outstanding_shares: 430000000
   INTC:
     tick_decimals: 2
-    last_buy_price: 295.13
-    last_sell_price: 295.13
+    last_buy_price: 83.91
+    last_sell_price: 83.91
     outstanding_shares: 4300000000
   ORCL:
     tick_decimals: 2
-    last_buy_price: 237.83
-    last_sell_price: 237.83
+    last_buy_price: 235.58
+    last_sell_price: 235.58
     outstanding_shares: 2800000000
   IBM:
     tick_decimals: 2
-    last_buy_price: 229.78
-    last_sell_price: 229.78
+    last_buy_price: 183.29
+    last_sell_price: 183.29
     outstanding_shares: 910000000
   ADBE:
     tick_decimals: 2
-    last_buy_price: 164.71
-    last_sell_price: 164.71
+    last_buy_price: 104.47
+    last_sell_price: 104.47
     outstanding_shares: 460000000
   CRM:
     tick_decimals: 2
-    last_buy_price: 221.66
-    last_sell_price: 221.66
+    last_buy_price: 297.98
+    last_sell_price: 297.98
     outstanding_shares: 970000000
   QCOM:
     tick_decimals: 2
-    last_buy_price: 215.74
-    last_sell_price: 215.74
+    last_buy_price: 218.96
+    last_sell_price: 218.96
     outstanding_shares: 1690000000
   AMD:
     tick_decimals: 2
-    last_buy_price: 202.88
-    last_sell_price: 202.88
+    last_buy_price: 66.99
+    last_sell_price: 66.99
     outstanding_shares: 1620000000
   AVGO:
     tick_decimals: 2
-    last_buy_price: 212.28
-    last_sell_price: 212.28
+    last_buy_price: 138.21
+    last_sell_price: 138.21
     outstanding_shares: 4700000000
   TXN:
     tick_decimals: 2
-    last_buy_price: 114.19
-    last_sell_price: 114.19
+    last_buy_price: 271.68
+    last_sell_price: 271.68
     outstanding_shares: 910000000
   NOW:
     tick_decimals: 2
-    last_buy_price: 64.6
-    last_sell_price: 64.6
+    last_buy_price: 231.78
+    last_sell_price: 231.78
     outstanding_shares: 205000000
   SHOP:
     tick_decimals: 2
-    last_buy_price: 63.79
-    last_sell_price: 63.79
+    last_buy_price: 133.92
+    last_sell_price: 133.92
     outstanding_shares: 1320000000
   UBER:
     tick_decimals: 2
-    last_buy_price: 171.98
-    last_sell_price: 171.98
+    last_buy_price: 256.84
+    last_sell_price: 256.84
     outstanding_shares: 2130000000
   PYPL:
     tick_decimals: 2
-    last_buy_price: 103.14
-    last_sell_price: 103.14
+    last_buy_price: 93.08
+    last_sell_price: 93.08
     outstanding_shares: 1080000000
   SQ:
     tick_decimals: 2
-    last_buy_price: 286.41
-    last_sell_price: 286.41
+    last_buy_price: 171.75
+    last_sell_price: 171.75
     outstanding_shares: 600000000
   BABA:
     tick_decimals: 2
-    last_buy_price: 139.7
-    last_sell_price: 139.7
+    last_buy_price: 64.84
+    last_sell_price: 64.84
     outstanding_shares: 2200000000
   SONY:
     tick_decimals: 2
-    last_buy_price: 26.47
-    last_sell_price: 26.47
+    last_buy_price: 144.43
+    last_sell_price: 144.43
     outstanding_shares: 1240000000
   SAP:
     tick_decimals: 2
-    last_buy_price: 40.25
-    last_sell_price: 40.25
+    last_buy_price: 292.41
+    last_sell_price: 292.41
     outstanding_shares: 1150000000
   ASML:
     tick_decimals: 2
-    last_buy_price: 261.45
-    last_sell_price: 261.45
+    last_buy_price: 228.8
+    last_sell_price: 228.8
     outstanding_shares: 415000000
   CSCO:
     tick_decimals: 2
-    last_buy_price: 29.7
-    last_sell_price: 29.7
+    last_buy_price: 195.06
+    last_sell_price: 195.06
     outstanding_shares: 4060000000
   MU:
     tick_decimals: 2
-    last_buy_price: 288.41
-    last_sell_price: 288.41
+    last_buy_price: 174.57
+    last_sell_price: 174.57
     outstanding_shares: 1100000000
   BKNG:
     tick_decimals: 2
-    last_buy_price: 146.62
-    last_sell_price: 146.62
+    last_buy_price: 145.15
+    last_sell_price: 145.15
     outstanding_shares: 44000000
   TSM:
     tick_decimals: 2
-    last_buy_price: 197.39
-    last_sell_price: 197.39
+    last_buy_price: 44.42
+    last_sell_price: 44.42
     outstanding_shares: 5180000000
 
 # -- Additional fields --

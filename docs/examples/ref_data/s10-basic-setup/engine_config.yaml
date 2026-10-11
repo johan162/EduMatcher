@@ -7,7 +7,7 @@
 #          OPS01:CANCEL_AGGRESSOR --participant-smp MM01:CANCEL_AGGRESSOR --seed-mm-mid-range \
 #          20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm --no-collars \
 #          --no-circuit-breakers --enforce-mm-obligations --output engine_config.yaml --force \
-#          --comment-default-config-fields --seed 1043877630 --outstanding-shares AAPL:15400000000 \
+#          --comment-default-config-fields --seed 607737684 --outstanding-shares AAPL:15400000000 \
 #          --outstanding-shares MSFT:7430000000 --outstanding-shares TSLA:3200000000 \
 #          --outstanding-shares AMZN:10600000000 --outstanding-shares GOOGL:12200000000 \
 #          --outstanding-shares META:2560000000 --outstanding-shares NVDA:24600000000 \
@@ -945,16 +945,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-e3oxm1
+    - api_key: key-trader01-610wpl
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-mzbyf9
+    - api_key: key-trader02-hosap4
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-fdtt7o
+    - api_key: key-ops01-iy9y1f
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-2f8vj0
+    - api_key: key-mm01-yongbq
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -973,7 +973,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-w0ogat
+    - api_key: key-readonly-1adhzy
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -989,12 +989,12 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 51.63
-    last_sell_price: 51.63
+    last_buy_price: 22.88
+    last_sell_price: 22.88
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 51.53
-      ask_price: 51.73
+      bid_price: 22.78
+      ask_price: 22.98
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1002,12 +1002,12 @@ symbols:
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 252.1
-    last_sell_price: 252.1
+    last_buy_price: 81.01
+    last_sell_price: 81.01
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 252.0
-      ask_price: 252.2
+      bid_price: 80.91
+      ask_price: 81.11
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1015,12 +1015,12 @@ symbols:
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 62.33
-    last_sell_price: 62.33
+    last_buy_price: 260.32
+    last_sell_price: 260.32
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 62.23
-      ask_price: 62.43
+      bid_price: 260.22
+      ask_price: 260.42
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1028,12 +1028,12 @@ symbols:
     outstanding_shares: 3200000000
   AMZN:
     tick_decimals: 2
-    last_buy_price: 208.28
-    last_sell_price: 208.28
+    last_buy_price: 132.85
+    last_sell_price: 132.85
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 208.18
-      ask_price: 208.38
+      bid_price: 132.75
+      ask_price: 132.95
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1041,12 +1041,12 @@ symbols:
     outstanding_shares: 10600000000
   GOOGL:
     tick_decimals: 2
-    last_buy_price: 198.75
-    last_sell_price: 198.75
+    last_buy_price: 135.93
+    last_sell_price: 135.93
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 198.65
-      ask_price: 198.85
+      bid_price: 135.83
+      ask_price: 136.03
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1054,12 +1054,12 @@ symbols:
     outstanding_shares: 12200000000
   META:
     tick_decimals: 2
-    last_buy_price: 280.09
-    last_sell_price: 280.09
+    last_buy_price: 45.24
+    last_sell_price: 45.24
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 279.99
-      ask_price: 280.19
+      bid_price: 45.14
+      ask_price: 45.34
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1067,12 +1067,12 @@ symbols:
     outstanding_shares: 2560000000
   NVDA:
     tick_decimals: 2
-    last_buy_price: 230.32
-    last_sell_price: 230.32
+    last_buy_price: 66.77
+    last_sell_price: 66.77
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 230.22
-      ask_price: 230.42
+      bid_price: 66.67
+      ask_price: 66.87
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1080,12 +1080,12 @@ symbols:
     outstanding_shares: 24600000000
   NFLX:
     tick_decimals: 2
-    last_buy_price: 35.81
-    last_sell_price: 35.81
+    last_buy_price: 24.43
+    last_sell_price: 24.43
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 35.71
-      ask_price: 35.91
+      bid_price: 24.33
+      ask_price: 24.53
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1093,12 +1093,12 @@ symbols:
     outstanding_shares: 430000000
   INTC:
     tick_decimals: 2
-    last_buy_price: 46.88
-    last_sell_price: 46.88
+    last_buy_price: 74.73
+    last_sell_price: 74.73
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 46.78
-      ask_price: 46.98
+      bid_price: 74.63
+      ask_price: 74.83
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY
@@ -1106,12 +1106,12 @@ symbols:
     outstanding_shares: 4300000000
   ORCL:
     tick_decimals: 2
-    last_buy_price: 69.29
-    last_sell_price: 69.29
+    last_buy_price: 67.81
+    last_sell_price: 67.81
     market_maker_quotes:
     - gateway_id: MM01
-      bid_price: 69.19
-      ask_price: 69.39
+      bid_price: 67.71
+      ask_price: 67.91
       bid_qty: 1000
       ask_qty: 1000
       tif: DAY

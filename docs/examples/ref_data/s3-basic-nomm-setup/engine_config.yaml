@@ -6,7 +6,7 @@
 #          TRADER02:CANCEL_AGGRESSOR --participant-smp OPS01:CANCEL_AGGRESSOR --participant-smp \
 #          MM01:CANCEL_AGGRESSOR --no-mm-seed-quotes --no-collars --no-circuit-breakers \
 #          --no-enforce-mm-obligations --seed-mm-mid-range 20:300 --seed-last-prices-from-mm \
-#          --output engine_config.yaml --force --comment-default-config-fields --seed 584003600 \
+#          --output engine_config.yaml --force --comment-default-config-fields --seed 1054320226 \
 #          --outstanding-shares AAPL:15400000000 --outstanding-shares MSFT:7430000000 \
 #          --outstanding-shares TSLA:3200000000 --api-gateway-instance \
 #          desk:TRADER01,TRADER02,MM01,OPS01:8080 --api-gateway-instance dashboards::8081 \
@@ -934,16 +934,16 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-trader01-hywh9h
+    - api_key: key-trader01-8xegn7
       gateway_id: TRADER01
       description: Generated key for TRADER01
-    - api_key: key-trader02-pbxaxs
+    - api_key: key-trader02-bq0so3
       gateway_id: TRADER02
       description: Generated key for TRADER02
-    - api_key: key-ops01-16eder
+    - api_key: key-ops01-1xh89f
       gateway_id: OPS01
       description: Generated key for OPS01
-    - api_key: key-mm01-3v75r2
+    - api_key: key-mm01-8v605r
       gateway_id: MM01
       description: Generated key for MM01
     rate_limit:
@@ -962,7 +962,7 @@ api_gateways:
     stats_db: data/stats.db
     order_retention_sec: 3600
     credentials:
-    - api_key: key-readonly-qeck16
+    - api_key: key-readonly-dpi29h
       gateway_id: null
       description: Generated read-only market-data key
     rate_limit:
@@ -978,18 +978,18 @@ api_gateways:
 symbols:
   AAPL:
     tick_decimals: 2
-    last_buy_price: 278.25
-    last_sell_price: 278.25
+    last_buy_price: 75.36
+    last_sell_price: 75.36
     outstanding_shares: 15400000000
   MSFT:
     tick_decimals: 2
-    last_buy_price: 282.34
-    last_sell_price: 282.34
+    last_buy_price: 291.79
+    last_sell_price: 291.79
     outstanding_shares: 7430000000
   TSLA:
     tick_decimals: 2
-    last_buy_price: 168.51
-    last_sell_price: 168.51
+    last_buy_price: 87.01
+    last_sell_price: 87.01
     outstanding_shares: 3200000000
 
 # -- Additional fields --
