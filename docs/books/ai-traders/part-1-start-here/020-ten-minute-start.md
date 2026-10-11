@@ -15,7 +15,7 @@ chapter uses: one file, one command, the browser applications included.
 The **hand-built** way runs the same processes straight on your machine with
 `pipx`; it is in [A Complete Set-up by Hand](../part-3-run-it/100-a-complete-setup-by-hand.md).
 
-## 1. Get the compose file
+## Get the compose file
 
 The simulation is one compose file, `compose.ai-sim.yaml`. Everything else —
 the exchange, its configuration, the AI traders, the browser applications —
@@ -28,9 +28,9 @@ curl -fsSLO https://raw.githubusercontent.com/johan162/EduMatcher/main/deploymen
 
 !!! tip "From a clone of the repository"
     The same file is `deployment/docker/compose.ai-sim.yaml`. There,
-    `make up-sim` does step 2 and `make down-sim` stops it again.
+    `make up-sim` does the next step ([Start it](#start-it)) and `make down-sim` stops it again.
 
-## 2. Start it
+## Start it
 
 ```bash
 docker compose -f compose.ai-sim.yaml up -d
@@ -66,9 +66,9 @@ simulation: `mm-bot`, `market-sim` and `ai-swarm`.
     Monday to Friday, closed on Swedish public holidays. Outside those hours
     everything runs but nothing trades; the books show the last day's
     closing state. To see trading right now, whatever the time, use
-    [step 5](#5-see-a-trading-day-now).
+    [See a trading day now](#see-a-trading-day-now).
 
-## 3. Open the browser applications
+## Open the browser applications
 
 | Application | Address | Shows |
 |---|---|---|
@@ -102,7 +102,7 @@ The trader-gui asks for an API key. The simulation's desks and their keys:
 **Checkpoint.** During trading hours, terminal-gui's watchlist ticks and
 book-gui's book for `AAPL` changes every second or two.
 
-## 4. Look at the hidden value
+## Look at the hidden value
 
 The true values are secret from students, but not from the instructor. In
 the container, as `OPS01`:
@@ -125,7 +125,7 @@ Outside trading hours it says `PAUSED` and shows no values. The gap column
 is the whole point of the simulation; [The True Value](../part-2-how-it-works/030-the-true-value.md)
 explains it.
 
-## 5. See a trading day now
+## See a trading day now
 
 To watch a day without waiting for 09:00, restart the simulation with an
 accelerated clock that starts just before the open:
@@ -149,7 +149,7 @@ docker compose -f compose.ai-sim.yaml down
 docker compose -f compose.ai-sim.yaml up -d
 ```
 
-## 6. Stop it, start it again
+## Stop it, start it again
 
 ```bash
 docker compose -f compose.ai-sim.yaml down     # stop and remove the containers

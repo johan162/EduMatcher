@@ -49,7 +49,7 @@ Pick a symbol and watch for a minute:
 ### Trading GUI: trade in it
 
 Students log in with their desk keys
-([Ten-Minute Start](../part-1-start-here/020-ten-minute-start.md#3-open-the-browser-applications))
+([Ten-Minute Start](../part-1-start-here/020-ten-minute-start.md#open-the-browser-applications))
 and trade like any participant: their orders meet the AI traders' orders in
 the same books. Logged in as `OPS01` you get the operator's screens —
 session control, halts, the kill switch — the same as on any exchange. Use
