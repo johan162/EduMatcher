@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -296,9 +297,10 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         engine_pub_addr = f"tcp://{args.engine_host}:5556"
         index_pull_addr = f"tcp://{args.engine_host}:5559"
         index_pub_addr = f"tcp://{args.engine_host}:5558"
-    return ApiGatewayConfig(
-        name=config.name,
-        enabled=config.enabled,
+    # replace(), not a field-by-field rebuild: a rebuild silently reset every
+    # field it did not list to its default (order_retention_sec, audit_db).
+    return dataclasses.replace(
+        config,
         host=args.host or config.host,
         port=args.port or config.port,
         engine_pull_addr=engine_pull_addr,
@@ -306,12 +308,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
         stats_db=resolve_data_path(args.stats_db) if args.stats_db else config.stats_db,
-        market_data_cache_sec=config.market_data_cache_sec,
         log_level=args.log_level.lower() if args.log_level else config.log_level,
-        swagger_enabled=config.swagger_enabled,
-        credentials=config.credentials,
-        rate_limit=config.rate_limit,
-        timeouts=config.timeouts,
     )
 
 

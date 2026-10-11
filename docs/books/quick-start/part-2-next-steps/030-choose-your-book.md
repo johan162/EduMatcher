@@ -20,6 +20,7 @@ flowchart TD
     Q -->|"run an exchange\nfor a class"| OG["Operator's Guide"]
     Q -->|"connect my own\nprogram"| PC["Protocols and Clients"]
     Q -->|"understand or change\nthe code"| AD["Architecture and\nDeveloper Guide"]
+    Q -->|"leave a market\nrunning on its own"| AI["AI Traders and\nMarket Simulation"]
     PG & OG & PC & AD -.->|"look up details"| RM["Reference Manual"]
     TG -.->|"background reading"| PG & OG
 ```
@@ -32,6 +33,7 @@ flowchart TD
 | [Protocols and Clients](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) | write a program that trades on, or listens to, the exchange |
 | [Architecture and Developer Guide](../../architecture-and-development/part-1-architecture/010-architecture-overview.md) | understand how EduMatcher is built, or change it |
 | [Reference Manual](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) | look up one command, option, configuration field or term |
+| [AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md) | run a market that trades on its own — AI traders, hidden values, news — for days or weeks |
 | [How an Exchange Works](../../../how-exchange-works.md) | understand exchanges in general, without any software |
 
 ## Reading paths by role
@@ -52,9 +54,8 @@ flowchart TD
 2. Operator's Guide, [Session Scheduling and Auctions](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md)
    and [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md).
 3. Training Guide, chapters 00–19, to know exactly what your students will do.
-4. Participant Guide, [AI Traders](../../participant-guide/part-4-automated-trading/010-ai-traders.md)
-   and [The Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md),
-   to make a classroom market look alive.
+4. [AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md),
+   to make a classroom market look alive — or leave one running all term.
 
 ### Market maker
 

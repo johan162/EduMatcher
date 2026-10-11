@@ -3,13 +3,13 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How the six container images, the compose overlays and the three layers
+    - How the seven container images, the compose overlays and the three layers
       of Makefile fit together
     - Where networking responsibility actually sits, and which of the several
       `127.0.0.1`/`0.0.0.0` knobs controls what
     - What is baked into an image at build time versus decided at start time,
       and the precedence order between the ways of setting each
-    - How a release turns one git tag into a wheel and five multi-architecture
+    - How a release turns one git tag into a wheel and seven multi-architecture
       images
     - What maintenance this design will demand as the system grows, and where
       it will drift first
@@ -18,8 +18,8 @@
 
 ## Summary
 
-EduMatcher ships as **six container images** that run as **one Compose
-project**:
+EduMatcher ships as **seven container images**; six of them run as **one
+Compose project**:
 
 | Image | Built from | Serves |
 |---|---|---|
@@ -29,6 +29,7 @@ project**:
 | `edumatcher-config-gui` | `web-apps/config-gui/` | Configuration GUI (`config-gui`), port 8092 |
 | `edumatcher-trader-gui` | `web-apps/trader-gui/` | Trading GUI (`pm-trading-ui`), port 8093 |
 | `edumatcher-book-gui` | `web-apps/book-gui/` | Order Book Viewer (`pm-book`), port 8094 |
+| `edumatcher-ai-sim` | `deployment/docker/`, stage `ai-sim` | The `edumatcher` image with the AI-trader simulation's defaults (`s300-sim`, profile `ai-sim`); run by `compose.ai-sim.yaml` with four of the GUIs, in a compose project of its own ([The Simulation Container](../../ai-traders/part-3-run-it/110-the-simulation-container.md)) |
 
 The backend is one container by design — the engine's ZeroMQ bus binds
 loopback by default, so every `pm-*` process must share a network namespace,
@@ -411,7 +412,7 @@ make down-all       # stop and remove everything
 |---|---|---|
 | `CONFIG=<name>` | `up`, `up-all` | Deploy a bundled example |
 | `CONFIG=<file>` | `up-all` | Copy the file to `config/`, mount it read-only at `/config`, deploy it |
-| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini`, `micro`, `mm-demo` or `ai-swarm` |
+| `PROFILE=<name>` | `up`, `up-all` | `default`, `mini`, `micro`, `mm-demo`, `ai-swarm` or `ai-sim` |
 | `ZMQ=1` | `up`, `up-all` | Add `compose.zmq.yaml`: publish the raw bus and set the engine/index bind hosts to `0.0.0.0` |
 | `SSH=1` | `up`, `up-all` | Add `compose.ssh.yaml` and prepare `authorized_keys` |
 | `CONFIG_GUI=1` | `up-all` | Add `compose.config-gui.yaml` |
@@ -517,7 +518,7 @@ never becomes what a new user gets by default. That is the same test
 
 **`mkghrelease.sh` waits but does not push.** Its PHASE 6B polls
 `gh run view` for the image workflow — bounded by `IMAGE_WAIT_MINUTES`
-(default 30), skippable with `--skip-images` — and reports the six image
+(default 30), skippable with `--skip-images` — and reports the seven image
 references. If the workflow fails the GitHub release still exists; only the
 images are missing, and `gh workflow run publish-images.yml -f tag=vX.Y.Z`
 re-runs just that part.
@@ -642,7 +643,7 @@ PY
 ### Standing costs
 
 **Version coupling.** Every image carries the EduMatcher release version, so
-every release republishes all six even when only the backend changed. That is
+every release republishes all seven even when only the backend changed. That is
 the price of "one tag names a coherent set" and is almost certainly the right
 trade — but it means a GUI-only fix still needs a full release.
 
@@ -651,8 +652,8 @@ They still drive `make cdist` and per-app `cpush`. If that divergence starts
 causing confusion, the fix is to stop versioning the apps independently rather
 than to reintroduce per-app tags into the release.
 
-**Build minutes grow linearly with images.** Ten build jobs today; a sixth
-application makes it twelve. The GitHub Actions cache is scoped per
+**Build minutes grow linearly with images.** Fourteen build jobs today; one
+more image makes it sixteen. The GitHub Actions cache is scoped per
 `(image, arch)`, so an unchanged app is cheap, but the matrix is not free.
 
 **The credential-lookup snippet is the fragile one.** It reads a specific shape

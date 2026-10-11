@@ -1423,6 +1423,7 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 | `no symbols configured: use --symbol, --symbols, or a config file with a 'symbols:' block` | Neither `--symbol` nor `--symbols` nor the config file's `symbols:` block was given | Add one of the two |
 | `--symbol and --symbols are mutually exclusive` | Both `--symbol` and `--symbols` ended up set, from any combination of CLI and `--config` | Use only one |
 | `startup failed: no reference price available (no book, no trade, no bootstrap, no random range)` | Empty book + no `--initial_min`/`--initial_max`, for a symbol with no other symbol left quoting | Add bootstrap range flags |
+| `auth rejected: Gateway already connected: <ID>` | A bot with that gateway ID is still logged on, or one died without logging off | Stop the other bot; after a crash, wait: the bot heartbeats the engine once a minute, and the engine frees the ID after three missed beats |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
 | `startup failed: no symbol survived startup checks` | Every symbol failed startup (see [Per-symbol failure isolation](#per-symbol-failure-isolation)) | Fix whichever per-symbol cause each excluded-symbol log line names |
 | `[SYM] excluded from quoting: ...` | One symbol (not all) failed a startup check on a `--symbols` bot | Expected if intentional (e.g. testing failure isolation); otherwise fix that symbol's cause and restart |

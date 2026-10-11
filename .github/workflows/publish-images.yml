@@ -1,4 +1,4 @@
-# Publish the six EduMatcher container images to GHCR.
+# Publish the seven EduMatcher container images to GHCR.
 #
 # Runs on the same trigger as publish-to-pypi.yml, so one GitHub release
 # produces the wheel and the images together, all tagged with that release's
@@ -7,7 +7,7 @@
 #
 # Each image is built twice, natively: amd64 on ubuntu-24.04 and arm64 on
 # ubuntu-24.04-arm. The two are pushed by digest and joined into one manifest
-# list in the merge job — no QEMU anywhere, which is what makes a six-image
+# list in the merge job — no QEMU anywhere, which is what makes a seven-image
 # multi-arch release finish in minutes instead of hours.
 name: Publish Container Images to GHCR
 
@@ -33,8 +33,14 @@ jobs:
       fail-fast: false
       matrix:
         image:
+          # One Dockerfile, two images: the exchange and the AI-trader
+          # simulation (the same image with the s300-sim/ai-sim defaults).
           - name: edumatcher
             context: deployment/docker
+            target: runtime
+          - name: edumatcher-ai-sim
+            context: deployment/docker
+            target: ai-sim
           - name: edumatcher-config-gui
             context: web-apps/config-gui
           - name: edumatcher-log-gui
@@ -72,7 +78,7 @@ jobs:
       # refuses to build against an interpreter the project excludes. Same
       # step, same version, as publish-to-pypi.yml.
       - name: Set up Python
-        if: matrix.image.name == 'edumatcher'
+        if: matrix.image.context == 'deployment/docker'
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -83,7 +89,7 @@ jobs:
       # whether the new version is on PyPI yet is a race the image must not
       # depend on.
       - name: Build the wheel for the backend image
-        if: matrix.image.name == 'edumatcher'
+        if: matrix.image.context == 'deployment/docker'
         run: |
           pipx install poetry
           poetry build --format wheel
@@ -106,6 +112,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.image.context }}
+          # Empty for the GUIs: their Dockerfile's last stage.
+          target: ${{ matrix.image.target }}
           platforms: linux/${{ matrix.platform.arch }}
           # Links the package to this repository on its GHCR page.
           labels: |
@@ -145,6 +153,7 @@ jobs:
       matrix:
         image:
           - edumatcher
+          - edumatcher-ai-sim
           - edumatcher-config-gui
           - edumatcher-log-gui
           - edumatcher-terminal-gui
@@ -192,7 +201,7 @@ jobs:
             TAGS="$TAGS -t ${IMAGE}:latest"
           fi
 
-          # 'edumatcher' is a prefix of every GUI image name, so the download
+          # 'edumatcher' is a prefix of every other image name, so the download
           # pattern above also pulls in digests-edumatcher-config-gui-* and the
           # rest. Each digest file is named '<image>@<hex>', so select this
           # image's own by exact prefix — otherwise the backend merge asks the

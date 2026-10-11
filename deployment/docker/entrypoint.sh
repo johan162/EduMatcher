@@ -4,7 +4,8 @@
 #   1. prepare the (bind-mounted) data directory
 #   2. optionally start sshd
 #   3. start the pm-opctl-cli process profile
-#   4. stay alive until the container is stopped, then stop the profile
+#   4. stay alive until the container is stopped, then stop the profile;
+#      with EM_RESTART_DEAD=1, restart dead processes meanwhile
 
 set -euo pipefail
 
@@ -75,6 +76,16 @@ if [ "${EM_SSH:-0}" = "1" ]; then
     start_sshd
 fi
 
+# Accelerated time: pm-scheduler reads its --speed/--start defaults from the
+# environment, which pm-opctl-cli passes on to every process it starts.
+if [ -n "${EM_SPEED:-}" ] && [ "${EM_SPEED}" != "1" ]; then
+    export EDUMATCHER_SCHEDULER_SPEED="${EM_SPEED}"
+    log "accelerated time: x${EM_SPEED}${EM_START:+ from ${EM_START}}"
+fi
+if [ -n "${EM_START:-}" ]; then
+    export EDUMATCHER_SCHEDULER_START="${EM_START}"
+fi
+
 log "starting profile '${PROFILE}'"
 pm-opctl-cli start "${PROFILE}"
 pm-opctl-cli list --no-restart || true
@@ -82,4 +93,15 @@ pm-opctl-cli list --no-restart || true
 trap shutdown TERM INT
 
 log "EduMatcher is up — attach with 'make shell'"
+if [ "${EM_RESTART_DEAD:-0}" = "1" ]; then
+    # Long unattended runs: once a minute, restart any process of the profile
+    # that has died (a crash, or a bot that started before the engine).
+    log "restarting dead processes once a minute (EM_RESTART_DEAD=1)"
+    while true; do
+        sleep 60 & wait $!
+        pm-opctl-cli list --restart 2>&1 | sed -n '/^Restarting:/,$p' | while IFS= read -r line; do
+            log "$(date '+%F %T') ${line}"
+        done
+    done
+fi
 sleep infinity & wait $!

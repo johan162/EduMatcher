@@ -43,7 +43,7 @@ finish an earlier one.
 
 ## The EduMatcher library
 
-This guide is one of eight books. You do not have to read them all — most
+This guide is one of nine books. You do not have to read them all — most
 people read this one, then one or two others that match their role.
 
 ```mermaid
@@ -56,6 +56,7 @@ flowchart TD
     PC["Protocols and Clients\nwire protocols and client code"]
     AD["Architecture and Developer Guide\nhow it is built, how to change it"]
     RM["Reference Manual\nevery command, field and term"]
+    AI["AI Traders and Market Simulation\nan exchange that trades itself"]
 
     B0 -.->|"new to markets?"| QS
     QS --> PG
@@ -63,6 +64,7 @@ flowchart TD
     QS --> PC
     QS --> AD
     QS -->|"learn by doing"| TG
+    QS -->|"a market that runs itself"| AI
     TG -.->|"explanations"| PG
     TG -.->|"explanations"| OG
     PG -.->|"look up"| RM
@@ -81,6 +83,7 @@ flowchart TD
 | **Protocols and Clients** | connect your own program to the exchange | client and tool developers |
 | **Architecture and Developer Guide** | understand or change how EduMatcher is built | contributors |
 | **Reference Manual** | look up one command, option, configuration field or term | everyone, mid-task |
+| **AI Traders and Market Simulation** | run a simulated market — AI traders, hidden values, news — for a class, for days or weeks | instructors, curious students |
 
 [Choose Your Next Book](../part-2-next-steps/030-choose-your-book.md) at the
 end of this guide gives a reading path for each role.

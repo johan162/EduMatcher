@@ -69,3 +69,25 @@ def test_speed_needs_daily_and_a_positive_factor(
     with pytest.raises(SystemExit) as exc:
         sched.main()
     assert exc.value.code == 2
+
+
+@pytest.mark.parametrize(
+    ("env", "argv"),
+    [
+        ({"EDUMATCHER_SCHEDULER_SPEED": "10"}, []),
+        ({"EDUMATCHER_SCHEDULER_START": "2026-11-02T08:55"}, []),
+        ({"EDUMATCHER_SCHEDULER_SPEED": "0"}, ["--daily"]),
+        ({"EDUMATCHER_SCHEDULER_SPEED": "fast"}, ["--daily"]),
+    ],
+)
+def test_speed_and_start_come_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str], argv: list[str]
+) -> None:
+    # Each case is refused only because the environment set --speed/--start.
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr("sys.argv", ["pm-scheduler", *argv])
+    monkeypatch.setattr(sched, "_configure_logging", lambda _a: 20)
+    with pytest.raises(SystemExit) as exc:
+        sched.main()
+    assert exc.value.code == 2

@@ -34,7 +34,11 @@ the participant's `disconnect_behaviour` applies (`CANCEL_ALL` for the
 example AI participants).
 
 The `s150-*` examples register `AI001`–`AI020`, the `s300-load` example
-`AI001`–`AI500`; both ship a `swarm.yaml` and a `market_sim.yaml`.
+`AI001`–`AI500` and the `s300-sim` example `AI001`–`AI100`; all ship a
+`swarm.yaml` and a `market_sim.yaml`. `s300-sim` is the long-running
+simulated market of the
+[AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md)
+book.
 
 ---
 

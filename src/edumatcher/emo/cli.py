@@ -7,7 +7,7 @@ and shuts them down again.
 
 Profiles
 --------
-A *profile* is a named list of processes to run together. Five profiles are
+A *profile* is a named list of processes to run together. Six profiles are
 built in:
 
 ``micro``
@@ -27,6 +27,12 @@ built in:
     ``mm-demo`` plus ``pm-ai-swarm`` running the AI traders ``AI001``-``AI020``
     (one worker, about 40 order actions a second). Needs a configuration that
     registers them, such as the ``s150`` examples or ``s300-load``.
+``ai-sim``
+    ``ai-swarm`` with the swarm of the ``s300-sim`` example: ``AI001``-``AI100``
+    on 300 symbols (its ``swarm.yaml``), a symmetric market maker, a quiet
+    engine log, a week of trade statistics and an hour of order events. The
+    long-running simulation of the
+    ``edumatcher-ai-sim`` container image; needs ``s300-sim`` deployed.
 
 The built-ins are used as-is when no configuration file exists. Running
 ``init`` writes them to ``<DATA_DIR>/emo-config.yaml`` so they can be edited.
@@ -135,6 +141,7 @@ from typing import Any
 import yaml
 
 from edumatcher.cli_version import package_version
+from edumatcher.config_deploy import examples_root
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     AUDIT_LOG_FILE,
@@ -320,6 +327,64 @@ AI_SWARM_PROCESSES: list[dict[str, Any]] = [
     },
 ]
 
+# ai-swarm on the s300-sim example, set up to run for weeks: the example's
+# swarm file (AI001-AI100, 30 symbols each); the engine without --verbose, which
+# logs every order at INFO and would fill log.db; pm-stats keeping a week of
+# trades and an hour of order events, which are nearly all of stats.db under a
+# swarm (daily rollups are kept for good); pm-clearing keeping a week of raw
+# trades (not 90 days: ~150 MB a trading day here) and without its console P&L
+# table, which it redraws every 100 trades into its emo log; and a
+# symmetric market maker: the passive one re-quotes whenever other traders'
+# orders change whether its sides are covered, which with a hundred traders on
+# 300 symbols was most of the exchange's messages, CPU and disk.
+_AI_SIM_COMMANDS = {
+    "engine": ["pm-engine"],
+    "mm-bot": [
+        "pm-mm-bot",
+        "--gateway-id",
+        "MM01",
+        "--all-symbols",
+        "--strategy",
+        "symmetric",
+        "--gap",
+        "0.20",
+        "--qty",
+        "200",
+        "--reissue-delay-ms",
+        "5000",
+        "--drift-ticks",
+        "15",
+        "--anchor-sim",
+        "0.3",
+    ],
+    "stats": [
+        "pm-stats",
+        "--verbose",
+        "--keep-days",
+        "7",
+        "--keep-order-events-days",
+        "0.05",
+    ],
+    "clearing": [
+        "pm-clearing",
+        "--verbose",
+        "--print-every",
+        "0",
+        "--retention-days",
+        "7",
+    ],
+    "ai-swarm": [
+        "pm-ai-swarm",
+        "--swarm",
+        str(examples_root() / "s300-sim-setup" / "swarm.yaml"),
+        "--verbose",
+    ],
+}
+AI_SIM_PROCESSES: list[dict[str, Any]] = [
+    {**process, "command": _AI_SIM_COMMANDS.get(process["name"], process["command"])}
+    for process in AI_SWARM_PROCESSES
+]
+
 # {"name": "trader", "command": ["pm-alf-console", "--id", "TRADER01", "--verbose"]},
 
 BUILTIN_PROFILES = {
@@ -328,6 +393,7 @@ BUILTIN_PROFILES = {
     "mini": MINI_PROCESSES,
     "mm-demo": MM_DEMO_PROCESSES,
     "ai-swarm": AI_SWARM_PROCESSES,
+    "ai-sim": AI_SIM_PROCESSES,
 }
 
 

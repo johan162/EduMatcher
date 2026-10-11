@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import zmq
 
 from edumatcher.mm_bot.bot import BotState, MMBot, _update_position
 from edumatcher.mm_bot.pricer import (
@@ -3422,3 +3423,74 @@ class TestAdditionalBotPaths:
         # Adopted state cleared → quote.new should have been sent
         topics_sent = [msg_decode(m)[0] for m in push.sent]
         assert "quote.new" in topics_sent
+
+
+class TestEngineSession:
+    """The engine frees MM01 when the bot dies, so a restart can log in again."""
+
+    def _topics(self, push: _FakeSock) -> list[str]:
+        return [msg_decode(m)[0] for m in push.sent]
+
+    def test_heartbeat_after_auth_and_disconnect_on_exit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, push, sub = _make_bot(monkeypatch)
+        sub.recv_queue.append(_auth_msg(accepted=True))
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        assert bot.run() == 1  # nothing after the auth reply: startup fails
+        topics = self._topics(push)
+        assert topics[:2] == ["system.gateway_connect", "system.gateway_heartbeat"]
+        assert topics[-1] == "system.gateway_disconnect"
+
+    def test_no_disconnect_without_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        bot, push, sub = _make_bot(monkeypatch)
+        sub.recv_queue.append(_auth_msg(accepted=False))
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        assert bot.run() == 1
+        assert self._topics(push) == ["system.gateway_connect"]
+
+    def test_connect_retries_until_the_engine_is_up(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, push, sub = _make_bot(monkeypatch)
+        bot._setup_sockets()
+        refusals = [3]
+        real_send = push.send_multipart
+
+        def send(frames: list[bytes]) -> None:
+            if refusals[0]:
+                refusals[0] -= 1
+                raise zmq.Again()
+            real_send(frames)
+
+        monkeypatch.setattr(push, "send_multipart", send)
+        sub.recv_queue.append(_auth_msg(accepted=True))
+        assert bot._authenticate(timeout_sec=2.0)
+        assert self._topics(push)[0] == "system.gateway_connect"
+
+    def test_connect_gives_up_when_the_engine_stays_away(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, push, sub = _make_bot(monkeypatch)
+        bot._setup_sockets()
+
+        def send(frames: list[bytes]) -> None:
+            raise zmq.Again()
+
+        monkeypatch.setattr(push, "send_multipart", send)
+        assert not bot._authenticate(timeout_sec=0.3)
+
+    def test_tick_beats_once_an_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        bot, push, sub = _make_bot(monkeypatch)
+        bot._setup_sockets()
+        bot._authenticated = True
+        bot._last_engine_heartbeat = time.monotonic()
+        bot._tick()
+        assert "system.gateway_heartbeat" not in self._topics(push)
+        bot._last_engine_heartbeat -= 61
+        bot._tick()
+        assert self._topics(push).count("system.gateway_heartbeat") == 1

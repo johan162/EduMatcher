@@ -73,7 +73,7 @@ SHELL := $(shell which bash)
 # Book list and cover titles
 # ============================================================================================
 BOOKS := quick-start participant-guide operator-guide reference-manual \
-		 protocols-and-clients architecture-and-development training-guide
+		 protocols-and-clients architecture-and-development training-guide ai-traders
 
 COVER_TITLE_quick-start := QUICK<br><span class="accent">START</span><br>GUIDE
 COVER_TITLE_participant-guide := PARTICIPANT<br><span class="accent">GUIDE</span>
@@ -82,6 +82,7 @@ COVER_TITLE_reference-manual := REFERENCE<br><span class="accent">MANUAL</span>
 COVER_TITLE_protocols-and-clients := PROTOCOLS<br><span class="accent">AND CLIENTS</span>
 COVER_TITLE_architecture-and-development := ARCHITECTURE<br><span class="accent">AND DEVELOPER</span><br>GUIDE
 COVER_TITLE_training-guide := TRAINING<br><span class="accent">GUIDE</span>
+COVER_TITLE_ai-traders := AI TRADERS<br><span class="accent">AND MARKET</span><br>SIMULATION
 
 # ============================================================================================
 # Per-book rules (book.mk) and phony targets

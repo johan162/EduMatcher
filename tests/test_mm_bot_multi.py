@@ -1328,6 +1328,38 @@ class TestBotHonoursPerSymbolParameters:
         assert bot._poll_timeout_ms(["AAPL"]) == 50
 
 
+class TestEventLoopTicks:
+    def test_timers_do_not_run_after_every_message(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # At 300 symbols thousands of messages a second arrive; a pass of
+        # the timers over every symbol after each one was most of the CPU.
+        bot, _push, sub, _ = _build_bot(monkeypatch, ["AAPL", "MSFT"])
+        _queue_startup(sub, ["AAPL", "MSFT"])
+        ticks = 0
+        real_tick, real_timeout = bot._tick, bot._poll_timeout_ms
+
+        def counting_tick() -> None:
+            nonlocal ticks
+            ticks += 1
+            real_tick()
+
+        def timeout_then_flood(active: list[str]) -> int:
+            # Called once, just before the event loop: queue its messages.
+            # (The fake poller of the start-up waits has stopped the bot.)
+            sub.recv_queue.extend(
+                encode("index.update", {"index_id": "X"}) for _ in range(500)
+            )
+            bot._running = True
+            return real_timeout(active)
+
+        monkeypatch.setattr(bot, "_tick", counting_tick)
+        monkeypatch.setattr(bot, "_poll_timeout_ms", timeout_then_flood)
+        bot.run()
+        assert not sub.recv_queue
+        assert 0 < ticks < 100
+
+
 class TestBotOverrideContract:
     """``overrides`` is a narrow, checked surface, not an escape hatch."""
 
@@ -1988,6 +2020,40 @@ class TestUnattributableEvents:
         # MSFT has not acked yet -- both its order ids are still None.
         bot._handle_order_fill({"order_id": "B-SOMEONE-ELSE", "fill_qty": 10})
         assert bot._pending_fills == [{"order_id": "B-SOMEONE-ELSE", "fill_qty": 10}]
+
+    def test_a_fill_naming_an_acked_symbol_is_not_buffered_for_another(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A fill of AAPL's old leg must not wait for MSFT's ack: with many
+        # symbols one is nearly always between quotes, and such fills piled
+        # up for good, re-scanned on every quote.ack.
+        bot, _push, _sub = self._bot(monkeypatch)
+        bot._symbols_state["AAPL"].bid_order_id = "B-AAPL"
+        bot._symbols_state["AAPL"].ask_order_id = "A-AAPL"
+        bot._handle_order_fill(
+            {"order_id": "B-AAPL-OLD", "symbol": "AAPL", "fill_qty": 10}
+        )
+        assert bot._pending_fills == []
+        # Still buffered while its own symbol waits for its ack.
+        fill = {"order_id": "B-MSFT", "symbol": "MSFT", "fill_qty": 10}
+        bot._handle_order_fill(fill)
+        assert bot._pending_fills == [fill]
+
+    def test_a_fill_naming_its_symbol_is_matched_on_that_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, _push, _sub = self._bot(monkeypatch)
+        bot._symbols_state["MSFT"].bid_order_id = "B-MSFT"
+        bot._symbols_state["MSFT"].ask_order_id = "A-MSFT"
+        bot._handle_order_fill(
+            {
+                "order_id": "B-MSFT",
+                "symbol": "MSFT",
+                "fill_qty": 10,
+                "fill_price": 100.0,
+            }
+        )
+        assert bot._symbols_state["MSFT"].net_position == 10
 
     def test_a_fill_for_a_known_leg_is_logged_in_verbose_mode(
         self, monkeypatch: pytest.MonkeyPatch

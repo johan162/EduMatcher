@@ -2,10 +2,13 @@
 """Print a book's sources in manifest order, or one manifest key.
 
 Exits non-zero if two files of one book share a basename (00-part.md excepted).
+A part's file may be a path into another book (``../../participant-guide/...``):
+that chapter is then single-sourced, built into both books from one file.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import tomllib
 from pathlib import Path
 
@@ -28,7 +31,11 @@ def sources(manifest: Path) -> list[str]:
                 f"{seen[name]} and {relative}"
             )
         seen[name] = relative
-    return [str(book / relative) for relative in output]
+    paths = [os.path.normpath(book / relative) for relative in output]
+    missing = [path for path in paths if not Path(path).is_file()]
+    if missing:
+        raise SystemExit(f"{manifest}: no such file(s): {', '.join(missing)}")
+    return paths
 
 
 def main() -> None:

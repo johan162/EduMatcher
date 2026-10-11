@@ -101,9 +101,9 @@ pm-clearing [OPTIONS]
   --flush-size N         Max buffered trades before flush (1..100, default: 100)
   --flush-interval SEC   Max seconds between flushes (>=0.1, default: 5)
   --print-every N        Print P&L summary every N trades (0 = never, default: 100)
-  --retention-days N     Prune trade_events rows older than N days on startup
-                         and on each system.eod (default: 90). 0 does NOT
-                         disable pruning: it deletes every row dated before
+  --retention-days N     Prune trade_events rows older than N days on startup,
+                         at every close and on each system.eod (default: 90).
+                         0 does NOT disable pruning: it deletes every row dated before
                          today (use a large value such as 36500 to keep rows)
   --timezone TZ          Exchange session timezone (IANA name, e.g.
                          America/New_York) used to bucket trades into a
@@ -259,7 +259,8 @@ and must be recreated; the system does not migrate historical short IDs.
 | `ingest_ts_ns` | INTEGER | Ingestion timestamp (local wall clock) |
 
 Retention: rows older than `--retention-days` (default 90, compared against
-the UTC date) are deleted on startup, on each `system.eod`, and on demand via
+the UTC date) are deleted on startup, at every close of the market
+(`session.state` `CLOSED`), on each `system.eod`, and on demand via
 `pm-clearing-cli prune`.
 
 ### `gateway_symbol_positions`

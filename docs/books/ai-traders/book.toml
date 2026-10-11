@@ -1,0 +1,56 @@
+title = "AI Traders and Market Simulation"
+subtitle = "Run an autonomous exchange: AI traders, a hidden true value, news and rumours"
+slug = "ai-traders"
+
+# Chapters marked "included" live in another book and are built into this one
+# from the same file (single source): edit them where they live.
+
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
+[[parts]]
+title = "Part I: Start here"
+dir = "part-1-start-here"
+files = [
+  "010-a-market-that-runs-itself.md",
+  "020-ten-minute-start.md",
+]
+
+[[parts]]
+title = "Part II: How it works"
+dir = "part-2-how-it-works"
+files = [
+  "030-the-true-value.md",
+  "040-news-and-rumours.md",
+  # included: Participant Guide
+  "../../participant-guide/part-4-automated-trading/020-how-the-bots-decide.md",
+  "060-tuning-the-traders.md",
+]
+
+[[parts]]
+title = "Part III: Run it"
+dir = "part-3-run-it"
+files = [
+  # included: Participant Guide, Operator's Guide
+  "../../participant-guide/part-4-automated-trading/010-ai-traders.md",
+  "../../operator-guide/part-3-run/030-ai-trader-swarm.md",
+  "../../operator-guide/part-4-run-a-market/090-market-model.md",
+  "100-a-complete-setup-by-hand.md",
+  "110-the-simulation-container.md",
+  "120-accelerated-time.md",
+]
+
+[[parts]]
+title = "Part IV: Watch and teach"
+dir = "part-4-watch-and-teach"
+files = [
+  "130-watching-the-market.md",
+  # included: Training Guide
+  "../../training-guide/140-ai-traders.md",
+  "150-running-it-for-weeks.md",
+  "160-troubleshooting-and-faq.md",
+]
+
+[backmatter]
+title = "Appendices"
+files = ["90-backmatter/010-simulation-glossary.md"]

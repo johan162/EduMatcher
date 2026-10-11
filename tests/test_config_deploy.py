@@ -22,7 +22,9 @@ from edumatcher.config_artifact import (
     encode,
     source_digest,
 )
-from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG
+from edumatcher.ai_trader.swarm_config import load_swarm_config
+from edumatcher.market_sim.config import load_sim_config
+from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG, main as setup_main
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -241,6 +243,22 @@ class TestShippedSample:
         assert config.engine.symbols, "a default with no symbols would teach nothing"
         assert config.engine.fix_gateways
 
+    def test_pm_setup_installs_the_examples_market_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # pm-market-sim reads <DATA_DIR>/ref_data/market_sim.yaml; pm-setup
+        # once compiled a copy of the YAML and so dropped the example's model.
+        monkeypatch.setattr(
+            "sys.argv",
+            ["pm-setup", "--data-dir", str(tmp_path), "--config", "s300-sim"],
+        )
+        setup_main()
+        ref_data = tmp_path / "ref_data"
+        assert (ref_data / "engine_config.json").is_file()
+        assert (ref_data / "market_sim.yaml").read_text(encoding="utf-8") == (
+            resolve_example("s300-sim").with_name("market_sim.yaml").read_text("utf-8")
+        )
+
 
 class TestExamples:
     """`--example NAME` resolves to a bundled docs/examples/ref_data config."""
@@ -279,6 +297,7 @@ class TestExamples:
             ("s150-nominal-nomm", "s150-nominal-nomm-setup"),
             ("s150-complex-nomm", "s150-complex-nomm-setup"),
             ("s300-load", "s300-load-setup"),
+            ("s300-sim", "s300-sim-setup"),
         ],
     )
     def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
@@ -333,6 +352,28 @@ class TestExamples:
         ai = sorted(gw for gw in engine.fix_gateways if gw.startswith("AI"))
         assert ai == [f"AI{i:03d}" for i in range(1, 501)]
         assert engine.sessions_enabled is True
+
+    def test_s300_sim_has_the_simulation_set_up(self) -> None:
+        # The long-running simulation (AI sim book plan WP-B1): one market
+        # maker, a hundred AI traders, sessions driven by the scheduler.
+        engine = compile_config(resolve_example("s300-sim")).engine
+        assert len(engine.symbols) == 300
+        gateways = engine.fix_gateways
+        ai = sorted(gw for gw in gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 101)]
+        assert [gw for gw in gateways if gateways[gw].role.value == "MARKET_MAKER"] == [
+            "MM01"
+        ]
+        assert engine.sessions_enabled is True
+
+    def test_s300_sim_swarm_and_model_load(self) -> None:
+        folder = resolve_example("s300-sim").parent
+        swarm = load_swarm_config(folder / "swarm.yaml")
+        assert swarm.values["count"] == 100
+        assert swarm.values["symbols_per_agent"] == 30
+        engine = compile_config(folder / "engine_config.yaml").engine
+        sim = load_sim_config(folder / "market_sim.yaml", set(engine.symbols))
+        assert sim.news.rate_symbol > 0
 
     def test_s300_load_has_no_nomm_variant(self) -> None:
         with pytest.raises(ValueError, match="Unknown example"):
@@ -423,6 +464,6 @@ class TestMarketSimConfig:
         deploy(_source(tmp_path, name="engine_config.yaml"), dest)
         assert not (dest.parent / "market_sim.yaml").exists()
 
-    @pytest.mark.parametrize("example", ["s150-nominal", "s300-load"])
+    @pytest.mark.parametrize("example", ["s150-nominal", "s300-load", "s300-sim"])
     def test_examples_carry_one(self, example: str) -> None:
         assert resolve_example(example).with_name("market_sim.yaml").is_file()

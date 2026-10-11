@@ -259,7 +259,7 @@ tear down the live session.
 ### `system.gateway_heartbeat`
 
 **Motivation:** Frees a participant ID whose process died without sending `system.gateway_disconnect`.
-**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`) via PUSH :5555
+**Published by:** Every process that holds an ID (`pm-alf-console`, `pm-alf-gwy`, `pm-balf-gwy`, `pm-api-gwy`, `pm-mm-bot`) via PUSH :5555
 
 Sent every 60 seconds (`GATEWAY_HEARTBEAT_INTERVAL_SEC`), the first one
 immediately after the connect is accepted. It is one-way: the engine does not

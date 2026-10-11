@@ -273,7 +273,7 @@ pm-opctl-cli stop           # stop what it started
 `start` is idempotent: a process it finds already running is left alone and
 reported as such, so it is safe to re-run after adding one by hand.
 
-### The five built-in profiles
+### The six built-in profiles
 
 | Profile | Processes | Use it for |
 |---|---|---|
@@ -282,9 +282,10 @@ reported as such, so it is safe to re-run after adding one by hand.
 | `default` | `mini` plus `pm-audit`, `pm-clearing`, `pm-index`, `pm-balf-gwy` and the second `pm-api-gwy` instance (`dashboards`) | Everything — the operational baseline below |
 | `mm-demo` | `default` plus one `pm-mm-bot` (`passive` strategy, gateway `MM01`, every symbol of the deployed configuration) | Showing students a market maker at work; the default of the `deployment/curl` installer |
 | `ai-swarm` | `mm-demo` with its market maker anchored to the model (`--anchor-sim 0.3`), plus `pm-market-sim` and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000` (AI traders `AI001`–`AI020`, every built-in preset, each on every symbol) | A market with background flow and news; needs a config that registers `AI001`–`AI020` and ships a `market_sim.yaml` (the `s150` examples, `s300-load`) |
+| `ai-sim` | `ai-swarm` on the `s300-sim` example, set up to run for weeks: `AI001`–`AI100`, a symmetric market maker, quieter logs and bounded statistics | The long-running simulation of the [AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md) book and the `edumatcher-ai-sim` image |
 
 The built-ins are used as they are when no configuration file exists.
-`pm-opctl-cli init` writes all five to `<DATA_DIR>/emo-config.yaml`, and once
+`pm-opctl-cli init` writes all six to `<DATA_DIR>/emo-config.yaml`, and once
 that file exists **its profiles replace the built-ins entirely**. That is the
 supported way to add a process, change a flag or define a profile of your own.
 

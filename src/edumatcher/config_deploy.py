@@ -91,7 +91,10 @@ _EXAMPLE_PREFIXES = {
 }
 _EXAMPLE_PROFILES = ("basic", "nominal", "complex")
 #: Examples outside the count x profile grid, by shorthand -> folder.
-_STANDALONE_EXAMPLES = {"s300-load": "s300-load-setup"}
+_STANDALONE_EXAMPLES = {
+    "s300-load": "s300-load-setup",
+    "s300-sim": "s300-sim-setup",
+}
 
 
 def examples_root() -> Path:

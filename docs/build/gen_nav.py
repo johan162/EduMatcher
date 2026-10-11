@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import tomllib
@@ -31,7 +32,16 @@ def quote(text: str) -> str:
 def book_nav(docs: Path, manifest: Path) -> list[str]:
     data = tomllib.loads(manifest.read_text(encoding="utf-8"))
     book = manifest.parent
-    relative = lambda file: (book / file).relative_to(docs).as_posix()
+
+    def relative(file: str | Path) -> str:
+        # normpath: a part may live in another book (``../other-book/...``).
+        path = Path(os.path.normpath(book / file))
+        if not path.is_relative_to(book):
+            # A chapter shared with another book stays in that book's nav: MkDocs
+            # files a page under its last nav entry, so link to its URL instead.
+            return path.relative_to(docs).with_suffix("").as_posix() + "/"
+        return path.relative_to(docs).as_posix()
+
     output = [f"  - {quote(data['title'])}:"]
     for file in data.get("frontmatter", {}).get("files", []):
         output.append(f"    - {quote(first_h1(book / file))}: {relative(file)}")
@@ -40,8 +50,7 @@ def book_nav(docs: Path, manifest: Path) -> list[str]:
         for file in part["files"]:
             path = Path(part["dir"]) / file
             output.append(
-                f"      - {quote(first_h1(book / path))}: "
-                f"{(book / path).relative_to(docs).as_posix()}"
+                f"      - {quote(first_h1(book / path))}: {relative(path)}"
             )
     for file in data.get("backmatter", {}).get("files", []):
         output.append(f"    - {quote(first_h1(book / file))}: {relative(file)}")

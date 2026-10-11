@@ -334,6 +334,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         summary="Records OHLCV, trade log, and index-level history to stats.db.",
         synopsis=(
             "pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ]",
+            "         [--keep-days N] [--keep-order-events-days N]",
             "         [--sql-trace] [-v|-vv] [--log-level LEVEL]",
         ),
         description=(
@@ -354,6 +355,19 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "--timezone TZ",
                 "UTC",
                 "Session timezone (IANA name) defining the trading date; must match pm-clearing's --timezone",
+            ),
+            Option(
+                "--keep-days N",
+                "0 (keep all)",
+                "Keep N days of trades, order events and snapshots; older rows "
+                "are deleted hourly. Daily rollups are always kept",
+            ),
+            Option(
+                "--keep-order-events-days N",
+                "as --keep-days",
+                "Keep N days of order events alone (fractions allowed, e.g. "
+                "0.05 for about an hour); under an AI swarm they are most of "
+                "stats.db",
             ),
             Option(
                 "--sql-trace",
@@ -412,7 +426,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             Option(
                 "--retention-days N",
                 "90",
-                "Prune trade_events rows older than N days on startup (0 disables)",
+                "Prune trade_events rows older than N days on startup and at "
+                "every close of the market (0 disables)",
             ),
             Option(
                 "--timezone TZ",

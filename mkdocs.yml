@@ -18,6 +18,12 @@ exclude_docs: |
   package-lock.json
   mermaid-filter.err
 
+# The AI Traders book links chapters it shares with other books by URL (gen_nav.py);
+# gen_nav.py itself fails on a missing chapter file.
+validation:
+  nav:
+    not_found: info
+
 
 theme:
   name: material
@@ -250,4 +256,27 @@ nav:
       - "ALF TCP Gateway Protocol Training": books/training-guide/260-alf-gwy.md
       - "BALF TCP Gateway Protocol Training": books/training-guide/270-balf-gwy.md
       - "IPO Valuation (`pm-valuation`)": books/training-guide/280-ipo-valuation.md
+  - "AI Traders and Market Simulation":
+    - "How to Use This Book": books/ai-traders/00-front/010-how-to-use-this-book.md
+    - "Part I: Start here":
+      - "A Market That Runs Itself": books/ai-traders/part-1-start-here/010-a-market-that-runs-itself.md
+      - "Ten-Minute Start": books/ai-traders/part-1-start-here/020-ten-minute-start.md
+    - "Part II: How it works":
+      - "The True Value": books/ai-traders/part-2-how-it-works/030-the-true-value.md
+      - "News and Rumours": books/ai-traders/part-2-how-it-works/040-news-and-rumours.md
+      - "How the AI Traders Decide": books/participant-guide/part-4-automated-trading/020-how-the-bots-decide/
+      - "Tuning the Traders": books/ai-traders/part-2-how-it-works/060-tuning-the-traders.md
+    - "Part III: Run it":
+      - "AI Traders": books/participant-guide/part-4-automated-trading/010-ai-traders/
+      - "Running the AI-Trader Swarm": books/operator-guide/part-3-run/030-ai-trader-swarm/
+      - "The Market Model (`pm-market-sim`)": books/operator-guide/part-4-run-a-market/090-market-model/
+      - "A Complete Set-up by Hand": books/ai-traders/part-3-run-it/100-a-complete-setup-by-hand.md
+      - "The Simulation Container": books/ai-traders/part-3-run-it/110-the-simulation-container.md
+      - "Accelerated Time": books/ai-traders/part-3-run-it/120-accelerated-time.md
+    - "Part IV: Watch and teach":
+      - "Watching the Market": books/ai-traders/part-4-watch-and-teach/130-watching-the-market.md
+      - "AI Traders & News": books/training-guide/140-ai-traders/
+      - "Running It for Weeks": books/ai-traders/part-4-watch-and-teach/150-running-it-for-weeks.md
+      - "Troubleshooting and FAQ": books/ai-traders/part-4-watch-and-teach/160-troubleshooting-and-faq.md
+    - "Simulation Glossary": books/ai-traders/90-backmatter/010-simulation-glossary.md
 # END GENERATED NAV

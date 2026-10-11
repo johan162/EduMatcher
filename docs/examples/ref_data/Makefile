@@ -60,3 +60,4 @@ $(CONFIGS): %/engine_config.yaml: %/mkrefdata.sh
 
 $(S150_CONFIGS): mks150.sh
 s300-load-setup/engine_config.yaml: mks300.sh
+s300-sim-setup/engine_config.yaml: mks300.sh

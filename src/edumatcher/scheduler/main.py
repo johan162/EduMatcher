@@ -19,6 +19,9 @@ Usage:
   poetry run pm-scheduler --daily --speed 600 --start 2026-11-02T08:55
                                            # compressed: 10 simulated minutes
                                            # per second, from that local time
+  EDUMATCHER_SCHEDULER_SPEED=24 poetry run pm-scheduler --daily
+                                           # the same through the environment
+                                           # (EDUMATCHER_SCHEDULER_START too)
 
 Logging:
   Operational messages go through the ``logging`` module (configured at the
@@ -59,6 +62,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import signal
 import sys
 import time
@@ -824,19 +828,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--speed",
         type=float,
-        default=None,
+        # argparse converts a string default with ``type``.
+        default=os.environ.get("EDUMATCHER_SCHEDULER_SPEED") or None,
         metavar="F",
         help=(
             "Compressed mode (with --daily): simulated time runs F times "
-            "faster than the wall clock"
+            "faster than the wall clock (default: EDUMATCHER_SCHEDULER_SPEED)"
         ),
     )
     parser.add_argument(
         "--start",
         type=datetime.fromisoformat,
-        default=None,
+        default=os.environ.get("EDUMATCHER_SCHEDULER_START") or None,
         metavar="YYYY-MM-DDTHH:MM",
-        help="Compressed mode: local time the simulated clock starts at (default: now)",
+        help=(
+            "Compressed mode: local time the simulated clock starts at "
+            "(default: EDUMATCHER_SCHEDULER_START, else now)"
+        ),
     )
     parser.add_argument(
         "--no-confirm",

@@ -91,7 +91,11 @@ class WriterThread:
         # queue.Queue.qsize() is documented as approximate but "good enough
         # for backpressure" per the design; exposed as a property so callers
         # never reach into the private queue directly.
-        self._lock = threading.Lock()
+        #: Serialises use of the shared connection: the server's main loop
+        #: writes its session bookkeeping through the same connection, and a
+        #: commit from one thread must never land inside the other's
+        #: transaction ("cannot commit - no transaction is active").
+        self.lock = threading.Lock()
 
     @property
     def pending(self) -> int:
@@ -144,7 +148,7 @@ class WriterThread:
         truncated_count = sum(1 for r in rows if r.truncated)
         last_rowid = 0
         try:
-            with self._lock, self._conn:
+            with self.lock, self._conn:
                 self._conn.executemany(
                     INSERT_LOG_EVENT,
                     [

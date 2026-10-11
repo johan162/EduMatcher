@@ -270,6 +270,7 @@ chances of buying AAPL cheaply, if it had not been anchored?
 - [Running the AI-Trader Swarm](../operator-guide/part-3-run/030-ai-trader-swarm.md)
 - [The Market Model (`pm-market-sim`)](../operator-guide/part-4-run-a-market/090-market-model.md)
 - [The Market-Maker Bot (`pm-mm-bot`)](../participant-guide/part-3-market-making/030-the-market-maker-bot.md)
+- [AI Traders and Market Simulation](../ai-traders/00-front/010-how-to-use-this-book.md) — a simulated market that runs for weeks, with the AI traders and news on all the time
 
  
 

@@ -418,7 +418,7 @@ class LogServer:
         session.last_activity = time.monotonic()
 
         now_iso = iso_utc(time.time())
-        with self._conn:
+        with self._writer.lock, self._conn:
             self._conn.execute(
                 UPSERT_PROCESS_CONNECT,
                 (
@@ -511,7 +511,7 @@ class LogServer:
                     "MSG": f"message exceeds max_message_bytes={max_bytes}, truncated",
                 },
             )
-            with self._conn:
+            with self._writer.lock, self._conn:
                 self._conn.execute(INCREMENT_TOTAL_ERRORS_SENT)
 
         line_raw = fields.get("LINE")
@@ -621,7 +621,7 @@ class LogServer:
     ) -> None:
         self._queue_raw(session, build_header_line(msg_type, fields))
         if msg_type == "ERR":
-            with self._conn:
+            with self._writer.lock, self._conn:
                 self._conn.execute(INCREMENT_TOTAL_ERRORS_SENT)
 
     def _queue_raw(self, session: LogSession, payload: bytes) -> None:
@@ -636,7 +636,7 @@ class LogServer:
             pass
         self._clients.pop(fd, None)
         if session.authenticated:
-            with self._conn:
+            with self._writer.lock, self._conn:
                 self._conn.execute(
                     UPDATE_PROCESS_DISCONNECTED,
                     (iso_utc(time.time()), session.session_id),

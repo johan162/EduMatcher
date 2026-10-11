@@ -114,7 +114,7 @@ def test_shipped_files_match_their_engine_config(example: str) -> None:
 
 
 def test_every_ai_example_ships_one() -> None:
-    assert len(list(EXAMPLES.glob("*/market_sim.yaml"))) == 7
+    assert len(list(EXAMPLES.glob("*/market_sim.yaml"))) == 8
 
 
 def test_news_section(tmp_path: Path) -> None:

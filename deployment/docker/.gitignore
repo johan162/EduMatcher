@@ -1,6 +1,7 @@
 # Runtime state and host-specific material — never committed.
 .env
 data/
+data-sim/
 .ssh/
 config/
 .wheel/*

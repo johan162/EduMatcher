@@ -601,8 +601,8 @@ they disconnected cleanly or the engine was killed unexpectedly.
 
 ### Exercise 17: Data retention and pruning
 
-`pm-clearing` prunes old `trade_events` rows on startup. The default window is
-90 days. Control it with `--retention-days`:
+`pm-clearing` prunes old `trade_events` rows on startup and at every close of
+the market. The default window is 90 days. Control it with `--retention-days`:
 
 ```bash
 # Start clearing with 30-day retention

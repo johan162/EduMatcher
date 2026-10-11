@@ -14,7 +14,8 @@ The flush transaction atomically writes:
 2. current position snapshots  (UPSERT into gateway_symbol_positions)
 3. incremental daily deltas    (UPSERT into gateway_daily_summary)
 
-On startup the process prunes trade_events rows older than 90 days and logs
+On startup, and at every close of the market (``session.state`` CLOSED), the
+process prunes trade_events rows older than ``--retention-days`` (90) and logs
 the count of deleted rows.
 
 Timestamp semantics
@@ -701,6 +702,7 @@ class ClearingProcess:
             if not state:
                 return
             ts_ns = now_ns()
+            pruned = 0
             with self._lock:
                 record_session_event(
                     self._conn,
@@ -713,6 +715,19 @@ class ClearingProcess:
                             "prev_state": typed.prev_state,
                         }
                     ),
+                )
+                # The close is the day boundary of a process that never
+                # restarts: system.eod comes only when the engine shuts down,
+                # so without this a weeks-long run never pruned at all.
+                if state == "CLOSED" and self._retention_days > 0:
+                    pruned = prune_old_events(
+                        self._conn, retention_days=self._retention_days
+                    )
+            if pruned:
+                log.info(
+                    "close prune removed %d trade_events row(s) older than %d days",
+                    pruned,
+                    self._retention_days,
                 )
         except Exception as exc:
             log.warning("error handling session.state: %s", exc)
@@ -940,8 +955,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=_RETENTION_DAYS,
         metavar="N",
         help=(
-            f"Delete trade_events rows older than N days on startup"
-            f" (default: {_RETENTION_DAYS}; 0 = disable pruning)"
+            f"Delete trade_events rows older than N days on startup and at"
+            f" every close (default: {_RETENTION_DAYS}; 0 = disable pruning)"
         ),
     )
     parser.add_argument(

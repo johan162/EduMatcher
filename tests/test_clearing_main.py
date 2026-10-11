@@ -687,6 +687,41 @@ class TestHandleSessionState:
             p._conn.close()
         assert rows == []
 
+    @pytest.mark.parametrize(
+        ("state", "retention_days", "left"),
+        [
+            ("CLOSED", 7, ["T-new"]),
+            ("CONTINUOUS", 7, ["T-new", "T-old"]),
+            ("CLOSED", 0, ["T-new", "T-old"]),
+        ],
+    )
+    def test_the_close_prunes_old_trades(
+        self,
+        db_path: Path,
+        zmq_addr: str,
+        state: str,
+        retention_days: int,
+        left: list[str],
+    ) -> None:
+        # A process that runs for weeks never restarts and the engine never
+        # shuts down, so the close is the only daily point to prune at.
+        p = self._proc(db_path, zmq_addr)
+        p._retention_days = retention_days
+        try:
+            for trade_id, day in (("T-old", "2000-01-03"), ("T-new", "2999-01-03")):
+                p._conn.execute(
+                    "INSERT INTO trade_events (id, ts_ns, trade_date, symbol,"
+                    " quantity, price, buy_gateway_id, sell_gateway_id,"
+                    " ingest_ts_ns) VALUES (?, 0, ?, 'AAPL', 1, 100, 'A', 'B', 0)",
+                    (trade_id, day),
+                )
+            p._conn.commit()
+            p._handle_session_state({"state": state, "prev_state": "X"})
+            ids = [r[0] for r in p._conn.execute("SELECT id FROM trade_events")]
+        finally:
+            p._conn.close()
+        assert sorted(ids) == left
+
 
 class TestHandleGatewayDisconnect:
     @pytest.fixture()

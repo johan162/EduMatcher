@@ -286,3 +286,18 @@ def test_retention_pruning_deletes_only_old_rows(tmp_path: Path) -> None:
         assert remaining == [("new",)]
     finally:
         rs.stop()
+
+
+def test_session_bookkeeping_waits_for_the_writer_lock(
+    running_server: _RunningServer,
+) -> None:
+    # The main loop shares the writer thread's connection. Unserialised, a
+    # commit from one thread could land inside the other's transaction and
+    # kill pm-log-srv ("cannot commit - no transaction is active").
+    lock = running_server.server._writer.lock
+    s = running_server.connect()
+    with lock:
+        s.sendall(b"HELLO|CLIENT=pm-test|PID=1|HOST=h|PROTO=LALF1\n")
+        assert b"WELCOME" not in _recv_all(s, timeout=0.5)
+    assert b"WELCOME" in _recv_all(s, timeout=2.0)
+    s.close()

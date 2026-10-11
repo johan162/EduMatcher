@@ -43,7 +43,8 @@ pm-ai-swarm (supervisor)
 
 1. The deployed configuration must list every agent as a participant with role
    `TRADER`. The `s150-*` examples register `AI001`–`AI020`, `s300-load`
-   registers `AI001`–`AI500`. The swarm checks this before it starts.
+   registers `AI001`–`AI500`, `s300-sim` `AI001`–`AI100`. The swarm checks
+   this before it starts.
 2. `pm-engine`, `pm-scheduler` (if sessions are enabled) and `pm-alf-gwy` are
    running. `pm-alf-gwy` accepts up to `max_connections` sessions (default
    1024).
@@ -68,7 +69,10 @@ pm-ai-swarm --swarm swarm.yaml --count 100 --budget 200 -v
 Under `pm-opctl-cli`, the `ai-swarm` profile is `mm-demo` with its market
 maker anchored to the true values (`pm-mm-bot --anchor-sim 0.3`), plus
 [`pm-market-sim`](../part-4-run-a-market/090-market-model.md) and
-`pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000`.
+`pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000`. The `ai-sim`
+profile runs the `s300-sim` example's swarm (`AI001`–`AI100`) and is set up to
+run for weeks; it is what the `edumatcher-ai-sim` container image starts — see
+[AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md).
 
 !!! warning "Anchor the market maker"
     A passive `pm-mm-bot` without `--anchor-sim` refills its quotes around

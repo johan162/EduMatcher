@@ -3,7 +3,18 @@ Statistics Process — records market data to a SQLite database.
 
 Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
-                      [--timezone TZ]
+                      [--timezone TZ] [--keep-days N]
+                      [--keep-order-events-days N]
+
+Retention
+---------
+  With ``--keep-days N`` the per-event tables (trade_log, order_events,
+  price_snapshots, feed_gaps) keep the last N days; older rows are deleted
+  at startup and once an hour. The daily rollups are kept for good. The
+  file stops growing once it holds N days (SQLite reuses the freed pages).
+  ``--keep-order-events-days`` gives order_events a retention of its own:
+  under an AI swarm they are almost all of the file, so a long run keeps
+  hours of them and days of everything else.
 
 Dates and timestamps
 --------------------
@@ -824,8 +835,17 @@ class StatsProcess:
         snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC,
         sql_trace: bool = False,
         session_tz: tzinfo = timezone.utc,
+        keep_days: float = 0.0,
+        keep_order_events_days: float | None = None,
     ) -> None:
         self._db_path = db_path
+        #: Days of per-event rows to keep; 0 keeps everything.
+        self._keep_days = keep_days
+        #: The same for order_events alone; None follows keep_days.
+        self._keep_order_events_days = (
+            keep_days if keep_order_events_days is None else keep_order_events_days
+        )
+        self._last_prune: float | None = None
         self._sql_trace = bool(sql_trace)
         # Taken before the database is opened, so a rejected second recorder
         # never touches the file at all.
@@ -1677,6 +1697,10 @@ class StatsProcess:
                 self._receive_failure = "interrupted while polling (EINTR)"
                 return
 
+            # On this thread, so the deletes never interleave with the
+            # writes sharing the connection.
+            self._prune_if_due()
+
             if self.index_sub in socks:
                 self._receive_one_index_message()
 
@@ -1700,6 +1724,35 @@ class StatsProcess:
                 # dropped record, not a warning-level curiosity.
                 log.error("failed to record topic=%s err=%s", topic, exc)
                 self._dbg_count("records_dropped")
+
+    def _prune_if_due(self) -> None:
+        if self._keep_days <= 0 and self._keep_order_events_days <= 0:
+            return
+        now = time.monotonic()
+        if (
+            self._last_prune is not None
+            and now - self._last_prune < _PRUNE_INTERVAL_SEC
+        ):
+            return
+        self._last_prune = now
+        statements = [
+            (statement, days)
+            for days, group in (
+                (self._keep_days, _PRUNE_STATEMENTS),
+                (self._keep_order_events_days, _PRUNE_ORDER_EVENTS),
+            )
+            if days > 0
+            for statement in group
+        ]
+        deleted = 0
+        with self._lock, self._conn:
+            for statement, days in statements:
+                cutoff = datetime.fromtimestamp(
+                    time.time() - days * 86_400, tz=timezone.utc
+                ).isoformat(timespec="seconds")
+                deleted += self._conn.execute(statement, {"cutoff": cutoff}).rowcount
+        if deleted:
+            log.info("retention: deleted %d rows", deleted)
 
     def _dispatch(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded engine message to its handler.
@@ -1880,6 +1933,27 @@ class StatsProcess:
             self._lock_conn.close()
 
 
+_PRUNE_INTERVAL_SEC = 3600.0
+
+
+# ``ts`` is an ISO UTC instant, so text order is time order. trade_log and
+# order_events are append-only with no index leading on ts: deleting below
+# the first row (in insertion order) still inside the window scans only the
+# rows being deleted.
+def _prune_by_key(table: str, key: str) -> str:
+    return f"""DELETE FROM {table} WHERE {key} < COALESCE(
+        (SELECT {key} FROM {table} WHERE ts >= :cutoff ORDER BY {key} LIMIT 1),
+        (SELECT MAX({key}) + 1 FROM {table}))"""
+
+
+_PRUNE_STATEMENTS = (
+    _prune_by_key("trade_log", "rowid"),
+    "DELETE FROM price_snapshots WHERE ts < :cutoff",
+    "DELETE FROM feed_gaps WHERE ts < :cutoff",
+)
+_PRUNE_ORDER_EVENTS = (_prune_by_key("order_events", "seq"),)
+
+
 def _is_order_event_topic(topic: str) -> bool:
     return topic.startswith(
         (
@@ -1995,6 +2069,28 @@ def build_parser() -> argparse.ArgumentParser:
             "the date columns of daily_stats and index_daily_stats (IANA name, "
             "e.g. Europe/Stockholm; default: UTC). Must match pm-clearing's "
             "--timezone or the two daily rollups will not reconcile."
+        ),
+    )
+    parser.add_argument(
+        "--keep-days",
+        type=float,
+        default=0.0,
+        metavar="N",
+        help=(
+            "Keep N days of trades, order events and snapshots; older rows "
+            "are deleted hourly. Daily rollups are always kept "
+            "(default: 0 = keep everything)"
+        ),
+    )
+    parser.add_argument(
+        "--keep-order-events-days",
+        type=float,
+        default=None,
+        metavar="N",
+        help=(
+            "Keep N days of order events, overriding --keep-days for them; "
+            "fractions are fine, e.g. 0.1 for about 2.4 hours "
+            "(default: as --keep-days)"
         ),
     )
     parser.add_argument(
@@ -2114,6 +2210,10 @@ def main() -> None:
         args.snapshot_interval,
         args.timezone,
     )
+    if args.keep_days < 0:
+        parser.error("--keep-days must be >= 0")
+    if args.keep_order_events_days is not None and args.keep_order_events_days < 0:
+        parser.error("--keep-order-events-days must be >= 0")
     if args.snapshot_interval < MIN_SNAPSHOT_INTERVAL_SEC:
         # price_snapshots is keyed on (ts, symbol) at second precision, so a
         # sub-second interval asks for rows the table cannot hold: the extras
@@ -2133,6 +2233,8 @@ def main() -> None:
             snapshot_interval_sec=args.snapshot_interval,
             sql_trace=args.sql_trace,
             session_tz=session_tz,
+            keep_days=args.keep_days,
+            keep_order_events_days=args.keep_order_events_days,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

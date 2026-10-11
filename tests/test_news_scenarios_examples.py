@@ -17,7 +17,7 @@ EXAMPLES = sorted((ROOT / "ref_data").glob("s*-setup/market_sim.yaml"))
 
 def test_examples_found() -> None:
     assert len(SCENARIOS) == 3
-    assert len(EXAMPLES) == 7  # six s150 + s300-load
+    assert len(EXAMPLES) == 8  # six s150 + s300-load + s300-sim
 
 
 @pytest.mark.parametrize("path", SCENARIOS, ids=lambda p: p.stem)

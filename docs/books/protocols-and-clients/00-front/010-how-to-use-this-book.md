@@ -9,7 +9,7 @@ gateway behaves, every message, and how to write and test a client.
 |---|---|
 | **Who it is for** | Developers of clients, feed handlers, dashboards and tools |
 | **What it assumes** | You can run the exchange (the [Quick Start Guide](../../quick-start/00-front/010-how-to-use-this-book.md)) and you know the trading basics — orders, fills, the order book (the [Participant Guide](../../participant-guide/00-front/010-how-to-use-this-book.md), Part I) |
-| **What it leaves to other books** | Starting and configuring the gateways ([Operator's Guide](../../operator-guide/00-front/010-how-to-use-this-book.md), Part V); how the engine works inside ([Architecture and Developer Guide](../../architecture-and-development/00-front/010-how-to-use-this-book.md)) |
+| **What it leaves to other books** | Starting and configuring the gateways ([Operator's Guide](../../operator-guide/00-front/010-how-to-use-this-book.md), Part V); how the engine works inside ([Architecture and Developer Guide](../../architecture-and-development/00-front/010-how-to-use-this-book.md)); the AI traders, which are ALF clients like any other ([AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md)) |
 
 ## How the book is organized
 

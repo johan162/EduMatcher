@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
-# Generates the s300-load example: the design-limit test bed for the AI
-# traders (300 symbols, 500 AI participants). See
-# docs-design/EduMatcher-AI-Traders-v3-Plan.md, WP-A3.
+# Generates the 300-symbol examples, chosen by SETUP_DIR's name:
+#   s300-load-setup  the design-limit test bed for the AI traders: 500 AI
+#                    participants, MM01 and MM02 (docs-design/EduMatcher-AI-Traders-v3-Plan.md, WP-A3)
+#   s300-sim-setup   the long-running simulation: 100 AI participants, MM01
+#                    (docs-design/EduMatcher-AI-Sim-Book-Plan.md, WP-B1)
 set -euo pipefail
 
 setup_dir="${1:?usage: mks300.sh SETUP_DIR [--seed INTEGER]}"
 shift
 cd "$setup_dir"
+
+# s300-sim runs for weeks with ~100 orders a second: the API gateways keep
+# finished orders 5 minutes instead of an hour, and the post-trade gateway's
+# replay journal 15 minutes instead of a day, or both would hold gigabytes.
+case "$(basename "$(pwd)")" in
+  s300-load-setup) ai_count=500; market_makers=(MM01 MM02); long_run=() ;;
+  s300-sim-setup) ai_count=100; market_makers=(MM01)
+    long_run=(--api-gateway-order-retention-sec 300 --post-trade-gateway
+              --post-trade-replay-retention-sec 900) ;;
+  *) echo "Error: unknown setup directory $(pwd)" >&2; exit 1 ;;
+esac
 
 seed=""
 while [[ $# -gt 0 ]]; do
@@ -62,15 +75,16 @@ for n in $(seq 1 10); do
   participants+=("${trader_id}:TRADER:CANCEL_ALL:Student desk ${n}")
   trader_ids+=("$trader_id")
 done
-participants+=(
-  "OPS01:ADMIN:LEAVE_ALL:Instructor console"
-  "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
-  "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker"
-)
-for n in $(seq 1 500); do
+participants+=("OPS01:ADMIN:LEAVE_ALL:Instructor console")
+declare -A mm_description=([MM01]="Primary market maker" [MM02]="Backup market maker")
+for mm in "${market_makers[@]}"; do
+  participants+=("${mm}:MARKET_MAKER:CANCEL_QUOTES_ONLY:${mm_description[$mm]}")
+done
+for n in $(seq 1 "$ai_count"); do
   participants+=("$(printf 'AI%03d' "$n"):TRADER:CANCEL_ALL:AI trader ${n}")
 done
 trader_list=$(IFS=,; echo "${trader_ids[*]}")
+mm_list=$(IFS=,; echo "${market_makers[*]}")
 
 outstanding_args=()
 for index in "${!symbols[@]}"; do
@@ -86,7 +100,7 @@ done
   --comment-default-config-fields \
   --seed "$seed" \
   "${outstanding_args[@]}" \
-  --api-gateway-instance "desk:${trader_list},MM01,MM02,OPS01:8080" \
+  --api-gateway-instance "desk:${trader_list},${mm_list},OPS01:8080" \
   --api-gateway-instance dashboards::8081 \
   --api-gateway-readonly-key \
   --seed-mm-mid-range 20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm \
@@ -97,6 +111,7 @@ done
   --market-data-bind-address 0.0.0.0 --market-data-port 5570 \
   --market-data-heartbeat-interval-sec 1 --market-data-idle-timeout-sec 5 \
   --market-data-replay-window-sec 30 --market-data-max-symbols-per-client 300 \
-  --market-data-max-client-queue 20000
+  --market-data-max-client-queue 20000 \
+  "${long_run[@]}"
 
 echo "Generated $(pwd)/engine_config.yaml"

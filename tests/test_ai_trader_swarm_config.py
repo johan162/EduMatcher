@@ -155,4 +155,4 @@ def test_shipped_swarm_files_match_their_participants(example: str) -> None:
 
 
 def test_every_example_ships_a_swarm_file() -> None:
-    assert len(list(EXAMPLES.glob("*/swarm.yaml"))) == 7
+    assert len(list(EXAMPLES.glob("*/swarm.yaml"))) == 8

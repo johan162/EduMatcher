@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 ## The library
 
-The documentation is a library of eight books. Each is written for one kind
+The documentation is a library of nine books. Each is written for one kind
 of reader and one kind of task, so most people need only two or three of
 them.
 
@@ -43,8 +43,10 @@ flowchart TD
     PC["Protocols and Clients\nconnect your own program"]
     AD["Architecture and Developer Guide\nhow it is built, how to change it"]
     RM["Reference Manual\nevery command, field and term"]
+    AI["AI Traders and Market Simulation\nan exchange that trades itself"]
 
     B0 -.->|"new to markets?"| QS
+    QS --> AI
     QS --> TG
     QS --> PG
     QS --> OG
@@ -72,6 +74,7 @@ flowchart TD
 | [Protocols and Clients](books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — the wire protocols, APIs and client examples | | ○ | ● | ○ |
 | [Architecture and Developer Guide](books/architecture-and-development/part-1-architecture/010-architecture-overview.md) — the design, the code and how to change it | | | ○ | ● |
 | [Reference Manual](books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — commands, configuration fields, glossary | ○ | ● | ● | ● |
+| [AI Traders and Market Simulation](books/ai-traders/00-front/010-how-to-use-this-book.md) — a market that trades itself: AI traders, hidden true values, news, the simulation container | ○ | ● | ○ | ○ |
 
 ### I want to…
 
@@ -81,6 +84,7 @@ flowchart TD
 | see EduMatcher run | [Quick Start: Install and Start](books/quick-start/part-1-see-it-run/020-install-and-start.md) | [Your First Trade](books/quick-start/part-1-see-it-run/030-your-first-trade.md) |
 | learn by doing, step by step | [Training Guide](books/training-guide/index.md) | the chapters in order |
 | trade or make markets | [Participant Guide: The Order Book](books/participant-guide/part-1-trading-basics/020-the-order-book.md) | [Order Types](books/participant-guide/part-2-orders/020-order-types.md) |
+| leave a live, simulated market running for a class | [AI Traders: Ten-Minute Start](books/ai-traders/part-1-start-here/020-ten-minute-start.md) | [The True Value](books/ai-traders/part-2-how-it-works/030-the-true-value.md) |
 | run an exchange for a class | [Operator's Guide: Installation](books/operator-guide/part-1-install-and-deploy/010-installation.md) | [Running the Exchange](books/operator-guide/part-3-run/010-running-the-exchange.md) |
 | find out why an order was rejected | [Participant Guide: The Trader Console](books/participant-guide/part-2-orders/010-the-trader-console.md) | [Operator's Guide: Risk Controls](books/operator-guide/part-4-run-a-market/040-risk-controls.md) |
 | fix a configuration or startup problem | [Quick Start: When Something Does Not Work](books/quick-start/90-backmatter/020-when-something-does-not-work.md) | [Operator's Guide: Configuration Verifier](books/operator-guide/part-2-configure/020-config-verifier.md) |
@@ -102,6 +106,7 @@ adjustable text size:
 | 📖 Protocols and Clients | [⬇️ Download](downloads/edumatcher_protocols_and_clients.epub) |
 | 📖 Architecture and Developer Guide | [⬇️ Download](downloads/edumatcher_architecture_and_development.epub) |
 | 📖 Training Guide | [⬇️ Download](downloads/edumatcher_training_guide.epub) |
+| 📖 AI Traders and Market Simulation | [⬇️ Download](downloads/edumatcher_ai_traders.epub) |
 
 Each book is also published as PDF on every
 [GitHub release](https://github.com/johan162/EduMatcher/releases):

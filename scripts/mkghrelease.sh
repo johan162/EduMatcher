@@ -508,7 +508,7 @@ FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
 
 # One "all formats" archive per book, versioned with the project.
 DOC_BOOKS=(architecture_and_development operator_guide participant_guide \
-           protocols_and_clients quick_start reference_manual training_guide)
+           protocols_and_clients quick_start reference_manual training_guide ai_traders)
 DOC_ARTIFACTS=()
 for book in "${DOC_BOOKS[@]}"; do
     DOC_ARTIFACTS+=("docs/dist/${PROGRAMNAME}_${book}_all-${FILE_VERSION_NUMBER}.zip")
@@ -736,7 +736,7 @@ else
         elif [[ "$RUN_CONCLUSION" == "success" ]]; then
             print_success "Container images published for $LATEST_TAG"
             echo ""
-            for img in edumatcher edumatcher-config-gui edumatcher-log-gui \
+            for img in edumatcher edumatcher-ai-sim edumatcher-config-gui edumatcher-log-gui \
                        edumatcher-terminal-gui edumatcher-trader-gui edumatcher-book-gui; do
                 echo "  ghcr.io/${GITHUB_USER}/${img}:${VERSION_NUMBER}"
             done

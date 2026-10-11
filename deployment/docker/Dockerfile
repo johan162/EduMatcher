@@ -2,7 +2,9 @@
 #
 # Stage 1 builds the runtime virtualenv; stage 2 keeps only that venv plus the
 # handful of OS tools pm-opctl-cli needs, so pip caches and build leftovers
-# never reach the final image.
+# never reach the final image. Stage 3 is the same image with the defaults of
+# the long-running AI-trader simulation (image edumatcher-ai-sim); build the
+# plain exchange with --target runtime.
 #
 # The image deliberately mirrors the Multipass runtime VM (deployment/vm/): a dedicated
 # venv under /opt/edumatcher/.venv with every pm-* command on PATH.
@@ -42,7 +44,7 @@ RUN python -m venv /opt/edumatcher/.venv && \
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-bookworm
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
 ARG WITH_SSH=1
 
@@ -97,3 +99,19 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import socket; socket.create_connection(('127.0.0.1', 5555), 3).close()" || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+
+# ---------------------------------------------------------------------------
+# Stage 3 — ai-sim: the exchange that trades itself (edumatcher-ai-sim)
+# ---------------------------------------------------------------------------
+# The s300-sim example (300 symbols, AI001-AI100, MM01) under the ai-sim
+# profile: market maker, market model with generated news, and the AI swarm.
+# Real trading hours on Sweden's calendar by default; EM_SPEED=N runs the
+# calendar N times faster (EM_START sets where it starts). Dead processes are
+# restarted once a minute, so the market keeps running unattended.
+FROM runtime AS ai-sim
+
+ENV EM_CONFIG=s300-sim \
+    EM_PROFILE=ai-sim \
+    EM_RESTART_DEAD=1 \
+    EM_SPEED=1 \
+    TZ=Europe/Stockholm
