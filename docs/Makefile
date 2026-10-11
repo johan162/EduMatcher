@@ -157,9 +157,6 @@ pdf-exchange-intro:
 	@$(MAKE) -C ../docs-exchange-intro pdf-docs
 	@printf '%b\n' "$(GREEN)OK Exchange Intro PDFs built$(NC)"
 
-# Must run after pdf-exchange-intro, not in parallel with it: pdf-docs does an
-# unconditional `rm -rf` of their shared build dir, which races epub-docs's use
-# of the same directory.
 epub-exchange-intro: pdf-exchange-intro
 	@printf '%b\n' "$(DARKYELLOW)- Building Exchange Intro EPUB...$(NC)"
 	@$(MAKE) -C ../docs-exchange-intro epub-docs
