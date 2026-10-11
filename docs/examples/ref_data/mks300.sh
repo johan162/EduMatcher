@@ -116,6 +116,6 @@ done
   --market-data-heartbeat-interval-sec 1 --market-data-idle-timeout-sec 5 \
   --market-data-replay-window-sec 30 --market-data-max-symbols-per-client 300 \
   --market-data-max-client-queue 20000 \
-  "${long_run[@]}"
+  "${long_run[@]+"${long_run[@]}"}"
 
 echo "Generated $(pwd)/engine_config.yaml"
