@@ -1,3 +1,43 @@
+## [v0.50.0] - 2026-10-11
+
+Release Type: major
+
+### 📋 Summary
+This release expands AI trading and market simulation, reorganises the documentation into dedicated books, and unifies exchange locale settings. It also improves participant recovery and parallel documentation builds. The documentation is completely overhauled and
+split in 9 different book instead of a single 1000 pages book. The markets simulation that goes together with the AI traders models
+a fairly complex market with all shares having a true but hidden value. Through created news and rumours the process is driven to discover the true price. 
+
+### ⚠️ Breaking Changes
+- Moved exchange country and session timezone settings into `locale.country` and `locale.session_timezone`; update existing configurations to use the new block
+- Changed the default session timezone to `Europe/Stockholm`, matching the default country of Sweden; set `locale.session_timezone` explicitly for exchanges in other timezones
+
+### ✨ Additions
+- Added preset-based AI traders with ALF routing and sharded swarms for larger simulated markets
+- Added `pm-market-sim` for hidden true values, market news and rumours
+- Added the `edumatcher-ai-sim` container image for running a complete market simulation
+- Added the exchange country to the API gateway's `GET /history/session` response
+
+### 🚀 Improvements
+- Added participant heartbeats so the engine can release a participant ID after its process dies
+- Unified trading-day timezone settings across exchange services through the shared locale configuration
+
+### 🐛 Bug Fixes
+- Fixed ALF order IDs losing their original case and missing responses to `QLEGS` requests
+- Fixed parallel Exchange Intro builds intermittently failing because the EPUB stylesheet or other shared intermediates disappeared
+- Fixed concurrent documentation cover generation sharing a Chrome profile
+- Fixed linked example sources being unavailable on the documentation website
+- Fixed a memory leak in orderbook handling where cancelled orders were only made "dead" but never removed
+
+### 📚 Documentation
+- Reorganised the user documentation into dedicated Quick Start, Participant, Operator, Reference, Protocols and Clients, Architecture and Development, and Training guides
+- Added the AI Traders and Market Simulation book with a ten-minute start and worked simulation workflows
+- Expanded the Quick Start Guide and refreshed ALF, BALF and CALF examples
+- Updated configuration documentation and bundled examples for the new locale block
+
+### 🛠 Internal
+- Updated release tooling to upload the versioned book bundles and independently versioned Exchange Intro artifacts
+- Updated documentation build targets and example downloads for the new book layout
+
 ## [v0.45.0] - 2026-10-05
 
 Release Type: major
