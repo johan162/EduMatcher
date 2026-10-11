@@ -1465,10 +1465,12 @@ Purpose: return fill events for the caller gateway.
 
 ### `GET /api/v1/history/session`
 
-Purpose: return the session timezone `pm-stats` records in, and today's
-trading date in it — the same resolution every `date` filter on
-`/api/v1/history` uses, so a client's "today" and session clock agree with the
-`date` column of `/history/daily`.
+Purpose: return the exchange's current locale — its country and the
+session timezone `pm-stats` records in — and today's trading date in that
+timezone. The timezone resolution is the same one every `date` filter on
+`/api/v1/history` uses, so a client's "today" and session clock agree with
+the `date` column of `/history/daily`. `country` is the same value
+`GET /api/v1/reference/schedule` reports.
 
 **Arguments**
 
@@ -1478,7 +1480,7 @@ None.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{"session_timezone": str, "session_date": Date}` | IANA timezone name (`UTC` when none was recorded) and the current trading date |
+| `200 OK` | `{"country": string \| null, "session_timezone": str, "session_date": Date}` | ISO 3166-1 alpha-2 country code (`null` if the engine has no config loaded), IANA timezone name (`UTC` when none was recorded), and the current trading date |
 
 **Errors**
 

@@ -10,11 +10,12 @@ import time
 import uuid
 from contextlib import closing
 from datetime import tzinfo
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from edumatcher.api_gateway.index_client import IndexHistoryError
+from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
 from edumatcher.stats.event_types import EVENT_TYPES
@@ -233,19 +234,23 @@ async def history_fills(
 async def history_session(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-) -> dict[str, str]:
-    """The session timezone and current trading date — public market data.
+) -> dict[str, str | None]:
+    """The exchange's current locale and trading date — public market data.
 
-    Resolved exactly as every ``date`` filter on this router resolves them,
-    from the timezone pm-stats recorded in the statistics database, so a
-    client showing "today" or a session clock cannot disagree with the
-    ``date`` column of ``/daily``. The trading date is computed from the
-    gateway's clock at the moment of the request.
+    ``session_timezone`` is resolved exactly as every ``date`` filter on this
+    router resolves them, from the timezone pm-stats recorded in the
+    statistics database, so a client showing "today" or a session clock
+    cannot disagree with the ``date`` column of ``/daily``. ``country`` is
+    the same value ``GET /reference/schedule`` reports (one engine
+    round-trip). The trading date is computed from the gateway's clock at
+    the moment of the request.
     """
-    _ = session
     with closing(_open_stats(request)) as conn:
         tz = _session_tz(request, conn)
+    bundle = await fetch_reference_bundle(request, session)
+    schedule = cast(dict[str, Any], bundle["schedule"])
     return {
+        "country": schedule["country"],
         "session_timezone": timezone_name(tz),
         "session_date": trading_date(time.time(), tz),
     }
