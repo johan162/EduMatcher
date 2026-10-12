@@ -285,7 +285,9 @@ class ClearingProcess:
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
-        pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        pruned = 0
+        if self._retention_days > 0:
+            pruned = prune_old_events(self._conn, retention_days=self._retention_days)
         log.info(
             "starting clearing runtime db=%s flush_size=%d flush_interval=%ss retention_days=%d",
             self._db_path,
@@ -672,9 +674,11 @@ class ClearingProcess:
 
                 # CL-L7: also prune retention-window raw rows on EOD so a
                 # long-running process does not only prune at startup.
-                pruned = prune_old_events(
-                    self._conn, retention_days=self._retention_days
-                )
+                pruned = 0
+                if self._retention_days > 0:
+                    pruned = prune_old_events(
+                        self._conn, retention_days=self._retention_days
+                    )
             log.info(
                 "EOD received — %d symbol mark(s) applied, session_events row written for %s",
                 len(eod_marks),
