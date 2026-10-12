@@ -21,7 +21,7 @@ class Listener:
     port: int
     proto: str  # "ZMQ PULL" | "ZMQ PUB" | "TCP" | "HTTP"
     process: str  # "pm-engine", "pm-md-gwy", ...
-    function: str  # human sentence: "Order intake (CALF)"
+    function: str  # human sentence: "Order intake"
     bind: str  # "127.0.0.1" / "0.0.0.0"
     origin: str  # "fixed" | "env" | "configured" | "default"
     enabled: bool = True
