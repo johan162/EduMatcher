@@ -867,8 +867,12 @@ class Gateway:
         elif PREFIX_ORDER_CANCELLED in topic:
             rtag = payload.get("request_tag")
             rtag_text = f" rtag={rtag}" if rtag else ""
-            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
-            log.debug("order cancelled order_id=%s", oid)
+            reason = payload.get("cancel_reason")
+            reason_text = f" reason={reason}" if reason else ""
+            console.print(
+                f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}{reason_text}"
+            )
+            log.debug("order cancelled order_id=%s reason=%s", oid, reason)
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
