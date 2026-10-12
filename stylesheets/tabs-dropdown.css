@@ -1,0 +1,63 @@
+/* Hover dropdown for top-level tabs with children (see
+   overrides/partials/tabs-item.html). Material's own .md-tabs__list clips
+   overflow for a horizontal-scrolling tab bar, via both `overflow: auto` and
+   CSS paint containment (`contain: content`, which clips painted content to
+   the box regardless of overflow); with only a handful of short tab labels
+   here, that scroll affordance isn't needed, so both are relaxed to let the
+   dropdown escape instead. */
+.md-tabs__list {
+  overflow: visible;
+  contain: none;
+}
+
+/* .md-header is `position: sticky; z-index: 4`, which gives it its own
+   stacking context, and some other ancestor between .md-tabs and the main
+   content area forms a containing block that traps position:absolute
+   descendants below that content, confirmed empirically. position:fixed
+   escapes it, so the dropdown is fixed-positioned and placed by
+   javascripts/tabs-dropdown.js on hover/focus. */
+.md-tabs {
+  position: relative;
+  z-index: 10;
+}
+
+.md-tabs__item--group {
+  position: relative;
+}
+
+.md-tabs__dropdown {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  min-width: 10rem;
+  width: max-content;
+  margin: 0;
+  padding: 0.2rem 0;
+  list-style: none;
+  background-color: var(--md-primary-fg-color);
+  box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.2);
+}
+
+.md-tabs__item--group:hover > .md-tabs__dropdown,
+.md-tabs__item--group:focus-within > .md-tabs__dropdown {
+  display: block;
+}
+
+.md-tabs__dropdown .md-tabs__item {
+  display: block;
+  height: auto;
+}
+
+.md-tabs__dropdown .md-tabs__link {
+  display: block;
+  height: auto;
+  padding: 0.5rem 1rem;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  opacity: 0.9;
+}
+
+.md-tabs__dropdown .md-tabs__link:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.1);
+}
