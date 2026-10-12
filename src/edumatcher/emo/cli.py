@@ -146,7 +146,6 @@ from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
     AUDIT_LOG_FILE,
     CLEARING_DB_FILE,
-    CLEARING_REPORT_FILE,
     COMPILED_CONFIG_FILE,
     DATA_DIR,
     ENGINE_CONFIG_FILE,
@@ -958,7 +957,6 @@ STATE_PATHS: tuple[Path, ...] = (
     GTC_COMBOS_FILE,
     STATS_DB_FILE,
     CLEARING_DB_FILE,
-    CLEARING_REPORT_FILE,
     DATA_DIR / "indexes",
 )
 
