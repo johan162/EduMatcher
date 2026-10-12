@@ -232,7 +232,6 @@ AUDIT_INDEX_DB_FILE = DATA_DIR / "audit_index.db"
 #: append-only, while the episode index is derived and is rebuilt
 #: whenever the reconstruction rules change.
 AUDIT_REPLAY_DB_FILE = DATA_DIR / "audit_replay.db"
-CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 LOG_DB_FILE = DATA_DIR / "log.db"
