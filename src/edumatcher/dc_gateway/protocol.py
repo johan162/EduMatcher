@@ -5,7 +5,7 @@ DC1 is deliberately the simplest of EduMatcher's TCP protocols: unlike RALF
 subscription grammar), the drop-copy feed has exactly one thing a client can
 ask for -- "give me fills for gateway ID X" -- so the wire grammar is just
 HELLO/WELCOME plus unsolicited DC_FILL/HB lines. See
-docs/user-guide/201-dc-gateway.md for the full protocol reference.
+../../../docs/books/operator-guide/part-5-gateways/060-drop-copy-gateway.md for the full protocol reference.
 """
 
 from __future__ import annotations

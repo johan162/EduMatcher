@@ -31,6 +31,7 @@ from edumatcher.models.message import (
     make_combo_order_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_gateways_request_msg,
     make_halt_status_request_msg,
     make_kill_switch_gateway_msg,
@@ -65,6 +66,7 @@ from edumatcher.models.generated.session import (
     topic_session_transition_ack,
 )
 from edumatcher.models.generated.system import (
+    match_gateway_bye,
     topic_gateway_auth,
     topic_gateways,
     topic_reference_reload_ack,
@@ -225,6 +227,10 @@ class EngineClient:
             },
         )
 
+    def send_heartbeat(self, gateway_id: str) -> None:
+        log.debug("engine heartbeat sent gateway_id=%s", gateway_id)
+        self._send(make_gateway_heartbeat_msg(gateway_id), require_engine=False)
+
     def send_disconnect(
         self, gateway_id: str, reason: str, *, require_engine: bool = True
     ) -> None:
@@ -285,6 +291,9 @@ class EngineClient:
             )
             if accepted:
                 self._authenticated.add(gateway_id)
+                # First beat now, so the engine starts counting from the moment
+                # this ID is held rather than up to one interval later.
+                self.send_heartbeat(gateway_id)
                 # Best-effort: the engine accepted the handshake, so the
                 # gateway *is* authenticated. Seeding the symbol cache is a
                 # convenience the client can obtain later via request_symbols,
@@ -463,6 +472,12 @@ class EngineClient:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
+        bye_gateway = match_gateway_bye(topic)
+        if bye_gateway is not None:
+            # The engine closed this session (an admin disconnect, or a missed
+            # heartbeat). Forget it, so the next request re-authenticates
+            # rather than being refused as "not connected" indefinitely.
+            self._authenticated.discard(bye_gateway)
         if topic in COMMAND_TOPICS:
             # A client's own request, re-published by the engine for the audit
             # trail. It is nobody's market data and it is not addressed to the

@@ -1,107 +1,144 @@
-# EduMatcher, Educational Trading System
+# EduMatcher Documentation
 
-EduMatcher is a multi-process Python trading simulator for learning how exchanges work in practice.
-It helps you build intuition for order matching, market microstructure, and exchange architecture through a runnable system.
+EduMatcher is an educational stock exchange you can run on your own computer.
+It has a real matching engine and order books, a trading day with opening and
+closing auctions, market makers, risk controls, statistics, profit-and-loss
+tracking, an audit trail, external protocols and trading bots — close to a
+real exchange in architecture and behavior, and built for learning how
+exchanges work in practice.
 
-![Order book illustration](assets/exchange-and-books-illustration.png)
-**Figure 1: The Exchange with Order Books and the Central Matching Engine (CME).**
+![The exchange, with order books and the central matching engine](assets/exchange-and-books-illustration.png)
+**Figure 1: The exchange, with order books and the central matching engine.**
 
-## Start Here
+## Start here
 
-If you are new to exchanges, start with:
-
-1. [How an Exchange Works](how-exchange-works.md). 
-  This is a rather large book so for the first you should restrict the reading to Part I & II. The rest can be saved for when you need it.
-2. [Getting Started](user-guide/000-getting-started.md). This will help you install EduMatcher.
-3. [The Order Book](concepts/01-concepts-order-book.md). It cannot be overstated how important it is to thoroughly understand the concept of the *Order Book*
-4. [Your First Trade](concepts/04-concepts-first-trade.md). Getting your feet wet before you run the exchange
-
-If you are already familiar with trading, use this quick routing table:
-
-| If you are... | Read this first | Then continue with |
+| | Step | Time |
 |---|---|---|
-| Hands-on user / instructor | [Getting Started](user-guide/000-getting-started.md) | [Configuration](user-guide/010-configuration.md) -> [Running the Engine](user-guide/040-running-the-exchange.md) -> [Processes](user-guide/170-processes.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/270-message-reference.md) -> [Developer Info](developer/01-dev-practice.md) |
-| Protocol reader | [Protocol Overview](user-guide/210-protocols-overview.md) | Choose protocol appendix and examples from there |
+| **1** | **New to markets?** Read [How an Exchange Works](how-exchange-works.md). It explains order books, bids and asks, auctions and market makers without assuming any finance background. | an evening |
+| **2** | **Everyone:** work through the [Quick Start Guide](books/quick-start/00-front/010-how-to-use-this-book.md). It installs the exchange, takes you through your first trade and a full trading day, and ends with your own configuration. | 1–3 hours |
+| **3** | **Then choose your book** by what you want to do next — see the map and the table below, or the Quick Start's [Choose Your Next Book](books/quick-start/part-2-next-steps/030-choose-your-book.md). | — |
+
+With Podman or Docker installed, this one command gets you a running exchange
+and its five browser applications; the Quick Start's
+[Install and Start](books/quick-start/part-1-see-it-run/020-install-and-start.md)
+chapter explains what happens next:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
+```
+
+## The library
+
+The documentation is a library of nine books. Each is written for one kind
+of reader and one kind of task, so most people need only two or three of
+them.
 
 ```mermaid
 flowchart TD
-  A[New Reader] --> B{New to exchange concepts?}
-  B -->|Yes| C[How an Exchange Works]
-  B -->|No| D[Getting Started]
-  C --> D
-  D --> E{Goal?}
-  E -->|Run first session| F[Running the Engine]
-  E -->|Understand mechanics| G[Concepts]
-  E -->|Operate a class demo| H[Processes + Scheduling]
-  E -->|Integrate protocols| I[Protocol Overview]
+    B0["How an Exchange Works\nthe concepts, no software"]
+    QS["Quick Start Guide\ninstall, first trade, next steps"]
+    TG["Training Guide\nhands-on exercises"]
+    PG["Participant Guide\ntrade, make markets, run bots"]
+    OG["Operator's Guide\ninstall, configure, run, recover"]
+    PC["Protocols and Clients\nconnect your own program"]
+    AD["Architecture and Developer Guide\nhow it is built, how to change it"]
+    RM["Reference Manual\nevery command, field and term"]
+    AI["AI Traders and Market Simulation\nan exchange that trades itself"]
+
+    B0 -.->|"new to markets?"| QS
+    QS --> AI
+    QS --> TG
+    QS --> PG
+    QS --> OG
+    QS --> PC
+    QS --> AD
+    TG -.->|"background"| PG
+    TG -.->|"background"| OG
+    PG -.->|"look up"| RM
+    OG -.->|"look up"| RM
+    PC -.->|"look up"| RM
+    AD -.->|"look up"| RM
 ```
 
-> Next step: Open [Getting Started](user-guide/000-getting-started.md) and pick either VM bootstrap or pipx install mode.
+### Which books are for you
 
-## What This System Models
+● = written for you, ○ = useful later
 
-In a real exchange, buy and sell orders meet in an order book managed by a matching engine.
-EduMatcher reproduces that stack as separate processes communicating over a message bus, with all key behavior visible for learning and experimentation.
+| Book | Student / trader | Instructor / operator | Client developer | Contributor |
+|---|:---:|:---:|:---:|:---:|
+| [How an Exchange Works](how-exchange-works.md) — exchange concepts without software | ● | ● | ● | ○ |
+| [Quick Start Guide](books/quick-start/00-front/010-how-to-use-this-book.md) — install, first trade, first session | ● | ● | ● | ● |
+| [Training Guide](books/training-guide/index.md) — 29 chapters of hands-on exercises | ● | ● | ○ | ○ |
+| [Participant Guide](books/participant-guide/part-1-trading-basics/010-gateways-and-how-you-connect.md) — orders, auctions, market making, bots, P&L, trading screens | ● | ● | ○ | ○ |
+| [Operator's Guide](books/operator-guide/part-1-install-and-deploy/010-installation.md) — install, configure, run, supervise and recover an exchange | ○ | ● | ○ | ○ |
+| [Protocols and Clients](books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — the wire protocols, APIs and client examples | | ○ | ● | ○ |
+| [Architecture and Developer Guide](books/architecture-and-development/part-1-architecture/010-architecture-overview.md) — the design, the code and how to change it | | | ○ | ● |
+| [Reference Manual](books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — commands, configuration fields, glossary | ○ | ● | ● | ● |
+| [AI Traders and Market Simulation](books/ai-traders/00-front/010-how-to-use-this-book.md) — a market that trades itself: AI traders, hidden true values, news, the simulation container | ○ | ● | ○ | ○ |
 
-```mermaid
-flowchart TD
-  GW1[Your terminal<br/>pm-alf-console]
-  ENG[Matching engine<br/>pm-engine]
-  GW2[Other participants<br/>other pm-alf-consoles]
-  VIEW[pm-viewer<br/>live order book]
-  CLR[pm-clearing<br/>P&L accounting]
-  AUD[pm-audit<br/>full event log]
+### I want to…
 
-  GW1 --> ENG
-  GW2 --> ENG
-  ENG -->|broadcasts trades and fills| VIEW
-  ENG -->|broadcasts trades and fills| CLR
-  ENG -->|broadcasts trades and fills| AUD
-```
+| I want to… | Start here | Then |
+|---|---|---|
+| understand what an exchange does | [How an Exchange Works](how-exchange-works.md) | [Quick Start: What EduMatcher Is](books/quick-start/part-1-see-it-run/010-what-is-edumatcher.md) |
+| see EduMatcher run | [Quick Start: Install and Start](books/quick-start/part-1-see-it-run/020-install-and-start.md) | [Your First Trade](books/quick-start/part-1-see-it-run/030-your-first-trade.md) |
+| learn by doing, step by step | [Training Guide](books/training-guide/index.md) | the chapters in order |
+| trade or make markets | [Participant Guide: The Order Book](books/participant-guide/part-1-trading-basics/020-the-order-book.md) | [Order Types](books/participant-guide/part-2-orders/020-order-types.md) |
+| leave a live, simulated market running for a class | [AI Traders: Ten-Minute Start](books/ai-traders/part-1-start-here/020-ten-minute-start.md) | [The True Value](books/ai-traders/part-2-how-it-works/030-the-true-value.md) |
+| run an exchange for a class | [Operator's Guide: Installation](books/operator-guide/part-1-install-and-deploy/010-installation.md) | [Running the Exchange](books/operator-guide/part-3-run/010-running-the-exchange.md) |
+| find out why an order was rejected | [Participant Guide: The Trader Console](books/participant-guide/part-2-orders/010-the-trader-console.md) | [Operator's Guide: Risk Controls](books/operator-guide/part-4-run-a-market/040-risk-controls.md) |
+| fix a configuration or startup problem | [Quick Start: When Something Does Not Work](books/quick-start/90-backmatter/020-when-something-does-not-work.md) | [Operator's Guide: Configuration Verifier](books/operator-guide/part-2-configure/020-config-verifier.md) |
+| connect my own program | [Protocols and Clients: Protocols Overview](books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) | the protocol's specification in Part II |
+| understand or change the code | [Architecture](books/architecture-and-development/part-1-architecture/010-architecture-overview.md) | [Development Practice](books/architecture-and-development/part-4-developing/010-development-practice.md) |
+| look up a command, field or term | [Reference Manual](books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md) | [Glossary](books/reference-manual/90-backmatter/010-glossary.md) |
 
-A trade occurs when orders cross, and matching follows price-time priority.
-Better prices execute first; at the same price, earlier orders execute first.
+## Download the books
 
-> Next step: Read [The Order Book](concepts/01-concepts-order-book.md) to connect this model to concrete matching behavior.
+Every book is also available as an EPUB, for e-readers, screen readers and
+adjustable text size:
 
-## Reading Path (Beginner-Friendly)
+| Book | EPUB |
+|---|---|
+| 📖 Quick Start Guide | [⬇️ Download](downloads/edumatcher_quick_start.epub) |
+| 📖 Participant Guide | [⬇️ Download](downloads/edumatcher_participant_guide.epub) |
+| 📖 Operator's Guide | [⬇️ Download](downloads/edumatcher_operator_guide.epub) |
+| 📖 Reference Manual | [⬇️ Download](downloads/edumatcher_reference_manual.epub) |
+| 📖 Protocols and Clients | [⬇️ Download](downloads/edumatcher_protocols_and_clients.epub) |
+| 📖 Architecture and Developer Guide | [⬇️ Download](downloads/edumatcher_architecture_and_development.epub) |
+| 📖 Training Guide | [⬇️ Download](downloads/edumatcher_training_guide.epub) |
+| 📖 AI Traders and Market Simulation | [⬇️ Download](downloads/edumatcher_ai_traders.epub) |
 
-1. [How an Exchange Works](how-exchange-works.md)
-2. [Getting Started](user-guide/000-getting-started.md)
-3. [The Order Book](concepts/01-concepts-order-book.md)
-4. [Your First Trade](concepts/04-concepts-first-trade.md)
-5. [P&L and Clearing](user-guide/130-pnl-clearing.md)
-6. [A Full Trading Day](concepts/05-concepts-trading-day.md)
+Each book is also published as PDF on every
+[GitHub release](https://github.com/johan162/EduMatcher/releases):
 
-> Next step: Complete steps 1 to 4 first, then run a session and return for steps 5 and 6.
+| Format | Best for |
+|---|---|
+| A4 light | Printed reference copies |
+| B5 light | Compact print and tablets |
+| A4 or B5 dark | Screen reading in low light |
+| Chapter PDF | Sharing one focused chapter |
 
-## Installation
+Contributors can build every format from a checkout with the targets in
+`docs/Makefile` (`make help` in the `docs/` directory).
 
-See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/000-getting-started/#installation)
+## What EduMatcher deliberately leaves out
 
-***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
+EduMatcher keeps the parts of a real exchange that matter for learning and
+simplifies the rest:
 
+- **Authentication and authorization are minimal.** There is no hierarchy of
+  members, firms and users; participants are identified by a configured ID.
+- **There is no fault tolerance.** No hot-standby system, replication or
+  failover; one machine runs the whole exchange.
+- **Implied (synthetic) orders are not supported.** The Participant Guide
+  explains the concept in [Implied Orders](books/participant-guide/part-2-orders/040-implied-orders.md).
+- **Combo orders are not atomic.** They are a thin layer over the individual
+  order books, not a book of their own.
 
-## Self Paced Training
+The Reference Manual's
+[Known Limitations](books/reference-manual/90-backmatter/020-known-limitations.md)
+lists the rest.
 
-The [Training Manual](training/index.md) is a chapter-based, self-paced track for hands-on learning.
-It complements the User Guide by turning concepts into guided exercises that you can run step by step.
-
-If you want direct entry points, start with:
-
-- [Installation](training/000-installation.md)
-- [Configuring Startup](training/010-configuring-startup.md)
-- [The First Trade](training/030-the-first-trade.md)
-- [Auctions](training/070-auctions.md)
-- [Risk Controls](training/110-risk-controls.md)
-
-> Next step: Use [Training Index](training/index.md) as your checklist and cross-reference each chapter with the matching [User Guide](user-guide/000-getting-started.md) section.
-
-## Next Stops
-
-- [Configuration](user-guide/010-configuration.md)
-- [Commands](user-guide/160-exchange-commands.md)
-- [Running the Engine](user-guide/040-running-the-exchange.md)
-- [ALF Console (pm-alf-console)](user-guide/055-alf-console.md)
-- [Protocol Overview](user-guide/210-protocols-overview.md)
+!!! warning "Not for real trading"
+    EduMatcher is for teaching and experimenting in a controlled
+    environment. Never use it for real financial transactions.

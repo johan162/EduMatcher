@@ -1,6 +1,6 @@
 """Tests for the ``passive`` pricing strategy (step behind others + fade).
 
-See docs/user-guide/100-mm-bot.md, "The passive strategy". Prices below use
+See ../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md, "The passive strategy". Prices below use
 tick 0.01, gap 0.10, so with mid 100.00 the home quote is 99.95 / 100.05.
 """
 

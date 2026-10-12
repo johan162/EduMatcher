@@ -298,8 +298,10 @@ MarketDataChannel = Literal["book", "trades", "depth", "auction"]
 #: transition changes the meaning of every other channel — a client showing a
 #: stale book during a halt is showing something false. They are therefore not
 #: subscribable, and the subscription ack reports them under ``always`` so the
-#: behaviour is discoverable rather than surprising.
-ALWAYS_ON_CHANNELS: tuple[str, ...] = ("session", "circuit_breaker")
+#: behaviour is discoverable rather than surprising. ``news`` (pm-market-sim's
+#: headlines) is here too: a handful a day, and a headline can be about a
+#: whole sector or the market, which no symbol subscription could express.
+ALWAYS_ON_CHANNELS: tuple[str, ...] = ("session", "circuit_breaker", "news")
 
 
 class MarketDataSubscriptionItem(StrictModel):

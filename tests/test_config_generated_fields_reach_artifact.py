@@ -40,7 +40,7 @@ from edumatcher.models.order import SmpAction
 # is genuinely reachable rather than merely having a home in the schema.
 KEY_LANDINGS: dict[str, object] = {
     "sessions_enabled": lambda c: c.engine.sessions_enabled,
-    "country": lambda c: c.engine.country,
+    "locale": lambda c: c.engine.locale.country,
     "enforce_collars": lambda c: c.engine.enforce_collars,
     "enforce_circuit_breakers": lambda c: c.engine.enforce_circuit_breakers,
     "require_mm_seed_quotes": lambda c: c.engine.require_mm_seed_quotes,
@@ -153,8 +153,10 @@ class TestGeneratedFieldsReachTheArtifact:
     ) -> None:
         # The field that prompted this test.
         config, payload = compiled
-        assert payload["country"] == "Germany"
-        assert config.engine.country == "Germany"
+        locale = payload["locale"]
+        assert isinstance(locale, dict)
+        assert locale["country"] == "Germany"
+        assert config.engine.locale.country == "Germany"
 
     def test_the_ace_reopening_block_survives_specifically(
         self, compiled: tuple[CompiledConfig, dict[str, object]]

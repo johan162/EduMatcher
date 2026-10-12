@@ -22,7 +22,9 @@ from edumatcher.config_artifact import (
     encode,
     source_digest,
 )
-from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG
+from edumatcher.ai_trader.swarm_config import load_swarm_config
+from edumatcher.market_sim.config import load_sim_config
+from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG, main as setup_main
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -241,6 +243,22 @@ class TestShippedSample:
         assert config.engine.symbols, "a default with no symbols would teach nothing"
         assert config.engine.fix_gateways
 
+    def test_pm_setup_installs_the_examples_market_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # pm-market-sim reads <DATA_DIR>/ref_data/market_sim.yaml; pm-setup
+        # once compiled a copy of the YAML and so dropped the example's model.
+        monkeypatch.setattr(
+            "sys.argv",
+            ["pm-setup", "--data-dir", str(tmp_path), "--config", "s300-sim"],
+        )
+        setup_main()
+        ref_data = tmp_path / "ref_data"
+        assert (ref_data / "engine_config.json").is_file()
+        assert (ref_data / "market_sim.yaml").read_text(encoding="utf-8") == (
+            resolve_example("s300-sim").with_name("market_sim.yaml").read_text("utf-8")
+        )
+
 
 class TestExamples:
     """`--example NAME` resolves to a bundled docs/examples/ref_data config."""
@@ -278,6 +296,8 @@ class TestExamples:
             ("s150-basic-nomm", "s150-basic-nomm-setup"),
             ("s150-nominal-nomm", "s150-nominal-nomm-setup"),
             ("s150-complex-nomm", "s150-complex-nomm-setup"),
+            ("s300-load", "s300-load-setup"),
+            ("s300-sim", "s300-sim-setup"),
         ],
     )
     def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
@@ -306,6 +326,58 @@ class TestExamples:
         path = resolve_example("s3-basic")
         assert path.parts[-2:] == ("s3-basic-setup", "engine_config.yaml")
         assert path.is_file()
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "s150-basic",
+            "s150-nominal",
+            "s150-complex",
+            "s150-basic-nomm",
+            "s150-nominal-nomm",
+            "s150-complex-nomm",
+        ],
+    )
+    def test_s150_examples_carry_twenty_ai_traders(self, name: str) -> None:
+        # pm-ai-swarm --count 20 must run against every s150 variant unchanged.
+        gateways = compile_config(resolve_example(name)).engine.fix_gateways
+        ai = sorted(gw for gw in gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 21)]
+        assert {gateways[gw].role.value for gw in ai} == {"TRADER"}
+
+    def test_s300_load_has_the_ai_trader_design_limit(self) -> None:
+        # The design-limit test bed for the AI traders (v3 plan WP-A3).
+        engine = compile_config(resolve_example("s300-load")).engine
+        assert len(engine.symbols) == 300
+        ai = sorted(gw for gw in engine.fix_gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 501)]
+        assert engine.sessions_enabled is True
+
+    def test_s300_sim_has_the_simulation_set_up(self) -> None:
+        # The long-running simulation (AI sim book plan WP-B1): one market
+        # maker, a hundred AI traders, sessions driven by the scheduler.
+        engine = compile_config(resolve_example("s300-sim")).engine
+        assert len(engine.symbols) == 300
+        gateways = engine.fix_gateways
+        ai = sorted(gw for gw in gateways if gw.startswith("AI"))
+        assert ai == [f"AI{i:03d}" for i in range(1, 101)]
+        assert [gw for gw in gateways if gateways[gw].role.value == "MARKET_MAKER"] == [
+            "MM01"
+        ]
+        assert engine.sessions_enabled is True
+
+    def test_s300_sim_swarm_and_model_load(self) -> None:
+        folder = resolve_example("s300-sim").parent
+        swarm = load_swarm_config(folder / "swarm.yaml")
+        assert swarm.values["count"] == 100
+        assert swarm.values["symbols_per_agent"] == 30
+        engine = compile_config(folder / "engine_config.yaml").engine
+        sim = load_sim_config(folder / "market_sim.yaml", set(engine.symbols))
+        assert sim.news.rate_symbol > 0
+
+    def test_s300_load_has_no_nomm_variant(self) -> None:
+        with pytest.raises(ValueError, match="Unknown example"):
+            resolve_example("s300-load-nomm")
 
     def test_every_resolved_example_compiles(self) -> None:
         # These are the files shown to newcomers; one that fails to compile
@@ -358,3 +430,40 @@ class TestProvenance:
             compile_config(source).meta.content_sha256
             == compile_config(source).meta.content_sha256
         )
+
+
+class TestMarketSimConfig:
+    """A market_sim.yaml beside the source travels with it, checked."""
+
+    def _dest(self, tmp_path: Path) -> Path:
+        return tmp_path / "deployed" / "engine_config.json"
+
+    def test_installed_next_to_the_artifact(self, tmp_path: Path) -> None:
+        source = _source(tmp_path, name="engine_config.yaml")
+        (tmp_path / "market_sim.yaml").write_text(
+            "version: 1\nsymbols: {AAPL: {vol: 0.2}}\n"
+        )
+        dest = self._dest(tmp_path)
+        deploy(source, dest)
+        assert (dest.parent / "market_sim.yaml").read_text().startswith("version: 1")
+
+    def test_a_symbol_the_engine_lacks_blocks_the_deploy(self, tmp_path: Path) -> None:
+        source = _source(tmp_path, name="engine_config.yaml")
+        (tmp_path / "market_sim.yaml").write_text(
+            "version: 1\nsymbols: {TSLA: {vol: 0.2}}\n"
+        )
+        dest = self._dest(tmp_path)
+        with pytest.raises(CompileError, match="TSLA"):
+            deploy(source, dest)
+        assert not dest.exists()
+
+    def test_a_stale_one_is_removed(self, tmp_path: Path) -> None:
+        dest = self._dest(tmp_path)
+        dest.parent.mkdir(parents=True)
+        (dest.parent / "market_sim.yaml").write_text("old")
+        deploy(_source(tmp_path, name="engine_config.yaml"), dest)
+        assert not (dest.parent / "market_sim.yaml").exists()
+
+    @pytest.mark.parametrize("example", ["s150-nominal", "s300-load", "s300-sim"])
+    def test_examples_carry_one(self, example: str) -> None:
+        assert resolve_example(example).with_name("market_sim.yaml").is_file()

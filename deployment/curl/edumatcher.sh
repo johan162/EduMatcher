@@ -204,12 +204,12 @@ cmd_urls() {
     # shellcheck disable=SC1091
     [[ -f .env ]] && source .env
     echo "Open:"
-    echo "  Trading terminal   http://localhost:${TERMINAL_GUI_PORT:-8090}"
-    echo "  Log viewer         http://localhost:${LOG_GUI_PORT:-8091}"
-    echo "  Config builder     http://localhost:${CONFIG_GUI_PORT:-8092}"
-    echo "  Trader GUI         http://localhost:${TRADER_GUI_PORT:-8093}"
-    echo "  Order book viewer  http://localhost:${BOOK_GUI_PORT:-8094}"
-    echo "  REST API docs      http://localhost:8080/docs"
+    echo "  TapeDeck (market display)  http://localhost:${TERMINAL_GUI_PORT:-8090}"
+    echo "  Log Operator Console       http://localhost:${LOG_GUI_PORT:-8091}"
+    echo "  Configuration GUI          http://localhost:${CONFIG_GUI_PORT:-8092}"
+    echo "  Trading GUI                http://localhost:${TRADER_GUI_PORT:-8093}"
+    echo "  Order Book Viewer          http://localhost:${BOOK_GUI_PORT:-8094}"
+    echo "  REST API docs              http://localhost:8080/docs"
 }
 
 # Which directory on your disk is behind each path inside each container.
@@ -260,7 +260,7 @@ EXAMPLES="s1-basic s1-nominal s1-complex s3-basic s3-nominal s3-complex
 s10-basic s10-nominal s10-complex s30-basic s30-nominal s30-complex s150-basic s150-nominal s150-complex
 s1-basic-nomm s1-nominal-nomm s1-complex-nomm s3-basic-nomm s3-nominal-nomm s3-complex-nomm
 s10-basic-nomm s10-nominal-nomm s10-complex-nomm s30-basic-nomm s30-nominal-nomm s30-complex-nomm
-s150-basic-nomm s150-nominal-nomm s150-complex-nomm"
+s150-basic-nomm s150-nominal-nomm s150-complex-nomm s300-load s300-sim"
 
 cmd_config() {
     [[ $# -eq 1 ]] || die "Usage: ./edumatcher.sh config <example-name | path/to/engine_config.yaml>"

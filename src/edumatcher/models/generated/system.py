@@ -7,7 +7,8 @@ Family version 1. Every symbol here is derived from ``spec/messages/system.yaml`
 the spec, not this file.
 
 ``pm-msgen check`` fails the build if this file and the spec disagree. See
-docs/developer/06-msgen.md.
+../../../../docs/books/architecture-and-development/part-4-developing/040-message-
+generation.md.
 """
 
 from __future__ import annotations
@@ -2100,6 +2101,148 @@ def describe_gateway_disconnect() -> tuple[dict[str, Any], ...]:
     return _GATEWAY_DISCONNECT_FIELDS
 
 
+TOPIC_GATEWAY_HEARTBEAT = "system.gateway_heartbeat"
+_TOPIC_GATEWAY_HEARTBEAT_BYTES = "system.gateway_heartbeat".encode()
+
+
+_GATEWAY_HEARTBEAT_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "interval_sec",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Seconds between this sender's beats. Carried on every beat so the engine needs no per-client setting; the bound stops a client declaring an interval so long that its ID could never be reclaimed.",
+        "constraints": {"ge": 1, "le": 3600},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayHeartbeat:
+    """Gateway to engine: this participant's process is still alive. A process that
+    dies without sending `gateway_disconnect` (kill -9, a crashed host, a dropped
+    network) would otherwise keep its ID marked connected for ever, and the engine
+    refuses a second connect for an ID that is already connected. The engine
+    counts the beats it expects -- one per `interval_sec` -- and disconnects the
+    session, applying its `disconnect_behaviour`, after three consecutive misses.
+    Liveness is opt-in: a session that has never sent one is never timed out.
+    """
+
+    gateway_id: str
+    interval_sec: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if self.interval_sec < 1:
+            raise MessageValidationError(
+                f"interval_sec: {self.interval_sec!r} must be >= 1"
+            )
+        if self.interval_sec > 3600:
+            raise MessageValidationError(
+                f"interval_sec: {self.interval_sec!r} must be <= 3600"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "GatewayHeartbeat":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            interval_sec=int(p["interval_sec"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+            "interval_sec": self.interval_sec,
+        }
+
+
+def is_gateway_heartbeat(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_GATEWAY_HEARTBEAT
+
+
+def make_gateway_heartbeat(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = GatewayHeartbeat.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_GATEWAY_HEARTBEAT, obj.to_dict())
+
+
+def make_gateway_heartbeat_unchecked(
+    *,
+    gateway_id: str,
+    interval_sec: int,
+) -> list[bytes]:
+    """Identical frames to ``make_gateway_heartbeat``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_GATEWAY_HEARTBEAT_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+                "interval_sec": int(interval_sec),
+            }
+        ),
+    ]
+
+
+def parse_gateway_heartbeat(frames: list[bytes]) -> "GatewayHeartbeat":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = GatewayHeartbeat.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_gateway_heartbeat() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _GATEWAY_HEARTBEAT_FIELDS
+
+
 TOPIC_GATEWAY_BYE = "system.gateway_bye.{gateway_id}"
 PREFIX_GATEWAY_BYE = "system.gateway_bye."
 _GATEWAY_BYE_RE = re.compile("system\\.gateway_bye\\.(?P<gateway_id>[^.]+)")
@@ -2406,9 +2549,10 @@ class StartupRecovery:
     config-seed step runs: how much of the previous session's resting state came
     back. Every one of these counts previously only reached `log.info`/`log.error`
     — invisible to `pm-audit`, which is a bare PUB subscriber and sees nothing
-    that is not published (see docs/user-guide/190-audit.md). A post-mortem
-    investigating "why does the book look different after a restart" needs this
-    the same way it needs `order.cancelled` for a live cancel.
+    that is not published (see ../../docs/books/operator-guide/part-6-observe-and-
+    recover/020-audit-trail.md). A post-mortem investigating "why does the book
+    look different after a restart" needs this the same way it needs
+    `order.cancelled` for a live cancel.
 
     A broadcast with no request, like `system.eod` — nothing asks for a recovery
     summary, the engine announces it once at startup.
@@ -2621,8 +2765,9 @@ class RecoveryItem:
     `_restore_gtc()` (AR-0.5). `startup_recovery`'s six counts say *how many*;
     this says *which ones* — "which order failed to restore?" was unanswerable
     from either the counts alone or the process log, since a post-mortem
-    investigating a startup only sees what was published (see docs/user-
-    guide/190-audit.md). Published once per entity, before the single summary
+    investigating a startup only sees what was published (see
+    ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-
+    trail.md). Published once per entity, before the single summary
     `startup_recovery` broadcast, so the counts there are the cross-check:
     `restored_orders + discarded_stale_day_orders + failed_orders` must equal the
     number of ORDER-kind recovery_item lines whose outcome is RESTORED,
@@ -2835,12 +2980,13 @@ class Diagnostic:
     still happened and a post-mortem needs to see it. Before this existed, a
     maintenance-flush exception, a handler crash, an undecodable inbound message,
     or a message on an unhandled topic reached only the process log — `pm-audit`'s
-    bare PUB subscription on the engine's :5556 socket (see docs/user-
-    guide/190-audit.md) never saw any of them, so a bug that only ever showed up
-    as "the book snapshot stopped updating" or "an order silently never got a
-    reply" had no trail to replay. This does not replace logging (the process log
-    keeps the full traceback); it is the wire-visible marker that something in
-    `component` happened, with enough detail to go find the log line.
+    bare PUB subscription on the engine's :5556 socket (see
+    ../../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md)
+    never saw any of them, so a bug that only ever showed up as "the book snapshot
+    stopped updating" or "an order silently never got a reply" had no trail to
+    replay. This does not replace logging (the process log keeps the full
+    traceback); it is the wire-visible marker that something in `component`
+    happened, with enough detail to go find the log line.
 
     Deliberately generic — a `component`/`detail`/`error` triple rather than one message
     type per failure mode, because the failure modes (a maintenance flush, a dispatch-
@@ -3388,8 +3534,8 @@ class Reference:
     `reference.symbols` becoming a list of records and `reference.schedule` gaining a
     level of nesting change `GET /reference/symbols` and `GET /reference/schedule`.
     Sanctioned, and the better JSON in both cases -- a list of objects each carrying its
-    own `symbol` is what a client can iterate without knowing the keys. `260-api-
-    gateway.md` moves with it.
+    own `symbol` is what a client can iterate without knowing the keys.
+    `../../docs/books/operator-guide/part-5-gateways/050-api-gateway.md` moves with it.
     """
 
     gateway_id: str
@@ -6147,6 +6293,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_AUTH,
     TOPIC_GATEWAY_DISCONNECT,
+    TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_GATEWAY_BYE,
     TOPIC_EOD,
     TOPIC_STARTUP_RECOVERY,

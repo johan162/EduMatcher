@@ -29,6 +29,7 @@ make down      # stop it
 - [SSH access](#ssh-access)
 - [The data directory](#the-data-directory)
 - [Choosing the configuration and the profile](#choosing-the-configuration-and-the-profile)
+- [The AI-trader simulation](#the-ai-trader-simulation)
 - [Make targets](#make-targets)
 - [When a GUI shows something unexpected](#when-a-gui-shows-something-unexpected)
 - [Publishing images by hand](#publishing-images-by-hand)
@@ -223,16 +224,16 @@ make up-all BUILD=1 GUI=log-gui    # both steps in one
 
 For the day-to-day inner loop — running a web app on your machine with hot
 reload against this container stack — see
-[The Development Loop](../../docs/developer/08-dev-workflow.md) and
+[The Development Loop](../../docs/books/architecture-and-development/part-4-developing/020-development-workflow.md) and
 `make dev-env GUI=<app>`.
 
 | GUI | URL | Talks to |
 |---|---|---|
-| Trading terminal | <http://localhost:8090> | `pm-md-gwy` 5570, `pm-api-gwy` 8081, `pm-log-srv` 5600 |
-| Log viewer | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
-| Config builder | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
-| Trader GUI | <http://localhost:8093> | `pm-api-gwy` 8080 |
-| Order book viewer | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
+| TapeDeck market display (`pm-terminal`) | <http://localhost:8090> | `pm-md-gwy` 5570, `pm-api-gwy` 8081, `pm-log-srv` 5600 |
+| Log Operator Console (`pm-log-ui`) | <http://localhost:8091> | `pm-log-srv` 5601/5602, and `data/log.db` read-only |
+| Configuration GUI (`config-gui`) | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
+| Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | `pm-api-gwy` 8080 |
+| Order Book Viewer (`pm-book`) | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
 
 ### How the GUIs reach the exchange
 
@@ -381,7 +382,13 @@ way `pm-config-deploy --example` names them:
 s1-basic     s3-basic     s10-basic     s30-basic     s150-basic
 s1-nominal   s3-nominal   s10-nominal   s30-nominal   s150-nominal
 s1-complex   s3-complex   s10-complex   s30-complex   s150-complex
+s300-load    s300-sim
 ```
+
+(`s300-load` is the AI-trader load test bed: 300 symbols, 500 AI participants.
+`s300-sim` is the long-running simulated market: 300 symbols, 100 AI
+participants, a market maker and the market model; see
+[The AI-trader simulation](#the-ai-trader-simulation).)
 
 ```bash
 make up CONFIG=s10-nominal
@@ -397,6 +404,9 @@ Changing it redeploys the configuration in `./data` on the next `make up`
 | `default` | The full nominal stack: logging, audit, stats, clearing, engine, scheduler, all gateways, both API instances, index |
 | `mini` | A trading-capable subset |
 | `micro` | Centralized logging plus the engine |
+| `mm-demo` | `default` plus a slow, passive market-maker bot (`MM01`) |
+| `ai-swarm` | `mm-demo` with its market maker anchored to the market model (`pm-mm-bot --anchor-sim 0.3`), plus `pm-market-sim` and twenty AI traders (`AI001`–`AI020`); use an `s150` config or `s300-load` |
+| `ai-sim` | `ai-swarm` with the `s300-sim` swarm (`AI001`–`AI100`) and a symmetric market maker, set up to run for weeks; use `s300-sim` |
 
 ```bash
 make up PROFILE=micro
@@ -411,6 +421,31 @@ exit
 vim data/emo-config.yaml
 make restart
 ```
+
+## The AI-trader simulation
+
+`compose.ai-sim.yaml` runs a market that trades by itself — the
+`edumatcher-ai-sim` image (the `ai-sim` stage of the `Dockerfile`: the
+`s300-sim` example, the `ai-sim` profile, Stockholm trading hours, dead
+processes restarted once a minute) plus TapeDeck, the Order Book Viewer, the
+Log Operator Console and the Trading GUI. It is self-contained (no `.env`
+needed), pulls every image from GHCR, keeps its data in `./data-sim` and is
+its own compose project, `edumatcher-sim`. It publishes the same host ports
+as the stack above, so run one or the other.
+
+```bash
+make up-sim                       # GHCR images, real trading hours
+make up-sim SPEED=24              # the trading calendar 24x faster
+make build-sim && make up-sim LOCAL=1   # the backend built from this checkout
+make sim-status                   # processes, data size, free disk
+make down-sim
+```
+
+Without `make`: `docker compose -f compose.ai-sim.yaml up -d`. Its settings
+(`EM_SPEED`, `EM_START`, `TZ`, `EM_CONFIG_FILE`, `EM_VERSION`, ports) are
+described in the file itself and in the *AI Traders and Market Simulation*
+book, chapter *The Simulation Container*
+(`docs/books/ai-traders/part-3-run-it/110-the-simulation-container.md`).
 
 ## Make targets
 

@@ -10,8 +10,8 @@ Features:
   - Command history (persisted to ~/.alf_client_history)
   - Background receive thread with interleaved event display
   - All trading commands: NEW, AMEND, CANCEL, QUOTE, QUOTE_CANCEL,
-    KILL, SYMBOLS, ORDERS, QBOOT, PING
-  - Session queries: POS (position/P&L tracking), STATUS
+    KILL, SYMBOLS, ORDERS, QBOOT, QLEGS, PING
+  - Session queries: SESSION, POS (position/P&L tracking), STATUS
   - Multi-line responses displayed as formatted tables
 
 Usage:
@@ -24,6 +24,7 @@ Requires Python 3.9+ and the alf_parser.py library in the same directory.
 from __future__ import annotations
 
 import argparse
+import logging
 import readline
 import sys
 import threading
@@ -31,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 
 from alf_parser import AlfMessage, AlfParseError, AlfSession
+
+log = logging.getLogger("alf_client")
 
 # ---------------------------------------------------------------------------
 # ANSI colour helpers
@@ -80,6 +83,7 @@ _HELP_TEXT = f"""
 
 {_BOLD}Session{_RESET}
   PING                           Liveness probe
+  SESSION                        Ask the exchange for its current session state
   POS                            Show tracked positions and unrealized P&L
   POS|GW=<gateway_id>            Query another gateway's position from the engine
   STATUS                         Show session and connection info
@@ -104,6 +108,7 @@ _TOP_CMDS = [
     "SYMBOLS",
     "ORDERS",
     "PING",
+    "SESSION",
     "POS",
     "STATUS",
     "HELP",
@@ -302,6 +307,12 @@ class AlfClient:
         self._prompt = f"[{session.gateway_id}]> "
         self._running = False
         self._print_lock = threading.Lock()
+        # Keepalive: the gateway disconnects a session after `idle_timeout`
+        # seconds of silence, so a client that is waiting for a human (or
+        # hung) would otherwise be dropped. The PONG replies to our own PINGs
+        # are swallowed rather than printed.
+        self._keepalive_stop = threading.Event()
+        self._pongs_to_hide = 0
 
         # State
         self._orders: dict[str, dict[str, str]] = {}  # order_id → fields
@@ -361,14 +372,18 @@ class AlfClient:
             return  # heartbeat — silently ignore
 
         if t == "PONG":
+            if self._pongs_to_hide > 0:
+                self._pongs_to_hide -= 1
+                return
             self._pr(f"[{ts}] {_DIM}PONG{_RESET}  {f.get('TS', '')}")
             return
 
         if t == "SESSION":
             state = f.get("STATE", "?")
-            prev = f.get("PREV_STATE", "?")
+            prev = f.get("PREV_STATE", "")
             self._session_state = state
-            self._pr(f"[{ts}] {_YELLOW}SESSION{_RESET}  {prev} → {state}")
+            change = f"{prev} → {state}" if prev else state
+            self._pr(f"[{ts}] {_YELLOW}SESSION{_RESET}  {change}")
             return
 
         if t == "HALT":
@@ -407,7 +422,7 @@ class AlfClient:
             oid = f.get("ORDER_ID", "?")
             accepted = f.get("ACCEPTED", "FALSE") == "TRUE"
             reason = f.get("REASON", "")
-            short = oid[:8]
+            short = oid
             if accepted:
                 tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
                 self._pr(
@@ -440,10 +455,10 @@ class AlfClient:
             price = f.get("FILL_PRICE", "?")
             rem = f.get("REMAINING", "?")
             st = f.get("STATUS", "?")
+            tag = f"  tag={f['TAG']}" if f.get("TAG") else ""
             self._pr(
-                f"[{ts}] {_CYAN}FILL{_RESET}     {oid[:8]}  "
-                f"qty={qty} @{price}  remaining={rem}  [{st}]"
-                f"{f'  tag={f.get('TAG')}' if f.get('TAG') else ''}"
+                f"[{ts}] {_CYAN}FILL{_RESET}     {oid}  "
+                f"qty={qty} @{price}  remaining={rem}  [{st}]{tag}"
             )
             # Position update — use cached order for symbol/side
             order = self._orders.get(oid, {})
@@ -460,13 +475,13 @@ class AlfClient:
 
         if t == "AMENDED":
             oid = f.get("ORDER_ID", "?")
+            tag = f"  tag={f['TAG']}" if f.get("TAG") else ""
+            rtag = f"  rtag={f['RTAG']}" if f.get("RTAG") else ""
             self._pr(
-                f"[{ts}] {_MAGENTA}AMENDED{_RESET}  {oid[:8]}  "
+                f"[{ts}] {_MAGENTA}AMENDED{_RESET}  {oid}  "
                 f"price={f.get('PRICE', '-')}  qty={f.get('QTY', '-')}  "
                 f"remaining={f.get('REMAINING', '-')}  "
-                f"priority_reset={f.get('PRIORITY_RESET', '-')}"
-                f"{f'  tag={f.get('TAG')}' if f.get('TAG') else ''}"
-                f"{f'  rtag={f.get('RTAG')}' if f.get('RTAG') else ''}"
+                f"priority_reset={f.get('PRIORITY_RESET', '-')}{tag}{rtag}"
             )
             if oid in self._orders:
                 for k in ("PRICE", "QTY", "REMAINING"):
@@ -478,7 +493,7 @@ class AlfClient:
             oid = f.get("ORDER_ID", "?")
             tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
             rtag = f"  rtag={f.get('RTAG')}" if f.get("RTAG") else ""
-            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid[:8]}{tag}{rtag}")
+            self._pr(f"[{ts}] {_YELLOW}CANCELLED{_RESET} {oid}{tag}{rtag}")
             if oid in self._orders:
                 self._orders[oid]["status"] = "CANCELLED"
             return
@@ -486,7 +501,7 @@ class AlfClient:
         if t == "EXPIRED":
             oid = f.get("ORDER_ID", "?")
             tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""
-            self._pr(f"[{ts}] {_DIM}EXPIRED{_RESET}  {oid[:8]}{tag}")
+            self._pr(f"[{ts}] {_DIM}EXPIRED{_RESET}  {oid}{tag}")
             if oid in self._orders:
                 self._orders[oid]["status"] = "EXPIRED"
             return
@@ -500,8 +515,8 @@ class AlfClient:
             # order — which breaks the moment one ack is missed.
             sym = f.get("SYM") or "?"
             if f.get("ACCEPTED", "FALSE") == "TRUE":
-                bid = f.get("BID_ID", "?")[:8]
-                ask = f.get("ASK_ID", "?")[:8]
+                bid = f.get("BID_ID", "?")
+                ask = f.get("ASK_ID", "?")
                 self._pr(
                     f"[{ts}] {_GREEN}QUOTE ACK{_RESET}  {sym}  {qid}  "
                     f"bid={bid} ask={ask}"
@@ -551,8 +566,8 @@ class AlfClient:
         if t == "OCO_ACK":
             oid = f.get("OCO_ID", "?")
             if f.get("ACCEPTED", "FALSE") == "TRUE":
-                l1 = f.get("LEG1_ID", "?")[:8]
-                l2 = f.get("LEG2_ID", "?")[:8]
+                l1 = f.get("LEG1_ID", "?")
+                l2 = f.get("LEG2_ID", "?")
                 self._pr(f"[{ts}] {_GREEN}OCO ACK{_RESET}    {oid}  legs={l1}/{l2}")
             else:
                 self._pr(
@@ -562,7 +577,7 @@ class AlfClient:
 
         if t == "OCO_CANCELLED":
             oid = f.get("OCO_ID", "?")
-            sibl = f.get("CANCELLED_ID", "?")[:8]
+            sibl = f.get("CANCELLED_ID", "?")
             self._pr(
                 f"[{ts}] {_YELLOW}OCO CANCEL{_RESET} {oid}  sibling={sibl}  {f.get('REASON', '')}"
             )
@@ -607,14 +622,14 @@ class AlfClient:
         elif kind == "ORDERS":
             gw = hdr.fields.get("GW", "") if hdr else ""
             header = (
-                f"  {'ID'[:8]:<8}  {'SYM':<6} {'SIDE':<5} {'TYPE':<11} "
+                f"  {'ID':<32}  {'SYM':<6} {'SIDE':<5} {'TYPE':<11} "
                 f"{'QTY':>6} {'REM':>6} {'PRICE':>8}  STATUS"
             )
-            divider = "  " + "-" * 66
+            divider = "  " + "-" * 90
             lines = [f"\n{_BOLD}Orders — {gw}{_RESET}", header, divider]
             for r in rows:
                 f_ = r.fields
-                oid = f_.get("ID", "?")[:8]
+                oid = f_.get("ID", "?")
                 sym = f_.get("SYM", "?")
                 side = f_.get("SIDE", "?")
                 typ = f_.get("TYPE", "?")
@@ -637,7 +652,7 @@ class AlfClient:
                         }
                     )
                 lines.append(
-                    f"  {oid:<8}  {sym:<6} {side:<5} {typ:<11} "
+                    f"  {oid:<32}  {sym:<6} {side:<5} {typ:<11} "
                     f"{qty:>6} {rem:>6} {prc:>8}  {st}"
                 )
             count = hdr.fields.get("COUNT", "?") if hdr else "?"
@@ -671,17 +686,17 @@ class AlfClient:
             show = hdr.fields.get("SHOW", "ACTIVE") if hdr else "ACTIVE"
             leg_rows = [r for r in rows if r.msg_type == "LEG"]
             header = (
-                f"  {'SYM':<6} {'QUOTE_ID':<20} {'SIDE':<5} {'ORDER_ID':<8} "
+                f"  {'SYM':<6} {'QUOTE_ID':<20} {'SIDE':<5} {'ORDER_ID':<32} "
                 f"{'PRICE':>10} {'QTY':>6} {'REM':>6} {'FILLED':>6}  "
                 f"{'STATUS':<10} QUOTE_STATUS"
             )
-            divider = "  " + "-" * 100
+            divider = "  " + "-" * 124
             lines = [f"\n{_BOLD}Quote legs (show={show}){_RESET}", header, divider]
             for r in leg_rows:
                 f_ = r.fields
                 lines.append(
                     f"  {f_.get('SYM', '?'):<6} {f_.get('QUOTE_ID', '?'):<20} "
-                    f"{f_.get('SIDE', '?'):<5} {f_.get('ORDER_ID', '?')[:8]:<8} "
+                    f"{f_.get('SIDE', '?'):<5} {f_.get('ORDER_ID', '?'):<32} "
                     f"{_price(f_.get('PRICE')):>10} "
                     f"{f_.get('QTY', '?'):>6} {f_.get('REMAINING', '?'):>6} "
                     f"{f_.get('FILLED', '?'):>6}  {f_.get('STATUS', '?'):<10} "
@@ -711,7 +726,7 @@ class AlfClient:
                     else:
                         side = "bid" if r.msg_type == "RECENT_BID_LEG" else "ask"
                         lines.append(
-                            f"      {side}_leg  order={f_.get('ORDER_ID', '?')[:8]}  "
+                            f"      {side}_leg  order={f_.get('ORDER_ID', '?')}  "
                             f"px={_price(f_.get('PRICE'))} "
                             f"qty={f_.get('QTY', '?')} rem={f_.get('REMAINING', '?')} "
                             f"filled={f_.get('FILLED', '?')} status={f_.get('STATUS', '?')}"
@@ -740,6 +755,18 @@ class AlfClient:
     # ------------------------------------------------------------------
     # Receive thread
     # ------------------------------------------------------------------
+
+    def _keepalive_loop(self) -> None:
+        """Background thread: PING every idle_timeout/3 seconds, so the
+        gateway never sees this session as silent (see ``_pongs_to_hide``)."""
+        interval = max(1, self._session.welcome.idle_timeout // 3)
+        while not self._keepalive_stop.wait(interval):
+            log.debug("keepalive PING sent gateway_id=%s", self._session.gateway_id)
+            self._pongs_to_hide += 1
+            try:
+                self._session.send("PING")
+            except OSError:
+                return
 
     def _recv_loop(self) -> None:
         """Background thread: read gateway messages and display them."""
@@ -955,6 +982,10 @@ class AlfClient:
         self._running = True
         recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
         recv_thread.start()
+        threading.Thread(target=self._keepalive_loop, daemon=True).start()
+        # Ask once for the session state, so STATUS is right from the start
+        # rather than only after the next phase change.
+        self._session.send("SESSION")
 
         w = self._session.welcome
         print(
@@ -978,6 +1009,7 @@ class AlfClient:
                     readline.add_history(line)
         finally:
             self._running = False
+            self._keepalive_stop.set()
             try:
                 readline.write_history_file(str(HISTORY_FILE))
             except OSError:
@@ -1013,7 +1045,11 @@ def main() -> None:
         default="alf-client",
         help="Client name for gateway logs (default: alf-client)",
     )
+    parser.add_argument(
+        "--debug", action="store_true", help="Log each keepalive PING sent"
+    )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
 
     print(f"Connecting to {args.host}:{args.port} as {args.id.upper()} …")
     try:

@@ -61,7 +61,7 @@ class FixedListener(NamedTuple):
 SINGLETON_GATEWAYS: tuple[GatewaySpec, ...] = (
     GatewaySpec("alf_gateway", "pm-alf-gwy", 5565, "TCP", "ALF order gateway"),
     GatewaySpec("balf_gateway", "pm-balf-gwy", 5560, "TCP", "Binary ALF gateway"),
-    GatewaySpec("market_data_gateway", "pm-md-gwy", 5570, "TCP", "Market data (MDLF)"),
+    GatewaySpec("market_data_gateway", "pm-md-gwy", 5570, "TCP", "Market data (CALF)"),
     GatewaySpec("post_trade_gateway", "pm-ralf-gwy", 5580, "TCP", "Post-trade (RALF)"),
     GatewaySpec("dc_gateway", "pm-dc-gwy", 5590, "TCP", "Drop-copy (DCLF)"),
     GatewaySpec("log_server", "pm-log-srv", 5600, "TCP", "Log ingest (LALF)"),
@@ -89,7 +89,23 @@ DEFAULT_API_GATEWAY_PORT = 8080
 # Either way they are invisible in engine_config.yaml, which is exactly why a
 # viewer must show them.
 FIXED_LISTENERS: tuple[FixedListener, ...] = (
-    FixedListener(5555, "ZMQ PULL", "pm-engine", "Order intake (CALF)", "fixed"),
+    FixedListener(
+        5553,
+        "ZMQ PUB",
+        "pm-market-sim",
+        "True values and heartbeat",
+        "env",
+        "EDUMATCHER_SIM_PUB_PORT",
+    ),
+    FixedListener(
+        5554,
+        "ZMQ PULL",
+        "pm-market-sim",
+        "Instructor commands",
+        "env",
+        "EDUMATCHER_SIM_PULL_PORT",
+    ),
+    FixedListener(5555, "ZMQ PULL", "pm-engine", "Order intake", "fixed"),
     FixedListener(5556, "ZMQ PUB", "pm-engine", "Event + book feed", "fixed"),
     FixedListener(5557, "ZMQ PUB", "pm-engine", "Drop-copy feed", "fixed"),
     FixedListener(

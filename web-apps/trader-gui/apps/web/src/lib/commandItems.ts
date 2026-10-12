@@ -21,6 +21,7 @@ export interface ActionCommand {
 const ALL_ROLES_NAV: ActionCommand[] = [
   { id: "nav-market", label: "Market Overview", kind: "navigate", to: "/market" },
   { id: "nav-watchlist", label: "Watchlist", kind: "navigate", to: "/watchlist", keys: "Ctrl+L" },
+  { id: "nav-news", label: "News", kind: "navigate", to: "/news" },
 ];
 
 const TRADER_NAV: ActionCommand[] = [

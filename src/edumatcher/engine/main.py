@@ -219,6 +219,7 @@ from edumatcher.models.generated.system import (
     TOPIC_GATEWAYS_REQUEST,
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_DISCONNECT,
+    TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_HALT_STATUS_REQUEST,
     TOPIC_POSITION_REQUEST,
     TOPIC_QUOTE_BOOTSTRAP_REQUEST,
@@ -300,6 +301,13 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: seconds keeps the write volume negligible next to the 200 ms poll tick
 #: while bounding the exposure to something an operator can reason about.
 _PERSIST_INTERVAL_SEC = 5.0
+
+#: A session that has sent a system.gateway_heartbeat is disconnected once
+#: this many of its own beat intervals pass without another one.
+_HEARTBEAT_MISSED_LIMIT = 3
+#: How often sessions are checked for missed heartbeats. Checking on every
+#: loop pass cost ~9% of the engine at 500 sessions and 1 000 orders/s.
+_SILENCE_CHECK_SEC = 1.0
 
 #: Topics whose payload names an order the submitting gateway is waiting on an
 #: ack for. If a handler for one of these raises, the client is left with no
@@ -456,6 +464,7 @@ class Engine:
         # so the first tick writes one immediately rather than waiting out an
         # interval on a freshly started engine.
         self._last_persist = 0.0
+        self._next_silence_check = 0.0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -2041,7 +2050,7 @@ class Engine:
         schedule = engine_cfg.schedule
         # Config accepts country names such as ``Sweden``, while the bounded
         # reference wire field carries an ISO alpha-2 code.
-        country = _country_wire_code(engine_cfg.country)
+        country = _country_wire_code(engine_cfg.locale.country)
         reference: dict[str, Any] = {
             "symbols": symbols,
             "risk": {
@@ -2060,7 +2069,7 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": country,
-                "schedule": _weekly_schedule_wire(schedule, engine_cfg.country),
+                "schedule": _weekly_schedule_wire(schedule, engine_cfg.locale.country),
             },
         }
         digest = hashlib.sha256(
@@ -2390,7 +2399,7 @@ class Engine:
         schedule: dict[str, Any] | None = None
         if self._engine_config and self._engine_config.schedule:
             schedule = _weekly_schedule_wire(
-                self._engine_config.schedule, self._engine_config.country
+                self._engine_config.schedule, self._engine_config.locale.country
             )
         self.pub_sock.send_multipart(
             make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)
@@ -2681,7 +2690,7 @@ class Engine:
         rows report the quote's identity, final state, removal reason, and
         removal time instead of reconstructing per-leg fill detail. The
         history is in-memory only, bounded, and does not survive an engine
-        restart — see docs/user-guide/180-persistence.md.
+        restart — see ../../../docs/books/operator-guide/part-6-observe-and-recover/010-persistence.md.
 
         ``complete`` is ``True`` whenever the reply honestly reflects what
         was asked for: ``ACTIVE`` is always complete, and ``RECENT``/``ALL``
@@ -2968,7 +2977,7 @@ class Engine:
         this gateway's resting quote legs in this book, at most 2) — rather
         than trusting ``QuoteIndex`` bookkeeping that has already been
         popped, and rather than scanning every resting order in the book.
-        See docs/architecture/02-architecture-guide.md §10 for the index's
+        See ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10 for the index's
         full rationale.
 
         Ordinary orders (``origin=ORDER``) are never touched here — this
@@ -2994,7 +3003,7 @@ class Engine:
         # three coordinated edits (this function, feed_schema, the reference
         # docs) and reached the C clients not at all. It now takes one edit to
         # the spec. Costs ~0.6 µs/trade against the literal; see
-        # docs-design/perf-notes.md and docs/developer/06-msgen.md.
+        # docs-design/perf-notes.md and ../../../docs/books/architecture-and-development/part-4-developing/040-message-generation.md.
         #
         # The *unchecked* constructor: this is a measured hot path and the
         # engine is the authority on its own trades. Every other producer uses
@@ -3785,6 +3794,7 @@ class Engine:
 
         session = self._session_for_gateway(gateway_id)
         session.connected = False
+        session.heartbeat_interval_sec = 0
         self._connected_fix_gateways.discard(gateway_id)
 
         # Republish the disconnect on the PUB feed as the lifecycle counterpart
@@ -3810,7 +3820,7 @@ class Engine:
         if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
             # O(k) per book via OrderBook._orders_by_gateway (k = this
             # gateway's resting orders there), not a scan of every resting
-            # order in every book — see docs/architecture/02-architecture-guide.md
+            # order in every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md
             # §10. Quote-origin orders are excluded: the cancel_all_for_gateway
             # call above already handles those via QuoteIndex.
             for book in self.books.values():
@@ -3819,6 +3829,52 @@ class Engine:
                         self._cancel_order_by_id(
                             order.id, cancel_reason="GATEWAY_DISCONNECT"
                         )
+
+    def _handle_gateway_heartbeat(self, payload: dict[str, Any]) -> None:
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        session = self._sessions.get(gateway_id)
+        if session is None or not session.connected:
+            # A beat from a process whose session is gone (already timed out
+            # or disconnected) must not resurrect it.
+            return
+        session.heartbeat_interval_sec = min(
+            3600, max(1, int(payload.get("interval_sec", 0)))
+        )
+        session.last_heartbeat = time.monotonic()
+        self._dbg_count("gateway_heartbeats")
+        log.debug(
+            "heartbeat gateway=%s interval=%ds",
+            gateway_id,
+            session.heartbeat_interval_sec,
+        )
+
+    def _expire_silent_gateways(self) -> None:
+        """Disconnect each session that stopped sending its heartbeat.
+
+        A process that died without a ``gateway_disconnect`` would otherwise
+        keep its ID connected for ever and block every reconnect. The normal
+        disconnect path runs, so ``disconnect_behaviour`` and the
+        ``gateway_bye`` broadcast apply exactly as for a clean exit.
+        """
+        now = time.monotonic()
+        if now < self._next_silence_check:
+            return
+        self._next_silence_check = now + _SILENCE_CHECK_SEC
+        for session in list(self._sessions.values()):
+            if not session.connected or session.heartbeat_interval_sec <= 0:
+                continue
+            limit = _HEARTBEAT_MISSED_LIMIT * session.heartbeat_interval_sec
+            if now - session.last_heartbeat <= limit:
+                continue
+            log.warning(
+                "Gateway %s missed %d heartbeats (interval %ds) — disconnecting",
+                session.gateway_id,
+                _HEARTBEAT_MISSED_LIMIT,
+                session.heartbeat_interval_sec,
+            )
+            self._handle_gateway_disconnect(
+                {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
+            )
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -3874,7 +3930,7 @@ class Engine:
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
-        # every book — see docs/architecture/02-architecture-guide.md §10.
+        # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
             if symbol_filter and book.symbol != symbol_filter:
                 continue
@@ -3976,7 +4032,7 @@ class Engine:
 
         # O(k) per book via OrderBook._orders_by_gateway (k = this gateway's
         # resting orders there) instead of a scan of every resting order in
-        # every book — see docs/architecture/02-architecture-guide.md §10.
+        # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
@@ -6374,7 +6430,11 @@ class Engine:
         Best-effort regardless: a raise here would escape the receive loop and
         end it. Recording must never be able to stop the exchange.
         """
-        if len(frames) < 3 or topic.endswith(self._QUERY_SUFFIX):
+        if (
+            len(frames) < 3
+            or topic.endswith(self._QUERY_SUFFIX)
+            or topic == TOPIC_GATEWAY_HEARTBEAT
+        ):
             # Fewer than three frames means no envelope: a client that builds
             # its own PUSH socket instead of going through `make_pusher`.
             # There is no id to preserve, and minting one would invent a
@@ -6430,6 +6490,8 @@ class Engine:
                 self._handle_gateway_connect(payload)
             elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._handle_gateway_disconnect(payload)
+            elif topic == TOPIC_GATEWAY_HEARTBEAT:
+                self._handle_gateway_heartbeat(payload)
             elif topic == TOPIC_SYMBOLS_REQUEST:
                 self._handle_symbols_request(payload)
             elif topic == TOPIC_REFERENCE_REQUEST:
@@ -6608,6 +6670,7 @@ class Engine:
             # Publish where each symbol would uncross, while a call phase runs
             self._flush_auction_indicative,
             self._flush_debug_summary,
+            self._expire_silent_gateways,
         ):
             try:
                 flush()

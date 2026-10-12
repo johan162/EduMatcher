@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -1182,3 +1183,125 @@ class TestStatsMain:
                     stats_main()
         assert excinfo.value.code == 0
         assert closed == [True]
+
+
+# ---------------------------------------------------------------------------
+# Retention (--keep-days)
+# ---------------------------------------------------------------------------
+
+
+class TestRetention:
+    @staticmethod
+    def _make(
+        tmp_path: Path, keep_days: float, keep_order_events_days: float | None = None
+    ) -> StatsProcess:
+        fake_sock = MagicMock()
+        with (
+            patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
+            patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        ):
+            return StatsProcess(
+                tmp_path / "test.db",
+                keep_days=keep_days,
+                keep_order_events_days=keep_order_events_days,
+            )
+
+    @staticmethod
+    def _fill(proc: StatsProcess, stamps: list[str]) -> None:
+        with proc._conn:
+            for i, ts in enumerate(stamps):
+                proc._conn.execute(
+                    "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity)"
+                    " VALUES (?, ?, 'AAPL', 100, 1)",
+                    (ts, f"T{i}"),
+                )
+                proc._conn.execute(
+                    "INSERT INTO order_events (ts, event_type, order_id, gateway_id,"
+                    " symbol) VALUES (?, 'ACK', ?, 'AI001', 'AAPL')",
+                    (ts, f"O{i}"),
+                )
+                proc._conn.execute(
+                    "INSERT INTO price_snapshots (ts, symbol) VALUES (?, 'AAPL')",
+                    (ts,),
+                )
+                proc._conn.execute(
+                    "INSERT INTO feed_gaps (ts, stream, expected_id, received_id,"
+                    " missing_count) VALUES (?, 'trade', 1, 2, 1)",
+                    (ts,),
+                )
+            proc._conn.execute(
+                "INSERT INTO daily_stats (date, symbol) VALUES ('2000-01-03', 'AAPL')"
+            )
+
+    @staticmethod
+    def _counts(proc: StatsProcess) -> list[int]:
+        return [
+            proc._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in (
+                "trade_log",
+                "order_events",
+                "price_snapshots",
+                "feed_gaps",
+                "daily_stats",
+            )
+        ]
+
+    def test_deletes_rows_older_than_keep_days_and_keeps_rollups(
+        self, tmp_path: Path
+    ) -> None:
+        proc = self._make(tmp_path, keep_days=2)
+        self._fill(
+            proc,
+            [
+                "2000-01-03T10:00:00.000+00:00",
+                "2000-01-03T10:00:01.000+00:00",
+                "2999-01-03T10:00:00.000+00:00",
+            ],
+        )
+        proc._prune_if_due()
+        assert self._counts(proc) == [1, 1, 1, 1, 1]
+        proc.close()
+
+    def test_an_all_old_table_is_emptied(self, tmp_path: Path) -> None:
+        # No row inside the window: everything goes, not nothing.
+        proc = self._make(tmp_path, keep_days=2)
+        self._fill(proc, ["2000-01-03T10:00:00.000+00:00"])
+        proc._prune_if_due()
+        assert self._counts(proc) == [0, 0, 0, 0, 1]
+        proc.close()
+
+    def test_order_events_keep_their_own_window(self, tmp_path: Path) -> None:
+        # Under an AI swarm order_events are nearly the whole file: a long run
+        # keeps hours of them and days of trades.
+        now = datetime.now(timezone.utc)
+        stamps = [
+            (now - timedelta(hours=hours)).isoformat(timespec="milliseconds")
+            for hours in (30, 5, 1)
+        ]
+        proc = self._make(tmp_path, keep_days=2, keep_order_events_days=0.125)
+        self._fill(proc, stamps)
+        proc._prune_if_due()
+        assert self._counts(proc) == [3, 1, 3, 3, 1]
+        proc.close()
+
+    def test_order_events_alone_can_be_pruned(self, tmp_path: Path) -> None:
+        proc = self._make(tmp_path, keep_days=0, keep_order_events_days=1)
+        self._fill(proc, ["2000-01-03T10:00:00.000+00:00"])
+        proc._prune_if_due()
+        assert self._counts(proc) == [1, 0, 1, 1, 1]
+        proc.close()
+
+    def test_runs_once_an_hour_and_never_without_keep_days(
+        self, tmp_path: Path
+    ) -> None:
+        proc = self._make(tmp_path, keep_days=2)
+        proc._prune_if_due()
+        self._fill(proc, ["2000-01-03T10:00:00.000+00:00"])
+        proc._prune_if_due()  # within the hour: nothing
+        assert self._counts(proc)[0] == 1
+        proc.close()
+        keep_all = self._make(tmp_path / "all", keep_days=0)
+        self._fill(keep_all, ["2000-01-03T10:00:00.000+00:00"])
+        keep_all._prune_if_due()
+        assert self._counts(keep_all)[0] == 1
+        keep_all.close()

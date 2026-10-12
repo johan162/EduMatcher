@@ -122,7 +122,8 @@ export READONLY_CREDENTIAL_PY
 
 .PHONY: help info check build build-guis up up-all down down-all restart shell logs \
 	proc-logs status health ssh keys config-deploy config-show ports \
-	ghcr-push check-foreign mounts dev-env clean clean-data
+	ghcr-push check-foreign mounts dev-env clean clean-data \
+	build-sim up-sim down-sim sim-status sim-shell
 
 help:
 	@echo "EduMatcher container — targets:"
@@ -147,6 +148,14 @@ help:
 	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
 	@echo "  make dev-env GUI=terminal-gui      Env for running that app locally"
 	@echo "                                     against this backend container"
+	@echo "  make up-sim             Start the AI-trader simulation + four GUIs (GHCR images)"
+	@echo "  make up-sim LOCAL=1     ... with the image from 'make build-sim'"
+	@echo "  make up-sim SPEED=24    ... with the calendar 24x faster than real time"
+	@echo "  make build-sim          Build the edumatcher-ai-sim image from this checkout"
+	@echo "  make sim-status         Processes, data size and disk of the simulation"
+	@echo "  make sim-shell          Interactive shell inside the simulation container"
+	@echo "  make down-sim           Stop the simulation (its data stays in ./data-sim)"
+	@echo ""
 	@echo "  make restart            Restart the container"
 	@echo "  make shell              Interactive shell inside the container"
 	@echo "  make ssh                Log in over ssh (needs 'make up SSH=1')"
@@ -340,6 +349,55 @@ down: check
 
 restart: check
 	$(DC) restart
+
+# --- The AI-trader simulation (compose.ai-sim.yaml) -------------------------
+# A separate compose project (edumatcher-sim) with its own data directory,
+# ./data-sim. It publishes the same host ports as the stack above, so only one
+# of the two can run at a time. Pull-only by default; LOCAL=1 runs the image
+# `make build-sim` built from this checkout.
+# -p: the clone's .env sets COMPOSE_PROJECT_NAME for the main stack, which
+# would override the file's own name.
+SIM_DC := $(COMPOSE) -p edumatcher-sim -f compose.ai-sim.yaml
+SIM_ENV :=
+ifeq ($(LOCAL),1)
+SIM_ENV += AISIM_IMAGE=edumatcher-ai-sim:local
+endif
+ifdef SPEED
+SIM_ENV += EM_SPEED=$(SPEED)
+endif
+ifdef START
+SIM_ENV += EM_START=$(START)
+endif
+
+build-sim: check
+	@echo "==> building wheel from the repository checkout"
+	@(cd ../.. && poetry build --format wheel) && \
+		rm -f .wheel/*.whl && \
+		cp "$$(ls -t ../../dist/*.whl | head -1)" .wheel/ && \
+		echo "==> using $$(ls .wheel/*.whl)"
+	AISIM_IMAGE=edumatcher-ai-sim:local $(SIM_DC) build edumatcher
+
+up-sim: check
+	@mkdir -p data-sim
+	$(SIM_ENV) $(SIM_DC) up -d
+	@echo ""
+	@echo "Started. The market opens at 09:00 Stockholm time on trading days. Open:"
+	@echo "  terminal-gui  http://localhost:$${TERMINAL_GUI_PORT:-8090}"
+	@echo "  log-gui       http://localhost:$${LOG_GUI_PORT:-8091}"
+	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
+	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
+	@echo "'make sim-status' shows the processes; 'make down-sim' stops it."
+
+down-sim: check
+	$(SIM_DC) down
+
+sim-status: check
+	@$(EXEC) edumatcher-sim pm-opctl-cli list --no-restart
+	@echo ""
+	@$(EXEC) edumatcher-sim sh -c 'echo "data: $$(du -sh /data | cut -f1)   disk free: $$(df -h /data | awk "NR==2 {print \$$4}")"'
+
+sim-shell: check
+	$(EXEC_TTY) -e TERM=$${TERM:-xterm-256color} edumatcher-sim bash
 
 # --- Access ----------------------------------------------------------------
 shell: check

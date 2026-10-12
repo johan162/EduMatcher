@@ -1,0 +1,6 @@
+name: scalper
+description: Fast momentum trader that takes liquidity with IOC orders and protects positions with trailing stops.
+strategy: {name: trend, strength: 0.7, sample: 4, urgency: 0.8}
+execution: {style: sweep, sweep_type: IOC, cross_ticks: 1, auction_participation: 0.1}
+tempo: aggressive
+risk: {max_position: 600, max_live_orders_per_symbol: 2, max_order_age_sec: 20, stale_price_ticks: 4, protection: trailing, protection_pct: 0.01}

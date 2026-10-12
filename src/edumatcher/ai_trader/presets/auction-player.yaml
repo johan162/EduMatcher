@@ -1,0 +1,6 @@
+name: auction-player
+description: Trades mostly in the opening and closing auctions with ATO/ATC limit orders.
+strategy: {name: reversion, strength: 0.5, sample: 3, urgency: 0.2}
+execution: {style: passive, offset_ticks: 3, auction_participation: 1.0, urgency_cross: 1.0}
+tempo: cautious
+risk: {max_position: 1000, max_live_orders_per_symbol: 2, max_order_age_sec: 60, stale_price_ticks: 15}

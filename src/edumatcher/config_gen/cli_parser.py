@@ -362,10 +362,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-mm-seed-quotes",
         action="store_true",
         help=(
-            "Set require_mm_seed_quotes: false. Allows a MARKET_MAKER gateway to be "
-            "configured with no market_maker_quotes seed for any symbol, so the book "
-            "starts genuinely empty. Without --seed-mm-mid-range, no market_maker_quotes "
-            "entries are emitted at all."
+            "Set require_mm_seed_quotes: false and emit no market_maker_quotes "
+            "entries, so the book starts genuinely empty even though a "
+            "MARKET_MAKER gateway is configured. --seed-mm-mid-range then only "
+            "seeds last prices (with --seed-last-prices-from-mm)."
         ),
     )
 
@@ -1211,6 +1211,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Country pm-scheduler uses for its bank-holiday/weekend calendar "
             '(name, e.g. "Sweden", or ISO 3166-1 alpha-2 code, e.g. "SE"). '
             'Defaults to "Sweden" when omitted.'
+        ),
+    )
+
+    parser.add_argument(
+        "--session-timezone",
+        type=str,
+        default=None,
+        metavar="TZ",
+        help=(
+            "IANA timezone every process bucketing events into a trading day "
+            "(pm-stats, pm-clearing, ...) uses, e.g. America/New_York. "
+            'Defaults to "UTC" when omitted.'
         ),
     )
 

@@ -67,7 +67,7 @@ export function BasicsTab() {
           help={{
             text: "Country pm-scheduler uses for its bank-holiday calendar and local wall-clock. Weekday, weekend and holiday schedules are each configured independently on the Sessions & Schedule tab and default to CLOSED if not set. Type a country name or ISO code -- suggestions appear after 3 characters.",
             cliFlag: "--country",
-            docHref: "../docs/user-guide/080-session-scheduling.md",
+            docHref: "../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md",
           }}
         >
           <CountryCombobox
@@ -196,7 +196,7 @@ export function BasicsTab() {
               text: "Values every gateway inherits unless its own row sets one. Leave a default as (not set) to omit it from the file. A gateway's own SMP of NONE still overrides a non-NONE default.",
               cliFlag:
                 "--participant-default-smp / --participant-default-disconnect",
-              docHref: "../docs/user-guide/010-configuration.md",
+              docHref: "../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
             }}
           >
             <div className="flex flex-wrap gap-4">

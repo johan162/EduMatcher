@@ -1,0 +1,23 @@
+# pm-ai-swarm --swarm docs/examples/ref_data/s300-sim-setup/swarm.yaml
+# The long-running simulation: AI001-AI100, each trading 30 of the 300
+# symbols, so every symbol is traded by about 10 agents. The budget keeps the
+# whole exchange at about half a CPU core.
+version: 1
+agents: {prefix: AI, start: 1, count: 100}
+workers: 0            # 0 = min(cpus - 1, ceil(100 / 100)) = 1
+budget: 80            # order actions per second for the whole swarm
+seed: 1000
+symbols:
+  per_agent: 30
+composition:          # preset: weight; value-investor, institutional, news-trader need pm-market-sim
+  noise-retail: 25
+  value-investor: 22
+  news-trader: 5
+  institutional: 8
+  scalper: 8
+  trend-follower: 10
+  contrarian: 10
+  iceberg-seller: 4
+  market-taker: 4
+  block-taker: 2
+  auction-player: 2

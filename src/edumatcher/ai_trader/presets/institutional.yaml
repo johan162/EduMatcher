@@ -1,0 +1,6 @@
+name: institutional
+description: Large parent orders toward the true value, worked over minutes in passive child slices (needs pm-market-sim).
+strategy: {name: value, threshold: 0.006, bias_std: 0.008, redraw: 0.01, sample: 5, urgency: 0.2}
+execution: {style: twap, slices: 6, horizon_sec: 180, child_style: passive, offset_ticks: 0, urgency_cross: 1.0, auction_participation: 0.6}
+tempo: few-large
+risk: {max_position: 5000, max_live_orders_per_symbol: 3, max_order_age_sec: 90, stale_price_ticks: 15}

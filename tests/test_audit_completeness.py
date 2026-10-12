@@ -1,4 +1,4 @@
-"""Coverage for the audit-completeness pass (see docs/user-guide/190-audit.md).
+"""Coverage for the audit-completeness pass (see ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md).
 
 pm-audit is a bare, empty-prefix ZMQ SUB on the engine's PUB :5556 socket — it
 can only ever see what gets published there. Before this pass, several

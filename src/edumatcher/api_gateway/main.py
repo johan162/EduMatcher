@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -21,6 +22,9 @@ from edumatcher.api_gateway.config import (
 )
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
+from edumatcher.api_gateway.sim_client import SimClient
+from edumatcher.config import REF_DATA_DIR, SIM_PUB_ADDR
+from edumatcher.market_sim.config import FILE_NAME as SIM_FILE_NAME, load_sectors
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import (
     admin,
@@ -32,6 +36,7 @@ from edumatcher.api_gateway.routers import (
 )
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.config import resolve_data_path
+from edumatcher.models.message import GATEWAY_HEARTBEAT_INTERVAL_SEC
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -118,6 +123,11 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         engine.start_listener()
         index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
         index_client.start_listener()
+        sim = SimClient(
+            SIM_PUB_ADDR, loop, sectors=load_sectors(REF_DATA_DIR / SIM_FILE_NAME)
+        )
+        sim.start_listener()
+        app.state.sim = sim
         app.state.config = config
         app.state.engine = engine
         app.state.index_client = index_client
@@ -142,6 +152,15 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                         config.order_retention_sec,
                     )
 
+        async def _send_heartbeats() -> None:
+            """Tell the engine every ID this process holds is still alive, so
+            a hung or killed gateway frees them instead of locking them."""
+            while True:
+                await asyncio.sleep(GATEWAY_HEARTBEAT_INTERVAL_SEC)
+                for gateway_id in engine.active_gateways():
+                    engine.send_heartbeat(gateway_id)
+
+        heartbeat_task = asyncio.create_task(_send_heartbeats())
         sweeper = (
             asyncio.create_task(_evict_terminal_orders())
             if config.order_retention_sec > 0
@@ -150,6 +169,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         try:
             yield
         finally:
+            heartbeat_task.cancel()
             if sweeper is not None:
                 sweeper.cancel()
             for gateway_id in engine.active_gateways():
@@ -162,6 +182,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                 )
             engine.stop_listener()
             index_client.stop_listener()
+            sim.stop_listener()
 
     docs_url = "/docs" if config.swagger_enabled else None
     openapi_url = "/openapi.json" if config.swagger_enabled else None
@@ -276,9 +297,10 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         engine_pub_addr = f"tcp://{args.engine_host}:5556"
         index_pull_addr = f"tcp://{args.engine_host}:5559"
         index_pub_addr = f"tcp://{args.engine_host}:5558"
-    return ApiGatewayConfig(
-        name=config.name,
-        enabled=config.enabled,
+    # replace(), not a field-by-field rebuild: a rebuild silently reset every
+    # field it did not list to its default (order_retention_sec, audit_db).
+    return dataclasses.replace(
+        config,
         host=args.host or config.host,
         port=args.port or config.port,
         engine_pull_addr=engine_pull_addr,
@@ -286,12 +308,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
         stats_db=resolve_data_path(args.stats_db) if args.stats_db else config.stats_db,
-        market_data_cache_sec=config.market_data_cache_sec,
         log_level=args.log_level.lower() if args.log_level else config.log_level,
-        swagger_enabled=config.swagger_enabled,
-        credentials=config.credentials,
-        rate_limit=config.rate_limit,
-        timeouts=config.timeouts,
     )
 
 

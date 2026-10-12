@@ -1,0 +1,14 @@
+# Instructor scenario: an earnings surprise (training guide, AI Traders & News).
+#
+# Sixty seconds into continuous trading AAPL reports far above expectations.
+# The news is confirmed from the start: the true value jumps about 8% at once,
+# news traders hit the book within seconds, value investors follow.
+#
+#   pm-news --id OPS01 play docs/examples/news/earnings-surprise.yaml
+#
+# Works with every s150-* and s300-load example (pm-market-sim running).
+version: 1
+steps:
+  - at: {phase: CONTINUOUS, after_sec: 60}
+    inject: {symbol: AAPL, kind: EARNINGS, sentiment: 0.8, impact: 0.08,
+             headline: "Apple beats estimates by a wide margin and raises guidance"}

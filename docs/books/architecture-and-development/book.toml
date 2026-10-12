@@ -1,0 +1,39 @@
+title = "Architecture and Developer Guide"
+subtitle = "System architecture, development practice, and release engineering"
+slug = "architecture-and-development"
+
+[frontmatter]
+files = ["00-front/010-how-to-use-this-book.md"]
+
+[[parts]]
+title = "Part I: Architecture"
+dir = "part-1-architecture"
+files = [
+  "010-architecture-overview.md",
+  "020-guided-tour.md",
+]
+
+[[parts]]
+title = "Part II: Inside the engine"
+dir = "part-2-inside-the-engine"
+files = [
+  "010-order-book-deep-dive.md",
+  "020-order-flow-end-to-end.md",
+]
+
+[[parts]]
+title = "Part III: Developing"
+dir = "part-4-developing"
+files = [
+  "010-development-practice.md",
+  "020-development-workflow.md",
+  "030-verification.md",
+  "040-message-generation.md",
+  "050-containers-and-networks.md",
+  "070-extension-experiments.md",
+]
+
+[[parts]]
+title = "Part IV: Releasing"
+dir = "part-5-releasing"
+files = ["010-release-process.md"]

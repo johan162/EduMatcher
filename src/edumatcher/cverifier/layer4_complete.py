@@ -302,7 +302,8 @@ def _check_index_constituents_prices(
 def _check_sessions_completeness(
     raw: dict[str, Any], results: list[CheckResult]
 ) -> None:
-    sessions_enabled = bool(raw.get("sessions_enabled", False))
+    # Same default as the engine loader: an absent key means sessions are on.
+    sessions_enabled = bool(raw.get("sessions_enabled", True))
     schedule = raw.get("schedule")
     if not sessions_enabled and not isinstance(schedule, dict):
         results.append(

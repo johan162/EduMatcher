@@ -1,0 +1,52 @@
+# Canonical specification for the `news` message family.
+#
+# Headlines are public: everyone on the exchange may read them, students
+# included. What a headline does to a symbol's true value is pm-market-sim's
+# secret and is not on the wire - a student has to judge it from the kind,
+# the sentiment and (for a rumour) the credibility, like a real trader.
+
+family: news
+version: 1
+
+messages:
+  - name: news_event
+    topic: "news.event"
+    transport: [sim_pub]
+    doc:
+      motivation: >
+        pm-market-sim to everyone: one headline, or a change in what an
+        earlier one is known to be (a rumour confirmed or retracted).
+      published_by: [market_sim]
+      since: "1.0"
+      see_also: ["sim.value"]
+      example_note: >
+        A rumour comes first with status RUMOUR and a credibility; when it
+        resolves, a second event with a new id carries status CONFIRMED or
+        RETRACTED and points back with `related_id`. A confirmation is when
+        the value moves; a retraction moves nothing. Published on
+        pm-market-sim's PUB socket; the API gateway relays it to every key
+        and pm-ticker shows it.
+    fields:
+      - { name: id, type: string, validate: { max_len: 32 } }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
+      - { name: scope, type: enum, values: [SYMBOL, SECTOR, MARKET] }
+      - name: targets
+        type: list
+        item: string
+        doc: "Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET."
+      - name: kind
+        type: enum
+        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO]
+      - { name: status, type: enum, values: [RUMOUR, CONFIRMED, RETRACTED] }
+      - { name: headline, type: string, validate: { max_len: 200 } }
+      - { name: sentiment, type: float, unit: dimensionless,
+          validate: { ge: -1, le: 1 },
+          doc: "Tone of the news, -1 (bad) to 1 (good); not its size." }
+      - { name: credibility, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0, le: 1 },
+          doc: "How believable a rumour is; absent on confirmed news." }
+      - { name: related_id, type: string, required: false, default: "",
+          validate: { max_len: 32 },
+          doc: "The rumour a CONFIRMED or RETRACTED event resolves." }
+    encoding:
+      sim_pub: { frames: [topic, json_payload], include: all }

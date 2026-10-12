@@ -6,7 +6,7 @@ information no ``argparse`` parser exposes on its own: which ports a process
 binds or connects to, which ZeroMQ topics it sends/subscribes, which other
 commands it works alongside, and a worked example of real-world use.
 
-Content here should stay in sync with `docs/user-guide/170-processes.md`,
+Content here should stay in sync with `../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md`,
 which is the canonical prose reference this data is distilled from. When one
 changes, check the other.
 """
@@ -53,7 +53,9 @@ class CommandInfo:
     ports: str = ""
     messages: tuple[str, ...] = ()
     related: tuple[str, ...] = ()
-    doc_anchor: str = ""  # heading anchor within docs/user-guide/170-processes.md
+    doc_anchor: str = (
+        ""  # heading anchor within ../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md
+    )
     doc_page: str = (
         ""  # optional dedicated topic page (shown in addition to the anchor)
     )
@@ -66,7 +68,7 @@ class CommandInfo:
 # Shared option groups
 #
 # Every long-running process that connects to the ZeroMQ bus shares the same
-# six logging flags (see docs/user-guide/040-running-the-exchange.md#logging-levels).
+# six logging flags (see ../../../docs/books/operator-guide/part-3-run/010-running-the-exchange.md#logging-levels).
 # Factoring them out here keeps each CommandInfo focused on what is actually
 # distinctive about that command, and keeps the two docs from drifting apart
 # on wording.
@@ -188,7 +190,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-engine", "pm-alf-gwy", "pm-orders", "pm-viewer"),
         doc_anchor="pm-alf-console-user-gateway",
-        doc_page="055-alf-console.md",
+        doc_page="../../../docs/books/participant-guide/part-2-orders/010-the-trader-console.md",
         examples=(
             "pm-alf-console --id GW01",
             "NEW|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=96|TYPE=LIMIT|TIF=DAY   # enter a new limit order",
@@ -302,9 +304,10 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             "pm-ticker [--db data/stats.db] [--db-interval 900] [--timezone TZ]",
         ),
         description=(
-            "A bordered header (brand, today's total volume, clock) plus a single "
+            "A bordered header (brand, today's total volume, clock) plus a "
             "scrolling line combining live ZMQ data (last price, bid/ask) with "
-            "historical DB data (OHLCV, trade count) from pm-stats's SQLite database. "
+            "historical DB data (OHLCV, trade count) from pm-stats's SQLite database, "
+            "and a line with pm-market-sim's latest headline. "
             "Without pm-stats running it still works but omits OHLCV/volume/trade count.",
         ),
         options=(
@@ -330,7 +333,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         title="Statistics Recorder",
         summary="Records OHLCV, trade log, and index-level history to stats.db.",
         synopsis=(
-            "pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ]",
+            "pm-stats [--db data/stats.db] [--snapshot-interval SEC]",
+            "         [--keep-days N] [--keep-order-events-days N]",
             "         [--sql-trace] [-v|-vv] [--log-level LEVEL]",
         ),
         description=(
@@ -348,9 +352,17 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "Seconds between price_snapshots rows per symbol",
             ),
             Option(
-                "--timezone TZ",
-                "UTC",
-                "Session timezone (IANA name) defining the trading date; must match pm-clearing's --timezone",
+                "--keep-days N",
+                "0 (keep all)",
+                "Keep N days of trades, order events and snapshots; older rows "
+                "are deleted hourly. Daily rollups are always kept",
+            ),
+            Option(
+                "--keep-order-events-days N",
+                "as --keep-days",
+                "Keep N days of order events alone (fractions allowed, e.g. "
+                "0.05 for about an hour); under an AI swarm they are most of "
+                "stats.db",
             ),
             Option(
                 "--sql-trace",
@@ -361,7 +373,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-stats-cli", "pm-clearing", "pm-index", "pm-ticker", "pm-board"),
         doc_anchor="pm-stats-statistics-recorder",
-        doc_page="140-statistics-and-reporting.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md",
         notes=(
             "Opens two independent PUB/SUB connections: pm-engine (:5556) for "
             "trade.*/book.*/system.eod, and pm-index (:5558) for index.update.",
@@ -374,7 +386,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         summary="SQLite-backed clearing writer computing realized/unrealized P&L and positions.",
         synopsis=(
             "pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N]",
-            "            [--flush-interval SEC] [--retention-days N] [--timezone TZ]",
+            "            [--flush-interval SEC] [--retention-days N]",
         ),
         description=(
             "Subscribes to trade.executed and writes gateway positions, daily "
@@ -409,12 +421,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             Option(
                 "--retention-days N",
                 "90",
-                "Prune trade_events rows older than N days on startup (0 disables)",
-            ),
-            Option(
-                "--timezone TZ",
-                "UTC",
-                "Session timezone (IANA name); must match pm-stats's --timezone or daily rollups won't reconcile",
+                "Prune trade_events rows older than N days on startup and at "
+                "every close of the market (0 disables)",
             ),
             Option(
                 "--sql-trace",
@@ -425,7 +433,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-clearing-cli", "pm-stats"),
         doc_anchor="pm-clearing-clearing-pl",
-        doc_page="130-pnl-clearing.md",
+        doc_page="../../../docs/books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md",
     ),
     CommandInfo(
         name="pm-audit",
@@ -474,7 +482,10 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         category="Core Runtime",
         title="Session Scheduler",
         summary="Drives session-phase transitions at configured wall-clock times.",
-        synopsis=("pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm]",),
+        synopsis=(
+            "pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm]",
+            "pm-scheduler --daily --speed F [--start YYYY-MM-DDTHH:MM]",
+        ),
         description=(
             "Sends session.transition to the engine to advance "
             "PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED "
@@ -498,6 +509,16 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "Run continuously, repeating the schedule every calendar day",
             ),
             Option(
+                "--speed F",
+                "off",
+                "Compressed mode (with --daily): simulated time runs F times faster",
+            ),
+            Option(
+                "--start TIME",
+                "now",
+                "Compressed mode: local time the simulated clock starts at",
+            ),
+            Option(
                 "--no-confirm",
                 "off",
                 "Do not query/confirm session state via the engine before transitioning",
@@ -506,7 +527,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-engine", "pm-admin"),
         doc_anchor="pm-scheduler-session-scheduler",
-        doc_page="080-session-scheduling.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md",
     ),
 )
 
@@ -541,7 +562,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5565 (ALF); connects out to 5555, 5556, 5557",
         related=("pm-alf-console", "pm-engine", "pm-balf-gwy"),
         doc_anchor="pm-alf-gwy-alf-tcp-gateway",
-        doc_page="220-alf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/010-alf-gateway.md",
     ),
     CommandInfo(
         name="pm-balf-gwy",
@@ -566,7 +587,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5560 (BALF binary); connects out to 5555, 5556",
         related=("pm-alf-gwy", "pm-engine"),
         doc_anchor="pm-balf-gwy-balf-tcp-gateway",
-        doc_page="230-balf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/020-balf-gateway.md",
     ),
     CommandInfo(
         name="pm-md-gwy",
@@ -599,7 +620,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5570 (CALF); connects out to 5556, 5558",
         related=("pm-calf-spy", "pm-index", "pm-engine"),
         doc_anchor="pm-md-gwy-calf-market-data-gateway",
-        doc_page="240-calf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/030-calf-gateway.md",
     ),
     CommandInfo(
         name="pm-ralf-gwy",
@@ -626,7 +647,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5580 (RALF); connects out to 5556",
         related=("pm-ralf-spy", "pm-engine"),
         doc_anchor="pm-ralf-gwy-post-trade-dissemination-gateway",
-        doc_page="250-ralf-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/040-ralf-gateway.md",
     ),
     CommandInfo(
         name="pm-dc-gwy",
@@ -655,7 +676,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5590 (DC1); connects out to 5557",
         related=("pm-dc-spy", "pm-engine"),
         doc_anchor="pm-dc-gwy-drop-copy-tcp-gateway",
-        doc_page="201-dc-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/060-drop-copy-gateway.md",
     ),
     CommandInfo(
         name="pm-api-gwy",
@@ -696,7 +717,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         ports="Listens on HTTP/WS at its configured port (e.g. 8080 desk, 8081 dashboards); connects out to 5555, 5556",
         related=("pm-alf-console", "pm-stats"),
         doc_anchor="pm-api-gwy-restwebsocket-api-gateway",
-        doc_page="260-api-gateway.md",
+        doc_page="../../../docs/books/operator-guide/part-5-gateways/050-api-gateway.md",
         notes=(
             "Browse http://127.0.0.1:<PORT>/docs for interactive Swagger docs when swagger_enabled: true.",
         ),
@@ -768,7 +789,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-md-gwy", "pm-ralf-spy", "pm-dc-spy"),
         doc_anchor="pm-calf-spy-calf-protocol-spy",
-        doc_page="241-calf-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md",
     ),
     CommandInfo(
         name="pm-ralf-spy",
@@ -828,7 +849,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ralf-gwy", "pm-calf-spy", "pm-dc-spy"),
         doc_anchor="pm-ralf-spy-ralf-protocol-spy",
-        doc_page="251-ralf-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools-ralf.md",
     ),
     CommandInfo(
         name="pm-dc-spy",
@@ -860,7 +881,7 @@ _PROTOCOL_SPIES: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-dc-gwy", "pm-engine"),
         doc_anchor="pm-dc-spy-drop-copy-spy",
-        doc_page="202-dc-spy-cli.md",
+        doc_page="../../../docs/books/protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md",
     ),
 )
 
@@ -874,81 +895,89 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         name="pm-ai-trader",
         category="AI & Bots",
         title="Autonomous Trader Bot",
-        summary="One autonomous trading gateway with a selectable behaviour profile.",
+        summary="One autonomous trading agent whose behaviour comes from a preset.",
         synopsis=(
-            "pm-ai-trader --id AI01 [--profile cautious] [--symbols AAPL,MSFT] [options]",
+            "pm-ai-trader --id AI001 [--preset noise-retail | --preset-file PATH] "
+            "[--symbols AAPL,MSFT] [options]",
+            "pm-ai-trader --list-presets",
         ),
         description=(
-            "On every startup/reconnect: authenticates, requests the symbol universe "
-            "(tick size, prev close), queries current session state and per-symbol "
-            "halt flags, and re-seeds its position/average cost from the engine's "
-            "ledger -- so risk guards stay accurate across restarts.",
+            "A preset bundles a strategy (noise, trend, reversion, value), an execution "
+            "style (passive, marketable, sweep, iceberg, twap), a tempo (how often, "
+            "how big) and risk limits (position cap, order age, stop/bracket "
+            "protection). On startup the agent logs on, learns the symbols, session "
+            "state, reference data and halts, re-seeds its position from the "
+            "engine, and asks for a book snapshot of every symbol it trades.",
         ),
         options=(
-            Option("--id GW_ID", "required", "Gateway ID used by the bot (e.g. AI01)"),
-            Option("--profile NAME", "cautious", "Personality profile"),
-            Option("--symbols LIST", "empty (all)", "Comma-separated symbol allowlist"),
+            Option(
+                "--id GW_ID",
+                "required",
+                "Participant ID used by the agent (e.g. AI001)",
+            ),
+            Option("--preset NAME", "noise-retail", "Built-in preset"),
+            Option("--preset-file PATH", "-", "Preset YAML file instead of a built-in"),
+            Option("--list-presets", "-", "List the built-in presets and exit"),
+            Option("--symbols LIST", "empty (all)", "Comma-separated symbols to trade"),
             Option("--seed N", "1", "RNG seed for deterministic behaviour"),
             Option("--duration SEC", "0 (until stopped)", "Runtime in seconds"),
-            Option(
-                "--run-id LABEL",
-                "autogenerated",
-                "Optional run label for audit/traceability",
-            ),
-            Option("--max-position N", "1000", "Absolute per-symbol position limit"),
-            Option(
-                "--max-rejects N",
-                "25",
-                "Reject threshold before the cooldown breaker trips",
-            ),
-            Option("--reject-window SEC", "10.0", "Rolling reject window in seconds"),
-            Option(
-                "--reject-cooldown SEC",
-                "5.0",
-                "Pause interval after the reject breaker trips",
-            ),
-            Option(
-                "--stale-data SEC", "4.0", "Max market-data age before pausing orders"
-            ),
         ),
         has_common_log_options=True,
         related=("pm-ai-swarm", "pm-mm-bot", "pm-engine"),
         doc_anchor="pm-ai-trader-autonomous-trader-bot",
-        doc_page="110-ai-traders.md",
+        doc_page="../../../docs/books/participant-guide/part-4-automated-trading/010-ai-traders.md",
     ),
     CommandInfo(
         name="pm-ai-swarm",
         category="AI & Bots",
         title="Multi-Agent Trading Swarm",
-        summary="Launches and supervises multiple pm-ai-trader bots as a coordinated swarm.",
+        summary="Runs many AI traders in a few supervised worker processes.",
         synopsis=(
-            "pm-ai-swarm [--count 10] [--prefix AI] [--profiles all] [--duration 60] [options]",
+            "pm-ai-swarm [--swarm swarm.yaml] [--count 10] [--presets all] [options]",
         ),
         options=(
-            Option("--count N", "10", "Number of bot processes to launch"),
-            Option("--prefix STR", "AI", "Gateway-ID prefix"),
+            Option(
+                "--swarm PATH",
+                "none",
+                "swarm.yaml; flags given explicitly override its values",
+            ),
+            Option("--count N", "10", "Number of agents"),
+            Option(
+                "--prefix STR",
+                "AI",
+                "Gateway-ID prefix (IDs are PREFIX001, PREFIX002, ...)",
+            ),
             Option("--start-index N", "1", "First numeric suffix for generated IDs"),
-            Option("--profiles LIST", "all profiles", "Comma-separated profile cycle"),
+            Option(
+                "--presets LIST",
+                "all presets, equal weights",
+                "Composition: 'a,b' or with weights 'a:3,b:1'",
+            ),
             Option(
                 "--symbols LIST", "from config", "Comma-separated symbol list override"
             ),
-            Option("--seed-base N", "1000", "Base seed; bot i gets seed-base + i"),
-            Option("--duration SEC", "60.0", "Per-bot runtime in seconds"),
             Option(
-                "--python PATH",
-                "current interpreter",
-                "Python executable used for child processes",
+                "--symbols-per-agent N",
+                "just enough to cover all",
+                "Symbols each agent trades (consecutive, wrapping)",
             ),
-            Option("--max-position N", "1000", "Passed through to child bots"),
-            Option("--max-rejects N", "25", "Passed through to child bots"),
-            Option("--reject-window SEC", "10.0", "Passed through to child bots"),
-            Option("--reject-cooldown SEC", "5.0", "Passed through to child bots"),
-            Option("--stale-data SEC", "4.0", "Passed through to child bots"),
+            Option("--seed-base N", "1000", "Base seed; agent i gets seed-base + i"),
+            Option("--duration SEC", "0", "Run time in seconds; 0 = until stopped"),
+            Option(
+                "--workers K",
+                "min(cpus-1, ceil(count/100))",
+                "Worker processes; each hosts a contiguous block of agents",
+            ),
+            Option(
+                "--budget N", "0 (presets decide)", "Total order actions per second"
+            ),
+            Option("--alf-host HOST", "EDUMATCHER_ENGINE_HOST", "Host of pm-alf-gwy"),
+            Option("--alf-port PORT", "from config", "Port of pm-alf-gwy"),
         ),
         has_common_log_options=True,
         related=("pm-ai-trader", "pm-mm-bot"),
         doc_anchor="pm-ai-swarm-multi-agent-trading-swarm",
-        doc_page="110-ai-traders.md",
+        doc_page="../../../docs/books/participant-guide/part-4-automated-trading/010-ai-traders.md",
     ),
     CommandInfo(
         name="pm-mm-bot",
@@ -983,6 +1012,12 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             ),
             Option("--drift-ticks N", "3", "Reprice when mid moves by this many ticks"),
             Option(
+                "--anchor-sim W",
+                "0 (off)",
+                "Quote around pm-market-sim's true value; W = share of the "
+                "gap closed per model step (0-1)",
+            ),
+            Option(
                 "--reissue-delay-ms MS",
                 "200",
                 "Milliseconds to wait after fill before re-issuing",
@@ -1006,12 +1041,82 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
         has_common_log_options=True,
         related=("pm-ai-trader", "pm-engine", "pm-alf-console"),
         doc_anchor="pm-mm-bot-autonomous-market-maker-bot",
-        doc_page="100-mm-bot.md",
+        doc_page="../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md",
         examples=("pm-mm-bot --symbol AAPL --gap 0.10 --qty 500",),
         notes=(
             "Reference price resolution order: active quote from QBOOT (restart "
             "recovery), book mid-price, last trade price, QBOOT bootstrap snapshot, "
             "then a random price from [--initial_min, --initial_max].",
+        ),
+    ),
+    CommandInfo(
+        name="pm-market-sim",
+        category="AI & Bots",
+        title="Market Model (True Values)",
+        summary="Publishes every symbol's true value from a seeded market model.",
+        synopsis=(
+            "pm-market-sim [options]",
+            "pm-market-sim --init [--seed N] > market_sim.yaml",
+            "pm-market-sim --status --id ADMIN_ID [--top 10]",
+        ),
+        description=(
+            "Steps correlated log-normal values with jumps (market, sector and "
+            "symbol factors) while the exchange trades continuously, and applies "
+            "an overnight move when it reopens. Parameters come from the deployed "
+            "market_sim.yaml. Values go to the AI traders' value strategy, to "
+            "pm-mm-bot --anchor-sim and to ADMIN API keys; never to students. "
+            "It also publishes news (generated at random, or sent with pm-news), "
+            "which is public.",
+        ),
+        options=(
+            Option("--init", "off", "Print a market_sim.yaml for the deployed symbols"),
+            Option("--seed N", "1", "Seed written by --init"),
+            Option("--status", "off", "Show the model's state and widest gaps"),
+            Option("--id GW_ID", "-", "ADMIN participant ID that --status asks as"),
+            Option("--top N", "10", "Gaps --status lists"),
+        ),
+        has_common_log_options=True,
+        ports="5553 PUB (sim.value, sim.state, news.event), 5554 PULL (sim.command)",
+        related=("pm-ai-swarm", "pm-mm-bot", "pm-news", "pm-scheduler"),
+        doc_anchor="pm-market-sim-market-model",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/090-market-model.md",
+    ),
+    CommandInfo(
+        name="pm-news",
+        category="AI & Bots",
+        title="News Desk",
+        summary="Publish, confirm and retract pm-market-sim headlines; play scenarios.",
+        synopsis=(
+            "pm-news --id ADMIN_ID inject (--symbol SYM | --sector SECTOR | --market) "
+            "--kind KIND --sentiment S --impact I [--headline TEXT] "
+            "[--rumour [--credibility C]]",
+            "pm-news --id ADMIN_ID confirm|retract NEWS_ID",
+            "pm-news --id ADMIN_ID play scenario.yaml",
+            "pm-news list [--duration SECONDS]",
+        ),
+        description=(
+            "Sends commands to the running pm-market-sim as an ADMIN participant. "
+            "A headline's sentiment is public; its impact (the log move of the "
+            "true value when confirmed) is not. A rumour moves nothing until it "
+            "is confirmed; a retracted rumour never moves anything.",
+        ),
+        options=(
+            Option("--id GW_ID", "-", "ADMIN participant ID the commands come from"),
+        ),
+        subcommands=(
+            Subcommand("inject", purpose="Publish a headline; prints its ID"),
+            Subcommand("confirm", "NEWS_ID", "Confirm a rumour (the values move)"),
+            Subcommand("retract", "NEWS_ID", "Retract a rumour (nothing moves)"),
+            Subcommand("play", "SCENARIO", "Run a timed scenario YAML"),
+            Subcommand("list", purpose="Print headlines as they are published"),
+        ),
+        ports="connects to 5553 (SUB) and 5554 (PUSH); play also to 5555/5556",
+        related=("pm-market-sim", "pm-ai-swarm"),
+        doc_anchor="pm-news",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/090-market-model.md",
+        examples=(
+            "pm-news --id OPS01 inject --symbol AAPL --kind EARNINGS --sentiment 0.8 --impact 0.08",
+            "pm-news --id OPS01 play docs/examples/news/rumour-confirmed.yaml",
         ),
     ),
 )
@@ -1046,7 +1151,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ports="Binds 5558 (PUB, index.update), 5559 (PULL, operator commands); connects out to 5556",
         related=("pm-index-cli", "pm-index-admin-cli", "pm-stats-cli", "pm-md-gwy"),
         doc_anchor="pm-index-index-calculation-process",
-        doc_page="150-market-index.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/070-market-index.md",
     ),
     CommandInfo(
         name="pm-index-cli",
@@ -1086,7 +1191,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ),
         related=("pm-index", "pm-index-admin-cli", "pm-stats-cli"),
         doc_anchor="pm-index-cli-index-structuralaudit-history-query-tool",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-index-cli events --index MYIDX --days 30",),
     ),
     CommandInfo(
@@ -1137,7 +1242,7 @@ _INDEX: tuple[CommandInfo, ...] = (
         ),
         related=("pm-index", "pm-index-cli"),
         doc_anchor="pm-index-admin-cli-index-corporate-action-constituent-change-cli",
-        doc_page="152-index-admin-cli.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/080-index-administration.md",
         notes=(
             'Every mutating subcommand prompts "Continue? [y/N]" unless -y/--yes is given.',
         ),
@@ -1340,7 +1445,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-clearing", "pm-stats-cli", "pm-audit-cli"),
         doc_anchor="pm-clearing-cli-clearing-query-cli",
-        doc_page="130-pnl-clearing.md",
+        doc_page="../../../docs/books/participant-guide/part-5-positions-and-results/010-positions-and-pnl.md",
         examples=(
             "pm-clearing-cli gateways",
             "pm-clearing-cli --format json positions --gateway MM01",
@@ -1411,7 +1516,7 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-stats", "pm-clearing-cli", "pm-index-cli"),
         doc_anchor="pm-stats-cli-statistics-query-cli",
-        doc_page="140-statistics-and-reporting.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md",
         examples=(
             "pm-stats-cli daily --date 2026-06-14 --symbol AAPL",
             "pm-stats-cli snapshots --symbol MSFT --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00",
@@ -1506,7 +1611,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-admin-cli", "pm-opctl-cli", "pm-engine"),
         doc_anchor="pm-admin-interactive-admin-console",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-admin --id GW_ADMIN",),
         notes=(
             "Most commands require the ADMIN gateway role; see the full risk-control flow in Risk Controls.",
@@ -1572,7 +1677,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-admin", "pm-opctl-cli"),
         doc_anchor="pm-admin-cli-cli-admin-commands",
-        doc_page="160-exchange-commands.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/020-admin-console-and-commands.md",
         examples=("pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL",),
     ),
     CommandInfo(
@@ -1633,7 +1738,7 @@ _ADMIN_AND_OPS: tuple[CommandInfo, ...] = (
         ),
         related=("pm-engine", "pm-config-deploy", "pm-setup", "pm-admin"),
         doc_anchor="pm-opctl-cli-operational-process-control",
-        doc_page="040-running-the-exchange.md",
+        doc_page="../../../docs/books/operator-guide/part-3-run/010-running-the-exchange.md",
         examples=(
             "pm-opctl-cli init                # write editable emo-config.yaml",
             "pm-opctl-cli start                # start the default profile",
@@ -1677,7 +1782,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-config-gen", "pm-config-deploy", "pm-opctl-cli"),
         doc_anchor="pm-setup-session-bootstrap-tool",
-        doc_page="000-getting-started.md",
+        doc_page="../../../docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
         ),
@@ -1786,7 +1891,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-show"),
         doc_anchor="pm-config-gen-engine-config-generator",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         examples=(
             "pm-config-gen --symbols AAPL MSFT --participants TRADER01 TRADER02 OPS01:ADMIN "
             "--sessions-enabled --output engine_config.yaml",
@@ -1849,7 +1954,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-gen", "pm-config-show", "pm-opctl-cli"),
         doc_anchor="pm-config-deploy-compile-and-install-a-configuration",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         notes=(
             "Local bootstrap logic; does not participate in the ZeroMQ runtime message bus.",
         ),
@@ -1900,7 +2005,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             ),
         ),
         related=("pm-config-deploy", "pm-cverifier", "pm-opctl-cli", "pm-valuation"),
-        doc_page="045-new-symbol.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/010-new-symbols.md",
     ),
     CommandInfo(
         name="pm-valuation",
@@ -1959,7 +2064,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
             ),
         ),
         related=("pm-new-symbol", "pm-index-admin-cli", "pm-opctl-cli"),
-        doc_page="046-valuation.md",
+        doc_page="../../../docs/books/operator-guide/part-4-run-a-market/020-valuation.md",
         examples=(
             "pm-valuation --case tornfalk                  # interview a classroom case",
             "pm-valuation --market us                      # a US IPO, in USD",
@@ -2016,7 +2121,7 @@ _SETUP_AND_CONFIG: tuple[CommandInfo, ...] = (
         ),
         related=("pm-cverifier", "pm-config-deploy", "pm-config-gen"),
         doc_anchor="pm-config-show-config-viewer",
-        doc_page="010-configuration.md",
+        doc_page="../../../docs/books/operator-guide/part-2-configure/010-the-configuration-workflow.md",
         notes=(
             "Exit 2: config file missing/unreadable. Exit 3: not valid YAML "
             "(points at pm-cverifier). Local inspection logic; not on the ZeroMQ bus.",
@@ -2087,7 +2192,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
         ports="Listens on TCP 5600 (LALF collection), binds ZMQ 5601 (PUB) and 5602 (PULL) unless --no-pubsub",
         related=("pm-log-cli",),
         doc_anchor="pm-log-srv-centralized-log-server",
-        doc_page="280-log-srv.md",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md",
         notes=(
             "Fully implemented; auto-detection by every other pm-* process is a follow-up phase not yet rolled out.",
         ),
@@ -2119,7 +2224,7 @@ _LOGGING: tuple[CommandInfo, ...] = (
         ),
         related=("pm-log-srv",),
         doc_anchor="pm-log-cli-log-server-querytroubleshooting-cli",
-        doc_page="280-log-srv.md",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md",
     ),
 )
 

@@ -1,0 +1,158 @@
+# Canonical specification for the `sim` message family.
+#
+# pm-market-sim publishes the market model's true values and its own state on
+# its own PUB socket, and takes commands on its own PULL socket - never on the
+# engine bus, so nothing on the engine bus (and nothing a student's client
+# subscribes to) carries a true value. Who may see the values is the API
+# gateway's business (ADMIN only); on the bus they are visible to whatever
+# connects to the sim socket, which binds to loopback by default.
+
+family: sim
+version: 1
+
+types:
+  NewsRequest:
+    doc: "A headline the instructor wants published (NEWS_INJECT)."
+    fields:
+      - { name: scope, type: enum, values: [SYMBOL, SECTOR, MARKET] }
+      - name: targets
+        type: list
+        item: string
+        doc: "Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET."
+      - name: kind
+        type: enum
+        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO]
+      - { name: sentiment, type: float, unit: dimensionless,
+          validate: { ge: -1, le: 1 } }
+      - name: impact
+        type: float
+        unit: dimensionless
+        validate: { ge: -1, le: 1 }
+        doc: >
+          Move of the log true value when the news is (or becomes) confirmed:
+          0.10 is about +10.5%. Sector and market news move each symbol by its
+          beta to that factor. Never published.
+      - { name: headline, type: string, required: false, default: "",
+          validate: { max_len: 200 },
+          doc: "Empty: pm-market-sim writes one from the kind and sentiment." }
+      - { name: rumour, type: bool, required: false, default: false,
+          doc: "Publish as a RUMOUR; the value moves only on NEWS_CONFIRM." }
+      - { name: credibility, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0, le: 1 } }
+
+  SymbolValue:
+    doc: "One symbol's true value at the step's simulated time."
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: value, type: float, unit: display_price, validate: { gt: 0 },
+          doc: "Display money, like every price on the engine bus." }
+
+messages:
+  - name: sim_value
+    topic: "sim.value"
+    transport: [sim_pub]
+    doc:
+      motivation: >
+        pm-market-sim to the bots, the market makers that anchor to it and the
+        instructor's tools: every symbol's true value after one model step.
+      published_by: [market_sim]
+      since: "1.0"
+      see_also: ["sim.state"]
+      example_note: >
+        Batched: one message per step carries every symbol (300 symbols are
+        about 11 KB), so a subscriber sees one consistent cross-section rather
+        than 300 messages from different instants. Published during continuous
+        trading only: that is when the model steps. A trading day's variance
+        accrues over the continuous phase as the engine reports it, so a day
+        compressed by `pm-scheduler --speed` moves as much as a real one.
+    fields:
+      - name: seq
+        type: int
+        unit: dimensionless
+        validate: { gt: 0 }
+        doc: "Step counter; continues across a pm-market-sim restart."
+      - { name: ts_ns, type: int, unit: epoch_nanos,
+          doc: "Publication time." }
+      - name: values
+        type: list
+        ref: SymbolValue
+        validate: { min_items: 1 }
+    encoding:
+      sim_pub: { frames: [topic, json_payload], include: all }
+
+  - name: sim_state
+    topic: "sim.state"
+    transport: [sim_pub]
+    doc:
+      motivation: >
+        pm-market-sim's heartbeat: whether the model is stepping and how far
+        it has got.
+      published_by: [market_sim]
+      since: "1.0"
+      see_also: ["sim.value"]
+      example_note: >
+        Published once a second whatever the session, so a subscriber can
+        tell "the exchange is closed" (PAUSED) from "pm-market-sim is gone"
+        (no heartbeat).
+    fields:
+      - { name: state, type: enum, values: [RUNNING, PAUSED],
+          doc: "RUNNING during continuous trading, PAUSED otherwise." }
+      - { name: session, type: string, validate: { max_len: 32 },
+          doc: "The engine session state the model follows." }
+      - { name: seq, type: int, unit: dimensionless,
+          doc: "The last sim.value published (0 = none yet)." }
+      - { name: ts_ns, type: int, unit: epoch_nanos }
+      - { name: step_ns, type: int, unit: duration_nanos, validate: { gt: 0 },
+          doc: "Time between steps while running." }
+      - { name: symbols, type: int, unit: dimensionless }
+      - { name: seed, type: int, unit: dimensionless }
+    encoding:
+      sim_pub: { frames: [topic, json_payload], include: all }
+
+  - name: sim_command
+    topic: "sim.command"
+    transport: [sim_push]
+    doc:
+      motivation: "Instructor tooling to pm-market-sim: one command."
+      published_by: [admin]
+      since: "1.0"
+      see_also: ["sim.command_ack.{GW_ID}"]
+      example_note: >
+        pm-market-sim binds its PULL socket to loopback and accepts a command
+        only when `gateway_id` is an ADMIN participant of the deployed
+        configuration.
+    fields:
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "The sender; the reply goes to sim.command_ack.<gateway_id>." }
+      - { name: action, type: enum,
+          values: [STATUS, NEWS_INJECT, NEWS_CONFIRM, NEWS_RETRACT] }
+      - { name: news, type: nested, ref: NewsRequest, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "The headline to publish (NEWS_INJECT)." }
+      - { name: news_id, type: string, required: false, default: "",
+          validate: { max_len: 32 },
+          doc: "The rumour to confirm or retract." }
+    encoding:
+      sim_push: { frames: [topic, json_payload], include: all }
+
+  - name: sim_command_ack
+    topic: "sim.command_ack.{gateway_id}"
+    transport: [sim_pub]
+    doc:
+      motivation: "pm-market-sim to the commanding tool: the outcome of one command."
+      published_by: [market_sim]
+      since: "1.0"
+      see_also: ["sim.command"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          doc: "Refusal detail, or what was done.",
+          validate: { max_len: 256 } }
+      - { name: news_id, type: string, required: false, default: "",
+          validate: { max_len: 32 },
+          doc: "The news.event published, if any." }
+    encoding:
+      sim_pub: { frames: [topic, json_payload], include: all }

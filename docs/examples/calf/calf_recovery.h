@@ -7,7 +7,7 @@
  * this owns the bookkeeping.
  *
  * Three rules drive everything here, all normative in
- * docs/user-guide/920-app-calf-protocol.md, "Reconnect behavior":
+ * docs/books/protocols-and-clients/part-2-specifications/030-calf.md, "Reconnect behavior":
  *
  *   1. A replay is not disjoint from live traffic. RESUME|LASTSEQ=n returns
  *      *everything* the gateway still buffers past n, and n is your

@@ -14,7 +14,8 @@ The flush transaction atomically writes:
 2. current position snapshots  (UPSERT into gateway_symbol_positions)
 3. incremental daily deltas    (UPSERT into gateway_daily_summary)
 
-On startup the process prunes trade_events rows older than 90 days and logs
+On startup, and at every close of the market (``session.state`` CLOSED), the
+process prunes trade_events rows older than ``--retention-days`` (90) and logs
 the count of deleted rows.
 
 Timestamp semantics
@@ -53,6 +54,7 @@ from edumatcher.clearing.store import (
     flush_batch,
     open_writer_connection,
     prune_old_events,
+    reconcile_session_timezone,
     record_gateway_connect,
     record_session_event,
 )
@@ -232,6 +234,7 @@ class ClearingProcess:
         self._debug_last_summary = time.monotonic()
 
         self._conn = open_writer_connection(self._db_path, sql_trace=self._sql_trace)
+        reconcile_session_timezone(self._conn, self._db_path, str(session_tz))
         log.info("opened clearing DB connection path=%s", self._db_path.resolve())
         if self._sql_trace:
             log.info("SQLite SQL trace enabled for clearing writer connection")
@@ -282,7 +285,9 @@ class ClearingProcess:
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
-        pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        pruned = 0
+        if self._retention_days > 0:
+            pruned = prune_old_events(self._conn, retention_days=self._retention_days)
         log.info(
             "starting clearing runtime db=%s flush_size=%d flush_interval=%ss retention_days=%d",
             self._db_path,
@@ -669,9 +674,11 @@ class ClearingProcess:
 
                 # CL-L7: also prune retention-window raw rows on EOD so a
                 # long-running process does not only prune at startup.
-                pruned = prune_old_events(
-                    self._conn, retention_days=self._retention_days
-                )
+                pruned = 0
+                if self._retention_days > 0:
+                    pruned = prune_old_events(
+                        self._conn, retention_days=self._retention_days
+                    )
             log.info(
                 "EOD received — %d symbol mark(s) applied, session_events row written for %s",
                 len(eod_marks),
@@ -701,6 +708,7 @@ class ClearingProcess:
             if not state:
                 return
             ts_ns = now_ns()
+            pruned = 0
             with self._lock:
                 record_session_event(
                     self._conn,
@@ -713,6 +721,19 @@ class ClearingProcess:
                             "prev_state": typed.prev_state,
                         }
                     ),
+                )
+                # The close is the day boundary of a process that never
+                # restarts: system.eod comes only when the engine shuts down,
+                # so without this a weeks-long run never pruned at all.
+                if state == "CLOSED" and self._retention_days > 0:
+                    pruned = prune_old_events(
+                        self._conn, retention_days=self._retention_days
+                    )
+            if pruned:
+                log.info(
+                    "close prune removed %d trade_events row(s) older than %d days",
+                    pruned,
+                    self._retention_days,
                 )
         except Exception as exc:
             log.warning("error handling session.state: %s", exc)
@@ -940,17 +961,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=_RETENTION_DAYS,
         metavar="N",
         help=(
-            f"Delete trade_events rows older than N days on startup"
-            f" (default: {_RETENTION_DAYS}; 0 = disable pruning)"
-        ),
-    )
-    parser.add_argument(
-        "--timezone",
-        metavar="TZ",
-        default="UTC",
-        help=(
-            "Exchange session timezone used to bucket trades into a trading day"
-            " (IANA name, e.g. America/New_York; default: UTC)"
+            f"Delete trade_events rows older than N days on startup and at"
+            f" every close (default: {_RETENTION_DAYS}; 0 = disable pruning)"
         ),
     )
     parser.add_argument(
@@ -1057,9 +1069,20 @@ def main() -> None:
     if args.retention_days < 0:
         parser.error("--retention-days must be >= 0")
 
-    session_tz = _resolve_timezone(args.timezone)
+    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
+
+    compiled = load_compiled_config()
+    session_tz_name = (
+        DEFAULT_SESSION_TIMEZONE
+        if compiled is None
+        else compiled.engine.locale.session_timezone
+    )
+    session_tz = _resolve_timezone(session_tz_name)
     if session_tz is None:
-        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
+        parser.error(
+            f"engine config locale.session_timezone: unknown timezone {session_tz_name!r}"
+        )
 
     if args.datapath is not None:
         dp = resolve_data_path(args.datapath)

@@ -26,8 +26,16 @@ from edumatcher.msgen.spec import load_transports
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_ROOT = REPO_ROOT / "spec"
-REFERENCE = REPO_ROOT / "docs" / "user-guide" / "270-message-reference.md"
-PREAMBLE = REPO_ROOT / "docs" / "user-guide" / "270-preamble.md"
+REFERENCE = (
+    REPO_ROOT
+    / "docs"
+    / "books/protocols-and-clients/part-5-message-reference/010-message-reference.md"
+)
+PREAMBLE = (
+    REPO_ROOT
+    / "docs"
+    / "books/protocols-and-clients/part-5-message-reference/000-preamble.md"
+)
 
 
 @pytest.fixture(scope="module")
@@ -60,10 +68,13 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """115, where the hand-written file managed 67.
+        """121, where the hand-written file managed 67.
 
         This count moves whenever a new message is added to spec/ — most
-        recently system.recovery_item (114 -> 115, AR-0.5), the per-entity
+        recently news.event (120 -> 121), and before it the sim family
+        (116 -> 120): pm-market-sim's sim.value,
+        sim.state, sim.command and sim.command_ack. Before that,
+        system.recovery_item (114 -> 115, AR-0.5), the per-entity
         companion to system.startup_recovery's six-count summary: "which
         order failed to restore?" was unanswerable from the summary counts
         alone, so this adds one line per restored/discarded/failed GTC order
@@ -73,14 +84,14 @@ class TestTheAppendixDocumentsEveryMessage:
         added so pm-audit's bare PUB subscription can see a
         maintenance-flush exception, a dispatch-handler crash, an
         undecodable inbound message, an unrouted topic, and a GTC-restore
-        summary -- see docs/user-guide/190-audit.md. Bump the literal here
+        summary -- see ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md. Bump the literal here
         alongside any spec addition; the real regression this test (and
         test_every_topic_has_a_section above it) guards against is the
         generated reference page silently omitting a message, not the total
         staying fixed at some past value.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 115, total
+        assert total == 121, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

@@ -29,8 +29,18 @@ if [[ -n "$seed" && ! "$seed" =~ ^-?[0-9]+$ ]]; then
   exit 1
 fi
 if [[ -z "$seed" ]]; then
-  seed=$(( RANDOM * 32768 + RANDOM ))
-  echo "[INFO] Auto-generated seed $seed -- re-run with --seed $seed for identical output." >&2
+  # Reuse the seed recorded in an existing engine_config.yaml's header
+  # comment, if there is one, instead of drawing a new random seed -- a
+  # re-run with no --seed should reproduce the same book.
+  existing_seed=$(awk '/^#/{sub(/^#/,""); sub(/\\$/,""); printf "%s ", $0; next} {exit}' engine_config.yaml 2>/dev/null \
+    | grep -oE -- '--seed +-?[0-9]+' | head -1 | awk '{print $2}')
+  if [[ -n "$existing_seed" ]]; then
+    seed="$existing_seed"
+    echo "[INFO] Reusing seed $seed from existing engine_config.yaml -- pass --seed to override." >&2
+  else
+    seed=$(( RANDOM * 32768 + RANDOM ))
+    echo "[INFO] Auto-generated seed $seed -- re-run with --seed $seed for identical output." >&2
+  fi
 fi
 
 if command -v pm-config-gen >/dev/null 2>&1; then
@@ -63,10 +73,18 @@ for n in $(seq 1 10); do
 done
 trader_list=$(IFS=,; echo "${trader_ids[*]}")
 
+# AI traders for pm-ai-swarm (AI001..AI020): plain TRADER participants. They
+# trade through the ALF gateway, so they are not in the API gateway desk list.
+ai_gateways=()
+for n in $(seq 1 20); do
+  ai_gateways+=("$(printf 'AI%03d' "$n"):TRADER:CANCEL_ALL:AI trader ${n}")
+done
+
 gateways=(
   "${trader_gateways[@]}"
   "OPS01:ADMIN:LEAVE_ALL:Instructor console"
   "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
+  "${ai_gateways[@]}"
 )
 desk_gateways="${trader_list},MM01,OPS01"
 if [[ "$profile" == complex ]]; then
@@ -75,6 +93,7 @@ if [[ "$profile" == complex ]]; then
     "OPS01:ADMIN:LEAVE_ALL:Instructor console"
     "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"
     "MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY:Backup market maker"
+    "${ai_gateways[@]}"
   )
   desk_gateways="${trader_list},MM01,MM02,OPS01"
 fi

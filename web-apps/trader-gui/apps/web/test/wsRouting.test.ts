@@ -7,6 +7,7 @@ import { ManagedSocket, type WebSocketLike } from "@/ws/ManagedSocket";
 vi.mock("@/api/endpoints", () => ({
   getSession: vi.fn(),
   getHalts: vi.fn(),
+  getNews: vi.fn(),
 }));
 
 import {
@@ -25,7 +26,8 @@ import { useBookStore, __resetTradeDedupForTest } from "@/store/useBookStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useHaltStore } from "@/store/useHaltStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
-import { getSession, getHalts } from "@/api/endpoints";
+import { getSession, getHalts, getNews } from "@/api/endpoints";
+import { useNewsStore } from "@/store/useNewsStore";
 
 class FakeSocket implements WebSocketLike {
   static last: FakeSocket | null = null;
@@ -113,6 +115,8 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.mocked(getSession).mockReset().mockResolvedValue({ state: "CLOSED", sessions_enabled: true });
   vi.mocked(getHalts).mockReset().mockResolvedValue({ halted: [] });
+  vi.mocked(getNews).mockReset().mockResolvedValue({ news: [], sectors: {} });
+  useNewsStore.setState({ items: [], sectorOf: {} });
 });
 
 describe("market-data routing", () => {
@@ -527,6 +531,31 @@ describe("session/halts resync on authenticate (H5, H4)", () => {
       expect(useHaltStore.getState().isHalted("AAPL")).toBe(false);
       expect(useHaltStore.getState().isHalted("MSFT")).toBe(true);
     });
+  });
+
+  it("loads the news on authenticate and appends live headlines", async () => {
+    const item = {
+      id: "N1",
+      ts_ns: 1,
+      scope: "SYMBOL" as const,
+      targets: ["AAPL"],
+      kind: "EARNINGS",
+      status: "RUMOUR" as const,
+      headline: "Rumour: AAPL beats",
+      sentiment: 0.5,
+      credibility: 0.6,
+      related_id: "",
+    };
+    vi.mocked(getNews).mockResolvedValue({ news: [item], sectors: { TECH: ["AAPL"] } });
+    installSocket();
+    route({ type: "authenticated" });
+    await vi.waitFor(() => expect(useNewsStore.getState().items).toHaveLength(1));
+    expect(useNewsStore.getState().sectorOf).toEqual({ AAPL: "TECH" });
+
+    // No subscription needed: news is an always-on channel.
+    route({ type: "news", topic: "news.event", data: { ...item, id: "N2", status: "RETRACTED", related_id: "N1" } });
+    route({ type: "news", topic: "news.event", data: { ...item, id: "N2", status: "RETRACTED", related_id: "N1" } });
+    expect(useNewsStore.getState().items.map((n) => n.id)).toEqual(["N2", "N1"]);
   });
 
   it("logs but does not throw when the session/halts resync fails", async () => {

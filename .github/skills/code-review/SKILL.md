@@ -80,7 +80,7 @@ file that creates sockets, sends messages, or subscribes to topics.
 
 #### Documentation coverage
 - Every message topic used (send or receive) must have an entry in
-  `docs/user-guide/09-messages.md` — flag any topic that is absent
+  `docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md` — flag any topic that is absent
 - Every payload field must be documented (name, type, description, optional/required)
 - The pub/sub responsibility for each topic must be stated clearly: who publishes,
   who subscribes, and under what conditions

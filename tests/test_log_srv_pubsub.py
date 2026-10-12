@@ -1,7 +1,7 @@
 """Tests for LALF-PS — the ZeroMQ log-distribution interface of pm-log-srv.
 
 Covers the four behaviours the interface exists to provide (see
-docs/user-guide/280-log-srv.md): asynchronous notification, live streaming,
+../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md): asynchronous notification, live streaming,
 "last n minutes" backfill, and reaping a subscriber that has died.
 """
 

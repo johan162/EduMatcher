@@ -1,0 +1,6 @@
+name: value-investor
+description: Buys below its view of the true value and sells above it (needs pm-market-sim).
+strategy: {name: value, threshold: 0.004, bias_std: 0.01, redraw: 0.02, sample: 5, urgency: 0.4}
+execution: {style: passive, offset_ticks: 0, tif: DAY, urgency_cross: 0.8, auction_participation: 0.5}
+tempo: cautious
+risk: {max_position: 2000, max_live_orders_per_symbol: 2, max_order_age_sec: 60, stale_price_ticks: 10}

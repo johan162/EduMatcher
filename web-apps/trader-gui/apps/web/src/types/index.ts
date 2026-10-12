@@ -575,6 +575,30 @@ export interface AdminGateway {
   description?: string;
 }
 
+/** pm-msgen news.event — one pm-market-sim headline (public). */
+export interface NewsEvent {
+  id: string;
+  ts_ns: number;
+  scope: "SYMBOL" | "SECTOR" | "MARKET";
+  /** Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET. */
+  targets: string[];
+  kind: string;
+  status: "RUMOUR" | "CONFIRMED" | "RETRACTED";
+  headline: string;
+  /** Tone, -1 (bad) to 1 (good). */
+  sentiment: number;
+  /** Rumours only. */
+  credibility?: number;
+  /** The rumour a CONFIRMED or RETRACTED event resolves. */
+  related_id: string;
+}
+
+/** GET /api/v1/news: oldest first, plus each sector's symbols. */
+export interface NewsSnapshot {
+  news: NewsEvent[];
+  sectors: Record<string, string[]>;
+}
+
 /** pm-msgen HaltedSymbol / circuit_breaker.halt broadcast. */
 export interface HaltEntry {
   symbol: string;

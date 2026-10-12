@@ -105,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
         "is requested programmatically. Replay lines are tagged REPLAY "
         "instead of FILL. Useful for observing replay() calls made by "
         "tests or embedded consumers; there is no wire protocol to trigger "
-        "a replay from pm-dc-spy itself (see docs/user-guide/200-drop-copy.md).",
+        "a replay from pm-dc-spy itself (see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md).",
     )
 
     out = parser.add_argument_group("output")

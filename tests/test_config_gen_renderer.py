@@ -138,7 +138,7 @@ def test_renderer_injects_stub_hint_comments() -> None:
 def test_renderer_emits_country_section_and_hint() -> None:
     payload = {
         "sessions_enabled": False,
-        "country": "Germany",
+        "locale": {"country": "Germany"},
         "enforce_collars": True,
         "enforce_circuit_breakers": True,
         "engine_tuning": {"snapshot_interval_sec": 0.5},
@@ -159,12 +159,12 @@ def test_renderer_emits_country_section_and_hint() -> None:
         generated_date="2026-07-26",
     )
 
-    assert "# -- Scheduler country --" in rendered
-    assert "country pm-scheduler uses for bank holidays" in rendered
+    assert "# -- Locale --" in rendered
+    assert "country pm-scheduler uses for bank" in rendered
     assert 'defaults to "Sweden" when omitted' in rendered
 
     parsed = yaml.safe_load(rendered)
-    assert parsed["country"] == "Germany"
+    assert parsed["locale"]["country"] == "Germany"
 
 
 _MINIMAL_PAYLOAD = {

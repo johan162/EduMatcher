@@ -22,6 +22,9 @@ SHELL := $(shell which bash)
 SUBDIRS := $(patsubst %/mkrefdata.sh,%,$(wildcard */mkrefdata.sh))
 CONFIGS := $(SUBDIRS:%=%/engine_config.yaml)
 S150_CONFIGS := $(filter s150-%,$(CONFIGS))
+S300_CONFIGS := s300-load-setup/engine_config.yaml s300-sim-setup/engine_config.yaml
+# s1/s3/s10/s30 setups all delegate to the shared Python generator.
+SHARED_PY_CONFIGS := $(filter-out $(S150_CONFIGS) $(S300_CONFIGS),$(CONFIGS))
 
 .DEFAULT_GOAL := configs
 
@@ -59,3 +62,5 @@ $(CONFIGS): %/engine_config.yaml: %/mkrefdata.sh
 	@echo -e "$(GREEN)✓ $@ done$(NC)"
 
 $(S150_CONFIGS): mks150.sh
+$(S300_CONFIGS): mks300.sh
+$(SHARED_PY_CONFIGS): mkrefdata_common.py

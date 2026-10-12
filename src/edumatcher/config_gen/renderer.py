@@ -75,8 +75,8 @@ def render_yaml(
             ["sessions_enabled"],
         ),
         (
-            "Scheduler country",
-            ["country"],
+            "Locale",
+            ["locale"],
         ),
         (
             "Engine behavior",
@@ -134,6 +134,7 @@ def _annotate(dumped: str) -> list[str]:
     out: list[str] = []
     idx = 0
     in_engine_tuning = False
+    in_locale = False
     while idx < len(source_lines):
         line = source_lines[idx]
         stripped = line.strip()
@@ -141,6 +142,7 @@ def _annotate(dumped: str) -> list[str]:
 
         if indent == 0 and stripped:
             in_engine_tuning = stripped == "engine_tuning:"
+            in_locale = stripped == "locale:"
 
         if indent == 0:
             top_level_comment = _TOP_LEVEL_HINTS.get(stripped.split(":", 1)[0])
@@ -154,6 +156,14 @@ def _annotate(dumped: str) -> list[str]:
             tuning_comment = _ENGINE_TUNING_HINTS.get(stripped.split(":", 1)[0])
             if tuning_comment is not None:
                 out.extend(_comment_lines(indent, tuning_comment))
+                out.append(line)
+                idx += 1
+                continue
+
+        if in_locale and indent == 2 and ":" in stripped:
+            locale_comment = _LOCALE_HINTS.get(stripped.split(":", 1)[0])
+            if locale_comment is not None:
+                out.extend(_comment_lines(indent, locale_comment))
                 out.append(line)
                 idx += 1
                 continue
@@ -218,10 +228,10 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
         "true lets pm-scheduler drive session transitions;",
         "false keeps the engine in continuous mode",
     ],
-    "country": [
-        "country pm-scheduler uses for bank holidays and local wall-clock time;",
-        'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE")',
-        'defaults to "Sweden" when omitted',
+    "locale": [
+        "where this exchange is: the country pm-scheduler uses for bank",
+        "holidays, and the IANA timezone pm-stats/pm-clearing use to bucket",
+        "events into a trading day",
     ],
     "enforce_collars": ["enables per-symbol collar checks on incoming orders"],
     "enforce_circuit_breakers": ["enables per-symbol circuit-breaker enforcement"],
@@ -241,6 +251,18 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     "market_maker_combos": ["startup market-maker combo seeds"],
     "schedule": ["session schedule"],
 }
+
+_LOCALE_HINTS: dict[str, list[str]] = {
+    "country": [
+        'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE");',
+        'defaults to "Sweden" when omitted',
+    ],
+    "session_timezone": [
+        "an unrecognised IANA name is rejected;",
+        'defaults to "Europe/Stockholm" when omitted',
+    ],
+}
+
 
 _ENGINE_TUNING_HINTS: dict[str, list[str]] = {
     "snapshot_interval_sec": [

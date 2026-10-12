@@ -44,7 +44,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 # Channels guaranteed to exist even against a gateway build that predates
 # WELCOME|CH_SUPPORTED= (see md_gateway.gateway._ALLOWED_CHANNELS history and
-# docs/user-guide/920-app-calf-protocol.md). Used as the --channels default
+# ../../../docs/books/protocols-and-clients/part-2-specifications/030-calf.md). Used as the --channels default
 # fallback only when the gateway's own WELCOME omits CH_SUPPORTED.
 _BASELINE_CHANNELS = ("TOP", "TRADE", "STATE")
 

@@ -7,7 +7,8 @@ Family version 1. Every symbol here is derived from ``spec/messages/drop_copy.ya
 edit the spec, not this file.
 
 ``pm-msgen check`` fails the build if this file and the spec disagree. See
-docs/developer/06-msgen.md.
+../../../../docs/books/architecture-and-development/part-4-developing/040-message-
+generation.md.
 """
 
 from __future__ import annotations

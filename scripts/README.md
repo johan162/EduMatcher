@@ -194,8 +194,8 @@ The docs PDF pipeline uses this to materialize command examples before concatena
 
 **Examples:**
 ```bash
-./scripts/expand-shell-outputs.py --output-dir /tmp/expanded docs/user-guide/00-getting-started.md
-./scripts/expand-shell-outputs.py --output-dir .build/expanded --cwd . --format a4 docs/user-guide/*.md
+./scripts/expand-shell-outputs.py --output-dir /tmp/expanded docs/books/quick-start/part-1-see-it-run/030-your-first-trade.md
+./scripts/expand-shell-outputs.py --output-dir .build/expanded --cwd . --format a4 docs/books/quick-start/part-1-see-it-run/*.md
 ```
 
 **Placeholder examples:**

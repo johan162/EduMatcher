@@ -21,7 +21,7 @@ mapping (e.g. ``s3-basic`` ->
 Any example name also accepts an optional trailing ``-nomm`` to select the
 no-market-maker-quotes variant of that example (e.g. ``s3-basic-nomm`` ->
 ``docs/examples/ref_data/s3-basic-nomm-setup/engine_config.yaml``)
-— see docs/concepts/03-concepts-mm-quotes.md.
+— see ../../docs/books/participant-guide/part-3-market-making/010-market-maker-quotes.md.
 
 Usage
 -----
@@ -45,25 +45,6 @@ from edumatcher.config import data_dir_preference
 from edumatcher.config_deploy import resolve_example
 
 DEFAULT_EXAMPLE_CONFIG = "s10-basic"
-
-
-def _extract_example_config(dest: Path, force: bool, config_name: str) -> bool:
-    """
-    Copy the bundled example config named *config_name* (e.g. ``s3-basic``,
-    resolved via ``resolve_example``) to *dest*.
-    Returns True on success, False if the file already existed and --force was
-    not given.
-    """
-    if dest.exists() and not force:
-        return False
-
-    try:
-        source = resolve_example(config_name)
-        dest.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
-    except ValueError as exc:
-        print(f"  ERROR: {exc}", file=sys.stderr)
-        return False
-    return True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -163,28 +144,18 @@ def main() -> None:
     # 3. Compile and deploy the selected bundled example engine_config.yaml
     # -----------------------------------------------------------------------
     if not args.no_config:
-        ref_data = data_dir / "ref_data"
-        artifact = ref_data / "engine_config.json"
-        source = ref_data / "engine_config.yaml"
-        ref_data.mkdir(parents=True, exist_ok=True)
+        artifact = data_dir / "ref_data" / "engine_config.json"
 
         if artifact.exists() and not args.force:
             print(f"  ✓ Config already deployed (kept):  {artifact}")
             print("    → Use --force to overwrite.")
-        elif not _extract_example_config(source, force=True, config_name=args.config):
-            print(
-                f"  ✗ Could not extract the bundled {args.config!r} example config",
-                file=sys.stderr,
-            )
-            sys.exit(1)
         else:
-            # Compile it: processes read the artifact, not the YAML, so a
-            # fresh install that only copied the source would start every
-            # process on built-in defaults.
+            # Deploy straight from the bundled example: deploy() installs the
+            # YAML and the example's market_sim.yaml beside the artifact.
             from edumatcher.config_deploy import CompileError, deploy
 
             try:
-                compiled = deploy(source, artifact)
+                compiled = deploy(resolve_example(args.config), artifact)
             except CompileError as exc:
                 print(
                     f"  ✗ Bundled {args.config!r} example config did not compile: {exc}",

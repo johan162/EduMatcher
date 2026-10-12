@@ -1,6 +1,7 @@
 CC := cc
 # ../generated holds the message bindings produced by pm-msgen from
-# spec/messages/*.yaml, plus their shared runtime. See docs/developer/06-msgen.md.
+# spec/messages/*.yaml, plus their shared runtime. See
+# docs/books/architecture-and-development/part-4-developing/040-message-generation.md.
 GEN_DIR := ../generated
 # -I. is explicit because the generated header includes "calf_parser.h", which
 # lives here rather than beside it.

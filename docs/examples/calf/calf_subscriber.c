@@ -15,7 +15,7 @@
  * per-symbol, and assuming 2 is right only for the instruments that happen
  * to quote that way. calf_subscriber.py shows that path.
  *
- * See docs/user-guide/920-app-calf-protocol.md for the normative wire
+ * See docs/books/protocols-and-clients/part-2-specifications/030-calf.md for the normative wire
  * contract this client follows.
  */
 
@@ -296,7 +296,8 @@ static void handle_message(int fd, const calf_message_t *msg) {
          * Note the two-step: _parse coerces, _validate enforces the declared
          * rules (price > 0, quantity > 0, SIDE one of BUY/SELL/AUCTION). A
          * client that would rather display a questionable print than drop it
-         * can simply skip the second call -- see docs/developer/06-msgen.md. */
+         * can simply skip the second call -- see
+         * docs/books/architecture-and-development/part-4-developing/040-message-generation.md. */
         edu_trade_executed_calf_t trade;
         char err[128];
         int rc = edu_trade_executed_calf_parse(msg, &trade);

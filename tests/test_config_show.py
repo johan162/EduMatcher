@@ -294,7 +294,7 @@ def test_pdf_is_written_and_multipage(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # the shared table vs. the normative specification
 # ---------------------------------------------------------------------------
-#: Default ports as published in docs/user-guide/990-app-config-spec.md §6.
+#: Default ports as published in ../docs/books/reference-manual/part-3-configuration/030-formal-specification.md §6.
 #: gateway_ports.py claims to mirror the runtime loaders, and the spec claims
 #: to describe the same loaders, so the two must agree.  Restating them here
 #: turns a silent documentation drift into a failing test.

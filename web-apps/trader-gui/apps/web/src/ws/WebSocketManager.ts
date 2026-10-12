@@ -33,14 +33,16 @@ import {
   type SubscriptionPlan,
 } from "./subscriptions.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
-import { getSession, getHalts } from "@/api/endpoints.js";
+import { getSession, getHalts, getNews } from "@/api/endpoints.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
+import { useNewsStore } from "@/store/useNewsStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { useMonitorStore } from "@/store/useMonitorStore.js";
 import { envInt } from "@/lib/env.js";
 import type {
+  NewsEvent,
   WsEnvelope,
   GatewayRole,
   BookData,
@@ -134,15 +136,19 @@ function authFrame(): object {
 // halt badges wrong indefinitely -- nothing else re-reads them. Every fresh
 // market-data `authenticated` (initial connect and every reconnect) re-pulls
 // both from their REST endpoints and applies them unconditionally, the same
-// way bootstrap hydration does. Independent failures are logged and do not
-// block each other.
-function resyncSessionAndHalts(): void {
+// way bootstrap hydration does. News (also always-on) is re-pulled the same
+// way, which is also how the first headlines arrive. Independent failures are
+// logged and do not block each other.
+function resyncAlwaysOnChannels(): void {
   getSession()
     .then((data) => useSessionStore.getState().setPhase(data.state, null, null))
     .catch((err) => console.warn("[ws] session resync failed", err));
   getHalts()
     .then((data) => useHaltStore.getState().setHalts(data.halted))
     .catch((err) => console.warn("[ws] halts resync failed", err));
+  getNews()
+    .then((data) => useNewsStore.getState().load(data))
+    .catch((err) => console.warn("[ws] news resync failed", err));
 }
 
 // ── Connection health (observable) ───────────────────────────────────────────
@@ -330,7 +336,7 @@ function handleMarketDataMessage(raw: unknown): void {
   // Control frames are not market data and carry no `seq`.
   switch (envelope.type) {
     case "authenticated":
-      resyncSessionAndHalts();
+      resyncAlwaysOnChannels();
       return;
     case "subscription": {
       const data = envelope.data as { rejected?: unknown[] } | undefined;
@@ -403,6 +409,10 @@ function handleMarketDataMessage(raw: unknown): void {
     }
     case "circuit_breaker": {
       applyCircuitBreakerEvent(envelope);
+      break;
+    }
+    case "news": {
+      useNewsStore.getState().add(envelope.data as NewsEvent);
       break;
     }
   }

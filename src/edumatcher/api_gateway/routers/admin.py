@@ -201,6 +201,17 @@ async def session_schedule(  # pyright: ignore[reportUnusedFunction]
     return await _await_reply(request, topic_session_schedule(gateway_id))
 
 
+@router.get("/sim")
+async def market_sim(  # pyright: ignore[reportUnusedFunction]
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """The market model's latest state and true values (pm-market-sim)."""
+    await require_admin(request, session)
+    snapshot: dict[str, Any] = request.app.state.sim.snapshot()
+    return snapshot
+
+
 @router.get("/gateways")
 async def list_gateways(  # pyright: ignore[reportUnusedFunction]
     request: Request,

@@ -9,6 +9,7 @@ import type {
   IndexDailyRow,
   IndexEventRow,
   IndexSnapshotRow,
+  NewsSnapshot,
   PriceSnapshotRow,
   TradeRow,
 } from "@edumatcher/terminal-types";
@@ -111,4 +112,7 @@ export const api = {
     getJson<{ events: IndexEventRow[]; count: number }>(
       `/api/history/index-events?index_id=${encodeURIComponent(indexId)}`,
     ),
+
+  /** pm-market-sim's latest headlines, oldest first (WP-E5). */
+  news: () => getJson<NewsSnapshot>("/api/news?limit=200"),
 };

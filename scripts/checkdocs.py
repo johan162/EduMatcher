@@ -256,6 +256,10 @@ def check_config() -> list[str]:
                 continue
             if not isinstance(doc, dict) or not (set(doc) & known_keys):
                 continue
+            # Market-maker files use a separate schema with gateway/logging/
+            # defaults/symbols blocks; they are not engine configurations.
+            if set(doc) <= {"version", "gateway", "logging", "defaults", "symbols"}:
+                continue
             merged = {**base, **doc}
             with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
                 yaml.safe_dump(merged, f, sort_keys=False)
@@ -285,7 +289,43 @@ def check_config() -> list[str]:
     return problems
 
 
-CHECKS = {"links": check_links, "cli": check_cli, "config": check_config}
+def check_help_anchors() -> list[str]:
+    try:
+        import markdown
+        from edumatcher.pm_help.registry import all_commands
+    except ImportError as exc:
+        return [f"help-anchors: required package is not installed: {exc.name}"]
+
+    cache: dict[Path, set[str]] = {}
+    problems = []
+    for command in all_commands():
+        page = command.doc_page.removeprefix("../../../docs/books/")
+        if not page and command.doc_anchor:
+            page = "reference-manual/part-1-command-line/010-processes-environment-and-ports.md"
+        if not page:
+            continue
+        path = ROOT / "docs" / "books" / page
+        if not path.exists():
+            problems.append(f"{command.name}: missing help page {page!r}")
+            continue
+        if not command.doc_anchor:
+            continue
+        if path not in cache:
+            html = markdown.Markdown(extensions=["admonition", "attr_list", "tables", "toc", "fenced_code"]).convert(
+                path.read_text(encoding="utf-8")
+            )
+            cache[path] = set(re.findall(r'\bid="([^"]+)"', html))
+        if command.doc_anchor not in cache[path]:
+            problems.append(f"{command.name}: no anchor #{command.doc_anchor} in {page}")
+    return problems
+
+
+CHECKS = {
+    "links": check_links,
+    "cli": check_cli,
+    "config": check_config,
+    "help-anchors": check_help_anchors,
+}
 
 
 def main() -> int:

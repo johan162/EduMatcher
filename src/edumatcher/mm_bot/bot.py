@@ -30,16 +30,22 @@ from edumatcher.models.price import (
     to_ticks,
 )
 from edumatcher.models.message import (
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     decode,
     make_gateway_connect_msg,
+    make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
 )
 from edumatcher.mm_bot.params import TIER2_DEFAULTS
 from edumatcher.mm_bot.pricer import PassiveParams, PricingStrategy, create_strategy
+from edumatcher.config import SIM_PUB_ADDR
+from edumatcher.models.generated.sim import TOPIC_SIM_VALUE
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.circuit_breaker import (
@@ -62,6 +68,7 @@ from edumatcher.models.generated.system import (
     topic_gateway_auth,
     topic_quote_bootstrap,
     topic_quote_legs,
+    topic_session_status,
     topic_symbols,
 )
 
@@ -81,6 +88,10 @@ class BotState(str, Enum):
 # Session states where quoting is allowed
 _QUOTING_SESSIONS = {"CONTINUOUS"}
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+#: Shortest interval between two passes of the timers over every symbol: the
+#: poll timeout's floor. Ticking after every message cost most of the bot's
+#: CPU at 300 symbols, where messages arrive in the thousands a second.
+_TICK_MIN_SEC = 0.05
 
 
 def _update_position(
@@ -190,6 +201,10 @@ class _SymbolState:
     min_cover_qty: int = TIER2_DEFAULTS["min_cover_qty"]
     fade_ticks: int = TIER2_DEFAULTS["fade_ticks"]
     fade_sec: float = TIER2_DEFAULTS["fade_sec"]
+    # Pull the mid toward pm-market-sim's true value (0 = off), and the last
+    # value seen for this symbol.
+    anchor_sim: float = TIER2_DEFAULTS["anchor_sim"]
+    sim_value: float | None = None
     # Where this bot's own legs rest and how much of each is left, so the
     # passive strategy can remove them from book snapshots (_others_levels).
     # Set when a quote is sent or adopted; cleared with the quote state.
@@ -231,6 +246,7 @@ _DIRECT_PARAM_KEYS = (
     "min_cover_qty",
     "fade_ticks",
     "fade_sec",
+    "anchor_sim",
 )
 
 
@@ -394,6 +410,12 @@ class MMBot:
         self._pending_fills: list[dict[str, Any]] = []
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
+
+        # Engine session: authenticated, and when it last heard from us. The
+        # engine frees the gateway ID after three missed beats, so a bot that
+        # dies without a disconnect does not block its own restart.
+        self._authenticated = False
+        self._last_engine_heartbeat = 0.0
 
         # Sockets (created in run())
         self._push_sock: PushSocket | None = None
@@ -763,8 +785,13 @@ class MMBot:
             topic_quote_ack(self.gateway_id),
             topic_quote_status(self.gateway_id),
             TOPIC_SESSION_STATE,
+            topic_session_status(self.gateway_id),
             *per_symbol_topics,
         )
+        if any(st.anchor_sim > 0 for st in self._symbols_state.values()):
+            # The same socket also listens to pm-market-sim's own PUB.
+            self._sub_sock.connect(SIM_PUB_ADDR)
+            self._sub_sock.setsockopt(zmq.SUBSCRIBE, TOPIC_SIM_VALUE.encode())
 
     def _close_sockets(self) -> None:
         if self._push_sock:
@@ -782,17 +809,37 @@ class MMBot:
                 topic = frames[0].decode("utf-8", errors="replace")
                 self._dbg_count(f"outgoing_topic_{self._topic_family(topic)}")
 
+    def _send_quietly(self, frames: list[bytes]) -> bool:
+        """Send, or return False while the engine is not reachable.
+
+        The engine PUSH socket never blocks, so until the connection is up
+        (the engine still starting, or restarting) a send raises zmq.Again.
+        """
+        try:
+            self._send(frames)
+        except zmq.Again:
+            return False
+        return True
+
+    def _send_engine_heartbeat(self, now: float) -> None:
+        self._send_quietly(make_gateway_heartbeat_msg(self.gateway_id))
+        self._last_engine_heartbeat = now
+
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         """Send gateway_connect and wait for auth ACK."""
         assert self._sub_sock is not None
+        deadline = time.monotonic() + timeout_sec
         time.sleep(0.05)
-        self._send(make_gateway_connect_msg(self.gateway_id))
+        while not self._send_quietly(make_gateway_connect_msg(self.gateway_id)):
+            if time.monotonic() >= deadline:
+                self._log("engine not reachable")
+                return False
+            time.sleep(0.1)
         for sym in self.symbols:
             self._set_state(sym, BotState.AUTHENTICATING)
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        deadline = time.monotonic() + timeout_sec
 
         while time.monotonic() < deadline:
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
@@ -804,6 +851,8 @@ class MMBot:
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
+                    self._authenticated = True
+                    self._send_engine_heartbeat(time.monotonic())
                 else:
                     reason = str(payload.get("reason", "unknown"))
                     self._log(f"auth rejected: {reason}")
@@ -1004,11 +1053,18 @@ class MMBot:
         return False
 
     def _wait_for_session(self, timeout_sec: float) -> bool:
-        """Wait for first session.state event. Returns True if received."""
+        """Learn the session phase. Returns True if known in time.
+
+        ``session.state`` is only broadcast on a transition, so the phase is
+        also asked for: a bot started while the market sits in one phase
+        (closed overnight, say) would otherwise wait for the next transition
+        and give up.
+        """
         if self._session_state is not None:
             return True
 
         assert self._sub_sock is not None
+        self._send(make_session_state_request_msg(self.gateway_id))
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
         deadline = time.monotonic() + timeout_sec
@@ -1019,7 +1075,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == TOPIC_SESSION_STATE:
+            if topic in (TOPIC_SESSION_STATE, topic_session_status(self.gateway_id)):
                 self._session_state = str(payload.get("state", "")).upper()
                 return True
             self._buffer_event(topic, payload)
@@ -1139,6 +1195,9 @@ class MMBot:
             return
         bids = payload.get("bids", [])
         asks = payload.get("asks", [])
+        # Anchored to a known value, the value sets the mid (see _anchor);
+        # the book still feeds the passive plan's levels.
+        held = st.pricer.mid_price if st.anchor_sim > 0 and st.sim_value else None
         update_book = getattr(st.pricer, "update_book", None)
         if update_book is not None:
             # passive: price off other traders' liquidity only.
@@ -1146,14 +1205,55 @@ class MMBot:
                 _others_levels(bids, st.own_bid_price, st.own_bid_qty, st.tick_size),
                 _others_levels(asks, st.own_ask_price, st.own_ask_qty, st.tick_size),
             )
-            self._debug(f"[{symbol}] book mid (others only)={st.pricer.mid_price}")
-            return
-        best_bid_raw = bids[0].get("price") if bids else None
-        best_ask_raw = asks[0].get("price") if asks else None
-        best_bid = float(best_bid_raw) if best_bid_raw is not None else None
-        best_ask = float(best_ask_raw) if best_ask_raw is not None else None
-        st.pricer.update_mid(best_bid, best_ask)
+        else:
+            best_bid_raw = bids[0].get("price") if bids else None
+            best_ask_raw = asks[0].get("price") if asks else None
+            best_bid = float(best_bid_raw) if best_bid_raw is not None else None
+            best_ask = float(best_ask_raw) if best_ask_raw is not None else None
+            st.pricer.update_mid(best_bid, best_ask)
+        if held is not None:
+            st.pricer.set_mid(held)
         self._debug(f"[{symbol}] book mid={st.pricer.mid_price}")
+
+    def _anchor(self, st: _SymbolState) -> None:
+        """Close ``anchor_sim`` of the gap between the mid and the true value.
+
+        Applied at every ``sim.value`` (once per model step). Once a value is
+        known the book no longer moves the mid, so the mid converges on the
+        value: re-deriving it from the book at every update made it a fixed
+        blend of the value and whatever stale order sat in the book.
+        """
+        if st.anchor_sim <= 0 or st.sim_value is None or st.pricer is None:
+            return
+        mid = st.pricer.mid_price
+        if mid is None:
+            st.pricer.set_mid(st.sim_value)
+        else:
+            st.pricer.set_mid(mid + st.anchor_sim * (st.sim_value - mid))
+
+    def _handle_sim_value(self, payload: dict[str, Any]) -> None:
+        """Take in the true values and anchor to them now: a quiet book
+        publishes no updates, and a mid anchored only on book updates would
+        stay wherever the value was when the book last changed."""
+        for entry in payload.get("values", []):
+            symbol = str(entry.get("symbol", "")).upper()
+            st = self._symbols_state.get(symbol)
+            if st is not None and st.anchor_sim > 0:
+                st.sim_value = float(entry["value"])
+                self._anchor(st)
+                self._reprice_if_drifted(symbol)
+
+    def _reprice_if_drifted(self, symbol: str) -> None:
+        st = self._symbols_state[symbol]
+        if (
+            st.state == BotState.QUOTING
+            and st.pricer
+            and st.quoted_at_mid is not None
+            and st.pricer.has_drifted(st.quoted_at_mid)
+        ):
+            self._debug(f"[{symbol}] drift detected — repricing")
+            self._set_state(symbol, BotState.REPRICING)
+            self._cancel_and_reissue(symbol)
 
     def _handle_trade(self, payload: dict[str, Any]) -> None:
         """Handle trade.executed — update mid if no book data."""
@@ -1277,19 +1377,24 @@ class MMBot:
         """Handle order.fill — check if it belongs to one of our quotes."""
         order_id = str(payload.get("order_id", ""))
 
-        symbol = self._symbol_for_order_id(order_id)
+        symbol = self._symbol_for_order_id(order_id, payload.get("symbol"))
         if symbol is None:
             # The order_id doesn't match any symbol's known legs. That is
-            # ambiguous, not definitive, as long as some symbol hasn't
-            # acked yet -- this fill could belong to it once its order IDs
-            # are known (checking "has ANY symbol acked" was the bug: once
-            # one symbol acked, a fill for a different, still-pending
-            # symbol was neither matched nor buffered -- silently dropped).
-            # Only once every symbol has acked is an unmatched order_id
-            # definitely not ours.
+            # ambiguous, not definitive, while the symbol has not acked yet
+            # -- this fill could belong to it once its order IDs are known.
+            # A fill naming its symbol is buffered only while *that* symbol
+            # waits for its ack: with hundreds of symbols one of them is
+            # nearly always between quotes, and buffering on "any symbol
+            # waits" kept every fill of an old leg forever, re-scanned on
+            # every quote.ack. A fill without a symbol falls back to that
+            # rule (checking "has ANY symbol acked" was the earlier bug: a
+            # fill for a still-pending symbol was silently dropped).
+            hinted = self._symbols_state.get(str(payload.get("symbol") or ""))
+            candidates = (
+                [hinted] if hinted is not None else self._symbols_state.values()
+            )
             if any(
-                st.bid_order_id is None and st.ask_order_id is None
-                for st in self._symbols_state.values()
+                st.bid_order_id is None and st.ask_order_id is None for st in candidates
             ):
                 self._pending_fills.append(payload)
             return  # not a leg we recognise (or not yet)
@@ -1338,7 +1443,18 @@ class MMBot:
         if not st.awaiting_cancel_for_reissue:
             st.reissue_at = time.monotonic() + st.reissue_delay_sec
 
-    def _symbol_for_order_id(self, order_id: str) -> str | None:
+    def _symbol_for_order_id(self, order_id: str, symbol: object = None) -> str | None:
+        """The symbol whose current quote has the leg *order_id*.
+
+        Order events name their symbol; then only that symbol is checked
+        (a scan of every symbol per fill was most of the bot's CPU at 300
+        symbols). Without one, every symbol is scanned.
+        """
+        hinted = self._symbols_state.get(str(symbol or ""))
+        if hinted is not None:
+            if order_id in (hinted.bid_order_id, hinted.ask_order_id):
+                return str(symbol)
+            return None
         for sym, st in self._symbols_state.items():
             if order_id in (st.bid_order_id, st.ask_order_id):
                 return sym
@@ -1347,7 +1463,7 @@ class MMBot:
     def _handle_order_cancelled(self, payload: dict[str, Any]) -> None:
         """Handle order.cancelled — track leg cleanup."""
         order_id = str(payload.get("order_id", ""))
-        symbol = self._symbol_for_order_id(order_id)
+        symbol = self._symbol_for_order_id(order_id, payload.get("symbol"))
         if symbol is not None:
             self._debug(f"[{symbol}] leg cancelled: {order_id}")
 
@@ -1412,17 +1528,7 @@ class MMBot:
         book_symbol = self._symbol_for_book_topic(topic)
         if book_symbol is not None:
             self._handle_book(payload, symbol=book_symbol)
-            st = self._symbols_state[book_symbol]
-            # Check drift while quoting
-            if (
-                st.state == BotState.QUOTING
-                and st.pricer
-                and st.quoted_at_mid is not None
-                and st.pricer.has_drifted(st.quoted_at_mid)
-            ):
-                self._debug(f"[{book_symbol}] drift detected — repricing")
-                self._set_state(book_symbol, BotState.REPRICING)
-                self._cancel_and_reissue(book_symbol)
+            self._reprice_if_drifted(book_symbol)
             return
 
         halt_symbol = self._symbol_for_topic(topic, topic_circuit_breaker_halt)
@@ -1437,6 +1543,8 @@ class MMBot:
 
         if topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
+        elif topic == TOPIC_SIM_VALUE:
+            self._handle_sim_value(payload)
         elif topic == topic_quote_ack(self.gateway_id):
             self._handle_quote_ack(payload)
         elif topic == topic_quote_status(self.gateway_id):
@@ -1469,6 +1577,11 @@ class MMBot:
         independently for every symbol still active (§5a.4)."""
         now = time.monotonic()
         self._dbg_count("tick_calls")
+        if (
+            self._authenticated
+            and now - self._last_engine_heartbeat >= GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ):
+            self._send_engine_heartbeat(now)
 
         for symbol in self._active_symbols():
             self._tick_symbol(symbol, now)
@@ -1659,6 +1772,8 @@ class MMBot:
         try:
             return self._run_loop()
         finally:
+            if self._authenticated:
+                self._send_quietly(make_gateway_disconnect_msg(self.gateway_id))
             self._close_sockets()
 
     def _run_loop(self) -> int:
@@ -1720,12 +1835,16 @@ class MMBot:
         poller.register(self._sub_sock, zmq.POLLIN)
         poll_timeout_ms = self._poll_timeout_ms(active)
 
+        next_tick = 0.0
         while self._running:
             socks = dict(poller.poll(timeout=poll_timeout_ms))
             if self._sub_sock in socks:
                 topic, payload = decode(self._sub_sock.recv_multipart())
                 self._dispatch(topic, payload)
-            self._tick()
+            now = time.monotonic()
+            if now >= next_tick:
+                self._tick()
+                next_tick = now + _TICK_MIN_SEC
 
         # Shutdown
         self._flush_debug_summary(force=True)

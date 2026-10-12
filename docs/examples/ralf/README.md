@@ -19,7 +19,7 @@ overstate volume up to 3x. Both examples also detect gaps in the
 per-channel `SEQ` counters and shut down cleanly on Ctrl-C, printing the
 final tally.
 
-See [docs/user-guide/930-app-ralf-protocol.md](../../user-guide/930-app-ralf-protocol.md)
+See [RALF protocol reference](../../books/protocols-and-clients/part-2-specifications/040-ralf.md)
 for the normative wire contract both clients follow.
 
 ## RALF wire format

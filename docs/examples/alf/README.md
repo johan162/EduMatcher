@@ -57,7 +57,7 @@ from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 # Parse one line received from the gateway
 msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=FALSE|REJECT_CODE=ORDER_NOT_FOUND|REASON=missing")
 print(msg.msg_type)    # "ACK"
-print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}
+print(msg.fields)      # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE": "ORDER_NOT_FOUND", ...}
 
 # Build a line to send
 line: str = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
@@ -97,10 +97,14 @@ At the prompt:
 [TRADER01]> SYMBOLS
 [TRADER01]> ORDERS
 [TRADER01]> POS
+[TRADER01]> SESSION
 [TRADER01]> STATUS
 [TRADER01]> HELP
 [TRADER01]> EXIT
 ```
+
+`AMEND` and `CANCEL` need the order's full 32-character ID, exactly as the
+`ACK` line or the `ORDERS` table prints it.
 
 Tab completes command verbs, field names, and enum values.
 Command history is saved to `~/.alf_client_history`.

@@ -262,6 +262,39 @@ async def admin_monitor(websocket: WebSocket) -> None:
         return
 
 
+@router.websocket("/admin/sim")
+async def admin_sim(websocket: WebSocket) -> None:
+    """pm-market-sim's true values and heartbeat, ADMIN only."""
+    await websocket.accept()
+    try:
+        _, gateway_id = await _authenticate_ws(websocket)
+        role = (
+            await websocket.app.state.engine.resolve_role(
+                gateway_id, websocket.app.state.config.timeouts.engine_reply_sec
+            )
+            if gateway_id is not None
+            else None
+        )
+        if role != "ADMIN":
+            await websocket.send_json(
+                {"type": "error", "data": {"message": "ADMIN role required"}}
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        sim = websocket.app.state.sim
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=64)
+        sim.add_sink(queue)
+        try:
+            await websocket.send_json({"type": "authenticated"})
+            await websocket.send_json({"type": "sim.snapshot", "data": sim.snapshot()})
+            while True:
+                await websocket.send_json(await queue.get())
+        finally:
+            sim.remove_sink(queue)
+    except (WebSocketDisconnect, TimeoutError):
+        return
+
+
 async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, Any]:
     """Assemble the admin monitor's opening state.
 
@@ -322,6 +355,7 @@ async def market_data(websocket: WebSocket) -> None:
         await websocket.send_json({"type": "authenticated"})
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
         websocket.app.state.engine.add_market_data_sink(queue)
+        websocket.app.state.sim.add_news_sink(queue)
         subscription = Subscription()
         try:
             sender = asyncio.create_task(
@@ -339,6 +373,7 @@ async def market_data(websocket: WebSocket) -> None:
                 task.result()
         finally:
             websocket.app.state.engine.remove_market_data_sink(queue)
+            websocket.app.state.sim.remove_news_sink(queue)
     except (WebSocketDisconnect, TimeoutError):
         return
 
@@ -546,7 +581,7 @@ def _event_channel(event_type: str) -> str | None:
     # channel a client subscribes to; the distinct `type` is what separates them.
     if event_type in {"auction", "auction.indicative"}:
         return "auction"
-    if event_type in {"book", "depth", "session", "circuit_breaker"}:
+    if event_type in {"book", "depth", "session", "circuit_breaker", "news"}:
         return event_type
     return None
 

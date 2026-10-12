@@ -85,7 +85,9 @@ from edumatcher.models.message import (
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
+    GATEWAY_HEARTBEAT_INTERVAL_SEC,
     make_gateway_disconnect_msg,
+    make_gateway_heartbeat_msg,
     make_kill_switch_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
@@ -196,7 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable drop-copy relay on startup (equivalent to sending "
         "DC|STATE=ON immediately after connecting). Default: off. Can also "
         "be toggled at runtime with the DC|STATE=ON / DC|STATE=OFF command. "
-        "See docs/user-guide/200-drop-copy.md",
+        "See ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md",
     )
     parser.add_argument(
         "--log-level",
@@ -356,6 +358,7 @@ class Gateway:
         self._last_index_update: dict[str, Any] | None = None
         self._default_index_id: str | None = None
         self._running = True
+        self._heartbeat_stop = threading.Event()
         self._authenticated: bool = False
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
@@ -393,6 +396,9 @@ class Gateway:
         # just a different topic namespace. No topic is subscribed until
         # DC|STATE=ON (or --drop-copy at startup) -- see _set_drop_copy().
         self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
+        # make_subscriber() with no topics subscribes to everything; drop that
+        # so no other participant's fills are relayed before DC|STATE=ON.
+        self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, b"")
         self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""
@@ -425,7 +431,7 @@ class Gateway:
         """Toggle the drop-copy relay (DC|ON / DC|OFF / --drop-copy).
 
         Subscribes/unsubscribes ``drop_copy.event.<gateway_id>`` on the
-        dedicated drop-copy socket (:5557) -- see docs/user-guide/200-drop-copy.md.
+        dedicated drop-copy socket (:5557) -- see ../../../docs/books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md.
         Idempotent: calling with the same state twice is a no-op on the wire.
         """
         if enabled == self._dc_enabled:
@@ -645,6 +651,28 @@ class Gateway:
         log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
 
+    def _heartbeat_loop(self) -> None:
+        """Tell the engine this console is alive, so a killed console frees its
+        ID instead of locking it. Own socket: a ZMQ socket must not be shared
+        across threads, and push_sock belongs to the prompt thread."""
+        push_sock = make_pusher(ENGINE_PULL_ADDR)
+        try:
+            while True:
+                log.debug("engine heartbeat sent gateway_id=%s", self.gateway_id)
+                try:
+                    push_sock.send_multipart(
+                        make_gateway_heartbeat_msg(self.gateway_id)
+                    )
+                except zmq.Again:
+                    log.warning(
+                        "gateway_id=%s heartbeat dropped: engine unreachable",
+                        self.gateway_id,
+                    )
+                if self._heartbeat_stop.wait(GATEWAY_HEARTBEAT_INTERVAL_SEC):
+                    return
+        finally:
+            push_sock.close()
+
     def _send(self, sock: PushSocket, frames: list[bytes]) -> bool:
         """Send on a PUSH socket, reporting a clean error instead of
         crashing the console.
@@ -741,7 +769,7 @@ class Gateway:
         ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
         ``DC_FILL``-style line for consistency with the wire message
         pm-alf-gwy sends its own TCP clients for the same event (see
-        docs/user-guide/270-message-reference.md).
+        ../../../docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md).
         """
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")
@@ -839,8 +867,12 @@ class Gateway:
         elif PREFIX_ORDER_CANCELLED in topic:
             rtag = payload.get("request_tag")
             rtag_text = f" rtag={rtag}" if rtag else ""
-            console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}")
-            log.debug("order cancelled order_id=%s", oid)
+            reason = payload.get("cancel_reason")
+            reason_text = f" reason={reason}" if reason else ""
+            console.print(
+                f"[{ts}] [yellow]CANCELLED[/yellow] {oid}{rtag_text}{reason_text}"
+            )
+            log.debug("order cancelled order_id=%s reason=%s", oid, reason)
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
@@ -1878,6 +1910,7 @@ class Gateway:
 
         listener = threading.Thread(target=self._listen, daemon=True)
         listener.start()
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
         log.info("gateway command loop started gateway_id=%s", self.gateway_id)
 
         desc = f" — {self._auth_description}" if self._auth_description else ""
@@ -1910,6 +1943,7 @@ class Gateway:
                         self._parse_and_send(line)
         finally:
             self._running = False
+            self._heartbeat_stop.set()
             try:
                 self.push_sock.send_multipart(
                     make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")

@@ -1,0 +1,6 @@
+name: market-taker
+description: Impatient noise trader that takes liquidity with MARKET orders.
+strategy: {name: noise, urgency: 0.9}
+execution: {style: sweep, sweep_type: MARKET, auction_participation: 0.2}
+tempo: cautious
+risk: {max_position: 500, max_live_orders_per_symbol: 1, max_order_age_sec: 30}

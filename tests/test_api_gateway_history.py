@@ -193,11 +193,28 @@ def empty_db(tmp_path: Path) -> Path:
     return db_path
 
 
-def _request_for(db_path: Path) -> Any:
+class _FakeReferenceEngine:
+    """Just enough of EngineClient for /history/session's country lookup."""
+
+    def __init__(self, country: str | None = "SE") -> None:
+        self._country = country
+
+    def request_reference(self, gateway_id: str) -> None:
+        pass
+
+    async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
+        return {
+            "schedule": {"sessions_enabled": True, "country": self._country},
+            "config_version": "test",
+        }
+
+
+def _request_for(db_path: Path, country: str | None = "SE") -> Any:
     return SimpleNamespace(
         app=SimpleNamespace(
             state=SimpleNamespace(
                 config=ApiGatewayConfig(stats_db=db_path),
+                engine=_FakeReferenceEngine(country),
                 rate_limiter=RateLimiter(100, 100),
             )
         )
@@ -660,6 +677,7 @@ async def test_session_reports_the_recorded_timezone_and_its_trading_date(
     result = await history.history_session(_request_for(empty_db), _readonly_session())
 
     assert result == {
+        "country": "SE",
         "session_timezone": "Pacific/Kiritimati",
         "session_date": "2026-06-15",
     }
@@ -675,7 +693,11 @@ async def test_session_defaults_to_utc_when_none_was_recorded(
 
     result = await history.history_session(_request_for(empty_db), _readonly_session())
 
-    assert result == {"session_timezone": "UTC", "session_date": "2026-06-14"}
+    assert result == {
+        "country": "SE",
+        "session_timezone": "UTC",
+        "session_date": "2026-06-14",
+    }
 
 
 @pytest.mark.anyio

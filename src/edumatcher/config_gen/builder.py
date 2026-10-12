@@ -128,6 +128,7 @@ class ConfigSpec:
     gateway_default_disconnect: DisconnectBehaviour | None = None
     sessions_enabled: bool = False
     country: str | None = None
+    session_timezone: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
     quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
@@ -276,7 +277,7 @@ class LogServerSpec:
     write_batch_interval_ms: int = DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS
     heartbeat_interval_sec: int = DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC
 
-    # LALF-PS — the ZeroMQ log-distribution interface (docs/user-guide/280-log-srv.md)
+    # LALF-PS — the ZeroMQ log-distribution interface (../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md)
     pubsub_enabled: bool = DEFAULT_LOG_SERVER_PUBSUB_ENABLED
     pub_port: int = DEFAULT_LOG_SERVER_PUB_PORT
     pull_port: int = DEFAULT_LOG_SERVER_PULL_PORT
@@ -372,8 +373,13 @@ class ConfigBuilder:
                 "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
             }
 
+        locale: dict[str, str] = {}
         if self.spec.country is not None:
-            cfg["country"] = self.spec.country
+            locale["country"] = self.spec.country
+        if self.spec.session_timezone is not None:
+            locale["session_timezone"] = self.spec.session_timezone
+        if locale:
+            cfg["locale"] = locale
 
         if self._should_emit_mm_defaults():
             cfg["mm_obligation_defaults"] = self._build_mm_defaults()
@@ -417,7 +423,7 @@ class ConfigBuilder:
             # and holiday overrides are opt-in (--weekend / --holidays);
             # per-individual-weekday overrides have no CLI flags of their
             # own and are left for hand-editing the generated YAML (see
-            # docs/user-guide/080-session-scheduling.md).
+            # ../../../docs/books/operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md).
             schedule: dict[str, Any] = {
                 "weekdays": {
                     "pre_open": self.spec.pre_open,
@@ -904,9 +910,7 @@ class ConfigBuilder:
                     cb_payload["reopening"] = sym_reopening
                 payload["circuit_breaker"] = cb_payload
 
-            if mm_gateways and (
-                seeded_midpoint is not None or self.spec.require_mm_seed_quotes
-            ):
+            if mm_gateways and self.spec.require_mm_seed_quotes:
                 payload["market_maker_quotes"] = [
                     self._build_mm_quote_seed(
                         gateway_id=gateway_id,

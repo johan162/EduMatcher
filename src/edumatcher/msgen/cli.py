@@ -28,8 +28,12 @@ _DEFAULT_SPEC = Path("spec")
 _DEFAULT_OUT_PYTHON = Path("src/edumatcher/models/generated")
 _DEFAULT_OUT_C = Path("docs/examples/generated")
 _DEFAULT_SRC = Path("src")
-_DEFAULT_DOCS_REFERENCE = Path("docs/user-guide/270-message-reference.md")
-_DEFAULT_DOCS_PREAMBLE = Path("docs/user-guide/270-preamble.md")
+_DEFAULT_DOCS_REFERENCE = Path(
+    "docs/books/protocols-and-clients/part-5-message-reference/010-message-reference.md"
+)
+_DEFAULT_DOCS_PREAMBLE = Path(
+    "docs/books/protocols-and-clients/part-5-message-reference/000-preamble.md"
+)
 
 
 def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:

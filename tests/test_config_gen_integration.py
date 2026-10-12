@@ -67,6 +67,7 @@ def test_disabled_mm_obligations_are_not_emitted(
     payload = yaml.safe_load(out_file.read_text(encoding="utf-8"))
     assert "mm_obligation_defaults" not in payload
     assert payload["symbols"]["AAPL"]["last_buy_price"] is not None
+    assert "market_maker_quotes" not in payload["symbols"]["AAPL"]
 
 
 def test_engine_tuning_is_omitted_without_tuning_options(
@@ -196,11 +197,12 @@ def test_country_emitted_and_parses(
         ],
     )
 
-    # The engine loader ignores country (pm-scheduler-only), but the file
+    # country only drives pm-scheduler's holiday calendar, but the file
     # must still parse and contain the value verbatim.
-    load_engine_config(out_file)
+    cfg = load_engine_config(out_file)
+    assert cfg.locale.country == "Germany"
     raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
-    assert raw["country"] == "Germany"
+    assert raw["locale"]["country"] == "Germany"
 
 
 def test_country_omitted_when_not_given(

@@ -8,6 +8,7 @@ import { IndexView } from "./views/IndexView.js";
 import { MoversView } from "./views/Movers.js";
 import { TradeTapeView } from "./views/TradeTape.js";
 import { SessionView } from "./views/Session.js";
+import { NewsView } from "./views/News.js";
 
 export default function App() {
   useTerminalStream();
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="tape" element={<TradeTapeView />} />
         <Route path="movers" element={<MoversView />} />
         <Route path="session" element={<SessionView />} />
+        <Route path="news" element={<NewsView />} />
       </Route>
     </Routes>
   );

@@ -42,7 +42,7 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 # Mirrors ralf_gateway.gateway._ALLOWED_CHANNELS -- also doubles as the set
 # of valid --role values, since RALF's roles and channels share one
-# namespace (see docs/user-guide/930-app-ralf-protocol.md).
+# namespace (see ../../../docs/books/protocols-and-clients/part-2-specifications/040-ralf.md).
 _ALLOWED_CHANNELS = ("CLEARING", "DROP_COPY", "AUDIT")
 
 

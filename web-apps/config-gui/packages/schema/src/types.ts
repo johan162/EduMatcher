@@ -412,7 +412,7 @@ export interface LogServerConfig {
   // --- LALF-PS: the ZeroMQ log-distribution interface -------------------
   // Everything above governs how logging gets *in* to pm-log-srv over
   // LALF/TCP. These govern how it gets back *out* to live log viewers over
-  // ZeroMQ. See docs/user-guide/280-log-srv.md.
+  // ZeroMQ. See ../../../../../docs/books/operator-guide/part-6-observe-and-recover/040-log-server.md.
   /** Master switch; when false no ZeroMQ socket is bound at all. */
   pubsubEnabled: boolean;
   /** ZeroMQ PUB port: live rows, notify ticks, backfill chunks, acks. */

@@ -3,15 +3,27 @@ Statistics Process — records market data to a SQLite database.
 
 Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
-                      [--timezone TZ]
+                      [--timezone TZ] [--keep-days N]
+                      [--keep-order-events-days N]
+
+Retention
+---------
+  With ``--keep-days N`` the per-event tables (trade_log, order_events,
+  price_snapshots, feed_gaps) keep the last N days; older rows are deleted
+  at startup and once an hour. The daily rollups are kept for good. The
+  file stops growing once it holds N days (SQLite reuses the freed pages).
+  ``--keep-order-events-days`` gives order_events a retention of its own:
+  under an AI swarm they are almost all of the file, so a long run keeps
+  hours of them and days of everything else.
 
 Dates and timestamps
 --------------------
   ``ts`` columns are UTC instants. ``date`` columns hold the *trading date* —
-  the calendar date in the exchange's session timezone (``--timezone``,
-  default UTC) that the event's own timestamp falls on. Start pm-stats and
-  pm-clearing with the same ``--timezone`` or their daily rollups will not
-  reconcile. See edumatcher/stats/trading_day.py.
+  the calendar date in the exchange's session timezone (engine config's
+  ``locale.session_timezone``, default Europe/Stockholm) that the event's
+  own timestamp falls on. pm-stats and pm-clearing both read it from the
+  same engine config, so their daily rollups reconcile by construction. See
+  edumatcher/stats/trading_day.py.
 
 Subscribes to (engine PUB, ENGINE_PUB_ADDR):
   trade.executed  — to track OHLCV, VWAP, min/max, volume
@@ -53,7 +65,7 @@ SQLite tables
     — which is guaranteed once the date has rolled over, or can be
     confirmed immediately by checking close_session_state == "CLOSED"
     (set from pm-index's forced EOD publish). See pm-stats-cli's
-    index-daily command and docs/user-guide/140-statistics-and-reporting.md
+    index-daily command and ../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md
     for how to query this reliably.
 
   index_level_snapshots
@@ -404,7 +416,7 @@ CREATE TABLE IF NOT EXISTS instruments (
 
 -- Price columns below are INTEGER *ticks*, not display money. Divide by
 -- 10^tick_decimals to get a display price. See the tick handling section of
--- docs/user-guide/140-statistics-and-reporting.md.
+-- ../../../docs/books/operator-guide/part-4-run-a-market/060-statistics-and-reporting.md.
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,
     symbol              TEXT NOT NULL,
@@ -748,7 +760,7 @@ def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) 
     under, so it cannot change part-way through a database's life without
     making the ``date`` column mean two different things. Recording it also
     lets readers resolve it themselves instead of relying on every operator
-    passing a matching ``--timezone``.
+    rereading engine config.
     """
     row = conn.execute(
         "SELECT value FROM stats_meta WHERE key = 'session_timezone'"
@@ -756,9 +768,10 @@ def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) 
     if row is not None and row[0] != session_tz_name:
         raise IncompatibleDatabaseError(
             f"{path} was recorded with session timezone {row[0]!r}, but "
-            f"pm-stats was started with {session_tz_name!r}. Its date columns "
-            f"would then mean two different things. Use --timezone {row[0]} or "
-            f"record into a different --db."
+            f"engine config now says {session_tz_name!r}. Its date columns "
+            f"would then mean two different things. Fix engine config's "
+            f"locale.session_timezone back to {row[0]!r}, or record into a "
+            f"different --db."
         )
     conn.execute(UPSERT_META, ("session_timezone", session_tz_name))
 
@@ -824,8 +837,17 @@ class StatsProcess:
         snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC,
         sql_trace: bool = False,
         session_tz: tzinfo = timezone.utc,
+        keep_days: float = 0.0,
+        keep_order_events_days: float | None = None,
     ) -> None:
         self._db_path = db_path
+        #: Days of per-event rows to keep; 0 keeps everything.
+        self._keep_days = keep_days
+        #: The same for order_events alone; None follows keep_days.
+        self._keep_order_events_days = (
+            keep_days if keep_order_events_days is None else keep_order_events_days
+        )
+        self._last_prune: float | None = None
         self._sql_trace = bool(sql_trace)
         # Taken before the database is opened, so a rejected second recorder
         # never touches the file at all.
@@ -1677,6 +1699,10 @@ class StatsProcess:
                 self._receive_failure = "interrupted while polling (EINTR)"
                 return
 
+            # On this thread, so the deletes never interleave with the
+            # writes sharing the connection.
+            self._prune_if_due()
+
             if self.index_sub in socks:
                 self._receive_one_index_message()
 
@@ -1700,6 +1726,35 @@ class StatsProcess:
                 # dropped record, not a warning-level curiosity.
                 log.error("failed to record topic=%s err=%s", topic, exc)
                 self._dbg_count("records_dropped")
+
+    def _prune_if_due(self) -> None:
+        if self._keep_days <= 0 and self._keep_order_events_days <= 0:
+            return
+        now = time.monotonic()
+        if (
+            self._last_prune is not None
+            and now - self._last_prune < _PRUNE_INTERVAL_SEC
+        ):
+            return
+        self._last_prune = now
+        statements = [
+            (statement, days)
+            for days, group in (
+                (self._keep_days, _PRUNE_STATEMENTS),
+                (self._keep_order_events_days, _PRUNE_ORDER_EVENTS),
+            )
+            if days > 0
+            for statement in group
+        ]
+        deleted = 0
+        with self._lock, self._conn:
+            for statement, days in statements:
+                cutoff = datetime.fromtimestamp(
+                    time.time() - days * 86_400, tz=timezone.utc
+                ).isoformat(timespec="seconds")
+                deleted += self._conn.execute(statement, {"cutoff": cutoff}).rowcount
+        if deleted:
+            log.info("retention: deleted %d rows", deleted)
 
     def _dispatch(self, topic: str, payload: dict[str, Any]) -> None:
         """Route one decoded engine message to its handler.
@@ -1880,6 +1935,27 @@ class StatsProcess:
             self._lock_conn.close()
 
 
+_PRUNE_INTERVAL_SEC = 3600.0
+
+
+# ``ts`` is an ISO UTC instant, so text order is time order. trade_log and
+# order_events are append-only with no index leading on ts: deleting below
+# the first row (in insertion order) still inside the window scans only the
+# rows being deleted.
+def _prune_by_key(table: str, key: str) -> str:
+    return f"""DELETE FROM {table} WHERE {key} < COALESCE(
+        (SELECT {key} FROM {table} WHERE ts >= :cutoff ORDER BY {key} LIMIT 1),
+        (SELECT MAX({key}) + 1 FROM {table}))"""
+
+
+_PRUNE_STATEMENTS = (
+    _prune_by_key("trade_log", "rowid"),
+    "DELETE FROM price_snapshots WHERE ts < :cutoff",
+    "DELETE FROM feed_gaps WHERE ts < :cutoff",
+)
+_PRUNE_ORDER_EVENTS = (_prune_by_key("order_events", "seq"),)
+
+
 def _is_order_event_topic(topic: str) -> bool:
     return topic.startswith(
         (
@@ -1987,14 +2063,25 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--timezone",
-        metavar="TZ",
-        default="UTC",
+        "--keep-days",
+        type=float,
+        default=0.0,
+        metavar="N",
         help=(
-            "Exchange session timezone that defines the trading date used by "
-            "the date columns of daily_stats and index_daily_stats (IANA name, "
-            "e.g. Europe/Stockholm; default: UTC). Must match pm-clearing's "
-            "--timezone or the two daily rollups will not reconcile."
+            "Keep N days of trades, order events and snapshots; older rows "
+            "are deleted hourly. Daily rollups are always kept "
+            "(default: 0 = keep everything)"
+        ),
+    )
+    parser.add_argument(
+        "--keep-order-events-days",
+        type=float,
+        default=None,
+        metavar="N",
+        help=(
+            "Keep N days of order events, overriding --keep-days for them; "
+            "fractions are fine, e.g. 0.1 for about 2.4 hours "
+            "(default: as --keep-days)"
         ),
     )
     parser.add_argument(
@@ -2109,11 +2196,14 @@ def main() -> None:
         _enable_sql_trace_logging()
     log.info("starting pm-stats with log level %s", logging.getLevelName(log_level))
     log.debug(
-        "resolved stats config: db=%s snapshot_interval=%s timezone=%s",
+        "resolved stats config: db=%s snapshot_interval=%s",
         args.db,
         args.snapshot_interval,
-        args.timezone,
     )
+    if args.keep_days < 0:
+        parser.error("--keep-days must be >= 0")
+    if args.keep_order_events_days is not None and args.keep_order_events_days < 0:
+        parser.error("--keep-order-events-days must be >= 0")
     if args.snapshot_interval < MIN_SNAPSHOT_INTERVAL_SEC:
         # price_snapshots is keyed on (ts, symbol) at second precision, so a
         # sub-second interval asks for rows the table cannot hold: the extras
@@ -2124,15 +2214,28 @@ def main() -> None:
             f"second: price_snapshots stores at most one row per second per "
             f"symbol, so a shorter interval would silently discard rows"
         )
-    session_tz = resolve_timezone(args.timezone)
+    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
+
+    compiled = load_compiled_config()
+    session_tz_name = (
+        DEFAULT_SESSION_TIMEZONE
+        if compiled is None
+        else compiled.engine.locale.session_timezone
+    )
+    session_tz = resolve_timezone(session_tz_name)
     if session_tz is None:
-        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
+        parser.error(
+            f"engine config locale.session_timezone: unknown timezone {session_tz_name!r}"
+        )
     try:
         process = StatsProcess(
             resolve_data_path(args.db),
             snapshot_interval_sec=args.snapshot_interval,
             sql_trace=args.sql_trace,
             session_tz=session_tz,
+            keep_days=args.keep_days,
+            keep_order_events_days=args.keep_order_events_days,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

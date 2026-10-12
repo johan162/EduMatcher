@@ -250,6 +250,7 @@ class TestPerSymbolIsolation:
         "min_cover_qty": ("--min-cover-qty", 300),
         "fade_ticks": ("--fade-ticks", 4),
         "fade_sec": ("--fade-sec", 6.5),
+        "anchor_sim": ("--anchor-sim", 0.25),
     }
 
     @pytest.mark.parametrize("key", sorted(OVERRIDES))
@@ -1327,6 +1328,38 @@ class TestBotHonoursPerSymbolParameters:
         assert bot._poll_timeout_ms(["AAPL"]) == 50
 
 
+class TestEventLoopTicks:
+    def test_timers_do_not_run_after_every_message(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # At 300 symbols thousands of messages a second arrive; a pass of
+        # the timers over every symbol after each one was most of the CPU.
+        bot, _push, sub, _ = _build_bot(monkeypatch, ["AAPL", "MSFT"])
+        _queue_startup(sub, ["AAPL", "MSFT"])
+        ticks = 0
+        real_tick, real_timeout = bot._tick, bot._poll_timeout_ms
+
+        def counting_tick() -> None:
+            nonlocal ticks
+            ticks += 1
+            real_tick()
+
+        def timeout_then_flood(active: list[str]) -> int:
+            # Called once, just before the event loop: queue its messages.
+            # (The fake poller of the start-up waits has stopped the bot.)
+            sub.recv_queue.extend(
+                encode("index.update", {"index_id": "X"}) for _ in range(500)
+            )
+            bot._running = True
+            return real_timeout(active)
+
+        monkeypatch.setattr(bot, "_tick", counting_tick)
+        monkeypatch.setattr(bot, "_poll_timeout_ms", timeout_then_flood)
+        bot.run()
+        assert not sub.recv_queue
+        assert 0 < ticks < 100
+
+
 class TestBotOverrideContract:
     """``overrides`` is a narrow, checked surface, not an escape hatch."""
 
@@ -1988,6 +2021,40 @@ class TestUnattributableEvents:
         bot._handle_order_fill({"order_id": "B-SOMEONE-ELSE", "fill_qty": 10})
         assert bot._pending_fills == [{"order_id": "B-SOMEONE-ELSE", "fill_qty": 10}]
 
+    def test_a_fill_naming_an_acked_symbol_is_not_buffered_for_another(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A fill of AAPL's old leg must not wait for MSFT's ack: with many
+        # symbols one is nearly always between quotes, and such fills piled
+        # up for good, re-scanned on every quote.ack.
+        bot, _push, _sub = self._bot(monkeypatch)
+        bot._symbols_state["AAPL"].bid_order_id = "B-AAPL"
+        bot._symbols_state["AAPL"].ask_order_id = "A-AAPL"
+        bot._handle_order_fill(
+            {"order_id": "B-AAPL-OLD", "symbol": "AAPL", "fill_qty": 10}
+        )
+        assert bot._pending_fills == []
+        # Still buffered while its own symbol waits for its ack.
+        fill = {"order_id": "B-MSFT", "symbol": "MSFT", "fill_qty": 10}
+        bot._handle_order_fill(fill)
+        assert bot._pending_fills == [fill]
+
+    def test_a_fill_naming_its_symbol_is_matched_on_that_symbol(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bot, _push, _sub = self._bot(monkeypatch)
+        bot._symbols_state["MSFT"].bid_order_id = "B-MSFT"
+        bot._symbols_state["MSFT"].ask_order_id = "A-MSFT"
+        bot._handle_order_fill(
+            {
+                "order_id": "B-MSFT",
+                "symbol": "MSFT",
+                "fill_qty": 10,
+                "fill_price": 100.0,
+            }
+        )
+        assert bot._symbols_state["MSFT"].net_position == 10
+
     def test_a_fill_for_a_known_leg_is_logged_in_verbose_mode(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -2199,3 +2266,68 @@ def test_build_parser_still_accepts_a_plain_single_symbol_invocation() -> None:
         True,
         "ERROR",
     )
+
+
+class TestAnchorSim:
+    """--anchor-sim pulls the quoted mid toward pm-market-sim's value."""
+
+    def test_range_is_checked(self) -> None:
+        with pytest.raises(ValueError, match="anchor_sim"):
+            resolve_cli(["--symbol", "AAPL", "--anchor-sim", "1.5"])
+
+    def test_mid_moves_toward_the_true_value(self) -> None:
+        from edumatcher.mm_bot.bot import _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        bot._symbols_state = {"AAPL": st}
+        bot._anchor(st)  # no value yet: nothing to do
+        assert st.pricer.mid_price is None
+        bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 110.0}]})
+        bot._anchor(st)
+        assert st.pricer.mid_price == 110.0  # no mid of its own: take the value
+        st.pricer.set_mid(100.0)
+        bot._anchor(st)
+        assert st.pricer.mid_price == pytest.approx(105.0)
+
+    def test_a_quiet_book_still_follows_the_value(self) -> None:
+        # No book update arrives for a quiet symbol, so the value itself must
+        # move the mid and, once it has drifted, trigger a requote.
+        from edumatcher.mm_bot.bot import BotState, _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        st.pricer.set_mid(100.0)
+        st.state = BotState.QUOTING
+        st.quoted_at_mid = 100.0
+        bot._symbols_state = {"AAPL": st}
+        repriced: list[str] = []
+        bot._set_state = lambda sym, state: None
+        bot._cancel_and_reissue = repriced.append
+        bot._debug = lambda msg: None
+        bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 110.0}]})
+        assert st.pricer.mid_price == pytest.approx(105.0)
+        assert repriced == ["AAPL"]
+
+    def test_once_anchored_the_book_does_not_reset_the_mid(self) -> None:
+        # A stale order in the book used to set the mid at every update, so
+        # the anchored mid was a fixed blend of value and stale order.
+        from edumatcher.mm_bot.bot import _SymbolState
+        from edumatcher.mm_bot.pricer import QuotePricer
+
+        bot = object.__new__(MMBot)
+        st = _SymbolState(anchor_sim=0.5)
+        st.pricer = QuotePricer(0.01, 0.10, 3)
+        bot._symbols_state = {"AAPL": st}
+        bot._debug = lambda msg: None
+        stale = {"bids": [{"price": 90.0}], "asks": [{"price": 90.2}]}
+        bot._handle_book(stale, symbol="AAPL")
+        assert st.pricer.mid_price == pytest.approx(90.1)  # no value yet
+        for _ in range(10):
+            bot._handle_sim_value({"values": [{"symbol": "AAPL", "value": 100.0}]})
+            bot._handle_book(stale, symbol="AAPL")
+        assert st.pricer.mid_price == pytest.approx(100.0, abs=0.02)

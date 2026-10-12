@@ -30,6 +30,18 @@ const spyFetch = (body: unknown, status = 200) =>
   vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => jsonResponse(body, status));
 
 describe("history proxy", () => {
+  it("proxies the news with the same key (WP-E5)", async () => {
+    const upstream = spyFetch({ news: [], sectors: {} });
+    const app = await proxyApp(upstream as unknown as typeof fetch);
+
+    const res = await app.inject({ method: "GET", url: "/api/news?limit=200" });
+
+    expect(res.statusCode).toBe(200);
+    expect(String(upstream.mock.calls[0]?.[0])).toBe("http://api-gwy.test:8080/api/v1/news?limit=200");
+    const init = upstream.mock.calls[0]?.[1];
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer read-only-key");
+  });
+
   it("forwards to the versioned upstream path", async () => {
     const upstream = spyFetch({ daily: [], count: 0, has_more: false });
     const app = await proxyApp(upstream as unknown as typeof fetch);

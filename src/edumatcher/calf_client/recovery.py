@@ -6,7 +6,7 @@ so it is kept free of sockets and testable on its own: feed it the
 process that message, and whether a ``RESUME`` should go out.
 
 Three rules drive everything here, all normative in
-``docs/user-guide/920-app-calf-protocol.md`` §"Reconnect behavior":
+``../../../docs/books/protocols-and-clients/part-2-specifications/030-calf.md`` §"Reconnect behavior":
 
 1. **A replay is not disjoint from live traffic.** ``RESUME|LASTSEQ=n``
    returns *everything* the gateway still buffers past ``n``, and ``n`` is

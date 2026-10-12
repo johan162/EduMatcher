@@ -501,14 +501,18 @@ class TestLayer2RuntimeAndMMDefaults:
 
     def test_s065_country_not_string(self) -> None:
         raw = _raw(
-            "symbols:\n  AAPL: {}\n" "participants:\n    - id: GW01\n" "country: 42\n"
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            "locale:\n  country: 42\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S065" in _codes(results)
 
     def test_s065_country_blank(self) -> None:
         raw = _raw(
-            "symbols:\n  AAPL: {}\n" "participants:\n    - id: GW01\n" 'country: ""\n'
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            'locale:\n  country: ""\n'
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S065" in _codes(results)
@@ -517,7 +521,7 @@ class TestLayer2RuntimeAndMMDefaults:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
-            "country: Sweden\n"
+            "locale:\n  country: Sweden\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S065" not in _codes(results)
@@ -1355,7 +1359,7 @@ class TestLayer3Country:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
-            "country: Narnia\n"
+            "locale:\n  country: Narnia\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M026" in _codes(results)
@@ -1364,14 +1368,16 @@ class TestLayer3Country:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
             "participants:\n    - id: GW01\n"
-            "country: Sweden\n"
+            "locale:\n  country: Sweden\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M026" not in _codes(results)
 
     def test_m026_country_recognised_by_iso_code_ok(self) -> None:
         raw = _raw(
-            "symbols:\n  AAPL: {}\n" "participants:\n    - id: GW01\n" "country: DE\n"
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n"
+            "locale:\n  country: DE\n"
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M026" not in _codes(results)
@@ -1730,6 +1736,16 @@ class TestLayer4:
         )
         results = layer4_complete.check(raw, Path("x.yaml"))
         assert "C009" in _codes(results)
+
+    def test_c009_silent_when_sessions_enabled_absent(self) -> None:
+        # The engine defaults sessions_enabled to true, so an absent key is
+        # not "no sessions" and must not claim the exchange starts CONTINUOUS.
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "participants:\n    - id: GW01\n"
+        )
+        results = layer4_complete.check(raw, Path("x.yaml"))
+        assert "C009" not in _codes(results)
 
     def test_c011_unused_risk_level(self) -> None:
         raw = _raw(

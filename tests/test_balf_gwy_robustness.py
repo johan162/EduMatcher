@@ -443,6 +443,21 @@ class TestPreAuthHardening:
         assert disc_topic == "system.gateway_disconnect"
         assert str(disc_payload.get("gateway_id", "")).upper() == "TRADER01"
 
+    def test_authenticated_session_emits_engine_heartbeat(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, pub, port = balf_gw_factory()
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            _do_auth(bc, pull, pub)
+
+            topic, payload = _drain_until(pull, "system.gateway_heartbeat")
+
+            assert topic == "system.gateway_heartbeat"
+            assert payload["gateway_id"] == "TRADER01"
+            assert payload["interval_sec"] == 60
+
     def test_engine_refused_logon_does_not_emit_gateway_disconnect(
         self, balf_gw_factory: FactoryFn
     ) -> None:

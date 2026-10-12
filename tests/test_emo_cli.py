@@ -53,8 +53,51 @@ def test_start_debug_defaults_to_false() -> None:
 
 def test_load_profiles_returns_builtins_when_no_config_file() -> None:
     profiles = load_profiles()
-    assert set(profiles) == {"default", "micro", "mini", "mm-demo"}
+    assert set(profiles) == {
+        "default",
+        "micro",
+        "mini",
+        "mm-demo",
+        "ai-swarm",
+        "ai-sim",
+    }
     assert profiles["default"] == DEFAULT_PROCESSES
+
+
+def test_ai_swarm_profile_anchors_the_market_maker_and_adds_model_and_traders() -> None:
+    processes = load_profiles()["ai-swarm"]
+    mm_demo = load_profiles()["mm-demo"]
+    assert processes[: len(mm_demo) - 1] == mm_demo[:-1]
+    mm = processes[len(mm_demo) - 1]["command"]
+    assert mm[: len(mm_demo[-1]["command"])] == mm_demo[-1]["command"]
+    assert mm[mm.index("--anchor-sim") + 1] == "0.3"
+    assert processes[-2]["command"][0] == "pm-market-sim"
+    command = processes[-1]["command"]
+    assert command[0] == "pm-ai-swarm"
+    assert command[command.index("--count") + 1] == "20"
+
+
+def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
+    processes = {p["name"]: p for p in load_profiles()["ai-sim"]}
+    ai_swarm = {p["name"]: p for p in load_profiles()["ai-swarm"]}
+    assert list(processes) == list(ai_swarm)
+    changed = {name for name in processes if processes[name] != ai_swarm[name]}
+    assert changed == {"engine", "stats", "clearing", "ai-swarm", "mm-bot"}
+    mm = processes["mm-bot"]["command"]
+    assert mm[mm.index("--strategy") + 1] == "symmetric"
+    assert mm[mm.index("--anchor-sim") + 1] == "0.3"
+    assert processes["engine"]["command"] == ["pm-engine"]
+    clearing = processes["clearing"]["command"]
+    assert clearing[clearing.index("--print-every") + 1] == "0"
+    assert clearing[clearing.index("--retention-days") + 1] == "7"
+    stats = processes["stats"]["command"]
+    assert stats[stats.index("--keep-days") + 1] == "7"
+    assert stats[stats.index("--keep-order-events-days") + 1] == "0.05"
+    command = processes["ai-swarm"]["command"]
+    assert command[:2] == ["pm-ai-swarm", "--swarm"]
+    swarm = Path(command[2])
+    assert swarm.parts[-2:] == ("s300-sim-setup", "swarm.yaml")
+    assert swarm.is_file()
 
 
 def test_mm_demo_profile_is_default_plus_a_passive_mm01_bot() -> None:
@@ -201,7 +244,14 @@ def test_init_creates_editable_profiles_but_never_overwrites(
 ) -> None:
     assert emo_cli.create_config() == 0
     created = emo_cli.config_path().read_text(encoding="utf-8")
-    assert set(emo_cli.load_profiles()) == {"default", "micro", "mini", "mm-demo"}
+    assert set(emo_cli.load_profiles()) == {
+        "default",
+        "micro",
+        "mini",
+        "mm-demo",
+        "ai-swarm",
+        "ai-sim",
+    }
 
     assert emo_cli.create_config() == 1
     assert emo_cli.config_path().read_text(encoding="utf-8") == created

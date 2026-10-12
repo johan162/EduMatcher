@@ -3,7 +3,7 @@
 The command line is scoped by ``--symbol``: flags before the first one are
 gateway-wide defaults, flags after one apply to that symbol alone. A
 ``--config`` file expresses the same thing without a long command line. See
-docs/user-guide/100-mm-bot.md and docs-design/EduMatcher-mm-bot-multi.md for
+../../../docs/books/participant-guide/part-3-market-making/030-the-market-maker-bot.md and docs-design/EduMatcher-mm-bot-multi.md for
 the full grammar.
 """
 
@@ -166,6 +166,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--anchor-sim",
+        type=float,
+        default=None,
+        metavar="W",
+        help=(
+            "Quote around pm-market-sim's true value: each model step closes "
+            "this fraction (0-1) of the gap; 0 = off (default: 0)"
+        ),
+    )
+    parser.add_argument(
         "--qty", type=int, default=None, help="Quote size on each leg (default: 500)"
     )
     parser.add_argument(
@@ -213,7 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--startup-session-timeout-sec",
         type=float,
         default=None,
-        help="Max wait for first session.state event (default: 5.0)",
+        help="Max wait to learn the session phase (default: 5.0)",
     )
     parser.add_argument(
         "--bootstrap-timeout-sec",

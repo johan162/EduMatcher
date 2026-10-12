@@ -321,6 +321,8 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         host="127.0.0.1",
         port=8080,
         credentials=(ApiCredential(api_key="key", gateway_id="GW01"),),
+        order_retention_sec=300,
+        audit_db=tmp_path / "audit.db",
     )
     monkeypatch.setattr(
         main, "load_default_api_gateway_config", lambda instance=None: deployed
@@ -342,6 +344,10 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     # on the same host as pm-engine in this system's deployment model.
     assert cfg.index_pull_addr == "tcp://10.0.0.5:5559"
     assert cfg.index_pub_addr == "tcp://10.0.0.5:5558"
+    # Fields no flag touches come through as configured; the old field-by-field
+    # rebuild reset these two to their defaults.
+    assert cfg.order_retention_sec == 300
+    assert cfg.audit_db == tmp_path / "audit.db"
 
 
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:

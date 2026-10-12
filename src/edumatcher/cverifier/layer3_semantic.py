@@ -368,7 +368,8 @@ def _check_country(raw: dict[str, Any], results: list[CheckResult]) -> None:
     warning and falls back to the default (Sweden) rather than crashing, so a
     config with a typo here is degraded, not broken.
     """
-    country = raw.get("country")
+    locale = raw.get("locale")
+    country = locale.get("country") if isinstance(locale, dict) else None
     if not isinstance(country, str) or not country.strip():
         return  # not a string / blank — Layer 2 (S065) already reports this
 
@@ -380,15 +381,15 @@ def _check_country(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 code="M026",
                 severity=Severity.WARN,
                 message=(
-                    f"'country' value '{country}' is not recognised by the "
-                    "holidays package. pm-scheduler will fall back to Sweden "
+                    f"'locale.country' value '{country}' is not recognised by "
+                    "the holidays package. pm-scheduler will fall back to Sweden "
                     "at runtime."
                 ),
                 suggestion=(
-                    'Set country to a country name (e.g. "Sweden") or an '
+                    'Set locale.country to a country name (e.g. "Sweden") or an '
                     'ISO 3166-1 alpha-2 code (e.g. "SE").'
                 ),
-                path="country",
+                path="locale.country",
             )
         )
 

@@ -12,6 +12,8 @@ services:
   edumatcher:
     build:
       context: .
+      # The Dockerfile's last stage is the AI-sim image (compose.ai-sim.yaml).
+      target: runtime
       args:
         EDUMATCHER_VERSION: ${EDUMATCHER_VERSION:-}
         WITH_SSH: ${WITH_SSH:-1}

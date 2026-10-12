@@ -24,3 +24,8 @@ class ParticipantSession:
     role: ParticipantRole = ParticipantRole.TRADER
     disconnect_behaviour: DisconnectBehaviour = DisconnectBehaviour.CANCEL_QUOTES_ONLY
     connected: bool = False
+    # Liveness, opt-in: 0 until the participant's first system.gateway_heartbeat,
+    # which carries its own beat interval. Only sessions that have beaten are
+    # ever timed out.
+    heartbeat_interval_sec: int = 0
+    last_heartbeat: float = 0.0
