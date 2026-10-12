@@ -14,10 +14,10 @@
       byte-for-byte deterministic for that guarantee to be worth anything
 
 !!! info "What is covered"
-    **Fourteen families are specified and adopted — every family there is**,
-    covering 108 messages and 37 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
+    **Sixteen families are specified and adopted — every family there is**,
+    covering 121 messages and 42 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
-    `admin` and `system`. Each has a Python binding; `trade` and `order` also
+    `admin`, `system`, `news` and `sim`. Each has a Python binding; `trade` and `order` also
     have C bindings for their CALF projections and the BALF
     `execution_report` frame.
 

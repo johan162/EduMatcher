@@ -705,11 +705,11 @@ Outcomes:
 
 **Reference Manual:**
 
-- Processes
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-ralf-gwy-post-trade-dissemination-gateway)
 
 **Protocols and Clients:**
 
-- External Protocols Overview — ALF, BALF, CALF, RALF at a glance
-- Appendix — RALF Protocol — normative wire format and field tables
-- RALF Protocol Spy (pm-ralf-spy) — read-only CLI for watching the raw feed, human-readable or JSON
-- Drop Copy
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
+- [Appendix — RALF Protocol](../../protocols-and-clients/part-2-specifications/040-ralf.md) — normative wire format and field tables
+- [RALF Protocol Spy (pm-ralf-spy)](../../protocols-and-clients/part-4-writing-clients/040-the-spy-tools-ralf.md) — read-only CLI for watching the raw feed, human-readable or JSON
+- [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md)

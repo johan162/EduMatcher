@@ -29,5 +29,5 @@ vocabulary.
 | **Spread** | The gap between the best ask and the best bid. |
 | **Symbol** | A tradeable instrument, such as `AAPL`, with its own order book. |
 | **Tick** | The smallest allowed price step for a symbol, for example 0.01. |
-| **Time in force (TIF)** | How long an order stays active: `DAY`, `GTC` (good till cancelled), `IOC`, `FOK`, or only in an auction (`ATO`, `ATC`). |
+| **Time in force (TIF)** | How long an order stays active: `DAY`, `GTC` (good till cancelled), or only in an auction (`ATO`, `ATC`). `IOC` and `FOK` are order *types*, not TIF values. |
 | **ALF, BALF, CALF, RALF, LALF** | EduMatcher's protocols: text order entry, binary order entry, market data, post-trade data and logging. |

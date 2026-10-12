@@ -477,7 +477,7 @@ field, and both are conditions `pm-log-srv` refuses to start on:
 See [LALF-PS](../part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M026`)
+### Layer 3 — Semantic (`M001`–`M028`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -510,11 +510,17 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
 | `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |
 | `M026` | WARN     | `locale.country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
+| `M027` | ERROR    | `schedule` has an unknown top-level key (valid keys: `weekdays`, `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`, `weekend`, `holidays`) |
+| `M028` | ERROR    | `schedule` specifies both `weekend` and an individual `sat`/`sun` block — use one or the other |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
 `C010` is emitted during the semantic pass (Layer 3) but kept in the `C` code
-family because it is an operational-completeness warning.
+family because it is an operational-completeness warning. `C005` is reserved
+and not currently emitted: an `MM` gateway with no `mm_obligation_defaults` at
+all is deliberately left quiet (confirmed by
+`test_c005_mm_gw_no_obligation_defaults_is_quiet` in the test suite) — only
+`C006` (obligations defined but `enforce_mm_obligation: false`) fires.
 
 | Code   | Severity | Condition                                                           |
 |--------|----------|---------------------------------------------------------------------|
@@ -522,7 +528,6 @@ family because it is an operational-completeness warning.
 | `C002` | INFO     | Symbol has only one of `last_buy_price` / `last_sell_price`         |
 | `C003` | INFO     | `enforce_collars: true` but no collar configured                    |
 | `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
-| `C005` | WARN     | MM gateway present but `mm_obligation_defaults` absent              |
 | `C006` | WARN     | `enforce_mm_obligation: false`                                      |
 | `C007` | INFO     | `engine_tuning.snapshot_interval_sec` is at the default `0.5`                   |
 | `C008` | WARN     | Index constituent has no reference price                            |

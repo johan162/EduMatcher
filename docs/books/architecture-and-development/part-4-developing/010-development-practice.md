@@ -182,8 +182,8 @@ but the standard way to run all checks and a full build is the `mkbld.sh` script
 - **Typing**: `mypy` in strict mode
 - **Testing**: `pytest`
 - **Coverage gates**:
-  - `make test` enforces **85%**
-  - `scripts/mkbld.sh` currently enforces **80%** (release automation threshold)
+  - both `make test` and `scripts/mkbld.sh` enforce the same **80%** threshold
+    (`Makefile`'s `COVERAGE := 80`, mirrored in `mkbld.sh`'s `COVERAGE="80"`)
 - **Docs build**: `mkdocs build` should pass after doc changes
 - **Shell completion**: every `[tool.poetry.scripts]` entry point must expose a
   module-level `build_parser() -> argparse.ArgumentParser` with no

@@ -1027,8 +1027,8 @@ flag that only adds a per-file size/count breakdown to the `stats` output.)
 
 **Participant Guide:**
 
-- P&L & Clearing — `pm-clearing` and `pm-clearing-cli` for trade settlement
+- [P&L & Clearing](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) — `pm-clearing` and `pm-clearing-cli` for trade settlement
 
 **Reference Manual:**
 
-- Processes — pm-audit — startup reference table in the process overview
+- [Processes — pm-audit](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-audit-event-logger) — startup reference table in the process overview

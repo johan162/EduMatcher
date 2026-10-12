@@ -96,6 +96,13 @@ order into an empty book is therefore an accepted order that immediately
 cancels in full — **not** a rejection, and worth distinguishing when you write
 a client:
 
+!!! note "Not shown in `pm-alf-console`"
+    `pm-alf-console`'s terminal display prints `CANCELLED <order-id>` without
+    the reason, even though the underlying message carries it. To see
+    `CANCEL_REASON` for yourself, connect over the real ALF TCP gateway
+    (`pm-alf-gwy`) with a raw client, or use the REST API's `cancel_reason`
+    field — see [ALF TCP Gateway — Unsolicited cancels](../../operator-guide/part-5-gateways/010-alf-gateway.md#unsolicited-cancels).
+
 | Situation | What you receive |
 |---|---|
 | Book runs out during continuous trading | `ACK ACCEPTED=TRUE`, any `FILL`s, then `CANCELLED` with `INSUFFICIENT_LIQUIDITY` |

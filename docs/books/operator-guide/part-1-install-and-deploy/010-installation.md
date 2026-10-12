@@ -211,7 +211,7 @@ cd ~/.edumatcher
 
 ### Choosing what the exchange trades
 
-EduMatcher ships 24 ready-made configurations: one, three, ten or thirty
+EduMatcher ships 30 ready-made configurations: 1, 3, 10, 30 or 150
 order books, each as a `basic`, `nominal` or `complex` variant, and each of
 those with or without seeded market-maker quotes. They are inside the backend
 image, so no download is involved in switching.
@@ -221,11 +221,12 @@ image, so no download is involved in switching.
 ./edumatcher.sh restart
 ```
 
-The names are `one-`, `three-`, `ten-` and `thirty-` combined with `basic`,
+The names are `s1`, `s3`, `s10`, `s30` and `s150` combined with `basic`,
 `nominal` and `complex`, each with an optional `-nomm` suffix for the variant
 with empty order books instead of seeded market-maker quotes (for example
-`s3-basic-nomm`). `./edumatcher.sh config` lists them all if you mistype
-one. See [Example Engine Configs](../part-2-configure/040-example-configs.md) for what each
+`s3-basic-nomm`). The `s150-*` configs also seed `AI001`-`AI020` for a
+20-bot `pm-ai-swarm` run unchanged. `./edumatcher.sh config` lists them all if
+you mistype one. See [Example Engine Configs](../part-2-configure/040-example-configs.md) for what each
 contains.
 
 To run a configuration of your own, give the same command a path instead:
@@ -500,7 +501,7 @@ Earlier versions shipped the bundled examples with
 configuration was not the configuration you wrote, and `pm-config-show`
 described one thing while the processes did another.
 
-The gateways now bind `0.0.0.0` themselves, the twelve bundled examples say
+The gateways now bind `0.0.0.0` themselves, every bundled example says
 `0.0.0.0`, and the entrypoint rewrites nothing: **the deployed configuration is
 the configuration you supplied**, and `make config-show` describes what the
 processes actually do.
@@ -574,7 +575,7 @@ One variable decides where an exchange keeps its state:
 | `<DATA_DIR>/emo/` | `pm-opctl-cli` | One log per process, PID files, and the active profile name |
 | `<DATA_DIR>/log.db` | `pm-log-srv` | The centralized log |
 | `<DATA_DIR>/stats.db` | `pm-stats` | Statistics and history behind the REST API |
-| `<DATA_DIR>/clearing.db`, `clearing_report.csv` | `pm-clearing` | Positions and P&L |
+| `<DATA_DIR>/clearing.db` | `pm-clearing` | Positions and P&L |
 | `<DATA_DIR>/audit.log`, `audit_index.db` | `pm-audit` | The audit trail and its index |
 | `<DATA_DIR>/gtc_orders.json`, `gtc_combos.json`, `book_stats.json` | `pm-engine` | Resting orders and book state across restarts |
 | `<DATA_DIR>/logs/` | log clients | Failover logs written when `pm-log-srv` is unreachable |

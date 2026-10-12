@@ -846,6 +846,10 @@ AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|I
 AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
 ```
 
+The second example is a no-cross auction (`EQPX`/`IMBSIDE` both omitted, all
+counts `0`); the third is a perfectly balanced cross (`IMBSIDE` omitted,
+`IMBQTY=0`, but `EQPX`/`EQQTY`/`TRADES` all present).
+
 
 ### `INDIC`
 
@@ -904,10 +908,6 @@ INDIC|CH=AUCTION|SYM=AAPL|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICPX=150.10|INDI
 INDIC|CH=AUCTION|SYM=TSLA|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICQTY=0|IMBQTY=0|PHASE=OPENING_AUCTION
 ```
 
-The second example is a no-cross auction (`EQPX`/`IMBSIDE` both omitted, all
-counts `0`); the third is a perfectly balanced cross (`IMBSIDE` omitted,
-`IMBQTY=0`, but `EQPX`/`EQQTY`/`TRADES` all present).
-
 ### `CB`
 
 **Direction:** Gateway -> Client
@@ -930,10 +930,10 @@ that also want the detail.
 | `TRIGGERPX` | No  | Trigger price; present only for an automatic (non-`ADMIN_*`) halt currently in effect    |
 | `REFPX`     | No  | Reference price at trigger time; present only for an automatic halt currently in effect  |
 | `RESUMEAT`  | No  | Scheduled auto-resume time, UTC ISO-8601 with ms (same format as `TS`); present only for a timed halt currently in effect — absent for rest-of-day or manual/`ADMIN_*` halts |
-| `SRC`       | No  | What halted the symbol: `CB` for an automatic breaker trigger, `ADMIN` for an operator halt |
 | `CORRLO`    | No  | Lower bound of the ACE reopening corridor; present only while `STATUS=HALTED` and ACE is enabled for the symbol |
 | `CORRHI`    | No  | Upper bound of the same corridor                                                          |
 | `EXP`       | No  | Number of ACE extensions consumed so far. `0` on the initial halt                        |
+| `SRC`       | No  | What halted the symbol: `CB` for an automatic breaker trigger, `ADMIN` for an operator halt |
 | `INDICPX`   | No  | Indicative uncross price observed at the end of a call phase. Extension events only      |
 | `INDICQTY`  | No  | Quantity that would have executed at `INDICPX`. Extension events only                    |
 | `IMB`       | No  | `BUY` or `SELL` — which side the imbalance ran. Extension events only                    |
@@ -1422,11 +1422,11 @@ If you are implementing a CALF client, the most important protocol truths are:
 
 **Operator's Guide:**
 
-- Market Data Feed (CALF) — operational guide and client examples
-- Risk Controls — circuit-breaker engine behavior behind the `CB` channel
-- Market Index — auction uncross mechanics behind the `AUCTION` channel
+- [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md) — operational guide and client examples
+- [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — circuit-breaker engine behavior behind the `CB` channel
+- [Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md) — auction uncross mechanics behind the `AUCTION` channel
 
 **Reference Manual:**
 
-- Processes — where `pm-md-gwy` sits in the process model
-- Engine Config Specification — `market_data_gateway` field law
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — where `pm-md-gwy` sits in the process model
+- [Engine Config Specification](../../reference-manual/part-3-configuration/030-formal-specification.md#63-market_data_gateway-pm-md-gwy-calf) — `market_data_gateway` field law

@@ -132,7 +132,13 @@ The standard solution: **negate the price for bids.**
 > integer tick counts (e.g. `$100.02` is `10002` for a symbol with
 > `tick_decimals=2`). The heap key arithmetic works identically — negation of
 > an `int` is still an `int`. The examples below use readable decimal prices for
-> clarity, but the actual values in the code are integers.
+> clarity, but the actual values in the code are integers. The same migration
+> also renamed the underlying `Order` fields (`price` → `price_ticks`,
+> `stop_price` → `stop_price_ticks`, `trail_offset` → `trail_offset_ticks`,
+> `timestamp` → `ts_ns`); the code walkthroughs below mostly keep the shorter
+> pre-migration names (`order.price`, `order.timestamp`, …) for readability —
+> the Data Structure Summary table near the end of this page uses the real,
+> current field names throughout.
 
 ```python
 # Ask heap — natural min-heap, lowest ask first
@@ -310,10 +316,17 @@ class OrderBook:
     __slots__ = (
         "symbol", "_bids", "_asks", "_buy_stops", "_sell_stops",
         "_trailing_stops", "_bid_qty", "_ask_qty", "_order_index",
-        "_entry_index", "last_trade_price", "last_trade_qty",
-        "last_buy_price", "last_sell_price", "recent_trades",
+        "_entry_index", "_orders_by_gateway", "last_trade_price",
+        "last_trade_qty", "last_buy_price", "last_sell_price",
+        "recent_trades", "daily_qty", "daily_value_ticks",
+        "daily_trades", "_has_stops", "_arrival_seq",
     )
 ```
+
+(The last five scalar slots — `daily_qty`, `daily_value_ticks`, `daily_trades`,
+`_has_stops`, `_arrival_seq` — are session counters, a stop-presence flag, and the
+sequence counter behind `arrival_seq` itself; they are not among the eleven
+*data structures* this page walks through below, which is a different count.)
 
 `__slots__` on `OrderBook` itself gives the same benefit — faster attribute access
 on every `self.xxx` reference inside the matching loop.
@@ -452,7 +465,8 @@ of any type, are currently resting in this specific book?"**
 That question comes up in two places. A market maker's `QUOTE` message replaces a
 bid/ask pair as one atomic operation, and after a partial fill the engine has to
 find the leftover resting leg to retire it on the next reissue — see
-`docs/architecture/020-guided-tour.md` §10 for that story in full. And when
+[Market-Maker Quotes](../part-1-architecture/020-guided-tour.md#10-market-maker-quotes-two-orders-one-obligation)
+for that story in full. And when
 a gateway disconnects, or an admin fires a kill switch, the engine has to cancel
 that one gateway's resting orders — and only that gateway's — without touching
 anyone else's.
@@ -653,9 +667,9 @@ strictly increasing integer nanosecond timestamp even if the system clock steps
 backward (due to NTP or a virtual machine hypervisor). It is a system call, and
 system calls are expensive (~300-500 nanoseconds each).
 
-A single aggressive order that triggers stop orders can go through `process()`
-recursively several times. Computing `now` once at the top and passing it through
-avoids repeated calls.
+A single aggressive order that triggers stop orders can go through several
+rounds of stop-cascade processing. Computing `now` once at the top and passing it
+through avoids repeated calls.
 
 This is a micro-optimisation but it is the right instinct: **identify the expensive
 operation, call it once, pass the result everywhere.**
@@ -671,6 +685,9 @@ if not match:
     if order.order_type in (OrderType.STOP, OrderType.STOP_LIMIT):
         self._add_stop(order, events)
         return trades, events
+    if order.order_type == OrderType.TRAILING_STOP:
+        self._add_trailing_stop(order, events)
+        return trades, events
     self._rest(order)
     return trades, events
 ```
@@ -682,7 +699,10 @@ ends and a single equilibrium price is computed.
 
 Market, FOK, and IOC orders are rejected during an auction because they require
 immediate execution, which is not possible when no matching is happening. Stop and
-stop-limit orders are accepted into their stop heaps, and limit/iceberg orders are
+stop-limit orders are accepted into their stop heaps, trailing stops go to the
+trailing-stop list (they must not reach `_rest()`, which asserts a price is set —
+a trailing stop's price is `None` until triggered; a persisted GTC trailing stop
+once crashed engine startup this way, see finding C6), and limit/iceberg orders are
 accepted and placed directly onto the book with no sweep attempt.
 
 ### Step 3: Dispatch to the Right Handler
@@ -713,25 +733,33 @@ fill:
 ### Step 4: Check Stops After Every Trade
 
 ```python
-if trades:
-    triggered = self._check_stops(now)
-    triggered += self._check_trailing_stops(now)
-    for t_order in triggered:
-        sub_trades, sub_events = self.process(t_order, now=now)
+if trades and self._has_stops and _cascade_stops:
+    pending = self._check_stops(now) + self._check_trailing_stops(now)
+    while pending:
+        t_order = pending.pop(0)
+        sub_trades, sub_events = self.process(t_order, now=now, _cascade_stops=False)
         trades.extend(sub_trades)
         events.extend(sub_events)
+        if sub_trades and self._has_stops:
+            pending.extend(self._check_stops(now))
+            pending.extend(self._check_trailing_stops(now))
 ```
 
 After any fills occur, we check whether any stop orders should now trigger. This
-check only runs if `trades` is non-empty — no trades means prices did not move,
-so no stops can trigger.
+check only runs if `trades` is non-empty (no trades means prices did not move, so
+no stops can trigger) and `self._has_stops` is set (a cheap flag so a book with no
+resting stops skips the check entirely on every single fill).
 
-Note the **recursive call** to `self.process()`. A triggered stop becomes a new
-market or limit order and goes back through the full matching logic. The `now`
-timestamp is passed through to avoid more calls inside the recursive call.
-
-This recursion is bounded in practice — triggered orders rarely trigger further
-stops — but it is worth being aware of for deep stop cascades.
+This is **not** recursion, despite the nested `self.process()` call: an earlier
+version drove the stop → trade → stop → … cascade by recursive calls, but a long
+enough chain of triggering stops could exhaust Python's recursion limit — the
+engine would simply crash (finding #23). The current code drives the cascade from
+an explicit `pending` work queue instead: each triggered order is processed with
+`_cascade_stops=False` so it cannot start a *nested* round of this same loop, and
+anything it newly triggers is appended back onto `pending` for the same `while`
+loop to pick up. The loop, not the call stack, is what can run arbitrarily long —
+so an arbitrarily deep cascade is now bounded only by memory, not by Python's
+recursion limit.
 
 
 
@@ -993,12 +1021,21 @@ def _apply_fill(self, aggressor, passive, fill_qty, fill_price,
     trades.append(trade)
     self.last_trade_price = fill_price
     self.last_trade_qty = fill_qty
+    self.daily_qty += fill_qty
+    self.daily_value_ticks += fill_price * fill_qty
+    self.daily_trades += 1
 
-    # Side-specific last prices are keyed by AGGRESSOR side in current code
-    if aggressor.side == Side.BUY:
-        self.last_buy_price = fill_price
-    else:
-        self.last_sell_price = fill_price
+    # Side-specific last prices are keyed by AGGRESSOR side — but ONLY for a
+    # genuine aggressor/passive fill. An auction uncross matches two orders
+    # that were BOTH already resting (both_resting=True) — there is no
+    # aggressor side to attribute the print to, so these two fields are left
+    # unchanged for an auction trade (finding L9); only last_trade_price
+    # updates in that case.
+    if not both_resting:
+        if aggressor.side == Side.BUY:
+            self.last_buy_price = fill_price
+        else:
+            self.last_sell_price = fill_price
 
     # Reduce both orders
     aggressor.remaining_qty -= fill_qty
@@ -1036,7 +1073,12 @@ Key points:
   level is filled, the entry is deleted entirely.
 - **A `Trade` record is created** — this is what gets published to the clearing
   process and stats database.
-- **Three reference prices are updated** — explained in detail below.
+- **Three reference prices are updated** — explained in detail below (with one
+  exception: an auction uncross print updates only `last_trade_price`, never
+  `last_buy_price`/`last_sell_price` — see the note in the code above).
+- **Daily volume counters are accumulated** — `daily_qty`, `daily_value_ticks`,
+  and `daily_trades` all increment on every fill, auction or continuous alike;
+  these back the volume figures in book snapshots and reset only on restart.
 
 ### The Three "Last Price" Fields
 
@@ -1045,10 +1087,11 @@ similar but serve completely different purposes:
 
 ```python
 self.last_trade_price = fill_price
-if aggressor.side == Side.BUY:
-    self.last_buy_price  = fill_price
-else:
-    self.last_sell_price = fill_price
+if not both_resting:               # auction uncross prints: neither side updates
+    if aggressor.side == Side.BUY:
+        self.last_buy_price  = fill_price
+    else:
+        self.last_sell_price = fill_price
 ```
 
 **`last_trade_price`** — updated on every single fill, regardless of which side was
@@ -1357,6 +1400,12 @@ def _check_stops(self, now):
     # BUY stops: fire when price rises to/above stop_price
     while self._buy_stops:
         entry = self._buy_stops[0]
+        # Lazy deletion applies here too: a cancelled/expired stop sitting at
+        # the top is popped and skipped before the price check below, exactly
+        # like _peek() does for the bid/ask heaps (elided from this snippet).
+        if not entry.valid or entry.order.status in (CANCELLED, EXPIRED):
+            heapq.heappop(self._buy_stops)
+            continue
         stop_price, _ = entry.key
         if self.last_trade_price < stop_price:
             break            # ← min-heap: if top hasn't triggered, none will
@@ -1454,6 +1503,10 @@ not individual orders.
 
 Current `snapshot()` output includes:
 
+- `symbol` and `tick_decimals` (the scale display prices in this snapshot were
+  produced at — a subscriber that stores prices as integer ticks, like `pm-stats`,
+  needs this to convert back correctly rather than guessing)
+- `ts_ns` — when the snapshot was produced (from `now_ns()`)
 - Aggregated bid/ask rows (price, qty, count)
 - `last_price`, `last_qty`
 - `last_buy_price`, `last_sell_price`
@@ -1529,7 +1582,7 @@ state.
 | Full book snapshot | O(n) | iterate all heap entries |
 | Depth metrics | O(P) | iterate qty index only |
 | Stop trigger check | O(1) amortised | heap peek + early break when top hasn't triggered |
-| Stop trigger (k fired) | O(k log k) | k heappops + recursive `process()` call |
+| Stop trigger (k fired) | O(k log k) | k heappops + `process()` call per trigger, driven by an explicit work queue, not recursion (finding #23) |
 | Resting orders for one gateway | O(k) | `_orders_by_gateway` lookup, k = that gateway's resting count in this book |
 
 Where n = total resting orders, P = distinct price levels (typically P << n), k =

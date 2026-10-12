@@ -1,5 +1,20 @@
 # Implied Orders (a Concept Not Yet Implemented)
 
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - What an **implied (synthetic) order** is, and why exchanges with related
+      instruments (spreads, baskets) generate them automatically from existing
+      outright liquidity
+    - How to derive an implied bid and ask from the top-of-book of the
+      instruments it is built from, for a simple 1:1 spread and for a
+      general weighted multi-leg synthetic
+    - How implied quantity is limited by the smallest leg after ratio
+      normalization
+    - That this is a **conceptual, not-yet-implemented** mechanism in
+      EduMatcher today — what exists instead is parent/child combo tracking,
+      covered in [Combo Orders](030-combo-and-oco-orders.md)
+
 This section explains an advanced but very important exchange concept:
 **implied orders** (also called **synthetic orders**).
 

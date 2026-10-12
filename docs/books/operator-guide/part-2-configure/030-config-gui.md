@@ -336,9 +336,10 @@ The dialog collects:
 | **Symbol name** | Uppercased automatically; must be unique. |
 | **IPO reference price** | The opening mid-price. Derives `last_buy_price` / `last_sell_price` and becomes the collar's static reference on day one. |
 | **Tick decimals** (Intermediate+) | Price precision (0–8). Defaults to the global value. See [tick size](../../participant-guide/part-2-orders/020-order-types.md). |
-| **Outstanding shares** | Required if the symbol will be an [index](../part-4-run-a-market/070-market-index.md) constituent; a sensible default is pre-filled. |
-| **Opening spread (ticks)** (Intermediate+) | Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price. |
-| **Quote size** (Intermediate+) | Quantity used for the auto-derived primary market maker quote. |
+| **Outstanding shares** | Always required to save, with a sensible default pre-filled; matters most if the symbol will be an [index](../part-4-run-a-market/070-market-index.md) constituent. |
+| **Primary market maker** | Which `MARKET_MAKER` gateway receives the auto-derived opening quote. Shown, and required, whenever at least one `MARKET_MAKER` gateway is configured — at any persona. |
+| **Opening spread (ticks)** | Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price. Shown alongside **Primary market maker**. |
+| **Quote size** | Quantity used for the auto-derived primary market maker quote. Shown alongside **Primary market maker**. |
 | **Additional market makers** (Expert) | Extra bid/ask quote rows for MM gateways beyond the primary one. |
 
 If a `MARKET_MAKER` gateway is configured, the primary market-maker quote is
@@ -553,6 +554,14 @@ help popover; the most-asked-about one is **Seed once**:
 See [controlling when seeds apply](../../participant-guide/part-3-market-making/020-market-making.md#controlling-when-seeds-are-applied-seed_once)
 and [choosing TIF for seeds](../../participant-guide/part-3-market-making/020-market-making.md#choosing-tif-for-seed-quotes).
 
+**Require MM seed quotes** (the default, visible at every persona) controls
+whether stubs are written at all: on, every symbol must end up with at least
+one `market_maker_quotes` entry per `MARKET_MAKER` gateway, falling back to a
+null-price stub (below) when neither Option A nor Option B supplies one; off,
+a symbol with no explicit quote simply gets no stub, for a genuinely empty
+book at startup. This maps to `require_mm_seed_quotes` in the YAML (the CLI's
+`--no-mm-seed-quotes` flag turns it off).
+
 **Option B — Global mid-range seeding.** On the Market Maker tab, set a **Seed
 MM mid-range** (e.g. `100` to `300`). The builder computes one deterministic
 midpoint and applies it to *every* symbol:
@@ -578,12 +587,10 @@ Two related switches (Intermediate+) accompany mid-range seeding:
   `last_sell_price: null` for instruments whose reference price is managed
   externally.
 
-At **Expert** persona, a **Deterministic seed** fixes the RNG seed for
-reproducible classroom runs.
-
 **Fallback — null stub.** If neither an explicit quote nor a mid-range is
-supplied, the builder emits `bid_price: null` / `ask_price: null`. The Quote Stub
-Review flags this and the Review tab blocks export until it is resolved.
+supplied (and **Require MM seed quotes** is on), the builder emits
+`bid_price: null` / `ask_price: null`. The Quote Stub Review flags this and the
+Review tab blocks export until it is resolved.
 
 #### A workflow for a new market maker
 
@@ -614,7 +621,8 @@ symbol × MM gateway pair:
 |---|---|---|
 | ✓ quote defined | An explicit quote with both prices is set | None |
 | ✓ seeded from mid-range | The mid-range will compute prices at export | None |
-| ! fill in before starting the engine | Neither explicit nor seeded | Add a quote or set a mid-range |
+| — no quote written | This gateway has no stub — the symbol's explicit quotes cover a different gateway only, or **Require MM seed quotes** is off | None (this is a normal, intentional state, not an error) |
+| ✗ no prices — fill in before starting the engine | **Require MM seed quotes** is on but neither an explicit quote nor a mid-range supplied one | Add a quote or set a mid-range |
 
 Export is blocked while any row is unresolved.
 
@@ -641,19 +649,34 @@ display values and converted to ticks per each leg symbol's precision. See
 ### Auxiliary gateways
 
 The **Auxiliary Gateways** tab (Intermediate+) configures the optional network
-services around the engine, each on its own sub-tab:
+services around the engine, each on its own sub-tab. Two sub-tabs are visible
+at Intermediate; the rest — including the primary **ALF** gateway's own
+advanced tuning — only appear at Expert:
 
 | Sub-tab | Persona | Process | Reference |
 |---|---|---|---|
+| ALF | Expert | ALF — the primary text order-entry gateway's own tuning (heartbeat/handshake/idle timeouts, connection and rate limits) | [ALF Gateway](../part-5-gateways/010-alf-gateway.md) |
 | Post-Trade | Intermediate | RALF — fills, drop-copy, audit | [Post-Trade (RALF)](../part-5-gateways/040-ralf-gateway.md) |
 | Market-Data | Intermediate | CALF — top-of-book, trades, index | [Market Data Feed (CALF)](../part-5-gateways/030-calf-gateway.md) |
 | BALF | Expert | Binary ALF gateway | [BALF Gateway](../part-5-gateways/020-balf-gateway.md) |
+| Drop-Copy | Expert | DC1 — a lightweight TCP relay of live fill notifications, independent of RALF | [Drop-Copy Gateway](../part-5-gateways/060-drop-copy-gateway.md) |
+| Log Server | Expert | `pm-log-srv` — the centralized log collector every other process connects to, plus its optional LALF-PS live-distribution socket pair | [Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) |
 | API | Expert | REST/WebSocket gateway | [API Gateway](../part-5-gateways/050-api-gateway.md) |
 
-Enabling a gateway reveals its fields; disabling it keeps your values but
-excludes the section from the exported file. **Ports are collision-checked
-across every enabled gateway** — the diagnostics drawer warns if two services
-would bind the same address and port.
+Each sub-tab (other than ALF, which is always present) has its own **"Write
+`<section>` section"** toggle: off omits that section from the exported file
+entirely, rather than writing it with defaults. Enabling a gateway reveals its
+fields; disabling it keeps your values staged but excludes the section from
+the export. **Ports are collision-checked across every enabled gateway** — the
+diagnostics drawer warns if two services would bind the same address and port.
+
+The **Log Server** sub-tab is the largest of the seven: beyond the collector's
+own name/bind/port/database-path/retention/batching settings, a **"LALF-PS —
+log distribution"** section (its own on/off toggle) exposes the ZeroMQ PUB/PULL
+pair that lets `pm-log-console` and other live viewers subscribe to rows as
+they are written — lease duration, subscriber and backfill limits, and the
+PUB socket's send high-water mark. See [LALF-PS](../../operator-guide/part-6-observe-and-recover/040-log-server.md)
+for what each setting controls at the protocol level.
 
 The **API** sub-tab includes **Order cache retention (s)**
 (`order_retention_sec`, default `3600`), which bounds how long a terminal

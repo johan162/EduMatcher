@@ -749,12 +749,12 @@ expired if they did *not* fill.
 
 **Participant Guide:**
 
-- Order Types — ATO and ATC time-in-force explained
+- [Order Types](../../participant-guide/part-2-orders/020-order-types.md) — ATO and ATC time-in-force explained
 
 **Reference Manual:**
 
-- Processes — how to start and configure `pm-scheduler`
+- [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — how to start and configure `pm-scheduler`
 
 **Protocols and Clients:**
 
-- Messages — `session.state`, `auction.result`, and `order.expired` message formats
+- [Message Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — `session.state`, `auction.result`, and `order.expired` message formats

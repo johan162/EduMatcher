@@ -55,7 +55,7 @@ flowchart LR
         SH["install.sh\nedumatcher.sh"]
     end
 
-    GH["GHCR\nfive multi-arch images\ntagged with the release version"]
+    GH["GHCR\nseven multi-arch images\ntagged with the release version"]
 
     BE --> DC
     WA --> DC
@@ -243,7 +243,7 @@ asymmetry between them is deliberate rather than historical.
 | | Core plane | Service layer |
 |---|---|---|
 | Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy` |
-| Ports | 5555–5559 | 5560, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081 |
+| Ports | 5555–5559 | 5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081 |
 | Who dials in | Other `pm-*` processes only | GUI containers, student clients, `curl`, Swagger |
 | Default bind host | `127.0.0.1` | `0.0.0.0` |
 | Constant | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `EDUMATCHER_GATEWAY_BIND_HOST` |
@@ -308,14 +308,14 @@ actually bind rather than the literal in the YAML.
 
 ### Why the entrypoint no longer rewrites anything
 
-Until v0.26 the bundled examples set `bind_address: 127.0.0.1` and
+Until v0.27.0 the bundled examples set `bind_address: 127.0.0.1` and
 `entrypoint.sh:open_gateway_binds()` rewrote loopback binds to `0.0.0.0` in the
 deployed YAML, then re-ran `pm-config-deploy`. It worked, but it had three
 costs: the deployed configuration was not the one the user wrote, the rewrite
 was invisible unless you read the container log, and `pm-config-show` described
 the file rather than the behaviour.
 
-The defaults now carry that responsibility. The twelve bundled examples say
+The defaults now carry that responsibility. Every bundled example says
 `0.0.0.0`, `open_gateway_binds()` and `LOOPBACK_BIND_RE` are gone from
 `entrypoint.sh`, and the deployed configuration is byte-for-byte the one
 supplied.
@@ -430,7 +430,7 @@ The overlays are additive `-f` files, which is why they compose freely:
 
 TapeDeck reads history through `pm-api-gwy` using the credential
 whose `gateway_id` is `null`. That key is **generated per engine
-configuration** — different in each of the twelve examples — and is issued on
+configuration** — different in each example — and is issued on
 the `dashboards` instance (8081), not `desk` (8080). It does not exist until
 the exchange has deployed its configuration, so it cannot be a compose default.
 
@@ -459,7 +459,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 
 ## Part 5 — The release process
 
-One git tag produces a wheel and five multi-architecture images, all carrying
+One git tag produces a wheel and seven multi-architecture images, all carrying
 the same version. That coupling is what lets `install.sh --version 0.50.0`
 pin an entire system with one number.
 
@@ -472,7 +472,7 @@ flowchart TD
     PY["publish-to-pypi.yml"]
     IMG["publish-images.yml"]
 
-    subgraph matrix["build job — 5 images x 2 architectures"]
+    subgraph matrix["build job — 7 images x 2 architectures"]
         AMD["ubuntu-24.04\nlinux/amd64"]
         ARM["ubuntu-24.04-arm\nlinux/arm64"]
     end
@@ -480,7 +480,7 @@ flowchart TD
 
     MK --> GHR --> REL
     REL --> PY --> PYPI["PyPI"]
-    REL --> IMG --> matrix --> MERGE --> GHCR["GHCR — 5 manifest lists"]
+    REL --> IMG --> matrix --> MERGE --> GHCR["GHCR — 7 manifest lists"]
     GHR -.->|"PHASE 6B polls gh run view"| MERGE
 ```
 
@@ -549,7 +549,7 @@ tag, and `latest` never moving unless asked.
 | GHCR packages left private | Everyone except the maintainer, who is already authenticated | Installing from a machine with no credentials |
 | A package that predates the workflow | Only that one image, and only in CI | `permission_denied: read_package` on push |
 
-A newly created GHCR package is private. Until each of the five is made public
+A newly created GHCR package is private. Until each of the seven is made public
 in its package settings, `podman pull` fails for every user but you.
 
 ### A package the workflow did not create
@@ -786,10 +786,13 @@ variable naming one host.
 host. Several hosts means running the engine independently on each and wiring
 the variables by hand.
 
-**No cross-host health signalling.** `pm-opctl-cli health` has a known
-pre-existing discrepancy even within one container — its built-in `index-srv`
-entry probes `127.0.0.1:5610` while `pm-index` binds 5558/5559 — which is why
-the image `HEALTHCHECK` TCP-probes the engine on 5555 instead.
+**No cross-host health signalling.** `pm-opctl-cli health`'s built-in
+`index-srv` entry has no TCP probe or healthcheck command configured at all
+(unlike, say, `balf-gwy`'s `"tcp": "127.0.0.1:5560"`) — it only checks that
+the process is still alive, not that `pm-index` (which binds 5558/5559) is
+actually reachable. That is one more reason the image `HEALTHCHECK`
+TCP-probes the engine on 5555 instead: a real connectivity check, just not
+one that says anything about `pm-index` or any other host.
 
 ```mermaid
 flowchart LR

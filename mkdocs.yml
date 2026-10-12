@@ -19,10 +19,12 @@ exclude_docs: |
   mermaid-filter.err
 
 # The AI Traders book links chapters it shares with other books by URL (gen_nav.py);
-# gen_nav.py itself fails on a missing chapter file.
+# gen_nav.py itself fails on a missing chapter file. These URL-style nav
+# entries never resolve to a source file, so "not found" is expected and
+# silenced rather than just downgraded.
 validation:
   nav:
-    not_found: info
+    not_found: ignore
 
 
 theme:

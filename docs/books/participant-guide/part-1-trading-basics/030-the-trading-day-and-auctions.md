@@ -170,28 +170,41 @@ BID side (buys):          ASK side (sells):
 
 At the end of OPENING_AUCTION, the engine finds the price that
 **maximises the total quantity traded**. It does this by scanning all prices
-and asking: "if we execute at price P, how many shares would fill?"
+and asking: "if we execute at price P, how many shares would fill?" A buy
+order only counts as a "matchable buy" at a candidate price P if its own
+limit is P or higher — a buyer limited to $149.50 is not a willing buyer at
+$149.80.
 
 For our example:
 
-| Candidate price | Matchable buys | Matchable sells | Volume |
-|----------------|---------------|-----------------|--------|
-| 149.50 | 200 + 500 = 700 | 400 | 400 |
-| 149.80 | 200 + 500 = 700 | 300 + 400 = 700 | 700 ← maximum |
-| 150.00 | 200 + 500 = 700 | 300 + 400 = 700 | 700 (tie — lower price chosen) |
+| Candidate price | Matchable buys | Matchable sells | Exec qty | Surplus |
+|----------------|---------------|-----------------|----------|---------|
+| 149.50 | 200 + 500 = 700 | 400 | 400 | 300 |
+| 149.80 | 500 | 300 + 400 = 700 | 500 ← maximum | 200 |
+| 150.00 | 500 | 300 + 400 = 700 | 500 (tied) | 200 |
 
-**Equilibrium price = $149.80** (maximises volume; in a tie, the lower price
-is chosen to protect buyers).
+Above $149.50, GW01's pre-open 200-share bid drops out of "matchable buys" —
+its limit is $149.50, so it is not a willing buyer at $149.80 or $150.00 —
+leaving only GW01's 500-share ATO bid on the buy side. **Equilibrium price =
+$149.80**: both 149.80 and 150.00 reach the same maximum executable quantity
+(500 shares) and the same surplus (200), so the tie goes to the lower price.
+(The full tie-break rule minimises surplus first and only then prefers the
+lower price — see [Session Scheduling → Equilibrium Price](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#equilibrium-price).
+Here surplus happens to be tied too, so the lower price decides directly.)
 
 All crossable orders execute at $149.80:
-- GW01's ATO 500-share buy fills at $149.80
-- GW02's 300-share sell fills at $149.80
-- GW03's 400-share sell fills at $149.80 (partially: 200 shares)
-- GW01's pre-open 200-share buy fills at $149.80
+- GW01's ATO 500-share buy fills **in full** — the only buy order willing to
+  pay $149.80 or more.
+- GW03's 400-share sell fills **in full** — its $149.50 limit is the better
+  (lower) price, so it has priority over GW02's on the sell side.
+- GW02's 300-share sell fills **partially**: 100 of 300, which is all that is
+  left of the 500 shares GW01's buy demands; the remaining 200 keep resting.
+- GW01's pre-open 200-share buy does **not** fill — its $149.50 limit is
+  below the $149.80 clearing price — and keeps resting into CONTINUOUS.
 
 **Result published:**
 ```
-auction.result.AAPL: price=149.80 volume=700
+auction.result.AAPL: price=149.80 volume=500
 ```
 
 After the uncross, ATO orders that didn't fill are **expired** (not cancelled

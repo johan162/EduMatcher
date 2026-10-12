@@ -1749,15 +1749,15 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 
 **Participant Guide:**
 
-- Order Types — how different order types behave under halt, and how SMP interacts with each type's sweep
-- ALF Console — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
-- Combos — per-leg `SMP=` on multi-leg orders
-- Market-Maker Bot — why quoting gateways rely entirely on the `smp_action` gateway default
+- [Order Types](../../participant-guide/part-2-orders/020-order-types.md) — how different order types behave under halt, and how SMP interacts with each type's sweep
+- [ALF Console](../../participant-guide/part-2-orders/010-the-trader-console.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
+- [Combos](../../participant-guide/part-2-orders/030-combo-and-oco-orders.md) — per-leg `SMP=` on multi-leg orders
+- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default
 
 **Reference Manual:**
 
-- Configuration Spec — normative schema for `participants[].smp_action` and `ComboLegSpec.smp_action`
+- [Configuration Spec](../../reference-manual/part-3-configuration/030-formal-specification.md) — normative schema for `participants[].smp_action` and `ComboLegSpec.smp_action`
 
 **Protocols and Clients:**
 
-- Drop Copy — how fill events are forwarded to risk systems
+- [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) — how fill events are forwarded to risk systems

@@ -46,10 +46,17 @@ where they live.
 | | Containers | `pm-opctl-cli` on the host | One terminal per process |
 |---|---|---|---|
 | Start the exchange | `./edumatcher.sh start` or `make up-all` | `pm-opctl-cli start` | 8–14 commands, in order |
-| Web applications | five, included | started separately | started separately |
+| Web applications | four by default, `config-gui` opt-in¹ | started separately | started separately |
 | Process table | `make status` | `pm-opctl-cli list` | `ps`, and your own notes |
 | Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
 | Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
+
+¹ The curl installer's `./edumatcher.sh start` brings up all five web
+applications unconditionally. From a source checkout, `make up-all` starts
+the four GUIs that talk to a running exchange (`terminal-gui`, `log-gui`,
+`trader-gui`, `book-gui`); `config-gui` — which needs no running exchange —
+is opt-in via `make up-all CONFIG_GUI=1`. See
+[Installation](../part-1-install-and-deploy/010-installation.md).
 
 **If you want a running exchange**, use the containers. That is
 [Installation](../part-1-install-and-deploy/010-installation.md); the rest of this chapter still applies,
@@ -1235,14 +1242,14 @@ configuration.
 
 **Quick Start Guide:**
 
-- What EduMatcher Is, Install and Start, Your First Trade - first concepts and a first trade
-- Run a Trading Session - phases, auctions and the records, by hand
+- [What EduMatcher Is](../../quick-start/part-1-see-it-run/010-what-is-edumatcher.md), [Install and Start](../../quick-start/part-1-see-it-run/020-install-and-start.md), [Your First Trade](../../quick-start/part-1-see-it-run/030-your-first-trade.md) - first concepts and a first trade
+- [Run a Trading Session](../../quick-start/part-2-next-steps/010-run-a-trading-session.md) - phases, auctions and the records, by hand
 
 **Participant Guide:**
 
-- ALF Console - participant command syntax
-- Trader Information Terminal - TapeDeck browser display
-- Order Book Viewer - `pm-book`, the browser companion to `pm-viewer`
+- [The Trader Console (pm-alf-console)](../../participant-guide/part-2-orders/010-the-trader-console.md) - participant command syntax
+- [Trader Information Terminal](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md) - TapeDeck browser display
+- [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) - `pm-book`, the browser companion to `pm-viewer`
 
 **Reference Manual:**
 

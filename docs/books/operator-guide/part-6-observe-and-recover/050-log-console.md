@@ -817,13 +817,13 @@ any of these changes.
 
 **Participant Guide:**
 
-- Trader Information Terminal (TapeDeck) — the other operator-facing UI
+- [Trader Information Terminal (TapeDeck)](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md) — the other operator-facing UI
 
 **Reference Manual:**
 
-- Processes — where `pm-log-srv` sits among the other processes
+- [Processes — pm-log-srv](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-log-srv-centralized-log-server) — where `pm-log-srv` sits among the other processes
 
 **Protocols and Clients:**
 
-- Appendix: LALF Protocol Reference — normative wire spec for the producer protocol
-- Message Reference — LALF-PS messages — normative field tables for every message the bridge sends and receives
+- [Appendix: LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) — normative wire spec for the producer protocol
+- [Message Reference — LALF-PS messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md#family-log) — normative field tables for every message the bridge sends and receives

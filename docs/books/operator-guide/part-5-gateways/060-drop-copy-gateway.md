@@ -402,10 +402,10 @@ Expected output: `WELCOME|...` followed by a clean connection close.
 
 **Reference Manual:**
 
-- Processes — process topology and ZMQ message tables
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-dc-gwy-drop-copy-tcp-gateway) — process topology and ZMQ message tables
 
 **Protocols and Clients:**
 
-- Drop Copy — the engine's drop-copy feed (`:5557`) this gateway relays
-- Drop-Copy Spy (pm-dc-spy) — read-only CLI for the same feed
-- External Protocols Overview — protocol comparison and selection guide
+- [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) — the engine's drop-copy feed (`:5557`) this gateway relays
+- [Drop-Copy Spy (pm-dc-spy)](../../protocols-and-clients/part-4-writing-clients/040-the-spy-tools.md) — read-only CLI for the same feed
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — protocol comparison and selection guide

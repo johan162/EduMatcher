@@ -233,4 +233,4 @@ connected — ZeroMQ `PUB`/`SUB` fans out independently per subscriber.
 
 **Reference Manual:**
 
-- Processes — where `pm-dc-spy` sits in the process model
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — where `pm-dc-spy` sits in the process model

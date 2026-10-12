@@ -1669,10 +1669,10 @@ sequenceDiagram
 
 **Operator's Guide:**
 
-- Configuration — full gateway and `mm_obligation_defaults` config schema
-- Risk Controls — how circuit breakers cancel quotes during a halt
-- Persistence — GTC and same-day DAY quotes survive restarts; MM seeds are injected at startup for whatever didn't restore
+- [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — full gateway and `mm_obligation_defaults` config schema
+- [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — how circuit breakers cancel quotes during a halt
+- [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md) — GTC and same-day DAY quotes survive restarts; MM seeds are injected at startup for whatever didn't restore
 
 **Protocols and Clients:**
 
-- Messages — `quote.ack` and `quote.status` message payloads
+- [Messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — `quote.ack` and `quote.status` message payloads

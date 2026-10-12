@@ -3,14 +3,15 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - A known inaccuracy in how the engine reports fills for orders that
+    - A real historical bug in how the engine reported fills for orders that
       sweep **multiple price levels** in a single execution
-    - Why the **quantity** of every position is always correct, but the
-      **average cost** (and therefore unrealized P&L) of an aggressing order
-      can be slightly wrong
-    - A worked numeric example that makes the size of the error concrete
-    - The proposed fix, and an honest assessment of its impact on the
-      existing test suite
+    - Why the bug affected only the **average cost** (and therefore unrealized
+      P&L) of the aggressing order, never the **quantity** of any position
+    - A worked numeric example that makes the size of the (former) error
+      concrete, and what the engine reports today for the same scenario
+    - How the fix actually works, as a short case study in fixing a reporting
+      bug on a hot code path without changing the number of messages a
+      gateway receives
 
     **Prerequisite**: Read [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) first — this page
     builds directly on the VWAP average-cost formula described there.
@@ -18,32 +19,34 @@
 ## What this page covers
 
 EduMatcher is a teaching exchange, and part of teaching is being honest about
-the places where the implementation takes a shortcut. This chapter documents a
-**known reporting limitation** in the matching engine: when a single
-aggressive order trades against several resting orders at *different* prices in
-one shot (a "sweep"), the engine collapses those fills into **one** fill
-notification that carries the **last** trade price rather than the true
-volume-weighted average.
+the places where the implementation used to take a shortcut — and what it
+took to fix it properly. This chapter is a case study of one such bug: when a
+single aggressive order traded against several resting orders at *different*
+prices in one shot (a "sweep"), the engine used to collapse those fills into
+**one** fill notification that carried the **last** trade price rather than
+the true volume-weighted average.
 
-The bug is subtle: nobody loses or gains shares, the official trade record is
-correct, and a single-price fill is always reported perfectly. The error only
-appears in the **average cost** that a trader's gateway derives from the fill
-notification, and only when that trader's order walked through more than one
-price level.
+The bug was subtle: nobody lost or gained shares, the public trade record was
+always correct, and a single-price fill was always reported perfectly. The
+error only ever showed up in the **average cost** that a trader's gateway
+derived from the fill notification, and only for an order that walked through
+more than one price level.
 
-!!! bug "Status: known limitation, not yet fixed"
-    This behaviour is **intentional for now** because fixing it correctly
-    touches the hottest code path in the engine and a large number of tests
-    encode the current behaviour. The end of this chapter describes the
-    proposed fix and why it is being deferred.
+!!! success "Status: fixed"
+    This was a genuine bug in early versions of EduMatcher. It was fixed in
+    the matching engine (internally tagged **H6**, alongside the related
+    duplicate-fill guard **H5**) before release 0.16.1. This page keeps the
+    worked example and the diagrams as a case study — the mechanics below are
+    exactly what shipped.
 
 ---
 
-## Background: how fills are reported
+## Background: how a fill used to be reported
 
-When an order arrives, the engine's `_handle_new_order` handler hands it to the
-order book's `process()` method. Matching happens inside `_apply_fill`, which is
-called **once per resting order that the aggressor trades against**. Each call:
+When an order arrives, the engine's `_handle_new_order` handler hands it to
+the order book's `process()` method. Matching happens inside `_apply_fill`,
+which is called **once per resting order that the aggressor trades against**.
+Each call:
 
 1. Creates a `Trade` record at that resting order's price.
 2. Decrements the aggressor's `remaining_qty`.
@@ -52,28 +55,35 @@ called **once per resting order that the aggressor trades against**. Each call:
 The crucial detail is in step 3: the engine appends the **same Python object**
 each time. After the sweep finishes, that one object only holds its **final**
 state — the total quantity filled and a `remaining_qty` of zero. The
-per-level breakdown (how much filled at each price) is no longer visible on the
-aggressor object; it survives only in the separate list of `Trade` records.
+per-level breakdown (how much filled at each price) is not visible on the
+aggressor object afterwards; it only ever existed in the separate list of
+`Trade` records.
 
 After matching, the publish loop walks `events` and emits an `order.fill`
 message for each fill. Because the aggressor object was appended N times (once
 per price level it consumed), a guard called `_published_fill_ids` ensures the
-engine sends **exactly one** `order.fill` message for the aggressor instead of
-N duplicates. That single message uses:
+engine still sends **exactly one** `order.fill` message for the aggressor
+instead of N duplicates — that part of the design was correct from the start
+and is unchanged today. What *that* single message reported was the bug:
 
 ```python
-_fill_px = from_ticks(book.last_trade_price, order.symbol)
+# The bug: every fill message used the price of the LAST trade in the
+# sweep, no matter how many price levels the order actually walked through.
+fill_price = from_ticks(book.last_trade_price, order.symbol)
 ```
 
 `book.last_trade_price` is the price of the **last** fill in the sweep — the
-deepest, least favourable level the order reached. That single price is then
-reported for the **entire** filled quantity.
+deepest, least favourable level the order reached. That single price was then
+reported for the **entire** filled quantity, at every site in the engine that
+published a fill (the main order path, seeded quotes, combo legs, OCO legs,
+and auction fills all shared the same mistake).
 
-!!! note "The resting (passive) side is always correct"
+!!! note "The resting (passive) side was always correct"
     Every resting order the aggressor hits is a **distinct** object and is
-    filled exactly once at its own price, so each passive participant receives
-    a correct per-price `order.fill`. The inaccuracy is limited to the **one**
-    aggregated message sent to the **aggressing** order's gateway.
+    filled exactly once at its own price, so each passive participant has
+    always received a correct per-price `order.fill`. The inaccuracy was
+    limited to the **one** aggregated message sent to the **aggressing**
+    order's gateway.
 
 ---
 
@@ -88,10 +98,11 @@ $$
 \text{avg\_cost}_\text{new} = \frac{\text{avg\_cost}_\text{old} \times \lvert q_\text{old} \rvert + \text{fill\_price} \times \text{fill\_qty}}{\lvert q_\text{new} \rvert}
 $$
 
-The gateway trusts `fill_price` as the price for the whole `fill_qty`. When the
-engine sends one aggregated fill at the last sweep price, the gateway books the
-**entire** quantity at that single, least-favourable price — overstating cost
-basis for a buy sweep and understating proceeds for a sell sweep.
+The gateway trusts `fill_price` as the price for the whole `fill_qty`. Before
+the fix, when the engine sent one aggregated fill at the last sweep price, the
+gateway booked the **entire** quantity at that single, least-favourable price
+— overstating cost basis for a buy sweep and understating proceeds for a sell
+sweep.
 
 ---
 
@@ -121,48 +132,60 @@ $$
        = \frac{3003}{300} = \mathbf{10.01}
 $$
 
-But the engine emits a **single** aggregated fill to the buyer's gateway:
+**Before the fix**, the engine emitted a single aggregated fill using the last
+trade's price:
 
 ```text
-order.fill  →  fill_qty = 300   fill_price = 10.02   remaining_qty = 0
+order.fill  →  fill_qty = 300   fill_price = 10.02 ✗   remaining_qty = 0
 ```
 
-The gateway therefore books **300 shares at \$10.02**, giving:
+giving a reported average cost of \$10.02 — a \$0.01/share, \$3.00 total,
+overstatement of the true \$10.01 cost basis.
 
-- Reported average cost: **\$10.02** per share
-- True average cost:     **\$10.01** per share
-- Error:                 **\$0.01** per share → **\$3.00** overstated cost basis
+**Today**, the engine still sends exactly **one** `order.fill` message for the
+sweep (the message count did not change — see [How it was
+fixed](#how-it-was-fixed) below), but the price on that message is the
+order's own VWAP across every level it touched:
 
-The three sellers (A, B, C) each receive a **correct** fill at their own price,
-and the `trade.executed` market-data / drop-copy feed carries all three trades
-at the right prices. Only the **buyer's** average cost is wrong.
+```text
+order.fill  →  fill_qty = 300   fill_price = 10.01 ✓   remaining_qty = 0
+```
 
-### Direction of the error
+which folds into the gateway's running average as exactly \$10.01 — matching
+the true cost basis.
+
+The three sellers (A, B, C) each receive, as they always did, a correct fill
+at their own price, and the `trade.executed` market-data / drop-copy feed
+carries all three trades at the right prices.
+
+### Direction of the (former) error
 
 The last level reached in a sweep is always the **worst** price for the
-aggressor, so the error has a predictable sign:
+aggressor, so the old bug had a predictable sign:
 
-| Aggressor side | Last level is… | Effect on the aggressor's books                        |
-|----------------|----------------|--------------------------------------------------------|
+| Aggressor side | Last level is… | Effect on the aggressor's books (before the fix)       |
+|----------------|----------------|----------------------------------------------------------|
 | **BUY**        | Highest price  | Cost basis **overstated** → unrealized P&L understated |
 | **SELL**       | Lowest price   | Proceeds **understated** → unrealized P&L understated  |
 
-In both directions the aggressor's reported entry is **pessimistic**: it looks
-like a slightly worse trade than it actually was. The magnitude equals the
-spread between the sweep's average price and its last price, multiplied by the
-swept quantity.
+In both directions the old, buggy report was **pessimistic**: it made a sweep
+look like a slightly worse trade than it actually was. The magnitude equalled
+the spread between the sweep's average price and its last price, multiplied
+by the swept quantity.
 
-!!! note "Position quantity is never wrong"
-    The dedup guard guarantees the quantity is counted **once**, so the net
-    position size is always exact. Only the **price** attached to that quantity
-    is approximate.
+!!! note "Position quantity was never wrong"
+    The dedup guard (`_published_fill_ids`, H5) always guaranteed the quantity
+    was counted **once**, so the net position size was always exact, even
+    before the price fix. Only the **price** attached to that quantity was
+    ever approximate.
 
 ---
 
-## Visualising the collapse
+## Visualising the fix
 
-The diagram below contrasts the **three real trades** generated inside the book
-with the **single aggregated fill** delivered to the aggressor's gateway.
+The diagram below contrasts the **three real trades** generated inside the
+book with the **single fill** delivered to the aggressor's gateway, as it
+works today.
 
 ```mermaid
 sequenceDiagram
@@ -176,9 +199,9 @@ sequenceDiagram
     ENG->>FEED: Trade 1  100 @ 10.00
     ENG->>FEED: Trade 2  100 @ 10.01
     ENG->>FEED: Trade 3  100 @ 10.02
-    Note over ENG: aggressor object appended 3x,<br/>holds only FINAL state (qty 300, last px 10.02)
-    ENG-->>GW: order.fill  qty=300  price=10.02  (ONE message)
-    Note over GW: books 300 @ 10.02<br/>avg_cost = 10.02 (should be 10.01)
+    Note over ENG: aggressor object appended 3x,<br/>holds only FINAL state (qty 300) —<br/>but _order_fill_prices() derives the<br/>VWAP (10.01) from the 3 Trade records
+    ENG-->>GW: order.fill  qty=300  price=10.01  (ONE message)
+    Note over GW: books 300 @ 10.01<br/>avg_cost = 10.01 ✓
 ```
 
 The same idea as plain ASCII:
@@ -189,100 +212,65 @@ The same idea as plain ASCII:
    100 @ 10.00  ◄── swept ──►  Trade 1: 100 @ 10.00
    100 @ 10.01  ◄── swept ──►  Trade 2: 100 @ 10.01   ===►  order.fill
    100 @ 10.02  ◄── swept ──►  Trade 3: 100 @ 10.02            qty   = 300
-                                                               price = 10.02  ✗
-                               true VWAP = 10.01               (last level only)
+                                                               price = 10.01  ✓
+                               true VWAP = 10.01               (per-order VWAP)
 
-   Correct quantity (300) ✓     Correct trade prints ✓     Wrong average price ✗
+   Correct quantity (300) ✓     Correct trade prints ✓     Correct average price ✓
 ```
 
----
-
-## Why it has not been fixed yet
-
-The aggregation lives in the engine's single hottest code path
-(`_handle_new_order`), which is heavily optimised for throughput. Two factors
-make a fix non-trivial:
-
-1. **The per-level breakdown is discarded.** The aggressor `Order` object only
-   carries its final state by the time the publish loop runs. The correct
-   per-price data exists in the separate `Trade` list, so any fix must
-   reconstruct the aggressor's fills from trades rather than from the order
-   object.
-
-2. **Triggered stops share the call.** A single `process()` call can also
-   trigger resting stop orders, which generate **their own** sub-trades with a
-   **different** order as the aggressor. A correct fix must attribute each
-   trade to the right order before emitting per-level fills.
+Before the fix, the last line of the gateway note read `price = 10.02 ✗ (last
+level only)` — the trade prints and the per-level book walk were identical;
+only the number handed to the gateway was wrong.
 
 ---
 
-## Proposed fix
+## How it was fixed
 
-The goal is to report the aggressor's fills **per price level** instead of a
-single aggregate, so the gateway reconstructs the exact VWAP naturally.
+The aggregation lives in the engine's hottest code path (`_handle_new_order`
+and its siblings for seeded quotes, combo legs, OCO legs, and auctions), so a
+fix that is correct but still cheap on that path mattered. The engine does
+**not** split the aggregated message into one-per-level (which would double
+or triple outbound message volume for every sweep); instead it keeps sending
+exactly one `order.fill` per order per `process()` call, and computes that
+message's price from the `Trade` records the book already produced:
 
-### Option A — derive aggressor fills from the trade list (preferred)
+```python
+@staticmethod
+def _order_fill_prices(trades: list[Any]) -> dict[str, float]:
+    """Per-order volume-weighted execution price (display) from *trades*.
 
-Replace the single aggregated `order.fill` with **one message per fill**, built
-from the `Trade` records produced in that `process()` call:
+    H6: a fill message must report the price the order ACTUALLY executed
+    at, not ``book.last_trade_price`` (the last level of the whole sweep).
+    For an order that fills across multiple levels this is its VWAP; for a
+    passive order filled at a single level it is exactly that level's price.
+    """
+    agg: dict[str, tuple[int, float]] = {}  # order_id -> (qty, notional)
+    for t in trades:
+        px = from_ticks(t.price, t.symbol)
+        for oid in (t.buy_order_id, t.sell_order_id):
+            qty, notional = agg.get(oid, (0, 0.0))
+            agg[oid] = (qty + t.quantity, notional + px * t.quantity)
+    return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+```
 
-- For each `Trade`, identify the aggressor side and emit an `order.fill`
-  carrying **that trade's** `price` and `quantity`, plus the running
-  `remaining_qty` after the fill.
-- Attribute each trade to the order that aggressed it (the incoming order, or a
-  triggered stop order) using the trade's buy/sell order IDs.
-- Remove the `_published_fill_ids` dedup guard — it is no longer needed because
-  each emitted message is already unique per fill.
+Every fill-publishing site calls this once per `process()` result and looks up
+each order's own VWAP by its id, falling back to `last_trade_price` only for
+the (normally impossible) case of an order with no matching trade record:
 
-With Option A applied to the worked example, the buyer receives three messages
-(`100 @ 10.00`, `100 @ 10.01`, `100 @ 10.02`); the gateway's existing VWAP
-accumulator then computes an average cost of exactly **\$10.01**.
+```python
+fill_price=_order_fill_px.get(evt.id, _fill_px)
+```
 
-### Option B — record per-fill snapshots during matching
+This is cheaper than it looks: `trades` for a single dispatch is small (one
+entry per price level swept, rarely more than a handful), so building the
+per-order VWAP map costs one extra pass over data the book already produced —
+no additional allocation on the matching path itself, and **no change** to
+how many messages a gateway receives per order. The dedup guard (H5) that
+ensures exactly one `order.fill` per order is unchanged; only the *price* it
+carries is now correct.
 
-Have `_apply_fill` append a small immutable record
-`(order_ref, fill_qty, fill_price, remaining_after)` to a dedicated list rather
-than re-appending the mutable `Order`. The publish loop iterates those records.
-This keeps trade attribution local to `_apply_fill` (which already knows the
-aggressor) at the cost of one extra small allocation per fill — a measurable hit
-on the hot path.
-
-Option A is preferred because it adds **no** per-fill allocation on the matching
-path and reuses data the engine already produces.
-
-!!! warning "Performance sensitivity"
-    Both options send **more** `order.fill` messages for sweeping orders (N
-    instead of 1). For deep sweeps this increases publish volume and message
-    bandwidth. We need to benchmark against the throughput targets in
-    [Running the Engine](../../operator-guide/part-3-run/010-running-the-exchange.md) before adopting a fix.
+Because no test asserted the specific (wrong) last-trade-price value, fixing
+this required no changes to the existing test suite — only new tests asserting
+that a multi-level sweep's fill price equals the true VWAP.
 
 ---
-
-## Impact on the test suite
-
-The fix changes an externally-observable contract — the **number, quantity, and price** of
-`order.fill` messages for any order that sweeps multiple levels — so a subset of
-tests will need to be updated. Especially that we added audit reply will need careful
-consideration as it affirms correct behavior through event chains which now will be
-altered. The categories are:
-
-| Test category | Effect of the fix | Action required |
-|---------------|-------------------|-----------------|
-| **Single-level fills** (one resting order, exact-size fills) | None — still one fill, same price | No change |
-| **Multi-level sweep fills** (market / marketable-limit through several levels) | Now N messages with per-level prices instead of 1 aggregate | Update assertions to expect per-level fills |
-| **Fill-count assertions** (tests that count `order.fill` messages) | Sweeping aggressors emit more messages | Update expected counts |
-| **Position / P&L assertions** (gateway average-cost, unrealized P&L) | Average cost now equals true VWAP | Tighten expected values to the correct VWAP |
-| **Validation, risk-control, auction, config, persistence** tests | Independent of fill aggregation | No change |
-
-The **majority** of tests — single-level matching, order validation, collars,
-circuit breakers, auctions, sessions, configuration, and persistence — are
-unaffected. The work is concentrated in the multi-level-sweep, fill-count, and
-position/P&L tests, plus **new** tests asserting that a sweep produces the
-correct per-level fills and a correct VWAP average cost.
-
-!!! note "Exact count is empirical"
-    The precise number of affected tests can only be determined by applying the
-    change and running the full suite — some existing tests deliberately encode
-    the current last-price behaviour and will fail loudly, which is the
-    intended signal to update them. Treat the table above as a map of *where* to
-    look, not a guarantee of *how many*.

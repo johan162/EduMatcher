@@ -83,7 +83,7 @@ it:
 The envelope is metadata, not content, which is why it rides in frames
 instead of in the JSON: the hot publish path never decodes and re-encodes a
 message to stamp it, and the same three fields do not have to be declared on
-each of the 114 message types in `spec/messages/`. Sections 3, 4 and 8 show
+each of the 121 message types in `spec/messages/`. Sections 3, 4 and 8 show
 it being written and read; if you only care about the order flow, the one
 thing to know is that `decode()` ignores it entirely.
 
@@ -320,7 +320,7 @@ if order.quantity <= 0 or order.remaining_qty <= 0:
 price_required = order.order_type in (
     OrderType.LIMIT, OrderType.FOK, OrderType.STOP_LIMIT, OrderType.ICEBERG,
 )
-if price_required and (order.price is None or order.price <= 0):
+if price_required and (order.price_ticks is None or order.price_ticks <= 0):
     return ("PRICE_OUT_OF_RANGE",
             f"{order.order_type.value} order requires a positive price")
 # ... ICEBERG visible_qty checks ...
@@ -470,7 +470,7 @@ elif order.order_type == OrderType.LIMIT:
 # engine/order_book.py — _match_limit
 def _match_limit(self, order, trades, events, now):
     opposite = self._asks if order.side == Side.BUY else self._bids
-    self._sweep(order, opposite, price_limit=order.price,
+    self._sweep(order, opposite, price_limit=order.price_ticks,
                 trades=trades, events=events, now=now)
     if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
         self._rest(order)
@@ -487,12 +487,12 @@ while aggressor.remaining_qty > 0 and opposite_heap:
     if best is None:
         break
     if price_limit is not None:
-        if side == Side.BUY and best.price > price_limit:
+        if side == Side.BUY and best.price_ticks > price_limit:
             break                      # nothing left is cheap enough — stop
-        if side == Side.SELL and best.price < price_limit:
+        if side == Side.SELL and best.price_ticks < price_limit:
             break
     fill_qty = min(aggressor.remaining_qty, best.remaining_qty)
-    self._apply_fill(aggressor, best, fill_qty, best.price, trades, events, now)
+    self._apply_fill(aggressor, best, fill_qty, best.price_ticks, trades, events, now)
 ```
 
 That's the entire matching algorithm for a LIMIT order: **peek, compare
@@ -500,8 +500,8 @@ price, fill the smaller of the two remaining quantities, repeat.** No
 special cases beyond price-time priority (best price first, then arrival
 order at a tied price — see the heap key in `_rest` below) and self-match
 prevention (skipped here for brevity — see
-`docs/architecture/020-guided-tour.md` section 4 for the full sweep
-including SMP).
+[The First Match](../part-1-architecture/020-guided-tour.md#4-the-first-match-how-two-orders-become-a-trade)
+for the full sweep including SMP).
 
 ### 7a. Outcome 1 — the order rests (our scenario)
 
@@ -512,7 +512,7 @@ Back in `_match_limit`, `order.remaining_qty` is still 100, so it rests:
 ```python
 # engine/order_book.py — _rest (trimmed)
 def _rest(self, order: Order) -> None:
-    price = order.price
+    price = order.price_ticks
     order.arrival_seq = self._next_seq()          # time priority (H1)
     if order.side == Side.BUY:
         key = (-price, order.arrival_seq)         # highest price first
@@ -586,16 +586,18 @@ seen-set fixes it:
 
 ```python
 # engine/main.py — _handle_new_order (trimmed)
+order_matched_map = self._order_matched_qty(trades)   # order_id -> qty matched
+                                                        # in THIS dispatch only
 published_fill_ids: set[str] = set()
 for evt in events:
-    filled_qty = evt.quantity - evt.remaining_qty
-    if filled_qty > 0 and evt.id not in published_fill_ids:
+    matched_qty = order_matched_map.get(evt.id, 0)
+    if matched_qty > 0 and evt.id not in published_fill_ids:
         published_fill_ids.add(evt.id)
         self.pub_sock.send_multipart([
-            fill_topic_for(evt.gateway_id),
+            topic_order_fill(evt.gateway_id).encode(),   # cached in practice
             dumps({
                 "order_id": evt.id,
-                "fill_qty": filled_qty,
+                "fill_qty": matched_qty,
                 "fill_price": ...,
                 "remaining_qty": evt.remaining_qty,
                 "status": fill_status(evt.remaining_qty),  # PARTIAL | FILLED
@@ -605,6 +607,16 @@ for evt in events:
 for trade in trades:
     self._publish_trade(trade)     # trade.executed + both sides' positions
 ```
+
+**`fill_qty` is "matched in this dispatch," not `evt.quantity - evt.remaining_qty`.**
+The obvious formula is the order's *cumulative* fill since it first rested — correct
+only the first time an order fills, and silently wrong (reporting the running total
+again) the second time a resting order is hit. `order.fill.fill_qty` is specified as
+quantity matched in *this* event, not cumulatively (`spec/messages/order.yaml`), so
+`_order_matched_qty(trades)` builds the per-order increment directly from this
+dispatch's own `trades` list instead — the sum of every trade in `trades` that named
+this order as either side. This needs no "before" state and is correct for a first
+fill, a second hit on a still-resting order, and everything in between.
 
 `_publish_trade` is the single fan-out point for a trade: it broadcasts the
 public `trade.executed` tape event, updates **both** counterparties'
@@ -735,7 +747,7 @@ is not a day boundary.**
 today = datetime.now().date()
 for order in orders:                                  # loaded from the JSON file
     if order.tif == TIF.DAY:
-        order_day = datetime.fromtimestamp(order.timestamp / 1e9).date()
+        order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
         if order_day < today:
             log.info(f"Discarding stale TIF=DAY order {order.id[:8]} ...")
             continue                                   # <- never restored, never expired

@@ -67,7 +67,7 @@ startup so the market resumes where it left off.
 
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
-| `gtc_orders.json` | `pm-engine` | Periodic checkpoint and clean shutdown (Ctrl-C) | Resting GTC orders, and resting same-day DAY orders (including MM quote legs), restored with their price-time priority at next startup — a stale DAY order (from an earlier business day) is discarded at restore instead | JSON; loaded by the engine at startup |
+| `gtc_orders.json` | `pm-engine` | Periodic checkpoint and clean shutdown (Ctrl-C / SIGTERM) | Resting GTC orders, and resting same-day DAY orders (including MM quote legs), restored with their price-time priority at next startup — a stale DAY order (from an earlier business day) is discarded at restore instead | JSON; loaded by the engine at startup |
 | `gtc_combos.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
 | `book_stats.json` | `pm-engine` | Periodic checkpoint and clean shutdown | Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the `SYMBOLS` command's `prev_close` field | JSON; loaded by the engine at startup |
 | `engine_run_seq.json` | `pm-engine` | Once, at the very start of every engine run — **not** checkpointed periodically | A durable, monotonically-increasing run counter, bumped and saved before anything else happens on startup (even before GTC restore). Prefixed into every trade ID (`{run_seq:06d}-{trade_seq:09d}`) so trade IDs never collide across restarts even though the in-memory per-run trade counter resets to zero each time | JSON; loaded and incremented by the engine at startup |
@@ -77,7 +77,8 @@ startup so the market resumes where it left off.
     `_PERSIST_INTERVAL_SEC` while running, so an abrupt exit — a crash,
     `SIGKILL`, container eviction — loses at most one checkpoint interval of
     state rather than the whole session. **Clean shutdown** = the engine
-    caught `Ctrl-C`/`SIGINT` and finished its shutdown sequence, which also
+    caught `Ctrl-C`/`SIGINT` or `SIGTERM` (the latter is how container
+    orchestrators request a graceful stop) and finished its shutdown sequence, which also
     performs one final save of these same files before exit. `engine_run_seq.json`
     is the one exception: it is written exactly once, at startup, and is
     never touched again for the life of that process — see
@@ -99,17 +100,17 @@ dedicated query tool.
 !!! note "Reading the *When* column for accumulating stores"
     **Per trade** = on every `trade.executed` event. **EOD** (end of day) = when
     the engine broadcasts `system.eod` on a clean shutdown. **Clean shutdown** =
-    the engine caught `Ctrl-C`/`SIGINT` and finished its shutdown sequence — a hard
+    the engine caught `Ctrl-C`/`SIGINT` or `SIGTERM` and finished its shutdown sequence — a hard
     kill (`SIGKILL`) skips these writes.
 
 !!! note "Files intentionally out of scope for this page"
     Two other named constants under the data directory exist but are not
-    persistence in the sense of this page, and are documented elsewhere:
-    `clearing_report.csv` is an on-demand CSV export written by the `pm-emo`
-    CLI when you ask it to generate a report, not a file the system reads
-    back; `log.db` / `logs/` belong to the separate `pm-log-srv` (LALF)
-    subsystem, documented in `docs-design/EduMatcher-log-srv.md`, not to the
-    matching engine covered here.
+    persistence in the sense of this page: `log.db` / `logs/` belong to the
+    separate `pm-log-srv` (LALF) subsystem, documented in
+    `docs-design/EduMatcher-log-srv.md`, not to the matching engine covered
+    here. `clearing_report.csv` was v1's CSV mechanism, before clearing moved
+    to SQLite-first persistence; the path has since been removed — use
+    `pm-clearing-cli ... --format csv` for an ad-hoc export instead.
 
 The engine state files are described in detail in
 [Engine State Files In Detail](#engine-state-files-in-detail) below; the
@@ -139,7 +140,7 @@ described in [Other Persistent Files](#other-persistent-files).
 
 ## How It Works
 
-### At Shutdown (Ctrl-C on the engine)
+### At Shutdown (Ctrl-C / SIGTERM on the engine)
 
 A process exit — clean or otherwise — is **not** a day boundary. `TIF = DAY`
 orders are no longer expired here; they are persisted the same as `TIF = GTC`
@@ -661,13 +662,18 @@ here (it is still in `stats.db` and `audit.log`).
 ### `src/data/stats.db`
 
 **Written by**: `pm-stats`  
-**Written**: on every `trade.executed` event and every 15-minute book snapshot  
+**Written**: on every `trade.executed` event, a book snapshot every 15 minutes, and at end-of-day finalization (`daily_stats` only)  
 **Read by**: `pm-ticker`, `pm-board`, direct SQL queries, `pm-stats-cli`  
 **Reset**: delete manually; `pm-stats` creates a fresh database with the schema on startup  
 
-A SQLite database containing three tables. The schema is created automatically
-by `pm-stats` using `CREATE TABLE IF NOT EXISTS` on startup; it is safe to
-restart `pm-stats` against an existing database.
+This SQLite database holds nine tables in total — seven data tables plus an
+instrument reference table and a metadata table; this page covers the three
+most relevant to session-to-session persistence. See
+[Statistics & Reporting — The Statistics Database Schema](../part-4-run-a-market/060-statistics-and-reporting.md#the-statistics-database-schema)
+for the complete schema, including `feed_gaps`, `order_events`,
+`index_daily_stats`, and `index_level_snapshots`. The schema is created
+automatically by `pm-stats` using `CREATE TABLE IF NOT EXISTS` on startup; it
+is safe to restart `pm-stats` against an existing database.
 
 #### Table: `daily_stats`
 
@@ -677,31 +683,44 @@ One row per `(date, symbol)` pair. Upserted on every trade and at end-of-day.
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,    -- ISO date string, e.g. '2026-04-29'
     symbol              TEXT NOT NULL,    -- e.g. 'AAPL'
-    open_price          REAL,             -- first trade price of the day
-    high_price          REAL,             -- highest trade price of the day
-    low_price           REAL,             -- lowest trade price of the day
-    close_price         REAL,             -- most recent trade price (updated on every trade)
-    open_bid            REAL,             -- best bid at session open
-    open_ask            REAL,             -- best ask at session open
-    close_bid           REAL,             -- most recent best bid
-    close_ask           REAL,             -- most recent best ask
+    open_price          INTEGER,          -- first trade price of the day, in ticks
+    high_price          INTEGER,          -- highest trade price of the day, in ticks
+    low_price           INTEGER,          -- lowest trade price of the day, in ticks
+    close_price         INTEGER,          -- most recent trade price, in ticks (updated on every trade)
+    open_bid            INTEGER,          -- best bid at session open, in ticks
+    open_ask            INTEGER,          -- best ask at session open, in ticks
+    close_bid           INTEGER,          -- most recent best bid, in ticks
+    close_ask           INTEGER,          -- most recent best ask, in ticks
     volume              INTEGER NOT NULL DEFAULT 0,   -- total shares traded today
     trade_count         INTEGER NOT NULL DEFAULT 0,   -- number of individual executions
-    vwap                REAL,             -- volume-weighted average price
+    turnover            INTEGER NOT NULL DEFAULT 0,    -- sum(price_ticks x quantity); exact VWAP numerator
+    vwap                REAL,             -- turnover / volume, in ticks (derived, hence REAL)
     largest_trade_qty   INTEGER,          -- single largest execution quantity
-    largest_trade_price REAL,             -- price of that largest execution
+    largest_trade_price INTEGER,          -- price of that largest execution, in ticks
+    tick_decimals       INTEGER NOT NULL DEFAULT 2,     -- decimal scale for this row's tick columns
     PRIMARY KEY (date, symbol)
 );
 ```
+
+!!! note "Prices are ticks, not display decimals"
+    Every price column here is an **integer tick count**, converted with the
+    row's own `tick_decimals` (`display price = price / 10^tick_decimals`) —
+    the same convention `gtc_orders.json`'s `price_ticks` uses (see
+    [Internal representations in the JSON](#the-gtc_ordersjson-file) above).
+    `vwap` is the one exception: it's `turnover / volume`, a derived ratio
+    stored as `REAL`. See
+    [Statistics & Reporting — The conversion rule](../part-4-run-a-market/060-statistics-and-reporting.md#the-conversion-rule)
+    for the full rationale and every table's exceptions.
 
 Example row:
 
 ```sql
 SELECT * FROM daily_stats WHERE symbol = 'AAPL' ORDER BY date DESC LIMIT 1;
--- date='2026-04-29', symbol='AAPL', open_price=149.50, high_price=152.00,
--- low_price=148.75, close_price=151.25, open_bid=149.45, open_ask=149.55,
--- close_bid=151.20, close_ask=151.30, volume=42300, trade_count=184,
--- vwap=150.37, largest_trade_qty=500, largest_trade_price=150.00
+-- date='2026-04-29', symbol='AAPL', open_price=14950, high_price=15200,
+-- low_price=14875, close_price=15125, open_bid=14945, open_ask=14955,
+-- close_bid=15120, close_ask=15130, volume=42300, trade_count=184,
+-- turnover=636065100, vwap=15037.0 (= 150.37 at tick_decimals=2),
+-- largest_trade_qty=500, largest_trade_price=15000, tick_decimals=2
 ```
 
 #### Table: `price_snapshots`
@@ -711,17 +730,21 @@ from book-state events. Used by `pm-ticker` and `pm-board` for intraday charts.
 
 ```sql
 CREATE TABLE IF NOT EXISTS price_snapshots (
-    ts          TEXT NOT NULL,   -- ISO datetime string, e.g. '2026-04-29T14:30:00'
-    symbol      TEXT NOT NULL,   -- e.g. 'AAPL'
-    mid_price   REAL,            -- (best_bid + best_ask) / 2; NULL if no quote
-    best_bid    REAL,            -- top-of-book bid price; NULL if empty
-    best_ask    REAL,            -- top-of-book ask price; NULL if empty
-    pct_change  REAL,            -- % change from open_price; NULL if no open yet
+    ts            TEXT NOT NULL,   -- ISO datetime string, e.g. '2026-04-29T14:30:00'
+    symbol        TEXT NOT NULL,   -- e.g. 'AAPL'
+    mid_price     REAL,            -- (best_bid + best_ask) / 2 in ticks; NULL if no quote
+    best_bid      INTEGER,         -- top-of-book bid price, in ticks; NULL if empty
+    best_ask      INTEGER,         -- top-of-book ask price, in ticks; NULL if empty
+    pct_change    REAL,            -- % change from open_price; NULL if no open yet
+    tick_decimals INTEGER NOT NULL DEFAULT 2,  -- decimal scale for this row's tick columns
     PRIMARY KEY (ts, symbol)
 );
 ```
 
-The mid-price fallback chain when the book has no two-sided quote:
+`mid_price` is REAL even though `best_bid`/`best_ask` are ticks, because a
+midpoint can land on a half tick that no integer can hold — the one
+exception on this table; see the conversion-rule link above. The mid-price
+fallback chain when the book has no two-sided quote:
 1. `(best_bid + best_ask) / 2` if both sides present
 2. `best_bid` if only bids present
 3. `best_ask` if only asks present
@@ -736,46 +759,61 @@ One row per individual trade execution. Written on every `trade.executed` event.
 
 ```sql
 CREATE TABLE IF NOT EXISTS trade_log (
-    ts              TEXT NOT NULL,       -- ISO datetime string
-  trade_id        TEXT NOT NULL PRIMARY KEY,  -- durable engine trade id
-    symbol          TEXT NOT NULL,       -- e.g. 'AAPL'
-    price           REAL NOT NULL,       -- execution price as display decimal
-    quantity        INTEGER NOT NULL,    -- executed quantity
-    buy_gateway_id  TEXT,                -- gateway that was the buyer
-    sell_gateway_id TEXT                 -- gateway that was the seller
+    ts              TEXT NOT NULL,                  -- ISO datetime string
+    trade_id        TEXT NOT NULL,                  -- durable engine trade id
+    symbol          TEXT NOT NULL,                  -- e.g. 'AAPL'
+    price           INTEGER NOT NULL,                -- execution price, in ticks
+    quantity        INTEGER NOT NULL,                -- executed quantity
+    tick_decimals   INTEGER NOT NULL DEFAULT 2,      -- decimal scale for price
+    buy_gateway_id  TEXT,                            -- gateway that was the buyer
+    sell_gateway_id TEXT,                            -- gateway that was the seller
+    aggressor_side  TEXT,                            -- BUY, SELL, or AUCTION for an uncrossing print
+    PRIMARY KEY (trade_id)
 );
 ```
 
-  `INSERT OR IGNORE` on `trade_id` makes duplicate deliveries safe. Engine
-  trade IDs are durable strings such as `000042-000000001`, where the prefix
-  is the engine run sequence persisted in `engine_run_seq.json` (see
-  [The `engine_run_seq.json` File](#the-engine_run_seqjson-file) above) and
-  the suffix is the trade counter within that run — this is what keeps
-  `trade_id` collision-free as a primary key across restarts.
+`INSERT OR IGNORE` on `trade_id` makes duplicate deliveries safe. Engine
+trade IDs are durable strings such as `000042-000000001`, where the prefix
+is the engine run sequence persisted in `engine_run_seq.json` (see
+[The `engine_run_seq.json` File](#the-engine_run_seqjson-file) above) and
+the suffix is the trade counter within that run — this is what keeps
+`trade_id` collision-free as a primary key across restarts.
 
-**Example queries**:
+**Example queries** (converting ticks to display prices with each row's own `tick_decimals`):
 
 ```sql
 -- Today's OHLCV for all symbols
-SELECT symbol, open_price, high_price, low_price, close_price, volume
+SELECT symbol,
+       open_price  / power(10, tick_decimals)  AS open_price,
+       high_price  / power(10, tick_decimals)  AS high_price,
+       low_price   / power(10, tick_decimals)  AS low_price,
+       close_price / power(10, tick_decimals)  AS close_price,
+       volume
 FROM daily_stats
 WHERE date = date('now')
 ORDER BY symbol;
 
 -- Trade history for AAPL in the last hour
-SELECT ts, price, quantity, buy_gateway_id, sell_gateway_id
+SELECT ts, price / power(10, tick_decimals) AS price, quantity,
+       buy_gateway_id, sell_gateway_id, aggressor_side
 FROM trade_log
 WHERE symbol = 'AAPL'
   AND ts >= datetime('now', '-1 hour')
 ORDER BY ts;
 
 -- Intraday mid-price series for charting
-SELECT ts, mid_price, pct_change
+SELECT ts, mid_price / power(10, tick_decimals) AS mid_price, pct_change
 FROM price_snapshots
 WHERE symbol = 'AAPL'
   AND ts >= date('now')
 ORDER BY ts;
 ```
+
+For the full per-table column reference, the complete conversion rule and
+its exceptions (`vwap`, `turnover`, `order_events.price`/`fill_price`), and
+the other six tables (`stats_meta`, `instruments`, `feed_gaps`,
+`order_events`, `index_daily_stats`, `index_level_snapshots`), see
+[Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md#the-statistics-database-schema).
 
 ---
 
@@ -803,8 +841,8 @@ engine state files (`gtc_orders.json`, `gtc_combos.json`, `book_stats.json`,
 
 **Participant Guide:**
 
-- Order Types — TIF — GTC, ATO, and ATC lifetime rules
+- [Order Types](../../participant-guide/part-2-orders/020-order-types.md) — TIF — GTC, ATO, and ATC lifetime rules
 
 **Reference Manual:**
 
-- Processes — `pm-stats` writes `stats.db`; `pm-audit` writes `audit.log`
+- [Processes — pm-stats](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-stats-statistics-recorder) writes `stats.db`; [pm-audit](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-audit-event-logger) writes `audit.log`

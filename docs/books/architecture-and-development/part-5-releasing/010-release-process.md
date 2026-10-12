@@ -26,7 +26,7 @@ flowchart TD
     MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
 
     OUTP["PyPI\nedumatcher X.Y.Z"]
-    OUTC["GHCR\n5 multi-arch images X.Y.Z"]
+    OUTC["GHCR\n7 multi-arch images X.Y.Z"]
 
     USER1["pipx install edumatcher"]
     USER2["curl .../install.sh | bash"]
@@ -44,14 +44,16 @@ Each image is built **natively** on both architectures rather than emulated,
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.
 
-The five published images are:
+The seven published images are:
 
 ```text
 ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
+ghcr.io/johan162/edumatcher-ai-sim          the AI-trader simulation runner
 ghcr.io/johan162/edumatcher-terminal-gui    TapeDeck (pm-terminal)
 ghcr.io/johan162/edumatcher-log-gui         the Log Operator Console
 ghcr.io/johan162/edumatcher-config-gui      the Configuration GUI
 ghcr.io/johan162/edumatcher-trader-gui      the Trading GUI
+ghcr.io/johan162/edumatcher-book-gui        the order-book viewer
 ```
 
 `latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release
@@ -78,8 +80,8 @@ because your own machine keeps working. That is why a release-looking tag needs
 
 ## Developer release checklist
 
-For the maintainer cutting a release. Steps 1-4 are local, 5-7 are automated
-but need watching, and 8-10 are the checks that the release actually works for
+For the maintainer cutting a release. Steps 1-2 are local, 3-5 are automated
+but need watching, and 6-7 are the checks that the release actually works for
 somebody who is not you.
 
 ### Before tagging
@@ -152,24 +154,11 @@ somebody who is not you.
 !!! tip "Where releases usually go wrong"
     Two failures are quiet rather than loud. An image built from PyPI instead
     of the checkout looks like a successful build but ships the *previous*
-    release — step 3's `Installing local wheel` line is what catches it. And
-    private GHCR packages fail only for other people, never for the maintainer
-    who is already authenticated — step 9, run without credentials, is what
-    catches that.
-
-## Doing a manual GHCR push
-
-Normally the push is handled by the workflow but it can be manually overridden.
-The target `ghcr-push` in `deployment/docker/Makefile` builds all six images from. 
-In will login with ghe existing GITHUB_USER/GHCR_TOKEN, then tags and pushes each one.
-
-```
-export GITHUB_USER=<user with admin priv> GHCR_TOKEN=<token with write:packages>
-
-make ghcr-push                              # all six, tagged :dev
-make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
-make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
-```
+    release — step 5's image-workflow log should show `Installing local wheel`
+    (the line the Dockerfile prints when it finds a wheel staged by the build,
+    rather than installing from PyPI). And private GHCR packages fail only for
+    other people, never for the maintainer who is already authenticated —
+    step 6, done as a stranger with no credentials, is what catches that.
 
 ## Summary: To make a release, step-by-step
 

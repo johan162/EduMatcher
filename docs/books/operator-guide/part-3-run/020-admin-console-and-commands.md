@@ -96,6 +96,7 @@ Single-word commands (no arguments) need no pipes.
 | `HALT_SYM` | `HALT_SYM\|SYM=AAPL` | Halt trading on a single symbol — requires ADMIN |
 | `RESUME_SYM` | `RESUME_SYM\|SYM=AAPL` | Resume a single halted symbol — requires ADMIN |
 | `CANCEL_SYM` | `CANCEL_SYM\|SYM=AAPL` | Cancel **all** resting orders for a symbol across every gateway — requires ADMIN |
+| `REOPEN` | `REOPEN\|SYM=AAPL\|DRY_RUN=1` or `REOPEN\|SYM=AAPL\|PRICE=100.00\|NOTE=manual open` | Force a halted symbol to uncross and clear the halt in one step — requires ADMIN |
 | `KILL` | `KILL\|GW=TRADER01` or `KILL\|GW=TRADER01\|SYM=AAPL` | Cancel all orders/quotes for a gateway (optional: scope to one symbol) |
 | `KICK` | `KICK\|GW=TRADER01` or `KICK\|GW=TRADER01\|REASON=Compliance hold` | Forcefully disconnect a gateway |
 | `QCANCEL` | `QCANCEL\|GW=MM01\|SYM=AAPL` | Cancel an MM's active quote on one symbol |
@@ -103,6 +104,7 @@ Single-word commands (no arguments) need no pipes.
 | `ORDERS` | `ORDERS\|GW=TRADER01` | List resting orders for a gateway |
 | `LEVEL` | `LEVEL\|SYM=AAPL` or `LEVEL\|SYM=AAPL\|PRICE=189.50` | Show every resting order making up a symbol, or one price level, across every gateway — requires ADMIN |
 | `SYMBOLS` | `SYMBOLS` | List all instruments configured in the engine |
+| `POSITION` | `POSITION\|GW=MM_AAPL_01` or `POSITION\|GW=MM_AAPL_01\|SYM=AAPL,MSFT` | Net position, average cost, and live bid/ask/spread/mid per symbol for any gateway (optional: narrow to one or more symbols) |
 | `SESSION` | `SESSION\|STATE=CONTINUOUS` | Advance session phase |
 | `SESSION_STATUS` | `SESSION_STATUS` | Show the current session state (read-only) |
 | `SCHEDULE` | `SCHEDULE` | Show the automatic session-transition schedule |
@@ -196,6 +198,7 @@ same `execute_command()` function.  Every command maps 1-to-1:
 | `ORDERS\|GW=X`         | `orders --gw X`          | `client.order_list("X")`               |
 | `LEVEL\|SYM=X[\|PRICE=Y]` | `level --sym X [--price Y]` | `client.price_level_orders("X", price=Y)` |
 | `SYMBOLS`              | `symbols`                | `client.symbol_list()`                 |
+| `POSITION\|GW=X[\|SYM=Y,...]` | `position --gw X [--sym Y,...]` | `client.position_snapshot("X")` + `client.quote_bootstrap("X")` |
 | `SESSION\|STATE=X`     | `session --state X`      | `client.session_advance("X")`          |
 | `SESSION_STATUS`       | `session-status`         | `client.session_status()`              |
 | `SCHEDULE`             | `schedule`               | `client.session_schedule()`            |
@@ -600,9 +603,10 @@ pm-admin-cli --id GW_ADMIN volume
 │ TOTAL      │        9,300 │    1,601,000.00   │     25 │
 └────────────┴──────────────┴───────────────────┴────────┘
 ```
-Counters reset when the engine restarts.  There is currently no
-automatic end-of-day reset; daily volume accumulates across the
-entire engine session.
+Counters reset automatically at the start of each trading day — on
+the transition into `PRE_OPEN` — as well as when the engine restarts, so a
+multi-day run (auto-scheduling or manual `SESSION|STATE=PRE_OPEN`) reports
+each day's volume separately rather than an ever-growing cumulative total.
 
 
 
@@ -780,8 +784,8 @@ The `events` subcommand accepts:
 |---------------|-----------------------------------------------------------------------|
 | `ts`          | UTC timestamp                                                     |
 | `index_id`    | Index identifier                                                  |
-| `type`        | Event type: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` |
-| `symbol`      | Affected symbol (empty for `INIT`)                                |
+| `type`        | Event type: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, or `REBALANCE` |
+| `symbol`      | Affected symbol (empty for `INIT` and `REBALANCE` — a rebalance's affected symbol list isn't surfaced by this column in any `--format`) |
 | `detail`      | Human-readable summary (e.g. `SPLIT 2:1`, `ref_price=195.0`)      |
 | `old_divisor` | Divisor before adjustment (empty for `INIT`)                      |
 | `new_divisor` | Divisor after adjustment (empty for `INIT`)                       |
@@ -1040,9 +1044,9 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `position_snapshot(target)`     | target GW ID                  | Any connected GW | `system.position_request`         | `system.position_snapshot.{target}`        |
 | `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
-| `cancel_symbol(symbol)`         | symbol                        | Any connected GW | `system.cancel_symbol`            | `system.cancel_symbol_ack.{GW}`            |
+| `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 | `force_uncross(symbol)`         | symbol                        | **ADMIN**        | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
-| `quote_bootstrap(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `quote.bootstrap_request`     | `quote.bootstrap.{target}`                 |
+| `quote_bootstrap(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `system.quote_bootstrap_request` | `system.quote_bootstrap.{target}`        |
 | `index_history(index, from, to, types?)` | index ID, time range, optional type filter | — (no auth on `pm-index`'s socket) | `index.history_request` | `index.history.{GW}` |
 | `index_corp_action(index, action, symbol, ...)` | index ID, action, symbol, action params | — | `index.corp_action` | `index.corp_action_ack.{GW}` |
 | `index_delist(index, symbol)`   | index ID, symbol              | —                | `index.constituent_change`        | `index.constituent_change_ack.{GW}`        |
@@ -1051,7 +1055,6 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 `mass_cancel(target, symbol)` is a convenience alias for `kill_switch(target, symbol=symbol)` — same message and ack, not a separate command.
 
 The four `index_*` methods talk to `pm-index`'s PUSH/PUB pair (ports 5559/5558), not the engine's — see [Index Admin CLI — Why there is no connect() step](../part-4-run-a-market/080-index-administration.md#why-there-is-no-connect-authentication-step) for why they carry no auth.
-| `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 
 !!! warning "PUSH socket has no authentication"
     The engine does not verify *who* placed a message on the PUSH socket — it
@@ -1363,11 +1366,19 @@ Valid state transitions:
 stateDiagram-v2
     [*] --> PRE_OPEN
     PRE_OPEN --> OPENING_AUCTION
+    PRE_OPEN --> CONTINUOUS
     OPENING_AUCTION --> CONTINUOUS
     CONTINUOUS --> CLOSING_AUCTION
+    CONTINUOUS --> CLOSED
     CLOSING_AUCTION --> CLOSED
-    CLOSED --> [*]
+    CLOSED --> PRE_OPEN
 ```
+
+Two transitions skip a phase on purpose: `PRE_OPEN → CONTINUOUS` (no
+opening auction) and `CONTINUOUS → CLOSED` (no closing auction). And
+`CLOSED` is not terminal — `CLOSED → PRE_OPEN` starts the next trading day,
+which is how a multi-day auto-scheduled run (and the daily volume-counter
+reset above) keeps going without restarting the engine.
 
 An **accepted** transition is confirmed by the `session.state` broadcast,
 which carries the *actual* new state — check `result["state"]` to verify it.
@@ -1453,7 +1464,7 @@ To add a new command:
 
 **Participant Guide:**
 
-- ALF Console — participant-facing CLI commands (TRADER / MM role)
+- [The Trader Console (`pm-alf-console`)](../../participant-guide/part-2-orders/010-the-trader-console.md) — participant-facing CLI commands (TRADER / MM role)
 
 **Protocols and Clients:**
 

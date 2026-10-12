@@ -788,9 +788,9 @@ EduMatcher tool.
 
 **Reference Manual:**
 
-- Processes — where `pm-audit` sits among the runtime processes
-- Known Limitations & Bugs — what is known not to work yet
+- [Processes — pm-audit](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-audit-event-logger) — where `pm-audit` sits among the runtime processes
+- [Known Limitations & Bugs](../../reference-manual/90-backmatter/020-known-limitations.md) — what is known not to work yet
 
 **Protocols and Clients:**
 
-- Message Reference — the wire contract every finding is stated against
+- [Message Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — the wire contract every finding is stated against

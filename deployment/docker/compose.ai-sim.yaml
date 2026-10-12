@@ -71,7 +71,7 @@ services:
       CALF_PORT: "5570"
       # The read-only credential of the s300-sim example ('dashboards', 8081).
       API_GATEWAY_URL: "http://edumatcher:8081"
-      PM_TERMINAL_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-034o3u}"
+      PM_TERMINAL_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"
       LOG_SRV_ENABLED: "true"
       LOG_SRV_HOST: "edumatcher"
       LOG_SRV_PORT: "5600"
@@ -91,7 +91,7 @@ services:
       PORT: "8094"
       CORS_ORIGIN: "*"
       API_GATEWAY_URL: "http://edumatcher:8081"
-      PM_BOOK_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-034o3u}"
+      PM_BOOK_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"
       LOG_SRV_ENABLED: "true"
       LOG_SRV_HOST: "edumatcher"
       LOG_SRV_PORT: "5600"

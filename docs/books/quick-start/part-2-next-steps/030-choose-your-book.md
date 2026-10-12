@@ -107,4 +107,4 @@ and [Order Flow Through the Engine](../../architecture-and-development/part-2-in
 follow one order through the code.
 
 **Everything at once.** The Training Guide covers every feature, in order,
-over 29 chapters.
+29 chapters.

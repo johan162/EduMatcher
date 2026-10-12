@@ -1098,14 +1098,14 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 
 **Participant Guide:**
 
-- ALF Console — interactive command reference for `pm-alf-console`
+- [ALF Console](../../participant-guide/part-2-orders/010-the-trader-console.md) — interactive command reference for `pm-alf-console`
 
 **Reference Manual:**
 
-- Processes — process topology and ZMQ message tables
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables
 
 **Protocols and Clients:**
 
-- ALF Protocol Reference — formal wire syntax and full field/enum definitions
-- Drop Copy — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
-- External Protocols Overview — protocol comparison and selection guide
+- [ALF Protocol Reference](../../protocols-and-clients/part-2-specifications/010-alf.md) — formal wire syntax and full field/enum definitions
+- [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — protocol comparison and selection guide

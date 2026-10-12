@@ -7,7 +7,7 @@
       of a trading or administration tool
     - Which services must be running before the display becomes useful
     - How to start the terminal locally or in a container
-    - What each of the six screens is meant to help a viewer understand
+    - What each of the seven screens is meant to help a viewer understand
     - How to recognise normal disconnected, missing-history, and no-index
       states without mistaking them for broken screens
     - Which settings an operator is most likely to adjust

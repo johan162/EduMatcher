@@ -247,7 +247,7 @@ MM obligation enforcement is optional and configured per gateway:
 
 Gateway disconnect behavior is configurable per gateway:
 
-- `CANCEL_QUOTES_ONLY` (default for MM gateways): on disconnect, all active
+- `CANCEL_QUOTES_ONLY` (the default for every gateway): on disconnect, all active
   quote legs for that gateway are cancelled.  Regular resting orders are left.
 - `CANCEL_ALL`: on disconnect, quotes **and** all resting non-quote orders are
   cancelled.

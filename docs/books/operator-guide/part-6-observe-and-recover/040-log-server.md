@@ -168,8 +168,8 @@ Expected startup output:
 
 ```
 2026-07-29 09:30:00,180 INFO edumatcher.log_srv.main - starting pm-log-srv with log level INFO
-2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 127.0.0.1:5600 db=data/log.db retention_days=30
-2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://127.0.0.1:5601 PULL=tcp://127.0.0.1:5602 lease=30s max_subscribers=32
+2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 0.0.0.0:5600 db=data/log.db retention_days=30
+2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://0.0.0.0:5601 PULL=tcp://0.0.0.0:5602 lease=30s max_subscribers=32
 ```
 
 `pm-log-srv` occupies a contiguous three-port block: `5600` for LALF/TCP
@@ -1015,9 +1015,9 @@ subcommand reads (or, for `prune`, writes) it directly.
 
 **Reference Manual:**
 
-- Processes — pm-log-srv / pm-log-cli — startup reference tables in the process overview
+- [Processes — pm-log-srv](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-log-srv-centralized-log-server) / [pm-log-cli](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-log-cli-log-server-querytroubleshooting-cli) — startup reference tables in the process overview
 
 **Protocols and Clients:**
 
-- LALF Protocol Reference — normative wire specification for anyone implementing a LALF client
-- Message Reference — LALF-PS messages — normative field tables for every LALF-PS message
+- [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) — normative wire specification for anyone implementing a LALF client
+- [Message Reference — LALF-PS messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md#family-log) — normative field tables for every LALF-PS message

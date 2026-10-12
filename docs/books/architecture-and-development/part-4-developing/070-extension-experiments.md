@@ -1,6 +1,6 @@
 # Exchange Experiments Roadmap
 
-This page proposes 15 hands-on experiments that close key gaps between EduMatcher and production exchanges, plus one suggested extension.
+This page proposes 20 hands-on experiments that close key gaps between EduMatcher and production exchanges.
 
 Each experiment uses the same format:
 
@@ -9,7 +9,7 @@ Each experiment uses the same format:
 - Technical details (scope, outcome, verification)
 - Learning objective
 
-The list is ordered from basic to very complex.
+Experiments 1-15 are the original proposal, ordered from basic to very complex. Experiments 16-20 were added later (self-trade prevention, plus three further operational and observability tracks) and are appended after, not sorted into that difficulty ordering — see "Suggested progression path" below for where each one fits.
 
 ## How to use this page
 
@@ -154,15 +154,15 @@ New terms:
     - `continuous`: normal order-by-order matching, the most common intra-day state.
     - `close`: wind-down period with restricted entry; typically only limit orders are accepted.
     - `halt`: all activity is frozen, usually due to a news event or circuit breaker.
-- **TIF (Time-In-Force)**: The policy controlling how long an order remains active. Common values: `DAY` (expires at session end), `GTC` (Good Till Cancelled, survives across sessions), `IOC` (Immediate-or-Cancel: fill what you can right now, cancel any unfilled remainder), `FOK` (Fill-or-Kill: fill the entire quantity immediately or cancel entirely).
-- **Order admissibility**: Whether a given order type + TIF combination is permitted during a given phase. For example, Market orders are blocked during pre-open because no reference price exists for a fair execution.
+- **TIF (Time-In-Force)**: The policy controlling how long an order remains active. Common values across exchanges: `DAY` (expires at session end), `GTC` (Good Till Cancelled, survives across sessions), `IOC` (Immediate-or-Cancel: fill what you can right now, cancel any unfilled remainder), `FOK` (Fill-or-Kill: fill the entire quantity immediately or cancel entirely). In EduMatcher specifically, `IOC` and `FOK` are `OrderType` values, not `TIF` values — the real `TIF` enum has only `DAY`/`GTC`/`ATO`/`ATC` (see the Reference Manual glossary). The matrix below follows that split: `IOC` gets its own column rather than pairing with a `TIF`.
+- **Order admissibility**: Whether a given order type, optionally with a TIF, is permitted during a given phase. For example, Market orders are blocked during pre-open because no reference price exists for a fair execution.
 - **Opening volatility**: The price instability at the start of the continuous session, caused by accumulated overnight orders. Session policies reduce this risk by restricting the most unpredictable order types until the auction establishes an opening price.
 
-A session policy matrix defines admissibility as a two-dimensional table: rows are session phases, columns are (order-type, TIF) combinations, and cells are ALLOW or DENY. Real exchanges publish these tables in their rulebooks.
+A session policy matrix defines admissibility as a two-dimensional table: rows are session phases, columns are order types (with a TIF where the order type takes one), and cells are ALLOW or DENY. Real exchanges publish these tables in their rulebooks.
 
 Example partial matrix:
 
-| Phase      | Market/DAY | Limit/DAY | Limit/GTC | Market/IOC |
+| Phase      | Market/DAY | Limit/DAY | Limit/GTC | IOC |
 |------------|-----------|-----------|-----------|------------|
 | pre-open   | DENY      | ALLOW     | ALLOW     | DENY       |
 | auction    | DENY      | ALLOW     | ALLOW     | DENY       |
@@ -816,11 +816,11 @@ Understand how high-level execution intent is translated into low-level exchange
 
 ## Suggested progression path
 
-1. **Phase 1 (Core)**: Complete Experiments 1, 4, 5, 6, 9, 12, 13, 14, 15 — these cover edge cases and advanced market design with no blockers.
-2. **Phase 2 (Hardening)**: Tackle partially-implemented experiments: 2, 3, 7, 8, 10, 11, 16 — these integrate with existing subsystems and add operational maturity.
+1. **Phase 1 (Core)**: Complete Experiments 1, 4, 5, 6, 9, 12, 13, 14, 15 — these cover edge cases and advanced market design with no blockers. (4 and 14 have since shipped — see their own **Status** lines for what, if anything, remains.)
+2. **Phase 2 (Hardening)**: Tackle partially-implemented experiments: 2, 3, 7, 8, 10, 11 — these integrate with existing subsystems and add operational maturity.
 3. **Phase 3 (New opportunities)**: Experiments 17–20 open new integration and observability tracks.
 
-This progression mirrors how real venues evolve: deterministic matching first, then control frameworks, then advanced market products.
+This progression mirrors how real venues evolve: deterministic matching first, then control frameworks, then advanced market products. It reflects the experiments' original, pre-verification proposal; each experiment's own **Status** line is the authoritative word on what is actually left to build.
 
 **Note**: Experiment 16 (Self-Trade Prevention) is already implemented in the gateway and matching engine as `SmpAction` modes. It serves as a validation that the roadmap's abstractions align with production needs.
 
@@ -884,15 +884,17 @@ Understand wash-trade prevention, regulatory compliance mechanics, and account i
 **Status: Largely Implemented — verified 2026-09-11**
 
 `pm-stats-cli` shipped with thirteen subcommands, among them `daily`,
-`trades`, `order-events`, `lifecycle`, `symbols`, `dates` and `gaps`, and
+`trades`, `order-events`, `order-lifecycle`, `symbols`, `dates` and `gaps`, and
 `pm-clearing-cli`, `pm-audit-cli` and `pm-log-cli` cover the clearing,
 audit and log databases the same way. The background paragraph below was
 written before any of that existed and is kept for the financial
 motivation, not as a description of the current state.
 
-Still open from the proposal: a single `daily-pnl` report that joins
-clearing P&L per gateway, and the `--format csv` option (the CLIs offer
-table and JSON).
+`--format csv` has already shipped on `pm-stats-cli`, `pm-clearing-cli`
+and `pm-audit-cli` (`pm-log-cli` offers only `human`/`json`). Still open
+from the proposal: a single `daily-pnl` report that joins clearing P&L
+per gateway — `pnl` and `daily` exist as separate subcommands today, but
+nothing joins them into one report.
 
 Difficulty: Intermediate
 Estimated effort: 2 to 3 days

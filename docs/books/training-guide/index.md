@@ -30,7 +30,7 @@ taken early:
   straight after chapter 03 gives you the viewers and monitors for every
   later chapter.
 - **25 — Market Index** needs only chapters 00–03 (plus `pm-stats` from
-  chapter 15 for its last exercise).
+  chapter 15 for Exercise 9).
 - **28 — IPO Valuation** needs only chapter 00 for its first six exercises;
   the last also needs 00–03 and 07.
 

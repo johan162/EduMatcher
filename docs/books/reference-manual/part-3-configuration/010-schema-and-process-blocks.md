@@ -20,6 +20,8 @@ The current parser recognizes these top-level keys:
 | `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
 | `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
 | `enforce_circuit_breakers` |                         No | Engine                          | Global circuit-breaker enforcement toggle                                 |
+| `require_mm_seed_quotes`   |                         No | Engine                          | Whether every symbol must seed `market_maker_quotes` when a `MARKET_MAKER` gateway is configured |
+| `auction_indicative_interval_sec` |                  No | Engine                          | Throttle (seconds) for indicative-uncross republishing during auction call phases |
 | `engine_tuning`            |                         No | Engine                          | Runtime retention and throttling knobs                                    |
 | `mm_obligation_defaults`   |                         No | Engine                          | Default market-maker quote obligation policy                              |
 | `risk_controls`            |                         No | Engine                          | Named collar and order-limit profiles                                     |
@@ -52,12 +54,12 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `participants`, `participant_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `participants`, `participant_defaults`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `require_mm_seed_quotes`, `auction_indicative_interval_sec`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/order-limit/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
 | `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `participants` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
-| `pm-dc-gwy` | `dc_gwy/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
+| `pm-dc-gwy` | `dc_gateway/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
 | `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector, plus the LALF-PS ZeroMQ log-distribution ports and subscription limits |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
@@ -101,7 +103,7 @@ alf_gateway:
   heartbeat_interval_sec: 5
   handshake_timeout_sec: 10
   idle_timeout_sec: 30
-  max_connections: 64
+  max_connections: 1024
   max_client_queue: 10000
   max_commands_per_second: 100
   max_errors_before_disconnect: 50
@@ -119,7 +121,7 @@ alf_gateway:
 | `heartbeat_interval_sec` | `5` | integer `> 0` | How often the gateway sends `HB` to an authenticated client that has received nothing else in that time. Advertised as `HBINT=` in `WELCOME` |
 | `handshake_timeout_sec` | `10` | integer `> 0` | How long a new connection has to complete the `HELLO` login |
 | `idle_timeout_sec` | `30` | integer `> 0` | How long a client may stay silent before it is disconnected. Advertised as `IDLE=` in `WELCOME` |
-| `max_connections` | `64` | integer `> 0` | Cap on simultaneous client connections |
+| `max_connections` | `1024` | integer `> 0` | Cap on simultaneous client connections |
 | `max_client_queue` | `10000` | integer `> 0` | Cap on lines queued for one client that is not reading |
 | `max_commands_per_second` | `100` | integer `> 0` | Per-client command rate limit |
 | `max_errors_before_disconnect` | `50` | integer `> 0` | Number of protocol errors tolerated within `error_window_sec` |
@@ -240,6 +242,8 @@ market_data_gateway:
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
   replay_window_sec: 30
+  max_connections: 64
+  max_messages_per_second: 200
   max_symbols_per_client: 200
   max_client_queue: 10000
   depth_levels: 10
@@ -254,6 +258,8 @@ subscribers. In the current implementation:
 - `heartbeat_interval_sec` controls heartbeat cadence
 - `idle_timeout_sec` controls inactive-session disconnect timing
 - `replay_window_sec` controls the in-memory replay history window
+- `max_connections` caps simultaneous TCP connections
+- `max_messages_per_second` is the inbound per-client token-bucket rate limit
 - `max_symbols_per_client` caps per-client subscription fanout
 - `max_client_queue` caps slow-client buffering
 - `depth_levels` sets how many aggregated price levels per side are sent on
@@ -277,6 +283,7 @@ Minimal example:
 
 ```yaml
 balf_gateway:
+  enabled: true
   name: balf-gwy01
   bind_address: 0.0.0.0
   port: 5560
@@ -294,12 +301,13 @@ balf_gateway:
 
 | Field | Default | Description |
 |-------|---------|-------------|
+| `enabled` | `true` | When `false`, `pm-balf-gwy` logs a warning and refuses to start |
 | `name` | `balf-gwy01` | Gateway name echoed in the `LOGON_ACK` message field |
 | `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
 | `port` | `5560` | TCP listen port |
 | `heartbeat_interval_sec` | `1` | Seconds between server-initiated `HEARTBEAT` frames when no other outbound traffic |
 | `heartbeat_timeout_sec` | `5` | Disconnect session if no inbound traffic arrives within this window |
-| `idle_timeout_sec` | `30` | Additional idle-session cleanup guard |
+| `idle_timeout_sec` | `30` | Accepted but currently unused by the gateway runtime — only `heartbeat_timeout_sec` drives idle-session disconnects. Reserved for future use. |
 | `auth_timeout_sec` | `10` | Hard-close unauthenticated connections if `LOGON` is not completed within this window |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound frame buffer depth before `SLOW_CLIENT` disconnect |
@@ -311,6 +319,48 @@ balf_gateway:
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--balf-gateway` and optional `--balf-*`
 overrides.  See [BALF TCP Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md) for the full
+client-facing documentation.
+
+
+## Configuring `pm-api-gwy`
+
+## Configuring `pm-dc-gwy`
+
+`pm-dc-gwy` reads an optional top-level `dc_gateway` block from the same
+`engine_config.yaml` file. This block is not consumed by `pm-engine`; it is
+consumed by the drop-copy TCP relay process itself. Gateway identities and
+roles are read from the existing `participants` list — no separate
+credentials block is needed. This block has no `enabled` key.
+
+Minimal example (every value shown is the default):
+
+```yaml
+dc_gateway:
+  name: dc-gwy01
+  bind_address: 0.0.0.0
+  port: 5590
+  heartbeat_interval_sec: 5
+  idle_timeout_sec: 30
+  max_client_queue: 10000
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | `dc-gwy01` | Gateway name echoed in `WELCOME` |
+| `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
+| `port` | `5590` | TCP listen port |
+| `heartbeat_interval_sec` | `5` | Seconds between server-initiated `HB` lines when no other outbound traffic |
+| `idle_timeout_sec` | `30` | Disconnect a session if no inbound traffic arrives within this window |
+| `max_client_queue` | `10000` | Per-client outbound buffer depth before a slow-client disconnect |
+
+The drop-copy source address the gateway relays from (`tcp://127.0.0.1:5557`,
+the engine's drop-copy `PUB` socket) is **not** configurable through this
+block — use `pm-dc-gwy --engine-dc-pub` to point at a non-default engine
+address for one run.
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--dc-gateway` and optional `--dc-*`
+overrides. See [Drop-Copy Gateway](../../operator-guide/part-5-gateways/060-drop-copy-gateway.md) for the full
 client-facing documentation.
 
 
@@ -331,6 +381,9 @@ api_gateways:
     swagger_enabled: true
     log_level: info
     stats_db: data/stats.db
+    audit_db: data/audit_index.db
+    order_retention_sec: 3600
+    market_data_cache_sec: 60
     credentials:
       - api_key: key-trader01-example
         gateway_id: TRADER01
@@ -355,6 +408,13 @@ engine reply waits are applied. In the current implementation:
 - `host` and `port` define the uvicorn HTTP listener
 - `swagger_enabled` controls `/docs` and `/openapi.json`
 - `stats_db` points history endpoints at the `pm-stats` SQLite database
+- `audit_db` is `pm-audit`'s read-only index, used only by
+  `GET /admin/orders/{order_id}`; optional, and that endpoint returns `503`
+  when the file is absent
+- `order_retention_sec` bounds how long a terminal order stays in the
+  in-memory order cache; `0` disables eviction
+- `market_data_cache_sec` is the TTL for the per-symbol market-data cache
+  backing WebSocket snapshot/resume
 - `credentials[].api_key` is the bearer token used by REST and WebSocket clients
 - `credentials[].gateway_id` maps a key to an ALF gateway; `null` is read-only
 - a non-null `credentials[].gateway_id` may appear in only one `api_gateways` entry
@@ -563,6 +623,17 @@ enforce_circuit_breakers: true
 Controls whether configured circuit breakers can halt symbols. This defaults to
 `true` and should normally remain enabled outside tests.
 
+### `auction_indicative_interval_sec`
+
+```yaml
+auction_indicative_interval_sec: 1.0
+```
+
+Throttle, in seconds, between republications of the indicative uncross price
+and quantity while a symbol is in an auction call phase (`PRE_OPEN` or
+`PRE_CLOSE`). Must be numeric and greater than zero; defaults to `1.0` when
+omitted.
+
 ### `engine_tuning`
 
 ```yaml
@@ -725,7 +796,7 @@ participants:
 | `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `participant_defaults`, then `CANCEL_QUOTES_ONLY` |
 | `quote_refresh_policy`  |       No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL`      |
 | `enforce_mm_obligation` |       No | Boolean                                                                 | Global MM default             |
-| `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `10`  |
+| `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `20`  |
 | `mm_min_qty`            |       No | Positive integer                                                        | Global MM default, then `100` |
 | `mm_obligations`        |       No | Per-symbol mapping                                                      | Empty mapping                 |
 | `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `participant_defaults`, then `NONE` |
@@ -816,7 +887,7 @@ Defaults and validation:
 | Field                                    | Accepted values / type | Default                           |
 |------------------------------------------|------------------------|-----------------------------------|
 | `enforce_mm_obligation`                  | Boolean                | `false`                           |
-| `mm_max_spread_ticks`                    | Positive integer       | `10`                              |
+| `mm_max_spread_ticks`                    | Positive integer       | `20`                              |
 | `mm_min_qty`                             | Positive integer       | `100`                             |
 | `symbols.<SYMBOL>.enforce_mm_obligation` | Boolean                | Top-level `enforce_mm_obligation` |
 | `symbols.<SYMBOL>.mm_max_spread_ticks`   | Positive integer       | Top-level `mm_max_spread_ticks`   |
@@ -1141,7 +1212,7 @@ symbols:
 | `ask_price`  |      Yes | Number greater than `bid_price`             | None      | Display price converted to ticks by the engine            |
 | `bid_qty`    |      Yes | Positive integer                            | None      | Bid-side quantity                                         |
 | `ask_qty`    |      Yes | Positive integer                            | None      | Ask-side quantity                                         |
-| `tif`        |       No | `DAY`, `GTC`, `ATO`, `ATC`                  | `DAY`     | Time in force                                             |
+| `tif`        |       No | `DAY`, `GTC`                                | `DAY`     | Time in force (`pm-cverifier` rejects any other value, `S016`) |
 | `seed_once`  |       No | Boolean-like value; use YAML `true`/`false` | `true`    | Skip injection after `book_stats.json` has symbol history |
 
 Validation rules:
@@ -1384,7 +1455,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `disconnect_behaviour`  | Enum        |       No | `CANCEL_QUOTES_ONLY`                                              | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | Case-insensitive                           |
 | `quote_refresh_policy`  | Enum        |       No | `INACTIVATE_ON_ANY_FILL`                                          | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | Case-insensitive                           |
 | `enforce_mm_obligation` | bool        |       No | From `mm_obligation_defaults.enforce_mm_obligation`, else `false` | `true`, `false`                                                         | Must be a YAML boolean                     |
-| `mm_max_spread_ticks`   | int         |       No | From `mm_obligation_defaults.mm_max_spread_ticks`, else `10`      | Integer                                                                 | Must be `> 0`                              |
+| `mm_max_spread_ticks`   | int         |       No | From `mm_obligation_defaults.mm_max_spread_ticks`, else `20`      | Integer                                                                 | Must be `> 0`                              |
 | `mm_min_qty`            | int         |       No | From `mm_obligation_defaults.mm_min_qty`, else `100`              | Integer                                                                 | Must be `> 0`                              |
 | `mm_obligations`        | mapping     |       No | `{}`                                                              | Mapping of symbol → obligation entry                                    | Symbol keys are uppercased                 |
 | `smp_action`            | Enum        |       No | `NONE`                                                            | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | Case-insensitive; fallback default used when an order (`NEW`, combo, or `QUOTE`) doesn't specify its own `SMP=` |
@@ -1404,7 +1475,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | Field                   | Type    | Required | Default | Allowed values / range         | Constraint                                                          |
 |-------------------------|---------|---------:|---------|--------------------------------|---------------------------------------------------------------------|
 | `enforce_mm_obligation` | bool    |       No | `false` | `true`, `false`                | Must be a YAML boolean                                              |
-| `mm_max_spread_ticks`   | int     |       No | `10`    | Integer                        | Must be `> 0`                                                       |
+| `mm_max_spread_ticks`   | int     |       No | `20`    | Integer                        | Must be `> 0`                                                       |
 | `mm_min_qty`            | int     |       No | `100`   | Integer                        | Must be `> 0`                                                       |
 | `symbols`               | mapping |       No | `{}`    | Symbol name → override mapping | Symbol keys are uppercased; each must reference a configured symbol |
 
@@ -1517,7 +1588,7 @@ symbol has no breaker):
 | `ask_price` | float | Yes | — | Any number | Must be `> bid_price` |
 | `bid_qty` | int | Yes | — | Positive integer | Must be `> 0` |
 | `ask_qty` | int | Yes | — | Positive integer | Must be `> 0` |
-| `tif` | Enum | No | `DAY` | `DAY`, `GTC`, `ATO`, `ATC` | Case-insensitive |
+| `tif` | Enum | No | `DAY` | `DAY`, `GTC` | Case-insensitive; `pm-cverifier` rejects any other value (`S016`) |
 | `seed_once` | bool | No | `true` | `true`, `false` | When `true`, skips injection if `book_stats.json` has history for this symbol |
 
 ---

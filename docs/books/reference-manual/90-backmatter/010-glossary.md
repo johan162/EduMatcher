@@ -85,9 +85,9 @@ trades against resting orders. It "sweeps" the book.
 **Ask / Offer:** The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
 The collection of all active asks forms the sell side of the book.
 
-**ATC (At-The-Close):** An order TIF valid only during the closing auction. Expired automatically when the opening auction ends.
+**ATC (At-The-Close):** An order TIF valid only during the closing auction. Expired automatically when the closing auction ends (transition to `CLOSED`).
 
-**ATO (At-The-Open):** An order TIF valid only during the opening auction. Expired automatically when the closing auction ends.
+**ATO (At-The-Open):** An order TIF valid only during the opening auction. Expired automatically when the opening auction ends (transition to `CONTINUOUS`).
 
 **Auction / Call Auction / Uncross / Fixing:** A trading mechanism where orders are collected over a period and then matched simultaneously at a single equilibrium price. Contrasts with continuous matching where orders match one at a time as they arrive.
 
@@ -328,7 +328,7 @@ rests on the book. See [Order Types](../../participant-guide/part-2-orders/020-o
 
 **Kernel Bypass:** Technology that allows a network application to communicate directly with network hardware, bypassing the operating system kernel and reducing latency from microseconds to sub-microsecond.
 
-**Kill Switch:** An emergency control that immediately cancels all resting orders and quotes for a specific participant AND marks their gateway as inactive, preventing new order submission until the participant reconnects and re-authenticates. Triggered by the participant (emergency self-halt), the exchange operator, or automatically on gateway disconnect. Mandatory under most exchange regulations including MiFID II. Contrast with *Mass Cancel*, which cancels orders but leaves the gateway active.
+**Kill Switch:** An emergency control that immediately cancels all resting orders and quotes for a specific participant. Industry kill switches often also mark the gateway inactive until reconnection and re-authentication; EduMatcher's does not — `risk.kill_switch`/`KILL` cancels exposure only and the gateway connection stays usable, so a disconnect-and-block effect has to come from the gateway's own `disconnect_behaviour` (see *Mass Cancel*) rather than from the kill switch itself. Triggered by the participant (emergency self-halt) or the exchange operator (`pm-admin`'s `KILL`). Mandatory under most exchange regulations including MiFID II.
 
 
 ### L
@@ -393,7 +393,7 @@ price formation and liquidity. EduMatcher is designed to demonstrate core micros
 
 **Market Order:** An order that attempts immediate execution against available liquidity at the best obtainable prices. It prioritises execution certainty over price certainty, but execution is still subject to exchange state, available liquidity, price collars, and risk controls. A market order submitted during a halt, against an empty book, or rejected by a pre-trade risk check will not fill.
 
-**Mass Cancel:** A participant-initiated message type that cancels multiple resting orders simultaneously, all orders for a symbol, all orders of a given type, or all orders system-wide. The gateway connection remains active after a mass cancel; the participant can submit new orders immediately. Contrast with *Kill Switch*, which inactivates the gateway and requires re-authentication.
+**Mass Cancel:** A participant-initiated message type that cancels multiple resting orders simultaneously, all orders for a symbol, all orders of a given type, or all orders system-wide. The gateway connection remains active after a mass cancel; the participant can submit new orders immediately — in EduMatcher, this is the same behaviour as a *Kill Switch*, since neither action by itself disconnects the gateway. A gateway is only shut out by an explicit disconnect (`pm-admin`'s `KICK`, or a `disconnect_behaviour` of `CANCEL_ALL`/`CANCEL_QUOTES_ONLY` firing when the gateway drops on its own).
 
 **Matching Engine:** The core software that manages order books and matches buy and sell orders to produce trades.
 
@@ -611,7 +611,7 @@ orders in thin books experience more slippage.
 
 **Ticker Tape:** The narrow paper strip printed by the stock ticker machine, showing a continuous stream of trade symbols, prices, and volumes. The source of the term "tick" (minimum price movement) and related concepts.
 
-**Time-In-Force (TIF):** The attribute specifying how long an order remains valid (DAY, GTC, IOC, FOK, ATO, ATC, or FOK/IOC).
+**Time-In-Force (TIF):** The attribute specifying how long an order remains valid. EduMatcher's `TIF` enum has four members: `DAY`, `GTC`, `ATO`, and `ATC`. `IOC` and `FOK` are order *types* in EduMatcher (`TYPE=IOC`/`TYPE=FOK`), not `TIF` values, even though other venues sometimes model them as a time-in-force.
 
 **Top-of-Book (Level 1):** Market data showing only the best bid price, best ask price, and their quantities. The minimum information needed to understand the current market.
 

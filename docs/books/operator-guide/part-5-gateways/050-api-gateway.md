@@ -607,7 +607,7 @@ with no `gateway_id`.
 
 | Endpoint | Query parameters | Notes |
 |---|---|---|
-| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN` — `422` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
+| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN`, `EVENT` — `422` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/session` | none | `{"country": "SE", "session_timezone": "Europe/Stockholm", "session_date": "2026-06-14"}` — the exchange's current locale and today's trading date in the recorded session timezone, resolved exactly as every `date` filter here resolves them (`country` is the same value `GET /reference/schedule` reports). Use it for a client's "today" and session clock |

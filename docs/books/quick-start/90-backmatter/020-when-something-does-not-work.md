@@ -8,7 +8,7 @@ first three.
 | Question | Containers | Python package |
 |---|---|---|
 | Is everything running? | `./edumatcher.sh status` | `pm-opctl-cli list` |
-| What did the exchange say when it started? | `./edumatcher.sh logs` | the log files listed by `pm-opctl-cli show` |
+| What did the exchange say when it started? | `./edumatcher.sh logs` | the log files under `<data directory>/emo/` (the directory itself is in `pm-opctl-cli show`) |
 | Which configuration is actually deployed? | `./edumatcher.sh shell pm-config-show` | `pm-config-show` |
 | What is each process doing? | Log Operator Console at <http://localhost:8091> | `pm-log-cli` |
 | Am I looking at the exchange I think I am? | `./edumatcher.sh mounts` | `pm-setup --show` |

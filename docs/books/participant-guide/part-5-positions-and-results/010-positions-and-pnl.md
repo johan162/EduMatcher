@@ -102,9 +102,10 @@ pm-clearing [OPTIONS]
   --flush-interval SEC   Max seconds between flushes (>=0.1, default: 5)
   --print-every N        Print P&L summary every N trades (0 = never, default: 100)
   --retention-days N     Prune trade_events rows older than N days on startup,
-                         at every close and on each system.eod (default: 90).
-                         0 does NOT disable pruning: it deletes every row dated before
-                         today (use a large value such as 36500 to keep rows)
+                         at every close and on each system.eod (default: 90) —
+                         see the note under Retention below for what `0` does
+                         (not quite "disable pruning", despite the real
+                         `--help` text's wording)
   --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
                          INFO, DEBUG (default: WARNING)
   --log-target TARGET    Where operational logs go: server (default,
@@ -260,6 +261,18 @@ the UTC date) are deleted on startup, at every close of the market
 (`session.state` `CLOSED`), on each `system.eod`, and on demand via
 `pm-clearing-cli prune`.
 
+!!! warning "`--retention-days 0` behaves differently depending on which trigger fires"
+    The three automatic triggers are not consistent about `0`. On **startup**
+    and on **every `system.eod`**, pruning runs unconditionally — `0` does
+    **not** disable it there, it deletes every row dated before today (UTC).
+    On **market close** (`session.state` → `CLOSED`) specifically, pruning is
+    skipped entirely when `--retention-days` is `0` — the one trigger where
+    `0` genuinely means "keep everything". `pm-clearing-cli prune` is
+    unaffected either way: its own `--days` rejects `0` outright (`--days`
+    must be `>= 1`). If you want to reliably keep every row forever
+    regardless of which trigger fires, use a large value (e.g. `36500`)
+    rather than relying on `0`.
+
 ### `gateway_symbol_positions`
 
 Live running state for every `(gateway_id, symbol)` key seen so far.
@@ -325,7 +338,7 @@ Append-only log of clearing-significant events. Three event types are written:
 | `id` | INTEGER (autoincrement) | Surrogate key |
 | `event_type` | TEXT | `EOD`, `PHASE`, or `GAP` |
 | `ts_ns` | INTEGER | Ingestion timestamp |
-| `trade_date` | TEXT | Session-timezone date derived from `ts_ns` (default UTC) |
+| `trade_date` | TEXT | Session-timezone date derived from `ts_ns` (default `Europe/Stockholm`; see `locale.session_timezone`) |
 | `payload_json` | TEXT | Event-specific JSON (see table above) |
 
 `EOD` rows are surfaced by `pm-clearing-cli eod`. `PHASE` and `GAP` are not
@@ -1327,13 +1340,13 @@ pm-clearing-cli pnl  # reads morning/clearing.db
 
 **Operator's Guide:**
 
-- Statistics and Reporting — `pm-stats-cli` for market data queries
-- Audit Trail — `pm-audit-cli` for querying the full event log
+- [Statistics and Reporting](../../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md) — `pm-stats-cli` for market data queries
+- [Audit Trail](../../operator-guide/part-6-observe-and-recover/020-audit-trail.md) — `pm-audit-cli` for querying the full event log
 
 **Reference Manual:**
 
-- Processes — how `pm-clearing` connects to the engine
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — how `pm-clearing` connects to the engine
 
 **Protocols and Clients:**
 
-- Messages — `trade.executed` fields consumed by `pm-clearing`
+- [Messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — `trade.executed` fields consumed by `pm-clearing`

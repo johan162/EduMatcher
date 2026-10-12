@@ -391,7 +391,7 @@ Whichever route you took, the directory holds the same things:
 | `ref_data/engine_config.yaml` | The authored source it was compiled from, kept for provenance |
 | `log.db` | The centralized log, written by `pm-log-srv` |
 | `stats.db` | Trade and market statistics, written by `pm-stats` |
-| `clearing.db`, `clearing_report.csv` | Positions and P&L |
+| `clearing.db` | Positions and P&L |
 | `audit.log`, `audit_index.db` | The audit trail and its index |
 | `gtc_orders.json`, `book_stats.json` | Resting orders and book state across restarts |
 | `emo/` | One log file per process, plus the process manager's state |

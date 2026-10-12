@@ -1445,9 +1445,9 @@ low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
 
 **Operator's Guide:**
 
-- Configuration — engine and gateway configuration
-- Risk Controls — the kill switch
+- [Configuration](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — engine and gateway configuration
+- [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — the kill switch
 
 **Reference Manual:**
 
-- Processes — architecture overview of all EduMatcher processes
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — architecture overview of all EduMatcher processes

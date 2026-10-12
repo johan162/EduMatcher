@@ -1457,7 +1457,7 @@ join the index. That is a later step, not part of listing.
 | `--case NAME` | none | Classroom case to start from (`tornfalk`, `halvard`) |
 | `--market M` | the scenario's, else `se` | IPO framework and defaults: `se` (Sweden) or `us` (United States) |
 | `--no-tui` | off | Print the report instead of interviewing |
-| `--level LEVEL` | `beginner` | Interview detail: `beginner`, `intermediate`, `advanced` or `expert` (see [Levels](#levels-how-much-the-interview-asks)) |
+| `--level LEVEL` | `beginner` | Interview detail: `beginner`, `intermediate`, `advanced` or `expert` (see [Levels](#levels-how-much-the-interview-asks)). TUI only — combining it with `--no-tui` is a usage error (exit 2), since there is no interview to choose fields for |
 | `--mode MODE` | the scenario's, else `both` | `deterministic`, `montecarlo` or `both` |
 | `--draws N` | `10000` | Monte Carlo draws |
 | `--seed S` | `42` | Monte Carlo seed |

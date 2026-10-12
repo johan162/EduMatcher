@@ -273,9 +273,9 @@ the corresponding engine events become available; they are **not** part of `RALF
 
 **Operator's Guide:**
 
-- Post-Trade Dissemination — operational guide and client examples
+- [Post-Trade Dissemination](../../operator-guide/part-5-gateways/040-ralf-gateway.md) — operational guide and client examples
 
 **Reference Manual:**
 
-- Processes — where `pm-ralf-gwy` sits
-- Engine Config Specification — `post_trade_gateway` field law
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — where `pm-ralf-gwy` sits
+- [Engine Config Specification](../../reference-manual/part-3-configuration/030-formal-specification.md#64-post_trade_gateway-pm-ralf-gwy-ralf) — `post_trade_gateway` field law

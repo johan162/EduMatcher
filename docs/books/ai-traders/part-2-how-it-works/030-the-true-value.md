@@ -140,7 +140,7 @@ It lists the shares furthest from their value. For every share, ask the API
 with the instructor's key:
 
 ```bash
-curl -s -H "Authorization: Bearer key-ops01-9yn0rc" http://localhost:8080/api/v1/admin/sim
+curl -s -H "Authorization: Bearer key-ops01-3e34rs" http://localhost:8080/api/v1/admin/sim
 ```
 
 The answer holds the model's state and the latest value of every share. The

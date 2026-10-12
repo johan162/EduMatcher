@@ -81,17 +81,17 @@ The trader-gui asks for an API key. The simulation's desks and their keys:
 
 | Participant | Role | API key |
 |---|---|---|
-| `TRADER01` | student desk | `key-trader01-6q8nmr` |
-| `TRADER02` | student desk | `key-trader02-1xno5d` |
-| `TRADER03` | student desk | `key-trader03-ql6kep` |
-| `TRADER04` | student desk | `key-trader04-72esbg` |
-| `TRADER05` | student desk | `key-trader05-7l309s` |
-| `TRADER06` | student desk | `key-trader06-awtfv9` |
-| `TRADER07` | student desk | `key-trader07-grr3uq` |
-| `TRADER08` | student desk | `key-trader08-qypqwe` |
-| `TRADER09` | student desk | `key-trader09-bwp04i` |
-| `TRADER10` | student desk | `key-trader10-x83qd3` |
-| `OPS01` | instructor (ADMIN) | `key-ops01-9yn0rc` |
+| `TRADER01` | student desk | `key-trader01-rwlr0v` |
+| `TRADER02` | student desk | `key-trader02-uzytnc` |
+| `TRADER03` | student desk | `key-trader03-rwqo7n` |
+| `TRADER04` | student desk | `key-trader04-3etdg0` |
+| `TRADER05` | student desk | `key-trader05-k0c8fm` |
+| `TRADER06` | student desk | `key-trader06-xcv14m` |
+| `TRADER07` | student desk | `key-trader07-8b5rdy` |
+| `TRADER08` | student desk | `key-trader08-8ndd87` |
+| `TRADER09` | student desk | `key-trader09-b3bj7h` |
+| `TRADER10` | student desk | `key-trader10-m1men1` |
+| `OPS01` | instructor (ADMIN) | `key-ops01-3e34rs` |
 
 !!! warning "These keys are public"
     They are in the bundled example and in this book. The compose file

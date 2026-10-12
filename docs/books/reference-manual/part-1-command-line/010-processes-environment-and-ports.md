@@ -134,7 +134,7 @@ current state rather than waiting for the next change.
 
 ## Process Overview
 
-A complete EduMatcher session uses **ten core runtime processes** across three categories, plus optional AI trader, admin, and setup/config entrypoints.
+A complete EduMatcher session is built from the processes below: the core engine, its recorders, and the external protocol gateways (tabulated as **Core processes**); a set of query, admin and spy tools used as needed (tabulated as **Monitoring & Admin tools**); and a handful of AI-trader, setup and config entrypoints that each get their own section further down instead of a table row.
 
 !!! info "Protocol landscape"
     EduMatcher supports multiple external protocol families with different roles:
@@ -266,6 +266,7 @@ must be run from `~/.edumatcher`, where rule 4 finds `./data`.
 | **pm-alf-gwy**     | `pm-alf-gwy`              | ALF TCP gateway — order entry for external bots over TCP :5565 | No              |
 | **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
 | **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
+| **pm-balf-gwy**    | `pm-balf-gwy`             | External binary order-entry gateway (BALF) over TCP :5560  | No                  |
 | **pm-dc-gwy**      | `pm-dc-gwy`               | External drop-copy gateway (DC1) — relays :5557 fills over TCP :5590 for non-ZeroMQ clients | No |
 | **pm-api-gwy** | `pm-api-gwy`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
 | **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
@@ -1142,36 +1143,53 @@ matched trade pair, using the trade UUID from the engine as the primary key.
 
 ### Statistics Database Schema
 
-The database lives at `data/stats.db` (SQLite 3). Three tables are maintained.
+The database lives at `data/stats.db` (SQLite 3). Nine tables are maintained
+in total: the three below (the ones queried directly by `pm-stats-cli` for
+day-to-day reporting), plus `instruments` and `stats_meta` (reference/meta),
+`feed_gaps` and `order_events` (private-event and gap tracking), and
+`index_daily_stats` / `index_level_snapshots` (index history, fed by
+`pm-index`). See
+[Statistics and Reporting — The Statistics Database Schema](../../operator-guide/part-4-run-a-market/060-statistics-and-reporting.md#the-statistics-database-schema)
+for the complete reference, including those five tables.
+
+All three tables below store prices as **integer ticks**, with a per-row
+`tick_decimals` column giving the conversion: `display price = price /
+10^tick_decimals`. Always use the row's own `tick_decimals` — symbols do not
+share a tick size.
 
 #### `daily_stats`
 
 One row per `(date, symbol)`. Upserted on every trade and again when `system.eod` arrives.
 
 | Column                | Type      | Description                                                         |
-|-----------------------|-----------|---------------------------------------------------------------------|
+|-----------------------|-----------|-----------------------------------------------------------------------|
 | `date`                | TEXT (PK) | Calendar date `YYYY-MM-DD`                                          |
 | `symbol`              | TEXT (PK) | Instrument ticker                                                   |
-| `open_price`          | REAL      | Price of the first trade of the day                                 |
-| `high_price`          | REAL      | Highest trade price of the day                                      |
-| `low_price`           | REAL      | Lowest trade price of the day                                       |
-| `close_price`         | REAL      | Price of the last trade of the day                                  |
-| `open_bid`            | REAL      | Best bid at the time of the first book update                       |
-| `open_ask`            | REAL      | Best ask at the time of the first book update                       |
-| `close_bid`           | REAL      | Best bid recorded at engine shutdown (`system.eod`)                 |
-| `close_ask`           | REAL      | Best ask recorded at engine shutdown (`system.eod`)                 |
+| `open_price`          | INTEGER   | Price of the first trade of the day, in ticks                       |
+| `high_price`          | INTEGER   | Highest trade price of the day, in ticks                            |
+| `low_price`           | INTEGER   | Lowest trade price of the day, in ticks                             |
+| `close_price`         | INTEGER   | Price of the last trade of the day, in ticks                        |
+| `open_bid`            | INTEGER   | Best bid at the time of the first book update, in ticks             |
+| `open_ask`            | INTEGER   | Best ask at the time of the first book update, in ticks             |
+| `close_bid`           | INTEGER   | Best bid recorded at engine shutdown (`system.eod`), in ticks        |
+| `close_ask`           | INTEGER   | Best ask recorded at engine shutdown (`system.eod`), in ticks        |
 | `volume`              | INTEGER   | Total traded quantity for the day                                   |
 | `trade_count`         | INTEGER   | Number of individual trades                                         |
-| `vwap`                | REAL      | Volume-weighted average price: $\sum(price \times qty) / \sum(qty)$ |
+| `turnover`            | INTEGER   | $\sum(price\_ticks \times qty)$ — exact; the VWAP numerator       |
+| `vwap`                | REAL      | `turnover / volume`, in ticks. Derived, so REAL — divide by `10^tick_decimals` for display money |
 | `largest_trade_qty`   | INTEGER   | Quantity of the single largest trade                                |
-| `largest_trade_price` | REAL      | Price of the single largest trade                                   |
+| `largest_trade_price` | INTEGER   | Price of the single largest trade, in ticks                         |
+| `tick_decimals`       | INTEGER   | Decimal scale for this row's tick columns                           |
 
-Example query — end-of-day summary:
+Example query — end-of-day summary, converted to display money:
 ```sql
 SELECT date, symbol,
-       open_price, high_price, low_price, close_price,
+       open_price / POWER(10, tick_decimals) AS open_price,
+       high_price / POWER(10, tick_decimals) AS high_price,
+       low_price / POWER(10, tick_decimals) AS low_price,
+       close_price / POWER(10, tick_decimals) AS close_price,
        volume, trade_count,
-       ROUND(vwap, 4) AS vwap
+       ROUND(vwap / POWER(10, tick_decimals), 4) AS vwap
 FROM daily_stats
 ORDER BY date DESC, symbol;
 ```
@@ -1183,17 +1201,21 @@ ORDER BY date DESC, symbol;
 One row per `(ts, symbol)` written every **`--snapshot-interval`** seconds (default: 15 minutes) when a book update arrives.
 
 | Column       | Type      | Description                                                                                            |
-|--------------|-----------|--------------------------------------------------------------------------------------------------------|
+|--------------|-----------|------------------------------------------------------------------------------------------------------------|
 | `ts`         | TEXT (PK) | ISO-8601 timestamp (UTC, second precision)                                                             |
 | `symbol`     | TEXT (PK) | Instrument ticker                                                                                      |
-| `mid_price`  | REAL      | `(best_bid + best_ask) / 2`; falls back to whichever side is present, then `last_price`                |
-| `best_bid`   | REAL      | Best bid price at snapshot time (null if empty book)                                                   |
-| `best_ask`   | REAL      | Best ask price at snapshot time (null if empty book)                                                   |
-| `pct_change` | REAL      | Percentage change of `mid_price` vs. previous snapshot: $100 \times (mid_{t} - mid_{t-1}) / mid_{t-1}$ |
+| `mid_price`  | REAL      | `(best_bid + best_ask) / 2`, in ticks; falls back to whichever side is present, then the last trade price. Derived, so REAL — a midpoint between two ticks can land on a half-tick |
+| `best_bid`   | INTEGER   | Best bid price at snapshot time, in ticks (null if empty book)                                         |
+| `best_ask`   | INTEGER   | Best ask price at snapshot time, in ticks (null if empty book)                                         |
+| `pct_change` | REAL      | Percentage change of `mid_price` vs. previous snapshot: $100 \times (mid_{t} - mid_{t-1}) / mid_{t-1}$ (a ratio, not a price — never converted) |
+| `tick_decimals` | INTEGER | Decimal scale for this row's tick columns                                                           |
 
-Example query — intraday price path for MSFT:
+Example query — intraday price path for MSFT, converted to display money:
 ```sql
-SELECT ts, mid_price, best_bid, best_ask,
+SELECT ts,
+       mid_price / POWER(10, tick_decimals) AS mid_price,
+       best_bid / POWER(10, tick_decimals) AS best_bid,
+       best_ask / POWER(10, tick_decimals) AS best_ask,
        ROUND(pct_change, 4) || '%' AS change
 FROM price_snapshots
 WHERE symbol = 'MSFT'
@@ -1207,18 +1229,21 @@ ORDER BY ts;
 Append-only record of every individual matched trade.
 
 | Column            | Type      | Description                                     |
-|-------------------|-----------|-------------------------------------------------|
+|-------------------|-----------|---------------------------------------------------|
 | `ts`              | TEXT      | ISO-8601 timestamp (UTC, millisecond precision) |
 | `trade_id`        | TEXT (PK) | Durable engine trade id (`run_seq-counter`); duplicate delivery is idempotent on this key |
 | `symbol`          | TEXT      | Instrument ticker                               |
-| `price`           | REAL      | Execution price                                 |
+| `price`           | INTEGER   | Execution price, in ticks                       |
 | `quantity`        | INTEGER   | Matched quantity                                |
+| `tick_decimals`   | INTEGER   | Decimal scale for `price`                       |
 | `buy_gateway_id`  | TEXT      | Gateway that submitted the buy order            |
 | `sell_gateway_id` | TEXT      | Gateway that submitted the sell order           |
+| `aggressor_side`  | TEXT      | `BUY` or `SELL` for a continuous match; `AUCTION` for an uncross print where both sides were resting |
 
-Example query — all trades for a symbol sorted by time:
+Example query — all trades for a symbol sorted by time, converted to display money:
 ```sql
-SELECT ts, price, quantity, buy_gateway_id, sell_gateway_id
+SELECT ts, price / POWER(10, tick_decimals) AS price,
+       quantity, aggressor_side, buy_gateway_id, sell_gateway_id
 FROM trade_log
 WHERE symbol = 'AAPL'
 ORDER BY ts;
@@ -2217,31 +2242,67 @@ pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARG
 
 - `HALT`, `RESUME`
 - `HALT_SYM|SYM=<sym>`, `RESUME_SYM|SYM=<sym>`, `CANCEL_SYM|SYM=<sym>`
+- `REOPEN|SYM=<sym>[|PRICE=<px>][|DRY_RUN=1][|NOTE=<text>]`
 - `KILL|GW=<gw>[|SYM=<sym>]`
 - `KICK|GW=<gw>[|REASON=<text>]`
 - `QCANCEL|GW=<gw>|SYM=<sym>`
 - `BOOK|SYM=<sym>`
 - `ORDERS|GW=<gw>`
+- `LEVEL|SYM=<sym>[|PRICE=<px>]`
 - `SYMBOLS`
 - `SESSION|STATE=<PRE_OPEN|OPENING_AUCTION|CONTINUOUS|CLOSING_AUCTION|CLOSED>`
 - `SESSION_STATUS`, `SCHEDULE`, `GATEWAYS`, `VOLUME`
+- `POSITION|GW=<gw>[|SYM=<sym>,..]`
 - `HELP`, `EXIT`, `QUIT`
 
 **Messages sent** (PUSH → :5555):
 
-| Topic                             | Purpose                                                 |
-|-----------------------------------|---------------------------------------------------------|
-| `risk.kill_switch`                | Trigger an exchange-wide order kill                     |
-| `risk.circuit_breaker_halt_all`   | Halt all symbols (requires ADMIN gateway role)          |
-| `risk.circuit_breaker_resume_all` | Resume all halted symbols (requires ADMIN gateway role) |
+| Topic                               | Purpose                                                     |
+|--------------------------------------|---------------------------------------------------------------|
+| `system.gateway_connect`            | Authentication request (once at startup)                    |
+| `risk.circuit_breaker_halt_all`     | `HALT` — halt all symbols (requires ADMIN gateway role)      |
+| `risk.circuit_breaker_resume_all`   | `RESUME` — resume all halted symbols (requires ADMIN gateway role) |
+| `risk.symbol_halt`                  | `HALT_SYM` — halt one symbol                                 |
+| `risk.symbol_resume`                | `RESUME_SYM` — resume one symbol                              |
+| `risk.cancel_symbol`                | `CANCEL_SYM` — cancel all resting orders on one symbol        |
+| `risk.force_uncross`                | `REOPEN` — force a symbol to uncross now and clear any halt   |
+| `risk.kill_switch`                  | `KILL` — cancel all (or symbol-scoped) orders/quotes for a gateway |
+| `system.gateway_disconnect`         | `KICK` — forcefully disconnect a gateway (no ack published)   |
+| `quote.cancel`                      | `QCANCEL` — cancel a gateway's active two-sided quote         |
+| `book.snapshot_request`             | `BOOK` — request a book snapshot                              |
+| `order.orders_request`              | `ORDERS` — request a gateway's resting orders                 |
+| `order.price_level_orders_request`  | `LEVEL` — request every resting order at a symbol (optionally one price level) |
+| `system.symbols_request`            | `SYMBOLS` — request the instrument list                       |
+| `session.transition`                | `SESSION` — request a session-phase transition                |
+| `system.session_state_request`      | `SESSION_STATUS` — request the current session state          |
+| `system.session_schedule_request`   | `SCHEDULE` — request the configured schedule                  |
+| `system.gateways_request`           | `GATEWAYS` — request gateway connection states                |
+| `system.volume_request`             | `VOLUME` — request the daily volume summary                   |
+| `system.position_request`           | `POSITION` — request a gateway's net position snapshot         |
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic                          | Purpose                     |
-|--------------------------------|-----------------------------|
-| `system.gateway_auth.{GW_ID}`  | Authentication reply        |
-| `risk.kill_switch_ack.{GW_ID}` | Kill-switch acknowledgement |
-| `session.state`                | Session phase changes       |
+| Topic                                 | Purpose                                                  |
+|-----------------------------------------|-------------------------------------------------------------|
+| `system.gateway_auth.{GW_ID}`          | Authentication reply                                      |
+| `risk.circuit_breaker_halt_all_ack.{GW_ID}`   | `HALT` acknowledgement                              |
+| `risk.circuit_breaker_resume_all_ack.{GW_ID}` | `RESUME` acknowledgement                            |
+| `risk.symbol_halt_ack.{GW_ID}`         | `HALT_SYM` acknowledgement                                 |
+| `risk.symbol_resume_ack.{GW_ID}`       | `RESUME_SYM` acknowledgement                               |
+| `risk.cancel_symbol_ack.{GW_ID}`       | `CANCEL_SYM` acknowledgement                               |
+| `risk.force_uncross_ack.{GW_ID}`       | `REOPEN` acknowledgement, with indicative/printed price    |
+| `risk.kill_switch_ack.{GW_ID}`         | `KILL` acknowledgement                                     |
+| `quote.ack.{GW_ID}`                    | `QCANCEL` acknowledgement                                  |
+| `book.{SYMBOL}`                        | `BOOK` reply — book snapshot                               |
+| `order.orders.{GW_ID}`                 | `ORDERS` reply — resting order list                        |
+| `order.price_level_orders.{GW_ID}`     | `LEVEL` reply — per-order book composition                 |
+| `system.symbols.{GW_ID}`               | `SYMBOLS` reply                                            |
+| `system.session_status.{GW_ID}`        | `SESSION_STATUS` reply                                     |
+| `system.session_schedule.{GW_ID}`      | `SCHEDULE` reply                                           |
+| `system.gateways.{GW_ID}`              | `GATEWAYS` reply                                           |
+| `system.volume.{GW_ID}`                | `VOLUME` reply                                             |
+| `system.position_snapshot.{GW_ID}`     | `POSITION` reply                                           |
+| `session.state`                        | Session phase changes (broadcast; also the `SESSION` reply) |
 
 
 
@@ -2278,17 +2339,20 @@ Subcommands and required arguments:
 | `halt-sym`       | `--sym <SYMBOL>`              | none               | Halt one symbol                                         |
 | `resume-sym`     | `--sym <SYMBOL>`              | none               | Resume one symbol                                       |
 | `cancel-sym`     | `--sym <SYMBOL>`              | none               | Cancel all resting orders on one symbol                 |
+| `reopen`         | `--sym <SYMBOL>`              | `--price <PRICE>`, `--dry-run`, `--note <TEXT>` | Force a symbol to uncross now and clear any halt |
 | `kill`           | `--gw <GW_ID>`                | `--sym <SYMBOL>`   | Cancel all (or symbol-scoped) orders/quotes for gateway |
 | `kick`           | `--gw <GW_ID>`                | `--reason <TEXT>`  | Disconnect a gateway                                    |
 | `qcancel`        | `--gw <GW_ID> --sym <SYMBOL>` | none               | Cancel active quote for gateway on symbol               |
 | `book`           | `--sym <SYMBOL>`              | none               | Fetch book snapshot                                     |
 | `orders`         | `--gw <GW_ID>`                | none               | List resting orders for gateway                         |
+| `level`          | `--sym <SYMBOL>`              | `--price <PRICE>`  | Show every resting order for a symbol (or one price level), across all gateways |
 | `symbols`        | none                          | none               | List configured instruments                             |
 | `session`        | `--state <STATE>`             | none               | Request session transition                              |
 | `session-status` | none                          | none               | Read current session state                              |
 | `schedule`       | none                          | none               | Read configured schedule                                |
 | `gateways`       | none                          | none               | List gateway states                                     |
 | `volume`         | none                          | none               | Show daily volume summary                               |
+| `position`       | `--gw <GW_ID>`                | none               | Show net position, avg cost, and live bid/ask/spread/mid per symbol for gateway |
 
 
 
@@ -2596,7 +2660,19 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 | `--continuous HH:MM` | `09:30` | Continuous trading start time |
 | `--closing-auction HH:MM` | `16:00` | Closing auction start time |
 | `--closing-end HH:MM` | `16:05` | Closing auction end time |
-| `--country CODE` | — | Holiday calendar country code (ISO 3166-1 alpha-2) |
+| `--weekend` | off | Also emit a `weekend:` block (Sat+Sun) using the `--weekend-*` times below; without this flag weekends are `CLOSED` |
+| `--weekend-pre-open HH:MM` | `10:00` | Weekend pre-open schedule time |
+| `--weekend-opening-auction HH:MM` | `10:25` | Weekend opening auction start time |
+| `--weekend-continuous HH:MM` | `10:30` | Weekend continuous trading start time |
+| `--weekend-closing-auction HH:MM` | `14:00` | Weekend closing auction start time |
+| `--weekend-closing-end HH:MM` | `14:05` | Weekend closing auction end time |
+| `--holidays` / `--no-holidays` | off | Also emit a `holidays:` block using the `--holidays-*` times below; without this flag bank holidays are `CLOSED` |
+| `--holidays-pre-open HH:MM` | `10:00` | Holiday pre-open schedule time |
+| `--holidays-opening-auction HH:MM` | `10:25` | Holiday opening auction start time |
+| `--holidays-continuous HH:MM` | `10:30` | Holiday continuous trading start time |
+| `--holidays-closing-auction HH:MM` | `14:00` | Holiday closing auction start time |
+| `--holidays-closing-end HH:MM` | `14:05` | Holiday closing auction end time |
+| `--country CODE` | — | Holiday calendar country code (ISO 3166-1 alpha-2) — which dates the `holidays:` block applies to |
 | `--session-timezone TZ` | — | Session timezone, an IANA name (e.g. `Europe/Stockholm`) |
 
 #### Combos
@@ -2757,7 +2833,7 @@ that file exists:
 |-----------|--------------------------------------------------------------------------------------------------|
 | `micro`   | Centralized logging plus the matching engine only                                                |
 | `mini`    | A trading-capable subset: logging, stats, engine, scheduler, market data, the desk API gateway, and the ALF/post-trade/drop-copy gateways |
-| `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, and the BALF gateway |
+| `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, the BALF gateway, and the index calculation process (`pm-index`) |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 | `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
 | `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 80 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.05` and `pm-clearing --print-every 0 --retention-days 7`. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
@@ -2849,7 +2925,7 @@ without its `pm-` prefix, so `pm-help viewer` finds `pm-viewer`.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--format table\|json` | `table` | `table` uses UTF-8 box-drawing characters; `text` is plain aligned columns with no box-drawing -- friendly to `grep`, redirects, and non-UTF-8 terminals |
+| `--format table\|text` | `table` | `table` uses UTF-8 box-drawing characters; `text` is plain aligned columns with no box-drawing -- friendly to `grep`, redirects, and non-UTF-8 terminals |
 | `-v`, `--verbose` | off | In the command-index view, show extra detail (and a worked example, where one exists) under each command |
 | `--no-color` | off | Disable ANSI colour |
 | `--completion bash\|zsh` | — | Print the tab-completion script for every `pm-*` command and exit -- see [Shell completion](../../operator-guide/part-1-install-and-deploy/010-installation.md#shell-completion) |
@@ -2940,11 +3016,13 @@ pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEV
 ## pm-md-gwy (CALF Market-Data Gateway)
 
 `pm-md-gwy` is implemented and provides external market-data distribution over
-CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
-
-- `TOP` (top-of-book style updates)
-- `TRADE` (executed trades)
-- `STATE` (session and halt/resume state)
+CALF/TCP. It consumes engine (and index) PUB topics and exposes seven
+sequence-aware channels: `TOP` (top-of-book), `TRADE` (executed trades),
+`STATE` (session and halt/resume state), `INDEX` (index level updates),
+`DEPTH` (full book depth), `AUCTION` (auction uncross results), and `CB`
+(circuit-breaker halt/resume events). A client discovers which channels a
+given gateway build supports via `WELCOME|CH_SUPPORTED=`; only `TOP`,
+`TRADE`, `STATE`, and `AUCTION` accept the `SYM=*` wildcard.
 
 ```bash
 pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q] \
@@ -3131,26 +3209,26 @@ See [Messages](../../protocols-and-clients/part-5-message-reference/010-message-
 
 **Participant Guide:**
 
-- Market-Maker Bot — autonomous quoting process for a single symbol
+- [Market-Maker Bot](../../participant-guide/part-3-market-making/030-the-market-maker-bot.md) — autonomous quoting process for a single symbol
 
 **Operator's Guide:**
 
-- Running the Engine — startup order, launch scripts, and verification
-- Configuration — how each process is configured via `engine_config.yaml`
-- Inspect Configs (pm-config-show) — read-only viewer for the deployed config and its port map
-- Persistence — which process writes which data file
-- Post-Trade Dissemination — external RALF gateway usage
-- Market Data Feed (CALF) — external CALF gateway usage
-- Centralized Log Server — pm-log-srv/pm-log-cli operational guide
-- ALF TCP Gateway — external ALF order-entry gateway usage
-- API Gateway (REST/WebSocket) — REST/WebSocket gateway usage and endpoint reference
-- Market Index (pm-index) — index configuration, calculation, and corporate actions
+- [Running the Exchange](../../operator-guide/part-3-run/010-running-the-exchange.md) — startup order, launch scripts, and verification
+- [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — how each process is configured via `engine_config.yaml`
+- [Inspect Configs (pm-config-show)](#pm-config-show-config-viewer) — read-only viewer for the deployed config and its port map
+- [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md) — which process writes which data file
+- [RALF Gateway — Post-Trade Dissemination](../../operator-guide/part-5-gateways/040-ralf-gateway.md) — external RALF gateway usage
+- [CALF Gateway — Market Data](../../operator-guide/part-5-gateways/030-calf-gateway.md) — external CALF gateway usage
+- [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) — pm-log-srv/pm-log-cli operational guide
+- [ALF Gateway — Order Entry](../../operator-guide/part-5-gateways/010-alf-gateway.md) — external ALF order-entry gateway usage
+- [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
+- [Market Index (pm-index)](../../operator-guide/part-4-run-a-market/070-market-index.md) — index configuration, calculation, and corporate actions
 
 **Protocols and Clients:**
 
-- Messages — the full ZeroMQ message catalog all processes share
-- Drop Copy — the engine's built-in :5557 drop-copy feed
-- RALF Protocol Reference — official protocol appendix
-- CALF Protocol Spy (pm-calf-spy) — read-only CALF inspection CLI
-- RALF Protocol Spy (pm-ralf-spy) — read-only RALF inspection CLI
-- LALF Protocol Reference — official protocol appendix
+- [Message Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — the full ZeroMQ message catalog all processes share
+- [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md) — the engine's built-in :5557 drop-copy feed
+- [RALF Protocol Reference](../../protocols-and-clients/part-2-specifications/040-ralf.md) — official protocol appendix
+- [CALF Protocol Spy (pm-calf-spy)](../../protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md) — read-only CALF inspection CLI
+- [RALF Protocol Spy (pm-ralf-spy)](../../protocols-and-clients/part-4-writing-clients/040-the-spy-tools-ralf.md) — read-only RALF inspection CLI
+- [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) — official protocol appendix

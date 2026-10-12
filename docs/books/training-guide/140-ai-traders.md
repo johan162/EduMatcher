@@ -119,9 +119,9 @@ Stop it with Ctrl+C: its session closes and the participant's
 pm-ai-swarm --swarm docs/examples/ref_data/s150-nominal-setup/swarm.yaml -v
 ```
 
-`swarm.yaml` gives the twenty traders `AI001`–`AI020` a mix of every preset,
-spreads the 150 symbols over them, and caps the whole swarm at 40 order
-actions a second. Once a minute the swarm logs a status line:
+`swarm.yaml` gives the twenty traders `AI001`–`AI020` a mix of every preset
+(`per_agent: 150` — every agent trades every symbol, not a slice of them),
+and caps the whole swarm at 40 order actions a second. Once a minute the swarm logs a status line:
 
 ```text
 [w1-AI001-AI020] t=120s session=CONTINUOUS actions=4801 (40.0/s) live_orders=164 fills=1290 rejects=0

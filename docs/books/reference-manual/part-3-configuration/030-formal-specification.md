@@ -92,7 +92,7 @@ load. Producers MAY write any case; consumers compare upper-case.
 | `Role` | `TRADER`, `MARKET_MAKER`, `ADMIN` | `participants[].role` |
 | `DisconnectBehaviour` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `participants[].disconnect_behaviour`, `participant_defaults.disconnect_behaviour` |
 | `QuoteRefreshPolicy` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `participants[].quote_refresh_policy` |
-| `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds |
+| `TIF` | `DAY`, `GTC`, `ATO`, `ATC` | quote/combo seeds (`market_maker_quotes[].tif` is further restricted by `pm-cverifier` to `DAY`/`GTC` only). `IOC` and `FOK` are `OrderType` members, not `TIF` members. |
 | `ComboType` | `AON` | `market_maker_combos[].combo_type` |
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
@@ -159,7 +159,7 @@ ParticipantSpec:                             # one entry of participants
   disconnect_behaviour:    ? Enum<DisconnectBehaviour> = <participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY>
   quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
   enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
-  mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
+  mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 20>
   mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
   smp_action:              ? Enum<SmpAction> = <participant_defaults.smp_action | NONE>
@@ -180,7 +180,7 @@ AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
   heartbeat_interval_sec:       ? Int = 5                     ∈ > 0
   handshake_timeout_sec:        ? Int = 10                    ∈ > 0
   idle_timeout_sec:             ? Int = 30                    ∈ > 0
-  max_connections:              ? Int = 64                    ∈ > 0
+  max_connections:              ? Int = 1024                  ∈ > 0
   max_client_queue:             ? Int = 10000                 ∈ > 0
   max_commands_per_second:      ? Int = 100                   ∈ > 0
   max_errors_before_disconnect: ? Int = 50                    ∈ > 0
@@ -510,7 +510,7 @@ expected to need adjustment in normal use:
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `enforce_mm_obligation` | `Bool` | – | `false` | |
-| `mm_max_spread_ticks` | `Ticks` | – | `10` | `> 0` |
+| `mm_max_spread_ticks` | `Ticks` | – | `20` | `> 0` |
 | `mm_min_qty` | `Qty` | – | `100` | `> 0` |
 | `symbols` | `Map<Symbol, {enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty}>` | – | `{}` | each key MUST exist in `symbols`; per-symbol fields default to the block-level values above |
 
@@ -659,7 +659,7 @@ Spec type: `AlfGwyProcSpec`.
 | `heartbeat_interval_sec` | `Int` | – | `5` | `> 0` |
 | `handshake_timeout_sec` | `Int` | – | `10` | `> 0` |
 | `idle_timeout_sec` | `Int` | – | `30` | `> 0` |
-| `max_connections` | `Int` | – | `64` | `> 0` |
+| `max_connections` | `Int` | – | `1024` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `max_commands_per_second` | `Int` | – | `100` | `> 0` |
 | `max_errors_before_disconnect` | `Int` | – | `50` | `> 0` |
@@ -913,14 +913,14 @@ block on every symbol, unless `require_mm_seed_quotes: false` is also set.
 
 **Operator's Guide:**
 
-- Configuration — informative reference, generator, recipes
-- Config Verifier (`pm-cverifier`) — the reference validator
-- Inspect Configs (`pm-config-show`) — read-only viewer for a deployed document, including the effective port map
-- Risk Controls — collar and circuit-breaker behaviour
-- Market Index (`pm-index`) — index calculation using `indices`
-- Centralized Log Server — `pm-log-srv`/`pm-log-cli` operational guide
+- [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — informative reference, generator, recipes
+- [Config Verifier (`pm-cverifier`)](../../operator-guide/part-2-configure/020-config-verifier.md) — the reference validator
+- [Inspect Configs (`pm-config-show`)](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#inspect-configs-with-pm-config-show) — read-only viewer for a deployed document, including the effective port map
+- [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — collar and circuit-breaker behaviour
+- [Market Index (`pm-index`)](../../operator-guide/part-4-run-a-market/070-market-index.md) — index calculation using `indices`
+- [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) — `pm-log-srv`/`pm-log-cli` operational guide
 
 **Protocols and Clients:**
 
-- External Protocols Overview — the gateways that read the auxiliary blocks
-- LALF Protocol Reference — the wire protocol `pm-log-srv` serves
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — the gateways that read the auxiliary blocks
+- [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) — the wire protocol `pm-log-srv` serves

@@ -29,7 +29,8 @@ These reference configs are organized by book count and setup profile:
 - `s150-basic-setup`
 - `s150-nominal-setup`
 - `s150-complex-setup`
-- `s300-load-setup` — AI-trader load test bed: 300 symbols, 500 AI participants (`AI001`–`AI500`); no `-nomm` variant
+- `s300-load-setup` — AI-trader design-limit load test bed: 300 symbols, 500 AI participants (`AI001`–`AI500`); no `-nomm` variant
+- `s300-sim-setup` — the long-running simulated market used by the [AI Traders and Market Simulation](../../ai-traders/00-front/010-how-to-use-this-book.md) book and the `edumatcher-ai-sim` container image's default config: 300 symbols, 100 AI traders (`AI001`–`AI100`) plus a `market_sim.yaml` hidden-true-value market model with news/rumours; no `-nomm` variant
 
 The `s150-*` configs also list `AI001`–`AI020` so a 20-bot `pm-ai-swarm` runs unchanged. Each profile also has a `-nomm` variant without seeded market-maker quotes. Every directory contains a small generator script, `mkrefdata.sh`, and the resulting `engine_config.yaml`.
 

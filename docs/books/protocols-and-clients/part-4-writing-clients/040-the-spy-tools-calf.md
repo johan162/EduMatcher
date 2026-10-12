@@ -235,12 +235,12 @@ same gateway — `pm-md-gwy` fans out independently per session.
 
 **Operator's Guide:**
 
-- Market Data Feed (CALF) — operational guide, wire examples, and the Python/C example subscribers
+- [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md) — operational guide, wire examples, and the Python/C example subscribers
 
 **Reference Manual:**
 
-- Processes — where `pm-calf-spy` sits in the process model
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — where `pm-calf-spy` sits in the process model
 
 **Training Guide:**
 
-- Training — CALF Market-Data Gateway Protocol — hands-on exercises using `nc` and the example subscribers
+- [CALF Market-Data Gateway Protocol Training](../../training-guide/230-calf.md) — hands-on exercises using `nc` and the example subscribers

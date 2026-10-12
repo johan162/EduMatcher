@@ -283,6 +283,12 @@ The **first frame** must be a `LOGON` (msg_type `0x01`, 32 bytes total):
 If the first frame is not a valid `LOGON`, the gateway hard-closes the TCP
 connection immediately.
 
+!!! note "`gateway_id` and `symbol` are silently uppercased"
+    The gateway uppercases both `gateway_id` (decoded from `LOGON`) and
+    `symbol` (decoded from `NEW_ORDER`) after reading them off the wire, so a
+    lowercase value is normalized rather than rejected or matched
+    case-sensitively.
+
 See [LOGON frame layout](../../protocols-and-clients/part-2-specifications/020-balf.md#logon-0x01-client-server) in
 the protocol reference.
 
@@ -867,9 +873,9 @@ EOF
 
 **Reference Manual:**
 
-- Processes — process topology and ZMQ message tables
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-balf-gwy-balf-tcp-gateway) — process topology and ZMQ message tables
 
 **Protocols and Clients:**
 
-- Appendix: BALF Protocol Reference — normative frame layouts, byte offsets, encoding rules, and worked hex examples
-- External Protocols Overview — protocol comparison and selection guide
+- [Appendix: BALF Protocol Reference](../../protocols-and-clients/part-2-specifications/020-balf.md) — normative frame layouts, byte offsets, encoding rules, and worked hex examples
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — protocol comparison and selection guide

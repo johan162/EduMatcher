@@ -473,7 +473,7 @@ API gateway options:
 | `--api-gateway-name NAME` | string | `default` | Name of the generated `api_gateways.<NAME>` entry for single-process generation |
 | `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` | Repeatable | none | Emit one named API gateway process per option; use `NAME::PORT` for an identity-free read-only process |
 | `--api-gateway-enabled` / `--api-gateway-disabled` | Flag pair | unset (`true` when emitted) | Set each generated API gateway `enabled` field |
-| `--api-gateway-host ADDR` | string | `127.0.0.1` | HTTP bind address |
+| `--api-gateway-host ADDR` | string | `0.0.0.0` | HTTP bind address |
 | `--api-gateway-port N` | int (`> 0`) | `8080` | HTTP listen port |
 | `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled` | Flag pair | unset (`true` when emitted) | Enable or disable `/docs` and `/openapi.json` |
 | `--api-gateway-log-level LEVEL` | enum | `info` | `debug`, `info`, `warning`, or `error` |
@@ -717,24 +717,24 @@ Generated `market_maker_combos` section:
 
 ```yaml
 market_maker_combos:
-  - combo_id: SEED-PAIR
-    combo_type: AON
-    tif: DAY
-    legs:
-      - symbol: AAPL
-        side: BUY
-        order_type: LIMIT
-        quantity: 100
-        price: 20950
-        stop_price: null
-        smp_action: NONE
-      - symbol: MSFT
-        side: SELL
-        order_type: LIMIT
-        quantity: 50
-        price: 41550
-        stop_price: null
-        smp_action: NONE
+- combo_id: SEED-PAIR
+  combo_type: AON
+  tif: DAY
+  legs:
+  - symbol: AAPL
+    side: BUY
+    order_type: LIMIT
+    quantity: 100
+    price: 20950.0
+    stop_price: null
+    smp_action: NONE
+  - symbol: MSFT
+    side: SELL
+    order_type: LIMIT
+    quantity: 50
+    price: 41550.0
+    stop_price: null
+    smp_action: NONE
 ```
 
 Multiple combos use repeated `--combo` flags:
@@ -822,15 +822,15 @@ Expected emitted section:
 ```yaml
 post_trade_gateway:
   name: ralf-gwy01
-  bind_address: 0.0.0.0
+  bind_address: 127.0.0.1
   port: 5580
-  replay_retention_sec: 3600
+  replay_retention_sec: 86400
   heartbeat_interval_sec: 1
-  idle_timeout_sec: 10
-  max_client_queue: 2000
+  idle_timeout_sec: 5
+  max_client_queue: 10000
   allowed_roles:
-    - CLEARING
-    - AUDIT
+  - CLEARING
+  - AUDIT
 ```
 
 This is the quickest path when you want one command that prepares both:
@@ -865,19 +865,20 @@ api_gateways:
     swagger_enabled: true
     log_level: info
     stats_db: data/stats.db
+    order_retention_sec: 3600
     credentials:
-      - api_key: key-trader01-...
-        gateway_id: TRADER01
-        description: Generated key for TRADER01
-      - api_key: key-trader02-...
-        gateway_id: TRADER02
-        description: Generated key for TRADER02
-      - api_key: key-ops01-...
-        gateway_id: OPS01
-        description: Generated key for OPS01
-      - api_key: key-readonly-...
-        gateway_id: null
-        description: Generated read-only market-data key
+    - api_key: key-trader01-...
+      gateway_id: TRADER01
+      description: Generated key for TRADER01
+    - api_key: key-trader02-...
+      gateway_id: TRADER02
+      description: Generated key for TRADER02
+    - api_key: key-ops01-...
+      gateway_id: OPS01
+      description: Generated key for OPS01
+    - api_key: key-readonly-...
+      gateway_id: null
+      description: Generated read-only market-data key
     rate_limit:
       writes_per_second: 10
       burst: 20
@@ -928,7 +929,7 @@ Expected emitted section:
 ```yaml
 balf_gateway:
   name: balf-gwy01
-  bind_address: 0.0.0.0
+  bind_address: 127.0.0.1
   port: 5560
   heartbeat_interval_sec: 1
   heartbeat_timeout_sec: 5
@@ -961,16 +962,16 @@ Expected emitted section shape:
 
 ```yaml
 indices:
-  - id: EDU100
-    description: EduMatcher broad index
-    base_value: 1000.0
-    publish_interval_sec: 1.0
-    history_file: data/indexes/EDU100_history.jsonl
-    state_file: data/indexes/EDU100_state.json
-    constituents:
-      - AAPL
-      - MSFT
-      - TSLA
+- id: EDU100
+  description: EduMatcher broad index
+  base_value: 1000.0
+  publish_interval_sec: 1.0
+  history_file: data/indexes/EDU100_history.jsonl
+  state_file: data/indexes/EDU100_state.json
+  constituents:
+  - AAPL
+  - MSFT
+  - TSLA
 ```
 
 With multiple indices and custom settings:
@@ -1272,20 +1273,22 @@ column like a printed index.
 ```text
 ╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────╮
 │ docs/examples/ref_data/s10-nominal-setup/engine_config.yaml                                      │
-│ 33.7 kB  ·  2026-08-20 17:32  ·  via --file                                                      │
-│ ● on sessions   ● on collars   ● on breakers   ○ off mm-oblig                                    │
-│ 10 symbols   4 participants   2 API gateways   5 keys   9 listeners                              │
+│ 42.7 kB  ·  2026-10-11 20:27  ·  via --file                                                      │
+│ ● on sessions   ○ off collars   ● on breakers   ● on mm-oblig                                    │
+│ 10 symbols   4 participants   2 API gateways   5 keys   11 listeners                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─  PORTS & LISTENERS  ────────────────────────────────────────────────────────────────────────────╮
 │  PORT   PROTO      PROCESS       FUNCTION                                    BIND                │
 │ ──────────────────────────────────────────────────────────────────────────────────────────────── │
-│  5555   ZMQ PULL   pm-engine     Order intake (CALF)                         127.0.0.1   fixed   │
+│  5553   ZMQ PUB    pm-market-…   True values and heartbeat                   127.0.0.1   env     │
+│  5554   ZMQ PULL   pm-market-…   Instructor commands                         127.0.0.1   env     │
+│  5555   ZMQ PULL   pm-engine     Order intake                                127.0.0.1   fixed   │
 │  5556   ZMQ PUB    pm-engine     Event + book feed                           127.0.0.1   fixed   │
 │  5557   ZMQ PUB    pm-engine     Drop-copy feed                              127.0.0.1   fixed   │
 │  5558   ZMQ PUB    pm-index      Index value publish                         127.0.0.1   env     │
 │  5559   ZMQ PULL   pm-index      Index command intake                        127.0.0.1   env     │
-│  5570   TCP        pm-md-gwy     Market data (MDLF)                          127.0.0.1   set     │
-│  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           127.0.0.1   set     │
+│  5570   TCP        pm-md-gwy     Market data (CALF)                          0.0.0.0     set     │
+│  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           0.0.0.0     set     │
 │  8080   HTTP       pm-api-gwy    REST API — desk                             0.0.0.0     set     │
 │  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -1729,9 +1732,9 @@ Engine startup
     |
     +-- 1. Parse config if present
     +-- 2. Bind main PULL/PUB sockets
-    +-- 3. Load persisted book stats from <DATA_DIR>/book_stats.json
-    +-- 4. Restore persisted GTC orders from <DATA_DIR>/gtc_orders.json
-    +-- 5. Restore persisted GTC combos from <DATA_DIR>/gtc_combos.json
+    +-- 3. Restore persisted GTC orders from <DATA_DIR>/gtc_orders.json
+    +-- 4. Restore persisted GTC combos from <DATA_DIR>/gtc_combos.json
+    +-- 5. Load persisted book stats from <DATA_DIR>/book_stats.json
     +-- 6. Inject market_maker_quotes
     +-- 7. Inject market_maker_combos
     +-- 8. Bind drop-copy PUB :5557 if available
@@ -1985,7 +1988,7 @@ beside it is by construction the exact bytes that were last compiled.
 
 **Participant Guide:**
 
-- ALF Console - ALF commands and gateway behavior
+- [The Trader Console (`pm-alf-console`)](../../participant-guide/part-2-orders/010-the-trader-console.md) - ALF commands and gateway behavior
 
 **Reference Manual:**
 

@@ -292,23 +292,22 @@ Sent by a gateway to submit a new order for matching.
 | `id` | string (UUID) | Unique order identifier |
 | `symbol` | string | Instrument ticker, e.g. `MSFT` |
 | `side` | `"BUY"` \| `"SELL"` | Order side |
-| `order_type` | string | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP` |
-| `tif` | `"DAY"` \| `"GTC"` \| `"ATO"` \| `"ATC"` \| `"FOK"` | Time-in-force |
+| `order_type` | string | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
+| `tif` | `"DAY"` \| `"GTC"` \| `"ATO"` \| `"ATC"` | Time-in-force. `FOK`/`IOC` are `order_type` values, not `tif` values — there is no `FOK` time-in-force |
 | `quantity` | integer | Total order quantity |
 | `remaining_qty` | integer | Unfilled quantity (equals `quantity` on submission) |
 | `gateway_id` | string | Originating gateway identifier, e.g. `TRADER01` |
-| `timestamp` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
+| `ts_ns` | integer | Client-supplied submission time, Unix epoch **nanoseconds**. **Not** what the book uses for time priority — see `arrival_seq` — so a back-dated value cannot jump the queue |
 | `arrival_seq` | integer \| absent | Engine-assigned monotonic arrival sequence, and the actual time-priority key. `0` on submission, meaning unassigned |
 | `status` | string | Initial status, always `"NEW"` |
-| `price` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
-| `stop_price` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
+| `price_ticks` | integer (ticks) \| null | Limit price **in ticks** (LIMIT, STOP_LIMIT, FOK, ICEBERG); `null` for MARKET, which has none |
+| `stop_price_ticks` | integer (ticks) \| null | Trigger price **in ticks** (STOP, STOP_LIMIT, TRAILING_STOP) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
-| `trail_offset` | integer (ticks) \| null | Distance **in ticks** to trail the market price (`TRAILING_STOP`) |
+| `trail_offset_ticks` | integer (ticks) \| null | Distance **in ticks** to trail the market price (`TRAILING_STOP`) |
 | `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `participants[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Participant Fields](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#participant-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 | `request_tag` | string \| absent | Optional amend/cancel request tag echoed on the resulting `order.amended`, `order.cancelled`, or rejected `order.ack`. Unlike `client_tag`, it identifies one request against an order, not the order itself. |
-| `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |
 | `oco_group_id` | string \| null | Set once this order is linked into an OCO pair via `order.oco`; `null` on a plain submission |
 | `combo_parent_id` | string \| null | Parent `ComboOrder.id` when this order is a combo child leg; `null` for a standalone order |
 | `leg_index` | integer \| null | 0-based position within the parent combo's leg list; `null` for a standalone order |
@@ -325,7 +324,7 @@ Sent by a gateway to submit a new order for matching.
 
 **Valid field combinations by order type:**
 
-| `order_type` | `price` | `stop_price` | `visible_qty` | `trail_offset` | Notes |
+| `order_type` | `price_ticks` | `stop_price_ticks` | `visible_qty` | `trail_offset_ticks` | Notes |
 |---|---|---|---|---|---|
 | `MARKET` | — | — | — | — | Fills at best available; rejected if symbol halted |
 | `LIMIT` | Required | — | — | — | Rests if no match; subject to collar check |
@@ -334,7 +333,7 @@ Sent by a gateway to submit a new order for matching.
 | `FOK` | Required | — | — | — | Fill fully immediately or cancel entirely |
 | `IOC` | Optional | — | — | — | Fill as much as possible immediately, cancel remainder |
 | `ICEBERG` | Required | — | Required | — | Shows only `visible_qty`; replenishes from hidden reserve |
-| `TRAILING_STOP` | — | — | — | Required | Stop price follows best opposite-side price by `trail_offset` |
+| `TRAILING_STOP` | — | — | — | Required | Stop price follows best opposite-side price by `trail_offset_ticks` |
 
 
 
@@ -374,8 +373,8 @@ At least one of `price` or `qty` must be present.
 - Price change or quantity increase → priority **lost** (new `arrival_seq` assigned)
 
 Priority is keyed on `arrival_seq`, the engine-assigned monotonic counter —
-**not** on the order's client-supplied `timestamp` field (see the `timestamp`
-and `arrival_seq` rows under [`order.new`](#ordernew) above). The `timestamp`
+**not** on the order's client-supplied `ts_ns` field (see the `ts_ns`
+and `arrival_seq` rows under [`order.new`](#ordernew) above). The `ts_ns`
 field is never used by the book to determine queue position.
 
 **Reply:** `order.amended.{GW_ID}` on success, or `order.ack.{GW_ID}` with `accepted=false` on rejection.
@@ -396,11 +395,12 @@ Role requirements and MM obligation controls are documented in
 | `gateway_id` | string | Originating gateway identifier |
 | `symbol` | string | Instrument ticker |
 | `quote_id` | string \| absent | Optional client-provided quote label |
-| `bid_price` | integer (ticks) | Bid price **in ticks** |
+| `tick_decimals` | integer | Decimal scale for `bid_price_ticks`/`ask_price_ticks`; 1 tick = `10^-tick_decimals` |
+| `bid_price_ticks` | integer (ticks) | Bid price **in ticks** |
 | `bid_qty` | integer | Bid quantity |
-| `ask_price` | integer (ticks) | Ask price **in ticks** |
+| `ask_price_ticks` | integer (ticks) | Ask price **in ticks** |
 | `ask_qty` | integer | Ask quantity |
-| `tif` | string | Quote leg time-in-force (`DAY` or `GTC`) |
+| `tif` | string | Quote leg time-in-force — same four values as `order.new.tif` (`DAY`, `GTC`, `ATO`, `ATC`); defaults to `DAY` |
 
 Replies:
 
@@ -519,16 +519,16 @@ wire-format specification in the
 
 **Participant Guide:**
 
-- ALF Console — how participants receive fill, book, and risk events
+- [The Trader Console](../../participant-guide/part-2-orders/010-the-trader-console.md) — how participants receive fill, book, and risk events
 
 **Operator's Guide:**
 
-- Commands — `ExchangeCommandClient` methods and their underlying message topics
-- Risk Controls — `risk.*` message payloads in detail
+- [The Admin Console and Exchange Commands](../../operator-guide/part-3-run/020-admin-console-and-commands.md) — `ExchangeCommandClient` methods and their underlying message topics
+- [Risk Controls](../../operator-guide/part-4-run-a-market/040-risk-controls.md) — `risk.*` message payloads in detail
 
 **Reference Manual:**
 
-- Processes — which process subscribes to which topic prefix
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — which process subscribes to which topic prefix
 
 ## Topic index
 

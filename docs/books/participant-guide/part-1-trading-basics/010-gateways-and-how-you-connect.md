@@ -196,15 +196,15 @@ regulated venue it would be a *compliance failure*.
 
 **Operator's Guide:**
 
-- ALF TCP Gateway — the real ALF gateway for external bots and remote clients
-- BALF TCP Gateway
-- Market Data Feed (CALF)
-- Post-Trade Dissemination (RALF)
-- Drop-Copy TCP Gateway (pm-dc-gwy)
-- Centralized Log Server
-- API Gateway
-- Configuration — Participants — how gateway IDs, roles, and disconnect behavior are configured
+- [ALF TCP Gateway](../../operator-guide/part-5-gateways/010-alf-gateway.md) — the real ALF gateway for external bots and remote clients
+- [BALF TCP Gateway](../../operator-guide/part-5-gateways/020-balf-gateway.md)
+- [Market Data Feed (CALF)](../../operator-guide/part-5-gateways/030-calf-gateway.md)
+- [Post-Trade Dissemination (RALF)](../../operator-guide/part-5-gateways/040-ralf-gateway.md)
+- [Drop-Copy TCP Gateway (pm-dc-gwy)](../../operator-guide/part-5-gateways/060-drop-copy-gateway.md)
+- [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md)
+- [API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md)
+- [Configuration — Participant Fields](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#participant-fields) — how gateway IDs, roles, and disconnect behavior are configured
 
 **Protocols and Clients:**
 
-- External Protocols Overview — ALF/BALF/CALF/RALF compared side by side
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — ALF/BALF/CALF/RALF compared side by side

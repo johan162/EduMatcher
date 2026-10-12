@@ -172,7 +172,7 @@ content of it.
 
 **Why the envelope is not in the payload.** Keeping it in frames means the hot
 publish path never decodes and re-encodes a message to stamp it, and the same
-three fields do not have to be declared on each of the 114 message types in
+three fields do not have to be declared on each of the 121 message types in
 `spec/messages/` — and re-declared on every type added later. `decode()` reads
 only frames 0 and 1, so a consumer that does not care is unaffected.
 
@@ -612,7 +612,7 @@ used by the matching engine.
 
 ### Order Book Organization
 
-Each symbol gets its own `OrderBook` instance.  Internally it maintains **six primary data structures** organized for fast price-time-priority matching:
+Each symbol gets its own `OrderBook` instance.  Internally it maintains **eight primary data structures** organized for fast price-time-priority matching:
 
 ```
 OrderBook("AAPL")
@@ -1048,14 +1048,15 @@ whether matching occurs.  The scheduler process drives transitions by sending
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PRE_OPEN
+    [*] --> CLOSED : engine start (sessions enabled)
+    CLOSED --> PRE_OPEN : session.transition (next day)
     PRE_OPEN --> OPENING_AUCTION : session.transition
     PRE_OPEN --> CONTINUOUS : session.transition (shortcut)
     OPENING_AUCTION --> CONTINUOUS : uncross all books + expire ATO orders
     CONTINUOUS --> CLOSING_AUCTION : session.transition
     CONTINUOUS --> CLOSED : session.transition (shortcut)
     CLOSING_AUCTION --> CLOSED : uncross all books + expire ATC orders
-    CLOSED --> [*]
+    CLOSED --> [*] : engine shutdown
 ```
 
 #### Phase Behavior
@@ -1476,10 +1477,12 @@ stops could read it 4–6 times. Caching it means we pay the cost exactly once.
 The ordering-critical timestamp is `now_ns()` (`models/clock.py`) — a wrapper over
 `time.time_ns()` that guarantees a **strictly increasing** integer nanosecond value
 (it never returns a duplicate or a value that went backwards, even if the wall
-clock does). `now_ns()` takes a lock to enforce that guarantee across threads; on
-the engine's single-threaded order loop the hot path calls `time.time_ns()`
-**directly**, bypassing the lock, because ties are already impossible within one
-run-to-completion order.
+clock does). `now_ns()` takes a lock to enforce that guarantee across threads. The
+engine's hot path calls `now_ns()` itself rather than the raw `time.time_ns()` —
+even though time priority is actually driven by engine arrival sequence, not by
+this timestamp — because a wall-clock regression (an NTP step, for example) must
+never make event timestamps go backwards. The lock's cost is small and is a
+deliberate trade-off, not one the hot path bypasses.
 
 ```python
 def _handle_new_order(self, payload):
@@ -1571,11 +1574,11 @@ available on all architectures (e.g. some Alpine Docker images).
 
 ###  Eliminate redundant serialization (`to_dict()` removal)
 
-**What it does:**  Instead of calling `order.to_dict()` to build a full 18-key
+**What it does:**  Instead of calling `order.to_dict()` to build a full 25-key
 dictionary and then passing it to a message function, we build only the keys the
 message actually needs, directly from object attributes.
 
-**Why it's faster:**  `to_dict()` unconditionally copies all 18 fields and calls
+**Why it's faster:**  `to_dict()` unconditionally copies 25 fields and calls
 `.value` on every enum — cost ~3–4 µs.  The ack message only needs 6 of those
 fields.  Building a minimal dict inline costs ~250 ns.
 
@@ -1691,10 +1694,10 @@ show the value actually used inside the loop.
 ###  `__new__` for fast deserialization
 
 **What it does:**  Uses `object.__new__(cls)` + direct slot writes instead of
-calling the dataclass-generated `__init__` with 19 keyword arguments.
+calling the dataclass-generated `__init__` with 26 keyword arguments.
 
 **Why it's faster:**  CPython's function-call machinery needs to parse and bind
-each keyword argument — with 19 kwargs this alone costs ~400 ns.  `__new__`
+each keyword argument — with 26 kwargs this alone costs ~400 ns.  `__new__`
 creates a bare instance in ~80 ns, and then each `o.field = value` is a simple
 `STORE_ATTR` (~30 ns with slots).
 
@@ -1809,6 +1812,7 @@ equal to the last one (a duplicate, or a backwards wall-clock step), `now_ns()`
 returns `last + 1` instead. This matters because the timestamp is the **tie-breaker
 in price-time priority** — two orders at the same price must never compare equal,
 or heap ordering (and therefore queue fairness) becomes undefined. The guarantee is
-lock-protected for multi-threaded callers; the engine's single-threaded order loop
-deliberately calls `time.time_ns()` directly on the hot path (ties are impossible
-within one run-to-completion order — see [Performance Optimizations](#single-timestamp-call-per-order-cached-nanosecond-clock)).
+lock-protected for every caller, including the engine's single-threaded order
+loop: the lock's cost is small and is a deliberate trade-off, not one the hot
+path bypasses, because a wall-clock regression (an NTP step, for example) must
+never make event timestamps go backwards — see [Performance Optimizations](#single-timestamp-call-per-order-cached-nanosecond-clock).

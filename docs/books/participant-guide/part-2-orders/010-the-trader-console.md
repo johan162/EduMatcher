@@ -16,8 +16,12 @@
     is, why real exchanges have several, and why this process is not one.
     [The Configuration Workflow](../../operator-guide/part-2-configure/010-the-configuration-workflow.md) — you need a valid `engine_config.yaml`
     with your gateway ID and role configured before connecting.
-    [Order Types](020-order-types.md) — understand what NEW, AMEND, OCO, and COMBO
-    mean before using the commands here.
+    [Order Types](020-order-types.md) comes right after this chapter, not before
+    it — a genuine circular dependency: this chapter needs its command syntax,
+    and it needs this chapter's console to try the examples. This chapter gives
+    every field and example for `NEW`, `AMEND`, `OCO`, and `COMBO`; read Order
+    Types alongside or straight after it for *why* each type behaves as it
+    does (stop triggers, TIF lifetimes, combo risk).
     [Messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — for the raw two-frame format underlying every
     response.
 

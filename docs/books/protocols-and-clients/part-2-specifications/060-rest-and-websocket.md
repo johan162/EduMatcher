@@ -44,7 +44,9 @@ All paths are rooted at `/api/v1`.
 | [POST /api/v1/mass-cancel](#post-apiv1mass-cancel) | Trading key | Cancel all resting exposure for the caller or one symbol |
 | [POST /api/v1/kill-switch](#post-apiv1kill-switch) | Trading key | Alias of mass-cancel |
 | [GET /api/v1/symbols](#get-apiv1symbols) | Trading key | Return instrument metadata |
+| [GET /api/v1/news](#get-apiv1news) | Authenticated key | Return the latest market-sim headlines and sector map |
 | [GET /api/v1/session](#get-apiv1session) | Trading key | Return the current engine session state |
+| [GET /api/v1/halts](#get-apiv1halts) | Trading key | Return currently-halted symbols (non-admin) |
 | [GET /api/v1/status](#get-apiv1status) | Trading key | Return gateway cache summary and resolved role |
 | [GET /api/v1/healthz](#get-apiv1healthz) | Public | Liveness probe |
 | [GET /api/v1/quotes/bootstrap](#get-apiv1quotesbootstrap) | Trading key | Return active market-maker quote bootstrap state |
@@ -61,7 +63,6 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band definitions |
 | [GET /api/v1/reference/indexes](#get-apiv1referenceindexes) | Authenticated key | Return configured exchange index definitions |
 | [GET /api/v1/reference/schedule](#get-apiv1referenceschedule) | Authenticated key | Return session schedule metadata |
-| [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle |
 
 ### History
 
@@ -98,7 +99,7 @@ All paths are rooted at `/api/v1`.
 | [POST /api/v1/admin/kill-switch/gateway](#post-apiv1adminkill-switchgateway) | Admin role | Cancel all resting exposure for one gateway |
 | [POST /api/v1/admin/kill-switch/global](#post-apiv1adminkill-switchglobal) | Admin role | Cancel all resting exposure across every gateway and symbol |
 | [GET /api/v1/admin/indexes](#get-apiv1adminindexes) | Admin role | Return index configuration for the ADMIN UI |
-| [POST /api/v1/admin/indexes/{id}/rebalance](#post-apiv1adminindexesidrebalance) | Admin role | Rebalance one configured index |
+| [POST /api/v1/admin/indexes/{index_id}/rebalance](#post-apiv1adminindexesindex_idrebalance) | Admin role | Rebalance one configured index |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle in place |
 
 ### Auth and roles
@@ -253,12 +254,21 @@ cancels an order itself, `request_tag` is absent and `cancel_reason` says why:
 |---|---|
 | `SELF_MATCH_PREVENTED` | The order would have traded against another order from the same gateway |
 | `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order exhausted the book; this cancels the remainder, which never rests |
+| `KILL_SWITCH` | The gateway's kill switch (`KILL` / `KILL_ACK`) cancelled this resting order |
+| `CIRCUIT_BREAKER_HALT` | A circuit-breaker halt cancelled this resting order |
+| `GATEWAY_DISCONNECT` | The owning gateway disconnected and its `disconnect_behaviour` cancelled this order |
+| `ADMIN_CANCEL_SYMBOL` | An operator-issued admin cancel for the symbol cancelled this order |
+| `QUOTE_REPLACED` | A market-maker's new quote replaced this quote leg |
+| `QUOTE_LEG_FILLED` | The sibling leg of a two-sided quote filled, cancelling this leg |
 
 Both fields are omitted rather than null when they do not apply, so
-`request_tag` absent with `cancel_reason` absent means the exchange cancelled
-the order for a cause it does not yet classify — a kill switch, a halt cascade,
-an expiry. `cancel_reason` is a separate vocabulary from `reject_code`: a
-cancel is not a rejection. Clients must ignore values they do not recognise.
+`request_tag` absent with `cancel_reason` also absent means the exchange
+cancelled the order for a cause not yet classified under this vocabulary.
+`cancel_reason` is a separate vocabulary from `reject_code`: a cancel is not
+a rejection. New members may be added; existing members are never removed or
+renamed. Clients must ignore values they do not recognise. See
+[Messages — `order.cancelled.{gateway_id}`](../part-5-message-reference/010-message-reference.md#ordercancelledgateway_id)
+for the same enum at the engine-message level.
 
 ### Category examples
 
@@ -1052,6 +1062,32 @@ Purpose: return instrument metadata for the caller gateway.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
+### `GET /api/v1/news`
+
+Purpose: return the latest market-sim headlines, oldest first, plus the
+sector → symbol mapping. Access: Authenticated key (read-only keys included)
+— unlike most endpoints in this section, it does not require a trading key,
+since this is public information, not a trading action.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `limit` | int | No | Maximum headlines to return, `1`-`200` (default `50`) |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "news": [...], "sectors": {...} }` | `news` is a list of `news.event`-shaped objects (see [Message Reference — news.event](../part-5-message-reference/010-message-reference.md#newsevent)), oldest first; `sectors` maps each sector name to its sorted list of symbols. Empty `news` list when `pm-market-sim` is not running. |
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `AUTH` | Missing or malformed key |
+| `VALIDATION` | `limit` outside `1`-`200` |
+
 ### `GET /api/v1/session`
 
 Purpose: return the current engine session state for the caller.
@@ -1073,6 +1109,35 @@ Purpose: return the current engine session state for the caller.
 | Code | When |
 |---|---|
 | `AUTH` | Missing or malformed key |
+| `ENGINE_TIMEOUT` | Engine did not reply in time |
+
+### `GET /api/v1/halts`
+
+Purpose: return the currently-halted symbols table, for any trading key
+(TRADER or MARKET_MAKER) — the admin-only `GET /api/v1/admin/halts` serves
+the identical engine query without the ADMIN-role gate, since halt state is
+not admin-only information: a trading gateway needs it at bootstrap and
+again on every market-data reconnect, or a halt missed while disconnected
+leaves a stale badge for the rest of the session.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No query parameters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }`, same shape as `GET /api/v1/admin/halts` |
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `AUTH` | Missing or malformed key |
+| `READ_ONLY` | Read-only key (no `gateway_id`) |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `GET /api/v1/status`
@@ -1346,31 +1411,6 @@ Purpose: return session schedule metadata.
 | Code | When |
 |---|---|
 | `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
-
-### `POST /api/v1/admin/reference/reload`
-
-Purpose: reload the compiled reference bundle without restarting the engine.
-
-**Arguments**
-
-| Name | Type | Req | Description |
-|---|---|---|---|
-| none | — | — | No request body |
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | `{ "status": "RELOADED", "config_version": "..." }` | Reference bundle reloaded successfully |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `RELOAD_REJECTED` | Reload would change the symbol or index set |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ## History
@@ -2064,7 +2104,7 @@ Purpose: return index configuration for the ADMIN UI.
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
 
-### `POST /api/v1/admin/indexes/{id}/rebalance`
+### `POST /api/v1/admin/indexes/{index_id}/rebalance`
 
 Purpose: rebalance one configured index through `pm-index`.
 
@@ -2072,7 +2112,7 @@ Purpose: rebalance one configured index through `pm-index`.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `id` | `IndexId` | yes (path) | Index to rebalance |
+| `index_id` | `IndexId` | yes (path) | Index to rebalance |
 | `updates` | `List<RebalanceUpdate>` | yes | Shares-outstanding updates |
 | `reason` | `Str` | no | Optional note |
 

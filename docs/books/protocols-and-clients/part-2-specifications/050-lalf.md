@@ -203,7 +203,9 @@ A server receiving a second `HELLO` on a connection that has already
 completed a handshake MUST respond `ERR|CODE=PROTO_MISMATCH` and close the
 connection. A `HELLO` missing `CLIENT`, `PID`, `HOST`, or `PROTO` MUST be
 rejected with `ERR|CODE=MISSING_FIELD`; a non-integer `PID` is rejected the
-same way.
+same way. A non-`HELLO` message sent as the *first* message on a new
+connection — before any handshake has completed — MUST be rejected with
+`ERR|CODE=AUTH_REQUIRED`, and the connection closed.
 
 ### `WELCOME`
 
@@ -305,6 +307,7 @@ ERR|CODE=INVALID_LEVEL|MSG=unknown LEVEL value: TRACE
 
 | Code | Meaning | Session-ending? |
 |---|---|---|
+| `AUTH_REQUIRED` | First message on the connection was not `HELLO` | Yes — server MUST close the connection after queuing this `ERR` |
 | `INVALID_LEVEL` | `LOG.LEVEL` not one of the five valid values | No — indicates a client bug; client SHOULD fix and MAY continue sending subsequent `LOG` messages on the same connection |
 | `MISSING_FIELD` | A required header field absent on the message | No, same as `INVALID_LEVEL` |
 | `PAYLOAD_TOO_LARGE` | `LOG.LEN` exceeded `max_message_bytes` | No — advisory only; the server has already truncated and stored the record |
@@ -512,8 +515,8 @@ truths are:
 
 **Operator's Guide:**
 
-- Centralized Log Server — operational guide: starting `pm-log-srv`, using `pm-log-cli`, and query cookbook
-- Configuration — Configuring pm-log-srv — `log_server` field law
+- [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) — operational guide: starting `pm-log-srv`, using `pm-log-cli`, and query cookbook
+- [Configuration — Configuring pm-log-srv](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#configuring-pm-log-srv) — `log_server` field law
 
 **Reference Manual:**
 

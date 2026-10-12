@@ -1977,5 +1977,5 @@ If the figures disagree, check in this order:
 
 **Reference Manual:**
 
-- Processes — pm-stats and pm-stats-cli — full process documentation
-- Processes — pm-ticker — live ticker that uses statistics data
+- [Processes — pm-stats](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-stats-statistics-recorder) and [pm-stats-cli](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-stats-cli-statistics-query-cli) — full process documentation
+- [Processes — pm-ticker](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-ticker-scrolling-market-ticker) — live ticker that uses statistics data

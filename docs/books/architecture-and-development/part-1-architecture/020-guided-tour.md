@@ -99,7 +99,7 @@ can be read in any order depending on what you want to understand.
 1. `engine/order_book.py` — how atoms are organised and matched.
 1. `engine/main.py` — how the order book is orchestrated across symbols and sessions.
 1. `models/message.py` — what the engine publishes and what format it uses.
-1. `gateway/main.py` — how a user interacts with the engine.
+1. `alf_console/main.py` — how a user interacts with the engine.
 1. `clearing/main.py` — how fills become P&L.
 
 The rest of the system (`stats`, `audit`, `ticker`, `board`, `scheduler`,
@@ -132,10 +132,13 @@ The key word is **limit** — the participant places a maximum (for a buy) or mi
 (for a sell) on the price they will accept. This is not the same as saying
 “buy at $150.00” — it means “buy at $150.00 *or better*.”
 
-In EduMatcher, this translates directly to the `Order` dataclass:
+In EduMatcher, this translates directly to the `Order` dataclass. The field names
+and types below are the **original**, pre-tick-migration ones — simplest to teach
+the matching logic with — not the current source; Section 6 explains the real
+current names (`price_ticks`, `ts_ns`, etc.) once the full field list is in view:
 
 ```python
-# models/order.py
+# models/order.py (original, pre-migration names — see Section 6)
 @dataclass(slots=True)
 class Order:
     id:           str          # globally unique identifier
@@ -263,6 +266,7 @@ class OrderBook:
         "_ask_qty",    # dict[price → total qty at that price level]
         "_order_index",  # dict[order_id → Order] — for O(1) cancel lookup
         "_entry_index",  # dict[order_id → _HeapEntry] — for lazy deletion
+        "_orders_by_gateway",  # dict[gateway_id → set[order_id]] — for per-gateway cancel
         "last_trade_price",  # most recent fill price — used by stop trigger checks
         "last_trade_qty",    # quantity of the most recent fill
         "last_buy_price",    # most recent price where the aggressor was a buyer
@@ -270,12 +274,18 @@ class OrderBook:
         "recent_trades",     # deque[Trade] maxlen=20 — rolling window of last 20 fills,
                              # published in book snapshots so the viewer can show a
                              # live tape of recent transactions for this symbol
+        "daily_qty",         # cumulative session traded quantity (reset only on restart)
+        "daily_value_ticks", # cumulative session turnover, in integer ticks to avoid float drift
+        "daily_trades",      # cumulative session trade count
+        "_has_stops",        # True if the book has any resting stop order — skips the
+                             # stop-check call on every fill when no stops are present
+        "_arrival_seq",      # monotonic arrival sequence — queue priority is keyed on
+                             # this, not the client-supplied timestamp
     )
 ```
 
 Notice `__slots__` here too — `OrderBook` is accessed on every incoming order.
-With 15 attributes accessed in the matching hot path, every slot optimisation
-multiplies across every order processed.
+With 21 attributes, every slot optimisation multiplies across every order processed.
 
 There is one `OrderBook` instance per symbol. The engine holds them in a dict:
 
@@ -641,10 +651,13 @@ Where n = resting orders, P = distinct price levels (P << n in practice).
 
 ## 6. The Order Model: Every Field Explained
 
-> **Migration note:** The field types shown below reflect the **original** codebase
-> before the tick migration. In the current codebase: `price`, `stop_price`, and
-> `trail_offset` are `Optional[int]` (tick counts), and `timestamp` is `int`
-> (nanoseconds from `now_ns()`). The field names and semantics are unchanged.
+> **Migration note:** The field names and types shown below (and used in the code
+> examples throughout Sections 2-5 and 13 of this chapter, for simplicity) reflect
+> the **original** codebase before the tick migration. In the current codebase the
+> names changed too, to make the integer tick/nanosecond representation explicit:
+> `price` → `price_ticks`, `stop_price` → `stop_price_ticks`, `trail_offset` →
+> `trail_offset_ticks`, and `timestamp` → `ts_ns`; all four are now `Optional[int]`
+> (or plain `int` for `ts_ns`) instead of `float`. The semantics are unchanged.
 > See `EduMatcher_Tick_Migration_Plan_v6.md` for the full type changes.
 
 ```python
@@ -661,6 +674,10 @@ class Order:
     quantity:     int       # original total requested
     remaining_qty: int      # how much is still unfilled
     price:        Optional[float]  # limit price; None for pure market orders
+    tick_decimals: int      # decimal scale of every price/qty tick field, at the
+                             # time this order was created — stored, not looked up
+                             # live, so a restored order keeps the scale it was
+                             # written with even if the symbol's config changes later
 
     # --- Stop order fields ---
     stop_price:   Optional[float]  # STOP/STOP_LIMIT/TRAILING_STOP trigger
@@ -674,6 +691,18 @@ class Order:
     gateway_id:   str       # which participant submitted this
     timestamp:    float     # arrival time (used for price-time priority)
     status:       OrderStatus  # NEW → PARTIAL → FILLED or CANCELLED/REJECTED/EXPIRED
+    arrival_seq:  int       # engine-assigned monotonic arrival sequence — this, not
+                             # the client-supplied timestamp, is what price-time
+                             # priority is actually keyed on (a back-dated payload
+                             # timestamp cannot jump the queue); 0 = unassigned
+    cancel_reason: Optional[str]  # why the *exchange* cancelled this order (SMP, an
+                             # unfillable MARKET/IOC, etc.) — set by OrderBook, not
+                             # the client
+    is_seed:      bool      # True when created by config-driven startup seeding
+                             # (market_maker_quotes/combos) rather than a live
+                             # gateway submission — purely observational
+    client_tag:   Optional[str]  # client-supplied correlation tag, echoed back on
+                             # every lifecycle event; ignored when absent
 
     # --- Self-match prevention ---
     smp_action:   SmpAction # NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH
@@ -776,7 +805,7 @@ def from_dict(cls, d: dict[str, Any]) -> "Order":
     return o
 ```
 
-The normal dataclass `__init__` with 19 keyword arguments spends ~400ns on argument
+The normal dataclass `__init__` with 26 keyword arguments spends ~400ns on argument
 dispatch alone. Writing slot values directly via `__new__` eliminates this.
 
 
@@ -984,13 +1013,15 @@ turn at the back, just like any other new order arriving at that price.
 if passive.remaining_qty > 0 and passive.displayed_qty == 0:
     new_peak = min(passive.visible_qty, passive.remaining_qty)
     passive.displayed_qty = new_peak
-    passive.timestamp = now  # back of queue — new timestamp
+    passive.timestamp = now        # bookkeeping only — see below
     self._reinsert_iceberg(passive)  # invalidate old entry, push new one
 ```
 
-The timestamp update is the key mechanism. By resetting the timestamp, the
-replenished iceberg gets a later key than any order that was already waiting at
-that price, correctly losing queue priority.
+`_reinsert_iceberg` is the key mechanism, not the timestamp update: it assigns the
+order a **fresh `arrival_seq`** (Section 6 — this, not the timestamp, is what the
+heap key is actually built from) and pushes a new heap entry under that later
+sequence number, correctly losing queue priority to every order already resting at
+that price.
 
 
 
@@ -1126,8 +1157,11 @@ After uncross: 500 trades happen at $211
 · Remaining: 200 buy orders still resting (bid surplus)
 
 Tie-breaking: if two candidate prices produce the same executable volume, the
-algorithm picks the price closest to the previous close (the reference price from
-`book_stats.json`).
+algorithm picks whichever has the lower surplus (buy/sell imbalance at that
+price); if that is tied too, the lowest of the tied prices wins, because
+candidates are scanned in ascending order and only a strict improvement in
+either measure replaces the current best (`engine/auction.py::compute_equilibrium`).
+There is no reference to the previous close here.
 
 After finding the price, `execute_uncross` fills all crossable interest:
 
@@ -1159,11 +1193,13 @@ that link multiple orders together at the engine level.
 
 ### OCO (One-Cancels-Other)
 
-An OCO pair consists of two orders linked together. When either fills, the other
-is automatically cancelled. A typical use: “I bought AAPL at $200 and I want to
-automatically take profit at $215, but also automatically cut my loss if price falls
-to $185.” OCO pairs can span different symbols — a long position in one stock could
-be protected by a stop order in a correlated one.
+An OCO pair consists of two orders linked together. When either fills — or is
+otherwise cancelled — the other is automatically cancelled too. A typical use: “I
+bought AAPL at $200 and I want to automatically take profit at $215, but also
+automatically cut my loss if price falls to $185.” Both legs of an OCO pair must be
+on the **same symbol** (and share the same quantity and TIF); the engine takes one
+`symbol` for the whole pair, not one per leg, so a position cannot be hedged OCO-style
+by an order on a different, correlated symbol.
 
 **Concrete OCO lifecycle — take-profit at $215, stop-loss at $185:**
 
@@ -1207,7 +1243,7 @@ self._oco_groups:   dict[str, list[str]] = {}  # oco_id → [order_id_1, order_i
 self._order_to_oco: dict[str, str]       = {}  # order_id → oco_id
 ```
 
-After any fill that reaches FILLED status:
+After either leg reaches a terminal state — not just `FILLED`, but also `CANCELLED` or `REJECTED` — the sibling is cancelled too, so a leg that is cancelled for any other reason (e.g. a risk action) tears down the pair just like a fill would:
 
 ```python
 def _check_oco_after_event(self, order: Order) -> None:
@@ -1677,11 +1713,15 @@ def make_publisher(addr: str) -> CausalPublisher:
     return CausalPublisher(SequencedPublisher(sock))
 
 def make_subscriber(addr: str, *topics: str) -> zmq.Socket[bytes]:
-    """SUB socket — subscriber connects and filters by topic prefix."""
+    """SUB socket — subscriber connects and filters by topic prefix.
+    No topics (or an empty string) subscribes to everything."""
     sock = get_context().socket(zmq.SUB)
     sock.connect(addr)
-    for t in topics:
-        sock.setsockopt(zmq.SUBSCRIBE, t.encode())
+    if not topics:
+        sock.setsockopt(zmq.SUBSCRIBE, b"")  # no filter — receive every topic
+    else:
+        for t in topics:
+            sock.setsockopt(zmq.SUBSCRIBE, t.encode())
     return sock
 ```
 
@@ -1944,7 +1984,7 @@ graph TB
     Processes one message at a time
     from the PULL socket"]
     CLR["pm-clearing
-    P&L tracking + CSV"]
+    P&L tracking + SQLite"]
     STA["pm-stats
     SQLite · OHLCV"]
     AUD["pm-audit
@@ -2033,8 +2073,13 @@ These threads communicate via ZMQ rather than shared memory, keeping them decoup
 
 ### Clearing: Tracking Positions and P&L
 
+The real position state lives in a private `_Position` dataclass in
+`clearing/ledger.py` (field names differ — `net_qty`, `mark_price`, etc.); the
+conceptually-equivalent, simplified version below is easier to read fill logic
+against (Section 15 covers the full real VWAP walkthrough):
+
 ```python
-# clearing/main.py
+# conceptually clearing/ledger.py — simplified field names
 @dataclass
 class PositionRecord:
     symbol:       str
@@ -2050,8 +2095,10 @@ class PositionRecord:
 ```
 
 The clearing process subscribes to `trade.executed`, updates a P&L ledger for each
-participant on each side of every trade, and appends to a CSV file. The VWAP cost
-basis update:
+participant on each side of every trade, and batches the updated rows into
+`clearing.db` (SQLite) — never a CSV file; see Section 15 for the history of
+the `clearing_report.csv` path this replaced.
+The VWAP cost basis update:
 
 ```python
 def apply_fill(self, qty: int, price: float, is_buy: bool) -> None:
@@ -2196,7 +2243,7 @@ o.side = _SIDE_MAP[d["side"]]
 # ...
 ```
 
-The dataclass-generated `__init__` with 19 keyword arguments spends ~400ns on
+The dataclass-generated `__init__` with 26 keyword arguments spends ~400ns on
 Python’s argument parsing and dispatch machinery. Bypassing it via `__new__` and
 direct slot writes reduces `from_dict` from ~1400ns to ~1000ns — a 29% improvement
 on the deserialization hot path.
@@ -2373,9 +2420,12 @@ O(P) price levels before any fills are attempted, and rejection is clean.
 
 When the engine restarts, two categories of state need to be restored:
 
-**GTC Orders** — resting limit orders with `TIF.GTC` survive trading days. On
-shutdown they are serialised to JSON, wrapped in a versioned envelope so the engine
-can detect files from incompatible earlier versions:
+**GTC and DAY Orders** — resting limit orders with `TIF.GTC` survive trading days,
+as expected. Less obvious: resting `TIF.DAY` orders are serialised too, because a
+process restart is **not itself a day boundary** — only a genuine calendar rollover
+ends a DAY order's validity. On shutdown both are written as a plain JSON array of
+`Order.to_dict()` entries, via a helper that writes to a temp file and renames it
+into place so a crash mid-write can never leave a truncated, unreadable file:
 
 ```python
 # engine/persistence.py
@@ -2383,48 +2433,63 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
     gtc = [
         o.to_dict()
         for o in orders
-        if o.tif == TIF.GTC and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
+        if o.tif in (TIF.GTC, TIF.DAY)
+        and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
     ]
-    output = {"format_version": 2, "orders": gtc}  # version 2 = current format
-    path.write_text(json.dumps(output, indent=2))
+    _atomic_write_text(path, json.dumps(gtc, indent=2))  # temp file + rename
     # → data/gtc_orders.json
 ```
 
-On the next startup, the loader checks the version field before parsing. A file
-from an incompatible engine version (wrong format_version) raises a `RuntimeError`
-rather than silently loading bad data:
+Loading is deliberately fail-soft, not fail-hard: a missing or unparseable file
+yields an empty list (the engine just starts with no resting orders) rather than
+crashing, and an individual corrupt entry is logged and skipped so the rest of the
+file can still be restored:
 
 ```python
 def load_gtc_orders(path: Path) -> list[Order]:
     if not path.exists():
         return []
-    raw = json.loads(path.read_text())
-    if isinstance(raw, list):  # old pre-migration format — no version field
-        raise RuntimeError(f"{path} is in the pre-migration format. Delete it.")
-    if raw.get("format_version") != 2:
-        raise RuntimeError(f"Unsupported format_version in {path}. Delete it.")
-    return [Order.from_dict(d) for d in raw.get("orders", [])]
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return []  # truncated / corrupt — start with no resting orders
+    orders = []
+    for d in data:
+        try:
+            orders.append(Order.from_dict(d))
+        except Exception:
+            pass  # logged at CRITICAL and skipped; other entries still load
+    return orders
 ```
 
-On the next startup, they are restored before any new orders are accepted:
+On the next startup, they are restored before any new orders are accepted. A
+restored `TIF.DAY` order is discarded instead if its original business day (derived
+from its `ts_ns`) is before today's date — the calendar has rolled over while it was
+resting, so it is no longer valid even though the process restart itself didn't end
+it:
 
 ```python
 def _restore_gtc(self) -> None:
     orders = load_gtc_orders(GTC_ORDERS_FILE)
     for order in orders:
+        if order.tif == TIF.DAY:
+            order_day = datetime.fromtimestamp(order.ts_ns / 1e9).date()
+            if order_day < today:
+                continue  # stale — business day has rolled over, discard
         order.status = OrderStatus.NEW  # reset from PARTIAL if needed
         book = self._book(order.symbol)
         book.process(order)  # re-insert into the heap
         self._order_symbol[order.id] = order.symbol
 ```
 
-The original `timestamp` is preserved in the serialisation (`Order.to_dict()`
-includes it). This means restored GTC orders maintain their original price-time
-priority — a participant who submitted an order before the restart still gets their
-earlier position in the queue.
+The original `ts_ns` is preserved in the serialisation (`Order.to_dict()` includes
+it). This means restored orders maintain their original price-time priority — a
+participant who submitted an order before the restart still gets their earlier
+position in the queue.
 
-**Book Statistics** — the last traded prices per symbol are persisted so that stop
-order logic and display have a reference price on restart:
+**Book Statistics** — the last traded prices per symbol, plus the previous close,
+are persisted so that stop order logic and display have a reference price on
+restart:
 
 ```python
 def save_book_stats(books: dict[str, OrderBook], path: Path) -> None:
@@ -2432,10 +2497,11 @@ def save_book_stats(books: dict[str, OrderBook], path: Path) -> None:
         symbol: {
             "last_buy_price":  book.last_buy_price,
             "last_sell_price": book.last_sell_price,
+            "prev_close":      book.last_trade_price,  # from_ticks()'d for display
         }
         for symbol, book in books.items()
     }
-    path.write_text(json.dumps(stats, indent=2))
+    _atomic_write_text(path, json.dumps(stats, indent=2))
     # → data/book_stats.json
 ```
 
@@ -2445,8 +2511,6 @@ after restart.
 
 ### What Persistence Does NOT Cover
 
-- **DAY orders** — expire at shutdown. Participants receive `order.expired`
-  notifications. They must re-submit on the next day.
 - **Trade history** — the clearing CSV is the trade record, not the engine. The
   engine has no trade log beyond the in-memory `recent_trades` deque (maxlen=20)
   per book.
@@ -2474,7 +2538,11 @@ When a trade arrives:
 1. The buyer’s position increases by `trade.quantity`
 1. The seller’s position decreases by `trade.quantity`
 1. If this closes or reduces a position, realised P&L is computed
-1. The trade is appended to `clearing_report.csv`
+1. The trade and the updated position/daily rows are batched and flushed to
+   `clearing.db` (SQLite) — not to a CSV file. `clearing_report.csv` was v1's
+   mechanism before the SQLite-first redesign; the path, and its reference in
+   `pm-opctl-cli clear`'s deletion list, have both been removed. For an ad-hoc
+   CSV export, use `pm-clearing-cli ... --format csv`.
 
 The P&L calculation uses **VWAP (Volume-Weighted Average Price)** as the cost
 basis. If you buy 100 shares at $150 and then 50 more at $160, your average cost
@@ -2495,7 +2563,8 @@ Trade 2: BUY   50 AAPL at $160.00  (adding to the long position)
 
 Trade 3: SELL  80 AAPL at $165.00  (partially closing)
   reduce_qty   = min(80, 150) = 80
-  realized_pnl += (165.00 - 153.33) × 80 = $933.60
+  realized_pnl += (165.00 - 153.333333) × 80 = $933.33   (using the unrounded
+                                     avg_cost; 153.33 above is display-rounded)
   position     = 150 - 80 = 70     (still long 70 shares)
   avg_cost     = $153.33            (unchanged — we closed at market, avg cost of
                                      remaining position is still the VWAP)
@@ -2549,28 +2618,40 @@ EduMatcher is explicitly educational. Here is a complete and honest accounting o
 what would need to be added to make it production-grade. Each item is a
 non-trivial engineering project.
 
-### Message Sequence Numbers and Guaranteed Delivery
+### Guaranteed Delivery and Replay on the Core Message Bus
 
-**What is missing:** Every ZMQ message published by the engine has no sequence
-number. If a subscriber (clearing, stats, audit) disconnects for 5 seconds and
-reconnects, it has silently missed all messages published during that time. There
-is no way to detect the gap or replay missing messages.
+**What already exists:** every message the engine publishes on its internal ZMQ
+PUB sockets *does* carry a monotonically increasing, per-topic sequence number —
+`SequencedPublisher` (`messaging/bus.py`) stamps it as a third wire frame, and
+`decode_sequence()` reads it back. Sequences start at 1 per topic and reset on
+process restart (a decrease signals a restart, not a gap), so a subscriber that
+tracks the last sequence it saw per topic *can* detect a hole in what it received
+— the core "is something missing?" problem is already solved. A narrower, bounded
+form of replay also already exists one layer up: the WebSocket API gateway's
+market-data stream supports a client-sent `resume`/`from_seq` control that re-sends
+buffered `trades` from its cache (see
+[REST and WebSocket](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md)) —
+but that cache is bounded and in-memory, and covers only the trade tail of one
+WebSocket stream, not the engine's internal bus.
 
-**What production requires:** Every published message carries a monotonically
-increasing sequence number. Subscribers track the last sequence they received. On
-reconnect, they send a `replay_request` with `from_seq=N`. The engine (or a
-dedicated replay buffer) re-sends all stored messages from sequence N forward.
+**What is still missing:** on the core ZMQ bus (the one clearing, stats, and audit
+consume), there is no `replay_request`/response protocol and no persistent message
+log. If one of those processes disconnects and reconnects, it can now *notice* a
+gap via the sequence numbers, but there is nothing to ask for the missing messages
+back — PUB/SUB has already dropped them, and nothing durable stored them for
+re-sending.
 
-The replay buffer must be bounded (a deque of fixed capacity) and must persist
-across engine restarts. In real exchanges this is called a **sequenced message
-store** or a **persistent log** (similar to Apache Kafka’s commit log).
+**What production requires:** a persistent, bounded replay buffer (or a full
+commit log, as in Apache Kafka) behind the core bus, and a request/response
+protocol so clearing/stats/audit can ask for messages from a given sequence
+forward after a reconnect — generalising the pattern the WS market-data stream
+already uses for trades to the whole bus, and backing it with durable storage
+rather than an in-memory cache.
 
 ```
-MISSING:
-  - Sequence numbers on all published messages
+MISSING (core ZMQ bus only — sequence numbers already exist):
   - Replay request/response protocol
   - Persistent message log with configurable retention
-  - Gap detection on subscriber side
   - Subscriber reconnect logic with automatic replay
 ```
 
@@ -2594,11 +2675,11 @@ def _handle_gateway_connect(self, payload):
 ```
 
 This accepts any connection that knows the port number. `ParticipantSession` is a
-dataclass that records each connected gateway’s role (`ParticipantRole.TRADER` or
-`ParticipantRole.MARKET_MAKER`) and its disconnect behaviour (whether to cancel its
-orders or leave them resting when the gateway disconnects). These roles control what
-message types the gateway may submit (e.g. only `MARKET_MAKER` sessions may submit
-two-sided quotes). However, there is no cryptographic proof that the connecting
+dataclass that records each connected gateway’s role (`ParticipantRole.TRADER`,
+`ParticipantRole.MARKET_MAKER`, or `ParticipantRole.ADMIN`) and its disconnect
+behaviour (whether to cancel its orders or leave them resting when the gateway
+disconnects). These roles control what message types the gateway may submit (e.g.
+only `MARKET_MAKER` sessions may submit two-sided quotes). However, there is no cryptographic proof that the connecting
 process is who it claims to be.
 
 **What production requires:**
@@ -2710,7 +2791,9 @@ something is committed to the log, it happened; if it is not in the log, it did 
 `now_ns()` wraps `time.time_ns()` with a guarantee of strictly increasing
 values even when the system clock is adjusted backward. All `Order`, `Trade`, and
 `ComboOrder` timestamps are `int` nanoseconds. The price-time priority heap key is
-`(±price_ticks, timestamp_ns)` — both integers, exact comparison.
+actually `(±price_ticks, arrival_seq)` (Section 6) — an engine-assigned monotonic
+sequence, not the timestamp itself, so a back-dated client timestamp cannot jump
+the queue; both components are integers either way, so comparison is exact.
 
 **What still needs production work:**
 
@@ -2801,9 +2884,9 @@ engineering work for a real exchange.
 
 |Category            |EduMatcher                                                              |Production                                        |
 |--------------------|------------------------------------------------------------------------|--------------------------------------------------|
-|Message delivery    |Fire-and-forget, no guarantees                                          |Sequence numbers, replay, guaranteed delivery     |
+|Message delivery    |Sequenced (gaps detectable), no replay of missed messages              |Sequence numbers, replay, guaranteed delivery     |
 |Authentication      |Gateway ID only, no cryptographic proof                                 |TLS certificates, challenge-response              |
-|Authorisation       |Role-based (TRADER/MARKET_MAKER) — no enforcement of symbol restrictions|Fine-grained per-operation, per-symbol permissions|
+|Authorisation       |Role-based (TRADER/MARKET_MAKER/ADMIN) — no enforcement of symbol restrictions|Fine-grained per-operation, per-symbol permissions|
 |Failover            |None                                                                    |Primary/secondary with automatic failover         |
 |Clock precision     |✅ Integer nanoseconds via `now_ns()`                              |+ PTP synchronisation, hardware wire timestamps   |
 |Price arithmetic    |✅ Integer tick-based, configurable per symbol                           |+ Dynamic tick size changes, exchange tick tables |
@@ -2811,8 +2894,8 @@ engineering work for a real exchange.
 |Rate limiting       |None                                                                    |Per-gateway limits enforced at gateway            |
 |Pre-trade risk      |✅ Price collars, circuit breakers, kill switch                           |+ Per-gateway limits, fat finger thresholds       |
 |Regulatory reporting|None                                                                    |Real-time trade reporting, audit retention        |
-|Trade persistence   |CSV file                                                                |Durable, replicated, queryable store              |
-|Replay buffer       |None                                                                    |Persistent log with configurable retention        |
+|Trade persistence   |SQLite (`clearing.db`)                                                  |Durable, replicated, queryable store              |
+|Replay buffer       |None on the core bus (WS trades feed has a bounded in-memory resume)   |Persistent log with configurable retention        |
 
 ✅ = implemented in EduMatcher
 

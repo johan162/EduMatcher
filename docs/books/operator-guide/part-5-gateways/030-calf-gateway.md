@@ -142,7 +142,7 @@ fields:
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
 | `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY REASON` | auction uncross results, Terminal-style auction views |
-| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT SRC CORRLO CORRHI EXP INDICPX INDICQTY IMB REASON CLAMPED PRINTPX` | circuit-breaker detail beyond `STATE`'s halt/resume flag, including the ACE reopening corridor |
+| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT CORRLO CORRHI EXP SRC INDICPX INDICQTY IMB REASON CLAMPED PRINTPX` | circuit-breaker detail beyond `STATE`'s halt/resume flag, including the ACE reopening corridor |
 
 Each channel is detailed under [What information is available](#what-information-is-available); the exact field meanings are in the per-channel field tables there.
 
@@ -1403,11 +1403,11 @@ ws.onmessage = (e) => {
 
 **Reference Manual:**
 
-- Processes — where `pm-md-gwy` sits in the process model
+- [Processes](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-md-gwy-calf-market-data-gateway) — where `pm-md-gwy` sits in the process model
 
 **Protocols and Clients:**
 
-- External Protocols Overview — ALF, BALF, CALF, RALF at a glance
-- Appendix — CALF Protocol — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
-- CALF Protocol Spy (pm-calf-spy) — read-only CLI for watching the raw feed, human-readable or JSON
-- Messages Reference — CALF messages in the full message catalogue
+- [External Protocols Overview](../../protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
+- [Appendix — CALF Protocol](../../protocols-and-clients/part-2-specifications/030-calf.md) — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
+- [CALF Protocol Spy (pm-calf-spy)](../../protocols-and-clients/part-4-writing-clients/040-the-spy-tools-calf.md) — read-only CLI for watching the raw feed, human-readable or JSON
+- [Messages Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — CALF messages in the full message catalogue

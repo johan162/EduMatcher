@@ -48,9 +48,10 @@ builds an image that does not exist yet, so an image tagged
 `edumatcher-terminal-gui:latest` from an hour ago is reused as-is. Your change
 is in the working tree, not in the image, and nothing warns you.
 
-The reason it is not simply `--build` by default: that re-evaluates five build
-contexts on every start, including the backend's, which turns a three-second
-start into a multi-minute one. Building is a separate decision from starting.
+The reason it is not simply `--build` by default: that re-evaluates six build
+contexts on every start (the five GUIs plus the backend), which turns a
+three-second start into a multi-minute one. Building is a separate decision
+from starting.
 
 So the loop is *build, then start*:
 

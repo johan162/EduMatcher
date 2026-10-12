@@ -252,8 +252,8 @@ independently per session.
 
 **Operator's Guide:**
 
-- Post-Trade Dissemination (RALF) — operational guide, wire examples, and the Python/C example subscribers
+- [Post-Trade Dissemination (RALF)](../../operator-guide/part-5-gateways/040-ralf-gateway.md) — operational guide, wire examples, and the Python/C example subscribers
 
 **Reference Manual:**
 
-- Processes — where `pm-ralf-spy` sits in the process model
+- [Processes, Environment, and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) — where `pm-ralf-spy` sits in the process model

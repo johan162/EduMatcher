@@ -179,7 +179,7 @@ The values are available to ADMIN keys through the API gateway, for your own
 dashboards and scripts:
 
 ```bash
-curl -s -H "Authorization: Bearer key-ops01-9yn0rc" \
+curl -s -H "Authorization: Bearer key-ops01-3e34rs" \
     http://localhost:8080/api/v1/admin/sim
 ```
 

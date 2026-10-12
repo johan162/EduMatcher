@@ -11,9 +11,6 @@
       three-leg statistical arbitrage — explained without jargon
     - The extra complexity combos introduce: distributed state, cascade cancellation,
       fill-event hooks, and GTC persistence recovery
-    - The advanced concept of **implied (synthetic) orders** — quotes the exchange
-      itself computes from existing liquidity in related books — including the
-      mathematics behind their price and quantity calculation
 
 
 
@@ -524,8 +521,8 @@ problems real exchanges spend years solving.
 
 **Operator's Guide:**
 
-- Persistence — how GTC combos are saved and restored across sessions
+- [Persistence](../../operator-guide/part-6-observe-and-recover/010-persistence.md) — how GTC combos are saved and restored across sessions
 
 **Protocols and Clients:**
 
-- Messages — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
+- [Messages](../../protocols-and-clients/part-5-message-reference/010-message-reference.md) — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
