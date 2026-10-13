@@ -12,7 +12,7 @@
 ## One setting
 
 ```bash
-EM_SPEED=24 docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh speed 24 && ./edumatcher.sh restart
 ```
 
 `EM_SPEED=N` runs the trading calendar N times faster than the clock on the
@@ -21,10 +21,11 @@ trades through the day, closes, sleeps through the night and opens again an
 hour later. Weekends and Swedish holidays pass too, at the same speed.
 `EM_SPEED=1` (the default) is real time.
 
-`EM_START` says where the faster calendar starts, as local time:
+`EM_START` says where the faster calendar starts, as local time — the second
+argument:
 
 ```bash
-EM_SPEED=24 EM_START=2026-11-02T08:55 docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh speed 24 2026-11-02T08:55 && ./edumatcher.sh restart
 ```
 
 Without it the calendar starts at the real present moment. A start a few

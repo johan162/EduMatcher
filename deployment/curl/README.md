@@ -166,9 +166,12 @@ stack started before that check existed can still be there.
 ## Installer options
 
 ```
+--sim             Install the AI-trader simulation instead of the exchange
 --version X.Y.Z   Release to install (default: the latest)
 --config NAME     Bundled example, or a path to your own engine_config.yaml
---dir PATH        Where to install (default: ~/.edumatcher)
+--speed N         --sim only: run the trading calendar N times faster
+--start TS        --sim only: where an accelerated calendar starts
+--dir PATH        Where to install (default: ~/.edumatcher, ~/.edumatcher-sim with --sim)
 --no-start        Fetch and configure, but do not start
 ```
 
@@ -177,6 +180,41 @@ Pass them through the pipe with `bash -s --`:
 ```bash
 curl -fsSL .../install.sh | bash -s -- --version 0.20.5 --dir ~/exchange
 ```
+
+## The AI-trader simulation
+
+The same installer, with `--sim`, brings up a market that trades itself: 300
+symbols, a hundred AI traders, a market maker and a news feed, on real trading
+hours.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim
+cd ~/.edumatcher-sim
+```
+
+It installs into `~/.edumatcher-sim` and is driven by the same
+`./edumatcher.sh` — `start`, `stop`, `status`, `logs`, `shell`, `urls`,
+`mounts`, `update`, `uninstall` all behave as above, against the
+`edumatcher-sim` containers. Two differences:
+
+```bash
+./edumatcher.sh speed 10 2026-11-02T08:58   # a trading day in ~42 minutes
+./edumatcher.sh restart
+./edumatcher.sh speed 1                     # back to real trading hours
+./edumatcher.sh restart
+```
+
+and `config` takes only a path to a configuration of your own — there is no
+bundled example to switch to besides `s300-sim`, which it starts with. There
+is no configuration GUI in this stack; the other four are on the usual ports.
+
+!!! warning
+    The two installs use the same host ports (5560–5600, 8080/8081,
+    8090–8094), so only one of them can run at a time. `start` refuses if the
+    other one's containers are up.
+
+What the simulation *is* — the hidden true value, the traders, the news — is
+the "AI Traders and Market Simulation" book.
 
 ## Testing this installer before a release carries it
 

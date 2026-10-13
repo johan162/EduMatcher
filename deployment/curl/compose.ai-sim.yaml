@@ -1,0 +1,131 @@
+# EduMatcher AI-trader simulation — an exchange that trades itself, plus the
+# four web GUIs to watch it, from prebuilt images.
+#
+# This file is deliberately build-free: every image is pulled from GHCR, so a
+# user needs only podman or docker, never a Node or Python toolchain. The
+# repository's own deployment/docker/compose.ai-sim.yaml is the one that can
+# build from source; this is its released twin.
+#
+# Normally driven by ./edumatcher.sh rather than by hand.
+
+name: edumatcher-sim
+
+services:
+  edumatcher:
+    image: ${AISIM_IMAGE:-ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-ai-sim:${EM_VERSION:-latest}}
+    container_name: edumatcher-sim
+    hostname: edumatcher
+    restart: unless-stopped
+    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
+    stop_grace_period: 60s
+    environment:
+      # Accelerated time: N = the trading calendar runs N times faster than
+      # the wall clock (24: one trading day an hour). 1 = real time.
+      EM_SPEED: ${EM_SPEED:-1}
+      # Where an accelerated calendar starts, local time, e.g.
+      # 2026-11-02T08:55. Empty = now. It applies again at every restart.
+      EM_START: ${EM_START:-}
+      # Your own configuration instead of the bundled s300-sim;
+      # './edumatcher.sh config <file>' copies the file into ./config and
+      # sets this for you. A market_sim.yaml next to it is deployed with it.
+      EM_CONFIG_FILE: ${EM_CONFIG_FILE:-}
+      # The trading calendar's time zone (the scheduler uses local time).
+      TZ: ${TZ:-Europe/Stockholm}
+      EDUMATCHER_GATEWAY_BIND_HOST: ${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}
+    volumes:
+      # Every trade, log and database the exchange produces. Survives
+      # stop/start; removed only by './edumatcher.sh uninstall --data'.
+      - ./data:/data
+      # Where a configuration of your own is mounted, read-only.
+      - ./config:/config:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
+      - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
+      - "${BIND_ADDR:-127.0.0.1}:5570:5570"   # pm-md-gwy    — market data (MDLF)
+      - "${BIND_ADDR:-127.0.0.1}:5580:5580"   # pm-ralf-gwy  — post trade (RALF)
+      - "${BIND_ADDR:-127.0.0.1}:5590:5590"   # pm-dc-gwy    — drop copy (DCLF)
+      - "${BIND_ADDR:-127.0.0.1}:5600:5600"   # pm-log-srv   — log ingest (LALF)
+      - "${BIND_ADDR:-127.0.0.1}:8080:8080"   # pm-api-gwy   — REST, desk
+      - "${BIND_ADDR:-127.0.0.1}:8081:8081"   # pm-api-gwy   — REST, dashboards
+
+  terminal-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-terminal-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-terminal-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TERMINAL_GUI_PORT:-8090}:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      CORS_ORIGIN: "*"
+      CALF_HOST: "edumatcher"
+      CALF_PORT: "5570"
+      # The read-only credential of the s300-sim example ('dashboards', 8081).
+      API_GATEWAY_URL: "http://edumatcher:8081"
+      PM_TERMINAL_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - terminal-gui-logs:/app/logs
+
+  book-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-book-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-book-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}:8094"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8094"
+      CORS_ORIGIN: "*"
+      API_GATEWAY_URL: "http://edumatcher:8081"
+      PM_BOOK_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - book-gui-logs:/app/logs
+
+  log-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-log-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-log-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}:8091"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8091"
+      CORS_ORIGIN: "*"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PUB_PORT: "5601"
+      LOG_SRV_PULL_PORT: "5602"
+      LOG_DB_PATH: "/backend-data/log.db"
+      ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+    volumes:
+      # The exchange's data directory, read-only: the viewer reads log.db.
+      - ./data:/backend-data:ro
+      - log-gui-acks:/app/ack-data
+
+  trader-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-trader-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-trader-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TRADER_GUI_PORT:-8093}:8093"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8093"
+      # The 'desk' instance: log in with a TRADERnn key in the browser.
+      API_PROXY_TARGET: "http://edumatcher:8080"
+
+volumes:
+  log-gui-acks:
+  terminal-gui-logs:
+  book-gui-logs:

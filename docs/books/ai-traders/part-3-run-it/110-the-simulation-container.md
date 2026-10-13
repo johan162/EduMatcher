@@ -82,11 +82,21 @@ The GUIs reach the exchange over the compose network, at the host name
 programs. The GUIs that read market history use the example's read-only API
 key, which the compose file already knows.
 
+There are two copies of this file, and they describe the same five
+containers:
+
+| | |
+|---|---|
+| `deployment/curl/compose.ai-sim.yaml` | What `install.sh --sim` fetches into `~/.edumatcher-sim`. Build-free: every image comes from GHCR. Its data directory is `./data` |
+| `deployment/docker/compose.ai-sim.yaml` | The repository's own, which can also *build* the image (`make build-sim`). Its data directory is `./data-sim` |
+
+The rest of this chapter uses the installed one and `./edumatcher.sh`.
+
 ### Settings
 
-Everything is set with environment variables — on the command line, as in
-`EM_SPEED=24 docker compose -f compose.ai-sim.yaml up -d`, or in a `.env`
-file next to the compose file:
+Everything is set with environment variables, in the `.env` file next to the
+compose file (the installer writes one) or on the command line, as in
+`EM_SPEED=24 docker compose -f compose.ai-sim.yaml up -d`:
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -104,37 +114,50 @@ file next to the compose file:
 !!! tip "Pin a version for a course"
     `latest` moves with every release. For a course that runs for weeks,
     put `EM_VERSION=<version>` in `.env` so a restart never brings a
-    different exchange.
+    different exchange. `./edumatcher.sh update 0.51.0` does it for you.
 
 ### Data
 
-Everything the exchange writes is in `./data-sim` next to the compose file
-(mounted at `/data`). It survives `down`, `up`, reboots and upgrades.
+Everything the exchange writes is in the install's `data` directory, mounted
+at `/data`: `~/.edumatcher-sim/data` for an installed simulation,
+`./data-sim` next to the compose file in a checkout. It survives `stop`,
+`start`, reboots and upgrades.
 
 | To | Do |
 |---|---|
-| Start over, with a fresh market | `docker compose -f compose.ai-sim.yaml down`, delete `./data-sim`, `up -d` |
-| Back it up | Stop the stack (`down`), copy `./data-sim`, start it again |
-| Look at a file | It is on your disk: `./data-sim/ai_swarm/`, `./data-sim/stats.db`, … |
+| Start over, with a fresh market | `./edumatcher.sh stop`, delete `data`, `./edumatcher.sh start` |
+| Back it up | Stop the stack, copy `data`, start it again |
+| Look at a file | It is on your disk: `data/ai_swarm/`, `data/stats.db`, … |
 
 A backup taken while the exchange runs can catch a database mid-write; stop
 it first.
 
 ### The commands you will use
 
+From the install directory (`cd ~/.edumatcher-sim`):
+
 | Task | Command |
 |---|---|
-| Start | `docker compose -f compose.ai-sim.yaml up -d` |
-| Stop | `docker compose -f compose.ai-sim.yaml down` |
-| Process table | `docker exec edumatcher-sim pm-opctl-cli list --no-restart` |
-| A shell in the exchange | `docker exec -it edumatcher-sim bash` |
-| The container log (starts, restarts) | `docker logs -f edumatcher-sim` |
-| One process's console output | `docker exec edumatcher-sim tail -f /data/emo/ai-swarm.log` |
-| Disk use | `du -sh ./data-sim` |
+| Start | `./edumatcher.sh start` |
+| Stop | `./edumatcher.sh stop` |
+| Process table, container status | `./edumatcher.sh status` |
+| A shell in the exchange | `./edumatcher.sh shell` |
+| One command in it | `./edumatcher.sh shell pm-market-sim --status --id OPS01` |
+| The container log (starts, restarts) | `./edumatcher.sh logs edumatcher` |
+| The web addresses | `./edumatcher.sh urls` |
+| Which directory is behind each container path | `./edumatcher.sh mounts` |
+| Accelerate the calendar | `./edumatcher.sh speed 24 2026-11-02T08:55`, then `restart` |
+| Upgrade | `./edumatcher.sh update` (or `update 0.51.0`) |
+| Remove it | `./edumatcher.sh uninstall` (`--data` to delete the data too) |
 
-From a clone of the repository, `deployment/docker/Makefile` wraps them:
-`make up-sim`, `make down-sim`, `make sim-status` (process table and disk),
-`make sim-shell`; `make up-sim SPEED=24 START=2026-11-02T08:55` for an
+The script is a wrapper around `docker compose` and `docker exec`; anything it
+does you can do by hand — `docker compose -f compose.ai-sim.yaml up -d`,
+`docker exec edumatcher-sim pm-opctl-cli list --no-restart`,
+`docker logs -f edumatcher-sim`.
+
+From a clone of the repository, `deployment/docker/Makefile` wraps the same
+things: `make up-sim`, `make down-sim`, `make sim-status` (process table and
+disk), `make sim-shell`; `make up-sim SPEED=24 START=2026-11-02T08:55` for an
 accelerated run.
 
 ## Changing what it runs
@@ -142,30 +165,30 @@ accelerated run.
 ### Your own configuration
 
 The container deploys a configuration of your own when `EM_CONFIG_FILE`
-names one. Put it in the data directory, so the container can see it:
+names one. Start from the deployed one:
 
 ```bash
-mkdir -p data-sim/custom
-docker cp edumatcher-sim:/data/ref_data/engine_config.yaml data-sim/custom/
-docker cp edumatcher-sim:/data/ref_data/market_sim.yaml data-sim/custom/
-# edit data-sim/custom/market_sim.yaml (or engine_config.yaml), then:
-docker compose -f compose.ai-sim.yaml down
-EM_CONFIG_FILE=/data/custom/engine_config.yaml docker compose -f compose.ai-sim.yaml up -d
+mkdir -p my-sim
+./edumatcher.sh shell cat /data/ref_data/engine_config.yaml > my-sim/engine_config.yaml
+./edumatcher.sh shell cat /data/ref_data/market_sim.yaml    > my-sim/market_sim.yaml
+# edit my-sim/market_sim.yaml (or engine_config.yaml), then:
+./edumatcher.sh config ./my-sim/engine_config.yaml
+./edumatcher.sh restart
 ```
 
-The `market_sim.yaml` next to the engine configuration is deployed with it.
-Put `EM_CONFIG_FILE=/data/custom/engine_config.yaml` in `.env` so it stays
-set. If the configuration is refused, the container log says why
-(`docker logs edumatcher-sim`) — check it first with
-`docker exec edumatcher-sim pm-cverifier /data/custom/engine_config.yaml`.
+`config` copies both files into the install's `./config`, which is mounted
+read-only at `/config`, and sets `EM_CONFIG_FILE=/config/engine_config.yaml`
+in `.env` so it stays set. If the configuration is refused, the container log
+says why (`./edumatcher.sh logs edumatcher`) — check it first with
+`./edumatcher.sh shell pm-cverifier /config/engine_config.yaml`.
 
-A deployed configuration stays deployed: removing `EM_CONFIG_FILE` alone does
-not bring `s300-sim` back. Remove it, then redeploy the bundled one and
-recreate the container:
+A deployed configuration stays deployed: clearing `EM_CONFIG_FILE` alone does
+not bring `s300-sim` back. Clear it, then redeploy the bundled one and
+restart:
 
 ```bash
-docker exec edumatcher-sim pm-setup --config s300-sim --force
-docker compose -f compose.ai-sim.yaml up -d --force-recreate
+./edumatcher.sh shell pm-setup --config s300-sim --force
+./edumatcher.sh restart
 ```
 
 ### Your own traders or process flags
@@ -174,13 +197,13 @@ The traders' mix and the processes' flags are in the process profile.
 Write the built-in profiles out once and edit the copy:
 
 ```bash
-docker exec edumatcher-sim pm-opctl-cli init
+./edumatcher.sh shell pm-opctl-cli init
 ```
 
-`init` writes `./data-sim/emo-config.yaml`, which from then on replaces the
-built-in profiles. To use your own `swarm.yaml`, put it in
-`./data-sim/custom/` and change the `ai-sim` profile's `ai-swarm` command to
-`--swarm /data/custom/swarm.yaml`; restart the stack. Delete
+`init` writes `data/emo-config.yaml`, which from then on replaces the
+built-in profiles. To use your own `swarm.yaml`, put it in `./config/` and
+change the `ai-sim` profile's `ai-swarm` command to
+`--swarm /config/swarm.yaml`; restart the stack. Delete
 `emo-config.yaml` to go back to the built-in profiles (and get the profiles
 of a newer release after an upgrade).
 
@@ -190,8 +213,8 @@ what to change.
 ## Opening it to a classroom
 
 By default every port is published on `127.0.0.1`: only the machine itself
-can reach the exchange. To let students in from the local network, start it
-with `BIND_ADDR=0.0.0.0`, and first:
+can reach the exchange. To let students in from the local network, set
+`BIND_ADDR=0.0.0.0` in `.env` and restart, and first:
 
 - **Change the API keys.** The example's keys are printed in this book. Use
   your own configuration (above) with new `api_key` values for every
@@ -223,15 +246,15 @@ A laptop that runs a browser comfortably runs the simulation.
 ## Upgrading
 
 ```bash
-docker compose -f compose.ai-sim.yaml pull
-docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh update          # the newest release
+./edumatcher.sh update 0.51.0   # ...or an exact one
 ```
 
-`./data-sim` is kept, and with it the deployed configuration and the market's
-history. The release notes say when a release changes the `s300-sim`
-example; to take the new one, start over with a fresh `./data-sim`, or
+The data directory is kept, and with it the deployed configuration and the
+market's history. The release notes say when a release changes the `s300-sim`
+example; to take the new one, start over with a fresh data directory, or
 redeploy with the new example while keeping your history:
-`docker exec edumatcher-sim pm-setup --config s300-sim --force`, then restart.
+`./edumatcher.sh shell pm-setup --config s300-sim --force`, then restart.
 
 ## Building the image yourself
 

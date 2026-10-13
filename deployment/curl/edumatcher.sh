@@ -6,8 +6,12 @@
 #   ./edumatcher.sh urls
 #   ./edumatcher.sh mounts
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
+#   ./edumatcher.sh speed <N> [start-time]      (AI-sim installs only)
 #   ./edumatcher.sh update [version]
 #   ./edumatcher.sh uninstall [--data]
+#
+# EM_STACK=sim in .env makes every command drive compose.ai-sim.yaml and the
+# 'edumatcher-sim' containers instead; the installer sets it with --sim.
 #
 # Everything runs from this directory; there is nothing installed elsewhere.
 
@@ -22,13 +26,18 @@ ok()    { echo -e "${GREEN}✓ $*${NC}"; }
 warn()  { echo -e "${YELLOW}⚠ $*${NC}"; }
 die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 
-# Every container this deployment owns. The names are fixed in compose.yaml
-# rather than derived from the project, which is why two installs collide —
-# see assert_no_foreign_stack below.
+# Every container this deployment owns. The names are fixed in the compose
+# file rather than derived from the project, which is why two installs collide
+# — see assert_no_foreign_stack below. detect_engine overrides both of these
+# for an AI-sim install.
 CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui"
+CONTAINER_NAME="edumatcher"
 
 # Read one key out of .env without sourcing the whole file.
 env_value() { [[ -f .env ]] && sed -n "s/^$1=//p" .env | tail -1; }
+
+# 'sim' for an AI-trader simulation install, empty for the plain exchange.
+stack() { [[ "$(env_value EM_STACK)" == "sim" ]] && echo sim; }
 
 # --- Container engine ------------------------------------------------------
 # Podman is preferred when both are installed, matching the repository's own
@@ -52,6 +61,12 @@ detect_engine() {
 
     # Overlay files are additive -f arguments, the same mechanism the source
     # checkout uses for ZMQ=1 and SSH=1. Word splitting here is intended.
+    if [[ "$(stack)" == "sim" ]]; then
+        COMPOSE_FILES="-f compose.ai-sim.yaml"
+        CONTAINER_NAME="edumatcher-sim"
+        CONTAINERS="edumatcher-sim edumatcher-sim-terminal-gui edumatcher-sim-log-gui edumatcher-sim-trader-gui edumatcher-sim-book-gui"
+        return
+    fi
     COMPOSE_FILES="-f compose.yaml"
     if [[ "$(env_value EM_ZMQ)" == "1" ]]; then
         [[ -f compose.zmq.yaml ]] || die "EM_ZMQ=1 but compose.zmq.yaml is missing.
@@ -92,7 +107,7 @@ norm_dir() { if [[ -d "$1" ]]; then (cd "$1" && pwd -P); else printf '%s' "$1"; 
 # looking at its exchange through this install's URLs — same ports, same
 # in-container paths, no error anywhere. Refuse instead.
 assert_no_foreign_stack() {
-    local name="${CONTAINER_NAME:-edumatcher}" src
+    local name="$CONTAINER_NAME" src
     $ENGINE container inspect "$name" >/dev/null 2>&1 || return 0
     src=$($ENGINE inspect "$name" \
             --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
@@ -115,20 +130,29 @@ cmd_start() {
     mkdir -p data config
     info "Engine: $ENGINE ($COMPOSE)"
 
+    # The simulation's configuration is fixed and its read-only key is already
+    # in the compose file, so there is nothing to resolve: one phase.
+    if [[ "$(stack)" == "sim" ]]; then
+        $COMPOSE $COMPOSE_FILES up -d
+        echo
+        cmd_urls
+        return
+    fi
+
     # Two phases, deliberately: the read-only API key does not exist until the
     # exchange has deployed its configuration, so the backend has to be up
     # before the GUIs can be given their environment.
     $COMPOSE $COMPOSE_FILES up -d edumatcher
     printf -- "- waiting for the exchange to deploy its configuration"
     for _ in $(seq 1 60); do
-        if $ENGINE exec edumatcher test -f /data/ref_data/engine_config.json >/dev/null 2>&1; then
+        if $ENGINE exec "$CONTAINER_NAME" test -f /data/ref_data/engine_config.json >/dev/null 2>&1; then
             break
         fi
         printf "."; sleep 1
     done
     echo
 
-    cred=$($ENGINE exec edumatcher python3 -c "$READONLY_CREDENTIAL_PY" 2>/dev/null || true)
+    cred=$($ENGINE exec "$CONTAINER_NAME" python3 -c "$READONLY_CREDENTIAL_PY" 2>/dev/null || true)
     if [[ -n "$cred" ]]; then
         set -- $cred
         export API_GATEWAY_URL="http://edumatcher:$1"
@@ -159,7 +183,7 @@ cmd_status() {
     $COMPOSE $COMPOSE_FILES ps
     echo
     info "Exchange process table:"
-    $ENGINE exec edumatcher pm-opctl-cli list --no-restart 2>/dev/null \
+    $ENGINE exec "$CONTAINER_NAME" pm-opctl-cli list --no-restart 2>/dev/null \
         || warn "The exchange container is not running."
 }
 
@@ -178,7 +202,7 @@ cmd_logs() {
 #   ./edumatcher.sh shell pm-alf-console --id TRADER01
 cmd_shell() {
     detect_engine
-    local name="${CONTAINER_NAME:-edumatcher}" state
+    local name="$CONTAINER_NAME" state
     $ENGINE container inspect "$name" >/dev/null 2>&1 \
         || die "No container '$name'. Start the exchange first: ./edumatcher.sh start"
     state=$($ENGINE inspect "$name" --format '{{.State.Status}}' 2>/dev/null || echo "?")
@@ -206,7 +230,7 @@ cmd_urls() {
     echo "Open:"
     echo "  TapeDeck (market display)  http://localhost:${TERMINAL_GUI_PORT:-8090}"
     echo "  Log Operator Console       http://localhost:${LOG_GUI_PORT:-8091}"
-    echo "  Configuration GUI          http://localhost:${CONFIG_GUI_PORT:-8092}"
+    [[ "$(stack)" == "sim" ]] || echo "  Configuration GUI          http://localhost:${CONFIG_GUI_PORT:-8092}"
     echo "  Trading GUI                http://localhost:${TRADER_GUI_PORT:-8093}"
     echo "  Order Book Viewer          http://localhost:${BOOK_GUI_PORT:-8094}"
     echo "  REST API docs              http://localhost:8080/docs"
@@ -267,9 +291,18 @@ cmd_config() {
     local want="$1"
     if [[ -f "$want" ]]; then
         mkdir -p config
-        cp "$want" config/engine_config.yaml
+        [[ "$want" -ef config/engine_config.yaml ]] || cp "$want" config/engine_config.yaml
+        # The simulation's market model lives beside the engine configuration
+        # and is deployed with it, so it has to be mounted with it.
+        local sim_yaml="$(dirname "$want")/market_sim.yaml"
+        if [[ -f "$sim_yaml" && ! "$sim_yaml" -ef config/market_sim.yaml ]]; then
+            cp "$sim_yaml" config/market_sim.yaml
+        fi
         set_env EM_CONFIG_FILE /config/engine_config.yaml
         ok "Using your own configuration: $want"
+    elif [[ "$(stack)" == "sim" ]]; then
+        die "The simulation runs the s300-sim example or a configuration of your own.
+  Pass a path to an engine_config.yaml; '$want' is not a file."
     else
         # shellcheck disable=SC2076
         [[ " $(echo $EXAMPLES) " =~ " $want " ]] || {
@@ -294,6 +327,21 @@ set_env() {
     else
         printf '%s=%s\n' "$key" "$value" >> .env
     fi
+}
+
+# How fast the trading calendar runs, and optionally where it starts. Both are
+# read at every start, so they stay in effect until changed back.
+#
+#   ./edumatcher.sh speed 10 2026-11-02T08:58   a trading day in ~42 minutes
+#   ./edumatcher.sh speed 1                     back to real trading hours
+cmd_speed() {
+    [[ "$(stack)" == "sim" ]] || die "'speed' applies to an AI-sim install only (EM_STACK=sim)."
+    [[ $# -ge 1 ]] || die "Usage: ./edumatcher.sh speed <N> [start-time]"
+    [[ "$1" =~ ^[0-9]+$ ]] || die "Speed must be a whole number (1 = real time)."
+    set_env EM_SPEED "$1"
+    set_env EM_START "${2:-}"
+    ok "Speed ${1}x${2:+, starting $2}"
+    echo "Apply it with: ./edumatcher.sh restart"
 }
 
 cmd_update() {
@@ -327,6 +375,7 @@ case "${1:-}" in
     urls)      shift; cmd_urls "$@" ;;
     mounts)    shift; cmd_mounts "$@" ;;
     config)    shift; cmd_config "$@" ;;
+    speed)     shift; cmd_speed "$@" ;;
     update)    shift; cmd_update "$@" ;;
     uninstall) shift; cmd_uninstall "$@" ;;
     *)

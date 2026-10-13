@@ -79,7 +79,11 @@ The container image `edumatcher-ai-sim` is exactly this set-up, ready to run.
 
 - A bare command in a `bash` block is typed in a normal terminal. Commands
   that run *inside* the simulation container say so, or start with
-  `docker exec edumatcher-sim`.
+  `docker exec edumatcher-sim`. From an installed simulation
+  (`cd ~/.edumatcher-sim`), `./edumatcher.sh shell <command>` is the same
+  thing and works with Podman too; `./edumatcher.sh` also wraps `start`,
+  `stop`, `status` and `logs`. Where the book says `./data-sim`, an installed
+  simulation's data directory is `~/.edumatcher-sim/data`.
 - `[OPS01|ADMIN]>` is the prompt of the operator console (`pm-admin`);
   `[TRADER01]>` the prompt of a trader console (`pm-alf-console`).
 - Output shown in a plain block is what you should see. Prices, times and
