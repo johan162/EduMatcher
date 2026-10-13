@@ -7408,22 +7408,22 @@ per real day at any speed.</p>
 <ol>
 <li>every process <code>running</code>;</li>
 <li>the disk free comfortably above what the next weeks need;</li>
-<li>once a week, <code>docker logs edumatcher-sim | grep Restarting</code> — the same
+<li>once a week, <code>./edumatcher.sh logs edumatcher | grep Restarting</code> — the same
    process restarting every day is worth a look in its log;</li>
-<li>one daily summary file per trading day in <code>./data-sim/ai_swarm/</code>.</li>
+<li>one daily summary file per trading day in <code>data/ai_swarm/</code>.</li>
 </ol>
 <h2 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h2>
-<p>The whole state is <code>./data-sim</code>. To copy it consistently, stop first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>tar<span class="w"> </span>czf<span class="w"> </span>sim-backup-<span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span>.tgz<span class="w"> </span>data-sim
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<p>The whole state is the install's <code>data</code> directory. To copy it consistently,
+stop first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>stop
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>tar<span class="w"> </span>czf<span class="w"> </span>sim-backup-<span class="k">$(</span>date<span class="w"> </span>+%F<span class="k">)</span>.tgz<span class="w"> </span>data
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>start
 </code></pre></div>
 <p>The market is closed at night and at weekends — a good time. To restore,
-stop, replace <code>./data-sim</code> with the backup's, start.</p>
+stop, replace <code>data</code> with the backup's, start.</p>
 <h2 id="upgrading-during-a-run">Upgrading during a run<a class="headerlink" href="#upgrading-during-a-run" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># edit EM_VERSION in .env</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
 </code></pre></div>
 <p>Do it while the market is closed. The data directory is kept; the deployed
 configuration stays as it was (a new release's version of <code>s300-sim</code> is

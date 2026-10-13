@@ -7216,15 +7216,16 @@
 </ul>
 </div>
 <h2 id="one-setting">One setting<a class="headerlink" href="#one-setting" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">EM_SPEED</span><span class="o">=</span><span class="m">24</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./edumatcher.sh<span class="w"> </span>speed<span class="w"> </span><span class="m">24</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p><code>EM_SPEED=N</code> runs the trading calendar N times faster than the clock on the
 wall. At 24 a calendar day passes in an hour of wall time: the market opens,
 trades through the day, closes, sleeps through the night and opens again an
 hour later. Weekends and Swedish holidays pass too, at the same speed.
 <code>EM_SPEED=1</code> (the default) is real time.</p>
-<p><code>EM_START</code> says where the faster calendar starts, as local time:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">EM_SPEED</span><span class="o">=</span><span class="m">24</span><span class="w"> </span><span class="nv">EM_START</span><span class="o">=</span><span class="m">2026</span>-11-02T08:55<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<p><code>EM_START</code> says where the faster calendar starts, as local time — the second
+argument:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./edumatcher.sh<span class="w"> </span>speed<span class="w"> </span><span class="m">24</span><span class="w"> </span><span class="m">2026</span>-11-02T08:55<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <p>Without it the calendar starts at the real present moment. A start a few
 minutes before 09:00 on a weekday is the usual choice: the market opens

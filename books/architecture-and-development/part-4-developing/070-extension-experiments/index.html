@@ -8030,7 +8030,7 @@ Session support exists, but indicative auction data is not yet computed or publi
 <p>Technical details:</p>
 <ul>
 <li>At configurable intervals during the auction phase (<code>indicative_publish_interval_ms</code>, default 500ms), compute and publish an <code>auction.indicative.&lt;symbol&gt;</code> event.</li>
-<li>Indicative price algorithm: for each candidate price P in the set of all limit prices in the current book, compute <code>matched_qty(P)</code>. Select P<em> = argmax of <code>matched_qty(P)</code>. Tie-break rule (multiple P</em> values): prefer the price closest to the last-traded price; if no last trade exists, prefer the price closest to the midpoint of the highest buy and lowest sell.</li>
+<li>Indicative price algorithm: for each candidate price P in the set of all limit prices in the current book, compute <code>matched_qty(P)</code>. Select P* = argmax of <code>matched_qty(P)</code>. Tie-break rule (multiple P* values): prefer the price closest to the last-traded price; if no last trade exists, prefer the price closest to the midpoint of the highest buy and lowest sell.</li>
 <li>Event payload: <code>{symbol, indicative_price, indicative_volume, buy_imbalance_qty, sell_imbalance_qty, ts, auction_phase}</code>.</li>
 <li><code>buy_imbalance_qty = total_buy_qty_at_or_above_P* − matched_qty(P*)</code>. Equivalently for sell.</li>
 <li>At uncross, the final clearing price must equal the last published indicative price, or the deviation must be explained by a deterministic tie-break rule documented in the spec.</li>

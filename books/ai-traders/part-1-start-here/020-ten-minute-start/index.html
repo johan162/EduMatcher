@@ -6496,21 +6496,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#get-the-compose-file" class="md-nav__link">
+  <a href="#install-and-start-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Get the compose file
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#start-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Start it
+        Install and start it
       
     </span>
   </a>
@@ -7249,37 +7238,40 @@
 with <code>podman compose</code>; about 2 GB of free memory and 4 GB of free disk (for a month's running).</p>
 </div>
 <p>There are two ways to run the simulation. The <strong>container</strong> is the one this
-chapter uses: one file, one command, the browser applications included.
+chapter uses: one command, the browser applications included.
 The <strong>hand-built</strong> way runs the same processes straight on your machine with
 <code>pipx</code>; it is in <a href="../../part-3-run-it/100-a-complete-setup-by-hand/">A Complete Set-up by Hand</a>.</p>
-<h2 id="get-the-compose-file">Get the compose file<a class="headerlink" href="#get-the-compose-file" title="Permanent link">&para;</a></h2>
-<p>The simulation is one compose file, <code>compose.ai-sim.yaml</code>. Everything else —
-the exchange, its configuration, the AI traders, the browser applications —
-comes in images from the GitHub Container Registry.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdir<span class="w"> </span>edumatcher-sim<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>edumatcher-sim
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>-fsSLO<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/docker/compose.ai-sim.yaml
+<h2 id="install-and-start-it">Install and start it<a class="headerlink" href="#install-and-start-it" title="Permanent link">&para;</a></h2>
+<p>One command downloads the installer, which fetches the compose file and the
+control script, pulls five images and starts everything:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--sim
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher-sim
 </code></pre></div>
-<div class="admonition tip">
-<p class="admonition-title">From a clone of the repository</p>
-<p>The same file is <code>deployment/docker/compose.ai-sim.yaml</code>. There,
-<code>make up-sim</code> does the next step (<a href="#start-it">Start it</a>) and <code>make down-sim</code> stops it again.</p>
-</div>
-<h2 id="start-it">Start it<a class="headerlink" href="#start-it" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
-</code></pre></div>
-<p>(With Podman: <code>podman compose -f compose.ai-sim.yaml up -d</code>, and <code>podman</code>
-for <code>docker</code> in every command of this book.) The first start
-downloads five images. Then:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a> ✔ Container edumatcher-sim               Started
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a> ✔ Container edumatcher-sim-terminal-gui  Started
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a> ✔ Container edumatcher-sim-book-gui      Started
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a> ✔ Container edumatcher-sim-log-gui       Started
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a> ✔ Container edumatcher-sim-trader-gui    Started
+<p>Everything lands in <code>~/.edumatcher-sim</code> — a compose file, a <code>.env</code>, the
+control script <code>edumatcher.sh</code>, and <code>./data</code> where the exchange writes. There
+is nothing installed anywhere else; delete the directory and it is gone.</p>
+<p>The first start downloads five images. Then:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> ✔ Container edumatcher-sim               Started
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> ✔ Container edumatcher-sim-terminal-gui  Started
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> ✔ Container edumatcher-sim-book-gui      Started
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a> ✔ Container edumatcher-sim-log-gui       Started
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a> ✔ Container edumatcher-sim-trader-gui    Started
 </code></pre></div>
 <p>The exchange deploys its configuration and starts its processes; give it
 half a minute.</p>
+<div class="admonition tip">
+<p class="admonition-title">Podman, or a different directory</p>
+<p>The installer uses Podman when it is installed and Docker otherwise.
+<code>--dir PATH</code> puts the install somewhere else, <code>--version X.Y.Z</code> pins a
+release, <code>--no-start</code> stops short of starting it.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">From a clone of the repository</p>
+<p><code>deployment/docker/compose.ai-sim.yaml</code> is the same stack built from
+source: <code>make up-sim</code> starts it, <code>make down-sim</code> stops it.</p>
+</div>
 <p><strong>Checkpoint.</strong> Ask the exchange for its process table:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-opctl-cli<span class="w"> </span>list<span class="w"> </span>--no-restart
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./edumatcher.sh<span class="w"> </span>status
 </code></pre></div>
 <p>Every row should say <code>running</code> (a gateway may say <code>not responding</code> for the
 first few seconds while it binds its port). The last three rows are the
@@ -7403,43 +7395,45 @@ book-gui's book for <code>AAPL</code> changes every second or two.</p>
 <h2 id="look-at-the-hidden-value">Look at the hidden value<a class="headerlink" href="#look-at-the-hidden-value" title="Permanent link">&para;</a></h2>
 <p>The true values are secret from students, but not from the instructor. In
 the container, as <code>OPS01</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-market-sim<span class="w"> </span>--status<span class="w"> </span>--id<span class="w"> </span>OPS01
 </code></pre></div>
 <p>During trading this lists the symbols whose price is furthest from their
 true value:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-market-sim: RUNNING seq=1843 symbols=300 open_rumours=1
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>symbol        value        mid  mid/value
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>DXCM          84.12      85.31     +1.41%
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-market-sim: RUNNING seq=1843 symbols=300 open_rumours=1
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>symbol        value        mid  mid/value
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>DXCM          84.12      85.31     +1.41%
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>...
 </code></pre></div>
 <p>Outside trading hours it says <code>PAUSED</code> and shows no values. The gap column
 is the whole point of the simulation; <a href="../../part-2-how-it-works/030-the-true-value/">The True Value</a>
 explains it.</p>
+<p><code>./edumatcher.sh shell</code> with no command puts you in the container with every
+<code>pm-*</code> tool on the PATH.</p>
 <h2 id="see-a-trading-day-now">See a trading day now<a class="headerlink" href="#see-a-trading-day-now" title="Permanent link">&para;</a></h2>
-<p>To watch a day without waiting for 09:00, restart the simulation with an
+<p>To watch a day without waiting for 09:00, run the simulation with an
 accelerated clock that starts just before the open:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">EM_SPEED</span><span class="o">=</span><span class="m">10</span><span class="w"> </span><span class="nv">EM_START</span><span class="o">=</span><span class="m">2026</span>-11-02T08:58<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>speed<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">2026</span>-11-02T08:58
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
-<p><code>EM_START</code> is a Monday morning; <code>EM_SPEED=10</code> runs the calendar ten times
+<p><code>2026-11-02</code> is a Monday morning; speed <code>10</code> runs the calendar ten times
 faster than the clock on the wall. The pre-open starts within seconds, the
 opening auction two and a half minutes later, continuous trading half a
 minute after that, and the whole trading day takes about 42 minutes.
 <a href="../../part-3-run-it/120-accelerated-time/">Accelerated Time</a> explains what
 changes and what does not.</p>
 <p>To go back to real hours:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./edumatcher.sh<span class="w"> </span>speed<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <h2 id="stop-it-start-it-again">Stop it, start it again<a class="headerlink" href="#stop-it-start-it-again" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down<span class="w">     </span><span class="c1"># stop and remove the containers</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d<span class="w">    </span><span class="c1"># start again where it left off</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">     </span><span class="c1"># stop and remove the containers</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">    </span><span class="c1"># start again where it left off</span>
 </code></pre></div>
 <p>Everything the exchange has recorded — trades, statistics, logs, the model's
-values, the traders' daily results — is in <code>./data-sim</code> next to the compose
-file and survives <code>down</code>. The containers restart on their own after a reboot
+values, the traders' daily results — is in <code>~/.edumatcher-sim/data</code> and
+survives <code>stop</code>. The containers restart on their own after a reboot
 (<code>restart: unless-stopped</code>). To start from scratch, stop it and delete
-<code>./data-sim</code>.</p>
+<code>./data</code>.</p>
 <h2 id="what-you-have-now">What you have now<a class="headerlink" href="#what-you-have-now" title="Permanent link">&para;</a></h2>
 <p>A market that will keep trading every weekday for as long as the machine is
 on. The rest of the book explains what you are looking at and how to change
@@ -7456,7 +7450,7 @@ it. If you only read one more chapter, read
 <tbody>
 <tr>
 <td><code>pull access denied</code> or <code>manifest unknown</code></td>
-<td>The image for that version is not published yet: pin one that is with <code>EM_VERSION=&lt;version&gt;</code>, or build it — <a href="../../part-3-run-it/110-the-simulation-container/#building-the-image-yourself">The Simulation Container</a></td>
+<td>The image for that version is not published yet: pin one that is with <code>--version &lt;version&gt;</code>, or build it — <a href="../../part-3-run-it/110-the-simulation-container/#building-the-image-yourself">The Simulation Container</a></td>
 </tr>
 <tr>
 <td><code>port is already allocated</code></td>
@@ -7468,7 +7462,7 @@ it. If you only read one more chapter, read
 </tr>
 <tr>
 <td>No trading during the day</td>
-<td>Check the time zone: the clock is Stockholm's. <code>docker exec edumatcher-sim date</code></td>
+<td>Check the time zone: the clock is Stockholm's. <code>./edumatcher.sh shell date</code></td>
 </tr>
 </tbody>
 </table>

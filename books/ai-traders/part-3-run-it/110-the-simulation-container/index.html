@@ -7424,10 +7424,31 @@ market is open.</p>
 <code>edumatcher</code>; the host ports are for you and your students' browsers and
 programs. The GUIs that read market history use the example's read-only API
 key, which the compose file already knows.</p>
+<p>There are two copies of this file, and they describe the same five
+containers:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deployment/curl/compose.ai-sim.yaml</code></td>
+<td>What <code>install.sh --sim</code> fetches into <code>~/.edumatcher-sim</code>. Build-free: every image comes from GHCR. Its data directory is <code>./data</code></td>
+</tr>
+<tr>
+<td><code>deployment/docker/compose.ai-sim.yaml</code></td>
+<td>The repository's own, which can also <em>build</em> the image (<code>make build-sim</code>). Its data directory is <code>./data-sim</code></td>
+</tr>
+</tbody>
+</table>
+<p>The rest of this chapter uses the installed one and <code>./edumatcher.sh</code>.</p>
 <h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
-<p>Everything is set with environment variables — on the command line, as in
-<code>EM_SPEED=24 docker compose -f compose.ai-sim.yaml up -d</code>, or in a <code>.env</code>
-file next to the compose file:</p>
+<p>Everything is set with environment variables, in the <code>.env</code> file next to the
+compose file (the installer writes one) or on the command line, as in
+<code>EM_SPEED=24 docker compose -f compose.ai-sim.yaml up -d</code>:</p>
 <table>
 <thead>
 <tr>
@@ -7493,11 +7514,13 @@ file next to the compose file:</p>
 <p class="admonition-title">Pin a version for a course</p>
 <p><code>latest</code> moves with every release. For a course that runs for weeks,
 put <code>EM_VERSION=&lt;version&gt;</code> in <code>.env</code> so a restart never brings a
-different exchange.</p>
+different exchange. <code>./edumatcher.sh update 0.51.0</code> does it for you.</p>
 </div>
 <h3 id="data">Data<a class="headerlink" href="#data" title="Permanent link">&para;</a></h3>
-<p>Everything the exchange writes is in <code>./data-sim</code> next to the compose file
-(mounted at <code>/data</code>). It survives <code>down</code>, <code>up</code>, reboots and upgrades.</p>
+<p>Everything the exchange writes is in the install's <code>data</code> directory, mounted
+at <code>/data</code>: <code>~/.edumatcher-sim/data</code> for an installed simulation,
+<code>./data-sim</code> next to the compose file in a checkout. It survives <code>stop</code>,
+<code>start</code>, reboots and upgrades.</p>
 <table>
 <thead>
 <tr>
@@ -7508,21 +7531,22 @@ different exchange.</p>
 <tbody>
 <tr>
 <td>Start over, with a fresh market</td>
-<td><code>docker compose -f compose.ai-sim.yaml down</code>, delete <code>./data-sim</code>, <code>up -d</code></td>
+<td><code>./edumatcher.sh stop</code>, delete <code>data</code>, <code>./edumatcher.sh start</code></td>
 </tr>
 <tr>
 <td>Back it up</td>
-<td>Stop the stack (<code>down</code>), copy <code>./data-sim</code>, start it again</td>
+<td>Stop the stack, copy <code>data</code>, start it again</td>
 </tr>
 <tr>
 <td>Look at a file</td>
-<td>It is on your disk: <code>./data-sim/ai_swarm/</code>, <code>./data-sim/stats.db</code>, …</td>
+<td>It is on your disk: <code>data/ai_swarm/</code>, <code>data/stats.db</code>, …</td>
 </tr>
 </tbody>
 </table>
 <p>A backup taken while the exchange runs can catch a database mid-write; stop
 it first.</p>
 <h3 id="the-commands-you-will-use">The commands you will use<a class="headerlink" href="#the-commands-you-will-use" title="Permanent link">&para;</a></h3>
+<p>From the install directory (<code>cd ~/.edumatcher-sim</code>):</p>
 <table>
 <thead>
 <tr>
@@ -7533,77 +7557,97 @@ it first.</p>
 <tbody>
 <tr>
 <td>Start</td>
-<td><code>docker compose -f compose.ai-sim.yaml up -d</code></td>
+<td><code>./edumatcher.sh start</code></td>
 </tr>
 <tr>
 <td>Stop</td>
-<td><code>docker compose -f compose.ai-sim.yaml down</code></td>
+<td><code>./edumatcher.sh stop</code></td>
 </tr>
 <tr>
-<td>Process table</td>
-<td><code>docker exec edumatcher-sim pm-opctl-cli list --no-restart</code></td>
+<td>Process table, container status</td>
+<td><code>./edumatcher.sh status</code></td>
 </tr>
 <tr>
 <td>A shell in the exchange</td>
-<td><code>docker exec -it edumatcher-sim bash</code></td>
+<td><code>./edumatcher.sh shell</code></td>
+</tr>
+<tr>
+<td>One command in it</td>
+<td><code>./edumatcher.sh shell pm-market-sim --status --id OPS01</code></td>
 </tr>
 <tr>
 <td>The container log (starts, restarts)</td>
-<td><code>docker logs -f edumatcher-sim</code></td>
+<td><code>./edumatcher.sh logs edumatcher</code></td>
 </tr>
 <tr>
-<td>One process's console output</td>
-<td><code>docker exec edumatcher-sim tail -f /data/emo/ai-swarm.log</code></td>
+<td>The web addresses</td>
+<td><code>./edumatcher.sh urls</code></td>
 </tr>
 <tr>
-<td>Disk use</td>
-<td><code>du -sh ./data-sim</code></td>
+<td>Which directory is behind each container path</td>
+<td><code>./edumatcher.sh mounts</code></td>
+</tr>
+<tr>
+<td>Accelerate the calendar</td>
+<td><code>./edumatcher.sh speed 24 2026-11-02T08:55</code>, then <code>restart</code></td>
+</tr>
+<tr>
+<td>Upgrade</td>
+<td><code>./edumatcher.sh update</code> (or <code>update 0.51.0</code>)</td>
+</tr>
+<tr>
+<td>Remove it</td>
+<td><code>./edumatcher.sh uninstall</code> (<code>--data</code> to delete the data too)</td>
 </tr>
 </tbody>
 </table>
-<p>From a clone of the repository, <code>deployment/docker/Makefile</code> wraps them:
-<code>make up-sim</code>, <code>make down-sim</code>, <code>make sim-status</code> (process table and disk),
-<code>make sim-shell</code>; <code>make up-sim SPEED=24 START=2026-11-02T08:55</code> for an
+<p>The script is a wrapper around <code>docker compose</code> and <code>docker exec</code>; anything it
+does you can do by hand — <code>docker compose -f compose.ai-sim.yaml up -d</code>,
+<code>docker exec edumatcher-sim pm-opctl-cli list --no-restart</code>,
+<code>docker logs -f edumatcher-sim</code>.</p>
+<p>From a clone of the repository, <code>deployment/docker/Makefile</code> wraps the same
+things: <code>make up-sim</code>, <code>make down-sim</code>, <code>make sim-status</code> (process table and
+disk), <code>make sim-shell</code>; <code>make up-sim SPEED=24 START=2026-11-02T08:55</code> for an
 accelerated run.</p>
 <h2 id="changing-what-it-runs">Changing what it runs<a class="headerlink" href="#changing-what-it-runs" title="Permanent link">&para;</a></h2>
 <h3 id="your-own-configuration">Your own configuration<a class="headerlink" href="#your-own-configuration" title="Permanent link">&para;</a></h3>
 <p>The container deploys a configuration of your own when <code>EM_CONFIG_FILE</code>
-names one. Put it in the data directory, so the container can see it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>data-sim/custom
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>docker<span class="w"> </span>cp<span class="w"> </span>edumatcher-sim:/data/ref_data/engine_config.yaml<span class="w"> </span>data-sim/custom/
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>docker<span class="w"> </span>cp<span class="w"> </span>edumatcher-sim:/data/ref_data/market_sim.yaml<span class="w"> </span>data-sim/custom/
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># edit data-sim/custom/market_sim.yaml (or engine_config.yaml), then:</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>down
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nv">EM_CONFIG_FILE</span><span class="o">=</span>/data/custom/engine_config.yaml<span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+names one. Start from the deployed one:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>my-sim
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/engine_config.yaml<span class="w"> </span>&gt;<span class="w"> </span>my-sim/engine_config.yaml
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>cat<span class="w"> </span>/data/ref_data/market_sim.yaml<span class="w">    </span>&gt;<span class="w"> </span>my-sim/market_sim.yaml
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># edit my-sim/market_sim.yaml (or engine_config.yaml), then:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>./edumatcher.sh<span class="w"> </span>config<span class="w"> </span>./my-sim/engine_config.yaml
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
-<p>The <code>market_sim.yaml</code> next to the engine configuration is deployed with it.
-Put <code>EM_CONFIG_FILE=/data/custom/engine_config.yaml</code> in <code>.env</code> so it stays
-set. If the configuration is refused, the container log says why
-(<code>docker logs edumatcher-sim</code>) — check it first with
-<code>docker exec edumatcher-sim pm-cverifier /data/custom/engine_config.yaml</code>.</p>
-<p>A deployed configuration stays deployed: removing <code>EM_CONFIG_FILE</code> alone does
-not bring <code>s300-sim</code> back. Remove it, then redeploy the bundled one and
-recreate the container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--force-recreate
+<p><code>config</code> copies both files into the install's <code>./config</code>, which is mounted
+read-only at <code>/config</code>, and sets <code>EM_CONFIG_FILE=/config/engine_config.yaml</code>
+in <code>.env</code> so it stays set. If the configuration is refused, the container log
+says why (<code>./edumatcher.sh logs edumatcher</code>) — check it first with
+<code>./edumatcher.sh shell pm-cverifier /config/engine_config.yaml</code>.</p>
+<p>A deployed configuration stays deployed: clearing <code>EM_CONFIG_FILE</code> alone does
+not bring <code>s300-sim</code> back. Clear it, then redeploy the bundled one and
+restart:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim<span class="w"> </span>--force
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./edumatcher.sh<span class="w"> </span>restart
 </code></pre></div>
 <h3 id="your-own-traders-or-process-flags">Your own traders or process flags<a class="headerlink" href="#your-own-traders-or-process-flags" title="Permanent link">&para;</a></h3>
 <p>The traders' mix and the processes' flags are in the process profile.
 Write the built-in profiles out once and edit the copy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./edumatcher.sh<span class="w"> </span>shell<span class="w"> </span>pm-opctl-cli<span class="w"> </span>init
 </code></pre></div>
-<p><code>init</code> writes <code>./data-sim/emo-config.yaml</code>, which from then on replaces the
-built-in profiles. To use your own <code>swarm.yaml</code>, put it in
-<code>./data-sim/custom/</code> and change the <code>ai-sim</code> profile's <code>ai-swarm</code> command to
-<code>--swarm /data/custom/swarm.yaml</code>; restart the stack. Delete
+<p><code>init</code> writes <code>data/emo-config.yaml</code>, which from then on replaces the
+built-in profiles. To use your own <code>swarm.yaml</code>, put it in <code>./config/</code> and
+change the <code>ai-sim</code> profile's <code>ai-swarm</code> command to
+<code>--swarm /config/swarm.yaml</code>; restart the stack. Delete
 <code>emo-config.yaml</code> to go back to the built-in profiles (and get the profiles
 of a newer release after an upgrade).</p>
 <p><a href="../../part-2-how-it-works/060-tuning-the-traders/">Tuning the Traders</a> says
 what to change.</p>
 <h2 id="opening-it-to-a-classroom">Opening it to a classroom<a class="headerlink" href="#opening-it-to-a-classroom" title="Permanent link">&para;</a></h2>
 <p>By default every port is published on <code>127.0.0.1</code>: only the machine itself
-can reach the exchange. To let students in from the local network, start it
-with <code>BIND_ADDR=0.0.0.0</code>, and first:</p>
+can reach the exchange. To let students in from the local network, set
+<code>BIND_ADDR=0.0.0.0</code> in <code>.env</code> and restart, and first:</p>
 <ul>
 <li><strong>Change the API keys.</strong> The example's keys are printed in this book. Use
   your own configuration (above) with new <code>api_key</code> values for every
@@ -7646,14 +7690,14 @@ for the details and for disk):</p>
 </table>
 <p>A laptop that runs a browser comfortably runs the simulation.</p>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>pull
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>compose.ai-sim.yaml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">          </span><span class="c1"># the newest release</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.51.0<span class="w">   </span><span class="c1"># ...or an exact one</span>
 </code></pre></div>
-<p><code>./data-sim</code> is kept, and with it the deployed configuration and the market's
-history. The release notes say when a release changes the <code>s300-sim</code>
-example; to take the new one, start over with a fresh <code>./data-sim</code>, or
+<p>The data directory is kept, and with it the deployed configuration and the
+market's history. The release notes say when a release changes the <code>s300-sim</code>
+example; to take the new one, start over with a fresh data directory, or
 redeploy with the new example while keeping your history:
-<code>docker exec edumatcher-sim pm-setup --config s300-sim --force</code>, then restart.</p>
+<code>./edumatcher.sh shell pm-setup --config s300-sim --force</code>, then restart.</p>
 <h2 id="building-the-image-yourself">Building the image yourself<a class="headerlink" href="#building-the-image-yourself" title="Permanent link">&para;</a></h2>
 <p>From a clone of the repository:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker
