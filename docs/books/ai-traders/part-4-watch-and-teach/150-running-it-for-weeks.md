@@ -87,29 +87,29 @@ Look for:
 
 1. every process `running`;
 2. the disk free comfortably above what the next weeks need;
-3. once a week, `docker logs edumatcher-sim | grep Restarting` — the same
+3. once a week, `./edumatcher.sh logs edumatcher | grep Restarting` — the same
    process restarting every day is worth a look in its log;
-4. one daily summary file per trading day in `./data-sim/ai_swarm/`.
+4. one daily summary file per trading day in `data/ai_swarm/`.
 
 ## Backups
 
-The whole state is `./data-sim`. To copy it consistently, stop first:
+The whole state is the install's `data` directory. To copy it consistently,
+stop first:
 
 ```bash
-docker compose -f compose.ai-sim.yaml down
-tar czf sim-backup-$(date +%F).tgz data-sim
-docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh stop
+tar czf sim-backup-$(date +%F).tgz data
+./edumatcher.sh start
 ```
 
 The market is closed at night and at weekends — a good time. To restore,
-stop, replace `./data-sim` with the backup's, start.
+stop, replace `data` with the backup's, start.
 
 ## Upgrading during a run
 
 ```bash
-docker compose -f compose.ai-sim.yaml down
-# edit EM_VERSION in .env
-docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh update          # the newest release
+./edumatcher.sh update 0.51.0   # ...or an exact one
 ```
 
 Do it while the market is closed. The data directory is kept; the deployed

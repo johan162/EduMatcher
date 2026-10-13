@@ -11,34 +11,25 @@
     with `podman compose`; about 2 GB of free memory and 4 GB of free disk (for a month's running).
 
 There are two ways to run the simulation. The **container** is the one this
-chapter uses: one file, one command, the browser applications included.
+chapter uses: one command, the browser applications included.
 The **hand-built** way runs the same processes straight on your machine with
 `pipx`; it is in [A Complete Set-up by Hand](../part-3-run-it/100-a-complete-setup-by-hand.md).
 
-## Get the compose file
+## Install and start it
 
-The simulation is one compose file, `compose.ai-sim.yaml`. Everything else —
-the exchange, its configuration, the AI traders, the browser applications —
-comes in images from the GitHub Container Registry.
-
-```bash
-mkdir edumatcher-sim && cd edumatcher-sim
-curl -fsSLO https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/docker/compose.ai-sim.yaml
-```
-
-!!! tip "From a clone of the repository"
-    The same file is `deployment/docker/compose.ai-sim.yaml`. There,
-    `make up-sim` does the next step ([Start it](#start-it)) and `make down-sim` stops it again.
-
-## Start it
+One command downloads the installer, which fetches the compose file and the
+control script, pulls five images and starts everything:
 
 ```bash
-docker compose -f compose.ai-sim.yaml up -d
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim
+cd ~/.edumatcher-sim
 ```
 
-(With Podman: `podman compose -f compose.ai-sim.yaml up -d`, and `podman`
-for `docker` in every command of this book.) The first start
-downloads five images. Then:
+Everything lands in `~/.edumatcher-sim` — a compose file, a `.env`, the
+control script `edumatcher.sh`, and `./data` where the exchange writes. There
+is nothing installed anywhere else; delete the directory and it is gone.
+
+The first start downloads five images. Then:
 
 ```text
  ✔ Container edumatcher-sim               Started
@@ -51,10 +42,19 @@ downloads five images. Then:
 The exchange deploys its configuration and starts its processes; give it
 half a minute.
 
+!!! tip "Podman, or a different directory"
+    The installer uses Podman when it is installed and Docker otherwise.
+    `--dir PATH` puts the install somewhere else, `--version X.Y.Z` pins a
+    release, `--no-start` stops short of starting it.
+
+!!! note "From a clone of the repository"
+    `deployment/docker/compose.ai-sim.yaml` is the same stack built from
+    source: `make up-sim` starts it, `make down-sim` stops it.
+
 **Checkpoint.** Ask the exchange for its process table:
 
 ```bash
-docker exec edumatcher-sim pm-opctl-cli list --no-restart
+./edumatcher.sh status
 ```
 
 Every row should say `running` (a gateway may say `not responding` for the
@@ -108,7 +108,7 @@ The true values are secret from students, but not from the instructor. In
 the container, as `OPS01`:
 
 ```bash
-docker exec edumatcher-sim pm-market-sim --status --id OPS01
+./edumatcher.sh shell pm-market-sim --status --id OPS01
 ```
 
 During trading this lists the symbols whose price is furthest from their
@@ -125,17 +125,20 @@ Outside trading hours it says `PAUSED` and shows no values. The gap column
 is the whole point of the simulation; [The True Value](../part-2-how-it-works/030-the-true-value.md)
 explains it.
 
+`./edumatcher.sh shell` with no command puts you in the container with every
+`pm-*` tool on the PATH.
+
 ## See a trading day now
 
-To watch a day without waiting for 09:00, restart the simulation with an
+To watch a day without waiting for 09:00, run the simulation with an
 accelerated clock that starts just before the open:
 
 ```bash
-docker compose -f compose.ai-sim.yaml down
-EM_SPEED=10 EM_START=2026-11-02T08:58 docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh speed 10 2026-11-02T08:58
+./edumatcher.sh restart
 ```
 
-`EM_START` is a Monday morning; `EM_SPEED=10` runs the calendar ten times
+`2026-11-02` is a Monday morning; speed `10` runs the calendar ten times
 faster than the clock on the wall. The pre-open starts within seconds, the
 opening auction two and a half minutes later, continuous trading half a
 minute after that, and the whole trading day takes about 42 minutes.
@@ -145,22 +148,22 @@ changes and what does not.
 To go back to real hours:
 
 ```bash
-docker compose -f compose.ai-sim.yaml down
-docker compose -f compose.ai-sim.yaml up -d
+./edumatcher.sh speed 1
+./edumatcher.sh restart
 ```
 
 ## Stop it, start it again
 
 ```bash
-docker compose -f compose.ai-sim.yaml down     # stop and remove the containers
-docker compose -f compose.ai-sim.yaml up -d    # start again where it left off
+./edumatcher.sh stop     # stop and remove the containers
+./edumatcher.sh start    # start again where it left off
 ```
 
 Everything the exchange has recorded — trades, statistics, logs, the model's
-values, the traders' daily results — is in `./data-sim` next to the compose
-file and survives `down`. The containers restart on their own after a reboot
+values, the traders' daily results — is in `~/.edumatcher-sim/data` and
+survives `stop`. The containers restart on their own after a reboot
 (`restart: unless-stopped`). To start from scratch, stop it and delete
-`./data-sim`.
+`./data`.
 
 ## What you have now
 
@@ -173,7 +176,7 @@ it. If you only read one more chapter, read
 
 | You see | Do |
 |---|---|
-| `pull access denied` or `manifest unknown` | The image for that version is not published yet: pin one that is with `EM_VERSION=<version>`, or build it — [The Simulation Container](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
+| `pull access denied` or `manifest unknown` | The image for that version is not published yet: pin one that is with `--version <version>`, or build it — [The Simulation Container](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
 | `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8094. Stop it first; only one stack can run at a time |
 | The process table shows `dead` | Wait a minute: the container restarts dead processes once a minute. If it stays dead, see [Troubleshooting](../part-4-watch-and-teach/160-troubleshooting-and-faq.md) |
-| No trading during the day | Check the time zone: the clock is Stockholm's. `docker exec edumatcher-sim date` |
+| No trading during the day | Check the time zone: the clock is Stockholm's. `./edumatcher.sh shell date` |

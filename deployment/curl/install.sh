@@ -8,6 +8,12 @@
 #   curl -fsSL .../install.sh | bash -s -- --config s10-nominal
 #   curl -fsSL .../install.sh | bash -s -- --version 0.20.5 --dir ~/exchange
 #
+# With --sim it installs the AI-trader simulation instead of the plain
+# exchange: a market that trades itself, into ~/.edumatcher-sim.
+#
+#   curl -fsSL .../install.sh | bash -s -- --sim
+#   curl -fsSL .../install.sh | bash -s -- --sim --speed 10 --start 2026-11-02T08:58
+#
 # Needs podman or docker, and nothing else — no Python, no Node, no checkout.
 # Everything lands in one directory you can inspect, move or delete.
 
@@ -20,10 +26,13 @@ REPO_NAME="${REPO_NAME:-EduMatcher}"
 # same commit. Override to test this installer before a release carries it:
 #   REPO_REF=main curl -fsSL .../install.sh | bash -s -- --version 0.20.5
 REPO_REF="${REPO_REF:-}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.edumatcher}"
+INSTALL_DIR="${INSTALL_DIR:-}"
 VERSION=""
 CONFIG=""
 START=1
+SIM=0
+SPEED=""
+SIM_START=""
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 info() { echo -e "${BLUE}- $*${NC}"; }
@@ -35,10 +44,16 @@ usage() {
     awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"
     cat <<'USAGE'
 Options:
+  --sim             Install the AI-trader simulation instead of the exchange
   --version X.Y.Z   Release to install (default: the latest release)
     --config NAME     Bundled example to deploy (default: s10-basic)
   --config FILE     ...or a path to an engine_config.yaml of your own
-  --dir PATH        Install location (default: ~/.edumatcher)
+                    (with --sim, only a file of your own)
+  --speed N         --sim only: run the calendar N times faster than real time
+  --start TS        --sim only: where an accelerated calendar starts,
+                    e.g. 2026-11-02T08:58
+  --dir PATH        Install location (default: ~/.edumatcher,
+                    or ~/.edumatcher-sim with --sim)
   --no-start        Install the files but do not start anything
   --help            This text
 USAGE
@@ -49,11 +64,19 @@ while [[ $# -gt 0 ]]; do
         --version) VERSION="${2:-}"; shift 2 ;;
         --config)  CONFIG="${2:-}";  shift 2 ;;
         --dir)     INSTALL_DIR="${2:-}"; shift 2 ;;
+        --sim)     SIM=1; shift ;;
+        --speed)   SPEED="${2:-}"; shift 2 ;;
+        --start)   SIM_START="${2:-}"; shift 2 ;;
         --no-start) START=0; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "Unknown option: $1  (try --help)" ;;
     esac
 done
+
+if [[ "$SIM" -eq 0 && ( -n "$SPEED" || -n "$SIM_START" ) ]]; then
+    die "--speed and --start apply to the simulation only; add --sim."
+fi
+[[ -n "$INSTALL_DIR" ]] || INSTALL_DIR=$([[ "$SIM" -eq 1 ]] && echo "$HOME/.edumatcher-sim" || echo "$HOME/.edumatcher")
 
 # --- Preflight -------------------------------------------------------------
 command -v curl >/dev/null 2>&1 || die "curl is required but not installed."
@@ -80,7 +103,11 @@ else
     TAG="v${VERSION#v}"
     VERSION="${TAG#v}"
 fi
-ok "Installing EduMatcher $VERSION"
+if [[ "$SIM" -eq 1 ]]; then
+    ok "Installing the EduMatcher AI-trader simulation $VERSION"
+else
+    ok "Installing EduMatcher $VERSION"
+fi
 
 FETCH_REF="${REPO_REF:-$TAG}"
 [[ -n "$REPO_REF" ]] && warn "Fetching support files from '${REPO_REF}', not from tag ${TAG}"
@@ -90,7 +117,14 @@ BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${FETCH_R
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 info "Downloading into $INSTALL_DIR ..."
-for f in compose.yaml compose.zmq.yaml edumatcher.sh .env.example; do
+if [[ "$SIM" -eq 1 ]]; then
+    FILES="compose.ai-sim.yaml edumatcher.sh .env.sim.example"
+    ENV_TEMPLATE=.env.sim.example
+else
+    FILES="compose.yaml compose.zmq.yaml edumatcher.sh .env.example"
+    ENV_TEMPLATE=.env.example
+fi
+for f in $FILES; do
     curl -fsSL "${BASE_URL}/${f}" -o "$f" \
         || die "Could not download ${f} from ${BASE_URL} — does ${FETCH_REF} exist?"
 done
@@ -102,7 +136,7 @@ mkdir -p data config
 if [[ -f .env ]]; then
     info "Keeping your existing .env"
 else
-    cp .env.example .env
+    cp "$ENV_TEMPLATE" .env
 fi
 
 set_env() {
@@ -116,11 +150,19 @@ set_env() {
 set_env EM_VERSION "$VERSION"
 set_env GHCR_OWNER "$REPO_OWNER"
 
+if [[ "$SIM" -eq 1 ]]; then
+    set_env EM_STACK sim
+    [[ -n "$SPEED" ]]     && set_env EM_SPEED "$SPEED"
+    [[ -n "$SIM_START" ]] && set_env EM_START "$SIM_START"
+fi
+
 if [[ -n "$CONFIG" ]]; then
     if [[ -f "$CONFIG" ]]; then
         cp "$CONFIG" config/engine_config.yaml
         set_env EM_CONFIG_FILE /config/engine_config.yaml
         ok "Will deploy your configuration: $CONFIG"
+    elif [[ "$SIM" -eq 1 ]]; then
+        die "--sim takes a path to an engine_config.yaml of your own, not an example name."
     else
         set_env EM_CONFIG "$CONFIG"
         set_env EM_CONFIG_FILE ""
@@ -142,7 +184,22 @@ echo
 info "Pulling images and starting the exchange (this is the slow part; nothing is built locally)..."
 ./edumatcher.sh start
 
-cat <<EOF
+if [[ "$SIM" -eq 1 ]]; then
+    cat <<EOF
+
+Everything lives in $INSTALL_DIR:
+  ./edumatcher.sh status            what is running
+  ./edumatcher.sh shell             a shell inside the simulation container
+  ./edumatcher.sh shell pm-market-sim --status --id OPS01
+  ./edumatcher.sh logs terminal-gui follow one service
+  ./edumatcher.sh stop              stop everything, keep the data
+
+The market keeps real trading hours (09:00-16:05 Stockholm time, weekdays).
+To watch a day right now, run it on an accelerated clock:
+  ./edumatcher.sh speed 10 2026-11-02T08:58 && ./edumatcher.sh restart
+EOF
+else
+    cat <<EOF
 
 Everything lives in $INSTALL_DIR:
   ./edumatcher.sh status            what is running
@@ -151,3 +208,4 @@ Everything lives in $INSTALL_DIR:
   ./edumatcher.sh config ./mine.yaml    ...or run one of your own
   ./edumatcher.sh stop              stop everything, keep the data
 EOF
+fi

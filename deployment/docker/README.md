@@ -447,6 +447,13 @@ described in the file itself and in the *AI Traders and Market Simulation*
 book, chapter *The Simulation Container*
 (`docs/books/ai-traders/part-3-run-it/110-the-simulation-container.md`).
 
+Away from a checkout, the simulation installs in one command, like the
+exchange does — see `deployment/curl/README.md`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim
+```
+
 ## Make targets
 
 | Target | Does |
