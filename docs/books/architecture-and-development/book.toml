@@ -11,6 +11,7 @@ dir = "part-1-architecture"
 files = [
   "010-architecture-overview.md",
   "020-guided-tour.md",
+  "030-file-formats.md",
 ]
 
 [[parts]]

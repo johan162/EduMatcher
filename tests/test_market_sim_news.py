@@ -13,6 +13,7 @@ from edumatcher.market_sim.config import SimConfig
 from edumatcher.market_sim.main import MarketSim, load_state, save_state
 from edumatcher.market_sim.model import SymbolParams
 from edumatcher.market_sim.news import KINDS, NewsConfig, NewsDesk
+from edumatcher.market_sim.news_history import read_news_events
 from edumatcher.models.generated import news as N
 from edumatcher.models.message import decode
 
@@ -137,9 +138,14 @@ def test_sentiment_has_the_sign_of_the_impact_mostly() -> None:
     assert agree / 2000 > 0.85
 
 
-def _sim() -> MarketSim:
+def _sim(news_history_path: Path | None = None) -> MarketSim:
     cfg = SimConfig(1, 1.0, 0.2, dict(PARAMS), {}, QUIET)
-    return MarketSim(cfg, {s: 100.0 for s in PARAMS}, admins=frozenset({"OPS01"}))
+    return MarketSim(
+        cfg,
+        {s: 100.0 for s in PARAMS},
+        admins=frozenset({"OPS01"}),
+        news_history_path=news_history_path,
+    )
 
 
 def _cmd(sim: MarketSim, **payload: object) -> list[tuple[str, dict]]:
@@ -174,6 +180,27 @@ def test_inject_confirm_retract_commands() -> None:
     ) == pytest.approx(121.0)
     ((_, refused),) = _cmd(sim, action="NEWS_RETRACT", news_id=rumour["id"])
     assert not refused["accepted"] and "no open rumour" in refused["reason"]
+
+
+def test_published_news_is_written_to_history(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    sim = _sim(path)
+    _cmd(
+        sim,
+        action="NEWS_INJECT",
+        news={
+            "scope": "SYMBOL",
+            "targets": ["AAPL"],
+            "kind": "EARNINGS",
+            "sentiment": 0.9,
+            "impact": 0.1,
+        },
+    )
+
+    records = read_news_events(path, limit=10)
+    assert len(records) == 1
+    assert records[0]["status"] == "CONFIRMED"
+    assert records[0]["targets"] == ["AAPL"]
 
 
 @pytest.mark.parametrize(

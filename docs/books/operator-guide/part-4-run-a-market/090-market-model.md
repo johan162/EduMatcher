@@ -194,6 +194,8 @@ pm-news --id OPS01 inject --sector ENERGY --kind REGULATORY --sentiment -0.7 \
 N7
 pm-news --id OPS01 confirm N7      # or: retract N7
 pm-news list                       # print headlines as they are published
+pm-news past --limit 20            # recent headlines, newest first
+pm-news past --date 2026-10-14     # one session date
 ```
 
 `inject` prints the new headline's id. `--headline` sets the text; without it

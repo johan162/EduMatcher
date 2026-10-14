@@ -6303,19 +6303,20 @@ complete -F _shtab_pm_new_symbol pm-new-symbol
 #    source ~/.local/share/bash_completion/pm-news
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_news_subparsers=(inject confirm retract play list)
+_shtab_pm_news_subparsers=(inject confirm retract play list past)
 
 _shtab_pm_news_inject_option_strings=(-h --help --symbol --sector --market --kind --sentiment --impact --headline --rumour --credibility)
 _shtab_pm_news_confirm_option_strings=(-h --help)
 _shtab_pm_news_retract_option_strings=(-h --help)
 _shtab_pm_news_play_option_strings=(-h --help)
 _shtab_pm_news_list_option_strings=(-h --help --duration)
+_shtab_pm_news_past_option_strings=(-h --help --limit --date)
 _shtab_pm_news_option_strings=(-h --help --version --id)
 
 
 
 _shtab_pm_news_inject___kind_choices=(EARNINGS GUIDANCE LEGAL MACRO MANAGEMENT MNA PRODUCT REGULATORY)
-_shtab_pm_news_pos_0_choices=(inject confirm retract play list)
+_shtab_pm_news_pos_0_choices=(inject confirm retract play list past)
 
 _shtab_pm_news_inject__h_nargs=0
 _shtab_pm_news_inject___help_nargs=0
@@ -6329,6 +6330,8 @@ _shtab_pm_news_play__h_nargs=0
 _shtab_pm_news_play___help_nargs=0
 _shtab_pm_news_list__h_nargs=0
 _shtab_pm_news_list___help_nargs=0
+_shtab_pm_news_past__h_nargs=0
+_shtab_pm_news_past___help_nargs=0
 _shtab_pm_news_pos_0_nargs=A...
 _shtab_pm_news__h_nargs=0
 _shtab_pm_news___help_nargs=0

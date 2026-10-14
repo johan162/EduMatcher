@@ -205,6 +205,7 @@ nav:
     - "Part I: Architecture":
       - "Architecture": books/architecture-and-development/part-1-architecture/010-architecture-overview.md
       - "Guided Tour: Architecture, Data Structures and Code": books/architecture-and-development/part-1-architecture/020-guided-tour.md
+      - "SQLite Database Formats": books/architecture-and-development/part-1-architecture/030-file-formats.md
     - "Part II: Inside the engine":
       - "The Order Book: Deep Dive": books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md
       - "Order Flow Through the Engine: A NEW LIMIT Order, Step by Step": books/architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end.md

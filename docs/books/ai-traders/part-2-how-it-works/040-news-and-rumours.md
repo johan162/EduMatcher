@@ -225,6 +225,7 @@ use them in class.
 |---|---|
 | terminal-gui, news view | Every headline as it is published, with status and sentiment |
 | `docker exec edumatcher-sim pm-news list` | Headlines printed as they arrive, until Ctrl+C |
+| `docker exec edumatcher-sim pm-news past --limit 20 --date 2026-10-14` | Recent headlines from that session date, newest first |
 | `GET /api/v1/news` (any API key) | Today's headlines, and the sector of every symbol |
 
 ## Try it

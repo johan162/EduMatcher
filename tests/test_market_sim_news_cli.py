@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,7 @@ from edumatcher.market_sim.news_cli import (
     load_scenario,
     news_request,
 )
+from edumatcher.market_sim.news_history import append_news_event, read_news_events
 
 
 def test_request_shapes() -> None:
@@ -131,6 +134,8 @@ def test_parser() -> None:
         True,
         None,
     )
+    past = build_parser().parse_args(["past", "--limit", "5", "--date", "2026-10-14"])
+    assert (past.limit, past.date) == (5, date(2026, 10, 14))
     with pytest.raises(SystemExit):
         build_parser().parse_args(
             [
@@ -152,6 +157,10 @@ def test_format_event() -> None:
     line = format_event(
         {
             "id": "N3",
+            "ts_ns": int(
+                datetime(2026, 10, 14, 0, 30, tzinfo=timezone.utc).timestamp() * 1e9
+            ),
+            "scope": "SYMBOL",
             "status": "RUMOUR",
             "kind": "MNA",
             "targets": ["AAPL"],
@@ -162,6 +171,7 @@ def test_format_event() -> None:
         }
     )
     assert "N3 RUMOUR" in line and "(credibility 45%)" in line
+    assert "SYMBOL" in line and "2026-10-14T02:30:00+02:00" in line
     assert "MARKET" in format_event(
         {
             "id": "N4",
@@ -173,3 +183,84 @@ def test_format_event() -> None:
             "related_id": "N1",
         }
     )
+
+
+def test_news_history_filters_session_date_and_limit(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    timestamps = [
+        datetime(2026, 10, 13, 22, 30, tzinfo=timezone.utc),
+        datetime(2026, 10, 14, 10, 30, tzinfo=timezone.utc),
+        datetime(2026, 10, 14, 12, 30, tzinfo=timezone.utc),
+    ]
+    for index, timestamp in enumerate(timestamps, 1):
+        append_news_event(
+            path,
+            {
+                "id": f"N{index}",
+                "ts_ns": int(timestamp.timestamp() * 1e9),
+                "scope": "MARKET",
+                "targets": [],
+                "kind": "MACRO",
+                "status": "CONFIRMED",
+                "headline": f"Headline {index}",
+                "sentiment": 0.1,
+                "credibility": None,
+                "related_id": "",
+            },
+        )
+
+    events = read_news_events(
+        path,
+        limit=1,
+        date_filter=date(2026, 10, 14),
+        timezone_name="Europe/Stockholm",
+    )
+
+    assert [event["id"] for event in events] == ["N3"]
+
+
+def test_news_history_imports_existing_jsonl_once(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    legacy = path.with_suffix(".jsonl")
+    event = {
+        "id": "N1",
+        "ts_ns": int(datetime(2026, 10, 14, tzinfo=timezone.utc).timestamp() * 1e9),
+        "scope": "MARKET",
+        "targets": [],
+        "kind": "MACRO",
+        "status": "CONFIRMED",
+        "headline": "Market headline",
+        "sentiment": 0.2,
+        "credibility": None,
+        "related_id": "",
+    }
+    legacy.write_text(json.dumps(event) + "\n", encoding="utf-8")
+
+    assert read_news_events(path, limit=10)[0]["headline"] == "Market headline"
+    legacy.write_text("{}\n", encoding="utf-8")
+    assert len(read_news_events(path, limit=10)) == 1
+
+
+def test_news_history_keeps_reused_ids_after_restart(tmp_path: Path) -> None:
+    path = tmp_path / "market_sim_news.db"
+    event = {
+        "id": "N1",
+        "ts_ns": 1_800_000_000_000_000_000,
+        "scope": "MARKET",
+        "targets": [],
+        "kind": "MACRO",
+        "status": "CONFIRMED",
+        "headline": "First event",
+        "sentiment": 0.2,
+        "credibility": None,
+        "related_id": "",
+    }
+    append_news_event(path, event)
+    append_news_event(path, {**event, "headline": "Event after restart"})
+
+    events = read_news_events(path, limit=10)
+
+    assert [event["headline"] for event in events] == [
+        "Event after restart",
+        "First event",
+    ]
