@@ -15,6 +15,7 @@ export function registerUiConfigRoutes(app: FastifyInstance, config: BridgeConfi
         elevatedPerMin: config.thresholds.errorRateElevatedPerMin,
         severePerMin: config.thresholds.errorRateSeverePerMin,
       },
+      timezone: config.sessionTimezone,
     };
   });
 }

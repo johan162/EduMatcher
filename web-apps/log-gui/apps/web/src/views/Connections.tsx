@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { ProcessRow } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
+import { formatClock } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
 
 function idleSeconds(lastSeenAt: string): number {
@@ -105,7 +106,9 @@ export function ConnectionsView() {
               </td>
               <td className="py-1 pr-2">{row.pid}</td>
               <td className="py-1 pr-2">{row.host}</td>
-              <td className="py-1 pr-2 text-fg-subtle">{row.connected_at.slice(11, 19)}</td>
+              <td className="py-1 pr-2 text-fg-subtle">
+                {uiConfig ? formatClock(row.connected_at, uiConfig.timezone) : "…"}
+              </td>
               <td className="py-1 pr-2 text-fg-subtle">
                 {row.disconnected_at ? "disconnected" : `${idleSeconds(row.last_seen_at).toFixed(0)}s ago`}
               </td>

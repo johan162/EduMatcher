@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { api } from "../lib/api.js";
+import { formatClock, formatHm } from "../lib/formatTs.js";
+import { useUiConfig } from "../lib/useUiConfig.js";
 import { usePrefsStore } from "../store/usePrefsStore.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
 
@@ -12,6 +14,7 @@ type Tab = "unacked" | "acked" | "all";
 export function AlertsView() {
   const [tab, setTab] = useState<Tab>("unacked");
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const timeZone = useUiConfig()?.timezone;
   const operatorName = usePrefsStore((s) => s.operatorName);
   const setOperatorName = usePrefsStore((s) => s.setOperatorName);
   const queryClient = useQueryClient();
@@ -110,11 +113,12 @@ export function AlertsView() {
             </div>
             <div className="mt-1 truncate font-mono text-sm">{issue.sampleMessage}</div>
             <div className="mt-1 text-xs text-fg-subtle">
-              first {issue.firstSeen.slice(11, 19)} · last {issue.lastSeen.slice(11, 19)}
+              first {timeZone ? formatClock(issue.firstSeen, timeZone) : "…"} · last{" "}
+              {timeZone ? formatClock(issue.lastSeen, timeZone) : "…"}
             </div>
             {issue.ack && (
               <div className="mt-1 text-xs text-fg-subtle">
-                ✓ acked {issue.ack.ackedAt.slice(11, 16)} by {issue.ack.ackedBy}
+                ✓ acked {timeZone ? formatHm(issue.ack.ackedAt, timeZone) : "…"} by {issue.ack.ackedBy}
                 {issue.ack.note && ` — "${issue.ack.note}"`}
               </div>
             )}
