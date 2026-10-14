@@ -1,3 +1,17 @@
+## [v0.50.1] - 2026-10-13
+
+Release Type: minor
+
+### 📋 Summary
+This release makes the AI-trader simulation as straightforward to install and operate as a standard EduMatcher exchange, using the published container images.
+
+### ✨ Additions
+- Added `install.sh --sim` to install the simulation stack into `~/.edumatcher-sim`, with optional accelerated-time settings via `--speed` and `--start`
+- Extended `edumatcher.sh` to manage simulation installs, including status, logs, shell access, URLs, speed changes, updates and uninstall
+
+### 📚 Documentation
+- Updated the AI Traders and Market Simulation guide with the installer-based workflow and simulation management commands
+
 ## [v0.50.0] - 2026-10-11
 
 Release Type: major
