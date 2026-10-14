@@ -15,6 +15,26 @@ from edumatcher.config import DATA_DIR
 NEWS_HISTORY_DB = DATA_DIR / "market_sim_news.db"
 
 
+def initialize_schema(conn: sqlite3.Connection) -> None:
+    """Create the current news-history schema on an open SQLite connection."""
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("""CREATE TABLE IF NOT EXISTS news_events (
+            event_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL,
+            ts_ns INTEGER NOT NULL,
+            scope TEXT NOT NULL,
+            targets TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            status TEXT NOT NULL,
+            headline TEXT NOT NULL,
+            sentiment REAL NOT NULL,
+            credibility REAL,
+            related_id TEXT NOT NULL
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS news_events_ts ON news_events(ts_ns DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS news_events_status ON news_events(status)")
+
+
 def _insert_event(conn: sqlite3.Connection, event: dict[str, Any]) -> None:
     timestamp = event.get("ts_ns")
     if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)):
@@ -51,26 +71,7 @@ def _connect(path: Path) -> sqlite3.Connection:
     is_new = not path.exists()
     conn = sqlite3.connect(path, timeout=5.0)
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("""CREATE TABLE IF NOT EXISTS news_events (
-                event_seq INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT NOT NULL,
-                ts_ns INTEGER NOT NULL,
-                scope TEXT NOT NULL,
-                targets TEXT NOT NULL,
-                kind TEXT NOT NULL,
-                status TEXT NOT NULL,
-                headline TEXT NOT NULL,
-                sentiment REAL NOT NULL,
-                credibility REAL,
-                related_id TEXT NOT NULL
-            )""")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS news_events_ts ON news_events(ts_ns DESC)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS news_events_status ON news_events(status)"
-        )
+        initialize_schema(conn)
         if is_new:
             _import_legacy(conn, path.with_suffix(".jsonl"))
         conn.commit()

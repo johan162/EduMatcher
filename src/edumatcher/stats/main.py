@@ -776,6 +776,11 @@ def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) 
     conn.execute(UPSERT_META, ("session_timezone", session_tz_name))
 
 
+def initialize_schema(conn: sqlite3.Connection) -> None:
+    """Create the current statistics schema on an open SQLite connection."""
+    conn.executescript(SCHEMA)
+
+
 def _open_db(
     path: Path,
     *,
@@ -803,7 +808,7 @@ def _open_db(
     try:
         conn.executescript(_PRAGMAS)
         is_new = _check_schema_version(conn, resolved_path)
-        conn.executescript(SCHEMA)
+        initialize_schema(conn)
         _reconcile_meta(conn, resolved_path, session_tz_name)
         conn.execute(UPSERT_META, ("snapshot_interval_sec", str(snapshot_interval_sec)))
         conn.execute(UPSERT_META, ("recorder", _CLIENT_NAME))

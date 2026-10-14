@@ -129,6 +129,11 @@ DELETE FROM log_events WHERE client_ts < ?
 """
 
 
+def initialize_schema(conn: sqlite3.Connection) -> None:
+    """Create the current log-server schema on an open SQLite connection."""
+    conn.executescript(SCHEMA)
+
+
 def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     """Open (creating schema if absent) the log-server SQLite database.
 
@@ -146,6 +151,6 @@ def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), check_same_thread=False)
-    conn.executescript(SCHEMA)
+    initialize_schema(conn)
     conn.commit()
     return conn

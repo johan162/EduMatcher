@@ -392,10 +392,11 @@ print_step_colored ""
 print_step_colored "🧪 PHASE 2: STATIC ANALYSIS WITH FLAKE8, MYPY, AND BLACK"
 print_step_colored ""
 
-# Step 2.1: Generate shell completion scripts and update messages
-print_sub_step "Generating shell completion scripts and updating messages"
+# Step 2.1: Generate shell completions, messages and schema documentation
+print_sub_step "Generating shell completions, messages and schema documentation"
 run_command "make completion" "Generating shell completion scripts"
-run_command "make msgen" "Update messages and documentation"
+run_command "make msgen" "Update generated messages and documentation"
+run_command "make dbdocs" "Update generated SQLite schema documentation"
 
 # Step 2.2: Run static analysis and formatting checks
 print_sub_step "Running static analysis and formatting checks"

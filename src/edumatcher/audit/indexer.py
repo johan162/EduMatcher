@@ -84,11 +84,16 @@ def open_index(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
+    initialize_schema(conn)
+    return conn
+
+
+def initialize_schema(conn: sqlite3.Connection) -> None:
+    """Create the current audit index schema on an open SQLite connection."""
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(_SCHEMA)
     conn.commit()
-    return conn
 
 
 def open_readonly_index(db_path: Path) -> sqlite3.Connection:
