@@ -1,3 +1,23 @@
+## [v0.50.2] - 2026-10-14
+
+Release Type: minor
+
+### 📋 Summary
+This release makes dashboard times follow the exchange's configured session timezone and ensures Trade History can show all fills for the selected date. It also improves log-server diagnostics and simulation documentation.
+
+### 🚀 Improvements
+- Updated the Log GUI and Trade Terminal clocks to use `engine.locale.session_timezone` instead of UTC
+- Improved Trade History to fetch every page of fills, so busy sessions are not limited to the first 200 results
+
+### 🐛 Bug Fixes
+- Fixed Trade History omitting older fills when the backend returned multiple pages
+
+### 📚 Documentation
+- Clarified how to run simulation commands both from the host and from inside the container
+
+### 🛠 Internal
+- Included the project wheel in the Log GUI container so `pm-log-cli` is available for diagnostics
+
 ## [v0.50.1] - 2026-10-13
 
 Release Type: minor
