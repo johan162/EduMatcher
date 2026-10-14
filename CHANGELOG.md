@@ -3,7 +3,8 @@
 Release Type: minor
 
 ### 📋 Summary
-This release makes dashboard times follow the exchange's configured session timezone and ensures Trade History can show all fills for the selected date. It also improves log-server diagnostics and simulation documentation.
+This release makes dashboard times follow the exchange's configured session timezone and ensures Trade History can show all fills for the selected date. It also improves log-server diagnostics and simulation documentation. Added auto-generated
+documentation in the dev-gudies for all SQLite based file formats.
 
 ### 🚀 Improvements
 - Updated the Log GUI and Trade Terminal clocks to use `engine.locale.session_timezone` instead of UTC
@@ -14,6 +15,7 @@ This release makes dashboard times follow the exchange's configured session time
 
 ### 📚 Documentation
 - Clarified how to run simulation commands both from the host and from inside the container
+- Added `make dbdocs` and `make dbdocs-check` to auto generated file-formats that are based on SQLite
 
 ### 🛠 Internal
 - Included the project wheel in the Log GUI container so `pm-log-cli` is available for diagnostics
