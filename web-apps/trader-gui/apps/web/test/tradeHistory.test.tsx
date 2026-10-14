@@ -99,6 +99,43 @@ describe("TradeHistoryPage (§13.5)", () => {
     expect(screen.getByText("buy-orde")).toBeTruthy();
   });
 
+  it("loads fills from every history page", async () => {
+    const firstPage = apiFetchMock.getMockImplementation();
+    apiFetchMock.mockImplementation((async (path: string) => {
+      const url = new URL(path, "http://localhost");
+      if (url.searchParams.has("after")) {
+        return {
+          count: 1,
+          has_more: false,
+          events: [
+            {
+              seq: 3,
+              ts: "2026-07-27T10:02:00.000Z",
+              event_type: "FILL",
+              order_id: "third-order-3",
+              gateway_id: "GW1",
+              symbol: "AAPL",
+              side: "BUY",
+              fill_qty: 5,
+              fill_price: 151.5,
+              remaining_qty: 0,
+              trade_id: "t-3",
+            },
+          ],
+        };
+      }
+      const response = await firstPage!(path);
+      if (!("events" in response)) return response;
+      return { ...response, has_more: true, next_cursor: "next-page" };
+    }) as never);
+
+    wrap(<TradeHistoryPage />);
+    await waitFor(() => expect(screen.getByText("t-3")).toBeTruthy());
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(apiFetchMock.mock.calls[0]?.[0]).toContain("limit=5000");
+    expect(apiFetchMock.mock.calls[1]?.[0]).toContain("after=next-page");
+  });
+
   it("filters by side client-side", async () => {
     wrap(<TradeHistoryPage />);
     await waitFor(() => expect(screen.getByText("t-1")).toBeTruthy());
