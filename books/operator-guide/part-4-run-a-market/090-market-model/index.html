@@ -4650,6 +4650,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/030-file-formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite Database Formats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7470,6 +7526,8 @@ participant (<code>--id</code>) and prints what happened:</p>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>N7
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>confirm<span class="w"> </span>N7<span class="w">      </span><span class="c1"># or: retract N7</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>pm-news<span class="w"> </span>list<span class="w">                       </span><span class="c1"># print headlines as they are published</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>pm-news<span class="w"> </span>past<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span><span class="w">            </span><span class="c1"># recent headlines, newest first</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>pm-news<span class="w"> </span>past<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-10-14<span class="w">     </span><span class="c1"># one session date</span>
 </code></pre></div>
 <p><code>inject</code> prints the new headline's id. <code>--headline</code> sets the text; without it
 one is written from the kind and the sentiment. A rumour you inject waits for

@@ -4473,6 +4473,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/030-file-formats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite Database Formats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../architecture-and-development/part-1-architecture/040-sqlite-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7621,24 +7677,40 @@ minute, sometimes none for twenty.</p>
 <h3 id="publishing-news-yourself">Publishing news yourself<a class="headerlink" href="#publishing-news-yourself" title="Permanent link">&para;</a></h3>
 <p><code>pm-news</code> sends a headline to the running market model as an ADMIN
 participant. In the container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--symbol<span class="w"> </span>NVDA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span>--kind<span class="w"> </span>EARNINGS<span class="w"> </span>--sentiment<span class="w"> </span><span class="m">0</span>.8<span class="w"> </span>--impact<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span>--headline<span class="w"> </span><span class="s2">"NVDA smashes estimates on data-centre demand"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># From the host</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--symbol<span class="w"> </span>NVDA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span>--kind<span class="w"> </span>EARNINGS<span class="w"> </span>--sentiment<span class="w"> </span><span class="m">0</span>.8<span class="w"> </span>--impact<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span>--headline<span class="w"> </span><span class="s2">"NVDA smashes estimates on data-centre demand"</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># From within the container</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--symbol<span class="w"> </span>NVDA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span>--kind<span class="w"> </span>EARNINGS<span class="w"> </span>--sentiment<span class="w"> </span><span class="m">0</span>.8<span class="w"> </span>--impact<span class="w"> </span><span class="m">0</span>.08<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span>--headline<span class="w"> </span><span class="s2">"NVDA smashes estimates on data-centre demand"</span>
 </code></pre></div>
 <p>The value of NVDA moves +8.3 % at once; the price follows within seconds.
 A rumour you inject waits for you:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--sector<span class="w"> </span>ENERGY<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span>--kind<span class="w"> </span>REGULATORY<span class="w"> </span>--sentiment<span class="w"> </span>-0.7<span class="w"> </span>--impact<span class="w"> </span>-0.06<span class="w"> </span>--rumour<span class="w"> </span>--credibility<span class="w"> </span><span class="m">0</span>.6
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>N12
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># From the host</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--sector<span class="w"> </span>ENERGY<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>--kind<span class="w"> </span>REGULATORY<span class="w"> </span>--sentiment<span class="w"> </span>-0.7<span class="w"> </span>--impact<span class="w"> </span>-0.06<span class="w"> </span>--rumour<span class="w"> </span>--credibility<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>N12
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>confirm<span class="w"> </span>N12<span class="w">     </span><span class="c1"># or: retract N12</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># From within the container</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>inject<span class="w"> </span>--sector<span class="w"> </span>ENERGY<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span>--kind<span class="w"> </span>REGULATORY<span class="w"> </span>--sentiment<span class="w"> </span>-0.7<span class="w"> </span>--impact<span class="w"> </span>-0.06<span class="w"> </span>--rumour<span class="w"> </span>--credibility<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>N12
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>confirm<span class="w"> </span>N12<span class="w">     </span><span class="c1"># or: retract N12</span>
 </code></pre></div>
 <p><code>inject</code> prints the headline's id (<code>N12</code> here). A rumour you inject never
 resolves on its own. Your headlines and generated ones mix freely; set the
 rates to 0 if yours should be the only ones.</p>
 <h3 id="scenarios">Scenarios<a class="headerlink" href="#scenarios" title="Permanent link">&para;</a></h3>
 <p>For a lesson, script the news in a file and play it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span>/opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># From the host</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-sim<span class="w"> </span>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span>/opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># From within the container</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span>/opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
 </code></pre></div>
 <p>Three scenarios ship with EduMatcher — <code>earnings-surprise</code>,
 <code>rumour-confirmed</code> and <code>rumour-retracted</code> — and fit <code>s300-sim</code> as they fit
@@ -7662,6 +7734,10 @@ use them in class.</p>
 <tr>
 <td><code>docker exec edumatcher-sim pm-news list</code></td>
 <td>Headlines printed as they arrive, until Ctrl+C</td>
+</tr>
+<tr>
+<td><code>docker exec edumatcher-sim pm-news past --limit 20 --date 2026-10-14</code></td>
+<td>Recent headlines from that session date, newest first</td>
 </tr>
 <tr>
 <td><code>GET /api/v1/news</code> (any API key)</td>
