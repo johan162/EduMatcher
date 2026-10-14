@@ -30,17 +30,21 @@ export async function runDiagnosticsViaCli(
   if (opts.process) args.push("--process", opts.process);
   if (opts.since) args.push("--since", opts.since);
 
+  let stdout: string;
   try {
-    const { stdout } = await execFileAsync(command[0]!, args, { timeout: 15_000 });
-    const parsed = JSON.parse(stdout) as DiagnosticFinding[];
-    return parsed;
+    ({ stdout } = await execFileAsync(command[0]!, args, { timeout: 15_000 }));
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException | undefined)?.code;
-    if (code === "ENOENT") {
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
       throw new LogCliUnavailableError("pm-log-cli is not installed or not on PATH");
     }
-    throw err;
+    // pm-log-cli exits 3 when it found something to report, which is the
+    // normal outcome, not a failure of the call. Anything else is real.
+    const out = (err as { code?: unknown; stdout?: string }).stdout;
+    if ((err as { code?: unknown }).code !== 3 || typeof out !== "string") throw err;
+    stdout = out;
   }
+
+  return (JSON.parse(stdout) as { findings: DiagnosticFinding[] }).findings;
 }
 
 export function registerDiagnosticsRoutes(

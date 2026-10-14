@@ -38,13 +38,17 @@ jobs:
           - name: edumatcher
             context: deployment/docker
             target: runtime
+            wheel_dir: deployment/docker/.wheel
           - name: edumatcher-ai-sim
             context: deployment/docker
             target: ai-sim
+            wheel_dir: deployment/docker/.wheel
           - name: edumatcher-config-gui
             context: web-apps/config-gui
+          # Needs the wheel too: its Diagnostics view shells out to pm-log-cli.
           - name: edumatcher-log-gui
             context: web-apps/log-gui
+            wheel_dir: web-apps/log-gui/.wheel
           - name: edumatcher-terminal-gui
             context: web-apps/terminal-gui
           - name: edumatcher-trader-gui
@@ -78,24 +82,24 @@ jobs:
       # refuses to build against an interpreter the project excludes. Same
       # step, same version, as publish-to-pypi.yml.
       - name: Set up Python
-        if: matrix.image.context == 'deployment/docker'
+        if: matrix.image.wheel_dir != ''
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
-      # The backend image installs from .wheel/ when a wheel is present and
-      # falls back to PyPI otherwise. Build the wheel from *this tag* rather
-      # than relying on PyPI: publish-to-pypi.yml runs on the same trigger, so
-      # whether the new version is on PyPI yet is a race the image must not
-      # depend on.
-      - name: Build the wheel for the backend image
-        if: matrix.image.context == 'deployment/docker'
+      # The backend and log-gui images install from .wheel/ when a wheel is
+      # present and fall back to PyPI otherwise. Build the wheel from *this
+      # tag* rather than relying on PyPI: publish-to-pypi.yml runs on the same
+      # trigger, so whether the new version is on PyPI yet is a race the image
+      # must not depend on.
+      - name: Build the wheel for images that embed it
+        if: matrix.image.wheel_dir != ''
         run: |
           pipx install poetry
           poetry build --format wheel
-          mkdir -p deployment/docker/.wheel
-          cp dist/*.whl deployment/docker/.wheel/
-          ls -l deployment/docker/.wheel/
+          mkdir -p "${{ matrix.image.wheel_dir }}"
+          cp dist/*.whl "${{ matrix.image.wheel_dir }}/"
+          ls -l "${{ matrix.image.wheel_dir }}/"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

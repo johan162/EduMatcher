@@ -43,10 +43,6 @@ make up     # detects podman or docker, builds image, starts on http://localhost
 make down   # stop and remove
 ```
 
-If you are behind a proxy (or firewall), export `http_proxy` in your shell before `make up` (or `make cbuild` / `make cdist`). The Makefile passes it into the image build as `HTTP_PROXY` and `HTTPS_PROXY`, rewriting a `localhost` proxy host to `host.containers.internal` so the build container can reach it, and defaulting the port to `9000` when the URL has none. With `http_proxy` unset the build uses no proxy. `make print-proxy` shows the values the build will get.
-
-
-
 The container needs to reach `pm-log-srv`'s LALF-PS ports (`5601`/`5602` by
 default) and a filesystem path to `log.db`; see the comments in
 `docker-compose.yml` for how those are wired in (two separate volumes: one
