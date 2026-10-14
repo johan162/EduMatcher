@@ -7,7 +7,7 @@
  * still mirror §19's block one-for-one.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,8 @@ export interface BridgeConfig {
   port: number;
   corsOrigin: string;
   staticDir?: string;
+  /** Exchange wall-clock zone from the deployed engine config. */
+  sessionTimezone: string;
   maxWsClients: number;
   /**
    * Browser-facing liveness (design review H4). `bridge_status` is
@@ -92,6 +94,30 @@ function resolveDataDir(): string {
   return join(homedir(), ".local", "share", "edumatcher");
 }
 
+const DEFAULT_SESSION_TIMEZONE = "Europe/Stockholm";
+
+function isKnownTimezone(name: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveSessionTimezone(dataDir: string): string {
+  const override = process.env["SESSION_TIMEZONE"];
+  if (override && isKnownTimezone(override)) return override;
+  try {
+    const raw = readFileSync(join(dataDir, "ref_data", "engine_config.json"), "utf8");
+    const timezone: unknown = JSON.parse(raw)?.engine?.locale?.session_timezone;
+    if (typeof timezone === "string" && isKnownTimezone(timezone.trim())) return timezone.trim();
+  } catch {
+    // No deployed artifact, or an unreadable one: use the engine default.
+  }
+  return DEFAULT_SESSION_TIMEZONE;
+}
+
 function intFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -120,11 +146,13 @@ function csvFromEnv(name: string): string[] {
 }
 
 export function loadBridgeConfig(): BridgeConfig {
+  const dataDir = resolveDataDir();
   return {
     host: process.env["HOST"] ?? "127.0.0.1",
     port: intFromEnv("PORT", 5190),
     corsOrigin: process.env["CORS_ORIGIN"] ?? "*",
     staticDir: process.env["STATIC_DIR"] || undefined,
+    sessionTimezone: resolveSessionTimezone(dataDir),
     maxWsClients: intFromEnv("MAX_WS_CLIENTS", 200),
     wsHeartbeatIntervalSec: intFromEnv("WS_HEARTBEAT_INTERVAL_SEC", 5),
     wsPingIntervalSec: intFromEnv("WS_PING_INTERVAL_SEC", 10),
@@ -155,7 +183,7 @@ export function loadBridgeConfig(): BridgeConfig {
       connectTimeoutSec: floatFromEnv("LOG_CONNECT_TIMEOUT_SEC", 0.5),
       failoverTimeoutSec: floatFromEnv("LOG_FAILOVER_TIMEOUT_SEC", 30),
       queueMaxSize: intFromEnv("LOG_QUEUE_MAXSIZE", 2000),
-      failoverDir: process.env["LOG_FAILOVER_DIR"] ?? join(resolveDataDir(), "logs"),
+      failoverDir: process.env["LOG_FAILOVER_DIR"] ?? join(dataDir, "logs"),
     },
   };
 }

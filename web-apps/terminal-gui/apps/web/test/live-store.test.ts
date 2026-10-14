@@ -12,6 +12,7 @@ const hello = (over: Partial<Extract<ServerFrame, { type: "hello" }>> = {}): Ser
   symbols: ["AAPL", "MSFT"],
   tickDecimals: { AAPL: 2, MSFT: 4 },
   indexes: ["EDU100"],
+  sessionTimezone: "Europe/Stockholm",
   calf: "ACTIVE",
   gateway: "md-gwy01",
   ...over,
@@ -50,6 +51,7 @@ describe("hello", () => {
     expect(state().symbols).toEqual(["AAPL", "MSFT"]);
     expect(state().indexes).toEqual(["EDU100"]);
     expect(state().gateway).toBe("md-gwy01");
+    expect(state().sessionTimezone).toBe("Europe/Stockholm");
   });
 });
 

@@ -56,6 +56,24 @@ export function clockUtc(iso: string | undefined | null): string {
   return date.toISOString().slice(11, 19);
 }
 
+/** `HH:MM:SS` in the exchange's configured session timezone. */
+export function clockInTimezone(iso: string | undefined | null, timeZone: string): string {
+  if (!iso) return ABSENT;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return ABSENT;
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).format(date);
+  } catch {
+    return ABSENT;
+  }
+}
+
 /**
  * A halt's `RESUMEAT` rendered as wall-clock plus a countdown.
  *

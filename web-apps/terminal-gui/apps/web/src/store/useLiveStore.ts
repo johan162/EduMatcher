@@ -75,6 +75,7 @@ interface LiveStore {
   lastTickAt: number | null;
   calf: CalfState;
   gateway: string | null;
+  sessionTimezone: string;
   symbols: string[];
   indexes: string[];
 
@@ -199,6 +200,7 @@ const initialState = {
   lastTickAt: null as number | null,
   calf: "DOWN" as CalfState,
   gateway: null,
+  sessionTimezone: "Europe/Stockholm",
   symbols: [] as string[],
   indexes: [] as string[],
   sessionPhase: null,
@@ -257,6 +259,7 @@ function reduceFrame(s: LiveStore, frame: ServerFrame): Partial<LiveStore> {
         indexes: frame.indexes,
         calf: frame.calf,
         gateway: frame.gateway,
+        sessionTimezone: frame.sessionTimezone,
       };
 
     case "symbols":

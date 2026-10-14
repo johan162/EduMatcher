@@ -188,6 +188,7 @@ describe("symbol picker", () => {
       symbols: ["AAPL", "MSFT"],
       tickDecimals: {},
       indexes: [],
+      sessionTimezone: "Europe/Stockholm",
       calf: "ACTIVE",
       gateway: "gw",
     });
