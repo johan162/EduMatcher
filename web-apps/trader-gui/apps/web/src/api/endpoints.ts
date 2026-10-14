@@ -171,9 +171,24 @@ export const cancelQuote = (symbol: string) =>
 export const getHistoryOrders = (orderId: string) =>
   apiFetch<OrderHistoryResponse>(`/api/v1/history/orders/${encodeURIComponent(orderId)}`);
 
-export const getHistoryFills = (params?: Record<string, string>) => {
-  const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
-  return apiFetch<HistoryFillsResponse>(`/api/v1/history/fills${qs}`);
+export const getHistoryFills = async (params?: Record<string, string>) => {
+  const pageParams = new URLSearchParams(params);
+  pageParams.set("limit", "5000");
+  const events: HistoryFillsResponse["events"] = [];
+  let nextCursor: string | undefined;
+  let response: HistoryFillsResponse;
+
+  do {
+    if (nextCursor) pageParams.set("after", nextCursor);
+    else pageParams.delete("after");
+    response = await apiFetch<HistoryFillsResponse>(
+      `/api/v1/history/fills?${pageParams.toString()}`,
+    );
+    events.push(...response.events);
+    nextCursor = response.next_cursor;
+  } while (nextCursor);
+
+  return { events, count: events.length, has_more: false };
 };
 
 export const getHistoryTrades = (symbol: string, limit = 50) =>

@@ -8,3 +8,5 @@ apps/web/dist/
 ack-data
 logsrv-data
 .timestamps
+.wheel/*
+!.wheel/.keep

@@ -113,6 +113,7 @@ app.get("/ws/stream", { websocket: true }, (socket) => {
     symbols: uplink.symbols(),
     tickDecimals: uplink.tickDecimals(),
     indexes: config.calf.indexIds,
+    sessionTimezone: config.sessionTimezone,
     calf: uplink.state,
     gateway: uplink.gateway,
   });

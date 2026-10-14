@@ -1093,6 +1093,7 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             "pm-news --id ADMIN_ID confirm|retract NEWS_ID",
             "pm-news --id ADMIN_ID play scenario.yaml",
             "pm-news list [--duration SECONDS]",
+            "pm-news past [--limit N] [--date YYYY-MM-DD]",
         ),
         description=(
             "Sends commands to the running pm-market-sim as an ADMIN participant. "
@@ -1109,6 +1110,7 @@ _AI_AND_BOTS: tuple[CommandInfo, ...] = (
             Subcommand("retract", "NEWS_ID", "Retract a rumour (nothing moves)"),
             Subcommand("play", "SCENARIO", "Run a timed scenario YAML"),
             Subcommand("list", purpose="Print headlines as they are published"),
+            Subcommand("past", purpose="List previously published news"),
         ),
         ports="connects to 5553 (SUB) and 5554 (PUSH); play also to 5555/5556",
         related=("pm-market-sim", "pm-ai-swarm"),

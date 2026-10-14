@@ -35,7 +35,7 @@ export function TradeHistoryPage() {
   const openOrderDetail = useUiStore((s) => s.openOrderDetail);
   const [liveRows, setLiveRows] = useState<FillRow[]>([]);
 
-  const params: Record<string, string> = { limit: "200" };
+  const params: Record<string, string> = {};
   if (symbol) params.symbol = symbol;
   if (date) params.date = date;
 

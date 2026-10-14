@@ -1,6 +1,6 @@
 /**
  * Footer status strip (design §7.1): session phase, halt count, CALF health,
- * and a UTC clock.
+ * and a clock in the exchange's session timezone.
  *
  * The clock ticks on its own interval rather than off the data stream, so a
  * lobby display shows a visibly stopped clock when the tab has genuinely
@@ -15,14 +15,15 @@ import { useLiveStore } from "../../store/useLiveStore.js";
 import { ageSec, isLate, liveTickLabel } from "../../lib/data-age.js";
 import { countdownLabel, countdownTo } from "../../lib/session-countdown.js";
 import { useNow } from "../../lib/staleness.js";
+import { clockInTimezone } from "../../lib/format.js";
 
-function useUtcClock(): string {
+function useSessionClock(timeZone: string): string {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  return now.toISOString().slice(11, 19);
+  return clockInTimezone(now.toISOString(), timeZone);
 }
 
 export function StatusStrip() {
@@ -30,10 +31,11 @@ export function StatusStrip() {
   const haltCount = useLiveStore((s) => Object.keys(s.halted).length);
   const connection = useLiveStore((s) => s.connectionState());
   const symbolCount = useLiveStore((s) => s.symbols.length);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const lastTickAt = useLiveStore((s) => s.lastTickAt);
   const nextPhase = useLiveStore((s) => s.sessionNextPhase);
   const nextAt = useLiveStore((s) => s.sessionNextAt);
-  const clock = useUtcClock();
+  const clock = useSessionClock(sessionTimezone);
   // Its own coarse clock: an age changes because time passes, not because
   // data arrived, so it cannot be driven off the frame stream — which is the
   // whole point of showing it.
@@ -92,7 +94,7 @@ export function StatusStrip() {
         >
           {liveTickLabel(tickAge)}
         </span>
-        <span className="tabular">{clock} UTC</span>
+        <span className="tabular" title={sessionTimezone}>{clock} {sessionTimezone}</span>
       </span>
     </footer>
   );

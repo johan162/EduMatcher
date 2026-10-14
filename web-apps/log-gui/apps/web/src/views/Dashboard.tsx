@@ -7,19 +7,11 @@ import { Link } from "react-router-dom";
 import clsx from "clsx";
 import { classifyErrorRate, type ErrorRateBand } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
+import { formatHm, formatRowTs } from "../lib/formatTs.js";
 import { useUiConfig } from "../lib/useUiConfig.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { Panel } from "../components/Panel.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
-
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-04-09T07:00:14.469Z" -> "09 Apr 07:00:14" (UTC, no year). */
-function formatRowTs(clientTs: string): string {
-  const month = MONTH_ABBR[Number(clientTs.slice(5, 7)) - 1];
-  const day = clientTs.slice(8, 10);
-  return `${day} ${month} ${clientTs.slice(11, 19)}`;
-}
 
 /** Colour per band — the whole point of ERROR_RATE_*: a number you can glance at. */
 const BAND_CLASS: Record<ErrorRateBand, string> = {
@@ -103,7 +95,7 @@ export function DashboardView() {
   const worst = unackedIssues[0];
 
   const chartData = (timeseries?.buckets ?? []).map((b) => ({
-    time: b.bucketStart.slice(11, 16),
+    time: uiConfig ? formatHm(b.bucketStart, uiConfig.timezone) : "",
     count: b.count ?? 0,
   }));
 
@@ -179,7 +171,9 @@ export function DashboardView() {
         <div className="flex flex-col gap-1">
           {(recentErrors?.rows ?? []).map((row) => (
             <div key={row.seq} className="flex items-center gap-2 font-mono text-xs">
-              <span className="text-fg-subtle">{formatRowTs(row.client_ts)}</span>
+              <span className="text-fg-subtle">
+                {uiConfig ? formatRowTs(row.client_ts, uiConfig.timezone) : "…"}
+              </span>
               <SeverityBadge level={row.level} />
               <span className="text-fg-subtle">{row.process}</span>
               <span className="truncate">{row.message}</span>

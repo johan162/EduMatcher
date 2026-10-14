@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABSENT, clockUtc, compact, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
+import { ABSENT, clockInTimezone, clockUtc, compact, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
 
 describe("price", () => {
   it("formats to a fixed number of decimals", () => {
@@ -59,6 +59,16 @@ describe("clockUtc", () => {
   it("tolerates a malformed timestamp", () => {
     expect(clockUtc("not a date")).toBe(ABSENT);
     expect(clockUtc(undefined)).toBe(ABSENT);
+  });
+});
+
+describe("clockInTimezone", () => {
+  it("shows the configured session wall-clock time", () => {
+    expect(clockInTimezone("2026-07-30T11:02:17.000Z", "Europe/Stockholm")).toBe("13:02:17");
+  });
+
+  it("falls back to the absent marker for an invalid timezone", () => {
+    expect(clockInTimezone("2026-07-30T11:02:17.000Z", "not-a-timezone")).toBe(ABSENT);
   });
 });
 

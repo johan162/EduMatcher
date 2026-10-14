@@ -7,33 +7,14 @@
 
 import { DatabaseSync } from "node:sqlite";
 import type { AckHistoryAction, AckHistoryEntry, AckRecord } from "@edumatcher/log-types";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS issue_acks (
-    fingerprint        TEXT PRIMARY KEY,
-    acked_at           TEXT NOT NULL,
-    acked_by           TEXT NOT NULL,
-    note               TEXT,
-    acked_through_seq  INTEGER NOT NULL,
-    level              TEXT NOT NULL,
-    process            TEXT NOT NULL,
-    logger             TEXT NOT NULL,
-    sample_message     TEXT NOT NULL
-);
+const SCHEMA = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
 
-CREATE INDEX IF NOT EXISTS idx_acks_at ON issue_acks(acked_at);
-
-CREATE TABLE IF NOT EXISTS ack_history (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    fingerprint  TEXT NOT NULL,
-    action       TEXT NOT NULL,
-    at           TEXT NOT NULL,
-    by           TEXT NOT NULL,
-    note         TEXT
-);
-`;
+export function initializeAckSchema(db: DatabaseSync): void {
+  db.exec(SCHEMA);
+}
 
 interface AckRow {
   fingerprint: string;
@@ -64,7 +45,7 @@ export class AckStore {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec(SCHEMA);
+    initializeAckSchema(this.db);
   }
 
   get(fingerprint: string): AckRecord | null {

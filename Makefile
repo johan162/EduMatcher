@@ -5,7 +5,7 @@
 .PHONY: help install reinstall clean-venv test test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
-black flake8 mypy msgen-check msgen completion
+black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
 
 # Makefile itself as a dependency to ensure re-evaluation when changed.
 # NOTE: Requires GNU Make 4.3+. macOS ships with 3.81 (brew install make to upgrade).
@@ -203,9 +203,9 @@ endef
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)EduMatcher — Makefile targets$(NC)"
 	$(call print_section,Project Setup,install|reinstall|run)
-	$(call print_section,Code Quality,check|lint|format|typecheck|pre-commit)
+	$(call print_section,Code Quality,check|lint|format|typecheck|pre-commit|dbdocs-check)
 	$(call print_section,Testing,test|test-short|test-html|verify)
-	$(call print_section,Build & Documentation,build|docs|docs-serve)
+	$(call print_section,Build & Documentation,build|docs|docs-serve|dbdocs)
 	$(call print_section,Cleanup,clean|clean-venv|maintainer-clean)
 	$(call print_section,Git Operations,pull-all)
 	@echo ""
@@ -273,7 +273,7 @@ verify: ## Run end-to-end deterministic matching verification suite
 check: ## Run all code quality checks in parallel (format + lint + typecheck)
 	$(MAKE) -j 4 _check
 
-_check: format lint typecheck typecheck-pyright msgen-check ## Run all code quality checks (format + lint + typecheck + msgen)
+_check: format lint typecheck typecheck-pyright msgen-check dbdocs-check ## Run all code quality checks (format + lint + typecheck + generated docs)
 	@:
 
 lint flake8: $(LINT_STAMP) ## Run flake8 linting [stamp-cached]
@@ -296,6 +296,12 @@ msgen: ## Regenerate message bindings from spec/ (run after editing a spec file)
 	@poetry run pm-msgen generate
 	@touch $(MSGEN_STAMP)
 	@echo -e "$(GREEN)✓ Generated message bindings are up to date$(NC)"
+
+dbdocs: ## Regenerate the architecture book's SQLite schema reference
+	@PYTHONPATH=$(SRC_DIR) poetry run python -m edumatcher.sqlite_schema_docs generate
+
+dbdocs-check: ## Verify the generated SQLite schema reference matches runtime schemas
+	@PYTHONPATH=$(SRC_DIR) poetry run python -m edumatcher.sqlite_schema_docs check
 
 completion: ## Regenerate bash/zsh completion scripts for every pm-* command
 	@poetry run python tools/gen_completion.py

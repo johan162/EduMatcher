@@ -50,6 +50,8 @@ export interface HelloFrame {
   tickDecimals: Record<string, number>;
   /** From bridge config — CALF has no "list the indexes" request. */
   indexes: string[];
+  /** Exchange wall-clock timezone from `engine.locale.session_timezone`. */
+  sessionTimezone: string;
   calf: CalfState;
   /** Gateway name from `WELCOME|GW=`, or null before the first handshake. */
   gateway: string | null;

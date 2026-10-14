@@ -8,17 +8,10 @@ import clsx from "clsx";
 import type { LogFilter, LogLevel, LogRow } from "@edumatcher/log-types";
 import { LOG_LEVELS } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
+import { formatRowTs } from "../lib/formatTs.js";
+import { useUiConfig } from "../lib/useUiConfig.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
-
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-04-09T07:00:14.469Z" -> "09 Apr 07:00:14.469" (UTC, no year). */
-function formatRowTs(clientTs: string): string {
-  const month = MONTH_ABBR[Number(clientTs.slice(5, 7)) - 1];
-  const day = clientTs.slice(8, 10);
-  return `${day} ${month} ${clientTs.slice(11, 23)}`;
-}
 
 function filterFromParams(params: URLSearchParams): LogFilter {
   return {
@@ -43,6 +36,7 @@ export function ExplorerView() {
   const filter = useMemo(() => filterFromParams(searchParams), [searchParams]);
   const [live, setLive] = useState(true);
   const [selected, setSelected] = useState<LogRow | null>(null);
+  const timeZone = useUiConfig()?.timezone;
 
   const tail = useLiveStore((s) => s.tail);
   const tailPaused = useLiveStore((s) => s.tailPaused);
@@ -183,7 +177,9 @@ export function ExplorerView() {
                   )}
                   style={{ transform: `translateY(${item.start}px)`, height: item.size }}
                 >
-                  <span className="w-40 shrink-0 text-fg-subtle">{formatRowTs(row.client_ts)}</span>
+                  <span className="w-40 shrink-0 text-fg-subtle">
+                    {timeZone ? formatRowTs(row.client_ts, timeZone, true) : "…"}
+                  </span>
                   <SeverityBadge level={row.level} />
                   <span className="w-28 shrink-0 truncate text-fg-subtle">{row.process}</span>
                   <span className="truncate">{row.message}</span>
@@ -204,7 +200,9 @@ export function ExplorerView() {
                 ✕
               </button>
             </div>
-            <div className="mb-2 text-xs text-fg-subtle">{selected.client_ts}</div>
+            <div className="mb-2 text-xs text-fg-subtle">
+              {timeZone ? `${formatRowTs(selected.client_ts, timeZone, true)} ${timeZone}` : "…"}
+            </div>
             <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-xs">
               <dt className="text-fg-subtle">logger</dt>
               <dd className="font-mono">{selected.logger}</dd>

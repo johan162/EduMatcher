@@ -37,6 +37,8 @@ export interface UiConfig {
   /** Seconds of silence after which a connected process is flagged. */
   processSilenceSec: number;
   errorRate: ErrorRateBands;
+  /** IANA zone every timestamp is rendered in (`engine.locale.session_timezone`). */
+  timezone: string;
 }
 
 /** Classifies an errors-per-minute rate. Shared so bridge and UI cannot drift. */

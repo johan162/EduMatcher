@@ -17,12 +17,14 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+from datetime import date, datetime
 import sys
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import yaml
 import zmq
@@ -33,7 +35,10 @@ from edumatcher.config import (
     SIM_PUB_ADDR,
     SIM_PULL_ADDR,
 )
+from edumatcher.config_artifact import load_compiled_config
+from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
 from edumatcher.market_sim.news import KINDS
+from edumatcher.market_sim.news_history import NEWS_HISTORY_DB, read_news_events
 from edumatcher.messaging.bus import get_context, make_pusher
 from edumatcher.models.generated import news as N
 from edumatcher.models.generated import sim as G
@@ -128,20 +133,32 @@ def news_request(
     return req
 
 
-def format_event(p: dict[str, Any]) -> str:
+def format_event(
+    p: dict[str, Any], timezone_name: str = DEFAULT_SESSION_TIMEZONE
+) -> str:
     targets = ",".join(p.get("targets") or []) or "MARKET"
+    timestamp = p.get("ts_ns")
+    stamp = "--"
+    if isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool):
+        try:
+            stamp = datetime.fromtimestamp(
+                timestamp / 1e9, ZoneInfo(timezone_name)
+            ).isoformat(timespec="seconds")
+        except (KeyError, OSError, OverflowError, ValueError):
+            pass
     extra = ""
     if p.get("status") == "RUMOUR" and p.get("credibility") is not None:
         extra = f" (credibility {p['credibility']:.0%})"
     if p.get("related_id"):
         extra += f" [re {p['related_id']}]"
     return (
-        f"{time.strftime('%H:%M:%S')} {p['id']:>5} {p['status']:<9} {p['kind']:<10} "
-        f"{targets:<12} {p['sentiment']:+.2f}  {p['headline']}{extra}"
+        f"{stamp} {p['id']:>5} {p['status']:<9} {p.get('scope', ''):<6} "
+        f"{p['kind']:<10} {targets:<12} {p['sentiment']:+.2f}  "
+        f"{p['headline']}{extra}"
     )
 
 
-def watch(duration: float) -> int:
+def watch(duration: float, timezone_name: str = DEFAULT_SESSION_TIMEZONE) -> int:
     sub = get_context().socket(zmq.SUB)
     sub.connect(SIM_PUB_ADDR)
     sub.setsockopt(zmq.SUBSCRIBE, N.TOPIC_NEWS_EVENT.encode())
@@ -150,7 +167,7 @@ def watch(duration: float) -> int:
         while end is None or time.monotonic() < end:
             if sub.poll(200):
                 _, payload = decode(sub.recv_multipart())
-                print(format_event(payload), flush=True)
+                print(format_event(payload, timezone_name), flush=True)
     except KeyboardInterrupt:
         pass
     finally:
@@ -357,14 +374,53 @@ def build_parser() -> argparse.ArgumentParser:
     play_p.add_argument("scenario", type=Path)
     list_p = sub.add_parser("list", help="Print the news as it is published")
     list_p.add_argument("--duration", type=float, default=0.0, help="0 = until Ctrl-C")
+    past_p = sub.add_parser("past", help="List previously published news")
+    past_p.add_argument(
+        "--limit", type=int, default=20, help="Maximum events to show (default: 20)"
+    )
+    past_p.add_argument(
+        "--date", type=_date_arg, help="Session date to show (YYYY-MM-DD)"
+    )
     return parser
+
+
+def _date_arg(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("use YYYY-MM-DD") from exc
+
+
+def _session_timezone() -> str:
+    compiled = load_compiled_config()
+    return (
+        compiled.engine.locale.session_timezone
+        if compiled is not None
+        else DEFAULT_SESSION_TIMEZONE
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "past":
+        if args.limit < 1:
+            parser.error("--limit must be at least 1")
+        timezone_name = _session_timezone()
+        events = read_news_events(
+            NEWS_HISTORY_DB,
+            limit=args.limit,
+            date_filter=args.date,
+            timezone_name=timezone_name,
+        )
+        if not events:
+            print("No news events found.")
+            return
+        for event in events:
+            print(format_event(event, timezone_name))
+        return
     if args.command == "list":
-        raise SystemExit(watch(args.duration))
+        raise SystemExit(watch(args.duration, _session_timezone()))
     if not args.id:
         parser.error("--id (an ADMIN participant) is required")
     try:

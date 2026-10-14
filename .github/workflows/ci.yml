@@ -54,6 +54,9 @@ jobs:
       - name: Message spec drift check
         run: PYTHONPATH=src poetry run python -m edumatcher.msgen.cli check
 
+      - name: SQLite schema documentation drift check
+        run: PYTHONPATH=src poetry run python -m edumatcher.sqlite_schema_docs check
+
   testing:
     name: Testing
     runs-on: ubuntu-latest

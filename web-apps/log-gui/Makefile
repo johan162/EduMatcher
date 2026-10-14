@@ -1,11 +1,4 @@
 # Makefile for EduMatcher Log Operator Console (npm workspaces + container workflow)
-#
-# Automatically handles proxy settings for container builds if http_proxy is set in the environment.
-#
-# Note: The special use of `host.containers.internal` is a Docker/Podman feature that resolves
-# to the host machine from inside the container and is equivalent to "localhost" on the host.
-# This is useful for accessing a local proxy or mirror from within the container.
-#
 
 .PHONY: \
 	help \
@@ -58,40 +51,6 @@ TIMESTAMP_DIR := .timestamps
 CONTAINER_STAMP := $(TIMESTAMP_DIR)/.container-stamp
 GHCR_LOGIN_STAMP := $(TIMESTAMP_DIR)/.ghcr-login-stamp
 CDIST_STAMP := $(TIMESTAMP_DIR)/.cdist-stamp
-
-# --------------------------------------------------------------------------------------------
-# Rewrite HTTP_PROXY from http_proxy 
-# Rules:
-# 1) localhost -> host.containers.internal
-# 2) other hostnames unchanged
-# 3) extract port to PORT
-# Example: http_proxy=http://localhost:9000 -> HTTP_PROXY=http://host.containers.internal:9000
-# --------------------------------------------------------------------------------------------
-PROXY_INPUT := $(strip $(http_proxy))
-ifneq ($(PROXY_INPUT),)
-PROXY_SCHEME := $(if $(filter https://%,$(PROXY_INPUT)),https,http)
-PROXY_NO_SCHEME := $(patsubst http://%,%,$(patsubst https://%,%,$(PROXY_INPUT)))
-PROXY_HOSTPORT := $(firstword $(subst /, ,$(PROXY_NO_SCHEME)))
-HOSTNAME := $(word 1,$(subst :, ,$(PROXY_HOSTPORT)))
-PORT := $(if $(word 2,$(subst :, ,$(PROXY_HOSTPORT))),$(word 2,$(subst :, ,$(PROXY_HOSTPORT))),9000)
-NEW_HOSTNAME := $(if $(filter localhost,$(HOSTNAME)),host.containers.internal,$(HOSTNAME))
-HTTP_PROXY := $(PROXY_SCHEME)://$(NEW_HOSTNAME):$(PORT)
-else
-HTTP_PROXY :=
-endif
-HTTPS_PROXY := $(HTTP_PROXY)
-NO_PROXY := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1,::1,host.containers.internal)
-
-
-# Print the proxy settings for debugging
-print-proxy:
-	@echo -e "$(YELLOW)- Proxy settings for container build:$(NC)"
-	@echo -e "$(BLUE)  HOSTNAME: $(HOSTNAME)$(NC)"
-	@echo -e "$(BLUE)  PORT: $(PORT)$(NC)"
-	@echo -e "$(BLUE)  NEW_HOSTNAME: $(NEW_HOSTNAME)$(NC)"
-	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY)$(NC)"
-	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY)$(NC)"
-	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY)$(NC)"
 
 # Auto-detect container runtime (prefer podman when both are installed)
 CONTAINER_RUNTIME := $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
@@ -232,11 +191,6 @@ cbuild: check-container | $(TIMESTAMP_DIR) ## Build container image via compose 
 	@echo -e "$(YELLOW)- Building container image...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) build \
-	    --build-arg NPM_STRICT_SSL=false \
-		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
-	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
-	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
 	@# Also tag the version, which cpush pushes
 	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
@@ -252,11 +206,6 @@ up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) up -d --build \
-	    --build-arg NPM_STRICT_SSL=false \
-		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
-	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
-	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)"
 	@echo -e "$(GREEN)✓ Container stack is up and listening on port $(WEB_PORT)$(NC)"
 	@echo -e "$(GREEN)✓ Web interface available at ${YELLOW}http://localhost:$(WEB_PORT)$(NC)"
@@ -291,11 +240,6 @@ $(CDIST_STAMP): $(CONTAINER_STAMP)   ## Build a distributable: container image +
 	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
 	@# Build (or rebuild) the container image tagged with the version
 	@$(DOCKER_COMPOSE) up -d --build \
-	    --build-arg NPM_STRICT_SSL=false \
-		--build-arg NPM_REGISTRY="https://registry.npmjs.org/" \
-	    --build-arg HTTP_PROXY="$(HTTP_PROXY)" \
-	    --build-arg HTTPS_PROXY="$(HTTPS_PROXY)" \
-	    --build-arg NO_PROXY="$(NO_PROXY)" \
 		--build-arg WEB_PORT="$(WEB_PORT)" 
 	# Also tag the image with the version so the tarball carries a useful name
 	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)

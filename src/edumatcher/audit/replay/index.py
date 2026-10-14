@@ -310,12 +310,17 @@ def open_index(db_path: Path) -> sqlite3.Connection:
     if db_path.exists() and _schema_version_of(db_path) != SCHEMA_VERSION:
         _discard(db_path)
     conn = sqlite3.connect(str(db_path))
+    initialize_schema(conn)
+    return conn
+
+
+def initialize_schema(conn: sqlite3.Connection) -> None:
+    """Create the current replay-index schema on an open SQLite connection."""
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(_SCHEMA)
     conn.commit()
-    return conn
 
 
 def _schema_version_of(db_path: Path) -> int | None:

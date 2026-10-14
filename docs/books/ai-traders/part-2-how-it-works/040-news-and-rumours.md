@@ -168,7 +168,13 @@ minute, sometimes none for twenty.
 participant. In the container:
 
 ```bash
+# From the host
 docker exec edumatcher-sim pm-news --id OPS01 inject --symbol NVDA \
+    --kind EARNINGS --sentiment 0.8 --impact 0.08 \
+    --headline "NVDA smashes estimates on data-centre demand"
+
+# From within the container
+pm-news --id OPS01 inject --symbol NVDA \
     --kind EARNINGS --sentiment 0.8 --impact 0.08 \
     --headline "NVDA smashes estimates on data-centre demand"
 ```
@@ -177,10 +183,15 @@ The value of NVDA moves +8.3 % at once; the price follows within seconds.
 A rumour you inject waits for you:
 
 ```bash
+# From the host
 docker exec edumatcher-sim pm-news --id OPS01 inject --sector ENERGY \
-    --kind REGULATORY --sentiment -0.7 --impact -0.06 --rumour --credibility 0.6
-N12
+    --kind REGULATORY --sentiment -0.7 --impact -0.06 --rumour --credibility 0.6 N12
 docker exec edumatcher-sim pm-news --id OPS01 confirm N12     # or: retract N12
+
+# From within the container
+pm-news --id OPS01 inject --sector ENERGY \
+    --kind REGULATORY --sentiment -0.7 --impact -0.06 --rumour --credibility 0.6 N12
+pm-news --id OPS01 confirm N12     # or: retract N12
 ```
 
 `inject` prints the headline's id (`N12` here). A rumour you inject never
@@ -192,7 +203,12 @@ rates to 0 if yours should be the only ones.
 For a lesson, script the news in a file and play it:
 
 ```bash
+# From the host
 docker exec edumatcher-sim pm-news --id OPS01 play \
+    /opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
+
+# From within the container
+pm-news --id OPS01 play \
     /opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
 ```
 
@@ -209,6 +225,7 @@ use them in class.
 |---|---|
 | terminal-gui, news view | Every headline as it is published, with status and sentiment |
 | `docker exec edumatcher-sim pm-news list` | Headlines printed as they arrive, until Ctrl+C |
+| `docker exec edumatcher-sim pm-news past --limit 20 --date 2026-10-14` | Recent headlines from that session date, newest first |
 | `GET /api/v1/news` (any API key) | Today's headlines, and the sector of every symbol |
 
 ## Try it

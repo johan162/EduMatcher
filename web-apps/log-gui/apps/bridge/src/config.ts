@@ -1,6 +1,6 @@
 /** Bridge configuration read from the environment (design §20). */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -11,6 +11,8 @@ export interface BridgeConfig {
   port: number;
   corsOrigin: string;
   staticDir?: string;
+  /** IANA zone every timestamp in the UI is rendered in. */
+  sessionTimezone: string;
 
   lalfPs: {
     host: string;
@@ -86,12 +88,44 @@ function logLevelFromEnv(name: string, fallback: LogLevel): LogLevel {
   return raw && (LOG_LEVELS as readonly string[]).includes(raw) ? (raw as LogLevel) : fallback;
 }
 
+// Mirrors edumatcher.engine.config_loader.DEFAULT_SESSION_TIMEZONE.
+const DEFAULT_SESSION_TIMEZONE = "Europe/Stockholm";
+
+function isKnownTimezone(name: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The exchange's session timezone, taken from the compiled artifact's already
+ * resolved `engine.locale.session_timezone` so the UI agrees with pm-stats and
+ * pm-clearing instead of inventing a zone of its own. Falls back to the same
+ * default the Python loader applies when no config has been deployed yet.
+ */
+function resolveSessionTimezone(dataDir: string): string {
+  const override = process.env.SESSION_TIMEZONE;
+  if (override && isKnownTimezone(override)) return override;
+  try {
+    const raw = readFileSync(join(dataDir, "ref_data", "engine_config.json"), "utf8");
+    const tz: unknown = JSON.parse(raw)?.engine?.locale?.session_timezone;
+    if (typeof tz === "string" && isKnownTimezone(tz.trim())) return tz.trim();
+  } catch {
+    // No deployed artifact, or an unreadable one: the default below applies.
+  }
+  return DEFAULT_SESSION_TIMEZONE;
+}
+
 export function loadBridgeConfig(): BridgeConfig {
   return {
     host: process.env.HOST ?? "127.0.0.1",
     port: intFromEnv("PORT", 5191),
     corsOrigin: process.env.CORS_ORIGIN ?? "*",
     staticDir: process.env.STATIC_DIR || undefined,
+    sessionTimezone: resolveSessionTimezone(resolveDataDir()),
 
     lalfPs: {
       host: process.env.LOG_SRV_HOST ?? "127.0.0.1",

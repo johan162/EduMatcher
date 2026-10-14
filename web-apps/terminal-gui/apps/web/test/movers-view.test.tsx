@@ -74,7 +74,7 @@ afterEach(cleanup);
 
 describe("outage banner", () => {
   it("stays quiet while both history feeds are healthy", async () => {
-    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], calf: "ACTIVE", gateway: "gw" });
+    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], sessionTimezone: "Europe/Stockholm", calf: "ACTIVE", gateway: "gw" });
     apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
     show();
 
@@ -84,7 +84,7 @@ describe("outage banner", () => {
 
   it("banners when the daily rollup fails", async () => {
     dailyBars.mockRejectedValue(new Error("upstream unavailable"));
-    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], calf: "ACTIVE", gateway: "gw" });
+    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], sessionTimezone: "Europe/Stockholm", calf: "ACTIVE", gateway: "gw" });
     apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
     show();
 
@@ -97,7 +97,7 @@ describe("outage banner", () => {
     // list is still there, it is just a different list, and the header that
     // names the baseline has to follow it.
     dailyWindow.mockRejectedValue(new Error("upstream unavailable"));
-    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], calf: "ACTIVE", gateway: "gw" });
+    apply({ type: "hello", symbols: ["AAPL"], tickDecimals: {}, indexes: [], sessionTimezone: "Europe/Stockholm", calf: "ACTIVE", gateway: "gw" });
     apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
     show();
 

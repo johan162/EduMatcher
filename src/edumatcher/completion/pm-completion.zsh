@@ -3607,6 +3607,7 @@ _shtab_pm_news_commands() {
     confirm:'Confirm a rumour (the value moves)'
     inject:'Publish a headline'
     list:'Print the news as it is published'
+    past:'List previously published news'
     play:'Play a timed scenario'
     retract:'Retract a rumour (nothing moves)'
   )
@@ -3654,6 +3655,15 @@ _shtab_pm_news_list_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_news_list_defaults_added=0
 
+_shtab_pm_news_past_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--limit[Maximum events to show (default\: 20)]:limit:"
+  "--date[Session date to show (YYYY-MM-DD)]:date:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_news_past_defaults_added=0
+
 _shtab_pm_news_play_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   ":scenario:"
@@ -3692,6 +3702,7 @@ _shtab_pm_news() {
         confirm) _arguments -C -s $_shtab_pm_news_confirm_options ;;
         inject) _arguments -C -s $_shtab_pm_news_inject_options ;;
         list) _arguments -C -s $_shtab_pm_news_list_options ;;
+        past) _arguments -C -s $_shtab_pm_news_past_options ;;
         play) _arguments -C -s $_shtab_pm_news_play_options ;;
         retract) _arguments -C -s $_shtab_pm_news_retract_options ;;
       esac

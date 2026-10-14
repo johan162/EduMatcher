@@ -33,6 +33,7 @@ const hello = (symbols: string[], tickDecimals: Record<string, number> = {}): Se
   symbols,
   tickDecimals,
   indexes: [],
+  sessionTimezone: "Europe/Stockholm",
   calf: "ACTIVE",
   gateway: "md-gwy01",
 });

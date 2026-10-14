@@ -27,6 +27,7 @@ import logging
 import math
 import os
 import signal
+import sqlite3
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -68,6 +69,7 @@ from edumatcher.messaging.bus import (
     make_pusher,
 )
 from edumatcher.market_sim.news import NewsDesk, Rumour
+from edumatcher.market_sim.news_history import NEWS_HISTORY_DB, append_news_event
 from edumatcher.models.generated import news as N
 from edumatcher.models.generated import sim as G
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
@@ -171,6 +173,7 @@ class MarketSim:
         admins: frozenset[str] = frozenset(),
         news_seq: int = 0,
         rumours: list[Rumour] | None = None,
+        news_history_path: Path | None = None,
     ) -> None:
         self.cfg = cfg
         self.model = ValueModel(
@@ -186,6 +189,7 @@ class MarketSim:
         self.seq = seq
         self.epoch = epoch
         self.admins = admins
+        self.news_history_path = news_history_path
         self.session: str | None = None
         self.phase_since: float | None = None
         self.next_at: float | None = None
@@ -249,6 +253,11 @@ class MarketSim:
 
     def _news_out(self, event: dict[str, Any], moves: dict[str, float]) -> list[bytes]:
         self.model.shock(moves)
+        if self.news_history_path is not None:
+            try:
+                append_news_event(self.news_history_path, event)
+            except (OSError, sqlite3.Error):
+                log.exception("could not append news event %s to history", event["id"])
         log.info(
             "news %s %s %s: %s",
             event["id"],
@@ -737,6 +746,7 @@ def main() -> None:
         admins=admins,
         news_seq=saved.news_seq if saved else 0,
         rumours=saved.rumours if saved else None,
+        news_history_path=NEWS_HISTORY_DB,
     )
     log.info(
         "pm-market-sim: %d symbols, seed %d, %s",
