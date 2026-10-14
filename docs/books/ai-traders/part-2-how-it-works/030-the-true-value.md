@@ -125,7 +125,11 @@ traders busy: if it were zero, they would have nothing to trade.
 To see the gap yourself:
 
 ```bash
+# From the host
 docker exec edumatcher-sim pm-market-sim --status --id OPS01
+
+# From the container
+pm-market-sim --status --id OPS01
 ```
 
 ```text
