@@ -232,7 +232,9 @@ async def positions(
     process's own local fill cache (``SessionCaches.positions``), which
     reads flat after a gateway restart even though the engine still holds
     the position. ``last_price`` still comes from this cache: it tracks
-    venue-wide trade prints, not the position calculation itself.
+    venue-wide trade prints, not the position calculation itself. The
+    returned rows also include the engine's VWAP ``avg_cost`` plus market
+    value and realized/unrealized P&L derived from the live fill cache.
     """
     gateway_id = require_trading(session)
     cache = request.app.state.engine.get_caches(gateway_id)
@@ -242,15 +244,27 @@ async def positions(
     raw_positions = reply.get("positions", [])
     if not isinstance(raw_positions, list):
         raw_positions = []
-    positions_payload = [
-        {
-            "symbol": entry.get("symbol"),
-            "net_qty": entry.get("net_qty"),
-            "last_price": cache.last_prices.get(str(entry.get("symbol", ""))),
-        }
-        for entry in raw_positions
-        if isinstance(entry, dict)
-    ]
+    positions_payload = []
+    for entry in raw_positions:
+        if not isinstance(entry, dict):
+            continue
+        symbol = str(entry.get("symbol", ""))
+        qty = int(entry.get("net_qty", 0) or 0)
+        avg_cost = float(entry.get("avg_cost", 0.0) or 0.0)
+        last_price = cache.last_prices.get(symbol)
+        positions_payload.append(
+            {
+                "symbol": symbol,
+                "net_qty": qty,
+                "avg_cost": avg_cost,
+                "last_price": last_price,
+                "market_value": None if last_price is None else qty * float(last_price),
+                "unrealized_pnl": (
+                    None if last_price is None else qty * (float(last_price) - avg_cost)
+                ),
+                "realized_pnl": cache.realized_pnl.get(symbol, 0.0),
+            }
+        )
     positions_payload.sort(key=lambda p: str(p["symbol"]))
     return {"positions": positions_payload}
 

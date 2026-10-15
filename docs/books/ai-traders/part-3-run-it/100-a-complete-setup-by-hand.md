@@ -77,7 +77,7 @@ starts:
 |---|---|---|
 | `log` | `pm-log-srv` | Collects every process's log into `log.db` (kept 30 days) |
 | `audit` | `pm-audit --verbose` | The audit trail of every message, `audit.log` |
-| `stats` | `pm-stats --verbose --keep-days 7 --keep-order-events-days 0.05` | Daily statistics (kept for good), every trade (kept 7 days) and every order event (kept about an hour) in `stats.db` |
+| `stats` | `pm-stats --verbose --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` | Daily statistics (kept for good), every trade (kept 7 days) and every order event (kept 12 hours) in `stats.db` |
 | `clearing` | `pm-clearing --verbose --print-every 0 --retention-days 7` | Positions and settlement, `clearing.db`: a week of individual trades (pruned at every close), daily summaries for good; without its console P&L table, which it would redraw every 100 trades |
 | `engine` | `pm-engine` | Matching: the 300 order books |
 | `scheduler` | `pm-scheduler --daily --verbose` | The trading calendar |

@@ -335,6 +335,8 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-stats [--db data/stats.db] [--snapshot-interval SEC]",
             "         [--keep-days N] [--keep-order-events-days N]",
+            "         [--human-gateways GLOB,...]",
+            "         [--keep-human-order-events-days N]",
             "         [--sql-trace] [-v|-vv] [--log-level LEVEL]",
         ),
         description=(
@@ -363,6 +365,19 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "Keep N days of order events alone (fractions allowed, e.g. "
                 "0.05 for about an hour); under an AI swarm they are most of "
                 "stats.db",
+            ),
+            Option(
+                "--human-gateways GLOB,...",
+                "none",
+                "Comma-separated gateway id globs (e.g. TRADER*) that prune on "
+                "--keep-human-order-events-days instead; a person's few rows "
+                "need not die on the swarm's clock",
+            ),
+            Option(
+                "--keep-human-order-events-days N",
+                "as --keep-order-events-days",
+                "Keep N days of order events for --human-gateways matches; "
+                "0 keeps them for good. Requires --human-gateways",
             ),
             Option(
                 "--sql-trace",

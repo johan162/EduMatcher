@@ -27,6 +27,7 @@ from edumatcher.stats.query import (
     query_index_ids,
     query_index_snapshots,
     query_order_events,
+    query_order_events_retained_from,
     query_order_lifecycle,
     query_price_snapshots,
     query_trades,
@@ -151,6 +152,10 @@ async def history_orders(
     Set ``after`` to the previous response's ``next_cursor`` to fetch the
     next page — see the History endpoints section of the user guide for
     the full pagination contract.
+
+    ``retained_from`` reports the point pm-stats prunes this gateway's
+    order events at, so a caller can tell "no events" apart from "no
+    events left". Null when nothing is being pruned.
     """
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
@@ -174,7 +179,10 @@ async def history_orders(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
-    return _paginated_envelope("events", events, next_cursor)
+        retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+    envelope = _paginated_envelope("events", events, next_cursor)
+    envelope["retained_from"] = retained_from
+    return envelope
 
 
 @router.get("/orders/{order_id}")
@@ -183,10 +191,21 @@ async def history_order_lifecycle(
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, object]:
+    """Return the recorded lifecycle of one order.
+
+    ``retained_from`` reports the point pm-stats prunes this gateway's
+    order events from, or ``null`` when nothing is pruned. An order
+    placed before that point may show a partial timeline, or none.
+    """
     gateway_id = require_trading(session)
     with closing(_open_stats(request)) as conn:
         events = query_order_lifecycle(conn, gateway_id=gateway_id, order_id=order_id)
-    return {"events": events, "count": len(events)}
+        retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+    return {
+        "events": events,
+        "count": len(events),
+        "retained_from": retained_from,
+    }
 
 
 @router.get("/fills")
@@ -205,6 +224,11 @@ async def history_fills(
     Set ``after`` to the previous response's ``next_cursor`` to fetch the
     next page — see the History endpoints section of the user guide for
     the full pagination contract.
+
+    ``retained_from`` reports the point pm-stats prunes this gateway's
+    order events at. Fills older than that have been deleted by the
+    recorder's retention setting and are gone, so a caller can tell "no
+    fills" apart from "no fills left". Null when nothing is being pruned.
     """
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
@@ -227,7 +251,10 @@ async def history_fills(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
-    return _paginated_envelope("events", events, next_cursor)
+        retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
+    envelope = _paginated_envelope("events", events, next_cursor)
+    envelope["retained_from"] = retained_from
+    return envelope
 
 
 @router.get("/session")

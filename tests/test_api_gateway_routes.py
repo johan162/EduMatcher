@@ -324,6 +324,7 @@ def test_session_caches_apply_events() -> None:
             "symbol": "AAPL",
             "side": "BUY",
             "fill_qty": 5,
+            "fill_price": 150.0,
             "status": "PARTIAL",
         },
     )
@@ -535,9 +536,18 @@ async def test_reference_routes() -> None:
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
     assert (await reference.quote_legs(request, session))["legs"]
     engine.cache.last_prices["AAPL"] = 151.0
+    engine.cache.realized_pnl["AAPL"] = 25.0
     result = await reference.positions(request, session)
     assert result["positions"] == [
-        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+        {
+            "symbol": "AAPL",
+            "net_qty": 5,
+            "avg_cost": 150.0,
+            "last_price": 151.0,
+            "market_value": 755.0,
+            "unrealized_pnl": 5.0,
+            "realized_pnl": 25.0,
+        }
     ]
     assert ("request_position", "GW01") in engine.calls
     engine.cache.positions["AAPL"] = 5
@@ -562,7 +572,15 @@ async def test_positions_reads_engine_not_local_cache() -> None:
     assert engine.cache.positions == {}
     result = await reference.positions(request, session)
     assert result["positions"] == [
-        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+        {
+            "symbol": "AAPL",
+            "net_qty": 5,
+            "avg_cost": 150.0,
+            "last_price": 151.0,
+            "market_value": 755.0,
+            "unrealized_pnl": 5.0,
+            "realized_pnl": 0.0,
+        }
     ]
 
 

@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import sqlite3
+import time
 import sys
 from contextlib import suppress
 from pathlib import Path
@@ -540,6 +541,128 @@ VALUES ('2026-06-24','AAPL',15000,15100,14900,15050,10,1,150000,15000,10,15000,2
 """)
     conn.commit()
     conn.close()
+
+
+@pytest.mark.anyio
+async def test_history_fills_reports_retention_boundary(tmp_path: Path) -> None:
+    """A truncated fills page must be distinguishable from an idle gateway.
+
+    The boundary is the configured cutoff, not the oldest surviving row:
+    the oldest row says only when the gateway last traded, which for an
+    idle gateway would claim a truncation that never happened. So it is
+    reported even though GW02 owns no rows at all.
+    """
+    db_path = tmp_path / "stats.db"
+    prepare_history_db(db_path)
+    _set_retention(db_path, keep_order_events_days=0.5)
+    result = await _fills_for(db_path, "GW02")
+    assert result["count"] == 0
+    assert result["retained_from"] == _expected_cutoff(0.5)
+
+
+@pytest.mark.anyio
+async def test_history_fills_retention_boundary_is_none_when_not_pruned(
+    tmp_path: Path,
+) -> None:
+    """Retention 0 keeps everything, so there is no boundary to report."""
+    db_path = tmp_path / "stats.db"
+    prepare_history_db(db_path)
+    _set_retention(db_path, keep_order_events_days=0)
+    assert (await _fills_for(db_path, "GW01"))["retained_from"] is None
+
+
+@pytest.mark.anyio
+async def test_history_retention_boundary_follows_the_human_tier(
+    tmp_path: Path,
+) -> None:
+    """A gateway matching --human-gateways prunes on its own slower clock.
+
+    Both routes resolve the tier, so the Order History and Trade History
+    views cannot disagree about how far back a person's own record goes.
+    """
+    db_path = tmp_path / "stats.db"
+    prepare_history_db(db_path)
+    _set_retention(
+        db_path,
+        keep_order_events_days=0.5,
+        human_gateways="TRADER*",
+        keep_human_order_events_days=7,
+    )
+    assert (await _fills_for(db_path, "TRADER01"))["retained_from"] == _expected_cutoff(
+        7
+    )
+    assert (await _fills_for(db_path, "AI001"))["retained_from"] == _expected_cutoff(
+        0.5
+    )
+    orders = await history.history_orders(  # test double
+        _request_for_db(db_path),  # type: ignore[arg-type]
+        Session(api_key="key", gateway_id="TRADER01", description=""),
+        symbol=None,
+        event_type=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    assert orders["retained_from"] == _expected_cutoff(7)
+
+
+def _request_for_db(db_path: Path) -> SimpleNamespace:
+    return SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(config=ApiGatewayConfig(stats_db=db_path))
+        )
+    )
+
+
+def _set_retention(
+    db_path: Path,
+    *,
+    keep_order_events_days: float,
+    human_gateways: str = "",
+    keep_human_order_events_days: float | None = None,
+) -> None:
+    """Write the retention pm-stats would have recorded at startup."""
+    from edumatcher.stats.main import UPSERT_META
+    from edumatcher.stats.query import (
+        META_HUMAN_GATEWAYS,
+        META_KEEP_HUMAN_ORDER_EVENTS_DAYS,
+        META_KEEP_ORDER_EVENTS_DAYS,
+    )
+
+    human_days = (
+        keep_order_events_days
+        if keep_human_order_events_days is None
+        else keep_human_order_events_days
+    )
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        UPSERT_META, (META_KEEP_ORDER_EVENTS_DAYS, str(keep_order_events_days))
+    )
+    conn.execute(UPSERT_META, (META_HUMAN_GATEWAYS, human_gateways))
+    conn.execute(UPSERT_META, (META_KEEP_HUMAN_ORDER_EVENTS_DAYS, str(human_days)))
+    conn.commit()
+    conn.close()
+
+
+def _expected_cutoff(days: float) -> str:
+    from datetime import datetime, timezone
+
+    return datetime.fromtimestamp(
+        time.time() - days * 86_400, tz=timezone.utc
+    ).isoformat(timespec="seconds")
+
+
+async def _fills_for(db_path: Path, gateway_id: str) -> dict[str, object]:
+    return await history.history_fills(  # test double
+        _request_for_db(db_path),  # type: ignore[arg-type]
+        Session(api_key="key", gateway_id=gateway_id, description=""),
+        symbol=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
 
 
 @pytest.mark.anyio

@@ -4262,6 +4262,8 @@ _shtab_pm_stats_options=(
   "--snapshot-interval[Seconds between price_snapshots rows per symbol (default\: 900 \= 15 min). Use a smaller value for higher-resolution intraday history, e.g. 60 for one-minute snapshots.]:SEC:"
   "--keep-days[Keep N days of trades, order events and snapshots\; older rows are deleted hourly. Daily rollups are always kept (default\: 0 \= keep everything)]:N:"
   "--keep-order-events-days[Keep N days of order events, overriding --keep-days for them\; fractions are fine, e.g. 0.1 for about 2.4 hours (default\: as --keep-days)]:N:"
+  "--human-gateways[Comma-separated glob patterns for gateways that are people rather than bots, e.g. \'TRADER\*\'. Their order events prune on --keep-human-order-events-days instead of the ordinary retention (default\: none, one retention for everyone)]:GLOB[,GLOB...]:"
+  "--keep-human-order-events-days[Keep N days of order events for --human-gateways\; a single retention short enough for a swarm also deletes a person\'s few rows (default\: as --keep-order-events-days)]:N:"
   "--sql-trace[Log executed SQLite statements from the stats writer connection]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"

@@ -101,12 +101,45 @@ def test_positions_survive_eviction() -> None:
             "symbol": "AAPL",
             "side": "BUY",
             "fill_qty": 100,
+            "fill_price": 150.0,
             "status": "FILLED",
         },
     )
     cache.evict_terminal_orders(1, now=time.time() + 3600)
     assert cache.orders == {}
     assert cache.positions == {"AAPL": 100}
+    assert cache.position_avg_costs == {"AAPL": 150.0}
+    assert cache.realized_pnl == {"AAPL": 0.0}
+
+
+def test_positions_cache_tracks_realized_pnl() -> None:
+    cache = SessionCaches()
+    cache.apply(
+        "order.fill.GW01",
+        {
+            "order_id": "ORD-1",
+            "symbol": "AAPL",
+            "side": "BUY",
+            "fill_qty": 10,
+            "fill_price": 100.0,
+            "status": "FILLED",
+        },
+    )
+    cache.apply(
+        "order.fill.GW01",
+        {
+            "order_id": "ORD-2",
+            "symbol": "AAPL",
+            "side": "SELL",
+            "fill_qty": 4,
+            "fill_price": 120.0,
+            "status": "FILLED",
+        },
+    )
+
+    assert cache.positions["AAPL"] == 6
+    assert cache.position_avg_costs["AAPL"] == 100.0
+    assert cache.realized_pnl["AAPL"] == 80.0
 
 
 def test_the_eviction_stamp_never_reaches_the_wire() -> None:

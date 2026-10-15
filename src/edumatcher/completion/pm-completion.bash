@@ -7559,7 +7559,7 @@ complete -F _shtab_pm_setup pm-setup
 
 
 
-_shtab_pm_stats_option_strings=(-h --help --version --db --snapshot-interval --keep-days --keep-order-events-days --sql-trace --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_stats_option_strings=(-h --help --version --db --snapshot-interval --keep-days --keep-order-events-days --human-gateways --keep-human-order-events-days --sql-trace --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 

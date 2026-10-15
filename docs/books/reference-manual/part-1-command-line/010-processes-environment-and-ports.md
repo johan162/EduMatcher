@@ -1063,7 +1063,9 @@ retains structural/corporate-action audit records, not level ticks.
 
 ```bash
 pm-stats [--db data/stats.db] [--snapshot-interval SEC] \
-  [--keep-days N] [--keep-order-events-days N] [--sql-trace] \
+  [--keep-days N] [--keep-order-events-days N] \
+  [--human-gateways GLOB,...] [--keep-human-order-events-days N] \
+  [--sql-trace] \
   [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
@@ -1075,6 +1077,8 @@ pm-stats [--db data/stats.db] [--snapshot-interval SEC] \
 | `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
 | `--keep-days`         | `0` (keep all)  | Keep N days of `trade_log`, `order_events`, `price_snapshots` and `feed_gaps`; older rows are deleted at startup and once an hour. Daily rollups are always kept. The file stops growing at N days (SQLite reuses the freed pages) |
 | `--keep-order-events-days` | as `--keep-days` | Keep N days of `order_events` alone, overriding `--keep-days` for them. Fractions are fine (`0.05` is about an hour); under an AI swarm order events are most of the file |
+| `--human-gateways`    | none            | Comma-separated gateway id globs, e.g. `TRADER*`, whose `order_events` prune on `--keep-human-order-events-days` instead. A person places a handful of orders a day and should not lose them on a clock set for a hundred bots |
+| `--keep-human-order-events-days` | as `--keep-order-events-days` | Keep N days of `order_events` for gateways matching `--human-gateways`; `0` keeps them for good. Requires `--human-gateways` — on its own it would match nobody and change nothing |
 | `--sql-trace`         | off             | Log executed SQLite SQL statements from the stats writer connection                             |
 | `--log-level`         | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                            |
 | `-v` / `--verbose`    | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                             |
@@ -2836,7 +2840,7 @@ that file exists:
 | `default` | The full nominal exchange stack, including audit, clearing, both API gateway instances, the BALF gateway, and the index calculation process (`pm-index`) |
 | `mm-demo` | `default` plus one `pm-mm-bot`: `passive` strategy, quoting as gateway `MM01` on every symbol of the deployed configuration (`--all-symbols`), deliberately slow (`--gap 0.20 --qty 200 --reissue-delay-ms 5000 --fade-ticks 3 --fade-sec 20 --drift-ticks 15`) so students can follow what a market maker does. All settings are command-line arguments; no bot config file is used. Needs a config that registers `MM01` and those symbols, such as `s10-basic` |
 | `ai-swarm` | The `default` set, `mm-demo`'s market-maker bot with `--anchor-sim 0.3` (quoting around the true values; an unanchored passive maker pins prices), `pm-market-sim --verbose` (the market model and its news) and `pm-ai-swarm --count 20 --budget 40 --symbols-per-agent 1000 --verbose`: twenty AI traders (`AI001`–`AI020`, every built-in preset in equal shares, each on every symbol) in one worker process. Needs a config that registers them and ships a `market_sim.yaml`, such as the `s150` examples or `s300-load` |
-| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 80 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.05` and `pm-clearing --print-every 0 --retention-days 7`. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
+| `ai-sim` | `ai-swarm` set up to run for weeks on the `s300-sim` example: `pm-ai-swarm --swarm <examples>/s300-sim-setup/swarm.yaml --verbose` (`AI001`–`AI100`, 80 order actions a second), the market maker with the `symmetric` strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), `pm-engine` without `--verbose`, `pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7` and `pm-clearing --print-every 0 --retention-days 7`. What the `edumatcher-ai-sim` image runs; needs `s300-sim` deployed. See [AI Traders and Market Simulation](../../ai-traders/part-3-run-it/110-the-simulation-container.md) |
 
 Run `pm-opctl-cli init` to write the built-ins to `emo-config.yaml` for editing;
 once that file exists its profiles replace the built-ins entirely (a missing

@@ -11,6 +11,16 @@ export function formatPrice(price: number | null | undefined, tickDecimals = 2):
   return price.toFixed(tickDecimals);
 }
 
+/** Format a signed money value with a leading + for gains. */
+export function formatSignedPrice(
+  price: number | null | undefined,
+  tickDecimals = 2,
+): string {
+  if (price === null || price === undefined) return "—";
+  const sign = price > 0 ? "+" : "";
+  return `${sign}${price.toFixed(tickDecimals)}`;
+}
+
 /** Format a quantity as a whole integer with thousands separator. */
 export function formatQty(qty: number | null | undefined): string {
   if (qty === null || qty === undefined) return "—";
