@@ -77,6 +77,13 @@ PYPI_VERSION := $(shell echo $(VERSION) | tr -d '-')
 BUILD_WHEEL  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION)-py3-none-any.whl
 BUILD_SDIST  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION).tar.gz
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+else
+    PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
+endif
+
 # ============================================================================================
 # Timestamp dependencies
 # ============================================================================================
@@ -98,8 +105,15 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE) build-tools/package.json
 	source .venv/bin/activate
 	@echo -e "$(GREEN)✓ Project python dependencies installed$(NC)"
 	@echo -e "$(DARKYELLOW)- Installing node build-tools for documentation...$(NC)"
-# If lock file exists run npm ci to install node build-tools dependencies
-# and if it doesn't exist, run npm install to create it
+# First check if PUPPETEER_EXECUTABLE_PATH target does exist
+	@if [ ! -f "$$PUPPETEER_EXECUTABLE_PATH" ]; then \
+		echo -e "$(RED)✗ Puppeteer executable not found at $$PUPPETEER_EXECUTABLE_PATH. Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH correctly.$(NC)"; \
+		exit 1; \
+	fi
+# If lock-file exists run "npm ci" to install node build-tools dependencies
+# and if it doesn't exist, run "npm install" to create it
+# We use skip download for Puppeteer to avoid unnecessary downloads since
+# PUPPETEER_EXECUTABLE_PATH points to the correct Chrome executable
 	@if [ -f build-tools/package-lock.json ]; then \
 		PUPPETEER_SKIP_DOWNLOAD=1 npm ci --prefix build-tools; \
 	else \
