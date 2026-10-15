@@ -132,6 +132,7 @@ _PROCESS_COLUMNS = [
     "last_seen_at",
     "last_heartbeat_at",
     "disconnected_at",
+    "disconnect_reason",
     "log_count",
 ]
 

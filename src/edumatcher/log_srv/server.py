@@ -327,7 +327,7 @@ class LogServer:
                     session.out_offset = 0
 
             if session.closing and not session.out_queue:
-                self._disconnect(session, reason="close_after_flush")
+                self._disconnect(session, reason=session.close_reason)
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -367,7 +367,7 @@ class LogServer:
         elif msg_type == "PING":
             self._queue_line(session, "PONG", {})
         elif msg_type == "EXIT":
-            self._close_after_flush(session)
+            self._close_after_flush(session, reason="client_exit")
         else:
             self._queue_line(
                 session,
@@ -680,10 +680,13 @@ class LogServer:
             with self._writer.lock, self._conn:
                 self._conn.execute(
                     UPDATE_PROCESS_DISCONNECTED,
-                    (iso_utc(time.time()), session.session_id),
+                    (iso_utc(time.time()), reason, session.session_id),
                 )
         log.info("client disconnected fd=%d client=%s reason=%s", fd, client, reason)
 
-    def _close_after_flush(self, session: LogSession) -> None:
+    def _close_after_flush(
+        self, session: LogSession, reason: str = "protocol_error"
+    ) -> None:
         session.closing = True
+        session.close_reason = reason
         log.debug("session fd=%d marked closing-after-flush", session.sock.fileno())

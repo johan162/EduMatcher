@@ -430,12 +430,30 @@ def _check_exception_clustering(
 # ---------------------------------------------------------------------------
 
 
+#: Disconnects that carry their own explanation. A client that sent EXIT
+#: shut down deliberately, and a session rejected during the handshake
+#: never became a running process — neither is a vanished process.
+_EXPECTED_DISCONNECT_REASONS = frozenset({"client_exit", "hello_timeout"})
+
+
 def _check_fallback_to_file(
     conn: sqlite3.Connection,
     *,
     process_filter: str | None,
     silence_threshold_sec: int,
 ) -> list[Finding]:
+    """Report a process that dropped off and never came back.
+
+    Only each process's *latest* session can qualify: an earlier one is
+    proof of nothing, because the existence of a later session row proves
+    the process reconnected. Looking at every session — and asking
+    ``log_events`` rather than ``processes`` whether it returned — is what
+    made this heuristic fire hundreds of times for a single process that
+    simply never logs anything.
+    """
+    # One row per process: the newest session by connected_at. SQLite's
+    # bare-column-with-MAX guarantee picks that row's other columns; the
+    # outer query then keeps only those that are closed.
     where = "disconnected_at IS NOT NULL"
     params: list[Any] = []
     if process_filter:
@@ -443,49 +461,60 @@ def _check_fallback_to_file(
         params.append(process_filter)
 
     rows = conn.execute(
-        f"SELECT process, session, disconnected_at FROM processes WHERE {where}",
+        "SELECT process, session, disconnected_at, disconnect_reason FROM ("
+        "  SELECT process, session, disconnected_at, disconnect_reason,"
+        "         MAX(connected_at) AS _latest"
+        "  FROM processes GROUP BY process"
+        f") WHERE {where}",
         params,
     ).fetchall()
 
     findings: list[Finding] = []
-    for proc, session, disconnected_at in rows:
-        # Any log_events row for this exact session after disconnected_at
-        # would mean the row arrived on a *different* (later) reconnect —
-        # sessions are per-connection, so no such row should exist; this
-        # check instead looks at whether the *process name* logged anything
-        # at all after this session's disconnect, on a different session.
+    now = datetime.now(tz=timezone.utc)
+    for proc, session, disconnected_at, reason in rows:
         try:
             disc = _parse_ts(disconnected_at)
         except ValueError:
             continue
-        later_rows = conn.execute(
-            "SELECT COUNT(*) FROM log_events WHERE process = ? AND client_ts > ?",
-            (proc, disconnected_at),
-        ).fetchone()[0]
-        idle_sec = (datetime.now(tz=timezone.utc) - disc).total_seconds()
-        if later_rows == 0 and idle_sec >= silence_threshold_sec:
-            findings.append(
-                Finding(
-                    heuristic="fallback_to_file",
-                    severity="warning",
-                    message=(
-                        f"{proc} disconnected from pm-log-srv at {disconnected_at} "
-                        f"and has not reconnected"
-                    ),
-                    recommendation=(
-                        f"This matches the file-failover signature (§8.6 of the "
-                        f"design doc) — check logs/{proc}.log for what it logged "
-                        f"after that point, since it is no longer visible to this "
-                        f"database."
-                    ),
-                    repro_command="pm-log-cli processes --format json",
-                    details={
-                        "process": proc,
-                        "session": session,
-                        "disconnected_at": disconnected_at,
-                    },
-                )
+        if (now - disc).total_seconds() < silence_threshold_sec:
+            continue
+        if reason in _EXPECTED_DISCONNECT_REASONS:
+            continue
+
+        # Rows written before disconnect_reason existed carry no evidence,
+        # so say what is actually known rather than guessing a cause.
+        if reason:
+            summary = (
+                f"{proc} disconnected from pm-log-srv at {disconnected_at} without "
+                f"sending EXIT (reason: {reason}) and has not reconnected"
             )
+        else:
+            summary = (
+                f"{proc} disconnected from pm-log-srv at {disconnected_at} and has "
+                f"not reconnected; the reason was not recorded, because this "
+                f"database predates disconnect-reason tracking"
+            )
+        findings.append(
+            Finding(
+                heuristic="fallback_to_file",
+                severity="warning",
+                message=summary,
+                recommendation=(
+                    f"The process either exited abnormally or failed over to file "
+                    f"logging (§8.6 of the design doc). Check whether {proc} is "
+                    f"still running, then check logs/{proc}.log for anything it "
+                    f"logged after that point — those records never reached this "
+                    f"database."
+                ),
+                repro_command="pm-log-cli processes --format json",
+                details={
+                    "process": proc,
+                    "session": session,
+                    "disconnected_at": disconnected_at,
+                    "disconnect_reason": reason,
+                },
+            )
+        )
     return findings
 
 

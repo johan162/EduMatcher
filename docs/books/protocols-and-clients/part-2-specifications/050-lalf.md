@@ -386,6 +386,13 @@ violation; the server MUST treat the closed socket identically to an
 explicit `EXIT` for the purpose of flushing buffered rows and marking the
 connection's stored process record disconnected.
 
+The shipped `pm-log-srv` does, however, record *which* of the two happened
+in `processes.disconnect_reason` (`client_exit` versus `peer_closed`,
+`idle_timeout`, `hello_timeout`, or `protocol_error`). Sending `EXIT` is
+therefore worth doing even though its absence is legal: it is what lets
+`pm-log-cli diagnose` tell a deliberate shutdown from a process that
+crashed or failed over to file logging.
+
 
 
 ## Backpressure

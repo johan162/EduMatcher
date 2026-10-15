@@ -25,6 +25,7 @@ class LogSession:
     out_queue: "list[bytes]" = field(default_factory=list)
     out_offset: int = 0
     closing: bool = False
+    close_reason: str = "protocol_error"
 
     # Handshake / identity state (§15.5)
     authenticated: bool = False

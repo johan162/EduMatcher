@@ -743,13 +743,19 @@ pm-log-cli processes [options]
 | `--active` | off | Only currently-connected sessions (no `disconnected_at`) |
 
 **Output columns:** `process`, `instance`, `pid`, `host`, `connected_at`,
-`last_seen_at`, `last_heartbeat_at`, `log_count`.
+`last_seen_at`, `last_heartbeat_at`, `disconnect_reason`, `log_count`.
 
 `last_seen_at` advances only when the process actually *logs* something;
 `last_heartbeat_at` advances on any contact, including the LALF `HB` frame
 an idle client sends every few seconds. A process with an old `last_seen_at`
 and a fresh `last_heartbeat_at` is connected and healthy with nothing to
 report. Both being stale is the case worth looking into.
+
+`disconnect_reason` says *how* a session ended: `client_exit` means the
+client sent `EXIT` and shut down deliberately, while `peer_closed`,
+`idle_timeout`, `hello_timeout`, or `protocol_error` mean it went away
+without saying goodbye. It is empty for sessions still open, and for
+sessions recorded before this column existed.
 
 **Examples:**
 
@@ -838,7 +844,7 @@ pm-log-cli diagnose [options]
 | Clock skew | A process's `client_ts` is consistently ahead of or behind `pm-log-srv`'s own clock |
 | Truncated-message rate | A process sent one or more oversized log messages that were truncated |
 | Exception clustering | Most tracebacks in the window come from one specific logger |
-| Likely fallback-to-file event | A process cleanly disconnected and never reconnected, distinct from a merely-stalled-but-open session |
+| Likely fallback-to-file event | A process's *most recent* session ended without a clean `EXIT` and it has not reconnected — it either exited abnormally or failed over to file logging. Deliberate shutdowns are ignored |
 
 Each finding cites the exact `pm-log-cli query` invocation that would
 reproduce it, so you can always drill from "here's what's flagged" to "here

@@ -694,6 +694,7 @@ CREATE INDEX ix_trade_events_symbol_date
 | `table: processes` | `last_seen_at` | `TEXT` | yes |  |  |
 | `table: processes` | `last_heartbeat_at` | `TEXT` | no |  |  |
 | `table: processes` | `disconnected_at` | `TEXT` | no |  |  |
+| `table: processes` | `disconnect_reason` | `TEXT` | no |  |  |
 | `table: processes` | `log_count` | `INTEGER` | yes | `0` |  |
 | `table: server_stats` | `id` | `INTEGER` | no |  | 1 |
 | `table: server_stats` | `started_at` | `TEXT` | yes |  |  |
@@ -739,6 +740,7 @@ CREATE TABLE processes (
     last_seen_at    TEXT NOT NULL,
     last_heartbeat_at TEXT,
     disconnected_at TEXT,
+    disconnect_reason TEXT,
     log_count       INTEGER NOT NULL DEFAULT 0
 )
 ```

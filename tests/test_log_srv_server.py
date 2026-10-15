@@ -235,6 +235,7 @@ def test_migration_adds_heartbeat_column_to_an_existing_db(tmp_path: Path) -> No
 
     cols = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
     assert "last_heartbeat_at" in cols
+    assert "disconnect_reason" in cols
     row = conn.execute(
         "SELECT log_count, last_heartbeat_at FROM processes WHERE session = 's1'"
     ).fetchone()
@@ -273,6 +274,47 @@ def test_heartbeat_advances_last_heartbeat_at(tmp_path: Path) -> None:
         # No LOG frame was ever sent, so the log clock must not have moved.
         assert row[0] < row[1]
         s.close()
+    finally:
+        rs.stop()
+
+
+def test_exit_frame_records_a_clean_disconnect_reason(tmp_path: Path) -> None:
+    """``diagnose`` needs EXIT distinguishable from a process that vanished."""
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.sendall(b"EXIT\n")
+        time.sleep(0.4)
+        row = (
+            rs.db()
+            .execute("SELECT disconnected_at, disconnect_reason FROM processes")
+            .fetchone()
+        )
+        assert row[0] is not None
+        assert row[1] == "client_exit"
+        s.close()
+    finally:
+        rs.stop()
+
+
+def test_dropped_connection_records_an_abnormal_disconnect_reason(
+    tmp_path: Path,
+) -> None:
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.close()
+        time.sleep(0.4)
+        reason = (
+            rs.db().execute("SELECT disconnect_reason FROM processes").fetchone()[0]
+        )
+        assert reason == "peer_closed"
     finally:
         rs.stop()
 

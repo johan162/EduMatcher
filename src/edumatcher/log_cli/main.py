@@ -51,6 +51,7 @@ _PROCESS_COLS = [
     "connected_at",
     "last_seen_at",
     "last_heartbeat_at",
+    "disconnect_reason",
     "log_count",
 ]
 
