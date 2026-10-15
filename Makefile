@@ -106,8 +106,8 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE) build-tools/package.json
 	@echo -e "$(GREEN)✓ Project python dependencies installed$(NC)"
 	@echo -e "$(DARKYELLOW)- Installing node build-tools for documentation...$(NC)"
 # First check if PUPPETEER_EXECUTABLE_PATH target does exist
-	@if [ ! -f "$$PUPPETEER_EXECUTABLE_PATH" ]; then \
-		echo -e "$(RED)✗ Puppeteer executable not found at $$PUPPETEER_EXECUTABLE_PATH. Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH correctly.$(NC)"; \
+	@if [ ! -f "$(PUPPETEER_EXECUTABLE_PATH)" ]; then \
+		echo -e "$(RED)✗ Puppeteer executable not found at $(PUPPETEER_EXECUTABLE_PATH). Install Google Chrome or set PUPPETEER_EXECUTABLE_PATH correctly.$(NC)"; \
 		exit 1; \
 	fi
 # If lock-file exists run "npm ci" to install node build-tools dependencies
