@@ -242,6 +242,102 @@ class TestLedger:
         assert buy_pos.net_qty == 100
         assert sell_pos.net_qty == -100
 
+    def test_bystander_position_marked_to_last_traded_price(self) -> None:
+        """A holder that is not a counterparty is still marked to the market."""
+        ledger = Ledger()
+        ts = self._make_ts(1)
+        # GW_A buys 17 @ 22248 and then stops trading.
+        ledger.apply_trade(
+            symbol="AAL",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_B",
+            price=22248,
+            quantity=17,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        pos = ledger.position("GW_A", "AAL")
+        assert pos is not None
+        assert pos.unrealized_pnl == 0.0
+
+        # The market trades higher between two other gateways.
+        ledger.apply_trade(
+            symbol="AAL",
+            buy_gateway_id="GW_C",
+            sell_gateway_id="GW_D",
+            price=22272,
+            quantity=5,
+            ts_ns=ts + 1,
+            ingest_ts_ns=ts + 1,
+        )
+
+        assert pos.net_qty == 17
+        assert pos.avg_cost == 22248.0
+        assert pos.mark_price == 22272
+        assert pos.unrealized_pnl == pytest.approx(17 * 24.0)
+
+    def test_remarked_bystander_is_flushed(self) -> None:
+        """Re-marked positions are emitted even though they did not trade."""
+        ledger = Ledger()
+        ts = self._make_ts(1)
+        ledger.apply_trade(
+            symbol="AAL",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_B",
+            price=22248,
+            quantity=17,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        ledger.clear_batch()
+        ledger.apply_trade(
+            symbol="AAL",
+            buy_gateway_id="GW_C",
+            sell_gateway_id="GW_D",
+            price=22272,
+            quantity=5,
+            ts_ns=ts + 1,
+            ingest_ts_ns=ts + 1,
+        )
+
+        pos_rows, _ = ledger.get_flush_rows(updated_ts_ns=ts + 2)
+        emitted = {(r.gateway_id, r.symbol): r for r in pos_rows}
+        assert ("GW_A", "AAL") in emitted
+        assert emitted[("GW_A", "AAL")].unrealized_pnl == pytest.approx(17 * 24.0)
+        assert emitted[("GW_A", "AAL")].mark_price == 22272
+
+    def test_remark_skips_other_symbols_and_flat_positions(self) -> None:
+        ledger = Ledger()
+        ts = self._make_ts(1)
+        ledger.apply_trade(
+            symbol="MSFT",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_B",
+            price=1000,
+            quantity=10,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        ledger.clear_batch()
+        ledger.apply_trade(
+            symbol="AAL",
+            buy_gateway_id="GW_C",
+            sell_gateway_id="GW_D",
+            price=22272,
+            quantity=5,
+            ts_ns=ts + 1,
+            ingest_ts_ns=ts + 1,
+        )
+
+        msft = ledger.position("GW_A", "MSFT")
+        assert msft is not None
+        assert msft.mark_price == 1000
+        emitted = {
+            (r.gateway_id, r.symbol)
+            for r in ledger.get_flush_rows(updated_ts_ns=ts + 2)[0]
+        }
+        assert emitted == {("GW_C", "AAL"), ("GW_D", "AAL")}
+
     def test_get_flush_rows_returns_position_and_daily(self) -> None:
         ledger = Ledger()
         ts = self._make_ts(1)
