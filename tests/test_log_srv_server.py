@@ -257,6 +257,10 @@ def test_heartbeat_advances_last_heartbeat_at(tmp_path: Path) -> None:
         s.sendall(b"HELLO|CLIENT=pm-dc-gwy|PID=1|HOST=h|PROTO=LALF1\n")
         _recv_all(s)
 
+        # Registration is deferred to first activity, so the row only
+        # exists once the client has heartbeated at least once.
+        s.sendall(b"HB\n")
+        time.sleep(0.4)
         before = (
             rs.db().execute("SELECT last_heartbeat_at FROM processes").fetchone()[0]
         )
@@ -286,6 +290,8 @@ def test_exit_frame_records_a_clean_disconnect_reason(tmp_path: Path) -> None:
         s = rs.connect()
         s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
         _recv_all(s)
+        s.sendall(b"HB\n")
+        time.sleep(0.3)
         s.sendall(b"EXIT\n")
         time.sleep(0.4)
         row = (
@@ -309,12 +315,36 @@ def test_dropped_connection_records_an_abnormal_disconnect_reason(
         s = rs.connect()
         s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
         _recv_all(s)
+        s.sendall(b"HB\n")
+        time.sleep(0.3)
         s.close()
         time.sleep(0.4)
         reason = (
             rs.db().execute("SELECT disconnect_reason FROM processes").fetchone()[0]
         )
         assert reason == "peer_closed"
+    finally:
+        rs.stop()
+
+
+def test_reachability_probe_leaves_no_process_row(tmp_path: Path) -> None:
+    """A HELLO/WELCOME probe must not register a process that never ran.
+
+    ``discovery._probe_server`` opens a short-lived socket purely to decide
+    whether a server is listening. Registering it made ``processes`` fill
+    with phantom rows for tools that were never started — on a live system
+    they outnumbered real sessions ten to one and buried every genuine
+    process-level diagnostic.
+    """
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.close()
+        time.sleep(0.4)
+        assert rs.db().execute("SELECT COUNT(*) FROM processes").fetchone()[0] == 0
     finally:
         rs.stop()
 

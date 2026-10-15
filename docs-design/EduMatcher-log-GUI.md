@@ -393,14 +393,22 @@ N" as a neutral observation. See §23 question 5.
 
 The same shape of defect applied to `fallback_to_file`, and was fixed the
 same way. It asked `log_events` whether a process had reconnected, which a
-process that never logs — `pm-viewer` is a TUI and logs nothing — can never
-satisfy, so every one of its historical sessions was reported forever
-(1330 findings on a half-day database). Reconnection is now read from
-`processes`, where it is recorded directly, and only each process's latest
-session can qualify. The server also discarded the disconnect reason it
-already knew; `processes.disconnect_reason` now records it, so a client
-that sent `EXIT` is recognised as a deliberate shutdown rather than a
-suspected failover.
+process that never logs can never satisfy, so every one of its historical
+sessions was reported forever (1330 findings on a half-day database).
+Reconnection is now read from `processes`, where it is recorded directly,
+and only each process's latest session can qualify. The server also
+discarded the disconnect reason it already knew; `processes.disconnect_reason`
+now records it, so a client that sent `EXIT` is recognised as a deliberate
+shutdown rather than a suspected failover.
+
+Chasing that finding exposed the underlying cause: `processes` was being
+written at the end of the LALF handshake, so the startup reachability probe
+in `logclient.discovery._probe_server` — a throwaway `HELLO`/`WELCOME` that
+never logs — registered as a running process. On a developer machine whose
+test suite reaches a live `pm-log-srv`, a single `pytest` run added 218 such
+rows, for tools that were never started. Registration is now deferred to the
+first `LOG` or `HB` frame, so the registry only contains processes that
+actually had something to say.
 
 **Gap 5 — no historical record of LALF-PS subscriber counts.**
 `log.server_state` is a live tick; nothing persists it. Server Health

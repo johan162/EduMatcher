@@ -361,8 +361,10 @@ class LogServer:
             return
 
         if msg_type == "LOG":
+            self._register_process(session)
             self._handle_log(session, fields, frame.payload or b"")
         elif msg_type == "HB":
+            self._register_process(session)
             session.last_activity = time.monotonic()
         elif msg_type == "PING":
             self._queue_line(session, "PONG", {})
@@ -422,20 +424,8 @@ class LogServer:
         session.persisted_activity = session.last_activity
 
         now_iso = iso_utc(time.time())
+        session.connected_at_iso = now_iso
         with self._writer.lock, self._conn:
-            self._conn.execute(
-                UPSERT_PROCESS_CONNECT,
-                (
-                    session.session_id,
-                    client,
-                    instance,
-                    pid,
-                    host,
-                    now_iso,
-                    now_iso,
-                    now_iso,
-                ),
-            )
             self._conn.execute(INCREMENT_TOTAL_CONNECTIONS)
 
         welcome_fields = {
@@ -546,6 +536,35 @@ class LogServer:
         self._writer.enqueue(row)
         self._dbg_count("log_events_enqueued")
 
+    def _register_process(self, session: LogSession) -> None:
+        """Write this session's ``processes`` row, once, on first activity.
+
+        Registration is deferred out of the handshake so that
+        :func:`edumatcher.logclient.discovery._probe_server` — which sends
+        ``HELLO``, reads ``WELCOME`` and hangs up purely to decide whether
+        a server is listening — does not leave behind a record of a process
+        that never ran. Such probes outnumbered real sessions by orders of
+        magnitude and made every process-level diagnostic unusable.
+        """
+        if session.registered:
+            return
+        session.registered = True
+        now_iso = iso_utc(time.time())
+        with self._writer.lock, self._conn:
+            self._conn.execute(
+                UPSERT_PROCESS_CONNECT,
+                (
+                    session.session_id,
+                    session.client,
+                    session.instance,
+                    session.pid,
+                    session.host,
+                    session.connected_at_iso or now_iso,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+
     # ------------------------------------------------------------------
     # Heartbeat / idle / retention
     # ------------------------------------------------------------------
@@ -619,7 +638,9 @@ class LogServer:
         due = [
             s
             for s in self._clients.values()
-            if s.authenticated and s.last_activity > s.persisted_activity
+            if s.authenticated
+            and s.registered
+            and s.last_activity > s.persisted_activity
         ]
         if not due:
             return
@@ -676,7 +697,7 @@ class LogServer:
         except OSError:
             pass
         self._clients.pop(fd, None)
-        if session.authenticated:
+        if session.registered:
             with self._writer.lock, self._conn:
                 self._conn.execute(
                     UPDATE_PROCESS_DISCONNECTED,

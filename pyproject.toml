@@ -118,6 +118,7 @@ markers = [
     # addopts below has always deselected "heavy", but the marker was never
     # registered -- so under --strict-markers nothing could actually use it.
     "heavy: long-running tests, deselected by default (run with '-m heavy')",
+    "real_log_discovery: opt out of the conftest guard that blocks pm-log-srv auto-detection",
 ]
 addopts = [
     "--strict-markers",

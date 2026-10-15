@@ -227,6 +227,13 @@ of the connection.
 WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=a1b2c3d4
 ```
 
+A `HELLO`/`WELCOME` exchange is a valid use of the protocol on its own: a
+client may complete the handshake purely to discover whether a server is
+listening, then disconnect without logging. The shipped `pm-log-srv`
+therefore does not enter a session into its `processes` registry until the
+first `LOG` or `HB` frame arrives, so such probes leave no record of a
+process that never ran.
+
 A `WELCOME` is the sole positive acknowledgment of a `HELLO`; there is no
 separate `ACK` for the handshake.
 

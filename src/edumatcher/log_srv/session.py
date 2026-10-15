@@ -35,6 +35,17 @@ class LogSession:
     instance: str | None = None
     session_id: str = ""
 
+    #: Wall-clock ISO timestamp of the completed handshake, carried so the
+    #: deferred ``processes`` row still records when the client connected
+    #: rather than when it first spoke.
+    connected_at_iso: str = ""
+
+    #: Whether this session has a row in ``processes``. Registration is
+    #: deferred until the client logs or heartbeats, so a bare reachability
+    #: probe (``discovery._probe_server``) leaves no trace of a process
+    #: that never ran.
+    registered: bool = False
+
     # Absolute connection timestamp for handshake-timeout checks.
     connected_at: float = field(default_factory=time.monotonic)
 

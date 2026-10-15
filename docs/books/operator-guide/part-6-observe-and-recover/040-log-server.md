@@ -757,6 +757,14 @@ client sent `EXIT` and shut down deliberately, while `peer_closed`,
 without saying goodbye. It is empty for sessions still open, and for
 sessions recorded before this column existed.
 
+A session appears here only once it has actually sent a `LOG` or `HB`
+frame, not merely completed the handshake. Every `pm-*` process probes for
+a running `pm-log-srv` at startup by opening a throwaway connection, sending
+`HELLO`, reading `WELCOME` and hanging up again; counting those probes as
+processes filled this table with tools that were never started. If you are
+looking for a process you expect to be connected and it is absent, it has
+either not started or not yet logged anything.
+
 **Examples:**
 
 ```bash
