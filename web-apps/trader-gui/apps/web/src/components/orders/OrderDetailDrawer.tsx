@@ -147,6 +147,30 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
 
   const is503 = historyQuery.error instanceof ApiError && historyQuery.error.status === 503;
 
+  // pm-stats deletes order events older than its retention window. Every
+  // order opens with an ACK or a REJECT, so a timeline without one has had
+  // its start pruned -- a live ACK counts, since a brand-new order is not
+  // in stats.db yet.
+  const retainedFrom = historyQuery.data?.retained_from;
+  const truncated =
+    Boolean(retainedFrom) &&
+    !entries.some((e) => e.event_type === "ACK" || e.event_type === "REJECT");
+  const retainedLabel =
+    truncated && retainedFrom
+      ? (() => {
+          const d = new Date(retainedFrom);
+          const p = (n: number) => String(n).padStart(2, "0");
+          const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+          const time = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+          const today = new Date();
+          const isToday =
+            d.getFullYear() === today.getFullYear() &&
+            d.getMonth() === today.getMonth() &&
+            d.getDate() === today.getDate();
+          return isToday ? time : `${day} ${time}`;
+        })()
+      : null;
+
   return (
     <aside
       role="dialog"
@@ -194,7 +218,21 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
           </p>
         )}
 
-        {!historyQuery.isLoading && !is503 && entries.length === 0 && (
+        {!historyQuery.isLoading && !is503 && truncated && (
+          <p
+            className="mb-2 text-xs text-fg-dim cursor-help"
+            title={
+              "pm-stats keeps order events for a limited window " +
+              "(--keep-order-events-days) and deletes everything older. This order " +
+              "was placed before that point, so part of its timeline — or all of it — " +
+              "is gone, even though the order itself may still show as FILLED."
+            }
+          >
+            Earlier events pruned — history retained from {retainedLabel}.
+          </p>
+        )}
+
+        {!historyQuery.isLoading && !is503 && !truncated && entries.length === 0 && (
           <p className="text-xs text-fg-dim">No recorded events yet.</p>
         )}
 

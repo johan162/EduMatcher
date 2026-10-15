@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from edumatcher.log_srv.config import LogServerConfig
+from edumatcher.log_srv.schema import initialize_schema
 from edumatcher.log_srv.server import LogServer
 from tests.conftest import free_port
 
@@ -214,6 +215,138 @@ def test_ping_pong(running_server: _RunningServer) -> None:
     resp = _recv_all(s)
     assert b"PONG" in resp
     s.close()
+
+
+def test_migration_adds_heartbeat_column_to_an_existing_db(tmp_path: Path) -> None:
+    """A log.db written before the column existed must survive the upgrade."""
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript(
+        "CREATE TABLE processes (session TEXT, process TEXT, instance TEXT, "
+        "pid INTEGER, host TEXT, connected_at TEXT, last_seen_at TEXT, "
+        "disconnected_at TEXT, log_count INTEGER);"
+    )
+    conn.execute(
+        "INSERT INTO processes (session, process, log_count) VALUES ('s1', 'pm-x', 7)"
+    )
+    conn.commit()
+
+    initialize_schema(conn)
+
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
+    assert "last_heartbeat_at" in cols
+    assert "disconnect_reason" in cols
+    row = conn.execute(
+        "SELECT log_count, last_heartbeat_at FROM processes WHERE session = 's1'"
+    ).fetchone()
+    assert row == (7, None)
+    conn.close()
+
+
+def test_heartbeat_advances_last_heartbeat_at(tmp_path: Path) -> None:
+    """A quiet client that only heartbeats must still look alive in the DB.
+
+    Guards the false ``process_silence`` diagnosis: ``last_seen_at`` only
+    advances on LOG frames, so an idle-but-healthy process needs HB to leave
+    a trace of its own.
+    """
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-dc-gwy|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+
+        # Registration is deferred to first activity, so the row only
+        # exists once the client has heartbeated at least once.
+        s.sendall(b"HB\n")
+        time.sleep(0.4)
+        before = (
+            rs.db().execute("SELECT last_heartbeat_at FROM processes").fetchone()[0]
+        )
+
+        s.sendall(b"HB\n")
+        time.sleep(rs.config.heartbeat_interval_sec + 0.5)
+
+        row = (
+            rs.db()
+            .execute("SELECT last_seen_at, last_heartbeat_at FROM processes")
+            .fetchone()
+        )
+        assert row[1] is not None
+        assert row[1] > before
+        # No LOG frame was ever sent, so the log clock must not have moved.
+        assert row[0] < row[1]
+        s.close()
+    finally:
+        rs.stop()
+
+
+def test_exit_frame_records_a_clean_disconnect_reason(tmp_path: Path) -> None:
+    """``diagnose`` needs EXIT distinguishable from a process that vanished."""
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.sendall(b"HB\n")
+        time.sleep(0.3)
+        s.sendall(b"EXIT\n")
+        time.sleep(0.4)
+        row = (
+            rs.db()
+            .execute("SELECT disconnected_at, disconnect_reason FROM processes")
+            .fetchone()
+        )
+        assert row[0] is not None
+        assert row[1] == "client_exit"
+        s.close()
+    finally:
+        rs.stop()
+
+
+def test_dropped_connection_records_an_abnormal_disconnect_reason(
+    tmp_path: Path,
+) -> None:
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.sendall(b"HB\n")
+        time.sleep(0.3)
+        s.close()
+        time.sleep(0.4)
+        reason = (
+            rs.db().execute("SELECT disconnect_reason FROM processes").fetchone()[0]
+        )
+        assert reason == "peer_closed"
+    finally:
+        rs.stop()
+
+
+def test_reachability_probe_leaves_no_process_row(tmp_path: Path) -> None:
+    """A HELLO/WELCOME probe must not register a process that never ran.
+
+    ``discovery._probe_server`` opens a short-lived socket purely to decide
+    whether a server is listening. Registering it made ``processes`` fill
+    with phantom rows for tools that were never started — on a live system
+    they outnumbered real sessions ten to one and buried every genuine
+    process-level diagnostic.
+    """
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-viewer|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+        s.close()
+        time.sleep(0.4)
+        assert rs.db().execute("SELECT COUNT(*) FROM processes").fetchone()[0] == 0
+    finally:
+        rs.stop()
 
 
 def test_concurrent_clients_all_rows_persisted(tmp_path: Path) -> None:

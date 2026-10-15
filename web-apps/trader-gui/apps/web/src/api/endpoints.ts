@@ -188,7 +188,12 @@ export const getHistoryFills = async (params?: Record<string, string>) => {
     nextCursor = response.next_cursor;
   } while (nextCursor);
 
-  return { events, count: events.length, has_more: false };
+  return {
+    events,
+    count: events.length,
+    has_more: false,
+    retained_from: response.retained_from,
+  };
 };
 
 export const getHistoryTrades = (symbol: string, limit = 50) =>

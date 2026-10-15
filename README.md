@@ -22,16 +22,39 @@ separate processes that talk to each other the way a real venue's do.
 
 ## Quick start
 
+### A clean exchange with only you as a trader
+
 With Podman or Docker installed, one command gets you a running exchange and
 five web applications:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
+bash
 cd ~/.edumatcher 
 ```
 
 The exchange is now running on a bundled configuration.  
-The `pm-*` commands, the control plane of the exchange, lives *inside* the container.  
+The `pm-*` commands, the control plane of the exchange, lives *inside* the container. The exchage now
+waits for you to make a move! If you feel it is lonely inthe exchange being the only trader, read the next
+section!
+
+
+### A buzzling and hustling live simulated exchange with 100 of other traders
+
+With Podman or Docker installed, one command gets you a running exchange with 300 symbols and 100 of automated traders that you can watch live and connect to. This is a sophisticated simulation with an advanced market
+model including news and roumours that affects price discovery.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
+bash -s -- --sim
+cd ~/.edumatcher-sim
+```
+
+### Commands to try 
+
+Regardless if you started an empty exchange or the simulated exchange you run i and rade 
+with it the exact same wy:
+
 Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
 ```bash
@@ -177,7 +200,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.50.2}
+  version = {0.50.3}
 }
 ```
 

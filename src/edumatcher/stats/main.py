@@ -5,6 +5,8 @@ Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
                       [--timezone TZ] [--keep-days N]
                       [--keep-order-events-days N]
+                      [--human-gateways GLOB,...]
+                      [--keep-human-order-events-days N]
 
 Retention
 ---------
@@ -15,6 +17,14 @@ Retention
   ``--keep-order-events-days`` gives order_events a retention of its own:
   under an AI swarm they are almost all of the file, so a long run keeps
   hours of them and days of everything else.
+
+  A single order-event retention has to be set short enough for the
+  bots, which then deletes a human trader's handful of rows along with
+  the swarm's millions. ``--human-gateways`` names the gateways that are
+  not bots (glob patterns, e.g. ``TRADER*``) and
+  ``--keep-human-order-events-days`` gives them a retention of their own,
+  so a person can keep a week of their own fills while the swarm keeps
+  hours. Matched gateways are still pruned — just on a slower clock.
 
 Dates and timestamps
 --------------------
@@ -90,6 +100,7 @@ import sys
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
@@ -137,6 +148,11 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
+from edumatcher.stats.query import (
+    META_HUMAN_GATEWAYS,
+    META_KEEP_HUMAN_ORDER_EVENTS_DAYS,
+    META_KEEP_ORDER_EVENTS_DAYS,
+)
 from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
@@ -844,6 +860,8 @@ class StatsProcess:
         session_tz: tzinfo = timezone.utc,
         keep_days: float = 0.0,
         keep_order_events_days: float | None = None,
+        human_gateways: Sequence[str] = (),
+        keep_human_order_events_days: float | None = None,
     ) -> None:
         self._db_path = db_path
         #: Days of per-event rows to keep; 0 keeps everything.
@@ -851,6 +869,16 @@ class StatsProcess:
         #: The same for order_events alone; None follows keep_days.
         self._keep_order_events_days = (
             keep_days if keep_order_events_days is None else keep_order_events_days
+        )
+        #: Glob patterns for gateways that are people rather than bots.
+        #: Empty means one retention for everyone, as before.
+        self._human_gateways = tuple(human_gateways)
+        #: order_events retention for those gateways; None follows the
+        #: ordinary order-event retention, making the split a no-op.
+        self._keep_human_order_events_days = (
+            self._keep_order_events_days
+            if keep_human_order_events_days is None
+            else keep_human_order_events_days
         )
         self._last_prune: float | None = None
         self._sql_trace = bool(sql_trace)
@@ -872,6 +900,7 @@ class StatsProcess:
             raise
         self._lock = threading.Lock()
         self._running = True
+        self._record_retention_meta()
         self._snapshot_interval_sec = snapshot_interval_sec
         self._tz = session_tz
         # Set when the receive thread stops for any reason other than a clean
@@ -1732,8 +1761,55 @@ class StatsProcess:
                 log.error("failed to record topic=%s err=%s", topic, exc)
                 self._dbg_count("records_dropped")
 
+    def _record_retention_meta(self) -> None:
+        """Publish the order-event retention into ``stats_meta``.
+
+        A reader cannot otherwise tell a pruned history from an idle
+        gateway: both look like a short list of rows. Written on every
+        start so the file always describes the retention actually in
+        force, not the one it was created with.
+        """
+        self._conn.execute(
+            UPSERT_META,
+            (META_KEEP_ORDER_EVENTS_DAYS, str(self._keep_order_events_days)),
+        )
+        self._conn.execute(
+            UPSERT_META, (META_HUMAN_GATEWAYS, ",".join(self._human_gateways))
+        )
+        self._conn.execute(
+            UPSERT_META,
+            (
+                META_KEEP_HUMAN_ORDER_EVENTS_DAYS,
+                str(self._keep_human_order_events_days),
+            ),
+        )
+        self._conn.commit()
+
+    def _order_event_prune_tiers(self) -> list[tuple[str, float]]:
+        """``(statement, days)`` for each order-event retention tier.
+
+        Without ``--human-gateways`` this is the single statement it has
+        always been. With it, the table is split in two: matched gateways
+        prune on their own (longer) clock, everyone else on the ordinary
+        one. A tier with retention 0 keeps everything, so it contributes
+        no statement — which is how exempting a gateway outright works.
+        """
+        if not self._human_gateways:
+            days = self._keep_order_events_days
+            return [(_prune_order_events((), human=False), days)] if days > 0 else []
+        tiers = [
+            (self._keep_order_events_days, False),
+            (self._keep_human_order_events_days, True),
+        ]
+        return [
+            (_prune_order_events(self._human_gateways, human=human), days)
+            for days, human in tiers
+            if days > 0
+        ]
+
     def _prune_if_due(self) -> None:
-        if self._keep_days <= 0 and self._keep_order_events_days <= 0:
+        order_event_tiers = self._order_event_prune_tiers()
+        if self._keep_days <= 0 and not order_event_tiers:
             return
         now = time.monotonic()
         if (
@@ -1743,14 +1819,10 @@ class StatsProcess:
             return
         self._last_prune = now
         statements = [
-            (statement, days)
-            for days, group in (
-                (self._keep_days, _PRUNE_STATEMENTS),
-                (self._keep_order_events_days, _PRUNE_ORDER_EVENTS),
-            )
-            if days > 0
-            for statement in group
+            (statement, self._keep_days)
+            for statement in (_PRUNE_STATEMENTS if self._keep_days > 0 else ())
         ]
+        statements.extend(order_event_tiers)
         deleted = 0
         with self._lock, self._conn:
             for statement, days in statements:
@@ -1953,12 +2025,42 @@ def _prune_by_key(table: str, key: str) -> str:
         (SELECT MAX({key}) + 1 FROM {table}))"""
 
 
+def _gateway_glob_predicate(patterns: Sequence[str], *, negate: bool) -> str:
+    """``gateway_id`` test matching (or not matching) any of *patterns*.
+
+    SQLite's ``GLOB`` takes the shell-style patterns the flag documents,
+    so ``TRADER*`` means what a user expects without a regex detour. The
+    patterns are inlined as SQL string literals rather than bound
+    parameters because the prune statements are built once and cached as
+    text; they come from the command line and are validated at parse
+    time, and the quote-doubling here keeps a stray apostrophe from
+    terminating the literal.
+    """
+    quoted = [p.replace("'", "''") for p in patterns]
+    joined = " OR ".join(f"gateway_id GLOB '{p}'" for p in quoted)
+    return f"NOT ({joined})" if negate else f"({joined})"
+
+
+def _prune_order_events(patterns: Sequence[str], *, human: bool) -> str:
+    """Prune ``order_events`` for one retention tier.
+
+    The ``seq`` watermark subquery is kept from the single-tier statement:
+    it finds the first row inside the window in primary-key order, so the
+    delete still only touches rows at the head of the table. The
+    ``gateway_id`` test then splits that range between the two tiers,
+    which is why each tier's cutoff can differ without a second scan.
+    """
+    base = _prune_by_key("order_events", "seq")
+    if not patterns:
+        return base
+    return f"{base} AND {_gateway_glob_predicate(patterns, negate=not human)}"
+
+
 _PRUNE_STATEMENTS = (
     _prune_by_key("trade_log", "rowid"),
     "DELETE FROM price_snapshots WHERE ts < :cutoff",
     "DELETE FROM feed_gaps WHERE ts < :cutoff",
 )
-_PRUNE_ORDER_EVENTS = (_prune_by_key("order_events", "seq"),)
 
 
 def _is_order_event_topic(topic: str) -> bool:
@@ -2090,6 +2192,28 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--human-gateways",
+        default="",
+        metavar="GLOB[,GLOB...]",
+        help=(
+            "Comma-separated glob patterns for gateways that are people "
+            "rather than bots, e.g. 'TRADER*'. Their order events prune on "
+            "--keep-human-order-events-days instead of the ordinary "
+            "retention (default: none, one retention for everyone)"
+        ),
+    )
+    parser.add_argument(
+        "--keep-human-order-events-days",
+        type=float,
+        default=None,
+        metavar="N",
+        help=(
+            "Keep N days of order events for --human-gateways; a single "
+            "retention short enough for a swarm also deletes a person's few "
+            "rows (default: as --keep-order-events-days)"
+        ),
+    )
+    parser.add_argument(
         "--sql-trace",
         action="store_true",
         help="Log executed SQLite statements from the stats writer connection",
@@ -2209,6 +2333,23 @@ def main() -> None:
         parser.error("--keep-days must be >= 0")
     if args.keep_order_events_days is not None and args.keep_order_events_days < 0:
         parser.error("--keep-order-events-days must be >= 0")
+    if (
+        args.keep_human_order_events_days is not None
+        and args.keep_human_order_events_days < 0
+    ):
+        parser.error("--keep-human-order-events-days must be >= 0")
+    human_gateways = tuple(
+        pattern
+        for pattern in (p.strip() for p in args.human_gateways.split(","))
+        if pattern
+    )
+    if args.keep_human_order_events_days is not None and not human_gateways:
+        # The retention would apply to nobody, so the flag would appear to
+        # work while changing nothing at all.
+        parser.error(
+            "--keep-human-order-events-days needs --human-gateways to say "
+            "which gateways it applies to"
+        )
     if args.snapshot_interval < MIN_SNAPSHOT_INTERVAL_SEC:
         # price_snapshots is keyed on (ts, symbol) at second precision, so a
         # sub-second interval asks for rows the table cannot hold: the extras
@@ -2241,6 +2382,8 @@ def main() -> None:
             session_tz=session_tz,
             keep_days=args.keep_days,
             keep_order_events_days=args.keep_order_events_days,
+            human_gateways=human_gateways,
+            keep_human_order_events_days=args.keep_human_order_events_days,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

@@ -25,6 +25,7 @@ class LogSession:
     out_queue: "list[bytes]" = field(default_factory=list)
     out_offset: int = 0
     closing: bool = False
+    close_reason: str = "protocol_error"
 
     # Handshake / identity state (§15.5)
     authenticated: bool = False
@@ -34,11 +35,27 @@ class LogSession:
     instance: str | None = None
     session_id: str = ""
 
+    #: Wall-clock ISO timestamp of the completed handshake, carried so the
+    #: deferred ``processes`` row still records when the client connected
+    #: rather than when it first spoke.
+    connected_at_iso: str = ""
+
+    #: Whether this session has a row in ``processes``. Registration is
+    #: deferred until the client logs or heartbeats, so a bare reachability
+    #: probe (``discovery._probe_server``) leaves no trace of a process
+    #: that never ran.
+    registered: bool = False
+
     # Absolute connection timestamp for handshake-timeout checks.
     connected_at: float = field(default_factory=time.monotonic)
 
     # Timestamp used for both hello-timeout and idle-timeout checks.
     last_activity: float = field(default_factory=time.monotonic)
+
+    #: Value of ``last_activity`` at the last heartbeat flush to the
+    #: database. Lets the flush skip sessions that have said nothing since,
+    #: so an idle fleet costs no writes at all.
+    persisted_activity: float = 0.0
 
     # Highest SEQ seen from this connection so far (0 = none yet) — purely
     # observational bookkeeping; LALF defines no server-side action on a

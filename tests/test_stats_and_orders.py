@@ -1193,7 +1193,11 @@ class TestStatsMain:
 class TestRetention:
     @staticmethod
     def _make(
-        tmp_path: Path, keep_days: float, keep_order_events_days: float | None = None
+        tmp_path: Path,
+        keep_days: float,
+        keep_order_events_days: float | None = None,
+        human_gateways: tuple[str, ...] = (),
+        keep_human_order_events_days: float | None = None,
     ) -> StatsProcess:
         fake_sock = MagicMock()
         with (
@@ -1204,6 +1208,8 @@ class TestRetention:
                 tmp_path / "test.db",
                 keep_days=keep_days,
                 keep_order_events_days=keep_order_events_days,
+                human_gateways=human_gateways,
+                keep_human_order_events_days=keep_human_order_events_days,
             )
 
     @staticmethod
@@ -1289,6 +1295,87 @@ class TestRetention:
         self._fill(proc, ["2000-01-03T10:00:00.000+00:00"])
         proc._prune_if_due()
         assert self._counts(proc) == [1, 0, 1, 1, 1]
+        proc.close()
+
+    def test_human_gateways_prune_on_their_own_slower_clock(
+        self, tmp_path: Path
+    ) -> None:
+        """A single retention short enough for a swarm deletes a person's
+        few rows along with the bots' millions. The human tier keeps days
+        where the bot tier keeps hours, in the same table.
+        """
+        now = datetime.now(timezone.utc)
+        proc = self._make(
+            tmp_path,
+            keep_days=0,
+            keep_order_events_days=0.125,
+            human_gateways=("TRADER*",),
+            keep_human_order_events_days=7,
+        )
+        with proc._conn:
+            for gateway in ("AI001", "TRADER01"):
+                for hours, tag in ((30, "old"), (1, "new")):
+                    proc._conn.execute(
+                        "INSERT INTO order_events (ts, event_type, order_id,"
+                        " gateway_id, symbol) VALUES (?, 'ACK', ?, ?, 'AAPL')",
+                        (
+                            (now - timedelta(hours=hours)).isoformat(
+                                timespec="milliseconds"
+                            ),
+                            f"{gateway}-{tag}",
+                            gateway,
+                        ),
+                    )
+        proc._prune_if_due()
+        survivors = {
+            row[0] for row in proc._conn.execute("SELECT order_id FROM order_events")
+        }
+        # The bot's 30-hour-old row is past its 3-hour window; the human's
+        # is well inside seven days.
+        assert survivors == {"AI001-new", "TRADER01-old", "TRADER01-new"}
+        proc.close()
+
+    def test_human_tier_can_be_exempt_while_bots_still_prune(
+        self, tmp_path: Path
+    ) -> None:
+        """Retention 0 on the human tier keeps everything for them."""
+        proc = self._make(
+            tmp_path,
+            keep_days=0,
+            keep_order_events_days=1,
+            human_gateways=("TRADER*",),
+            keep_human_order_events_days=0,
+        )
+        with proc._conn:
+            for gateway in ("AI001", "TRADER01"):
+                proc._conn.execute(
+                    "INSERT INTO order_events (ts, event_type, order_id,"
+                    " gateway_id, symbol) VALUES"
+                    " ('2000-01-03T10:00:00.000+00:00', 'ACK', ?, ?, 'AAPL')",
+                    (gateway, gateway),
+                )
+        proc._prune_if_due()
+        survivors = {
+            row[0] for row in proc._conn.execute("SELECT order_id FROM order_events")
+        }
+        assert survivors == {"TRADER01"}
+        proc.close()
+
+    def test_retention_is_recorded_in_stats_meta(self, tmp_path: Path) -> None:
+        """A reader cannot tell a pruned history from an idle gateway
+        unless the file states the retention in force.
+        """
+        proc = self._make(
+            tmp_path,
+            keep_days=0,
+            keep_order_events_days=0.5,
+            human_gateways=("TRADER*",),
+            keep_human_order_events_days=7,
+        )
+        meta = dict(proc._conn.execute("SELECT key, value FROM stats_meta"))
+        assert meta["keep_order_events_days"] == "0.5"
+        assert meta["human_gateways"] == "TRADER*"
+        assert meta["keep_human_order_events_days"] == "7"
         proc.close()
 
     def test_runs_once_an_hour_and_never_without_keep_days(

@@ -362,7 +362,11 @@ _AI_SIM_COMMANDS = {
         "--keep-days",
         "7",
         "--keep-order-events-days",
-        "0.05",
+        "0.5",
+        "--human-gateways",
+        "TRADER*",
+        "--keep-human-order-events-days",
+        "7",
     ],
     "clearing": [
         "pm-clearing",

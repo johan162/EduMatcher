@@ -1088,7 +1088,7 @@ complete -F _shtab_pm_alf_gwy pm-alf-gwy
 
 
 
-_shtab_pm_api_gwy_option_strings=(-h --help --version --host --port --instance --engine-host --stats-db --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_api_gwy_option_strings=(-h --help --version --host --port --instance --engine-host --stats-db --clearing-db --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 
@@ -7559,7 +7559,7 @@ complete -F _shtab_pm_setup pm-setup
 
 
 
-_shtab_pm_stats_option_strings=(-h --help --version --db --snapshot-interval --keep-days --keep-order-events-days --sql-trace --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_stats_option_strings=(-h --help --version --db --snapshot-interval --keep-days --keep-order-events-days --human-gateways --keep-human-order-events-days --sql-trace --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 

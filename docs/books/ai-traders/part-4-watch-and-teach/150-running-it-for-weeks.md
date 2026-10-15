@@ -42,7 +42,8 @@ are calendar days, so about five trading days are kept.
 | File | Per trading day | Kept | Stops growing at |
 |---|---|---|---|
 | `stats.db` — trades and price snapshots | about 85 MB | 7 days | about 0.45 GB |
-| `stats.db` — order events | about 250 MB an hour | the last 72 minutes (`--keep-order-events-days 0.05`) | about 0.3 GB, within the first trading day |
+| `stats.db` — order events | about 250 MB an hour | the last 12 hours (`--keep-order-events-days 0.5`) | about 3 GB, within the first trading day |
+| `stats.db` — your own order events | a few KB a day | 7 days (`--human-gateways 'TRADER*'`) | — |
 | `stats.db` — daily statistics | about 30 KB | for good | — (about 1 MB a month) |
 | `clearing.db` — trades | about 155 MB | 7 days, pruned at every close | about 0.8 GB |
 | `clearing.db` — positions and daily summaries | a few hundred KB | for good | — |

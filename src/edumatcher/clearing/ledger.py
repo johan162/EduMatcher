@@ -194,6 +194,9 @@ class Ledger:
         self._positions: dict[tuple[str, str], _Position] = {}
         # Batch incremental deltas — cleared after each successful flush.
         self._batch_deltas: dict[tuple[str, str, str], _BatchDelta] = {}
+        # Positions re-marked to the latest traded price this batch without
+        # having traded themselves — cleared after each successful flush.
+        self._remarked_keys: set[tuple[str, str]] = set()
         # Exchange session timezone used to bucket trades into a trading day
         # (finding CL-M3).  Defaults to UTC.
         self._tz = tz
@@ -253,6 +256,12 @@ class Ledger:
 
         ``ingest_ts_ns`` is not used for P&L math but is stored for the
         ``last_trade_ts_ns`` column in daily accumulators.
+
+        After both legs are applied, every open position in ``symbol`` is
+        re-marked to this trade price: the trade stream carries the market's
+        last traded price, and marking a holder's position only on its own
+        fills leaves ``mark_price == avg_cost`` (so unrealized P&L reads 0.0)
+        for any gateway that is not the counterparty to this trade.
         """
         bucket_date = trade_date(ts_ns, self._tz)
         log.debug(
@@ -281,6 +290,17 @@ class Ledger:
                 trade_date=bucket_date,
             )
 
+        self._remark_symbol(symbol, price)
+
+    def _remark_symbol(self, symbol: str, price: int) -> None:
+        """Mark every open position in ``symbol`` to the latest traded price."""
+        for key, pos in self._positions.items():
+            if key[1] != symbol or pos.net_qty == 0:
+                continue
+            pos.mark_price = price
+            pos.unrealized_pnl = pos.net_qty * (float(price) - pos.avg_cost)
+            self._remarked_keys.add(key)
+
     def get_flush_rows(
         self,
         updated_ts_ns: int,
@@ -296,10 +316,13 @@ class Ledger:
         flush rewrites the whole table to touch a handful of rows.  ``position_keys``
         overrides which ``(gateway_id, symbol)`` positions to emit — passed by the
         EOD mark pass, which mutates positions outside the delta accumulator.
-        When ``None``, the keys are derived from the current batch deltas.
+        When ``None``, the keys are derived from the current batch deltas plus
+        the positions re-marked to the latest traded price this batch.
         """
         if position_keys is None:
-            position_keys = {(gw, sym) for (_date, gw, sym) in self._batch_deltas}
+            position_keys = {
+                (gw, sym) for (_date, gw, sym) in self._batch_deltas
+            } | self._remarked_keys
         position_rows = [
             _position_to_row(self._positions[key], updated_ts_ns)
             for key in position_keys
@@ -320,6 +343,7 @@ class Ledger:
     def clear_batch(self) -> None:
         """Reset batch delta accumulators after a successful flush."""
         self._batch_deltas.clear()
+        self._remarked_keys.clear()
 
     def position(self, gateway_id: str, symbol: str) -> _Position | None:
         """Return the current position state, or None if never seen."""

@@ -92,7 +92,11 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     assert clearing[clearing.index("--retention-days") + 1] == "7"
     stats = processes["stats"]["command"]
     assert stats[stats.index("--keep-days") + 1] == "7"
-    assert stats[stats.index("--keep-order-events-days") + 1] == "0.05"
+    assert stats[stats.index("--keep-order-events-days") + 1] == "0.5"
+    # A person's handful of orders a day must not be pruned on the swarm's
+    # clock -- that is what made a trader's own fills vanish from history.
+    assert stats[stats.index("--human-gateways") + 1] == "TRADER*"
+    assert stats[stats.index("--keep-human-order-events-days") + 1] == "7"
     command = processes["ai-swarm"]["command"]
     assert command[:2] == ["pm-ai-swarm", "--swarm"]
     swarm = Path(command[2])

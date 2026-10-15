@@ -2,7 +2,7 @@
 
 export interface DiagnosticFinding {
   heuristic: string;
-  severity: "warning" | "error";
+  severity: "info" | "warning" | "error";
   message: string;
   recommendation: string;
   repro_command: string;

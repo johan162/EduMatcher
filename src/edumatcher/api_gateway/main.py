@@ -308,6 +308,11 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
         stats_db=resolve_data_path(args.stats_db) if args.stats_db else config.stats_db,
+        clearing_db=(
+            resolve_data_path(args.clearing_db)
+            if args.clearing_db
+            else config.clearing_db
+        ),
         log_level=args.log_level.lower() if args.log_level else config.log_level,
     )
 
@@ -337,6 +342,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--stats-db", default=None, metavar="PATH", help="Path to stats.db"
+    )
+    parser.add_argument(
+        "--clearing-db",
+        default=None,
+        metavar="PATH",
+        help="Path to clearing.db, read-only, for period realized P&L on /positions",
     )
     parser.add_argument(
         "--log-level",

@@ -227,6 +227,13 @@ of the connection.
 WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=a1b2c3d4
 ```
 
+A `HELLO`/`WELCOME` exchange is a valid use of the protocol on its own: a
+client may complete the handshake purely to discover whether a server is
+listening, then disconnect without logging. The shipped `pm-log-srv`
+therefore does not enter a session into its `processes` registry until the
+first `LOG` or `HB` frame arrives, so such probes leave no record of a
+process that never ran.
+
 A `WELCOME` is the sole positive acknowledgment of a `HELLO`; there is no
 separate `ACK` for the handshake.
 
@@ -341,6 +348,12 @@ HB|TS=2026-07-28T14:32:10.000Z
 |---|---|---|---|
 | `TS` | Yes | string | UTC ISO-8601 timestamp with milliseconds, at the moment this `HB` was sent |
 
+The shipped `pm-log-srv` records the time of the most recent contact from
+each session in `processes.last_heartbeat_at`, separately from
+`last_seen_at` which advances only on `LOG`. The two together let
+`pm-log-cli diagnose` tell a process with nothing to say apart from one
+that has stopped talking.
+
 ### `PING` / `PONG`
 
 **Direction:** wire-symmetric; either endpoint MAY send `PING` at any time
@@ -379,6 +392,13 @@ without sending `EXIT` (process killed by signal, crash) is not a protocol
 violation; the server MUST treat the closed socket identically to an
 explicit `EXIT` for the purpose of flushing buffered rows and marking the
 connection's stored process record disconnected.
+
+The shipped `pm-log-srv` does, however, record *which* of the two happened
+in `processes.disconnect_reason` (`client_exit` versus `peer_closed`,
+`idle_timeout`, `hello_timeout`, or `protocol_error`). Sending `EXIT` is
+therefore worth doing even though its absence is legal: it is what lets
+`pm-log-cli diagnose` tell a deliberate shutdown from a process that
+crashed or failed over to file logging.
 
 
 

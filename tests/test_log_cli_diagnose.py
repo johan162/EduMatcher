@@ -65,14 +65,30 @@ def _insert_process(
     *,
     process: str,
     session: str = "s1",
+    connected_at: str | None = None,
     last_seen_at: str | None = None,
+    last_heartbeat_at: str | None = None,
     disconnected_at: str | None = None,
+    disconnect_reason: str | None = "peer_closed",
 ) -> None:
     now = iso_utc(time.time())
     conn.execute(
         "INSERT INTO processes (session, process, instance, pid, host, connected_at, "
-        "last_seen_at, disconnected_at, log_count) VALUES (?,?,?,?,?,?,?,?,?)",
-        (session, process, None, 1, "h", now, last_seen_at or now, disconnected_at, 1),
+        "last_seen_at, last_heartbeat_at, disconnected_at, disconnect_reason, log_count) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            session,
+            process,
+            None,
+            1,
+            "h",
+            connected_at or now,
+            last_seen_at or now,
+            last_heartbeat_at,
+            disconnected_at,
+            disconnect_reason if disconnected_at else None,
+            1,
+        ),
     )
     conn.commit()
 
@@ -143,6 +159,67 @@ def test_process_silence_clean_case_does_not_fire(conn: sqlite3.Connection) -> N
     _insert_process(conn, process="pm-stats", last_seen_at=_iso_seconds_ago(1))
     findings = run_diagnostics(conn)
     assert not any(f.heuristic == "process_silence" for f in findings)
+
+
+def test_process_silence_is_informational_while_heartbeating(
+    conn: sqlite3.Connection,
+) -> None:
+    _insert_process(
+        conn,
+        process="pm-dc-gwy",
+        last_seen_at=_iso_seconds_ago(120),
+        last_heartbeat_at=_iso_seconds_ago(2),
+        disconnected_at=None,
+    )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "process_silence"]
+    assert [f.severity for f in findings] == ["info"]
+    assert "heartbeating" in findings[0].message
+    assert findings[0].details["processes"] == ["pm-dc-gwy"]
+
+
+def test_process_silence_collapses_many_quiet_processes_into_one_finding(
+    conn: sqlite3.Connection,
+) -> None:
+    for proc in ("pm-dc-gwy", "pm-md-gwy", "pm-alf-gwy"):
+        _insert_process(
+            conn,
+            process=proc,
+            session=proc,
+            last_seen_at=_iso_seconds_ago(120),
+            last_heartbeat_at=_iso_seconds_ago(2),
+        )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "process_silence"]
+    assert len(findings) == 1
+    assert findings[0].details["count"] == 3
+
+
+def test_process_silence_warns_when_heartbeat_is_also_stale(
+    conn: sqlite3.Connection,
+) -> None:
+    _insert_process(
+        conn,
+        process="pm-dc-gwy",
+        last_seen_at=_iso_seconds_ago(120),
+        last_heartbeat_at=_iso_seconds_ago(120),
+        disconnected_at=None,
+    )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "process_silence"]
+    assert [f.severity for f in findings] == ["warning"]
+
+
+def test_process_silence_warns_when_heartbeat_column_is_unpopulated(
+    conn: sqlite3.Connection,
+) -> None:
+    # Rows written before the column existed carry no heartbeat evidence.
+    _insert_process(
+        conn,
+        process="pm-dc-gwy",
+        last_seen_at=_iso_seconds_ago(120),
+        last_heartbeat_at=None,
+        disconnected_at=None,
+    )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "process_silence"]
+    assert [f.severity for f in findings] == ["warning"]
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +304,7 @@ def test_fallback_to_file_fires_on_cleanly_disconnected_quiet_process(
         conn,
         process="pm-md-gwy",
         disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason="peer_closed",
     )
     findings = run_diagnostics(conn)
     kinds = {f.heuristic for f in findings}
@@ -236,16 +314,77 @@ def test_fallback_to_file_fires_on_cleanly_disconnected_quiet_process(
     assert "process_silence" not in kinds
 
 
-def test_fallback_to_file_does_not_fire_when_process_resumed_logging(
+def test_fallback_to_file_does_not_fire_when_process_reconnected(
     conn: sqlite3.Connection,
 ) -> None:
-    disc_ts = _iso_seconds_ago(120)
-    _insert_process(conn, process="pm-md-gwy", session="s1", disconnected_at=disc_ts)
-    # Simulate a fresh reconnect (new session) that has since logged again —
-    # should NOT be flagged as "gone silent after fallback".
-    _insert_event(conn, process="pm-md-gwy", level="INFO", session="s2")
+    """A later session row is proof the process came back."""
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        session="s1",
+        connected_at=_iso_seconds_ago(300),
+        disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason="peer_closed",
+    )
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        session="s2",
+        connected_at=_iso_seconds_ago(60),
+        last_seen_at=_iso_seconds_ago(1),
+    )
     findings = run_diagnostics(conn)
     assert not any(f.heuristic == "fallback_to_file" for f in findings)
+
+
+def test_fallback_to_file_ignores_a_clean_exit(conn: sqlite3.Connection) -> None:
+    """A client that sent EXIT shut down deliberately; that is not failover."""
+    _insert_process(
+        conn,
+        process="pm-viewer",
+        disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason="client_exit",
+    )
+    findings = run_diagnostics(conn)
+    assert not any(f.heuristic == "fallback_to_file" for f in findings)
+
+
+def test_fallback_to_file_reports_a_quiet_process_once_not_once_per_session(
+    conn: sqlite3.Connection,
+) -> None:
+    """Regression: a process that connects repeatedly but never logs.
+
+    Reconnection used to be inferred from ``log_events``, so a process
+    with nothing to say could never clear the check and every one of its
+    historical sessions was reported.
+    """
+    for i in range(20):
+        _insert_process(
+            conn,
+            process="pm-viewer",
+            session=f"s{i}",
+            connected_at=_iso_seconds_ago(1000 - i * 10),
+            disconnected_at=_iso_seconds_ago(995 - i * 10),
+            disconnect_reason="peer_closed",
+        )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "fallback_to_file"]
+    assert len(findings) == 1
+    assert findings[0].details["session"] == "s19"
+
+
+def test_fallback_to_file_is_honest_when_the_reason_is_unrecorded(
+    conn: sqlite3.Connection,
+) -> None:
+    """Rows predating the disconnect_reason column still fire, but say so."""
+    _insert_process(
+        conn,
+        process="pm-md-gwy",
+        disconnected_at=_iso_seconds_ago(120),
+        disconnect_reason=None,
+    )
+    findings = [f for f in run_diagnostics(conn) if f.heuristic == "fallback_to_file"]
+    assert len(findings) == 1
+    assert "not recorded" in findings[0].message
 
 
 def test_silence_and_fallback_are_mutually_exclusive_on_same_fixture_set(
@@ -254,7 +393,11 @@ def test_silence_and_fallback_are_mutually_exclusive_on_same_fixture_set(
     """One clean-disconnect process (fallback) + one still-open-but-stalled
     process (silence) — each must fire exactly its own heuristic, not both."""
     _insert_process(
-        conn, process="pm-md-gwy", session="s1", disconnected_at=_iso_seconds_ago(100)
+        conn,
+        process="pm-md-gwy",
+        session="s1",
+        disconnected_at=_iso_seconds_ago(100),
+        disconnect_reason="peer_closed",
     )
     _insert_process(
         conn, process="pm-stats", session="s2", last_seen_at=_iso_seconds_ago(100)

@@ -6,10 +6,12 @@ import base64
 import json
 import logging
 import sqlite3
+import time
 from datetime import datetime, timezone, tzinfo
+from fnmatch import fnmatch
 from pathlib import Path
 from urllib.parse import quote
-from typing import Any
+from typing import Any, cast
 
 from edumatcher.stats.trading_day import (
     normalise_ts_bound,
@@ -624,6 +626,71 @@ def query_order_events(
         last = results[-1]
         next_cursor = encode_cursor({"ts": last["ts"], "seq": last["seq"]})
     return results, next_cursor
+
+
+#: ``stats_meta`` keys pm-stats writes its order-event retention under, so a
+#: reader can state the pruning boundary instead of inferring it from what
+#: happens to still be in the table.
+META_KEEP_ORDER_EVENTS_DAYS = "keep_order_events_days"
+META_HUMAN_GATEWAYS = "human_gateways"
+META_KEEP_HUMAN_ORDER_EVENTS_DAYS = "keep_human_order_events_days"
+
+
+def _meta_value(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM stats_meta WHERE key = ?", (key,)).fetchone()
+    return None if row is None else cast("str | None", row["value"])
+
+
+def order_events_retention_days(
+    conn: sqlite3.Connection, *, gateway_id: str
+) -> float | None:
+    """Days of ``order_events`` pm-stats keeps for *gateway_id*.
+
+    Retention is tiered: ``--human-gateways`` names glob patterns that
+    prune on ``--keep-human-order-events-days`` while everything else
+    uses the ordinary retention. Resolving the tier here keeps the rule
+    in one place rather than in each caller.
+
+    Returns ``None`` when nothing is pruned for this gateway — either no
+    retention is configured, or its tier is set to keep everything.
+    """
+    patterns = [
+        p for p in (_meta_value(conn, META_HUMAN_GATEWAYS) or "").split(",") if p
+    ]
+    key = META_KEEP_ORDER_EVENTS_DAYS
+    if patterns and any(fnmatch(gateway_id, pattern) for pattern in patterns):
+        key = META_KEEP_HUMAN_ORDER_EVENTS_DAYS
+    raw = _meta_value(conn, key)
+    if raw is None:
+        return None
+    try:
+        days = float(raw)
+    except ValueError:
+        return None
+    return days if days > 0 else None
+
+
+def query_order_events_retained_from(
+    conn: sqlite3.Connection, *, gateway_id: str, now: float | None = None
+) -> str | None:
+    """Instant before which *gateway_id*'s order events have been pruned.
+
+    ``pm-stats`` deletes old ``order_events`` on its own retention clock,
+    which under an AI swarm is routinely hours rather than days. Without
+    this, a short history page is indistinguishable from an inactive
+    gateway — the orders still read FILLED everywhere that reports live
+    engine state, while their fills have quietly gone.
+
+    This is the configured cutoff rather than the oldest surviving row:
+    the oldest row says only when this gateway last traded, which for a
+    gateway that has been idle would claim a truncation that never
+    happened. ``None`` means nothing is being pruned for this gateway.
+    """
+    days = order_events_retention_days(conn, gateway_id=gateway_id)
+    if days is None:
+        return None
+    moment = (time.time() if now is None else now) - days * 86_400
+    return datetime.fromtimestamp(moment, tz=timezone.utc).isoformat(timespec="seconds")
 
 
 def query_order_lifecycle(

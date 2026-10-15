@@ -19,6 +19,7 @@ import yaml
 
 from edumatcher.config import (
     AUDIT_INDEX_DB_FILE,
+    CLEARING_DB_FILE,
     ENGINE_PUB_ADDR,
     ENGINE_PULL_ADDR,
     INDEX_PUB_ADDR,
@@ -76,6 +77,14 @@ class ApiGatewayConfig:
     #: reading it is preferable to the gateway keeping a second, weaker
     #: lifecycle store of its own.
     audit_db: Path = AUDIT_INDEX_DB_FILE
+    #: `pm-clearing`'s ledger, opened **read-only** for the period realized
+    #: P&L on `GET /positions`. The gateway never writes it and never
+    #: requires it: when the file is absent — because `pm-clearing` is not
+    #: deployed — those three fields report `null` and the rest of the row
+    #: is unaffected. Realized P&L has to come from here because the
+    #: gateway's own fill cache is in-memory and reads flat after a restart,
+    #: while clearing records it per trading day and keeps it for good.
+    clearing_db: Path = CLEARING_DB_FILE
     #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)
     #: stays in the in-memory order cache before being evicted.
     #:
@@ -206,6 +215,9 @@ def _load_api_gateway_section(
     audit_db_raw = section.get("audit_db", AUDIT_INDEX_DB_FILE)
     audit_db = resolve_data_path(str(audit_db_raw))
 
+    clearing_db_raw = section.get("clearing_db", CLEARING_DB_FILE)
+    clearing_db = resolve_data_path(str(clearing_db_raw))
+
     order_retention_sec = _as_int(
         section.get("order_retention_sec", 3600), section_name, "order_retention_sec"
     )
@@ -229,6 +241,7 @@ def _load_api_gateway_section(
         index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
         stats_db=stats_db,
         audit_db=audit_db,
+        clearing_db=clearing_db,
         order_retention_sec=order_retention_sec,
         market_data_cache_sec=market_data_cache_sec,
         log_level=str(section.get("log_level", "info")),

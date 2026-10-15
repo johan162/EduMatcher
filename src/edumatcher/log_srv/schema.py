@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS processes (
     host            TEXT NOT NULL,
     connected_at    TEXT NOT NULL,
     last_seen_at    TEXT NOT NULL,
+    last_heartbeat_at TEXT,
     disconnected_at TEXT,
+    disconnect_reason TEXT,
     log_count       INTEGER NOT NULL DEFAULT 0
 );
 
@@ -80,10 +82,20 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 
 UPSERT_PROCESS_CONNECT = """
 INSERT INTO processes
-    (session, process, instance, pid, host, connected_at, last_seen_at, disconnected_at, log_count)
-VALUES (?,?,?,?,?,?,?,NULL,0)
+    (session, process, instance, pid, host, connected_at, last_seen_at, last_heartbeat_at,
+     disconnected_at, disconnect_reason, log_count)
+VALUES (?,?,?,?,?,?,?,?,NULL,NULL,0)
 ON CONFLICT(session) DO UPDATE SET
-    last_seen_at = excluded.last_seen_at
+    last_seen_at = excluded.last_seen_at,
+    last_heartbeat_at = excluded.last_heartbeat_at
+"""
+
+#: Records that a session is still in contact, whether or not it had
+#: anything to log. ``last_seen_at`` deliberately keeps its narrower
+#: meaning of "last LOG frame", so the two columns together separate a
+#: process that is quiet from one that is gone.
+UPDATE_PROCESS_HEARTBEAT = """
+UPDATE processes SET last_heartbeat_at = ? WHERE session = ?
 """
 
 UPDATE_PROCESS_LAST_SEEN = """
@@ -98,8 +110,11 @@ UPDATE_PROCESS_LAST_SEEN_AND_COUNT_BY_N = """
 UPDATE processes SET last_seen_at = ?, log_count = log_count + ? WHERE session = ?
 """
 
+#: The reason is what separates a process that said goodbye from one that
+#: vanished — ``pm-log-cli diagnose`` cannot tell a clean shutdown from a
+#: crash or a file-failover without it.
 UPDATE_PROCESS_DISCONNECTED = """
-UPDATE processes SET disconnected_at = ? WHERE session = ?
+UPDATE processes SET disconnected_at = ?, disconnect_reason = ? WHERE session = ?
 """
 
 UPSERT_SERVER_STATS_INIT = """
@@ -132,6 +147,22 @@ DELETE FROM log_events WHERE client_ts < ?
 def initialize_schema(conn: sqlite3.Connection) -> None:
     """Create the current log-server schema on an open SQLite connection."""
     conn.executescript(SCHEMA)
+    _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring a database created by an older build up to the current schema.
+
+    ``CREATE TABLE IF NOT EXISTS`` leaves an existing table alone, so a
+    column added after a deployment first ran would never appear without
+    this. Additive only: every column added here is nullable, so an older
+    ``pm-log-cli`` reading the same file keeps working.
+    """
+    have = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
+    if "last_heartbeat_at" not in have:
+        conn.execute("ALTER TABLE processes ADD COLUMN last_heartbeat_at TEXT")
+    if "disconnect_reason" not in have:
+        conn.execute("ALTER TABLE processes ADD COLUMN disconnect_reason TEXT")
 
 
 def open_db(path: Path, *, read_only: bool = False) -> sqlite3.Connection:

@@ -13,7 +13,7 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { buildFlattenOrder } from "@/lib/flatten.js";
 import { isOrderTypeBlocked } from "@/lib/sessionState.js";
 import { summarizeSettled, describeBulkOutcome } from "@/lib/bulkOutcome.js";
-import { formatPrice, formatQty } from "@/lib/formatters.js";
+import { formatPrice, formatQty, formatSignedPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { Order, Position, Side } from "@/types/index.js";
 
@@ -33,6 +33,11 @@ function workingOrdersOnSide(orders: Record<string, Order>, symbol: string, side
 function overshootWarning(count: number, side: Side): string {
   if (!count) return "";
   return ` Warning: ${count} working ${side} ${count === 1 ? "order" : "orders"} on this symbol could add to this once filled.`;
+}
+
+function pnlClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return "text-fg-dim";
+  return value > 0 ? "text-emerald-400" : "text-red-300";
 }
 
 /**
@@ -83,6 +88,21 @@ export function PositionPanel() {
 
   // Prefer the live last trade price; fall back to the cache's last_price.
   const lastPriceFor = (p: Position) => books[p.symbol]?.lastPrice ?? p.last_price;
+  const avgPriceFor = (p: Position) => p.avg_cost ?? null;
+  const marketValueFor = (p: Position) => {
+    const last = lastPriceFor(p);
+    if (last === null) return p.market_value ?? null;
+    return p.market_value ?? p.net_qty * last;
+  };
+  const unrealizedFor = (p: Position) => {
+    const last = lastPriceFor(p);
+    const avg = avgPriceFor(p);
+    if (last === null || avg === null) return p.unrealized_pnl ?? null;
+    return p.unrealized_pnl ?? p.net_qty * (last - avg);
+  };
+  const realizedFor = (p: Position) => p.realized_pnl_session ?? null;
+  const mtdFor = (p: Position) => p.realized_pnl_mtd ?? null;
+  const ytdFor = (p: Position) => p.realized_pnl_ytd ?? null;
 
   // M4: the power-user "Undo" used to cancel the just-submitted MARKET
   // order, which never rests and so can never undo anything -- dropped.
@@ -199,13 +219,67 @@ export function PositionPanel() {
               <tr>
                 <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol</th>
                 <th scope="col" className="px-2 py-1.5 text-right font-medium">Position</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Last Price</th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Volume-weighted average cost of the open position"
+                >
+                  Price
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Latest traded price for this symbol on the venue"
+                >
+                  Last Price
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Position × Last Price — what the open position is worth at the latest market price"
+                >
+                  Market Value
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Position × (Last Price − Price) — the gain or loss if the position were flattened at the latest market price. Excludes fees and assumes the full size can be covered."
+                >
+                  Unrealized P&amp;L
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Gain or loss locked in by closing trades during today's trading session. From the clearing ledger, so it survives a gateway restart."
+                >
+                  Session P&amp;L
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Realized gain or loss for this symbol since the first of the month, including today"
+                >
+                  MTD P&amp;L
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Realized gain or loss for this symbol since the first of January, including today"
+                >
+                  YTD P&amp;L
+                </th>
                 <th scope="col" className="px-2 py-1.5 text-right font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {positions.map((p) => {
                 const last = lastPriceFor(p);
+                const avg = avgPriceFor(p);
+                const marketValue = marketValueFor(p);
+                const unrealized = unrealizedFor(p);
+                const realized = realizedFor(p);
+                const mtd = mtdFor(p);
+                const ytd = ytdFor(p);
                 const flat = p.net_qty === 0;
                 return (
                   <tr key={p.symbol} className="border-b border-raised hover:bg-raised">
@@ -219,10 +293,28 @@ export function PositionPanel() {
                       {formatQty(p.net_qty)}
                     </td>
                     <td className="px-2 py-1 text-right font-mono text-fg">
-                      {formatPrice(last, tickFor(p.symbol))}
+                    {formatPrice(avg, tickFor(p.symbol))}
+                    </td>
+                    <td className="px-2 py-1 text-right font-mono text-fg">
+                    {formatPrice(last, tickFor(p.symbol))}
+                    </td>
+                    <td className="px-2 py-1 text-right font-mono text-fg">
+                    {formatSignedPrice(marketValue, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(unrealized)}`}>
+                    {formatSignedPrice(unrealized, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(realized)}`}>
+                    {formatSignedPrice(realized, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(mtd)}`}>
+                    {formatSignedPrice(mtd, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(ytd)}`}>
+                    {formatSignedPrice(ytd, tickFor(p.symbol))}
                     </td>
                     <td className="px-2 py-1 text-right">
-                      <button
+                    <button
                         type="button"
                         onClick={() => onFlattenClick(p)}
                         disabled={flat || flattenBlocked(p.symbol) || submit.isPending}

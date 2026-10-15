@@ -289,6 +289,12 @@ export interface OrderHistoryEvent {
 export interface OrderHistoryResponse {
   events: OrderHistoryEvent[];
   count: number;
+  /**
+   * The point pm-stats prunes this gateway's order events from, or `null`
+   * when nothing is pruned. Events before it are gone, so an order placed
+   * earlier may have a partial timeline or none at all.
+   */
+  retained_from?: string | null;
 }
 
 /**
@@ -298,12 +304,18 @@ export interface OrderHistoryResponse {
  * carries a `trade_ids` array instead. `fill_price` is already display money
  * (persisted verbatim from the private `order.fill` payload). The envelope is
  * the standard keyset-paginated list shape.
+ *
+ * `retained_from` is the ISO timestamp of the oldest order event pm-stats
+ * still holds. Anything earlier has been pruned by the recorder's retention
+ * setting, so an apparently short history is a retention boundary rather
+ * than an absence of trading. Null when the table is empty.
  */
 export interface HistoryFillsResponse {
   events: OrderHistoryEvent[];
   count: number;
   has_more: boolean;
   next_cursor?: string;
+  retained_from?: string | null;
 }
 
 /**
@@ -472,6 +484,18 @@ export interface Position {
   symbol: string;
   net_qty: number; // + long, - short
   last_price: number | null;
+  avg_cost?: number | null;
+  market_value?: number | null;
+  /**
+   * Realized P&L from `clearing.db`, over three windows: today's trading
+   * session, month-to-date and year-to-date. Durable across a gateway
+   * restart, unlike the old in-memory figure, and `null` when pm-clearing
+   * is not deployed.
+   */
+  realized_pnl_session?: number | null;
+  realized_pnl_mtd?: number | null;
+  realized_pnl_ytd?: number | null;
+  unrealized_pnl?: number | null;
 }
 
 // ── MM quote legs (§14.3) ─────────────────────────────────────────────────────

@@ -181,6 +181,29 @@ def _configure_trade_id_run() -> Generator[None, None, None]:
     reset_trade_ids_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _no_live_log_server_detection(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the suite off whatever ``pm-log-srv`` happens to be running.
+
+    Every ``pm-*`` process probes ``localhost:5600`` at startup and attaches
+    its logging to any server it finds. On a developer machine with the
+    simulator up, that silently pointed the test suite at a live production
+    log database -- one run added 218 connection rows to it. Tests must not
+    write to a real system just because one is running.
+
+    Tests that are *about* discovery opt back in with
+    ``@pytest.mark.real_log_discovery``; they stand up their own server on
+    a free port.
+    """
+    if "real_log_discovery" in request.keywords:
+        return
+    from edumatcher.logclient import discovery
+
+    monkeypatch.setattr(discovery, "_probe_server", lambda *args, **kwargs: False)
+
+
 def make_order(
     *,
     symbol: str = "AAPL",

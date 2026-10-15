@@ -25,6 +25,10 @@ from tests.conftest import free_port, free_ports
 
 _HOST = "127.0.0.1"
 
+# These tests exercise auto-detection itself, against their own server on a
+# free port, so they opt out of the conftest guard that disables probing.
+pytestmark = pytest.mark.real_log_discovery
+
 
 class _RunningServer:
     """Starts a real ``LogServer`` on a background thread for a test."""

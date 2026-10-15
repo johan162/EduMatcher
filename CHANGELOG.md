@@ -1,3 +1,41 @@
+## [v0.50.3] - 2026-10-15
+
+Release Type: minor
+
+### 📋 Summary
+This release makes profit and loss figures correct and visible: `pm-clearing` now
+reports real intraday P&L instead of zeros, and the Trade Terminal shows position
+VWAP together with realized and unrealized P&L. It also removes three sources of
+false log-server diagnostics that were burying genuine findings, and gives human
+traders a longer order-history retention than bot swarms.
+
+### ✨ Additions
+- Added `Price` (VWAP), `Unrealized P&L` and `Realized P&L` columns to the Trade Terminal's Positions panel, colour-coded for profit and loss with explanatory tooltips
+- Added a `clearing_db` setting to the API gateway so realized P&L is read from `pm-clearing`'s ledger and survives a gateway restart
+- Added `retained_from` to `GET /history/orders`, and surfaced it in the Order History view so a short retention window is visible rather than looking like missing trades
+- Added `--human-gateways`, `--keep-human-order-events-days` and `--keep-order-events-days` to `pm-stats` for a second, longer retention tier for human traders
+- Added `last_heartbeat_at` and `disconnect_reason` columns to `pm-log-cli processes`
+
+### 🚀 Improvements
+- Improved `pm-log-cli diagnose` to report a connected but quiet process as a single `[INFO]` observation instead of one warning per process; informational findings alone no longer set exit code 3
+- Improved the `fallback_to_file` heuristic to report once per process rather than once per historical session, cutting 1330 findings to 19 on a half-day database
+
+### 🐛 Bug Fixes
+- Fixed `pm-clearing-cli gateway` reporting zero realized and unrealized P&L for gateways holding open positions
+- Fixed Trade History omitting fills that had already been pruned, by retaining human traders' order events for longer than bot swarms'
+- Fixed `process_silence` warnings for healthy processes: the server received LALF `HB` frames but never recorded them, so an idle process was indistinguishable from a wedged one
+- Fixed `fallback_to_file` warnings for processes that had reconnected, and for processes that log nothing at all and so could never clear the check
+- Fixed the client's startup reachability probe registering as a permanently connected process; a session now enters the registry only once it sends its first `LOG` or `HB` frame
+
+### 📚 Documentation
+- Documented `disconnect_reason`, `last_heartbeat_at` and the deferred process registration in the log-server operator guide
+- Documented in the LALF specification that a handshake-only session is a valid probe and is not registered as a process
+- Documented the two-tier order-event retention in the operator guide and process reference
+
+### 🛠 Internal
+- Added an additive schema migration for the `processes` table so existing log databases gain the new columns without a rebuild
+- Stopped the test suite auto-detecting a live `pm-log-srv` on the developer's machine, which had been writing connection rows into a running system's database; discovery tests opt back in with the new `real_log_discovery` marker
+
 ## [v0.50.2] - 2026-10-14
 
 Release Type: minor

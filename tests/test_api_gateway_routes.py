@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
+from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -27,6 +31,7 @@ from edumatcher.api_gateway.schemas import (
     QuoteRequest,
 )
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, require_trading
+from edumatcher.clearing import query as clearing_query
 from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import clear_tick_registry, register_tick_decimals
@@ -324,6 +329,7 @@ def test_session_caches_apply_events() -> None:
             "symbol": "AAPL",
             "side": "BUY",
             "fill_qty": 5,
+            "fill_price": 150.0,
             "status": "PARTIAL",
         },
     )
@@ -536,8 +542,20 @@ async def test_reference_routes() -> None:
     assert (await reference.quote_legs(request, session))["legs"]
     engine.cache.last_prices["AAPL"] = 151.0
     result = await reference.positions(request, session)
+    # No clearing.db in the test environment, so the three realized windows
+    # report "unknown" rather than a misleading zero.
     assert result["positions"] == [
-        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+        {
+            "symbol": "AAPL",
+            "net_qty": 5,
+            "avg_cost": 150.0,
+            "last_price": 151.0,
+            "market_value": 755.0,
+            "unrealized_pnl": 5.0,
+            "realized_pnl_session": None,
+            "realized_pnl_mtd": None,
+            "realized_pnl_ytd": None,
+        }
     ]
     assert ("request_position", "GW01") in engine.calls
     engine.cache.positions["AAPL"] = 5
@@ -562,7 +580,17 @@ async def test_positions_reads_engine_not_local_cache() -> None:
     assert engine.cache.positions == {}
     result = await reference.positions(request, session)
     assert result["positions"] == [
-        {"symbol": "AAPL", "net_qty": 5, "last_price": 151.0}
+        {
+            "symbol": "AAPL",
+            "net_qty": 5,
+            "avg_cost": 150.0,
+            "last_price": 151.0,
+            "market_value": 755.0,
+            "unrealized_pnl": 5.0,
+            "realized_pnl_session": None,
+            "realized_pnl_mtd": None,
+            "realized_pnl_ytd": None,
+        }
     ]
 
 
@@ -753,3 +781,151 @@ async def test_cancel_without_wait_does_not_call_the_racing_wait() -> None:
     assert cancelled.event is None
     assert cancelled.status == "PENDING_CANCEL"
     assert not any(call[0] == "await_cancel_or_amend_outcome" for call in engine.calls)
+
+
+# ── Period realized P&L from clearing.db ──────────────────────────────────────
+
+
+def _clearing_db(path: Path, rows: list[tuple[str, str, float, int]]) -> Path:
+    """Minimal clearing ledger holding just what /positions reads."""
+    db = path / "clearing.db"
+    conn = sqlite3.connect(db)
+    with conn:
+        conn.execute("CREATE TABLE clearing_meta (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute(
+            "INSERT INTO clearing_meta VALUES ('session_timezone', 'Europe/Stockholm')"
+        )
+        conn.execute(
+            "CREATE TABLE gateway_daily_summary ("
+            " trade_date TEXT, gateway_id TEXT, symbol TEXT,"
+            " realized_pnl REAL, tick_decimals INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO gateway_daily_summary VALUES (?, 'GW01', ?, ?, ?)", rows
+        )
+    conn.close()
+    return db
+
+
+def _ledger_today() -> str:
+    """Today in the ledger's session timezone, which is what the query
+    resolves its windows in -- the server's own date drifts from it either
+    side of midnight and would make these tests flaky."""
+    return datetime.now(ZoneInfo("Europe/Stockholm")).date().isoformat()
+
+
+def test_period_realized_pnl_splits_today_month_and_year(tmp_path: Path) -> None:
+    """Three windows over one symbol's history, each a superset of the last."""
+    db = _clearing_db(
+        tmp_path,
+        [
+            ("2026-01-05", "AAPL", 10_000.0, 2),  # earlier this year
+            ("2026-10-02", "AAPL", 20_000.0, 2),  # earlier this month
+            ("2026-10-15", "AAPL", 40_000.0, 2),  # today
+        ],
+    )
+    conn = clearing_query.open_readonly_connection(db)
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
+    out = clearing_query.query_period_realized_pnl(conn, gateway_id="GW01", now=now)
+    conn.close()
+
+    # Stored in integer ticks; tick_decimals 2 makes 40_000 ticks 400.00.
+    assert out["AAPL"].session == pytest.approx(400.0)
+    assert out["AAPL"].mtd == pytest.approx(600.0)
+    assert out["AAPL"].ytd == pytest.approx(700.0)
+
+
+def test_period_realized_pnl_excludes_last_year(tmp_path: Path) -> None:
+    """YTD is year-to-date, not lifetime -- that was the whole objection to
+    reporting clearing's cumulative figure."""
+    db = _clearing_db(
+        tmp_path,
+        [
+            ("2025-12-31", "AAPL", 99_000.0, 2),
+            ("2026-10-15", "AAPL", 1_000.0, 2),
+        ],
+    )
+    conn = clearing_query.open_readonly_connection(db)
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
+    out = clearing_query.query_period_realized_pnl(conn, gateway_id="GW01", now=now)
+    conn.close()
+
+    assert out["AAPL"].ytd == pytest.approx(10.0)
+
+
+def test_period_realized_pnl_scales_per_symbol_tick_decimals(tmp_path: Path) -> None:
+    """Each symbol carries its own tick size; a shared divisor would render
+    one of these 100x off (the CL-H3 failure in the clearing CLI)."""
+    db = _clearing_db(
+        tmp_path,
+        [
+            ("2026-10-15", "AAPL", 10_000.0, 2),
+            ("2026-10-15", "USDJPY", 10_000.0, 4),
+        ],
+    )
+    conn = clearing_query.open_readonly_connection(db)
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=timezone.utc)
+    out = clearing_query.query_period_realized_pnl(conn, gateway_id="GW01", now=now)
+    conn.close()
+
+    assert out["AAPL"].session == pytest.approx(100.0)
+    assert out["USDJPY"].session == pytest.approx(1.0)
+
+
+def test_period_boundaries_resolve_in_the_ledgers_timezone(tmp_path: Path) -> None:
+    """22:30 UTC is already the next day in Stockholm. Resolving the window
+    on the server's clock would put today's trade outside 'today'."""
+    db = _clearing_db(tmp_path, [("2026-10-16", "AAPL", 5_000.0, 2)])
+    conn = clearing_query.open_readonly_connection(db)
+    now = datetime(2026, 10, 15, 22, 30, tzinfo=timezone.utc)
+    out = clearing_query.query_period_realized_pnl(conn, gateway_id="GW01", now=now)
+    conn.close()
+
+    assert out["AAPL"].session == pytest.approx(50.0)
+
+
+@pytest.mark.anyio
+async def test_positions_reports_realized_pnl_from_clearing(tmp_path: Path) -> None:
+    """The point of sourcing realized P&L from the ledger: it survives a
+    gateway restart, which wipes every in-memory cache."""
+    db = _clearing_db(tmp_path, [(_ledger_today(), "AAPL", 2_500.0, 2)])
+    engine = FakeEngine()
+    request = fake_request(engine)
+    request.app.state.config = ApiGatewayConfig(clearing_db=db)
+    session = trading_session()
+
+    result = await reference.positions(request, session)
+
+    row = result["positions"][0]
+    assert row["realized_pnl_session"] == pytest.approx(25.0)
+    assert row["realized_pnl_ytd"] == pytest.approx(25.0)
+
+
+@pytest.mark.anyio
+async def test_positions_reports_zero_for_a_symbol_with_nothing_closed(
+    tmp_path: Path,
+) -> None:
+    """A reachable ledger with no row for the symbol is a real zero, not an
+    unknown -- only a missing ledger is unknown."""
+    db = _clearing_db(tmp_path, [(_ledger_today(), "MSFT", 1_000.0, 2)])
+    request = fake_request()
+    request.app.state.config = ApiGatewayConfig(clearing_db=db)
+
+    result = await reference.positions(request, trading_session())
+
+    assert result["positions"][0]["realized_pnl_session"] == 0.0
+
+
+@pytest.mark.anyio
+async def test_positions_survive_an_unreadable_clearing_db(tmp_path: Path) -> None:
+    """Realized P&L is a nicety on a positions row, not the point of it: a
+    corrupt or absent ledger must not cost the trader their positions."""
+    broken = tmp_path / "clearing.db"
+    broken.write_text("not a database")
+    request = fake_request()
+    request.app.state.config = ApiGatewayConfig(clearing_db=broken)
+
+    result = await reference.positions(request, trading_session())
+
+    assert result["positions"][0]["net_qty"] == 5
+    assert result["positions"][0]["realized_pnl_session"] is None

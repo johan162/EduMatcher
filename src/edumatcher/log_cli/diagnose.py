@@ -24,7 +24,7 @@ DEFAULT_CLOCK_SKEW_THRESHOLD_SEC = 2.0
 @dataclass
 class Finding:
     heuristic: str
-    severity: str  # "warning" | "error"
+    severity: str  # "info" | "warning" | "error"
     message: str
     recommendation: str
     repro_command: str
@@ -176,6 +176,15 @@ def _check_process_silence(
     process_filter: str | None,
     silence_threshold_sec: int,
 ) -> list[Finding]:
+    """Separate a process that is quiet from one that has stopped talking.
+
+    ``last_seen_at`` advances only on LOG frames, so on its own it cannot
+    tell the two apart — which is why this used to warn about every
+    event-driven process that simply had nothing to report. LALF clients
+    send HB on an idle connection, and ``last_heartbeat_at`` records it, so
+    a quiet process that is still heartbeating is now reported as the
+    non-event it is.
+    """
     where = "disconnected_at IS NULL"
     params: list[Any] = []
     if process_filter:
@@ -183,34 +192,79 @@ def _check_process_silence(
         params.append(process_filter)
 
     rows = conn.execute(
-        f"SELECT process, session, last_seen_at FROM processes WHERE {where}",
+        "SELECT process, session, last_seen_at, last_heartbeat_at "
+        f"FROM processes WHERE {where}",
         params,
     ).fetchall()
 
     now = datetime.now(tz=timezone.utc)
     findings: list[Finding] = []
-    for proc, session, last_seen_at in rows:
+    quiet: list[str] = []
+    for proc, session, last_seen_at, last_heartbeat_at in rows:
         try:
-            last_seen = _parse_ts(last_seen_at)
+            log_idle = (now - _parse_ts(last_seen_at)).total_seconds()
         except ValueError:
             continue
-        idle_sec = (now - last_seen).total_seconds()
-        if idle_sec >= silence_threshold_sec:
+        if log_idle < silence_threshold_sec:
+            continue
+
+        # A row predating the heartbeat column has no evidence either way,
+        # so fall back to treating the last log as the last contact.
+        contact_idle = log_idle
+        if last_heartbeat_at:
+            try:
+                contact_idle = min(
+                    log_idle, (now - _parse_ts(last_heartbeat_at)).total_seconds()
+                )
+            except ValueError:
+                pass
+
+        if contact_idle >= silence_threshold_sec:
             findings.append(
                 Finding(
                     heuristic="process_silence",
                     severity="warning",
                     message=(
                         f"{proc} (session {session}) has not logged or heartbeated "
-                        f"in {idle_sec:.0f}s despite an open connection"
+                        f"in {contact_idle:.0f}s despite an open connection"
                     ),
                     recommendation=(
                         f"It may be stuck; check whether the {proc} process is still responsive."
                     ),
                     repro_command="pm-log-cli processes --active",
-                    details={"process": proc, "session": session, "idle_sec": idle_sec},
+                    details={
+                        "process": proc,
+                        "session": session,
+                        "idle_sec": log_idle,
+                        "heartbeat_idle_sec": contact_idle,
+                    },
                 )
             )
+        else:
+            quiet.append(proc)
+
+    # One line, not one per process: on a healthy system every event-driven
+    # process is quiet most of the time, and a page of "all fine" entries
+    # buries the findings that do need reading.
+    if quiet:
+        findings.append(
+            Finding(
+                heuristic="process_silence",
+                severity="info",
+                message=(
+                    f"{len(quiet)} process(es) connected and heartbeating with "
+                    f"nothing to log for over {silence_threshold_sec}s: "
+                    + ", ".join(sorted(quiet))
+                ),
+                recommendation=(
+                    "No action needed: these are alive and simply have nothing "
+                    "to report. Expected for event-driven processes between "
+                    "client connections."
+                ),
+                repro_command="pm-log-cli processes --active",
+                details={"processes": sorted(quiet), "count": len(quiet)},
+            )
+        )
     return findings
 
 
@@ -376,12 +430,30 @@ def _check_exception_clustering(
 # ---------------------------------------------------------------------------
 
 
+#: Disconnects that carry their own explanation. A client that sent EXIT
+#: shut down deliberately, and a session rejected during the handshake
+#: never became a running process — neither is a vanished process.
+_EXPECTED_DISCONNECT_REASONS = frozenset({"client_exit", "hello_timeout"})
+
+
 def _check_fallback_to_file(
     conn: sqlite3.Connection,
     *,
     process_filter: str | None,
     silence_threshold_sec: int,
 ) -> list[Finding]:
+    """Report a process that dropped off and never came back.
+
+    Only each process's *latest* session can qualify: an earlier one is
+    proof of nothing, because the existence of a later session row proves
+    the process reconnected. Looking at every session — and asking
+    ``log_events`` rather than ``processes`` whether it returned — is what
+    made this heuristic fire hundreds of times for a single process that
+    simply never logs anything.
+    """
+    # One row per process: the newest session by connected_at. SQLite's
+    # bare-column-with-MAX guarantee picks that row's other columns; the
+    # outer query then keeps only those that are closed.
     where = "disconnected_at IS NOT NULL"
     params: list[Any] = []
     if process_filter:
@@ -389,49 +461,60 @@ def _check_fallback_to_file(
         params.append(process_filter)
 
     rows = conn.execute(
-        f"SELECT process, session, disconnected_at FROM processes WHERE {where}",
+        "SELECT process, session, disconnected_at, disconnect_reason FROM ("
+        "  SELECT process, session, disconnected_at, disconnect_reason,"
+        "         MAX(connected_at) AS _latest"
+        "  FROM processes GROUP BY process"
+        f") WHERE {where}",
         params,
     ).fetchall()
 
     findings: list[Finding] = []
-    for proc, session, disconnected_at in rows:
-        # Any log_events row for this exact session after disconnected_at
-        # would mean the row arrived on a *different* (later) reconnect —
-        # sessions are per-connection, so no such row should exist; this
-        # check instead looks at whether the *process name* logged anything
-        # at all after this session's disconnect, on a different session.
+    now = datetime.now(tz=timezone.utc)
+    for proc, session, disconnected_at, reason in rows:
         try:
             disc = _parse_ts(disconnected_at)
         except ValueError:
             continue
-        later_rows = conn.execute(
-            "SELECT COUNT(*) FROM log_events WHERE process = ? AND client_ts > ?",
-            (proc, disconnected_at),
-        ).fetchone()[0]
-        idle_sec = (datetime.now(tz=timezone.utc) - disc).total_seconds()
-        if later_rows == 0 and idle_sec >= silence_threshold_sec:
-            findings.append(
-                Finding(
-                    heuristic="fallback_to_file",
-                    severity="warning",
-                    message=(
-                        f"{proc} disconnected from pm-log-srv at {disconnected_at} "
-                        f"and has not reconnected"
-                    ),
-                    recommendation=(
-                        f"This matches the file-failover signature (§8.6 of the "
-                        f"design doc) — check logs/{proc}.log for what it logged "
-                        f"after that point, since it is no longer visible to this "
-                        f"database."
-                    ),
-                    repro_command="pm-log-cli processes --format json",
-                    details={
-                        "process": proc,
-                        "session": session,
-                        "disconnected_at": disconnected_at,
-                    },
-                )
+        if (now - disc).total_seconds() < silence_threshold_sec:
+            continue
+        if reason in _EXPECTED_DISCONNECT_REASONS:
+            continue
+
+        # Rows written before disconnect_reason existed carry no evidence,
+        # so say what is actually known rather than guessing a cause.
+        if reason:
+            summary = (
+                f"{proc} disconnected from pm-log-srv at {disconnected_at} without "
+                f"sending EXIT (reason: {reason}) and has not reconnected"
             )
+        else:
+            summary = (
+                f"{proc} disconnected from pm-log-srv at {disconnected_at} and has "
+                f"not reconnected; the reason was not recorded, because this "
+                f"database predates disconnect-reason tracking"
+            )
+        findings.append(
+            Finding(
+                heuristic="fallback_to_file",
+                severity="warning",
+                message=summary,
+                recommendation=(
+                    f"The process either exited abnormally or failed over to file "
+                    f"logging (§8.6 of the design doc). Check whether {proc} is "
+                    f"still running, then check logs/{proc}.log for anything it "
+                    f"logged after that point — those records never reached this "
+                    f"database."
+                ),
+                repro_command="pm-log-cli processes --format json",
+                details={
+                    "process": proc,
+                    "session": session,
+                    "disconnected_at": disconnected_at,
+                    "disconnect_reason": reason,
+                },
+            )
+        )
     return findings
 
 

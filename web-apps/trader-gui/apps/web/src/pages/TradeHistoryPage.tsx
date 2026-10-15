@@ -68,6 +68,19 @@ export function TradeHistoryPage() {
     symbols.find((m) => m.symbol === sym)?.tick_decimals ??
     2;
 
+  // pm-stats prunes order_events on its own retention clock, which under an
+  // AI swarm is hours rather than days. Surfacing the boundary stops a
+  // truncated list from reading as missing trades.
+  const retainedFrom = fills.data?.retained_from;
+  // Time alone is ambiguous once retention spans more than a day.
+  const retainedLabel = retainedFrom
+    ? (() => {
+        const d = new Date(retainedFrom);
+        const time = formatIsoTime(retainedFrom);
+        return todayIso(d) === todayIso() ? time : `${todayIso(d)} ${time}`;
+      })()
+    : null;
+
   const inputCls =
     "bg-raised border border-line rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
 
@@ -79,6 +92,18 @@ export function TradeHistoryPage() {
           {rows.length} {rows.length === 1 ? "fill" : "fills"}
           {fills.isFetching ? " · loading…" : ""}
         </span>
+        {retainedLabel ? (
+          <span
+            className="text-[11px] text-fg-faint cursor-help"
+            title={
+              "pm-stats keeps order events for a limited window (--keep-order-events-days) " +
+              "and deletes everything older. Fills before this time are gone from history, " +
+              "even though the orders themselves may still show as FILLED on the Active Orders page."
+            }
+          >
+            · history retained from {retainedLabel}
+          </span>
+        ) : null}
       </div>
 
       {/* Filter bar (§13.5.3) */}
