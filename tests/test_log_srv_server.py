@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from edumatcher.log_srv.config import LogServerConfig
+from edumatcher.log_srv.schema import initialize_schema
 from edumatcher.log_srv.server import LogServer
 from tests.conftest import free_port
 
@@ -214,6 +215,66 @@ def test_ping_pong(running_server: _RunningServer) -> None:
     resp = _recv_all(s)
     assert b"PONG" in resp
     s.close()
+
+
+def test_migration_adds_heartbeat_column_to_an_existing_db(tmp_path: Path) -> None:
+    """A log.db written before the column existed must survive the upgrade."""
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript(
+        "CREATE TABLE processes (session TEXT, process TEXT, instance TEXT, "
+        "pid INTEGER, host TEXT, connected_at TEXT, last_seen_at TEXT, "
+        "disconnected_at TEXT, log_count INTEGER);"
+    )
+    conn.execute(
+        "INSERT INTO processes (session, process, log_count) VALUES ('s1', 'pm-x', 7)"
+    )
+    conn.commit()
+
+    initialize_schema(conn)
+
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(processes)")}
+    assert "last_heartbeat_at" in cols
+    row = conn.execute(
+        "SELECT log_count, last_heartbeat_at FROM processes WHERE session = 's1'"
+    ).fetchone()
+    assert row == (7, None)
+    conn.close()
+
+
+def test_heartbeat_advances_last_heartbeat_at(tmp_path: Path) -> None:
+    """A quiet client that only heartbeats must still look alive in the DB.
+
+    Guards the false ``process_silence`` diagnosis: ``last_seen_at`` only
+    advances on LOG frames, so an idle-but-healthy process needs HB to leave
+    a trace of its own.
+    """
+    rs = _RunningServer(tmp_path)
+    rs.start()
+    try:
+        s = rs.connect()
+        s.sendall(b"HELLO|CLIENT=pm-dc-gwy|PID=1|HOST=h|PROTO=LALF1\n")
+        _recv_all(s)
+
+        before = (
+            rs.db().execute("SELECT last_heartbeat_at FROM processes").fetchone()[0]
+        )
+
+        s.sendall(b"HB\n")
+        time.sleep(rs.config.heartbeat_interval_sec + 0.5)
+
+        row = (
+            rs.db()
+            .execute("SELECT last_seen_at, last_heartbeat_at FROM processes")
+            .fetchone()
+        )
+        assert row[1] is not None
+        assert row[1] > before
+        # No LOG frame was ever sent, so the log clock must not have moved.
+        assert row[0] < row[1]
+        s.close()
+    finally:
+        rs.stop()
 
 
 def test_concurrent_clients_all_rows_persisted(tmp_path: Path) -> None:

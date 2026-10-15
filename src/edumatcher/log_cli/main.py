@@ -50,6 +50,7 @@ _PROCESS_COLS = [
     "host",
     "connected_at",
     "last_seen_at",
+    "last_heartbeat_at",
     "log_count",
 ]
 
@@ -276,6 +277,9 @@ def _print_findings_human(findings: list[Finding]) -> None:
     if not findings:
         print("No issues detected in the queried window.")
         return
+    if all(f.severity == "info" for f in findings):
+        print("No issues detected in the queried window.")
+        print()
     for f in findings:
         print(f"[{f.severity.upper()}] {f.heuristic}: {f.message}")
         print(f"  Recommendation: {f.recommendation}")
@@ -460,7 +464,7 @@ def main() -> None:
                 _print_findings_json(findings)
             else:
                 _print_findings_human(findings)
-            if findings:
+            if any(f.severity != "info" for f in findings):
                 raise SystemExit(3)
             return
 

@@ -3,6 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 
+const SEVERITY_BORDER = {
+  info: "border-level-info",
+  warning: "border-level-warning",
+  error: "border-level-error",
+} as const;
+
 export function DiagnosticsView() {
   const { data, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["diagnostics"],
@@ -40,8 +46,7 @@ export function DiagnosticsView() {
         <div
           key={finding.heuristic}
           className={
-            "rounded border-l-4 bg-bg-subtle p-3 " +
-            (finding.severity === "error" ? "border-level-error" : "border-level-warning")
+            "rounded border-l-4 bg-bg-subtle p-3 " + SEVERITY_BORDER[finding.severity]
           }
         >
           <div className="font-mono text-sm font-semibold">{finding.heuristic}</div>

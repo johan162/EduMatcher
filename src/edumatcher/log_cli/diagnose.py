@@ -24,7 +24,7 @@ DEFAULT_CLOCK_SKEW_THRESHOLD_SEC = 2.0
 @dataclass
 class Finding:
     heuristic: str
-    severity: str  # "warning" | "error"
+    severity: str  # "info" | "warning" | "error"
     message: str
     recommendation: str
     repro_command: str
@@ -176,6 +176,15 @@ def _check_process_silence(
     process_filter: str | None,
     silence_threshold_sec: int,
 ) -> list[Finding]:
+    """Separate a process that is quiet from one that has stopped talking.
+
+    ``last_seen_at`` advances only on LOG frames, so on its own it cannot
+    tell the two apart — which is why this used to warn about every
+    event-driven process that simply had nothing to report. LALF clients
+    send HB on an idle connection, and ``last_heartbeat_at`` records it, so
+    a quiet process that is still heartbeating is now reported as the
+    non-event it is.
+    """
     where = "disconnected_at IS NULL"
     params: list[Any] = []
     if process_filter:
@@ -183,34 +192,79 @@ def _check_process_silence(
         params.append(process_filter)
 
     rows = conn.execute(
-        f"SELECT process, session, last_seen_at FROM processes WHERE {where}",
+        "SELECT process, session, last_seen_at, last_heartbeat_at "
+        f"FROM processes WHERE {where}",
         params,
     ).fetchall()
 
     now = datetime.now(tz=timezone.utc)
     findings: list[Finding] = []
-    for proc, session, last_seen_at in rows:
+    quiet: list[str] = []
+    for proc, session, last_seen_at, last_heartbeat_at in rows:
         try:
-            last_seen = _parse_ts(last_seen_at)
+            log_idle = (now - _parse_ts(last_seen_at)).total_seconds()
         except ValueError:
             continue
-        idle_sec = (now - last_seen).total_seconds()
-        if idle_sec >= silence_threshold_sec:
+        if log_idle < silence_threshold_sec:
+            continue
+
+        # A row predating the heartbeat column has no evidence either way,
+        # so fall back to treating the last log as the last contact.
+        contact_idle = log_idle
+        if last_heartbeat_at:
+            try:
+                contact_idle = min(
+                    log_idle, (now - _parse_ts(last_heartbeat_at)).total_seconds()
+                )
+            except ValueError:
+                pass
+
+        if contact_idle >= silence_threshold_sec:
             findings.append(
                 Finding(
                     heuristic="process_silence",
                     severity="warning",
                     message=(
                         f"{proc} (session {session}) has not logged or heartbeated "
-                        f"in {idle_sec:.0f}s despite an open connection"
+                        f"in {contact_idle:.0f}s despite an open connection"
                     ),
                     recommendation=(
                         f"It may be stuck; check whether the {proc} process is still responsive."
                     ),
                     repro_command="pm-log-cli processes --active",
-                    details={"process": proc, "session": session, "idle_sec": idle_sec},
+                    details={
+                        "process": proc,
+                        "session": session,
+                        "idle_sec": log_idle,
+                        "heartbeat_idle_sec": contact_idle,
+                    },
                 )
             )
+        else:
+            quiet.append(proc)
+
+    # One line, not one per process: on a healthy system every event-driven
+    # process is quiet most of the time, and a page of "all fine" entries
+    # buries the findings that do need reading.
+    if quiet:
+        findings.append(
+            Finding(
+                heuristic="process_silence",
+                severity="info",
+                message=(
+                    f"{len(quiet)} process(es) connected and heartbeating with "
+                    f"nothing to log for over {silence_threshold_sec}s: "
+                    + ", ".join(sorted(quiet))
+                ),
+                recommendation=(
+                    "No action needed: these are alive and simply have nothing "
+                    "to report. Expected for event-driven processes between "
+                    "client connections."
+                ),
+                repro_command="pm-log-cli processes --active",
+                details={"processes": sorted(quiet), "count": len(quiet)},
+            )
+        )
     return findings
 
 

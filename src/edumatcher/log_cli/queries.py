@@ -130,6 +130,7 @@ _PROCESS_COLUMNS = [
     "session",
     "connected_at",
     "last_seen_at",
+    "last_heartbeat_at",
     "disconnected_at",
     "log_count",
 ]

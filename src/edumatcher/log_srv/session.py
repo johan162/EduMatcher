@@ -40,6 +40,11 @@ class LogSession:
     # Timestamp used for both hello-timeout and idle-timeout checks.
     last_activity: float = field(default_factory=time.monotonic)
 
+    #: Value of ``last_activity`` at the last heartbeat flush to the
+    #: database. Lets the flush skip sessions that have said nothing since,
+    #: so an idle fleet costs no writes at all.
+    persisted_activity: float = 0.0
+
     # Highest SEQ seen from this connection so far (0 = none yet) — purely
     # observational bookkeeping; LALF defines no server-side action on a
     # gap (§15.16, item 6: SEQ is per-connection and reset on reconnect),

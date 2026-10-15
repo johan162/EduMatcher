@@ -381,13 +381,15 @@ per-row; nothing groups recurrences. Closed by §11.1's fingerprint, which
 is computed by the bridge from fields `log_events` already has. No schema
 change.
 
-**Gap 4 — `processes.last_seen_at` only advances when a process logs.** A
-healthy but quiet process is indistinguishable from a wedged one over the
-window in which neither logs. This is inherent to log-derived liveness and
-cannot be closed from log data alone; the Processes board presents
-"silent for N" as a neutral observation rather than an error, and
-`diagnose`'s existing `process_silence` heuristic (threshold 30 s) is
-surfaced as a *warning-level finding*, not a hard alert. Flagged in §23.
+**Gap 4 — `processes.last_seen_at` only advances when a process logs.**
+*Closed.* The original text here claimed a healthy-but-quiet process was
+indistinguishable from a wedged one and that this "cannot be closed from
+log data alone". That premise was wrong: LALF clients already send `HB` on
+an idle connection, and `pm-log-srv` was receiving it and discarding it.
+`processes.last_heartbeat_at` now records it, so `diagnose` can separate
+"has nothing to say" (an `info` observation) from "has stopped talking
+altogether" (a `warning`). The Processes board still presents "silent for
+N" as a neutral observation. See §23 question 5.
 
 **Gap 5 — no historical record of LALF-PS subscriber counts.**
 `log.server_state` is a live tick; nothing persists it. Server Health
@@ -1759,14 +1761,28 @@ defers the two phases with open questions attached.
    speculatively — but the trigger for revisiting is "search feels slow",
    and it is worth knowing the answer in advance.
 5. **Should a quiet process ever be an alert rather than an observation?**
-   (§4.6 gap 4) `diagnose`'s `process_silence` heuristic fires at 30 s. In
-   a system where some processes are legitimately idle for minutes, making
-   that a hard alert would produce false positives that train operators to
-   ignore alerts — the worst possible outcome for §3.1's goal 2. This design
-   keeps silence as a *warning-level finding* and a neutral Processes-board
-   glyph. A per-process expected-cadence config would allow promoting it
-   safely, but that is real configuration surface for a modest gain and is
-   not proposed here.
+   (§4.6 gap 4) *Answered, and the original framing was the wrong one.*
+   The question assumed the only available signal was "time since last log",
+   which made the 30 s threshold a choice between false positives and
+   missed detections. It was worse than that: because the idle reaper
+   disconnects any session that stops heartbeating at `2 ×
+   heartbeat_interval_sec`, and the heuristic only looks at still-connected
+   sessions, every process it could possibly flag was provably still
+   heartbeating. It could not fire on a wedged process at all — only on
+   healthy quiet ones.
+
+   Persisting `HB` to `processes.last_heartbeat_at` gives the two signals
+   the heuristic needs. Quiet-but-heartbeating is now a single aggregate
+   `info` finding ("no action needed", and it does not make `pm-log-cli
+   diagnose` exit non-zero) rather than one line per process — on a healthy
+   system most event-driven processes are quiet most of the time, and a
+   page of "all fine" entries buries the findings worth reading. Silent on
+   *both* clocks stays a per-process `warning`. That residual case is real —
+   an application main thread can wedge while the logclient's sender thread
+   keeps heartbeating — so the heuristic now detects the thing it was
+   always named for. A hard alert still is not proposed: a per-process
+   expected-cadence config would be real configuration surface for a
+   modest gain.
 6. **Should the console be able to trigger a `prune`?** `pm-log-cli prune`
    exists and an operator watching `log.db` grow might reasonably want the
    button. It is deliberately omitted: it is the one destructive operation

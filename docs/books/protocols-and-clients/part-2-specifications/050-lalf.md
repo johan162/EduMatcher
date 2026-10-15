@@ -341,6 +341,12 @@ HB|TS=2026-07-28T14:32:10.000Z
 |---|---|---|---|
 | `TS` | Yes | string | UTC ISO-8601 timestamp with milliseconds, at the moment this `HB` was sent |
 
+The shipped `pm-log-srv` records the time of the most recent contact from
+each session in `processes.last_heartbeat_at`, separately from
+`last_seen_at` which advances only on `LOG`. The two together let
+`pm-log-cli diagnose` tell a process with nothing to say apart from one
+that has stopped talking.
+
 ### `PING` / `PONG`
 
 **Direction:** wire-symmetric; either endpoint MAY send `PING` at any time

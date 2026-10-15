@@ -38,6 +38,7 @@ from edumatcher.log_srv.schema import (
     INCREMENT_TOTAL_CONNECTIONS,
     INCREMENT_TOTAL_ERRORS_SENT,
     UPDATE_PROCESS_DISCONNECTED,
+    UPDATE_PROCESS_HEARTBEAT,
     UPSERT_PROCESS_CONNECT,
     UPSERT_SERVER_STATS_INIT,
     open_db,
@@ -114,6 +115,7 @@ class LogServer:
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
         self._last_retention_check = 0.0
+        self._last_heartbeat_flush = 0.0
 
         # A dedicated connection is used for the (rare, background) DELETE
         # pruning statement rather than sharing the writer thread's
@@ -189,6 +191,7 @@ class LogServer:
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
+                self._persist_heartbeats_if_due()
                 self._service_pubsub()
                 self._run_retention_if_due()
                 time.sleep(0.01)
@@ -416,6 +419,7 @@ class LogServer:
         session.authenticated = True
         session.session_id = secrets.token_hex(4)
         session.last_activity = time.monotonic()
+        session.persisted_activity = session.last_activity
 
         now_iso = iso_utc(time.time())
         with self._writer.lock, self._conn:
@@ -427,6 +431,7 @@ class LogServer:
                     instance,
                     pid,
                     host,
+                    now_iso,
                     now_iso,
                     now_iso,
                 ),
@@ -591,6 +596,42 @@ class LogServer:
             self._pubsub.poll()
         except Exception:  # pragma: no cover - defensive
             log.exception("LALF-PS servicing pass failed; continuing")
+
+    def _persist_heartbeats_if_due(self) -> None:
+        """Write each live session's last-contact time to ``processes``.
+
+        The main loop spins at 100 Hz and every inbound frame refreshes
+        ``last_activity``, so persisting on receipt would mean a write per
+        process per heartbeat. Instead this flushes on the heartbeat
+        interval, batching every session into one transaction and skipping
+        those that have not been heard from since the last pass.
+
+        Without this, ``processes.last_heartbeat_at`` would stay NULL and
+        ``last_seen_at`` would advance only on LOG frames — which is what
+        made ``pm-log-cli diagnose`` report a quiet-but-healthy process as
+        silent, having no way to tell it apart from a wedged one.
+        """
+        now = time.monotonic()
+        if now - self._last_heartbeat_flush < self.config.heartbeat_interval_sec:
+            return
+        self._last_heartbeat_flush = now
+
+        due = [
+            s
+            for s in self._clients.values()
+            if s.authenticated and s.last_activity > s.persisted_activity
+        ]
+        if not due:
+            return
+
+        now_iso = iso_utc(time.time())
+        with self._writer.lock, self._conn:
+            self._conn.executemany(
+                UPDATE_PROCESS_HEARTBEAT,
+                [(now_iso, s.session_id) for s in due],
+            )
+        for s in due:
+            s.persisted_activity = s.last_activity
 
     def _run_retention_if_due(self) -> None:
         if self.config.retention_days is None:

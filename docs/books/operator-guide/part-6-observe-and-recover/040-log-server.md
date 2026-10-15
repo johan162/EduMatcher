@@ -637,7 +637,7 @@ since a value given after the subcommand always wins if both are present.
 | `0` | Success |
 | `1` | Database error — `log.db` not found or not readable (has `pm-log-srv` ever run?) |
 | `2` | Argument error (invalid flag combination) |
-| `3` | `diagnose` found at least one issue (only meaningful for scripting; `query`/`tail`/`stats`/`processes`/`prune` never use this code) |
+| `3` | `diagnose` found at least one warning- or error-level finding; `[INFO]` observations alone still exit `0` (only meaningful for scripting; `query`/`tail`/`stats`/`processes`/`prune` never use this code) |
 
 
 
@@ -743,7 +743,13 @@ pm-log-cli processes [options]
 | `--active` | off | Only currently-connected sessions (no `disconnected_at`) |
 
 **Output columns:** `process`, `instance`, `pid`, `host`, `connected_at`,
-`last_seen_at`, `log_count`.
+`last_seen_at`, `last_heartbeat_at`, `log_count`.
+
+`last_seen_at` advances only when the process actually *logs* something;
+`last_heartbeat_at` advances on any contact, including the LALF `HB` frame
+an idle client sends every few seconds. A process with an old `last_seen_at`
+and a fresh `last_heartbeat_at` is connected and healthy with nothing to
+report. Both being stale is the case worth looking into.
 
 **Examples:**
 
@@ -828,7 +834,7 @@ pm-log-cli diagnose [options]
 |---|---|
 | Error-rate spike | ERROR/CRITICAL count in the last 5 minutes far exceeds the preceding hour's baseline for a process |
 | Repeated identical warning | The same `(process, logger, message)` triple repeats many times in the queried window |
-| Process silence | A still-connected session has not logged or heartbeated recently despite an open connection |
+| Process silence | A still-connected session has stopped both logging and heartbeating — reported per process. Processes that are merely quiet — no logs, but still heartbeating — are collapsed into a single `[INFO]` observation instead |
 | Clock skew | A process's `client_ts` is consistently ahead of or behind `pm-log-srv`'s own clock |
 | Truncated-message rate | A process sent one or more oversized log messages that were truncated |
 | Exception clustering | Most tracebacks in the window come from one specific logger |
@@ -840,6 +846,11 @@ are the actual log lines." When no heuristic fires, `diagnose` reports "no
 issues detected" rather than printing nothing — a clean run is visibly a
 clean run. Exit code `3` signals at least one finding, useful for scripting
 a periodic health check.
+
+Findings carry a severity. `[INFO]` findings are observations that need no
+action — a quiet-but-heartbeating process is the common one — and they do
+*not* set exit code `3`, so a scripted health check will not be woken by
+them. Only `[WARNING]` and `[ERROR]` findings do.
 
 **Example output (an issue found):**
 
@@ -997,7 +1008,7 @@ pm-log-cli prune --days 30
 | `0` | Success |
 | `1` | Database not found or not readable — has `pm-log-srv` ever run? |
 | `2` | Argument error |
-| `3` | `diagnose` found at least one issue |
+| `3` | `diagnose` found at least one warning- or error-level finding |
 
 Unlike `pm-audit-cli`, `pm-log-cli` has no separate index-building step and
 no rotated-file discovery — `log.db` is a single SQLite file and every
