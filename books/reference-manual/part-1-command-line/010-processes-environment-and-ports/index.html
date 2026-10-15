@@ -10281,8 +10281,10 @@ SQLite database (<code>data/stats.db</code>). This is the queryable time-series 
 both trading statistics and index levels — <code>pm-index</code>'s own JSONL file only
 retains structural/corporate-action audit records, not level ticks.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-stats<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--snapshot-interval<span class="w"> </span>SEC<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="o">[</span>--keep-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-order-events-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="o">[</span>--keep-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-order-events-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="o">[</span>--human-gateways<span class="w"> </span>GLOB,...<span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-human-order-events-days<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="o">[</span>--sql-trace<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -10313,6 +10315,16 @@ retains structural/corporate-action audit records, not level ticks.</p>
 <td><code>--keep-order-events-days</code></td>
 <td>as <code>--keep-days</code></td>
 <td>Keep N days of <code>order_events</code> alone, overriding <code>--keep-days</code> for them. Fractions are fine (<code>0.05</code> is about an hour); under an AI swarm order events are most of the file</td>
+</tr>
+<tr>
+<td><code>--human-gateways</code></td>
+<td>none</td>
+<td>Comma-separated gateway id globs, e.g. <code>TRADER*</code>, whose <code>order_events</code> prune on <code>--keep-human-order-events-days</code> instead. A person places a handful of orders a day and should not lose them on a clock set for a hundred bots</td>
+</tr>
+<tr>
+<td><code>--keep-human-order-events-days</code></td>
+<td>as <code>--keep-order-events-days</code></td>
+<td>Keep N days of <code>order_events</code> for gateways matching <code>--human-gateways</code>; <code>0</code> keeps them for good. Requires <code>--human-gateways</code> — on its own it would match nobody and change nothing</td>
 </tr>
 <tr>
 <td><code>--sql-trace</code></td>
@@ -12655,7 +12667,8 @@ it translates HTTP and WebSocket requests into the same ZMQ messages used by the
 interactive <code>pm-alf-console</code> terminal. Reads configuration from the <code>api_gateways:</code>
 section of <code>engine_config.yaml</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--stats-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="w">  </span><span class="o">[</span>--clearing-db<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="w">  </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-target<span class="w"> </span>TARGET<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-failover-timeout<span class="w"> </span>SEC<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -12691,6 +12704,11 @@ section of <code>engine_config.yaml</code>.</p>
 <td><code>--stats-db PATH</code></td>
 <td>config value</td>
 <td>Path to <code>data/stats.db</code> for <code>/history/*</code> endpoints</td>
+</tr>
+<tr>
+<td><code>--clearing-db PATH</code></td>
+<td>config value</td>
+<td>Path to <code>data/clearing.db</code>, opened read-only for the session/MTD/YTD realized P&amp;L on <code>/positions</code>. Optional: without it those three fields report <code>null</code></td>
 </tr>
 <tr>
 <td><code>--log-level LEVEL</code></td>
@@ -14396,7 +14414,7 @@ that file exists:</p>
 </tr>
 <tr>
 <td><code>ai-sim</code></td>
-<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 80 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 0.05</code> and <code>pm-clearing --print-every 0 --retention-days 7</code>. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
+<td><code>ai-swarm</code> set up to run for weeks on the <code>s300-sim</code> example: <code>pm-ai-swarm --swarm &lt;examples&gt;/s300-sim-setup/swarm.yaml --verbose</code> (<code>AI001</code>–<code>AI100</code>, 80 order actions a second), the market maker with the <code>symmetric</code> strategy (the passive one re-quotes on every change in other traders' orders, which with a hundred traders was most of the exchange's load), <code>pm-engine</code> without <code>--verbose</code>, <code>pm-stats --keep-days 7 --keep-order-events-days 0.5 --human-gateways 'TRADER*' --keep-human-order-events-days 7</code> and <code>pm-clearing --print-every 0 --retention-days 7</code>. What the <code>edumatcher-ai-sim</code> image runs; needs <code>s300-sim</code> deployed. See <a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">AI Traders and Market Simulation</a></td>
 </tr>
 </tbody>
 </table>

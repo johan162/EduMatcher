@@ -7858,6 +7858,12 @@ of the connection.</p>
 </table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=a1b2c3d4
 </code></pre></div>
+<p>A <code>HELLO</code>/<code>WELCOME</code> exchange is a valid use of the protocol on its own: a
+client may complete the handshake purely to discover whether a server is
+listening, then disconnect without logging. The shipped <code>pm-log-srv</code>
+therefore does not enter a session into its <code>processes</code> registry until the
+first <code>LOG</code> or <code>HB</code> frame arrives, so such probes leave no record of a
+process that never ran.</p>
 <p>A <code>WELCOME</code> is the sole positive acknowledgment of a <code>HELLO</code>; there is no
 separate <code>ACK</code> for the handshake.</p>
 <h3 id="log"><code>LOG</code><a class="headerlink" href="#log" title="Permanent link">&para;</a></h3>
@@ -8076,6 +8082,11 @@ the server can distinguish a quiet-but-alive client from a dead connection.</p>
 </tr>
 </tbody>
 </table>
+<p>The shipped <code>pm-log-srv</code> records the time of the most recent contact from
+each session in <code>processes.last_heartbeat_at</code>, separately from
+<code>last_seen_at</code> which advances only on <code>LOG</code>. The two together let
+<code>pm-log-cli diagnose</code> tell a process with nothing to say apart from one
+that has stopped talking.</p>
 <h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> wire-symmetric; either endpoint MAY send <code>PING</code> at any time
 after <code>WELCOME</code>, and the receiver MUST reply with <code>PONG</code> as soon as possible.
@@ -8103,6 +8114,12 @@ without sending <code>EXIT</code> (process killed by signal, crash) is not a pro
 violation; the server MUST treat the closed socket identically to an
 explicit <code>EXIT</code> for the purpose of flushing buffered rows and marking the
 connection's stored process record disconnected.</p>
+<p>The shipped <code>pm-log-srv</code> does, however, record <em>which</em> of the two happened
+in <code>processes.disconnect_reason</code> (<code>client_exit</code> versus <code>peer_closed</code>,
+<code>idle_timeout</code>, <code>hello_timeout</code>, or <code>protocol_error</code>). Sending <code>EXIT</code> is
+therefore worth doing even though its absence is legal: it is what lets
+<code>pm-log-cli diagnose</code> tell a deliberate shutdown from a process that
+crashed or failed over to file logging.</p>
 <h2 id="backpressure">Backpressure<a class="headerlink" href="#backpressure" title="Permanent link">&para;</a></h2>
 <p>LALF defines no application-level flow-control message. A server
 experiencing a write bottleneck MUST apply backpressure by ceasing to read

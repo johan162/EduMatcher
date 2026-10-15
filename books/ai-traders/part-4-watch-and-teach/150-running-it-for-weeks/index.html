@@ -7388,8 +7388,14 @@ are calendar days, so about five trading days are kept.</p>
 <tr>
 <td><code>stats.db</code> — order events</td>
 <td>about 250 MB an hour</td>
-<td>the last 72 minutes (<code>--keep-order-events-days 0.05</code>)</td>
-<td>about 0.3 GB, within the first trading day</td>
+<td>the last 12 hours (<code>--keep-order-events-days 0.5</code>)</td>
+<td>about 3 GB, within the first trading day</td>
+</tr>
+<tr>
+<td><code>stats.db</code> — your own order events</td>
+<td>a few KB a day</td>
+<td>7 days (<code>--human-gateways 'TRADER*'</code>)</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>stats.db</code> — daily statistics</td>

@@ -8512,7 +8512,7 @@ since a value given after the subcommand always wins if both are present.</p>
 </tr>
 <tr>
 <td><code>3</code></td>
-<td><code>diagnose</code> found at least one issue (only meaningful for scripting; <code>query</code>/<code>tail</code>/<code>stats</code>/<code>processes</code>/<code>prune</code> never use this code)</td>
+<td><code>diagnose</code> found at least one warning- or error-level finding; <code>[INFO]</code> observations alone still exit <code>0</code> (only meaningful for scripting; <code>query</code>/<code>tail</code>/<code>stats</code>/<code>processes</code>/<code>prune</code> never use this code)</td>
 </tr>
 </tbody>
 </table>
@@ -8671,7 +8671,24 @@ logs" view.</p>
 </tbody>
 </table>
 <p><strong>Output columns:</strong> <code>process</code>, <code>instance</code>, <code>pid</code>, <code>host</code>, <code>connected_at</code>,
-<code>last_seen_at</code>, <code>log_count</code>.</p>
+<code>last_seen_at</code>, <code>last_heartbeat_at</code>, <code>disconnect_reason</code>, <code>log_count</code>.</p>
+<p><code>last_seen_at</code> advances only when the process actually <em>logs</em> something;
+<code>last_heartbeat_at</code> advances on any contact, including the LALF <code>HB</code> frame
+an idle client sends every few seconds. A process with an old <code>last_seen_at</code>
+and a fresh <code>last_heartbeat_at</code> is connected and healthy with nothing to
+report. Both being stale is the case worth looking into.</p>
+<p><code>disconnect_reason</code> says <em>how</em> a session ended: <code>client_exit</code> means the
+client sent <code>EXIT</code> and shut down deliberately, while <code>peer_closed</code>,
+<code>idle_timeout</code>, <code>hello_timeout</code>, or <code>protocol_error</code> mean it went away
+without saying goodbye. It is empty for sessions still open, and for
+sessions recorded before this column existed.</p>
+<p>A session appears here only once it has actually sent a <code>LOG</code> or <code>HB</code>
+frame, not merely completed the handshake. Every <code>pm-*</code> process probes for
+a running <code>pm-log-srv</code> at startup by opening a throwaway connection, sending
+<code>HELLO</code>, reading <code>WELCOME</code> and hanging up again; counting those probes as
+processes filled this table with tools that were never started. If you are
+looking for a process you expect to be connected and it is absent, it has
+either not started or not yet logged anything.</p>
 <p><strong>Examples:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Every session seen, connected or not</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-log-cli<span class="w"> </span>processes
@@ -8762,7 +8779,7 @@ has a one-sentence, inspectable answer.</p>
 </tr>
 <tr>
 <td>Process silence</td>
-<td>A still-connected session has not logged or heartbeated recently despite an open connection</td>
+<td>A still-connected session has stopped both logging and heartbeating — reported per process. Processes that are merely quiet — no logs, but still heartbeating — are collapsed into a single <code>[INFO]</code> observation instead</td>
 </tr>
 <tr>
 <td>Clock skew</td>
@@ -8778,7 +8795,7 @@ has a one-sentence, inspectable answer.</p>
 </tr>
 <tr>
 <td>Likely fallback-to-file event</td>
-<td>A process cleanly disconnected and never reconnected, distinct from a merely-stalled-but-open session</td>
+<td>A process's <em>most recent</em> session ended without a clean <code>EXIT</code> and it has not reconnected — it either exited abnormally or failed over to file logging. Deliberate shutdowns are ignored</td>
 </tr>
 </tbody>
 </table>
@@ -8788,6 +8805,10 @@ are the actual log lines." When no heuristic fires, <code>diagnose</code> report
 issues detected" rather than printing nothing — a clean run is visibly a
 clean run. Exit code <code>3</code> signals at least one finding, useful for scripting
 a periodic health check.</p>
+<p>Findings carry a severity. <code>[INFO]</code> findings are observations that need no
+action — a quiet-but-heartbeating process is the common one — and they do
+<em>not</em> set exit code <code>3</code>, so a scripted health check will not be woken by
+them. Only <code>[WARNING]</code> and <code>[ERROR]</code> findings do.</p>
 <p><strong>Example output (an issue found):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[WARNING] repeated_warning: pm-api-gwy logged "ENGINE_TIMEOUT" 47 times in the last hour
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>  Recommendation: Investigate why edumatcher.api_gateway.engine_client keeps repeating this message; it may indicate a stuck retry loop or a persistent misconfiguration.
@@ -8927,7 +8948,7 @@ pushed rows as they land.</p>
 </tr>
 <tr>
 <td><code>3</code></td>
-<td><code>diagnose</code> found at least one issue</td>
+<td><code>diagnose</code> found at least one warning- or error-level finding</td>
 </tr>
 </tbody>
 </table>

@@ -8036,60 +8036,61 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-130" name="__codelineno-0-130" href="#__codelineno-0-130"></a>  swagger_enabled:              ? Bool = true
 <a id="__codelineno-0-131" name="__codelineno-0-131" href="#__codelineno-0-131"></a>  stats_db:                     ? Path = &lt;data dir&gt;/stats.db
 <a id="__codelineno-0-132" name="__codelineno-0-132" href="#__codelineno-0-132"></a>  audit_db:                     ? Path = &lt;data dir&gt;/audit_index.db
-<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>  order_retention_sec:          ? Int = 3600                  ∈ &gt;= 0
-<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>  market_data_cache_sec:        ? Int = 60                    ∈ &gt;= 0
-<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>  engine_pull_addr:             ? Str = tcp://&lt;engine host&gt;:5555
-<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>  engine_pub_addr:              ? Str = tcp://&lt;engine host&gt;:5556
-<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>  index_pull_addr:              ? Str = tcp://&lt;index bind host&gt;:5559
-<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>  index_pub_addr:               ? Str = tcp://&lt;index bind host&gt;:5558
-<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>  credentials:                  ? List&lt;ApiCredentialSpec&gt; = []
-<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>  rate_limit:                   ? RateLimitSpec
-<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>  timeouts:                     ? TimeoutSpec
-<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>
-<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>ApiCredentialSpec:
-<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>  api_key:                      ! Str                         # non-empty, unique within the instance
-<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>  gateway_id:                   ? GatewayId | null = null     # null = read-only key
-<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>  description:                  ? Str = ""
-<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>
-<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>RateLimitSpec:
-<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>  writes_per_second:            ? Int = 10                    ∈ &gt; 0
-<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>  burst:                        ? Int = 20                    ∈ &gt; 0
-<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a>
-<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>TimeoutSpec:
-<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>  engine_auth_sec:              ? Secs = 3.0
-<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>  engine_reply_sec:             ? Secs = 3.0
-<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>  wait_ack_sec:                 ? Secs = 3.0
-<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>
-<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
-<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>  name:                         ? Str = "log-srv01"
-<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>  port:                         ? Port = 5600
-<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>  db_path:                      ? Path = &lt;data dir&gt;/log.db
-<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>  retention_days:               ? Int | null = 30            ∈ &gt;= 0; 0 ≡ null ≡ unbounded
-<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>  max_message_bytes:            ? Int = 65536                 ∈ &gt; 0
-<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a>  write_batch_size:             ? Int = 50                    ∈ &gt; 0
-<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>  write_batch_interval_ms:      ? Int = 100                   ∈ &gt; 0
-<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
-<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>  pubsub_enabled:               ? Bool = true
-<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
-<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>  pull_port:                    ? Port = 5602
-<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>  lease_sec:                    ? Int = 30                    ∈ &gt; 0
-<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>  max_lease_sec:                ? Int = 300                   ∈ &gt;= lease_sec
-<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a>  max_subscribers:              ? Int = 32                    ∈ &gt; 0
-<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>  notify_interval_ms:           ? Int = 250                   ∈ &gt; 0
-<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>  backfill_chunk_rows:          ? Int = 500                   ∈ &gt; 0
-<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  max_backfill_minutes:         ? Int = 1440                  ∈ &gt; 0
-<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>  max_backfill_rows:            ? Int = 100000                ∈ &gt; 0
-<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>  max_pending_rows:             ? Int = 20000                 ∈ &gt; 0
-<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>  pub_sndhwm:                   ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  client:                       ? LogClientSpec
-<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>
-<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>LogClientSpec:                               # log_server.client; read by every pm-* process
-<a id="__codelineno-0-184" name="__codelineno-0-184" href="#__codelineno-0-184"></a>  connect_timeout_sec:          ? Secs = 0.5
-<a id="__codelineno-0-185" name="__codelineno-0-185" href="#__codelineno-0-185"></a>  failover_timeout_sec:         ? Float = 30.0                ∈ &gt;= 0
-<a id="__codelineno-0-186" name="__codelineno-0-186" href="#__codelineno-0-186"></a>  failover_dir:                 ? Path = &lt;data dir&gt;/logs
+<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>  clearing_db:                  ? Path = &lt;data dir&gt;/clearing.db
+<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>  order_retention_sec:          ? Int = 3600                  ∈ &gt;= 0
+<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>  market_data_cache_sec:        ? Int = 60                    ∈ &gt;= 0
+<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>  engine_pull_addr:             ? Str = tcp://&lt;engine host&gt;:5555
+<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>  engine_pub_addr:              ? Str = tcp://&lt;engine host&gt;:5556
+<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>  index_pull_addr:              ? Str = tcp://&lt;index bind host&gt;:5559
+<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>  index_pub_addr:               ? Str = tcp://&lt;index bind host&gt;:5558
+<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>  credentials:                  ? List&lt;ApiCredentialSpec&gt; = []
+<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>  rate_limit:                   ? RateLimitSpec
+<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>  timeouts:                     ? TimeoutSpec
+<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>
+<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>ApiCredentialSpec:
+<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>  api_key:                      ! Str                         # non-empty, unique within the instance
+<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>  gateway_id:                   ? GatewayId | null = null     # null = read-only key
+<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>  description:                  ? Str = ""
+<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>
+<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>RateLimitSpec:
+<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>  writes_per_second:            ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a>  burst:                        ? Int = 20                    ∈ &gt; 0
+<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>
+<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>TimeoutSpec:
+<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>  engine_auth_sec:              ? Secs = 3.0
+<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>  engine_reply_sec:             ? Secs = 3.0
+<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>  wait_ack_sec:                 ? Secs = 3.0
+<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>
+<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
+<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>  name:                         ? Str = "log-srv01"
+<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>  port:                         ? Port = 5600
+<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>  db_path:                      ? Path = &lt;data dir&gt;/log.db
+<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>  retention_days:               ? Int | null = 30            ∈ &gt;= 0; 0 ≡ null ≡ unbounded
+<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>  max_message_bytes:            ? Int = 65536                 ∈ &gt; 0
+<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>  write_batch_size:             ? Int = 50                    ∈ &gt; 0
+<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>  write_batch_interval_ms:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>  pubsub_enabled:               ? Bool = true
+<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
+<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>  pull_port:                    ? Port = 5602
+<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>  lease_sec:                    ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a>  max_lease_sec:                ? Int = 300                   ∈ &gt;= lease_sec
+<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>  max_subscribers:              ? Int = 32                    ∈ &gt; 0
+<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>  notify_interval_ms:           ? Int = 250                   ∈ &gt; 0
+<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  backfill_chunk_rows:          ? Int = 500                   ∈ &gt; 0
+<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>  max_backfill_minutes:         ? Int = 1440                  ∈ &gt; 0
+<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>  max_backfill_rows:            ? Int = 100000                ∈ &gt; 0
+<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>  max_pending_rows:             ? Int = 20000                 ∈ &gt; 0
+<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  pub_sndhwm:                   ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>  client:                       ? LogClientSpec
+<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>
+<a id="__codelineno-0-184" name="__codelineno-0-184" href="#__codelineno-0-184"></a>LogClientSpec:                               # log_server.client; read by every pm-* process
+<a id="__codelineno-0-185" name="__codelineno-0-185" href="#__codelineno-0-185"></a>  connect_timeout_sec:          ? Secs = 0.5
+<a id="__codelineno-0-186" name="__codelineno-0-186" href="#__codelineno-0-186"></a>  failover_timeout_sec:         ? Float = 30.0                ∈ &gt;= 0
+<a id="__codelineno-0-187" name="__codelineno-0-187" href="#__codelineno-0-187"></a>  failover_dir:                 ? Path = &lt;data dir&gt;/logs
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -9472,6 +9473,13 @@ schema tree (§3).</p>
 <td style="text-align: center;">–</td>
 <td>resolved <code>audit_index.db</code></td>
 <td><code>~</code> expanded. Read-only; only <code>GET /admin/orders/{order_id}</code> uses it, and that endpoint returns 503 when the file is absent</td>
+</tr>
+<tr>
+<td><code>clearing_db</code></td>
+<td><code>Path</code></td>
+<td style="text-align: center;">–</td>
+<td>resolved <code>clearing.db</code></td>
+<td><code>~</code> expanded. Read-only; supplies the session/MTD/YTD realized P&amp;L on <code>GET /positions</code>, which report <code>null</code> when the file is absent</td>
 </tr>
 <tr>
 <td><code>order_retention_sec</code></td>
