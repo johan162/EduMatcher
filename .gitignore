@@ -197,7 +197,6 @@ project-review*
 
 **/node_modules/
 mermaid-filter.err
-package-lock.json
 
 # Instructor correction keys must not be committed in plaintext
 docs/knowledge-check/instructor-correction-keys.md
@@ -205,7 +204,7 @@ docs/knowledge-check/instructor-correction-keys.pdf
 
 .kiro/
 
-build-tools
+build-tools/.mermaid-cache
 ralf_subscriber
 calf_subscriber
 balf_parser

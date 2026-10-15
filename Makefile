@@ -87,8 +87,8 @@ BUILD_SDIST  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION).tar.gz
 #	@poetry env remove --all
 #	@rm -rf .venv
 
-$(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
-	@echo -e "$(DARKYELLOW)- Installing dependencies...$(NC)"
+$(INSTALL_STAMP): pyproject.toml $(LOCK_FILE) build-tools/package.json
+	@echo -e "$(DARKYELLOW)- Installing python dependencies...$(NC)"
 	@poetry install --with dev,docs
 	# Check if .venv/bin/activate exists
 	@if [ ! -f .venv/bin/activate ]; then \
@@ -96,8 +96,18 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 		exit 1; \
 	fi
 	source .venv/bin/activate
+	@echo -e "$(GREEN)✓ Project python dependencies installed$(NC)"
+	@echo -e "$(DARKYELLOW)- Installing node build-tools for documentation...$(NC)"
+# If lock file exists run npm ci to install node build-tools dependencies
+# and if it doesn't exist, run npm install to create it
+	@if [ -f build-tools/package-lock.json ]; then \
+		PUPPETEER_SKIP_DOWNLOAD=1 npm ci --prefix build-tools; \
+	else \
+		PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix build-tools; \
+	fi
+	@echo -e "$(GREEN)✓ Node build-tools for documentation installed$(NC)"
 	@touch $(INSTALL_STAMP)
-	@echo -e "$(GREEN)✓ Project dependencies installed$(NC)"
+	
 
 $(LOCK_FILE): pyproject.toml
 	@echo -e "$(DARKYELLOW)- Regenerating lock file...$(NC)"
