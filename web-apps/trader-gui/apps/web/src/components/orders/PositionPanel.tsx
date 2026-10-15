@@ -100,7 +100,9 @@ export function PositionPanel() {
     if (last === null || avg === null) return p.unrealized_pnl ?? null;
     return p.unrealized_pnl ?? p.net_qty * (last - avg);
   };
-  const realizedFor = (p: Position) => p.realized_pnl ?? null;
+  const realizedFor = (p: Position) => p.realized_pnl_session ?? null;
+  const mtdFor = (p: Position) => p.realized_pnl_mtd ?? null;
+  const ytdFor = (p: Position) => p.realized_pnl_ytd ?? null;
 
   // M4: the power-user "Undo" used to cancel the just-submitted MARKET
   // order, which never rests and so can never undo anything -- dropped.
@@ -248,9 +250,23 @@ export function PositionPanel() {
                 <th
                   scope="col"
                   className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Cumulative gain or loss already locked in by closing trades this session"
+                  title="Gain or loss locked in by closing trades during today's trading session. From the clearing ledger, so it survives a gateway restart."
                 >
-                  Realized P&amp;L
+                  Session P&amp;L
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Realized gain or loss for this symbol since the first of the month, including today"
+                >
+                  MTD P&amp;L
+                </th>
+                <th
+                  scope="col"
+                  className="px-2 py-1.5 text-right font-medium cursor-help"
+                  title="Realized gain or loss for this symbol since the first of January, including today"
+                >
+                  YTD P&amp;L
                 </th>
                 <th scope="col" className="px-2 py-1.5 text-right font-medium">Action</th>
               </tr>
@@ -262,6 +278,8 @@ export function PositionPanel() {
                 const marketValue = marketValueFor(p);
                 const unrealized = unrealizedFor(p);
                 const realized = realizedFor(p);
+                const mtd = mtdFor(p);
+                const ytd = ytdFor(p);
                 const flat = p.net_qty === 0;
                 return (
                   <tr key={p.symbol} className="border-b border-raised hover:bg-raised">
@@ -288,6 +306,12 @@ export function PositionPanel() {
                     </td>
                     <td className={`px-2 py-1 text-right font-mono ${pnlClass(realized)}`}>
                     {formatSignedPrice(realized, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(mtd)}`}>
+                    {formatSignedPrice(mtd, tickFor(p.symbol))}
+                    </td>
+                    <td className={`px-2 py-1 text-right font-mono ${pnlClass(ytd)}`}>
+                    {formatSignedPrice(ytd, tickFor(p.symbol))}
                     </td>
                     <td className="px-2 py-1 text-right">
                     <button

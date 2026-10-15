@@ -324,6 +324,7 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         credentials=(ApiCredential(api_key="key", gateway_id="GW01"),),
         order_retention_sec=300,
         audit_db=tmp_path / "audit.db",
+        clearing_db=tmp_path / "clearing.db",
     )
     monkeypatch.setattr(
         main, "load_default_api_gateway_config", lambda instance=None: deployed
@@ -334,6 +335,7 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         port=9090,
         engine_host="10.0.0.5",
         stats_db=str(tmp_path / "stats.db"),
+        clearing_db=None,
         log_level="debug",
     )
     cfg = main._config_with_overrides(args)
@@ -349,6 +351,7 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     # rebuild reset these two to their defaults.
     assert cfg.order_retention_sec == 300
     assert cfg.audit_db == tmp_path / "audit.db"
+    assert cfg.clearing_db == tmp_path / "clearing.db"
 
 
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:

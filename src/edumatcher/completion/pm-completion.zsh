@@ -644,6 +644,7 @@ _shtab_pm_api_gwy_options=(
   "--instance[Named api_gateways entry to run when multiple API gateway processes are configured]:NAME:"
   "--engine-host[Override engine host in ZMQ URLs]:HOST:"
   "--stats-db[Path to stats.db]:PATH:"
+  "--clearing-db[Path to clearing.db, read-only, for period realized P\&L on \/positions]:PATH:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"

@@ -109,10 +109,11 @@ def test_positions_survive_eviction() -> None:
     assert cache.orders == {}
     assert cache.positions == {"AAPL": 100}
     assert cache.position_avg_costs == {"AAPL": 150.0}
-    assert cache.realized_pnl == {"AAPL": 0.0}
 
 
-def test_positions_cache_tracks_realized_pnl() -> None:
+def test_partial_close_leaves_the_average_cost_alone() -> None:
+    """Selling part of a long reduces the quantity at the same basis -- the
+    remaining shares were not bought at the price they were sold at."""
     cache = SessionCaches()
     cache.apply(
         "order.fill.GW01",
@@ -139,7 +140,6 @@ def test_positions_cache_tracks_realized_pnl() -> None:
 
     assert cache.positions["AAPL"] == 6
     assert cache.position_avg_costs["AAPL"] == 100.0
-    assert cache.realized_pnl["AAPL"] == 80.0
 
 
 def test_the_eviction_stamp_never_reaches_the_wire() -> None:

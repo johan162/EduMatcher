@@ -29,7 +29,6 @@ class SessionCaches:
     quote_legs: dict[str, dict[str, Any]] = field(default_factory=dict)
     positions: dict[str, int] = field(default_factory=dict)
     position_avg_costs: dict[str, float] = field(default_factory=dict)
-    realized_pnl: dict[str, float] = field(default_factory=dict)
     last_prices: dict[str, float] = field(default_factory=dict)
     known_symbols: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: order_id -> monotonic-ish wall time the order became terminal, used
@@ -121,7 +120,6 @@ class SessionCaches:
         """Update the per-symbol position ledger from one fill report."""
         pos = self.positions.get(symbol, 0)
         avg_cost = self.position_avg_costs.get(symbol, 0.0)
-        realized_delta = 0.0
 
         if side == "BUY":
             new_pos = pos + qty
@@ -129,15 +127,12 @@ class SessionCaches:
                 new_cost = (
                     (avg_cost * pos + price * qty) / new_pos if new_pos != 0 else 0.0
                 )
+            elif new_pos < 0:
+                new_cost = avg_cost
+            elif new_pos == 0:
+                new_cost = 0.0
             else:
-                close_qty = min(qty, abs(pos))
-                realized_delta = (avg_cost - price) * close_qty
-                if new_pos < 0:
-                    new_cost = avg_cost
-                elif new_pos == 0:
-                    new_cost = 0.0
-                else:
-                    new_cost = price
+                new_cost = price
         elif side == "SELL":
             new_pos = pos - qty
             if pos <= 0:
@@ -147,29 +142,20 @@ class SessionCaches:
                     if abs_new != 0
                     else 0.0
                 )
+            elif new_pos > 0:
+                new_cost = avg_cost
+            elif new_pos == 0:
+                new_cost = 0.0
             else:
-                close_qty = min(qty, pos)
-                realized_delta = (price - avg_cost) * close_qty
-                if new_pos > 0:
-                    new_cost = avg_cost
-                elif new_pos == 0:
-                    new_cost = 0.0
-                else:
-                    new_cost = price
+                new_cost = price
         else:
             return
 
         self.positions[symbol] = new_pos
         if new_pos == 0:
             self.position_avg_costs.pop(symbol, None)
-            self.realized_pnl[symbol] = (
-                self.realized_pnl.get(symbol, 0.0) + realized_delta
-            )
         else:
             self.position_avg_costs[symbol] = new_cost
-            self.realized_pnl[symbol] = (
-                self.realized_pnl.get(symbol, 0.0) + realized_delta
-            )
 
     def _set_status(self, order_id: str, order: dict[str, Any], status: str) -> None:
         """Record a status transition, noting when it became terminal.

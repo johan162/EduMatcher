@@ -2113,6 +2113,7 @@ section of `engine_config.yaml`.
 
 ```bash
 pm-api-gwy [--instance NAME] [--host ADDR] [--port PORT] [--engine-host HOST] [--stats-db PATH] \
+  [--clearing-db PATH] \
   [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
@@ -2125,6 +2126,7 @@ pm-api-gwy [--instance NAME] [--host ADDR] [--port PORT] [--engine-host HOST] [-
 | `--port PORT`        | config value                             | Override HTTP listen port                                                          |
 | `--engine-host HOST` | config value                             | Override engine host for ZMQ connections (cross-host deployments)                  |
 | `--stats-db PATH`    | config value                             | Path to `data/stats.db` for `/history/*` endpoints                                 |
+| `--clearing-db PATH` | config value                             | Path to `data/clearing.db`, opened read-only for the session/MTD/YTD realized P&L on `/positions`. Optional: without it those three fields report `null` |
 | `--log-level LEVEL`  | `WARNING`                                 | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                |
 | `-v` / `--verbose`   | off                                       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                |
 | `-q` / `--quiet`     | off                                       | Reduce output to warnings/errors                                                    |

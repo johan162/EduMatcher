@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.clearing.query import (
+    PeriodRealizedPnl,
+    open_readonly_connection,
+    query_period_realized_pnl,
+)
 from edumatcher.models.generated.system import (
     topic_gateways,
     topic_halt_status,
@@ -19,6 +27,39 @@ from edumatcher.models.generated.system import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["reference"])
+
+log = logging.getLogger(__name__)
+
+#: Clearing is reachable but has no closed trades for this symbol.
+_NO_REALIZED_PNL = PeriodRealizedPnl(session=0.0, mtd=0.0, ytd=0.0)
+
+
+def _period_realized_pnl(
+    request: Request, gateway_id: str
+) -> dict[str, PeriodRealizedPnl] | None:
+    """Per-symbol realized P&L from clearing, or ``None`` if unavailable.
+
+    Realized P&L is a nicety on a positions row, not the point of it: a
+    venue running without pm-clearing, or one whose ledger is momentarily
+    locked, should still get its positions. Every failure therefore
+    degrades to ``None`` -- rendered as "no data" -- rather than failing
+    the request.
+    """
+    db_path = request.app.state.config.clearing_db
+    try:
+        conn = open_readonly_connection(db_path)
+    except FileNotFoundError:
+        return None
+    except sqlite3.Error:
+        log.warning("positions: cannot open clearing DB %s", db_path, exc_info=True)
+        return None
+    try:
+        return query_period_realized_pnl(conn, gateway_id=gateway_id)
+    except sqlite3.Error:
+        log.warning("positions: clearing DB read failed", exc_info=True)
+        return None
+    finally:
+        conn.close()
 
 
 async def _request_reply(
@@ -234,10 +275,18 @@ async def positions(
     the position. ``last_price`` still comes from this cache: it tracks
     venue-wide trade prints, not the position calculation itself. The
     returned rows also include the engine's VWAP ``avg_cost`` plus market
-    value and realized/unrealized P&L derived from the live fill cache.
+    value and unrealized P&L derived from the live fill cache.
+
+    Realized P&L comes from ``clearing.db`` instead, over three windows:
+    ``realized_pnl_session`` (today's trading day), ``realized_pnl_mtd``
+    and ``realized_pnl_ytd``. pm-clearing records it per trading day and
+    keeps it for good, so unlike the in-memory fill cache it survives a
+    gateway restart. All three are ``null`` when clearing is not deployed,
+    and lag a fill by up to one clearing flush (5s by default).
     """
     gateway_id = require_trading(session)
     cache = request.app.state.engine.get_caches(gateway_id)
+    realized = _period_realized_pnl(request, gateway_id)
     reply = await _request_reply(
         request, "positions", topic_position_snapshot(gateway_id), gateway_id
     )
@@ -252,6 +301,9 @@ async def positions(
         qty = int(entry.get("net_qty", 0) or 0)
         avg_cost = float(entry.get("avg_cost", 0.0) or 0.0)
         last_price = cache.last_prices.get(symbol)
+        # A symbol clearing has no rows for has simply closed nothing yet,
+        # which is a real zero -- only an unreachable ledger is unknown.
+        period = None if realized is None else realized.get(symbol, _NO_REALIZED_PNL)
         positions_payload.append(
             {
                 "symbol": symbol,
@@ -262,7 +314,9 @@ async def positions(
                 "unrealized_pnl": (
                     None if last_price is None else qty * (float(last_price) - avg_cost)
                 ),
-                "realized_pnl": cache.realized_pnl.get(symbol, 0.0),
+                "realized_pnl_session": None if period is None else period.session,
+                "realized_pnl_mtd": None if period is None else period.mtd,
+                "realized_pnl_ytd": None if period is None else period.ytd,
             }
         )
     positions_payload.sort(key=lambda p: str(p["symbol"]))

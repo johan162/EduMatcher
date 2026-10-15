@@ -701,6 +701,7 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-api-gwy [--instance NAME] [--host ADDR] [--port PORT]",
             "           [--engine-host HOST] [--stats-db PATH]",
+            "           [--clearing-db PATH]",
         ),
         description=(
             "Not a second matching engine -- translates HTTP/WebSocket requests into "
@@ -726,6 +727,11 @@ _EXTERNAL_GATEWAYS: tuple[CommandInfo, ...] = (
                 "--stats-db PATH",
                 "config value",
                 "Path to data/stats.db for /history/* endpoints",
+            ),
+            Option(
+                "--clearing-db PATH",
+                "config value",
+                "Path to data/clearing.db (read-only) for realized P&L on /positions",
             ),
         ),
         has_common_log_options=True,

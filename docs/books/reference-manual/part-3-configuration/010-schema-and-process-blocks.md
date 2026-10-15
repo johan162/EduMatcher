@@ -382,6 +382,7 @@ api_gateways:
     log_level: info
     stats_db: data/stats.db
     audit_db: data/audit_index.db
+    clearing_db: data/clearing.db
     order_retention_sec: 3600
     market_data_cache_sec: 60
     credentials:
@@ -411,6 +412,9 @@ engine reply waits are applied. In the current implementation:
 - `audit_db` is `pm-audit`'s read-only index, used only by
   `GET /admin/orders/{order_id}`; optional, and that endpoint returns `503`
   when the file is absent
+- `clearing_db` is `pm-clearing`'s read-only ledger, used only for the
+  session/MTD/YTD realized P&L on `GET /positions`; optional, and those three
+  fields report `null` when the file is absent
 - `order_retention_sec` bounds how long a terminal order stays in the
   in-memory order cache; `0` disables eviction
 - `market_data_cache_sec` is the TTL for the per-symbol market-data cache

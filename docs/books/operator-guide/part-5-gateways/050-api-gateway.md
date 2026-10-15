@@ -59,6 +59,10 @@ api_gateways:
     # Optional: without it that one endpoint returns 503 and nothing else
     # is affected.
     audit_db: data/audit_index.db
+    # pm-clearing's ledger, read-only, for the session/MTD/YTD realized P&L
+    # on GET /positions. Optional: without it those three fields report null
+    # and the rest of the position row is unaffected.
+    clearing_db: data/clearing.db
     # Seconds a terminal order stays in the in-memory cache. 0 disables
     # eviction (unbounded growth).
     order_retention_sec: 3600
@@ -94,6 +98,7 @@ api_gateways:
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
 | `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}`. Optional |
+| `clearing_db` | `pm-clearing`'s ledger, read-only, for the session/MTD/YTD realized P&L on `/positions`. Optional: without it those three fields report `null` |
 | `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
 | `market_data_cache_sec` | Seconds the market-data cache retains the per-symbol `trades` tail for WS snapshot/resume (default `60`; latest book/depth/auction snapshots are kept regardless of age; `0` disables the trade buffer) |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |

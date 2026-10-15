@@ -486,7 +486,15 @@ export interface Position {
   last_price: number | null;
   avg_cost?: number | null;
   market_value?: number | null;
-  realized_pnl?: number | null;
+  /**
+   * Realized P&L from `clearing.db`, over three windows: today's trading
+   * session, month-to-date and year-to-date. Durable across a gateway
+   * restart, unlike the old in-memory figure, and `null` when pm-clearing
+   * is not deployed.
+   */
+  realized_pnl_session?: number | null;
+  realized_pnl_mtd?: number | null;
+  realized_pnl_ytd?: number | null;
   unrealized_pnl?: number | null;
 }
 
