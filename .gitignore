@@ -204,7 +204,6 @@ docs/knowledge-check/instructor-correction-keys.pdf
 
 .kiro/
 
-build-tools/.mermaid-cache
 ralf_subscriber
 calf_subscriber
 balf_parser
