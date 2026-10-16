@@ -37,7 +37,6 @@ The `pm-*` commands, the control plane of the exchange, lives *inside* the conta
 waits for you to make a move! If you feel it is lonely inthe exchange being the only trader, read the next
 section!
 
-
 ### A buzzling and hustling live simulated exchange with 100 of other traders
 
 With Podman or Docker installed, one command gets you a running exchange with 300 symbols and 100 of automated traders that you can watch live and connect to. This is a sophisticated simulation with an advanced market
