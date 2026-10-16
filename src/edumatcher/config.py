@@ -103,6 +103,22 @@ SIM_PULL_BIND_ADDR = f"tcp://{EDUMATCHER_SIM_BIND_HOST}:{EDUMATCHER_SIM_PULL_POR
 SIM_PUB_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_SIM_PUB_PORT}"
 SIM_PULL_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_SIM_PULL_PORT}"
 
+# pm-stats healthcheck endpoint: a REP socket pm-stats binds purely so
+# `pm-stats-cli health` can confirm the recorder's receive loop itself is
+# alive and pumping, not just that its process exists (pgrep) or that its
+# database file is readable. Bind/connect hosts mirror the index/sim pairs
+# above: EDUMATCHER_ENGINE_HOST is the same "where the core services live"
+# variable every other connect-side address here already uses. Port 5561 is
+# the first free one above the 5553-5560 core/gateway block (deployment/
+# docker/Dockerfile's EXPOSE list and compose.yaml's port mappings) --5560
+# is already pm-balf-gwy's.
+EDUMATCHER_STATS_BIND_HOST = os.getenv("EDUMATCHER_STATS_BIND_HOST", "127.0.0.1")
+EDUMATCHER_STATS_HEALTH_PORT = int(os.getenv("EDUMATCHER_STATS_HEALTH_PORT", "5561"))
+STATS_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_STATS_BIND_HOST}:{EDUMATCHER_STATS_HEALTH_PORT}"
+)
+STATS_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_STATS_HEALTH_PORT}"
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------

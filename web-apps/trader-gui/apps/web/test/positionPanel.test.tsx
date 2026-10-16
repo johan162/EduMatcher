@@ -41,6 +41,7 @@ import { useBookStore } from "@/store/useBookStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useOrderStore } from "@/store/useOrderStore";
 import { useHaltStore } from "@/store/useHaltStore";
+import { useSymbolDetailStore } from "@/store/useSymbolDetailStore";
 import { ApiError } from "@/api/apiFetch";
 import type { Symbol } from "@/types/index";
 
@@ -70,6 +71,7 @@ beforeEach(() => {
   useSettingsStore.setState({ confirmCancellations: true });
   useOrderStore.getState().clear();
   useHaltStore.setState({ halts: {} });
+  useSymbolDetailStore.setState({ isOpen: false });
 });
 
 describe("PositionPanel (§13.6)", () => {
@@ -89,6 +91,13 @@ describe("PositionPanel (§13.6)", () => {
     wrap(<PositionPanel />);
     await waitFor(() => expect(screen.getByText("No open positions.")).toBeTruthy());
     expect(screen.getByText(/0\s+symbols/)).toBeTruthy();
+  });
+
+  it("clicking a symbol opens the shared Symbol Detail panel", async () => {
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "AAPL" }));
+    expect(useSymbolDetailStore.getState().isOpen).toBe(true);
   });
 
   it("flatten a long submits a SELL MARKET for abs(qty) after confirmation", async () => {

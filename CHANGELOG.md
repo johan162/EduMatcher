@@ -1,3 +1,38 @@
+## [v0.50.4] - 2026-10-16
+
+Release Type: minor
+
+### 📋 Summary
+This release polishes the Trade Terminal and Information Terminal with a searchable symbol
+picker, clickable position symbols, order IDs and cancellation reasons. It also adds
+a real liveness check for `pm-stats` and makes the documentation toolchain's Node
+dependencies reproducible.
+
+### ✨ Additions
+- Added a `pm-stats` health endpoint (REP socket, default port 5561, configurable via `EDUMATCHER_STATS_HEALTH_PORT`) so `pm-stats-cli health` confirms the recorder's receive loop is responding, not just that the process exists
+- Added `--extended` and `--verbose` options to `pm-stats-cli health` for a `stats.db` integrity and read/write check, plus database size and row counts
+- Added a searchable symbol picker to the Information Terminal's Symbol Detail view, matching the Trade Terminal's picker
+- Added a selectable rows-per-page setting to the Information Terminal's Overview, remembered between sessions
+- Added an Order ID column to the Trade Terminal's Active Orders page
+- Added the cancellation reason to the Trade Terminal's order detail view, both for live cancels and in order history
+- Made symbols in the Trade Terminal's Positions panel clickable to open that symbol
+
+### 🚀 Improvements
+- Improved column headers on the Trade Terminal's Positions panel and added header titles to the Information Terminal's News table
+
+### 📚 Documentation
+- Commit mermaid cache to repo to speed up a build from a freshly checked out repo
+
+### 🐛 Bug Fixes
+- Fixed Information Terminal news timestamps and the Overview clock showing UTC instead of the configured `engine.locale.session_timezone`
+- Fixed `pm-stats` recording an empty cancel reason for orders whose cancel event carried `cancel_reason`
+
+### 🛠 Internal
+- Fixed intermittent ALF gateway integration test timeouts caused by sending HELLO before the gateway's engine connection had finished its ZMQ handshake; the tests now retry on `ENGINE_UNAVAILABLE`
+- Committed `package-lock.json` files for the build tools and all web apps so Node dependencies are reproducible, and improved the Makefile's initial Node setup
+- Improved `mkghrelease.sh` to surface failed container builds more clearly
+- Exposed port 5561 in the Docker image and updated shell completions for the new `pm-stats-cli health` options
+
 ## [v0.50.3] - 2026-10-15
 
 Release Type: minor

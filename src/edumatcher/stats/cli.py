@@ -9,11 +9,14 @@ import os
 import sqlite3
 import subprocess
 import sys
+import threading
 from datetime import tzinfo
 from pathlib import Path
 from typing import Any, TypedDict
 
-from edumatcher.config import STATS_DB_FILE, resolve_data_path
+import zmq
+
+from edumatcher.config import STATS_DB_FILE, STATS_HEALTH_ADDR, resolve_data_path
 from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.main import SCHEMA_VERSION
 from edumatcher.stats.query import (
@@ -160,6 +163,22 @@ _AFTER_HELP = (
     "Opaque cursor from a previous run's truncation notice; fetches the next page"
 )
 
+_HEALTH_PING_TIMEOUT_MS = 1000
+
+# The integrity/read-write check does a full-file PRAGMA quick_check, which on
+# a multi-hundred-MB stats.db can run well past a few seconds -- opt-in via
+# --extended rather than in every health call, and bounded so a check that
+# never returns cannot hang the CLI indefinitely.
+_EXTENDED_HEALTH_TIMEOUT_SEC = 45.0
+
+_STATS_TABLES = (
+    "trade_log",
+    "order_events",
+    "price_snapshots",
+    "daily_stats",
+    "feed_gaps",
+)
+
 
 class _HealthProcessReport(TypedDict):
     healthy: bool
@@ -167,9 +186,21 @@ class _HealthProcessReport(TypedDict):
     detail: str
 
 
+class _HealthDatabaseStats(TypedDict):
+    size_bytes: int
+    row_counts: dict[str, int]
+
+
 class _HealthDatabaseReport(TypedDict):
     healthy: bool
     path: str
+    detail: str
+    checked: bool
+    stats: _HealthDatabaseStats | None
+
+
+class _HealthZmqReport(TypedDict):
+    healthy: bool
     detail: str
 
 
@@ -177,6 +208,7 @@ class _HealthReport(TypedDict):
     healthy: bool
     process: _HealthProcessReport
     database: _HealthDatabaseReport
+    zmq: _HealthZmqReport
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -340,14 +372,33 @@ def build_parser() -> argparse.ArgumentParser:
     gaps.add_argument("--to", dest="to_ts", metavar="ISO_TS")
     gaps.add_argument("--limit", type=int, default=500, metavar="N")
 
-    sub.add_parser(
+    health = sub.add_parser(
         "health",
         help="Check the pm-stats process and stats database read/write health",
-    ).add_argument(
+    )
+    health.add_argument(
         "-q",
         "--quiet",
         action="store_true",
         help="Print nothing; exit 0 when healthy or -1 otherwise",
+    )
+    health.add_argument(
+        "--extended",
+        action="store_true",
+        help=(
+            "Also check stats.db integrity and read/write access (PRAGMA "
+            f"quick_check); allowed up to {_EXTENDED_HEALTH_TIMEOUT_SEC:.0f}s "
+            "for a large database"
+        ),
+    )
+    health.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Describe exactly what was checked, plus database size and row "
+            "counts when combined with --extended"
+        ),
     )
 
     return parser
@@ -375,42 +426,141 @@ def _find_stats_pids() -> list[int]:
     return sorted(set(pids))
 
 
-def _check_database_health(db_path: Path) -> tuple[bool, str]:
+def _format_bytes(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f}{unit}" if unit != "B" else f"{int(value)}B"
+        value /= 1024
+    return f"{value:.1f}TB"  # pragma: no cover - stats.db won't get here
+
+
+def _collect_db_stats(conn: sqlite3.Connection, db_path: Path) -> _HealthDatabaseStats:
+    """File size plus a row count per table, for --extended --verbose.
+
+    Table names are fixed constants, never user input, so interpolating them
+    into the query is safe.
+    """
+    row_counts = {
+        table: int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        for table in _STATS_TABLES
+    }
+    return {"size_bytes": db_path.stat().st_size, "row_counts": row_counts}
+
+
+def _check_database_health(
+    db_path: Path, *, collect_stats: bool = False
+) -> tuple[bool, str, _HealthDatabaseStats | None]:
     """Check integrity, schema version, and a rolled-back write transaction."""
     if not db_path.exists():
-        return False, f"database not found: {db_path}"
+        return False, f"database not found: {db_path}", None
     conn: sqlite3.Connection | None = None
     try:
         conn = sqlite3.connect(str(db_path), timeout=2.0)
         quick_check = str(conn.execute("PRAGMA quick_check").fetchone()[0])
         if quick_check != "ok":
-            return False, f"integrity check failed: {quick_check}"
+            return False, f"integrity check failed: {quick_check}", None
         version = int(conn.execute("PRAGMA user_version").fetchone()[0])
         if version != SCHEMA_VERSION:
-            return False, f"schema version {version}, expected {SCHEMA_VERSION}"
+            return False, f"schema version {version}, expected {SCHEMA_VERSION}", None
         conn.execute("BEGIN")
         conn.execute("CREATE TEMP TABLE pm_stats_health_check (value INTEGER)")
         conn.execute("INSERT INTO pm_stats_health_check VALUES (1)")
         conn.rollback()
+        stats = _collect_db_stats(conn, db_path) if collect_stats else None
     except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
-        return False, f"database read/write check failed: {exc}"
+        return False, f"database read/write check failed: {exc}", None
     finally:
         if conn is not None:
             conn.close()
-    return True, "read/write and integrity checks passed"
+    return True, "read/write and integrity checks passed", stats
 
 
-def _health_report(db_path: Path) -> tuple[bool, _HealthReport]:
+def _run_extended_database_check(
+    db_path: Path,
+    *,
+    collect_stats: bool = False,
+    timeout_sec: float = _EXTENDED_HEALTH_TIMEOUT_SEC,
+) -> tuple[bool, str, _HealthDatabaseStats | None]:
+    """Run `_check_database_health` off-thread, bounded by `timeout_sec`.
+
+    The worker is a daemon thread rather than a `ThreadPoolExecutor`: the
+    latter's atexit hook joins every worker before the interpreter exits,
+    which would make a timed-out `quick_check` block process exit for however
+    long it actually takes regardless of the timeout reported here. A daemon
+    thread is simply abandoned when the CLI exits.
+    """
+    outcome: list[tuple[bool, str, _HealthDatabaseStats | None]] = []
+
+    def _run() -> None:
+        outcome.append(_check_database_health(db_path, collect_stats=collect_stats))
+
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
+    worker.join(timeout_sec)
+    if worker.is_alive():
+        return False, f"database check did not finish within {timeout_sec:.0f}s", None
+    return outcome[0]
+
+
+def _check_zmq_health(timeout_ms: int = _HEALTH_PING_TIMEOUT_MS) -> tuple[bool, str]:
+    """Ping pm-stats' health REP socket and confirm it replies.
+
+    Unlike the pgrep and SQLite checks, this is the only one that actually
+    exercises the running process's receive loop: a reply proves pm-stats is
+    not just alive but pumping messages, not merely a process the OS still
+    lists.
+    """
+    ctx: zmq.Context[Any] = zmq.Context.instance()
+    sock = ctx.socket(zmq.REQ)
+    sock.setsockopt(zmq.LINGER, 0)
+    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
+    try:
+        sock.connect(STATS_HEALTH_ADDR)
+        sock.send(b"ping")
+        reply = sock.recv()
+        return True, f"replied at {reply.decode(errors='replace')}"
+    except zmq.Again:
+        return False, f"no reply within {timeout_ms}ms"
+    except zmq.ZMQError as exc:
+        return False, f"ZMQ ping failed: {exc}"
+    finally:
+        sock.close(0)
+
+
+def _health_report(
+    db_path: Path, *, extended: bool = False, collect_stats: bool = False
+) -> tuple[bool, _HealthReport]:
     pids = _find_stats_pids()
-    db_ok, db_detail = _check_database_health(db_path)
+    zmq_ok, zmq_detail = _check_zmq_health()
+    if extended:
+        db_ok, db_detail, db_stats = _run_extended_database_check(
+            db_path, collect_stats=collect_stats
+        )
+        db_checked = True
+    else:
+        db_ok, db_detail, db_stats = (
+            True,
+            "skipped (pass --extended to check integrity and read/write access)",
+            None,
+        )
+        db_checked = False
     report: _HealthReport = {
-        "healthy": bool(pids) and db_ok,
+        "healthy": bool(pids) and db_ok and zmq_ok,
         "process": {
             "healthy": bool(pids),
             "pids": pids,
             "detail": "pm-stats is running" if pids else "pm-stats process not found",
         },
-        "database": {"healthy": db_ok, "path": str(db_path), "detail": db_detail},
+        "database": {
+            "healthy": db_ok,
+            "path": str(db_path),
+            "detail": db_detail,
+            "checked": db_checked,
+            "stats": db_stats,
+        },
+        "zmq": {"healthy": zmq_ok, "detail": zmq_detail},
     }
     return bool(report["healthy"]), report
 
@@ -624,7 +774,11 @@ def main() -> None:
 
     if args.command == "health":
         try:
-            healthy, report = _health_report(db_path)
+            healthy, report = _health_report(
+                db_path,
+                extended=args.extended,
+                collect_stats=args.extended and args.verbose,
+            )
         except (OSError, ValueError) as exc:
             healthy = False
             report = _HealthReport(
@@ -638,7 +792,10 @@ def main() -> None:
                     "healthy": False,
                     "path": str(db_path),
                     "detail": "health check could not run",
+                    "checked": False,
+                    "stats": None,
                 },
+                zmq={"healthy": False, "detail": "health check could not run"},
             )
         if args.quiet:
             raise SystemExit(0 if healthy else -1)
@@ -647,13 +804,34 @@ def main() -> None:
         else:
             process = report["process"]
             database = report["database"]
+            zmq_report = report["zmq"]
             print(
                 f"pm-stats process: {'OK' if process['healthy'] else 'FAIL'} - {process['detail']}"
             )
             print(
                 f"stats database:  {'OK' if database['healthy'] else 'FAIL'} - {database['detail']}"
             )
+            print(
+                f"stats ZMQ ping:  {'OK' if zmq_report['healthy'] else 'FAIL'} - {zmq_report['detail']}"
+            )
             print(f"health: {'OK' if healthy else 'FAIL'}")
+            if args.verbose:
+                print()
+                print("Checks performed:")
+                print("  pm-stats process (pgrep):      yes")
+                print("  ZMQ health ping:                yes")
+                print(
+                    "  Database integrity/read-write: "
+                    + ("yes" if database["checked"] else "no (pass --extended)")
+                )
+                stats = database["stats"]
+                if stats is not None:
+                    print()
+                    print("Database stats:")
+                    print(f"  path: {database['path']}")
+                    print(f"  size: {_format_bytes(stats['size_bytes'])}")
+                    for table, count in stats["row_counts"].items():
+                        print(f"  {table} rows: {count}")
         raise SystemExit(0 if healthy else 1)
 
     try:

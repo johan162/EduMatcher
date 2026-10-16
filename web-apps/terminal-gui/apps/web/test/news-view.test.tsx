@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NewsEvent, NewsSnapshot } from "@edumatcher/terminal-types";
 import { newsMatches, resolutions, sectorIndex } from "../src/lib/news.js";
+import { useLiveStore } from "../src/store/useLiveStore.js";
 
 const fetched: { snapshot: NewsSnapshot } = { snapshot: { news: [], sectors: {} } };
 vi.mock("../src/lib/api.js", () => ({
@@ -49,6 +50,7 @@ describe("NewsView", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     fetched.snapshot = { news: [], sectors: {} };
+    useLiveStore.getState().reset();
   });
   afterEach(() => {
     cleanup();
@@ -84,5 +86,23 @@ describe("NewsView", () => {
 
     fireEvent.change(screen.getByLabelText("Filter news by symbol or sector"), { target: { value: "xom" } });
     expect(screen.getAllByTestId("news-row")).toHaveLength(1);
+  });
+
+  it("renders news times in the session timezone", async () => {
+    useLiveStore.getState().applyFrame({
+      type: "hello",
+      symbols: [],
+      tickDecimals: {},
+      indexes: [],
+      sessionTimezone: "Europe/Stockholm",
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
+    fetched.snapshot = { news: [news({ ts_ns: Date.parse("2026-07-30T11:02:17Z") * 1e6 })], sectors: {} };
+
+    render(<NewsView />);
+    await act(async () => {});
+
+    expect(within(screen.getByTestId("news-row")).getByText("13:02:17")).toBeTruthy();
   });
 });

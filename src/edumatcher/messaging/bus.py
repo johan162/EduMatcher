@@ -294,6 +294,18 @@ def make_pusher(addr: str) -> PushSocket:
     return CausalPusher(sock)
 
 
+def make_replier(addr: str) -> zmq.Socket[bytes]:
+    """REP socket — binds and answers simple request/reply pings.
+
+    Deliberately bare (no envelope/sequencing): for a process whose only use
+    of this pattern is proving its own event loop is alive and pumping, not
+    for carrying modeled wire messages.
+    """
+    sock = get_context().socket(zmq.REP)
+    sock.bind(addr)
+    return sock  # type: ignore[no-any-return]
+
+
 def make_subscriber(
     addr: str, *topics: str, rcvhwm: int | None = None
 ) -> zmq.Socket[bytes]:

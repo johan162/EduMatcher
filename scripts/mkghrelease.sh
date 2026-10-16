@@ -683,6 +683,14 @@ print_step_colored ""
 
 IMAGE_WORKFLOW="publish-images.yml"
 
+fail_image_phase() {
+    print_error "$1"
+    print_info "Rebuild the container images with:"
+    print_info "  gh workflow run $IMAGE_WORKFLOW -f tag=$LATEST_TAG"
+    print_info "Then inspect the result with: gh run list --workflow $IMAGE_WORKFLOW"
+    exit 1
+}
+
 if [[ "$SKIP_IMAGES" == "true" ]]; then
     print_warning "Skipping the image workflow check (--skip-images)"
     print_info "Watch it yourself: gh run list --workflow $IMAGE_WORKFLOW"
@@ -708,9 +716,7 @@ else
     done
 
     if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-        print_warning "No $IMAGE_WORKFLOW run appeared for $LATEST_TAG."
-        print_warning "The release exists, but the container images may be missing."
-        print_info "Check: https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions"
+        fail_image_phase "No $IMAGE_WORKFLOW run appeared for $LATEST_TAG; container images were not verified."
     else
         print_info "Watching run $RUN_ID for $LATEST_TAG"
         print_info "  https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions/runs/$RUN_ID"
@@ -731,8 +737,7 @@ else
         done
 
         if [[ "$RUN_STATUS" != "completed" ]]; then
-            print_warning "Still running after ${IMAGE_WAIT_MINUTES} min — not waiting further."
-            print_info "Follow it: gh run watch $RUN_ID"
+            fail_image_phase "The $IMAGE_WORKFLOW run did not finish within ${IMAGE_WAIT_MINUTES} min."
         elif [[ "$RUN_CONCLUSION" == "success" ]]; then
             print_success "Container images published for $LATEST_TAG"
             echo ""
@@ -741,10 +746,7 @@ else
                 echo "  ghcr.io/${GITHUB_USER}/${img}:${VERSION_NUMBER}"
             done
         else
-            print_warning "The image workflow finished as '${RUN_CONCLUSION}'."
-            print_warning "The GitHub release is created; the images are not usable yet."
-            print_info "Inspect: gh run view $RUN_ID --log-failed"
-            print_info "Re-run:  gh workflow run $IMAGE_WORKFLOW -f tag=$LATEST_TAG"
+            fail_image_phase "The $IMAGE_WORKFLOW run finished as '${RUN_CONCLUSION}'; container images were not published."
         fi
     fi
 fi

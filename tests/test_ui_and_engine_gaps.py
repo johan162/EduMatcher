@@ -283,6 +283,7 @@ class TestStatsOnStartupSymbols:
         with (
             patch("edumatcher.stats.main.make_subscriber", return_value=fake_sub),
             patch("edumatcher.stats.main.make_pusher", return_value=fake_push),
+            patch("edumatcher.stats.main.make_replier", return_value=MagicMock()),
         ):
             sp = StatsProcess(tmp_path / "test.db")
 
@@ -302,6 +303,7 @@ class TestStatsOnStartupSymbols:
         with (
             patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
             patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+            patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
         ):
             sp = StatsProcess(tmp_path / "test.db")
 

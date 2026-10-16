@@ -62,6 +62,12 @@ describe("OrdersBlotter", () => {
     expect(props.onOpenDetail).toHaveBeenCalledWith("o1");
   });
 
+  it("opens the detail drawer from the Order ID link", () => {
+    const props = renderBlotter([order({ order_id: "12345678abcdef" })]);
+    fireEvent.click(screen.getByRole("button", { name: "12345678" }));
+    expect(props.onOpenDetail).toHaveBeenCalledWith("12345678abcdef");
+  });
+
   it("Enter opens the drawer; Delete cancels the selection (§13.1.3)", () => {
     const props = renderBlotter([order({ order_id: "o1" })]);
     const row = screen.getByText("AAPL").closest("tr")!;

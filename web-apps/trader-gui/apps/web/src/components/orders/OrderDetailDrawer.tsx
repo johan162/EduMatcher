@@ -126,7 +126,14 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
     });
   });
   useWsEvent("order.cancelled", (env) => {
-    if (env.data.order_id === orderId) append({ event_type: "CANCEL", ts: nowIso(), live: true });
+    if (env.data.order_id === orderId) {
+      append({
+        event_type: "CANCEL",
+        ts: nowIso(),
+        reason: env.data.cancel_reason ?? null,
+        live: true,
+      });
+    }
   });
   useWsEvent("order.expired", (env) => {
     if (env.data.order_id === orderId) append({ event_type: "EXPIRE", ts: nowIso(), live: true });

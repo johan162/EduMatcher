@@ -19,7 +19,7 @@ import type { AuctionIndicativeFrame, DailyBar } from "@edumatcher/terminal-type
 import { FlashCell } from "../components/FlashCell.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { api } from "../lib/api.js";
-import { ABSENT, clockUtc, compact, price, qty } from "../lib/format.js";
+import { ABSENT, clockInTimezone, compact, price, qty } from "../lib/format.js";
 import { imbalanceOf, wouldCross } from "../lib/auction.js";
 import { buildRows, columnsFor, type OverviewColumn, type OverviewRow } from "../lib/overview-rows.js";
 import { pageSlice } from "../lib/paging.js";
@@ -34,24 +34,18 @@ import {
   type SortKey,
   type SortState,
 } from "../lib/overview-sort.js";
-import { useAutoPaging, useRowsPerPage } from "../lib/useAutoPaging.js";
+import { useAutoPaging } from "../lib/useAutoPaging.js";
 import { usePrevCloses } from "../lib/usePrevCloses.js";
 import { notExecutableLabel, notExecutableReason, type NotExecutableReason } from "../lib/executable.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import {
   DENSITY_ROW_CLASS,
   PAGE_DELAY_CHOICES,
+  ROWS_PER_PAGE_CHOICES,
   STALE_AFTER_CHOICES,
   effectivePageDelaySec,
   usePrefsStore,
 } from "../store/usePrefsStore.js";
-
-/** Approximate rendered row height per density, used to fit the page. */
-const ROW_HEIGHT: Record<"lobby" | "standard" | "dense", number> = {
-  lobby: 40,
-  standard: 28,
-  dense: 22,
-};
 
 const HEADING: Record<OverviewColumn, string> = {
   star: "",
@@ -124,6 +118,7 @@ export function OverviewView() {
   const lastTradeTs = useLiveStore((s) => s.lastTradeTs);
   const sessionPhase = useLiveStore((s) => s.sessionPhase);
   const indicative = useLiveStore((s) => s.indicative);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
 
   const density = usePrefsStore((s) => s.density);
   const watchlist = usePrefsStore((s) => s.watchlist);
@@ -132,6 +127,8 @@ export function OverviewView() {
   const toggleWatchlist = usePrefsStore((s) => s.toggleWatchlist);
   const pageDelayPref = usePrefsStore((s) => s.pageDelaySec);
   const setPageDelaySec = usePrefsStore((s) => s.setPageDelaySec);
+  const rowsPerPage = usePrefsStore((s) => s.rowsPerPage);
+  const setRowsPerPage = usePrefsStore((s) => s.setRowsPerPage);
   const staleAfterSec = usePrefsStore((s) => s.staleAfterSec);
   const setStaleAfterSec = usePrefsStore((s) => s.setStaleAfterSec);
 
@@ -189,7 +186,7 @@ export function OverviewView() {
   // preference, so the grid follows it rather than offering a toggle.
   const columns = columnsFor(density, sessionPhase);
   const delaySec = effectivePageDelaySec(pageDelayPref, density);
-  const { ref, rows: perPage } = useRowsPerPage(ROW_HEIGHT[density]);
+  const perPage = rowsPerPage;
   // Somebody is sorting or searching, so somebody is reading: stop moving
   // the page under them. Expressed as a zero dwell rather than as a pause,
   // because the manual page buttons should keep working — this suppresses
@@ -282,6 +279,19 @@ export function OverviewView() {
             </button>
 
             <select
+              value={rowsPerPage}
+              onChange={(event) => setRowsPerPage(Number(event.target.value))}
+              aria-label="Rows per page"
+              className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs text-fg-subtle"
+            >
+              {ROWS_PER_PAGE_CHOICES.map((count) => (
+                <option key={count} value={count}>
+                  {count} rows
+                </option>
+              ))}
+            </select>
+
+            <select
               value={pageDelayPref ?? "auto"}
               onChange={(event) =>
                 setPageDelaySec(event.target.value === "auto" ? null : Number(event.target.value))
@@ -365,7 +375,6 @@ export function OverviewView() {
           // Hovering pauses so a viewer can read a row without it sliding
           // away mid-glance (§8.3).
           <div
-            ref={ref}
             onMouseEnter={() => paging.setPaused(true)}
             onMouseLeave={() => paging.setPaused(false)}
             className="min-h-[12rem] flex-1"
@@ -420,6 +429,7 @@ export function OverviewView() {
                     staleAfterSec={staleAfterSec}
                     notExecutable={notExecutableReason({ sessionPhase, halted: row.halted })}
                     indicative={indicative[row.sym]}
+                    sessionTimezone={sessionTimezone}
                     onTogglePin={() => toggleWatchlist(row.sym)}
                   />
                 ))}
@@ -479,6 +489,7 @@ function Row({
   staleAfterSec,
   notExecutable,
   indicative,
+  sessionTimezone,
   onTogglePin,
 }: {
   row: OverviewRow;
@@ -493,6 +504,8 @@ function Row({
   notExecutable: NotExecutableReason | null;
   /** This symbol's indicative uncross, during a call phase (§ T-M1). */
   indicative: AuctionIndicativeFrame | undefined;
+  /** The exchange's configured session timezone, for the Time column. */
+  sessionTimezone: string;
   onTogglePin: () => void;
 }) {
   /*
@@ -687,7 +700,7 @@ function Row({
           case "lastTrade":
             return (
               <td key={column} className="text-right tabular text-fg-faint">
-                {clockUtc(row.lastTradeTs)}
+                {clockInTimezone(row.lastTradeTs, sessionTimezone)}
               </td>
             );
         }

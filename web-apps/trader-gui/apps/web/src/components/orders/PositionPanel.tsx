@@ -9,6 +9,7 @@ import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useSettingsStore } from "@/store/useSettingsStore.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
+import { useSymbolDetailStore } from "@/store/useSymbolDetailStore.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { buildFlattenOrder } from "@/lib/flatten.js";
 import { isOrderTypeBlocked } from "@/lib/sessionState.js";
@@ -61,6 +62,7 @@ export function PositionPanel() {
   const confirmCancellations = useSettingsStore((s) => s.confirmCancellations);
   const ordersMap = useOrderStore((s) => s.orders);
   const halts = useHaltStore((s) => s.halts);
+  const openSymbolDetail = useSymbolDetailStore((s) => s.open);
 
   const [flattenTarget, setFlattenTarget] = useState<Position | null>(null);
   const [flattenAll, setFlattenAll] = useState(false);
@@ -224,14 +226,14 @@ export function PositionPanel() {
                   className="px-2 py-1.5 text-right font-medium cursor-help"
                   title="Volume-weighted average cost of the open position"
                 >
-                  Price
+                  VWAP
                 </th>
                 <th
                   scope="col"
                   className="px-2 py-1.5 text-right font-medium cursor-help"
                   title="Latest traded price for this symbol on the venue"
                 >
-                  Last Price
+                  Last Traded
                 </th>
                 <th
                   scope="col"
@@ -283,7 +285,16 @@ export function PositionPanel() {
                 const flat = p.net_qty === 0;
                 return (
                   <tr key={p.symbol} className="border-b border-raised hover:bg-raised">
-                    <td className="px-2 py-1 font-mono font-medium">{p.symbol}</td>
+                    <td className="px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => openSymbolDetail(p.symbol)}
+                        className="font-mono font-medium text-sky-400 hover:underline"
+                        title="Open symbol detail"
+                      >
+                        {p.symbol}
+                      </button>
+                    </td>
                     <td
                       className={`px-2 py-1 text-right font-mono ${
                         p.net_qty > 0 ? "text-bid" : p.net_qty < 0 ? "text-ask" : "text-fg-dim"

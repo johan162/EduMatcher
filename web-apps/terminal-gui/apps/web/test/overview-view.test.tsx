@@ -41,7 +41,13 @@ const hello = (symbols: string[], tickDecimals: Record<string, number> = {}): Se
 beforeEach(() => {
   localStorage.clear();
   useLiveStore.getState().reset();
-  usePrefsStore.setState({ density: "standard", watchlist: [], overviewFilter: "all", pageDelaySec: null });
+  usePrefsStore.setState({
+    density: "standard",
+    watchlist: [],
+    overviewFilter: "all",
+    pageDelaySec: null,
+    rowsPerPage: 15,
+  });
   dailyBars.mockResolvedValue({
     daily: [
       {
@@ -125,7 +131,7 @@ describe("grid content", () => {
     await waitFor(() => expect(screen.getByText(/no previous close on record/)).toBeDefined());
   });
 
-  it("shows when a symbol last printed", async () => {
+  it("shows when a symbol last printed, in the session timezone", async () => {
     apply(hello(["AAPL"]), {
       type: "trade",
       sym: "AAPL",
@@ -137,7 +143,8 @@ describe("grid content", () => {
     });
     show();
 
-    expect(await screen.findByText("10:15:42")).toBeDefined();
+    // hello()'s sessionTimezone is Europe/Stockholm, UTC+2 in July.
+    expect(await screen.findByText("12:15:42")).toBeDefined();
   });
 
   it("fades a row whose last print has gone quiet", async () => {
@@ -344,6 +351,27 @@ describe("paging controls", () => {
 
     await user.click(await screen.findByLabelText("Pause paging"));
     expect(screen.getByLabelText("Resume paging")).toBeDefined();
+  });
+
+  it("defaults to 15 rows per page and pages a longer symbol list accordingly", async () => {
+    const symbols = Array.from({ length: 20 }, (_, i) => `SYM${i}`);
+    apply(hello(symbols));
+    show();
+
+    expect(await screen.findByText("Page 1/2")).toBeDefined();
+    expect(screen.getAllByText(/^SYM/)).toHaveLength(15);
+  });
+
+  it("re-pages against a rows-per-page choice from the dropdown", async () => {
+    const user = userEvent.setup();
+    const symbols = Array.from({ length: 20 }, (_, i) => `SYM${i}`);
+    apply(hello(symbols));
+    show();
+
+    await screen.findByText("Page 1/2");
+    await user.selectOptions(screen.getByLabelText("Rows per page"), "5");
+    expect(await screen.findByText("Page 1/4")).toBeDefined();
+    expect(screen.getAllByText(/^SYM/)).toHaveLength(5);
   });
 });
 

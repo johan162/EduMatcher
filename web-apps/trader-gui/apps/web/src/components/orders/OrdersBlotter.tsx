@@ -12,7 +12,7 @@ import { ChevronDown, ChevronUp, Pencil, Repeat, X } from "lucide-react";
 import { FlashCell } from "@/components/shared/FlashCell.js";
 import { StatusPill } from "./StatusPill.js";
 import { isTerminal } from "@/store/useOrderStore.js";
-import { formatPrice, formatQty } from "@/lib/formatters.js";
+import { formatPrice, formatQty, shortId } from "@/lib/formatters.js";
 import type { Order } from "@/types/index.js";
 
 /** HH:MM:SS.mmm from an ISO timestamp (§13.1.1 Updated column). */
@@ -130,6 +130,27 @@ export function OrdersBlotter({
       { id: "status", accessorKey: "status", header: "Status", cell: (c) => <StatusPill status={c.row.original.status} /> },
       { id: "updated", accessorKey: "updated_at", header: "Updated", cell: (c) => <span className="text-fg-dim text-[10px]">{formatTime(c.row.original.updated_at)}</span> },
       {
+        id: "orderId",
+        header: "Order ID",
+        enableSorting: false,
+        cell: (c) => {
+          const orderId = c.row.original.order_id;
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail(orderId);
+              }}
+              className="font-mono text-sky-400 hover:underline"
+              title="Open order lifecycle"
+            >
+              {shortId(orderId)}
+            </button>
+          );
+        },
+      },
+      {
         id: "actions",
         header: "",
         enableSorting: false,
@@ -173,7 +194,7 @@ export function OrdersBlotter({
         },
       },
     ];
-  }, [tickDecimalsFor, onAmend, onReplace, onCancel]);
+  }, [tickDecimalsFor, onOpenDetail, onAmend, onReplace, onCancel]);
 
   const table = useReactTable({
     data: orders,
