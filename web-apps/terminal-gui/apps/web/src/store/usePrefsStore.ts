@@ -34,6 +34,9 @@ export const DENSITY_ROW_CLASS: Record<Density, string> = {
 /** Dwell time offered by the Overview's page-delay control (design §8.3). */
 export const PAGE_DELAY_CHOICES = [3, 5, 8, 15, 30] as const;
 
+/** Row counts offered by the Overview's rows-per-page control. */
+export const ROWS_PER_PAGE_CHOICES = [5, 15, 25, 50] as const;
+
 /**
  * How long a symbol may go without printing before its row is faded, in
  * seconds (design §8.7, T-L3).
@@ -66,6 +69,8 @@ interface PrefsStore {
   pageDelaySec: number | null;
   /** Silence after which a row is faded. See `STALE_AFTER_CHOICES`. */
   staleAfterSec: number;
+  /** Symbols per Overview page. See `ROWS_PER_PAGE_CHOICES`. */
+  rowsPerPage: number;
   watchlist: string[];
   overviewFilter: OverviewFilter;
 
@@ -75,6 +80,7 @@ interface PrefsStore {
   cycleDensity: () => void;
   setPageDelaySec: (seconds: number | null) => void;
   setStaleAfterSec: (seconds: number) => void;
+  setRowsPerPage: (rows: number) => void;
   toggleWatchlist: (sym: string) => void;
   setOverviewFilter: (filter: OverviewFilter) => void;
 }
@@ -86,6 +92,7 @@ export const usePrefsStore = create<PrefsStore>()(
       density: "standard",
       pageDelaySec: null,
       staleAfterSec: 300,
+      rowsPerPage: 15,
       watchlist: [],
       overviewFilter: "all",
 
@@ -101,6 +108,8 @@ export const usePrefsStore = create<PrefsStore>()(
       setPageDelaySec: (pageDelaySec) => set({ pageDelaySec }),
 
       setStaleAfterSec: (staleAfterSec) => set({ staleAfterSec }),
+
+      setRowsPerPage: (rowsPerPage) => set({ rowsPerPage }),
 
       toggleWatchlist: (sym) => {
         const current = get().watchlist;

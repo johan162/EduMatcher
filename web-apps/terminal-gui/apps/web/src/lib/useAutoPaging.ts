@@ -67,31 +67,3 @@ export function useAutoPaging(total: number, perPage: number, delaySec: number):
   };
 }
 
-/**
- * Rows that fit the available height, so the grid never scrolls — a lobby
- * display has no mouse (design §8.3).
- *
- * Falls back to a sensible count where the element has not been measured yet
- * or `ResizeObserver` is unavailable, rather than rendering an empty grid.
- */
-export function useRowsPerPage(rowHeightPx: number, fallback = 15) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [rows, setRows] = useState(fallback);
-
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-
-    const measure = () => {
-      const fits = Math.floor(element.clientHeight / rowHeightPx);
-      setRows(Math.max(1, fits || fallback));
-    };
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [rowHeightPx, fallback]);
-
-  return { ref, rows };
-}
