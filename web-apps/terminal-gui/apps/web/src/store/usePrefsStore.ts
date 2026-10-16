@@ -73,6 +73,8 @@ interface PrefsStore {
   rowsPerPage: number;
   watchlist: string[];
   overviewFilter: OverviewFilter;
+  /** Last symbol viewed on Symbol Detail, so reopening the page skips picking one again. */
+  lastSymbol: string | null;
 
   setTheme: (theme: ThemePreference) => void;
   toggleTheme: () => void;
@@ -83,6 +85,7 @@ interface PrefsStore {
   setRowsPerPage: (rows: number) => void;
   toggleWatchlist: (sym: string) => void;
   setOverviewFilter: (filter: OverviewFilter) => void;
+  setLastSymbol: (symbol: string) => void;
 }
 
 export const usePrefsStore = create<PrefsStore>()(
@@ -95,6 +98,7 @@ export const usePrefsStore = create<PrefsStore>()(
       rowsPerPage: 15,
       watchlist: [],
       overviewFilter: "all",
+      lastSymbol: null,
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set({ theme: get().theme === "dark" ? "light" : "dark" }),
@@ -119,6 +123,8 @@ export const usePrefsStore = create<PrefsStore>()(
       },
 
       setOverviewFilter: (overviewFilter) => set({ overviewFilter }),
+
+      setLastSymbol: (lastSymbol) => set({ lastSymbol }),
     }),
     { name: "terminal-prefs" },
   ),

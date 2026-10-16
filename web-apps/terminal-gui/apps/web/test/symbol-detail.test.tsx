@@ -53,6 +53,7 @@ vi.mock("../src/lib/api.js", () => ({
 }));
 
 const { useLiveStore } = await import("../src/store/useLiveStore.js");
+const { usePrefsStore } = await import("../src/store/usePrefsStore.js");
 const { SymbolDetailView } = await import("../src/views/SymbolDetail.js");
 
 const apply = (...frames: ServerFrame[]) => {
@@ -76,6 +77,7 @@ function show(path = "/symbol/AAPL") {
 beforeEach(() => {
   sent.length = 0;
   useLiveStore.getState().reset();
+  usePrefsStore.setState({ lastSymbol: null });
   dailyWindow.mockResolvedValue({
     daily: [
       {
@@ -182,7 +184,24 @@ describe("subscription lifetimes", () => {
 });
 
 describe("symbol picker", () => {
-  it("offers the gateway's symbols when none is chosen", () => {
+  it("redirects to the alphabetically-first symbol when none was chosen before", async () => {
+    apply({
+      type: "hello",
+      symbols: ["MSFT", "AAPL"],
+      tickDecimals: {},
+      indexes: [],
+      sessionTimezone: "Europe/Stockholm",
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
+    show("/symbol");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Symbol" })).toBeDefined());
+    expect(screen.getByRole("button", { name: "Symbol" }).textContent).toContain("AAPL");
+  });
+
+  it("redirects to the last symbol viewed", async () => {
+    usePrefsStore.getState().setLastSymbol("MSFT");
     apply({
       type: "hello",
       symbols: ["AAPL", "MSFT"],
@@ -194,8 +213,25 @@ describe("symbol picker", () => {
     });
     show("/symbol");
 
-    expect(screen.getByRole("button", { name: "AAPL" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "MSFT" })).toBeDefined();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Symbol" })).toBeDefined());
+    expect(screen.getByRole("button", { name: "Symbol" }).textContent).toContain("MSFT");
+  });
+
+  it("falls back to the alphabetically-first symbol when the last one is no longer listed", async () => {
+    usePrefsStore.getState().setLastSymbol("ZZZZ");
+    apply({
+      type: "hello",
+      symbols: ["AAPL", "MSFT"],
+      tickDecimals: {},
+      indexes: [],
+      sessionTimezone: "Europe/Stockholm",
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
+    show("/symbol");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Symbol" })).toBeDefined());
+    expect(screen.getByRole("button", { name: "Symbol" }).textContent).toContain("AAPL");
   });
 
   it("says so before the symbol list has arrived", () => {
@@ -206,6 +242,25 @@ describe("symbol picker", () => {
   it("takes out no subscription while still picking", () => {
     show("/symbol");
     expect(sent).toEqual([]);
+  });
+
+  it("remembers the symbol switched to from the header picker", async () => {
+    const user = userEvent.setup();
+    apply({
+      type: "hello",
+      symbols: ["AAPL", "MSFT"],
+      tickDecimals: {},
+      indexes: [],
+      sessionTimezone: "Europe/Stockholm",
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
+    show("/symbol/AAPL");
+
+    await user.click(screen.getByRole("button", { name: "Symbol" }));
+    await user.click(await screen.findByRole("option", { name: "MSFT" }));
+
+    await waitFor(() => expect(usePrefsStore.getState().lastSymbol).toBe("MSFT"));
   });
 });
 

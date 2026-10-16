@@ -20,7 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import type {
   AuctionIndicativeFrame,
   AuctionReason,
@@ -33,6 +33,7 @@ import { SessionBadge } from "../components/Badge.js";
 import { DepthLadder } from "../components/DepthLadder.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { PriceChart } from "../components/PriceChart.js";
+import { SymbolPicker } from "../components/shared/SymbolPicker.js";
 import { api } from "../lib/api.js";
 import { bucketTrades, dailyToBars, midOf, midpointSeries } from "../lib/bars.js";
 import { ABSENT, clockUtc, compact, price, qty, resumeAt } from "../lib/format.js";
@@ -65,47 +66,38 @@ type ChartSeries = { kind: "trades"; rows: TradeRow[] } | { kind: "daily"; rows:
 export function SymbolDetailView() {
   const { sym } = useParams<{ sym: string }>();
   const symbols = useLiveStore((s) => s.symbols);
+  const lastSymbol = usePrefsStore((s) => s.lastSymbol);
 
-  if (!sym) return <SymbolPicker symbols={symbols} />;
+  if (!sym) {
+    if (symbols.length === 0) {
+      return (
+        <div className="mx-auto max-w-2xl">
+          <Panel title="Symbol">
+            <EmptyState>Awaiting the symbol list from the gateway</EmptyState>
+          </Panel>
+        </div>
+      );
+    }
+    // Reopen on whatever was last viewed; the very first visit (nothing
+    // recorded yet, or a venue that no longer lists it) falls back to the
+    // alphabetically-first symbol rather than a separate picker page.
+    const fallback = lastSymbol && symbols.includes(lastSymbol) ? lastSymbol : [...symbols].sort()[0]!;
+    return <Navigate to={`/symbol/${fallback}`} replace />;
+  }
   // Keyed so switching symbols remounts: every subscription, query and banner
   // below is scoped to one instrument and none of it should carry over.
   return <SymbolDetail key={sym} sym={sym.toUpperCase()} />;
 }
 
-function SymbolPicker({ symbols }: { symbols: string[] }) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="mx-auto max-w-2xl">
-      <Panel title="Choose a symbol">
-        {symbols.length === 0 ? (
-          <EmptyState>Awaiting the symbol list from the gateway</EmptyState>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {symbols.map((symbol) => (
-              <button
-                key={symbol}
-                type="button"
-                onClick={() => navigate(`/symbol/${symbol}`)}
-                className="rounded border border-border px-3 py-1.5 text-sm font-semibold hover:border-accent hover:text-accent"
-              >
-                {symbol}
-              </button>
-            ))}
-          </div>
-        )}
-      </Panel>
-    </div>
-  );
-}
-
 function SymbolDetail({ sym }: { sym: string }) {
+  const navigate = useNavigate();
   const [preset, setPreset] = useState<Preset>("1D");
   const [showCandles, setShowCandles] = useState(true);
   const [showMidpoint, setShowMidpoint] = useState(true);
   const [showDepth, setShowDepth] = useState(false);
   const [dismissedAuction, setDismissedAuction] = useState<number | null>(null);
 
+  const symbols = useLiveStore((s) => s.symbols);
   const top = useLiveStore((s) => s.top[sym]);
   const halted = useLiveStore((s) => s.halted[sym]);
   const haltEnded = useLiveStore((s) => s.haltEnded[sym]);
@@ -115,6 +107,12 @@ function SymbolDetail({ sym }: { sym: string }) {
   const auctions = useLiveStore((s) => s.auctions);
   const theme = usePrefsStore((s) => s.theme);
   const rowClass = DENSITY_ROW_CLASS[usePrefsStore((s) => s.density)];
+  const setLastSymbol = usePrefsStore((s) => s.setLastSymbol);
+
+  // Record the symbol actually viewed, however the view was reached (the
+  // redirect above, a direct deep link, or the picker below), so the next
+  // bare /symbol visit reopens here.
+  useEffect(() => setLastSymbol(sym), [sym, setLastSymbol]);
 
   // Halt detail for the whole time this view is open (§6.4).
   useEffect(() => {
@@ -225,7 +223,13 @@ function SymbolDetail({ sym }: { sym: string }) {
   return (
     <div className="flex h-full flex-col gap-3">
       <header className="flex items-baseline gap-4 px-1">
-        <h1 className="text-2xl font-bold tracking-tight">{sym}</h1>
+        <SymbolPicker
+          symbols={symbols}
+          value={sym}
+          onChange={(next) => navigate(`/symbol/${next}`)}
+          label="Symbol"
+          triggerClassName="text-2xl font-bold tracking-tight hover:text-accent"
+        />
         <SessionBadge phase={phase} />
         <span className="tabular text-2xl">{price(last, decimals)}</span>
         <span
