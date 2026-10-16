@@ -262,6 +262,49 @@ describe("OrderDetailDrawer (§13.4)", () => {
     expect(screen.getByText(/40 @ 150/)).toBeTruthy();
   });
 
+  it("renders a cancellation reason from history", async () => {
+    useOrderStore.getState().seed([{ ...ORDER, status: "CANCELLED" }]);
+    vi.mocked(apiFetchMock).mockImplementationOnce(async () => ({
+      count: 1,
+      events: [
+        {
+          seq: 1,
+          ts: "2026-07-27T10:00:00.000Z",
+          event_type: "CANCEL",
+          order_id: "o1",
+          gateway_id: "GW1",
+          symbol: "AAPL",
+          reason: "INSUFFICIENT_LIQUIDITY",
+        },
+      ],
+    }));
+
+    wrap(<OrderDetailDrawer orderId="o1" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("INSUFFICIENT_LIQUIDITY")).toBeTruthy());
+  });
+
+  it("renders a cancellation reason from a live event", async () => {
+    useOrderStore.getState().seed([{ ...ORDER, status: "CANCELLED" }]);
+    vi.mocked(apiFetchMock).mockImplementationOnce(async () => ({ count: 0, events: [] }));
+    wrap(<OrderDetailDrawer orderId="o1" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("No recorded events yet.")).toBeTruthy());
+
+    act(() => {
+      __privateMessageForTest({
+        type: "order.cancelled",
+        topic: "order.cancelled.GW1",
+        ts: "2026-07-27T10:01:00.000Z",
+        data: {
+          order_id: "o1",
+          gateway_id: "GW1",
+          cancel_reason: "INSUFFICIENT_LIQUIDITY",
+        },
+      });
+    });
+
+    await waitFor(() => expect(screen.getByText("INSUFFICIENT_LIQUIDITY")).toBeTruthy());
+  });
+
   // L7: a live event stayed in the timeline forever, so once the periodic
   // history refetch caught up and durably persisted the same event, it
   // rendered twice.

@@ -1686,7 +1686,7 @@ class StatsProcess:
                     payload.get("fill_price"),
                     payload.get("fill_qty"),
                     payload.get("trade_id"),
-                    payload.get("reason"),
+                    payload.get("cancel_reason") or payload.get("reason"),
                     payload.get("client_tag"),
                     payload.get("combo_parent_id"),
                     payload.get("oco_group_id"),

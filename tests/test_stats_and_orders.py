@@ -858,9 +858,14 @@ class TestOnOrderEvent:
         assert rows == [("FILL",)]
 
     def test_records_cancel_event(self, sp: StatsProcess) -> None:
-        sp._on_order_event("order.cancelled.GW01", {"order_id": "O003"})
-        rows = sp._conn.execute("SELECT event_type FROM order_events").fetchall()
-        assert rows == [("CANCEL",)]
+        sp._on_order_event(
+            "order.cancelled.GW01",
+            {"order_id": "O003", "cancel_reason": "INSUFFICIENT_LIQUIDITY"},
+        )
+        rows = sp._conn.execute(
+            "SELECT event_type, reason FROM order_events"
+        ).fetchall()
+        assert rows == [("CANCEL", "INSUFFICIENT_LIQUIDITY")]
 
     def test_no_order_id_skipped(self, sp: StatsProcess) -> None:
         sp._on_order_event("order.ack.GW01", {"accepted": True})
