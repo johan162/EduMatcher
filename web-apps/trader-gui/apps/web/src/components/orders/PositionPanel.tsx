@@ -226,14 +226,14 @@ export function PositionPanel() {
                   className="px-2 py-1.5 text-right font-medium cursor-help"
                   title="Volume-weighted average cost of the open position"
                 >
-                  Price
+                  VWAP
                 </th>
                 <th
                   scope="col"
                   className="px-2 py-1.5 text-right font-medium cursor-help"
                   title="Latest traded price for this symbol on the venue"
                 >
-                  Last Price
+                  Last Traded
                 </th>
                 <th
                   scope="col"
