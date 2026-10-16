@@ -11,8 +11,9 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import type { NewsEvent, NewsSnapshot } from "@edumatcher/terminal-types";
 import { api } from "../lib/api.js";
-import { clockUtc } from "../lib/format.js";
+import { clockInTimezone } from "../lib/format.js";
 import { newsMatches, resolutions, sectorIndex } from "../lib/news.js";
+import { useLiveStore } from "../store/useLiveStore.js";
 
 export const NEWS_POLL_MS = 1000;
 const VISIBLE_ROWS = 100;
@@ -32,6 +33,7 @@ function StatusBadge({ item }: { item: NewsEvent }) {
 }
 
 export function NewsView() {
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const [snapshot, setSnapshot] = useState<NewsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -93,7 +95,7 @@ export function NewsView() {
             {rows.map((n) => (
               <tr key={n.id} data-testid="news-row" className="border-t border-border align-top">
                 <td className="whitespace-nowrap px-3 py-1 tabular text-fg-subtle">
-                  {clockUtc(new Date(n.ts_ns / 1e6).toISOString())}
+                  {clockInTimezone(new Date(n.ts_ns / 1e6).toISOString(), sessionTimezone)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1">
                   <StatusBadge item={n} />
