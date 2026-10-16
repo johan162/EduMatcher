@@ -11,7 +11,6 @@
 | **Code Quality**  | [![Coverage](https://img.shields.io/badge/coverage-88%25-green.svg)](https://github.com/johan162/EduMatcher/actions/workflows/ci.yml)  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 
-
 EduMatcher is an educational trading system that teaches market microstructure,
 matching logic, and exchange architecture through runnable code.
 
