@@ -50,8 +50,8 @@ cd ~/.edumatcher-sim
 
 ### Commands to try 
 
-Regardless if you started an empty exchange or the simulated exchange you run i and rade 
-with it the exact same wy:
+Regardless if you started an empty exchange or the simulated exchange you run it and trade 
+within it in the exact same way:
 
 Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
