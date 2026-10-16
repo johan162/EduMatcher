@@ -7742,7 +7742,7 @@ _shtab_pm_stats_cli_index_snapshots_option_strings=(-h --help --index-id --date 
 _shtab_pm_stats_cli_index_ids_option_strings=(-h --help --date)
 _shtab_pm_stats_cli_instruments_option_strings=(-h --help --symbol)
 _shtab_pm_stats_cli_gaps_option_strings=(-h --help --date --from --to --limit)
-_shtab_pm_stats_cli_health_option_strings=(-h --help -q --quiet)
+_shtab_pm_stats_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
 _shtab_pm_stats_cli_option_strings=(-h --help --version --db --format --no-header --timezone)
 
 
@@ -7781,6 +7781,9 @@ _shtab_pm_stats_cli_health__h_nargs=0
 _shtab_pm_stats_cli_health___help_nargs=0
 _shtab_pm_stats_cli_health__q_nargs=0
 _shtab_pm_stats_cli_health___quiet_nargs=0
+_shtab_pm_stats_cli_health___extended_nargs=0
+_shtab_pm_stats_cli_health__v_nargs=0
+_shtab_pm_stats_cli_health___verbose_nargs=0
 _shtab_pm_stats_cli_pos_0_nargs=A...
 _shtab_pm_stats_cli__h_nargs=0
 _shtab_pm_stats_cli___help_nargs=0

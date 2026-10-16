@@ -366,9 +366,7 @@ def test_run_extended_database_check_times_out_without_waiting_for_the_worker(
         release.wait(timeout=5)
         return True, "finished late", None
 
-    with patch(
-        "edumatcher.stats.cli._check_database_health", _blocks_until_released
-    ):
+    with patch("edumatcher.stats.cli._check_database_health", _blocks_until_released):
         started = time.monotonic()
         healthy, detail, stats = _run_extended_database_check(
             seeded_db, timeout_sec=0.1

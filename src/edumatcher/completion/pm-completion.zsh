@@ -4390,6 +4390,8 @@ _shtab_pm_stats_cli_gaps_defaults_added=0
 _shtab_pm_stats_cli_health_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check stats.db integrity and read\/write access (PRAGMA quick_check)\; allowed up to 45s for a large database]"
+  {-v,--verbose}"[Describe exactly what was checked, plus database size and row counts when combined with --extended]"
 )
 
 # guard to ensure default positional specs are added only once per session

@@ -1890,9 +1890,7 @@ class StatsProcess:
         """
         try:
             self.health_rep.recv()
-            self.health_rep.send(
-                datetime.now(tz=timezone.utc).isoformat().encode()
-            )
+            self.health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
         except zmq.ZMQError as exc:
             log.warning("failed to answer health ping: %s", exc)
 
