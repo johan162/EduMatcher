@@ -82,6 +82,39 @@ def _drain_pull_until(
     raise TimeoutError(f"never received topic '{topic_prefix}' within {timeout}s")
 
 
+def _send_hello(
+    cli: socket.socket,
+    lb: _LineBuffer,
+    engine_pull: zmq.Socket[bytes],
+    hello: bytes,
+    timeout: float = 5.0,
+) -> None:
+    """Send HELLO and wait for system.gateway_connect, retrying while the
+    gateway's PUSH->engine connection is still handshaking.
+
+    The gateway's PUSH socket uses IMMEDIATE=1 and SNDTIMEO=0, so a HELLO that
+    arrives before the ZMQ handshake completes is answered with
+    ERR|CODE=ENGINE_UNAVAILABLE (session stays open) instead of being forwarded.
+    """
+    deadline = time.monotonic() + timeout
+    cli.sendall(hello)
+    while time.monotonic() < deadline:
+        try:
+            _drain_pull_until(engine_pull, "system.gateway_connect", timeout=0.05)
+            return
+        except TimeoutError:
+            pass
+        try:
+            line = lb.recv_line(timeout=0.05)
+        except TimeoutError:
+            continue
+        if "CODE=ENGINE_UNAVAILABLE" not in line:
+            raise AssertionError(f"unexpected reply to HELLO: {line}")
+        time.sleep(0.05)
+        cli.sendall(hello)
+    raise TimeoutError(f"never received 'system.gateway_connect' within {timeout}s")
+
+
 def _authenticate(
     cli: socket.socket,
     lb: _LineBuffer,
@@ -90,10 +123,12 @@ def _authenticate(
     gateway_id: str = "TRADER01",
     client_name: str = "test-client",
 ) -> str:
-    cli.sendall(
-        f"HELLO|CLIENT={client_name}|PROTO=ALF1|ID={gateway_id}\n".encode("utf-8")
+    _send_hello(
+        cli,
+        lb,
+        engine_pull,
+        f"HELLO|CLIENT={client_name}|PROTO=ALF1|ID={gateway_id}\n".encode("utf-8"),
     )
-    _drain_pull_until(engine_pull, "system.gateway_connect", timeout=3.0)
     time.sleep(0.1)
     engine_pub.send_multipart(
         encode(
