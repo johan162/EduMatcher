@@ -55,6 +55,7 @@ def sp(tmp_path: Path):
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         proc = StatsProcess(tmp_path / "test.db", session_tz=STOCKHOLM)
     yield proc
@@ -289,10 +290,11 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
     patches = (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     )
 
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
-    with patches[0], patches[1]:
+    with patches[0], patches[1], patches[2]:
         first = StatsProcess(db, session_tz=timezone.utc)
     for i, (price, qty) in enumerate([(100.0, 10), (120.0, 30), (90.0, 20)]):
         first._on_trade(
@@ -307,7 +309,7 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
     first.close()
 
     # Restart against the same database, then record one more trade.
-    with patches[0], patches[1]:
+    with patches[0], patches[1], patches[2]:
         second = StatsProcess(db, session_tz=timezone.utc)
     second._on_trade(
         {
@@ -347,6 +349,7 @@ def test_restart_preserves_opening_quotes(tmp_path: Path) -> None:
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         first = StatsProcess(db, session_tz=timezone.utc)
     first._on_book("AAPL", book)
@@ -355,6 +358,7 @@ def test_restart_preserves_opening_quotes(tmp_path: Path) -> None:
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         second = StatsProcess(db, session_tz=timezone.utc)
     second._on_book("AAPL", {"bids": [{"price": 95.0}], "asks": [{"price": 96.0}]})
@@ -372,6 +376,7 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         first = StatsProcess(db, session_tz=timezone.utc)
     for i, level in enumerate([1000.0, 1050.0, 990.0]):
@@ -387,6 +392,7 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         second = StatsProcess(db, session_tz=timezone.utc)
     second._on_index_update(
@@ -1109,6 +1115,7 @@ def _make_process(db: Path, **kwargs) -> StatsProcess:
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         return StatsProcess(db, **kwargs)
 
@@ -1182,15 +1189,15 @@ def test_refused_open_does_not_leak_the_connection(
             conn.execute("SELECT 1")
 
 
-@pytest.mark.parametrize("failing_socket", [0, 1, 2])
+@pytest.mark.parametrize("failing_socket", [0, 1, 2, 3])
 def test_failed_socket_setup_closes_the_database(
     tmp_path: Path, failing_socket: int
 ) -> None:
     """A socket failure must not strand the already-open database connection.
 
-    Parametrised over which socket fails because each one after the first
-    also leaves the earlier sockets dangling, so the cleanup has to cope with
-    a partially-built instance.
+    Parametrised over which socket fails (sub, index_sub, push, health_rep)
+    because each one after the first also leaves the earlier sockets
+    dangling, so the cleanup has to cope with a partially-built instance.
     """
 
     class _FakeSocket:
@@ -1233,6 +1240,7 @@ def test_failed_socket_setup_closes_the_database(
         patch("edumatcher.stats.main.sqlite3.connect", _tracking_connect),
         patch("edumatcher.stats.main.make_subscriber", _make),
         patch("edumatcher.stats.main.make_pusher", _make),
+        patch("edumatcher.stats.main.make_replier", _make),
     ):
         try:
             StatsProcess(tmp_path / "stats.db", session_tz=timezone.utc)

@@ -51,6 +51,7 @@ def sp(tmp_path: Path):
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+        patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
     ):
         proc = StatsProcess(tmp_path / "test.db")
     yield proc
@@ -1088,12 +1089,14 @@ class TestStatsRun:
         engine_sock = MagicMock(name="engine_sub")
         index_sock = MagicMock(name="index_sub")
         push_sock = MagicMock(name="push")
+        health_sock = MagicMock(name="health_rep")
         with (
             patch(
                 "edumatcher.stats.main.make_subscriber",
                 side_effect=[engine_sock, index_sock],
             ),
             patch("edumatcher.stats.main.make_pusher", return_value=push_sock),
+            patch("edumatcher.stats.main.make_replier", return_value=health_sock),
         ):
             proc = StatsProcess(tmp_path / "close_test.db")
 
@@ -1126,6 +1129,7 @@ class TestStatsRun:
         with (
             patch("edumatcher.stats.main.make_subscriber", side_effect=_record_call),
             patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
+            patch("edumatcher.stats.main.make_replier", return_value=MagicMock()),
         ):
             proc = StatsProcess(tmp_path / "addr_test.db")
         proc.close()
@@ -1208,6 +1212,7 @@ class TestRetention:
         with (
             patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
             patch("edumatcher.stats.main.make_pusher", return_value=fake_sock),
+            patch("edumatcher.stats.main.make_replier", return_value=fake_sock),
         ):
             return StatsProcess(
                 tmp_path / "test.db",

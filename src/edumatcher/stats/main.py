@@ -44,6 +44,10 @@ Subscribes to (pm-index PUB, INDEX_PUB_CONNECT_ADDR — a separate socket,
 since pm-index binds its own PUB endpoint distinct from the engine's):
   index.update    — every throttled index level publication from pm-index
 
+Binds (STATS_HEALTH_BIND_ADDR, a REP socket):
+  answers `pm-stats-cli health`'s ping with the current UTC time, proving the
+  receive loop is alive and pumping rather than just the OS process existing.
+
 SQLite tables
 -------------
   daily_stats
@@ -114,6 +118,7 @@ from edumatcher.config import (
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
+    STATS_HEALTH_BIND_ADDR,
     STATS_DB_FILE,
     resolve_data_path,
 )
@@ -123,7 +128,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.messaging.bus import make_pusher, make_replier, make_subscriber
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import (
     decode,
@@ -983,17 +988,22 @@ class StatsProcess:
                 rcvhwm=_SUB_RCVHWM,
             )
             self.push = make_pusher(ENGINE_PULL_ADDR)
+            # Bound, not connected: pm-stats-cli health's ZMQ ping is the
+            # only thing that speaks to this socket, proving the receive
+            # loop itself is alive rather than just the OS process.
+            self.health_rep = make_replier(STATS_HEALTH_BIND_ADDR)
         except BaseException:
             self.close()
             raise
 
         log.debug(
-            "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s index_sub=%s",
+            "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s index_sub=%s health=%s",
             self._db_path,
             self._snapshot_interval_sec,
             ENGINE_PUB_ADDR,
             ENGINE_PULL_ADDR,
             INDEX_PUB_CONNECT_ADDR,
+            STATS_HEALTH_BIND_ADDR,
         )
         if self._sql_trace:
             log.info("SQLite SQL trace enabled for stats writer connection")
@@ -1724,6 +1734,7 @@ class StatsProcess:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
         poller.register(self.index_sub, zmq.POLLIN)
+        poller.register(self.health_rep, zmq.POLLIN)
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
@@ -1736,6 +1747,9 @@ class StatsProcess:
             # On this thread, so the deletes never interleave with the
             # writes sharing the connection.
             self._prune_if_due()
+
+            if self.health_rep in socks:
+                self._receive_health_ping()
 
             if self.index_sub in socks:
                 self._receive_one_index_message()
@@ -1866,6 +1880,21 @@ class StatsProcess:
         elif _is_order_event_topic(topic):
             self._dbg_count("order_event_topics")
             self._on_order_event(topic, payload)
+
+    def _receive_health_ping(self) -> None:
+        """Answer `pm-stats-cli health`'s REQ ping with the current UTC time.
+
+        REP sockets must reply before another recv is allowed, so this always
+        drains and answers exactly one request per poll, regardless of what
+        the request actually contains.
+        """
+        try:
+            self.health_rep.recv()
+            self.health_rep.send(
+                datetime.now(tz=timezone.utc).isoformat().encode()
+            )
+        except zmq.ZMQError as exc:
+            log.warning("failed to answer health ping: %s", exc)
 
     def _receive_one_index_message(self) -> None:
         try:
@@ -2006,6 +2035,11 @@ class StatsProcess:
             self.index_sub.close()
         if hasattr(self, "push") and getattr(self.push, "closed", False) is not True:
             self.push.close()
+        if (
+            hasattr(self, "health_rep")
+            and getattr(self.health_rep, "closed", False) is not True
+        ):
+            self.health_rep.close()
         # Released last: no other recorder should be able to take over until
         # this one has finished writing and closed its sockets.
         if hasattr(self, "_lock_conn"):

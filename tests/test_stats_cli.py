@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -225,6 +227,9 @@ def test_health_reports_running_process_and_writable_database(
     conn = _open_db(db_path)
     conn.close()
     monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(db_path), "health"])
@@ -233,6 +238,7 @@ def test_health_reports_running_process_and_writable_database(
     output = capsys.readouterr().out
     assert "pm-stats process: OK" in output
     assert "stats database:  OK" in output
+    assert "stats ZMQ ping:  OK" in output
     assert "health: OK" in output
 
 
@@ -240,6 +246,9 @@ def test_health_fails_when_pm_stats_is_not_running(
     monkeypatch: pytest.MonkeyPatch, seeded_db: Path
 ) -> None:
     monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(seeded_db), "health"])
@@ -247,15 +256,146 @@ def test_health_fails_when_pm_stats_is_not_running(
     assert exc_info.value.code == 1
 
 
-def test_health_fails_when_database_is_missing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_health_does_not_check_database_by_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Without --extended, a missing/corrupt database must not fail health:
+    the whole point of gating the check is that it is not run by default."""
     monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(tmp_path / "missing.db"), "health"])
 
+    assert exc_info.value.code == 0
+    assert "stats database:  OK - skipped" in capsys.readouterr().out
+
+
+def test_health_extended_fails_when_database_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(
+            monkeypatch,
+            ["--db", str(tmp_path / "missing.db"), "health", "--extended"],
+        )
+
     assert exc_info.value.code == 1
+
+
+def test_health_extended_verbose_reports_checks_and_db_stats(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db_path = tmp_path / "stats.db"
+    conn = _open_db(db_path)
+    conn.execute(
+        "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity) "
+        "VALUES (?, ?, 'AAPL', 100, 1)",
+        ("2026-06-14T09:00:00+00:00", "T1"),
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(
+            monkeypatch,
+            ["--db", str(db_path), "health", "--extended", "--verbose"],
+        )
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "Checks performed:" in output
+    assert "Database integrity/read-write: yes" in output
+    assert "Database stats:" in output
+    assert "size:" in output
+    assert "trade_log rows: 1" in output
+
+
+def test_health_verbose_without_extended_notes_database_was_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(seeded_db), "health", "--verbose"])
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "Checks performed:" in output
+    assert "Database integrity/read-write: no (pass --extended)" in output
+    assert "Database stats:" not in output
+
+
+def test_run_extended_database_check_times_out_without_waiting_for_the_worker(
+    seeded_db: Path,
+) -> None:
+    """A check that never returns must not make the caller wait for it.
+
+    The worker thread is a daemon precisely so a run this slow can be
+    abandoned rather than joined; this proves the function itself returns
+    promptly on a tiny custom timeout, not just that the 45s production
+    default exists.
+    """
+    import time
+
+    from edumatcher.stats.cli import _run_extended_database_check
+
+    release = threading.Event()
+
+    def _blocks_until_released(
+        _db_path: Path, *, collect_stats: bool = False
+    ) -> tuple[bool, str, None]:
+        release.wait(timeout=5)
+        return True, "finished late", None
+
+    with patch(
+        "edumatcher.stats.cli._check_database_health", _blocks_until_released
+    ):
+        started = time.monotonic()
+        healthy, detail, stats = _run_extended_database_check(
+            seeded_db, timeout_sec=0.1
+        )
+        elapsed = time.monotonic() - started
+
+    release.set()  # let the abandoned worker finish so it doesn't outlive the test
+    assert healthy is False
+    assert "did not finish within" in detail
+    assert stats is None
+    assert elapsed < 2
+
+
+def test_health_fails_when_zmq_ping_does_not_reply(
+    monkeypatch: pytest.MonkeyPatch, seeded_db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health",
+        lambda: (False, "no reply within 1000ms"),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(seeded_db), "health"])
+
+    assert exc_info.value.code == 1
+    assert "stats ZMQ ping:  FAIL - no reply within 1000ms" in capsys.readouterr().out
 
 
 def test_health_quiet_exits_zero_without_output(
@@ -267,6 +407,9 @@ def test_health_quiet_exits_zero_without_output(
     conn = _open_db(db_path)
     conn.close()
     monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(db_path), "health", "-q"])
@@ -281,12 +424,48 @@ def test_health_quiet_exits_minus_one_without_output(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [])
+    monkeypatch.setattr(
+        "edumatcher.stats.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(seeded_db), "health", "-q"])
 
     assert exc_info.value.code == -1
     assert capsys.readouterr() == ("", "")
+
+
+def test_zmq_health_check_detects_a_bound_replier() -> None:
+    import threading
+
+    from edumatcher.config import STATS_HEALTH_BIND_ADDR
+    from edumatcher.messaging.bus import make_replier
+    from edumatcher.stats.cli import _check_zmq_health
+
+    sock = make_replier(STATS_HEALTH_BIND_ADDR)
+    try:
+        # A real pm-stats would answer from its own receive loop; a thread
+        # here stands in for that loop without pulling in the whole process.
+        def answer_once() -> None:
+            sock.recv()
+            sock.send(b"pong")
+
+        responder = threading.Thread(target=answer_once, daemon=True)
+        responder.start()
+        healthy, detail = _check_zmq_health(timeout_ms=2000)
+        responder.join(timeout=1)
+        assert healthy is True
+        assert "pong" in detail
+    finally:
+        sock.close(0)
+
+
+def test_zmq_health_check_times_out_when_nothing_is_bound() -> None:
+    from edumatcher.stats.cli import _check_zmq_health
+
+    healthy, detail = _check_zmq_health(timeout_ms=200)
+    assert healthy is False
+    assert "no reply" in detail
 
 
 def test_daily_defaults_to_latest_date_table_output(

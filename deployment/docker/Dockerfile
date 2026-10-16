@@ -89,7 +89,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Documentation only; the compose files decide what is actually published.
-EXPOSE 5555 5556 5557 5558 5559 5560 5565 5570 5580 5590 5600 5601 5602 8080 8081 22
+EXPOSE 5555 5556 5557 5558 5559 5560 5561 5565 5570 5580 5590 5600 5601 5602 8080 8081 22
 
 # Deliberately the engine's order-intake socket rather than
 # `pm-opctl-cli health -q`: that command reports FAIL on the stock 'default'

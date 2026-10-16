@@ -38,6 +38,7 @@ def stats_proc(tmp_path: Path):
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sub),
         patch("edumatcher.stats.main.make_pusher", return_value=fake_push),
+        patch("edumatcher.stats.main.make_replier", return_value=MagicMock()),
     ):
         proc = StatsProcess(db_path=tmp_path / "stats.db")
     yield proc
