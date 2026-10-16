@@ -91,6 +91,14 @@ export function NewsView() {
 
       <div className="overflow-hidden rounded border border-border">
         <table className="w-full text-sm">
+          <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
+            <tr>
+              <th className="px-3 py-2">Time</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Scope</th>
+              <th className="px-3 py-2">Headline</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.map((n) => (
               <tr key={n.id} data-testid="news-row" className="border-t border-border align-top">
@@ -117,7 +125,7 @@ export function NewsView() {
             ))}
             {rows.length === 0 && (
               <tr className="border-t border-border">
-                <td className="px-3 py-6 text-center text-fg-faint">
+                <td colSpan={4} className="px-3 py-6 text-center text-fg-faint">
                   {items.length === 0 ? "No news yet — is pm-market-sim running?" : "No headlines match."}
                 </td>
               </tr>
