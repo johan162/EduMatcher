@@ -444,7 +444,6 @@ if [[ "$DRY_RUN" == "false" ]]; then
                     2>/dev/null || true)
         [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
         printf "."
-        fflush(stdout)
         sleep 5
     done
     echo ""
