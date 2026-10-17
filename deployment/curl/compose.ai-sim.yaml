@@ -35,9 +35,9 @@ services:
     volumes:
       # Every trade, log and database the exchange produces. Survives
       # stop/start; removed only by './edumatcher.sh uninstall --data'.
-      - ./data:/data
+      - ./data:/data:z
       # Where a configuration of your own is mounted, read-only.
-      - ./config:/config:ro
+      - ./config:/config:ro,z
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
       - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
@@ -109,7 +109,7 @@ services:
       ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
     volumes:
       # The exchange's data directory, read-only: the viewer reads log.db.
-      - ./data:/backend-data:ro
+      - ./data:/backend-data:ro,z
       - log-gui-acks:/app/ack-data
 
   trader-gui:
