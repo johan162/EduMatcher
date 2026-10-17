@@ -128,6 +128,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
+from edumatcher.healthcheck import answer_health_ping
 from edumatcher.messaging.bus import make_pusher, make_replier, make_subscriber
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import (
@@ -1749,7 +1750,7 @@ class StatsProcess:
             self._prune_if_due()
 
             if self.health_rep in socks:
-                self._receive_health_ping()
+                answer_health_ping(self.health_rep, log)
 
             if self.index_sub in socks:
                 self._receive_one_index_message()
@@ -1880,19 +1881,6 @@ class StatsProcess:
         elif _is_order_event_topic(topic):
             self._dbg_count("order_event_topics")
             self._on_order_event(topic, payload)
-
-    def _receive_health_ping(self) -> None:
-        """Answer `pm-stats-cli health`'s REQ ping with the current UTC time.
-
-        REP sockets must reply before another recv is allowed, so this always
-        drains and answers exactly one request per poll, regardless of what
-        the request actually contains.
-        """
-        try:
-            self.health_rep.recv()
-            self.health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
-        except zmq.ZMQError as exc:
-            log.warning("failed to answer health ping: %s", exc)
 
     def _receive_one_index_message(self) -> None:
         try:

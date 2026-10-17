@@ -45,7 +45,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone, tzinfo
+from datetime import timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +72,7 @@ from edumatcher.log_srv.config import (
 )
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.config import CLEARING_HEALTH_BIND_ADDR
+from edumatcher.healthcheck import answer_health_ping
 from edumatcher.messaging.bus import make_replier, make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
 from edumatcher.models.generated import system as _gen_system
@@ -409,7 +410,7 @@ class ClearingProcess:
                 break
 
             if health_rep is not None and health_rep in socks:
-                self._receive_health_ping(health_rep)
+                answer_health_ping(health_rep, log)
 
             if sub not in socks:
                 continue
@@ -474,20 +475,6 @@ class ClearingProcess:
             elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
-
-    @staticmethod
-    def _receive_health_ping(health_rep: zmq.Socket[bytes]) -> None:
-        """Answer `pm-clearing-cli health`'s REQ ping with the current UTC time.
-
-        REP sockets must reply before another recv is allowed, so this always
-        drains and answers exactly one request per poll, regardless of what
-        the request actually contains.
-        """
-        try:
-            health_rep.recv()
-            health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
-        except zmq.ZMQError as exc:
-            log.warning("failed to answer health ping: %s", exc)
 
     # ------------------------------------------------------------------
     # Timer loop

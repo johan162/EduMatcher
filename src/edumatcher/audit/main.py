@@ -52,6 +52,7 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
+from edumatcher.healthcheck import answer_health_ping
 from edumatcher.messaging.bus import make_replier, make_subscriber
 from edumatcher.models.message import decode, decode_envelope, decode_sequence
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
@@ -372,7 +373,7 @@ class AuditProcess:
                     raise
                 break  # EINTR — honour _running flag
             if self.health_rep in socks:
-                self._receive_health_ping()
+                answer_health_ping(self.health_rep, log)
             if self.sub in socks:
                 frames = self.sub.recv_multipart()
                 try:
@@ -391,19 +392,6 @@ class AuditProcess:
                     # Never let a single bad message kill the receive loop
                     self._dbg_count("decode_errors")
                     log.warning("failed to decode/log message: %s", exc)
-
-    def _receive_health_ping(self) -> None:
-        """Answer `pm-audit-cli health`'s REQ ping with the current UTC time.
-
-        REP sockets must reply before another recv is allowed, so this always
-        drains and answers exactly one request per poll, regardless of what
-        the request actually contains.
-        """
-        try:
-            self.health_rep.recv()
-            self.health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
-        except zmq.ZMQError as exc:
-            log.warning("failed to answer health ping: %s", exc)
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
