@@ -27,8 +27,8 @@ With Podman or Docker installed, one command gets you a running exchange and
 five web applications:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
-bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash
 cd ~/.edumatcher 
 ```
 
@@ -43,8 +43,8 @@ With Podman or Docker installed, one command gets you a running exchange with 30
 model including news and roumours that affects price discovery.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
-bash -s -- --sim
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash -s -- --sim
 cd ~/.edumatcher-sim
 ```
 
