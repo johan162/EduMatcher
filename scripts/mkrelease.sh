@@ -437,7 +437,7 @@ if [[ "$DRY_RUN" == "false" ]]; then
     # trusting "the latest run" -- ci.yml can also be running a PR check at the
     # same time, and a bare `gh run watch` has no way to tell them apart.
     RUN_ID=""
-    for _ in $(seq 1 90); do
+    for _ in $(seq 1 250); do
         RUN_ID=$(gh run list --workflow ci.yml --branch main --limit 20 \
                     --json databaseId,headSha \
                     --jq "[.[] | select(.headSha == \"$MAIN_RELEASE_SHA\")] | .[0].databaseId" \
