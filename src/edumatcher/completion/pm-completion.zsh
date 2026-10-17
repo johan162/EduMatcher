@@ -777,6 +777,7 @@ _shtab_pm_audit_cli_commands() {
   local _commands=(
     events:'Search log entries by topic, gateway, symbol, and time range'
     gateways:'List gateways and summarise their audit trail activity'
+    health:'Check the pm-audit process and audit log file health'
     index:'Build or update the optional SQLite index for faster queries'
     orders:'Find order lifecycle events for specific order IDs or filters'
     stats:'Show summary statistics about audit log files'
@@ -827,6 +828,16 @@ _shtab_pm_audit_cli_gateways_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_cli_gateways_defaults_added=0
+
+_shtab_pm_audit_cli_health_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check the audit log file is readable, writable and ends in a well-formed entry\; allowed up to 15s]"
+  {-v,--verbose}"[Describe exactly what was checked, plus log file size, rotated backups and last entry time when combined with --extended]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_cli_health_defaults_added=0
 
 _shtab_pm_audit_cli_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -930,6 +941,7 @@ _shtab_pm_audit_cli() {
       case $line[1] in
         events) _arguments -C -s $_shtab_pm_audit_cli_events_options ;;
         gateways) _arguments -C -s $_shtab_pm_audit_cli_gateways_options ;;
+        health) _arguments -C -s $_shtab_pm_audit_cli_health_options ;;
         index) _arguments -C -s $_shtab_pm_audit_cli_index_options ;;
         orders) _arguments -C -s $_shtab_pm_audit_cli_orders_options ;;
         stats) _arguments -C -s $_shtab_pm_audit_cli_stats_options ;;

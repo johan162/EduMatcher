@@ -978,7 +978,10 @@ class TestAuditProcess:
         from edumatcher.audit.main import AuditProcess
 
         fake_sub = MagicMock()
-        with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
+        with (
+            patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         assert proc.logger is not None
         assert proc._to_terminal is False
@@ -987,7 +990,10 @@ class TestAuditProcess:
         from edumatcher.audit.main import AuditProcess
 
         fake_sub = MagicMock()
-        with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
+        with (
+            patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
         assert proc.logger is not None
         assert proc._to_terminal is True
@@ -996,7 +1002,10 @@ class TestAuditProcess:
         from edumatcher.audit.main import AuditProcess
 
         fake_sub = MagicMock()
-        with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
+        with (
+            patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         proc._stop()
         assert proc._running is False

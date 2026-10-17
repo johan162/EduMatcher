@@ -311,7 +311,8 @@ process's own `config.py`.
 |---|---|---|---|---|
 | `pm-engine` | `5555` PULL (bind) · `5556` PUB (bind) · `5557` PUB (bind) | – | ZeroMQ (PULL/PUB) | Matching engine. `5555` receives all inbound commands; `5556` broadcasts all market/session events; `5557` is the dedicated drop-copy fill feed. |
 | `pm-log-srv` | `5601` PUB (bind) · `5602` PULL (bind) | `5600` | LALF over TCP (collection) · LALF-PS over ZeroMQ (distribution) | Centralized log collector. `5600` accepts LALF log lines from every other `pm-*` process; `5601`/`5602` are the LALF-PS PUB/PULL pair that pushes live rows to log viewers/subscribers without polling `log.db`. |
-| `pm-audit` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to every engine event and writes the full audit trail to disk. Binds no port of its own. |
+| `pm-audit` | `5562` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to every engine event and writes the full audit trail to disk. `5562` only answers `pm-audit-cli health` pings (`EDUMATCHER_AUDIT_BIND_HOST`, `EDUMATCHER_AUDIT_HEALTH_PORT`). |
+| `pm-stats` | `5561` REP (bind); connects out to `5555`, `5556`, `5558` | – | ZeroMQ (SUB/PUSH/REP) | Records market and index statistics to `stats.db`. `5561` only answers `pm-stats-cli health` pings (`EDUMATCHER_STATS_BIND_HOST`, `EDUMATCHER_STATS_HEALTH_PORT`). |
 | `pm-clearing` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to trade events for P&L and settlement. Binds no port of its own. |
 | `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
@@ -864,7 +865,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 
 ## pm-audit-cli — Audit Log Query CLI
 
-`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required.
+`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
 
 ```bash
 pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|csv] [--no-header] [--use-index PATH] COMMAND [options]
@@ -893,6 +894,7 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
 | `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+| `health`   | —    | Check the `pm-audit` process and ping its health socket; `--extended` adds the audit log read/write and last-entry check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 **No-row behaviour:**
 
@@ -1302,7 +1304,7 @@ prints output, and exits.
 | `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
 | `instruments`      | Show instrument reference data (tick scale per symbol)  | `--symbol`                                                          |
 | `gaps`             | Show detected feed gaps (trades the recorder never received) | `--date`, `--from`, `--to`, `--limit` (default 500)            |
-| `health`           | Check the `pm-stats` process and stats DB read/write health | `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
+| `health`           | Check the `pm-stats` process and ping its health socket; `--extended` adds the stats DB integrity and read/write check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 `--after CURSOR` pages through results returned by a previous call to the same
 subcommand — pass the cursor value from that call's last row to fetch the next page.

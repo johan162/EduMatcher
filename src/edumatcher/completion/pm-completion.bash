@@ -1428,7 +1428,7 @@ complete -F _shtab_pm_audit pm-audit
 #    source ~/.local/share/bash_completion/pm-audit-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_audit_cli_subparsers=(events orders trades topics gateways timeline stats index)
+_shtab_pm_audit_cli_subparsers=(events orders trades topics gateways timeline stats index health)
 
 _shtab_pm_audit_cli_events_option_strings=(-h --help --topic --gateway --symbol --date --from --to --limit --reverse -f --follow --interval)
 _shtab_pm_audit_cli_orders_option_strings=(-h --help --id --gateway --symbol --date --from --to --limit)
@@ -1438,12 +1438,13 @@ _shtab_pm_audit_cli_gateways_option_strings=(-h --help --date --from --to --min-
 _shtab_pm_audit_cli_timeline_option_strings=(-h --help --from --to --topic --gateway --symbol --limit -f --follow --interval)
 _shtab_pm_audit_cli_stats_option_strings=(-h --help --verbose)
 _shtab_pm_audit_cli_index_option_strings=(-h --help --output --days --from --to --rebuild --incremental)
+_shtab_pm_audit_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
 _shtab_pm_audit_cli_option_strings=(-h --help --version --log-file --log-dir --format --no-header --use-index)
 
 
 
 _shtab_pm_audit_cli_topics___sort_choices=(count alpha)
-_shtab_pm_audit_cli_pos_0_choices=(events orders trades topics gateways timeline stats index)
+_shtab_pm_audit_cli_pos_0_choices=(events orders trades topics gateways timeline stats index health)
 _shtab_pm_audit_cli___format_choices=(table json csv)
 
 _shtab_pm_audit_cli_events__h_nargs=0
@@ -1471,6 +1472,13 @@ _shtab_pm_audit_cli_index__h_nargs=0
 _shtab_pm_audit_cli_index___help_nargs=0
 _shtab_pm_audit_cli_index___rebuild_nargs=0
 _shtab_pm_audit_cli_index___incremental_nargs=0
+_shtab_pm_audit_cli_health__h_nargs=0
+_shtab_pm_audit_cli_health___help_nargs=0
+_shtab_pm_audit_cli_health__q_nargs=0
+_shtab_pm_audit_cli_health___quiet_nargs=0
+_shtab_pm_audit_cli_health___extended_nargs=0
+_shtab_pm_audit_cli_health__v_nargs=0
+_shtab_pm_audit_cli_health___verbose_nargs=0
 _shtab_pm_audit_cli_pos_0_nargs=A...
 _shtab_pm_audit_cli__h_nargs=0
 _shtab_pm_audit_cli___help_nargs=0

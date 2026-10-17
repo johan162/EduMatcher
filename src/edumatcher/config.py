@@ -119,6 +119,17 @@ STATS_HEALTH_BIND_ADDR = (
 )
 STATS_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_STATS_HEALTH_PORT}"
 
+# pm-audit healthcheck endpoint: the same REP-socket ping as pm-stats' above,
+# so `pm-audit-cli health` can confirm the recorder's receive loop is alive
+# rather than just that its process exists or its log file is writable.
+# Port 5562 is the next free one after pm-stats' 5561.
+EDUMATCHER_AUDIT_BIND_HOST = os.getenv("EDUMATCHER_AUDIT_BIND_HOST", "127.0.0.1")
+EDUMATCHER_AUDIT_HEALTH_PORT = int(os.getenv("EDUMATCHER_AUDIT_HEALTH_PORT", "5562"))
+AUDIT_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_AUDIT_BIND_HOST}:{EDUMATCHER_AUDIT_HEALTH_PORT}"
+)
+AUDIT_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_AUDIT_HEALTH_PORT}"
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------

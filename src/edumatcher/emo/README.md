@@ -96,7 +96,8 @@ from "PID exists" to something closer to "is responding":
   "is it alive and listening" signal, not a full liveness guarantee.
 - `healthcheck` — a command that returns exit code `0` when the process is
   responsive, for a stronger, application-level check where one exists (e.g.
-  `pm-stats-cli health -q`, or an HTTP health endpoint via `curl --fail`).
+  `pm-stats-cli health -q` or `pm-audit-cli health -q`, or an HTTP health
+  endpoint via `curl --fail`).
 
 When both `tcp` and `healthcheck` are configured for the same process,
 `healthcheck` takes precedence since it is the stronger signal; `tcp` is used

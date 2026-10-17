@@ -9,6 +9,10 @@ single JSON line:
 
   [2026-04-29T14:32:01.123] [trade.executed] {"id": "...", ...}
 
+Binds (AUDIT_HEALTH_BIND_ADDR, a REP socket):
+  answers `pm-audit-cli health`'s ping with the current UTC time, proving the
+  receive loop is alive and pumping rather than just the OS process existing.
+
 Options
 -------
   --audit-log-file Path to the audit-trail log file (default: data/audit.log)
@@ -41,14 +45,14 @@ from typing import List
 
 import zmq
 
-from edumatcher.config import AUDIT_LOG_FILE, ENGINE_PUB_ADDR
+from edumatcher.config import AUDIT_HEALTH_BIND_ADDR, AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_subscriber
+from edumatcher.messaging.bus import make_replier, make_subscriber
 from edumatcher.models.message import decode, decode_envelope, decode_sequence
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
@@ -257,6 +261,14 @@ class AuditProcess:
         # the audit trail is invisible in the trail itself. ZMQ's default of
         # 1000 is a burst of well under a second at the engine's rate.
         self.sub = make_subscriber(ENGINE_PUB_ADDR, rcvhwm=_SUB_RCVHWM)
+        # Bound, not connected: pm-audit-cli health's ZMQ ping is the only
+        # thing that speaks to this socket, proving the receive loop itself
+        # is alive rather than just the OS process.
+        try:
+            self.health_rep = make_replier(AUDIT_HEALTH_BIND_ADDR)
+        except BaseException:
+            self.sub.close()
+            raise
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
         self._buffer: List[str] = []
@@ -350,6 +362,7 @@ class AuditProcess:
     def _receive(self) -> None:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
+        poller.register(self.health_rep, zmq.POLLIN)
         log.debug("audit receive loop enabled")
         while self._running:
             try:
@@ -358,6 +371,8 @@ class AuditProcess:
                 if exc.errno != errno.EINTR:
                     raise
                 break  # EINTR — honour _running flag
+            if self.health_rep in socks:
+                self._receive_health_ping()
             if self.sub in socks:
                 frames = self.sub.recv_multipart()
                 try:
@@ -377,6 +392,19 @@ class AuditProcess:
                     self._dbg_count("decode_errors")
                     log.warning("failed to decode/log message: %s", exc)
 
+    def _receive_health_ping(self) -> None:
+        """Answer `pm-audit-cli health`'s REQ ping with the current UTC time.
+
+        REP sockets must reply before another recv is allowed, so this always
+        drains and answers exactly one request per poll, regardless of what
+        the request actually contains.
+        """
+        try:
+            self.health_rep.recv()
+            self.health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
+        except zmq.ZMQError as exc:
+            log.warning("failed to answer health ping: %s", exc)
+
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
@@ -384,12 +412,13 @@ class AuditProcess:
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
         log.info(
-            "starting audit runtime log_file=%s terminal=%s buffer_size=%d flush_interval=%ss pub=%s",
+            "starting audit runtime log_file=%s terminal=%s buffer_size=%d flush_interval=%ss pub=%s health=%s",
             self._log_path,
             self._to_terminal,
             self.buffer_size,
             self.flush_interval,
             ENGINE_PUB_ADDR,
+            AUDIT_HEALTH_BIND_ADDR,
         )
         log.info("pm-audit waiting for pm-engine events")
         try:
@@ -403,6 +432,7 @@ class AuditProcess:
             self._flush_debug_summary(force=True)
             t.join(timeout=1.0)
             self.sub.close()
+            self.health_rep.close()
             log.info("audit process shutdown complete")
 
     def _stop(self) -> None:

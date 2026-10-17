@@ -171,7 +171,11 @@ RESET = "\033[0m"
 # All default processes necessary for a full exchange setup
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
-    {"name": "audit", "command": ["pm-audit", "--verbose"]},
+    {
+        "name": "audit",
+        "command": ["pm-audit", "--verbose"],
+        "healthcheck": ["pm-audit-cli", "health", "-q"],
+    },
     {
         "name": "stats",
         "command": ["pm-stats", "--verbose"],

@@ -796,6 +796,7 @@ pm-stats
 7. Write private order lifecycle events to `order_events`
 8. Write every received index update to `index_level_snapshots` and upsert the day's rollup into `index_daily_stats` — no exchange indexes configured means no `index.update` traffic and these two tables simply stay empty, which is expected and not an error
 9. At engine shutdown, record the final close bid/ask to `daily_stats`
+10. Answer [`pm-stats-cli health`](#health-recorder-and-database-health) pings on its health socket (`127.0.0.1:5561` by default) for as long as it runs
 
 **Startup options:**
 
@@ -1253,25 +1254,70 @@ seq | ts                            | stream         | expected_id | received_id
 
 #### `health` — Recorder and Database Health
 
-Check that a `pm-stats` process is running (found with `pgrep`) and that the
-statistics database passes an integrity check, has the expected schema
-version, and accepts a (rolled-back) write.
+Check that `pm-stats` is alive and actually recording. By default two fast
+checks run:
+
+- **Process** — a `pm-stats` process is running (found with `pgrep`).
+- **ZMQ ping** — `pm-stats` answers a ping on its health socket (port `5561`)
+  with its current UTC time. The reply comes from the recorder's own receive
+  loop, so it proves the loop is running, not just that the process exists.
+
+The database check is opt-in with `--extended`, because it runs a full-file
+`PRAGMA quick_check` that can take many seconds on a large `stats.db`. It
+checks that the database passes the integrity check, has the expected schema
+version, and accepts a (rolled-back) write. The check is allowed up to 45
+seconds before it is reported as failed.
 
 ```bash
 pm-stats-cli health
+pm-stats-cli health --extended
+pm-stats-cli health --extended --verbose
 pm-stats-cli --format json health
 pm-stats-cli health --quiet
 ```
 
 ```text
 pm-stats process: OK - pm-stats is running
-stats database:  OK - read/write and integrity checks passed
+stats database:  OK - skipped (pass --extended to check integrity and read/write access)
+stats ZMQ ping:  OK - replied at 2026-10-17T14:23:37.797827+00:00
 health: OK
+```
+
+**Options:**
+
+| Option            | Description                                                                                       |
+|-------------------|---------------------------------------------------------------------------------------------------|
+| `--extended`      | Also check `stats.db` integrity, schema version and read/write access (up to 45 s)               |
+| `-v`, `--verbose` | List exactly which checks ran; with `--extended`, also print the database size and row counts per table |
+| `-q`, `--quiet`   | Print nothing; report only through the exit code                                                  |
+
+With `--extended --verbose` the report ends with the checks performed and the
+database figures:
+
+```text
+Checks performed:
+  pm-stats process (pgrep):      yes
+  ZMQ health ping:                yes
+  Database integrity/read-write: yes
+
+Database stats:
+  path: data/stats.db
+  size: 412.3MB
+  trade_log rows: 1843022
+  order_events rows: 5210334
+  price_snapshots rows: 96120
+  daily_stats rows: 1240
+  feed_gaps rows: 0
 ```
 
 The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
 printed and the exit code is `0` when healthy or `-1` (255 in a shell)
 otherwise. `--format json` prints the same report as JSON.
+
+The health socket binds to `127.0.0.1:5561` by default; set
+`EDUMATCHER_STATS_BIND_HOST` / `EDUMATCHER_STATS_HEALTH_PORT` to change where
+`pm-stats` binds it, and `EDUMATCHER_ENGINE_HOST` /
+`EDUMATCHER_STATS_HEALTH_PORT` to change where `pm-stats-cli` connects.
 
 #### `index-ids` — Index Discovery
 
