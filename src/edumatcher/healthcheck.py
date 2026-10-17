@@ -15,6 +15,7 @@ import os
 import subprocess
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, TypeVar
 
 import zmq
@@ -22,6 +23,11 @@ import zmq
 T = TypeVar("T")
 
 PING_TIMEOUT_MS = 1000
+
+# Enough to hold the last complete line of any append-only log or JSONL
+# history these processes write: each line is a single event, far below this
+# even for a full book snapshot.
+_TAIL_READ_BYTES = 256 * 1024
 
 
 def find_process_pids(program: str) -> list[int]:
@@ -120,6 +126,22 @@ def run_with_timeout(fn: Callable[[], T], timeout_sec: float) -> T:
     if failure:
         raise failure[0]
     return outcome[0]
+
+
+def read_last_line(path: Path, max_bytes: int = _TAIL_READ_BYTES) -> str | None:
+    """Return the last non-empty line of `path`, or None if it has none.
+
+    Reads only the final `max_bytes`, so the cost does not grow with the
+    file's size.
+    """
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        fh.seek(max(0, fh.tell() - max_bytes))
+        tail = fh.read()
+    for raw in reversed(tail.splitlines()):
+        if raw.strip():
+            return raw.decode("utf-8", errors="replace")
+    return None
 
 
 def format_bytes(size: int) -> str:

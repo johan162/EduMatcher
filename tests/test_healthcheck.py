@@ -6,6 +6,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from edumatcher.healthcheck import (
     find_process_pids,
     format_bytes,
     ping_health_endpoint,
+    read_last_line,
     run_with_timeout,
 )
 from edumatcher.messaging.bus import get_context, make_replier
@@ -147,6 +149,30 @@ def test_run_with_timeout_reraises_the_workers_exception() -> None:
 
     with pytest.raises(ValueError, match="bad check"):
         run_with_timeout(_boom, timeout_sec=5)
+
+
+# -- read_last_line -----------------------------------------------------------
+
+
+def test_read_last_line_skips_trailing_blank_lines(tmp_path: Path) -> None:
+    path = tmp_path / "log.jsonl"
+    path.write_text("first\nsecond\n\n  \n")
+
+    assert read_last_line(path) == "second"
+
+
+def test_read_last_line_of_an_empty_file_is_none(tmp_path: Path) -> None:
+    path = tmp_path / "empty.jsonl"
+    path.write_text("")
+
+    assert read_last_line(path) is None
+
+
+def test_read_last_line_reads_only_the_tail(tmp_path: Path) -> None:
+    path = tmp_path / "big.jsonl"
+    path.write_text("x" * 1000 + "\nlast\n")
+
+    assert read_last_line(path, max_bytes=16) == "last"
 
 
 # -- format_bytes -------------------------------------------------------------

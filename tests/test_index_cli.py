@@ -734,3 +734,323 @@ class TestMain:
             ):
                 main()
         assert "No rows" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# health
+# ---------------------------------------------------------------------------
+
+_INIT_TS_NS = 1_781_430_000_000_000_000  # 2026-06-14T09:40:00Z
+
+
+def _index_files(tmp_path: Path, index_id: str = "EDU100") -> MagicMock:
+    """One configured index whose state and history files exist and are sound."""
+    state = tmp_path / f"{index_id}_state.json"
+    history = tmp_path / f"{index_id}_history.jsonl"
+    state.write_text(
+        json.dumps(
+            {"index_id": index_id, "last_level": 1012.5, "last_updated": 1781430060.0}
+        )
+    )
+    _write_history(
+        history,
+        [{"type": "INIT", "ts_ns": _INIT_TS_NS, "index_id": index_id, "level": 1000.0}],
+    )
+    idx = MagicMock()
+    idx.id = index_id
+    idx.state_file = str(state)
+    idx.history_file = str(history)
+    return idx
+
+
+def _with_indices(monkeypatch: pytest.MonkeyPatch, *indices: Any) -> None:
+    cfg = MagicMock()
+    cfg.indices = list(indices)
+    monkeypatch.setattr(
+        "edumatcher.index.cli._try_load_engine_config", lambda _p: (cfg, "")
+    )
+
+
+def _healthy_process(monkeypatch: pytest.MonkeyPatch, *, running: bool = True) -> None:
+    monkeypatch.setattr(
+        "edumatcher.index.cli._find_index_pids", lambda: [1234] if running else []
+    )
+    monkeypatch.setattr(
+        "edumatcher.index.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
+
+
+def _run_health(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> int | str | None:
+    monkeypatch.setattr("sys.argv", ["pm-index-cli", *args])
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    return exc_info.value.code
+
+
+class TestHealth:
+    def test_reports_running_process(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health"]) == 0
+        out = capsys.readouterr().out
+        assert "pm-index process: OK" in out
+        assert "index files:      OK - skipped" in out
+        assert "index ZMQ ping:   OK" in out
+        assert "health: OK" in out
+
+    def test_fails_when_pm_index_is_not_running(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _healthy_process(monkeypatch, running=False)
+
+        assert _run_health(monkeypatch, ["health"]) == 1
+
+    def test_does_not_load_config_or_check_files_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _must_not_load(_p: Any) -> Any:
+            raise AssertionError("config loaded without --extended")
+
+        monkeypatch.setattr(
+            "edumatcher.index.cli._try_load_engine_config", _must_not_load
+        )
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health"]) == 0
+
+    def test_extended_passes_for_sound_files(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+    ) -> None:
+        _with_indices(monkeypatch, _index_files(tmp_path))
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 0
+        assert (
+            "index files:      OK - state and history checks passed for 1 index"
+            in capsys.readouterr().out
+        )
+
+    def test_extended_reports_missing_files_per_index(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+    ) -> None:
+        sound = _index_files(tmp_path, "EDU100")
+        broken = _index_files(tmp_path, "TECH50")
+        Path(broken.state_file).unlink()
+        Path(broken.history_file).unlink()
+        _with_indices(monkeypatch, sound, broken)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 1
+        out = capsys.readouterr().out
+        assert "TECH50: state file not found" in out
+        assert "TECH50: history file not found" in out
+        assert "EDU100:" not in out
+
+    def test_extended_fails_on_state_file_for_another_index(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        idx = _index_files(tmp_path)
+        Path(idx.state_file).write_text(json.dumps({"index_id": "OTHER"}))
+        _with_indices(monkeypatch, idx)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 1
+
+    @pytest.mark.parametrize(
+        "last_line",
+        ['{"type": "INIT", "ts_ns": 1', '{"type": "LEVEL", "ts_ns": 1}', "[1, 2]"],
+    )
+    def test_extended_fails_on_bad_last_history_record(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, last_line: str
+    ) -> None:
+        idx = _index_files(tmp_path)
+        with Path(idx.history_file).open("a") as fh:
+            fh.write(last_line + "\n")
+        _with_indices(monkeypatch, idx)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 1
+
+    def test_extended_accepts_an_empty_history(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        idx = _index_files(tmp_path)
+        Path(idx.history_file).write_text("")
+        _with_indices(monkeypatch, idx)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 0
+
+    def test_extended_with_no_indices_configured_is_healthy(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        _with_indices(monkeypatch)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 0
+        assert "no indices configured" in capsys.readouterr().out
+
+    def test_extended_fails_when_config_cannot_load(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        monkeypatch.setattr(
+            "edumatcher.index.cli._try_load_engine_config",
+            lambda _p: (None, "No compiled configuration at x"),
+        )
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended"]) == 1
+        captured = capsys.readouterr()
+        assert "index files:      FAIL - No compiled configuration at x" in captured.out
+        assert captured.err == ""
+
+    def test_extended_verbose_reports_per_index_stats(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+    ) -> None:
+        idx = _index_files(tmp_path)
+        _with_indices(monkeypatch, idx)
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended", "-v"]) == 0
+        out = capsys.readouterr().out
+        assert "Index state/history files:     yes" in out
+        assert "  EDU100:" in out
+        assert f"state:       {idx.state_file}" in out
+        assert "last record: INIT at 2026-06-14T09:40:00+00:00" in out
+        assert "last level:  1012.5" in out
+        assert "state saved: 2026-06-14T09:41:00+00:00" in out
+
+    def test_verbose_without_extended_notes_files_were_skipped(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "-v"]) == 0
+        out = capsys.readouterr().out
+        assert "Index state/history files:     no (pass --extended)" in out
+        assert "Index files:" not in out
+
+    def test_json_format(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+    ) -> None:
+        _with_indices(monkeypatch, _index_files(tmp_path))
+        _healthy_process(monkeypatch)
+
+        code = _run_health(
+            monkeypatch, ["--format", "json", "health", "--extended", "-v"]
+        )
+
+        assert code == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["healthy"] is True
+        assert report["process"]["pids"] == [1234]
+        assert report["files"]["stats"][0]["last_record_type"] == "INIT"
+
+    def test_fails_when_zmq_ping_does_not_reply(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        monkeypatch.setattr("edumatcher.index.cli._find_index_pids", lambda: [1])
+        monkeypatch.setattr(
+            "edumatcher.index.cli._check_zmq_health",
+            lambda: (False, "no reply within 1000ms"),
+        )
+
+        assert _run_health(monkeypatch, ["health"]) == 1
+        assert (
+            "index ZMQ ping:   FAIL - no reply within 1000ms" in capsys.readouterr().out
+        )
+
+    def test_quiet_exits_zero_without_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "-q"]) == 0
+        assert capsys.readouterr() == ("", "")
+
+    def test_quiet_exits_minus_one_without_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+    ) -> None:
+        """Including when --extended cannot even load the config: -q stays silent."""
+        monkeypatch.setattr(
+            "edumatcher.index.cli._try_load_engine_config",
+            lambda _p: (None, "no config"),
+        )
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, ["health", "--extended", "-q"]) == -1
+        assert capsys.readouterr() == ("", "")
+
+    def test_run_extended_check_times_out_without_waiting_for_the_worker(
+        self,
+    ) -> None:
+        import threading
+
+        from edumatcher.index.cli import _run_extended_index_files_check
+
+        release = threading.Event()
+
+        def _blocks_until_released(
+            _config_path: str | None, *, collect_stats: bool = False
+        ) -> tuple[bool, str, None]:
+            release.wait(timeout=5)
+            return True, "finished late", None
+
+        with patch(
+            "edumatcher.index.cli._check_index_files_health", _blocks_until_released
+        ):
+            started = time.monotonic()
+            healthy, detail, stats = _run_extended_index_files_check(
+                None, timeout_sec=0.1
+            )
+            elapsed = time.monotonic() - started
+
+        release.set()  # let the abandoned worker finish so it doesn't outlive the test
+        assert healthy is False
+        assert "did not finish within" in detail
+        assert stats is None
+        assert elapsed < 2
+
+    def test_zmq_health_check_detects_a_bound_replier(self) -> None:
+        import threading
+
+        from edumatcher.config import INDEX_HEALTH_BIND_ADDR
+        from edumatcher.index.cli import _check_zmq_health
+        from edumatcher.messaging.bus import make_replier
+
+        sock = make_replier(INDEX_HEALTH_BIND_ADDR)
+        try:
+
+            def answer_once() -> None:
+                sock.recv()
+                sock.send(b"pong")
+
+            responder = threading.Thread(target=answer_once, daemon=True)
+            responder.start()
+            healthy, detail = _check_zmq_health(timeout_ms=2000)
+            responder.join(timeout=1)
+            assert healthy is True
+            assert "pong" in detail
+        finally:
+            sock.close(0)
+
+    def test_zmq_health_check_times_out_when_nothing_is_bound(self) -> None:
+        from edumatcher.index.cli import _check_zmq_health
+
+        healthy, detail = _check_zmq_health(timeout_ms=200)
+        assert healthy is False
+        assert "no reply" in detail

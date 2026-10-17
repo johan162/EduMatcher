@@ -787,12 +787,14 @@ host. Several hosts means running the engine independently on each and wiring
 the variables by hand.
 
 **No cross-host health signalling.** `pm-opctl-cli health`'s built-in
-`index-srv` entry has no TCP probe or healthcheck command configured at all
-(unlike, say, `balf-gwy`'s `"tcp": "127.0.0.1:5560"`) — it only checks that
-the process is still alive, not that `pm-index` (which binds 5558/5559) is
-actually reachable. That is one more reason the image `HEALTHCHECK`
-TCP-probes the engine on 5555 instead: a real connectivity check, just not
-one that says anything about `pm-index` or any other host.
+recorder entries — `stats`, `audit`, `clearing` and `index-srv` — run each
+process's own `*-cli health -q`, which pings a health socket on loopback
+(5561–5564). That proves the process's loop is alive on *this* host; it says
+nothing about whether another host can reach it, because those health sockets
+bind `127.0.0.1` by default and the image does not publish them. That is one
+more reason the image `HEALTHCHECK` TCP-probes the engine on 5555 instead: a
+real connectivity check, just not one that says anything about `pm-index` or
+any other host.
 
 ```mermaid
 flowchart LR

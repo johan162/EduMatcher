@@ -59,6 +59,7 @@ def proc(
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: sub)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: pub)
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
 
     cfg = IndexRuntimeConfig(
         id="EDU100",

@@ -735,7 +735,9 @@ pm-admin-cli $ID reopen --sym AAPL --price 100.00 --note "manual open"
 
 `pm-index-cli` is a read-only command-line tool for querying the structural/
 corporate-action audit JSONL files written by `pm-index`. It reads files
-directly from disk — no running `pm-index` process is required.
+directly from disk — no running `pm-index` process is required. The one
+exception is [`health`](#health-process-and-index-file-health), which pings
+the running `pm-index` to confirm it is alive.
 
 !!! note "Not for level or EOD history"
     `pm-index-cli` only exposes structural/audit records (`INIT`,
@@ -764,6 +766,7 @@ pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-he
 |------------|------------------------------------------------------------------------|
 | `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE` |
 | `indices`  | List configured indices from `engine_config.yaml`                     |
+| `health`   | Check the `pm-index` process and, with `--extended`, every index's state and history files |
 
 The `events` subcommand accepts:
 
@@ -861,6 +864,86 @@ pm-index-cli --format table --data-dir /var/edumatcher/indexes events \
   --index EDU100 \
   --days 30
 ```
+
+### `health` — Process and index file health
+
+Check that `pm-index` is alive and actually processing messages. By default
+two fast checks run:
+
+- **Process** — a `pm-index` process is running (found with `pgrep`).
+- **ZMQ ping** — `pm-index` answers a ping on its health socket (port `5564`)
+  with its current UTC time. The reply comes from the index process's own poll
+  loop, so it proves the loop is running, not just that the process exists.
+
+The file check is opt-in with `--extended`. It loads the configuration the
+same way `events` does (`--config`, or the deployed compiled configuration),
+then checks every configured index:
+
+- **State file** — exists, is a JSON object, belongs to that index (its
+  `index_id` matches), and can be opened for writing.
+- **History file** — exists, its last record is a well-formed structural
+  record (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` or `REBALANCE`
+  with an integer `ts_ns`), and it can be opened for append. An empty history
+  is fine.
+
+Nothing is ever written to either file, and only the tail of each history file
+is read, so the check stays fast however large the histories grow; it is still
+bounded at 15 seconds so a stalled or network-mounted volume cannot hang the
+command. Every failing file is reported, prefixed with its index ID. A
+configuration with no indices is healthy, with nothing to check; a
+configuration that cannot be loaded is a failure.
+
+```bash
+pm-index-cli health
+pm-index-cli health --extended
+pm-index-cli --config engine_config.yaml health --extended --verbose
+pm-index-cli --format json health
+pm-index-cli health --quiet
+```
+
+```text
+pm-index process: OK - pm-index is running
+index files:      OK - skipped (pass --extended to check state and history files)
+index ZMQ ping:   OK - replied at 2026-10-17T14:23:37.797827+00:00
+health: OK
+```
+
+**Options:**
+
+| Option            | Description                                                                                            |
+|-------------------|--------------------------------------------------------------------------------------------------------|
+| `--extended`      | Also check every configured index's state and history files (up to 15 s)                              |
+| `-v`, `--verbose` | List exactly which checks ran; with `--extended`, also print each index's file paths, history size, last record and last level |
+| `-q`, `--quiet`   | Print nothing; report only through the exit code                                                       |
+
+With `--extended --verbose` the report ends with the checks performed and one
+block per index:
+
+```text
+Checks performed:
+  pm-index process (pgrep):     yes
+  ZMQ health ping:               yes
+  Index state/history files:     yes
+
+Index files:
+  EDU100:
+    state:       data/indexes/EDU100_state.json
+    history:     data/indexes/EDU100_history.jsonl (3.2KB)
+    last record: CORP_ACTION at 2026-07-08T09:31:12.004000+00:00
+    last level:  1043.27
+    state saved: 2026-07-08T15:59:59.812000+00:00
+```
+
+The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
+printed — not even a configuration error under `--extended` — and the exit
+code is `0` when healthy or `-1` (255 in a shell) otherwise. `--format json`
+prints the same report as a JSON object; `csv` prints the same text as
+`table`.
+
+The health socket binds to `127.0.0.1:5564` by default, on the same
+`EDUMATCHER_INDEX_BIND_HOST` as `pm-index`'s other two sockets; set
+`EDUMATCHER_INDEX_HEALTH_PORT` to change the port, and
+`EDUMATCHER_ENGINE_HOST` to change where `pm-index-cli` connects.
 
 ### No-row behaviour
 

@@ -2768,6 +2768,7 @@ fi
 _shtab_pm_index_cli_commands() {
   local _commands=(
     events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.'
+    health:'Check the pm-index process and its state/history file health'
     indices:'List indices from --config, or the deployed exchange'"'"'s compiled configuration if --config is omitted.'
   )
   _describe 'pm-index-cli commands' _commands
@@ -2798,6 +2799,16 @@ _shtab_pm_index_cli_events_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_index_cli_events_defaults_added=0
 
+_shtab_pm_index_cli_health_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check every configured index\'s state and history files are readable, writable and well-formed\; allowed up to 15s]"
+  {-v,--verbose}"[Describe exactly what was checked, plus each index\'s file paths, history size, last record and last level when combined with --extended]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_index_cli_health_defaults_added=0
+
 _shtab_pm_index_cli_indices_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
 )
@@ -2825,6 +2836,7 @@ _shtab_pm_index_cli() {
       curcontext="${curcontext%:*:*}:_shtab_pm_index_cli-$line[1]:"
       case $line[1] in
         events) _arguments -C -s $_shtab_pm_index_cli_events_options ;;
+        health) _arguments -C -s $_shtab_pm_index_cli_health_options ;;
         indices) _arguments -C -s $_shtab_pm_index_cli_indices_options ;;
       esac
   esac

@@ -4588,21 +4588,29 @@ complete -F _shtab_pm_index_admin_cli pm-index-admin-cli
 #    source ~/.local/share/bash_completion/pm-index-cli
 # See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
 
-_shtab_pm_index_cli_subparsers=(events indices)
+_shtab_pm_index_cli_subparsers=(events indices health)
 
 _shtab_pm_index_cli_events_option_strings=(-h --help --index -i --type -t --days --from --to --limit)
 _shtab_pm_index_cli_indices_option_strings=(-h --help)
+_shtab_pm_index_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
 _shtab_pm_index_cli_option_strings=(-h --help --version --config -c --data-dir --format --no-header)
 
 
 
-_shtab_pm_index_cli_pos_0_choices=(events indices)
+_shtab_pm_index_cli_pos_0_choices=(events indices health)
 _shtab_pm_index_cli___format_choices=(table json csv)
 
 _shtab_pm_index_cli_events__h_nargs=0
 _shtab_pm_index_cli_events___help_nargs=0
 _shtab_pm_index_cli_indices__h_nargs=0
 _shtab_pm_index_cli_indices___help_nargs=0
+_shtab_pm_index_cli_health__h_nargs=0
+_shtab_pm_index_cli_health___help_nargs=0
+_shtab_pm_index_cli_health__q_nargs=0
+_shtab_pm_index_cli_health___quiet_nargs=0
+_shtab_pm_index_cli_health___extended_nargs=0
+_shtab_pm_index_cli_health__v_nargs=0
+_shtab_pm_index_cli_health___verbose_nargs=0
 _shtab_pm_index_cli_pos_0_nargs=A...
 _shtab_pm_index_cli__h_nargs=0
 _shtab_pm_index_cli___help_nargs=0

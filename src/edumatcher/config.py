@@ -143,6 +143,16 @@ CLEARING_HEALTH_ADDR = (
     f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_CLEARING_HEALTH_PORT}"
 )
 
+# pm-index healthcheck endpoint: the same REP-socket ping again, for
+# `pm-index-cli health`. pm-index already has its own bind host for 5558/5559
+# (EDUMATCHER_INDEX_BIND_HOST above), so the health socket uses it too. Port
+# 5564 follows pm-clearing's 5563 and is the last free one before 5565.
+EDUMATCHER_INDEX_HEALTH_PORT = int(os.getenv("EDUMATCHER_INDEX_HEALTH_PORT", "5564"))
+INDEX_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_HEALTH_PORT}"
+)
+INDEX_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_HEALTH_PORT}"
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------

@@ -194,6 +194,10 @@ class TestClearingProcessIntegration:
         from edumatcher.clearing import main as clearing_main
         from edumatcher.messaging.bus import get_context
 
+        # conftest swaps in a per-test inproc address on the module itself, so
+        # it has to be read from there at run time, not imported from config.
+        health_addr: str = getattr(clearing_main, "CLEARING_HEALTH_BIND_ADDR")
+
         pub = _InprocPublisher(zmq_addr)
         process = ClearingProcess(
             pub_addr=zmq_addr,
@@ -210,7 +214,7 @@ class TestClearingProcessIntegration:
             deadline = time.monotonic() + 3.0
             while True:
                 try:
-                    req.connect(clearing_main.CLEARING_HEALTH_BIND_ADDR)
+                    req.connect(health_addr)
                     break
                 except zmq.ZMQError:
                     if time.monotonic() > deadline:

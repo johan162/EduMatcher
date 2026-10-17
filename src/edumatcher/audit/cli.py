@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime
@@ -72,6 +71,7 @@ from edumatcher.healthcheck import (
     find_process_pids,
     format_bytes,
     ping_health_endpoint,
+    read_last_line,
     run_with_timeout,
 )
 
@@ -87,10 +87,6 @@ _DEFAULT_INDEX_NAME = "audit_index.db"
 # block -- opt-in via --extended rather than in every health call, and bounded
 # so a check that never returns cannot hang the CLI indefinitely.
 _EXTENDED_HEALTH_TIMEOUT_SEC = 15.0
-
-# Enough to hold the last complete entry: audit lines are single events, far
-# below this even for a full book snapshot.
-_TAIL_READ_BYTES = 256 * 1024
 
 
 class _HealthProcessReport(TypedDict):
@@ -807,21 +803,6 @@ def _find_audit_pids() -> list[int]:
     return find_process_pids("pm-audit")
 
 
-def _read_last_line(log_file: Path) -> str | None:
-    """Return the last non-empty line of `log_file`, or None if it has none.
-
-    Reads only the tail, so the cost does not grow with the log's size.
-    """
-    with log_file.open("rb") as fh:
-        fh.seek(0, os.SEEK_END)
-        fh.seek(max(0, fh.tell() - _TAIL_READ_BYTES))
-        tail = fh.read()
-    for raw in reversed(tail.splitlines()):
-        if raw.strip():
-            return raw.decode("utf-8", errors="replace")
-    return None
-
-
 def _collect_log_stats(
     log_file: Path, log_dir: Path | None, last_entry_ts: str | None
 ) -> _HealthLogFileStats:
@@ -845,7 +826,7 @@ def _check_log_file_health(
     if not log_file.is_file():
         return False, f"audit log is not a regular file: {log_file}", None
     try:
-        last_line = _read_last_line(log_file)
+        last_line = read_last_line(log_file)
         last_ts: str | None = None
         if last_line is not None:
             parsed = _parse_line(last_line)

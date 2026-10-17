@@ -568,8 +568,10 @@ the wire is as shown, but clients should parse by key.
 ### Using `pm-index-cli` for structural/audit records
 
 `pm-index-cli` queries the structural/audit JSONL files directly from the
-command line — no running `pm-index` process is needed. It does **not** have
-level or EOD subcommands; use `pm-stats-cli` for that (next section).
+command line — no running `pm-index` process is needed, except for its
+[`health`](../part-3-run/020-admin-console-and-commands.md#health-process-and-index-file-health)
+command, which pings the running process. It does **not** have level or EOD
+subcommands; use `pm-stats-cli` for that (next section).
 
 `--config`, `--data-dir`, `--format`, and `--no-header` are global options and
 must come **before** the subcommand (`events` / `indices`); putting them after

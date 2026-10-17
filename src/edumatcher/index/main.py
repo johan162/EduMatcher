@@ -5,6 +5,7 @@ from collections import defaultdict
 import errno
 import json
 import logging
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -16,9 +17,11 @@ import zmq
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
+    INDEX_HEALTH_BIND_ADDR,
     INDEX_PUB_ADDR,
     INDEX_PULL_ADDR,
 )
+from edumatcher.healthcheck import answer_health_ping
 from edumatcher.index.calculator import ConstituentConfig, IndexCalculator
 from edumatcher.index.config_loader import (
     IndexRuntimeConfig,
@@ -32,7 +35,12 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_publisher, make_puller, make_subscriber
+from edumatcher.messaging.bus import (
+    make_publisher,
+    make_puller,
+    make_replier,
+    make_subscriber,
+)
 from edumatcher.models.message import (
     decode,
     make_index_constituent_change_ack_msg,
@@ -126,15 +134,26 @@ class IndexProcess:
         )
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
         self._pub_sock = make_publisher(INDEX_PUB_ADDR)
+        # Bound, not connected: pm-index-cli health's ZMQ ping is the only
+        # thing that speaks to this socket, proving the poll loop itself is
+        # alive rather than just the OS process.
+        try:
+            self._health_rep = make_replier(INDEX_HEALTH_BIND_ADDR)
+        except BaseException:
+            self._sub_sock.close()
+            self._pull_sock.close()
+            self._pub_sock.close()
+            raise
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
         log.debug(
-            "index process initialized config=%s reset=%s sub=%s pull=%s pub=%s",
+            "index process initialized config=%s reset=%s sub=%s pull=%s pub=%s health=%s",
             self._config_path,
             self._reset,
             ENGINE_PUB_ADDR,
             INDEX_PULL_ADDR,
             INDEX_PUB_ADDR,
+            INDEX_HEALTH_BIND_ADDR,
         )
 
     def _runtime_configs(self) -> list[IndexRuntimeConfig]:
@@ -760,6 +779,7 @@ class IndexProcess:
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
         poller.register(self._pull_sock, zmq.POLLIN)
+        poller.register(self._health_rep, zmq.POLLIN)
 
         while self._running:
             try:
@@ -768,6 +788,9 @@ class IndexProcess:
                 if exc.errno != errno.EINTR:
                     raise
                 break
+
+            if self._health_rep in socks:
+                answer_health_ping(self._health_rep, log)
 
             if self._sub_sock in socks:
                 frames = self._sub_sock.recv_multipart()
@@ -804,6 +827,11 @@ class IndexProcess:
             for idx in self._indices.values():
                 idx.history.flush()
 
+    def stop(self) -> None:
+        """Ask the poll loop to exit; run() returns within one poll timeout."""
+        log.info("stop requested")
+        self._running = False
+
     def close(self) -> None:
         self._flush_debug_summary(force=True)
         log.info("closing index process")
@@ -813,6 +841,7 @@ class IndexProcess:
         self._sub_sock.close()
         self._pull_sock.close()
         self._pub_sock.close()
+        self._health_rep.close()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -923,6 +952,12 @@ def main() -> None:
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)
+    # Without these, SIGTERM (docker stop, pm-opctl stop) killed the process
+    # outright: close() never ran, so pending history writes were never flushed
+    # and the sockets never released. Installed here rather than in run() so
+    # tests that drive run() directly keep pytest's own handlers.
+    signal.signal(signal.SIGINT, lambda *_: proc.stop())
+    signal.signal(signal.SIGTERM, lambda *_: proc.stop())
     try:
         proc.run()
     except Exception as exc:

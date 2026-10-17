@@ -321,7 +321,7 @@ process's own `config.py`.
 | `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (code default; example configs may assign additional instances other ports, e.g. `8081`) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
-| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind) · `5564` REP (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL/REP) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests; `5564` only answers `pm-index-cli health` pings (`EDUMATCHER_INDEX_BIND_HOST`, `EDUMATCHER_INDEX_HEALTH_PORT`). No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
 | `pm-market-sim` | `5553` PUB (bind) · `5554` PULL (bind); connects out to `5555`, `5556` | – | ZeroMQ (PUB/PULL) | The market model: every symbol's true value, and news. `5553` publishes `sim.value`, the `sim.state` heartbeat and `news.event`; `5554` takes `sim.command` from ADMIN participants. Loopback only by default (`EDUMATCHER_SIM_BIND_HOST`). See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md). |
 
 **Internal-only utilities** (ZeroMQ clients; no listening port of their own):
@@ -2720,7 +2720,7 @@ For more details on the options see [Configuration Chapter](../../operator-guide
 
 Reads the structural/corporate-action audit JSONL files written by `pm-index`
 directly from disk and renders them as a table, JSON, or CSV. No running
-process is required. It does not expose level or EOD history — use
+process is required, except for `health`. It does not expose level or EOD history — use
 `pm-stats-cli index-daily` / `index-snapshots` for that instead (see the
 pm-stats-cli section above).
 
@@ -2748,13 +2748,15 @@ None.
 |------------|---------------|-------------------------------------------------------------------------|
 | `events`   | 1,000         | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
 | `indices`  | —             | List configured indices from `engine_config.yaml`                       |
+| `health`   | —             | Check the `pm-index` process and ping its health socket; `--extended` adds every index's state/history file check. Options: `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 The `events` subcommand accepts `--index ID` (repeatable), `--days N`,
 `--from DATE_OR_TS`, `--to DATE_OR_TS`, `--limit N`, and `--type TYPE` to
 filter to a specific structural event kind.
 
-Like `pm-stats-cli`, this is a read-only offline tool. It does not connect to
-any ZeroMQ socket.
+Like `pm-stats-cli`, this is a read-only tool that works offline. The only
+ZeroMQ connection it ever makes is `health`'s ping to `pm-index` on port
+`5564`.
 
 See [pm-index-cli in the commands reference](../../operator-guide/part-3-run/020-admin-console-and-commands.md)
 for the full option reference, output column descriptions, and examples

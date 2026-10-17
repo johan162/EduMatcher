@@ -359,12 +359,12 @@ publishes the market model: true values for the AI traders, ADMIN and
 | pm-scheduler | PUSH→:5555 | Connects | Drives session phase transitions on a time schedule |
 | pm-viewer | SUB→:5556 | Connects | Real-time order book display for one symbol |
 | pm-orders | SUB→:5556 | Connects | Order status monitor across all gateways |
-| pm-audit | SUB→:5556 | Connects | Universal event log (subscribes to all topics) |
-| pm-clearing | SUB→:5556 | Connects | P&L tracking and trade settlement |
-| pm-stats | SUB→:5556 | Connects | OHLCV statistics and SQLite persistence |
+| pm-audit | SUB→:5556, REP :5562 | **Binds** :5562 (health); connects→:5556 | Universal event log (subscribes to all topics) |
+| pm-clearing | SUB→:5556, REP :5563 | **Binds** :5563 (health); connects→:5556 | P&L tracking and trade settlement |
+| pm-stats | SUB→:5556, SUB→:5558, PUSH→:5555, REP :5561 | **Binds** :5561 (health); connects→:5555, :5556, :5558 | OHLCV statistics and SQLite persistence |
 | pm-ticker | SUB→:5556, SUB→:5553 | Connects | Scrolling market data display, with the latest headline |
 | pm-board | SUB→:5556 | Connects | Multi-symbol paged market display |
-| pm-index | PULL :5559, PUB :5558, SUB→:5556 | **Binds** :5558 and :5559; connects→:5556 | Index calculation, OHLC, corporate actions |
+| pm-index | PULL :5559, PUB :5558, REP :5564, SUB→:5556 | **Binds** :5558, :5559 and :5564 (health); connects→:5556 | Index calculation, OHLC, corporate actions |
 | pm-market-sim | PUB :5553, PULL :5554, PUSH→:5555, SUB→:5556 | **Binds** :5553 and :5554; connects→:5555, :5556 | Market model: true values and news |
 | pm-ai-trader / pm-ai-swarm | SUB→:5556, SUB→:5553, PUSH→:5555; ALF TCP to pm-alf-gwy | Connects | AI traders; orders go through `pm-alf-gwy`, only read requests to :5555 |
 | pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |

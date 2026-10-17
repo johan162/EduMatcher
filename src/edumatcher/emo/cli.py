@@ -223,7 +223,11 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-balf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5560",
     },
-    {"name": "index-srv", "command": ["pm-index", "--verbose"]},
+    {
+        "name": "index-srv",
+        "command": ["pm-index", "--verbose"],
+        "healthcheck": ["pm-index-cli", "health", "-q"],
+    },
 ]
 
 # Minimal set of processes for micro exchange setup. No Gwys
