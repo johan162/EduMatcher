@@ -184,6 +184,48 @@ class TestClearingProcessIntegration:
         process.stop()
         thread.join(timeout=3.0)
 
+    def test_running_process_answers_health_ping_with_utc_timestamp(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """The ping is answered from the receive loop itself, so a reply
+        proves that loop is pumping, and the socket is released on stop."""
+        from datetime import datetime
+
+        from edumatcher.clearing import main as clearing_main
+        from edumatcher.messaging.bus import get_context
+
+        pub = _InprocPublisher(zmq_addr)
+        process = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            print_every=0,
+            retention_days=3650,
+        )
+        t = self._start(process)
+        # inproc needs the shared context and an already-bound endpoint.
+        req = get_context().socket(zmq.REQ)
+        req.setsockopt(zmq.LINGER, 0)
+        req.setsockopt(zmq.RCVTIMEO, 3000)
+        try:
+            deadline = time.monotonic() + 3.0
+            while True:
+                try:
+                    req.connect(clearing_main.CLEARING_HEALTH_BIND_ADDR)
+                    break
+                except zmq.ZMQError:
+                    if time.monotonic() > deadline:
+                        raise
+                    time.sleep(0.02)
+            req.send(b"ping")
+            reply = req.recv()
+        finally:
+            req.close(0)
+            self._stop(process, t)
+            pub.close()
+
+        assert datetime.fromisoformat(reply.decode()).tzinfo is not None
+        assert not t.is_alive()
+
     def test_single_trade_appears_in_db(self, db_path: Path, zmq_addr: str) -> None:
         pub = _InprocPublisher(zmq_addr)
         process = ClearingProcess(

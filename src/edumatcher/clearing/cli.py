@@ -6,11 +6,19 @@ import argparse
 import contextlib
 import csv
 import json
+import os
+import sqlite3
+import subprocess
 import sys
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
+
+import zmq
 
 from edumatcher.clearing.store import (
+    _require_trade_events_id_primary_key,
     open_readonly_connection,
     open_writer_connection as _open_writer,
     prune_old_events,
@@ -28,6 +36,7 @@ from edumatcher.clearing.store import (
     query_trades,
     validate_date,
 )
+from edumatcher.config import CLEARING_HEALTH_ADDR
 
 _FORMATS = ("table", "json", "csv")
 
@@ -127,15 +136,57 @@ _DATES_TOTALS_COLS = [
     "traded_notional_total",
     "net_amount_total",
 ]
-_HEALTH_COLS = [
-    "db_path",
-    "trade_events_rows",
-    "gateway_symbol_positions_rows",
-    "gateway_daily_summary_rows",
-    "last_trade_ts_ns",
-    "last_flush_ts_ns",
-    "wal_mode",
-]
+_HEALTH_PING_TIMEOUT_MS = 1000
+
+# The integrity/read-write check does a full-file PRAGMA quick_check, which on
+# a large clearing.db can run well past a few seconds -- opt-in via
+# --extended rather than in every health call, and bounded so a check that
+# never returns cannot hang the CLI indefinitely.
+_EXTENDED_HEALTH_TIMEOUT_SEC = 45.0
+
+# The tables pm-clearing's flush transaction writes; a database missing any
+# of them is not one pm-clearing could be recording into.
+_CLEARING_TABLES = (
+    "trade_events",
+    "gateway_symbol_positions",
+    "gateway_daily_summary",
+)
+
+
+class _HealthProcessReport(TypedDict):
+    healthy: bool
+    pids: list[int]
+    detail: str
+
+
+class _HealthDatabaseStats(TypedDict):
+    size_bytes: int
+    row_counts: dict[str, int]
+    last_trade_ts_ns: int | None
+    last_flush_ts_ns: int | None
+    wal_mode: str
+
+
+class _HealthDatabaseReport(TypedDict):
+    healthy: bool
+    path: str
+    detail: str
+    checked: bool
+    stats: _HealthDatabaseStats | None
+
+
+class _HealthZmqReport(TypedDict):
+    healthy: bool
+    detail: str
+
+
+class _HealthReport(TypedDict):
+    healthy: bool
+    process: _HealthProcessReport
+    database: _HealthDatabaseReport
+    zmq: _HealthZmqReport
+
+
 _RECONCILE_COLS = [
     "side",
     "trade_date",
@@ -310,7 +361,34 @@ def build_parser() -> argparse.ArgumentParser:
     dates.add_argument("--limit", type=int, default=1000, metavar="N")
 
     # health
-    sub.add_parser("health", help="DB metadata and row counts")
+    health = sub.add_parser(
+        "health",
+        help="Check the pm-clearing process and clearing database read/write health",
+    )
+    health.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print nothing; exit 0 when healthy or -1 otherwise",
+    )
+    health.add_argument(
+        "--extended",
+        action="store_true",
+        help=(
+            "Also check clearing.db integrity and read/write access (PRAGMA "
+            f"quick_check); allowed up to {_EXTENDED_HEALTH_TIMEOUT_SEC:.0f}s "
+            "for a large database"
+        ),
+    )
+    health.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Describe exactly what was checked, plus database size, row counts, "
+            "last trade/flush time and WAL mode when combined with --extended"
+        ),
+    )
 
     # reconcile
     rec = sub.add_parser(
@@ -486,8 +564,6 @@ def _run_query(
     args: argparse.Namespace,
     db_path: Path,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    import sqlite3
-
     assert isinstance(conn, sqlite3.Connection)
 
     cmd = args.command
@@ -576,10 +652,6 @@ def _run_query(
         cols = _DATES_TOTALS_COLS if args.with_totals else _DATES_COLS
         return cols, rows
 
-    if cmd == "health":
-        rows = query_health(conn, db_path)
-        return _HEALTH_COLS, rows
-
     if cmd == "sessions":
         rows = query_sessions(
             conn,
@@ -624,8 +696,6 @@ def _upper(val: str | None) -> str | None:
 
 def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
     """Execute or dry-run the 90-day retention prune."""
-    import sqlite3
-
     days: int = args.days
     if days < 1:
         print("[ERROR] --days must be >= 1", file=sys.stderr)
@@ -656,13 +726,257 @@ def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
+def _find_clearing_pids() -> list[int]:
+    """Find pm-clearing processes without matching this pm-clearing-cli process."""
+    pattern = r"(^|/)pm-clearing([[:space:]]|$)"
+    result = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise OSError(f"pgrep failed with exit code {result.returncode}")
+    pids: list[int] = []
+    for line in result.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid != os.getpid():
+            pids.append(pid)
+    return sorted(set(pids))
+
+
+def _format_bytes(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f}{unit}" if unit != "B" else f"{int(value)}B"
+        value /= 1024
+    return f"{value:.1f}TB"  # pragma: no cover - clearing.db won't get here
+
+
+def _format_ts_ns(ts_ns: int | None) -> str:
+    if ts_ns is None:
+        return "(none)"
+    return datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc).isoformat()
+
+
+def _collect_db_stats(conn: sqlite3.Connection, db_path: Path) -> _HealthDatabaseStats:
+    """File size plus the `query_health` metadata, for --extended --verbose."""
+    row = query_health(conn, db_path)[0]
+    return {
+        "size_bytes": db_path.stat().st_size,
+        "row_counts": {
+            table: int(row[f"{table}_rows"] or 0) for table in _CLEARING_TABLES
+        },
+        "last_trade_ts_ns": row["last_trade_ts_ns"],
+        "last_flush_ts_ns": row["last_flush_ts_ns"],
+        "wal_mode": str(row["wal_mode"]),
+    }
+
+
+def _check_database_health(
+    db_path: Path, *, collect_stats: bool = False
+) -> tuple[bool, str, _HealthDatabaseStats | None]:
+    """Check integrity, schema, and a rolled-back write transaction."""
+    if not db_path.exists():
+        return False, f"database not found: {db_path}", None
+    conn: sqlite3.Connection | None = None
+    try:
+        # mode=rw: never create the file, unlike a plain connect.
+        conn = sqlite3.connect(f"file:{db_path}?mode=rw", uri=True, timeout=2.0)
+        conn.row_factory = sqlite3.Row
+        quick_check = str(conn.execute("PRAGMA quick_check").fetchone()[0])
+        if quick_check != "ok":
+            return False, f"integrity check failed: {quick_check}", None
+        present = {
+            str(r[0])
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        missing = [t for t in _CLEARING_TABLES if t not in present]
+        if missing:
+            return False, f"missing table(s): {', '.join(missing)}", None
+        _require_trade_events_id_primary_key(conn)
+        conn.execute("BEGIN")
+        conn.execute("CREATE TEMP TABLE pm_clearing_health_check (value INTEGER)")
+        conn.execute("INSERT INTO pm_clearing_health_check VALUES (1)")
+        conn.rollback()
+        stats = _collect_db_stats(conn, db_path) if collect_stats else None
+    except RuntimeError as exc:
+        return False, str(exc), None
+    except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+        return False, f"database read/write check failed: {exc}", None
+    finally:
+        if conn is not None:
+            conn.close()
+    return True, "read/write and integrity checks passed", stats
+
+
+def _run_extended_database_check(
+    db_path: Path,
+    *,
+    collect_stats: bool = False,
+    timeout_sec: float = _EXTENDED_HEALTH_TIMEOUT_SEC,
+) -> tuple[bool, str, _HealthDatabaseStats | None]:
+    """Run `_check_database_health` off-thread, bounded by `timeout_sec`.
+
+    The worker is a daemon thread rather than a `ThreadPoolExecutor`: the
+    latter's atexit hook joins every worker before the interpreter exits,
+    which would make a timed-out `quick_check` block process exit for however
+    long it actually takes regardless of the timeout reported here. A daemon
+    thread is simply abandoned when the CLI exits.
+    """
+    outcome: list[tuple[bool, str, _HealthDatabaseStats | None]] = []
+
+    def _run() -> None:
+        outcome.append(_check_database_health(db_path, collect_stats=collect_stats))
+
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
+    worker.join(timeout_sec)
+    if worker.is_alive():
+        return False, f"database check did not finish within {timeout_sec:.0f}s", None
+    return outcome[0]
+
+
+def _check_zmq_health(timeout_ms: int = _HEALTH_PING_TIMEOUT_MS) -> tuple[bool, str]:
+    """Ping pm-clearing's health REP socket and confirm it replies.
+
+    Unlike the pgrep and SQLite checks, this is the only one that actually
+    exercises the running process's receive loop: a reply proves pm-clearing
+    is not just alive but pumping messages, not merely a process the OS still
+    lists.
+    """
+    ctx: zmq.Context[Any] = zmq.Context.instance()
+    sock = ctx.socket(zmq.REQ)
+    sock.setsockopt(zmq.LINGER, 0)
+    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
+    sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
+    try:
+        sock.connect(CLEARING_HEALTH_ADDR)
+        sock.send(b"ping")
+        reply = sock.recv()
+        return True, f"replied at {reply.decode(errors='replace')}"
+    except zmq.Again:
+        return False, f"no reply within {timeout_ms}ms"
+    except zmq.ZMQError as exc:
+        return False, f"ZMQ ping failed: {exc}"
+    finally:
+        sock.close(0)
+
+
+def _health_report(
+    db_path: Path, *, extended: bool = False, collect_stats: bool = False
+) -> tuple[bool, _HealthReport]:
+    pids = _find_clearing_pids()
+    zmq_ok, zmq_detail = _check_zmq_health()
+    if extended:
+        db_ok, db_detail, db_stats = _run_extended_database_check(
+            db_path, collect_stats=collect_stats
+        )
+        db_checked = True
+    else:
+        db_ok, db_detail, db_stats = (
+            True,
+            "skipped (pass --extended to check integrity and read/write access)",
+            None,
+        )
+        db_checked = False
+    report: _HealthReport = {
+        "healthy": bool(pids) and db_ok and zmq_ok,
+        "process": {
+            "healthy": bool(pids),
+            "pids": pids,
+            "detail": (
+                "pm-clearing is running" if pids else "pm-clearing process not found"
+            ),
+        },
+        "database": {
+            "healthy": db_ok,
+            "path": str(db_path),
+            "detail": db_detail,
+            "checked": db_checked,
+            "stats": db_stats,
+        },
+        "zmq": {"healthy": zmq_ok, "detail": zmq_detail},
+    }
+    return bool(report["healthy"]), report
+
+
+def _handle_health(args: argparse.Namespace, db_path: Path) -> None:
+    try:
+        healthy, report = _health_report(
+            db_path,
+            extended=args.extended,
+            collect_stats=args.extended and args.verbose,
+        )
+    except (OSError, ValueError) as exc:
+        healthy = False
+        report = _HealthReport(
+            healthy=False,
+            process={"healthy": False, "pids": [], "detail": str(exc)},
+            database={
+                "healthy": False,
+                "path": str(db_path),
+                "detail": "health check could not run",
+                "checked": False,
+                "stats": None,
+            },
+            zmq={"healthy": False, "detail": "health check could not run"},
+        )
+    if args.quiet:
+        raise SystemExit(0 if healthy else -1)
+    if args.format == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        process = report["process"]
+        database = report["database"]
+        zmq_report = report["zmq"]
+        print(
+            f"pm-clearing process: {'OK' if process['healthy'] else 'FAIL'} - {process['detail']}"
+        )
+        print(
+            f"clearing database:   {'OK' if database['healthy'] else 'FAIL'} - {database['detail']}"
+        )
+        print(
+            f"clearing ZMQ ping:   {'OK' if zmq_report['healthy'] else 'FAIL'} - {zmq_report['detail']}"
+        )
+        print(f"health: {'OK' if healthy else 'FAIL'}")
+        if args.verbose:
+            print()
+            print("Checks performed:")
+            print("  pm-clearing process (pgrep):   yes")
+            print("  ZMQ health ping:                yes")
+            print(
+                "  Database integrity/read-write: "
+                + ("yes" if database["checked"] else "no (pass --extended)")
+            )
+            stats = database["stats"]
+            if stats is not None:
+                print()
+                print("Database stats:")
+                print(f"  path: {database['path']}")
+                print(f"  size: {_format_bytes(stats['size_bytes'])}")
+                for table, count in stats["row_counts"].items():
+                    print(f"  {table} rows: {count}")
+                print(f"  last trade: {_format_ts_ns(stats['last_trade_ts_ns'])}")
+                print(f"  last flush: {_format_ts_ns(stats['last_flush_ts_ns'])}")
+                print(f"  journal mode: {stats['wal_mode']}")
+    raise SystemExit(0 if healthy else 1)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    import sqlite3
-
     from edumatcher.config import DATA_DIR, resolve_data_path
 
     parser = build_parser()
@@ -679,6 +993,11 @@ def main() -> None:
         db_path = dp if dp.suffix == ".db" else dp / args.db_name
     else:
         db_path = DATA_DIR / args.db_name
+
+    # health reports a missing database itself (under --extended) rather than
+    # refusing to run, and needs no connection unless --extended asks for one.
+    if args.command == "health":
+        _handle_health(args, db_path)
 
     # prune needs write access; all other verbs are read-only.
     if args.command == "prune":

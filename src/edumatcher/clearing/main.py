@@ -18,6 +18,13 @@ On startup, and at every close of the market (``session.state`` CLOSED), the
 process prunes trade_events rows older than ``--retention-days`` (90) and logs
 the count of deleted rows.
 
+Health endpoint
+---------------
+Binds a REP socket (CLEARING_HEALTH_BIND_ADDR) that answers
+``pm-clearing-cli health``'s ping with the current UTC time, from the receive
+loop itself, proving that loop is alive and pumping rather than just the OS
+process existing.
+
 Timestamp semantics
 -------------------
 Session/gateway lifecycle rows written by this process (EOD markers and
@@ -38,7 +45,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from datetime import timezone, tzinfo
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +71,8 @@ from edumatcher.log_srv.config import (
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_subscriber
+from edumatcher.config import CLEARING_HEALTH_BIND_ADDR
+from edumatcher.messaging.bus import make_replier, make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
 from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated.session import SessionState, TOPIC_SESSION_STATE
@@ -347,10 +355,18 @@ class ClearingProcess:
             TOPIC_GATEWAY_CONNECT,
             TOPIC_GATEWAY_DISCONNECT,
         )
+        health_rep: zmq.Socket[bytes] | None = None
         try:
-            self._receive_loop(sub)
+            # Bound, not connected: pm-clearing-cli health's ZMQ ping is the
+            # only thing that speaks to this socket, proving the receive loop
+            # itself is alive rather than just the OS process.
+            health_rep = make_replier(CLEARING_HEALTH_BIND_ADDR)
+            log.debug("clearing health socket bound at %s", CLEARING_HEALTH_BIND_ADDR)
+            self._receive_loop(sub, health_rep)
         finally:
             sub.close()
+            if health_rep is not None:
+                health_rep.close()
             self._force_flush()
             self._flush_debug_summary(force=True)
             self._conn.close()
@@ -374,9 +390,15 @@ class ClearingProcess:
     # Receive loop
     # ------------------------------------------------------------------
 
-    def _receive_loop(self, sub: zmq.Socket) -> None:  # type: ignore[type-arg]
+    def _receive_loop(
+        self,
+        sub: zmq.Socket,  # type: ignore[type-arg]
+        health_rep: zmq.Socket[bytes] | None = None,
+    ) -> None:
         poller = zmq.Poller()
         poller.register(sub, zmq.POLLIN)
+        if health_rep is not None:
+            poller.register(health_rep, zmq.POLLIN)
 
         while self._running:
             try:
@@ -385,6 +407,9 @@ class ClearingProcess:
                 if exc.errno != errno.EINTR:
                     raise
                 break
+
+            if health_rep is not None and health_rep in socks:
+                self._receive_health_ping(health_rep)
 
             if sub not in socks:
                 continue
@@ -449,6 +474,20 @@ class ClearingProcess:
             elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
+
+    @staticmethod
+    def _receive_health_ping(health_rep: zmq.Socket[bytes]) -> None:
+        """Answer `pm-clearing-cli health`'s REQ ping with the current UTC time.
+
+        REP sockets must reply before another recv is allowed, so this always
+        drains and answers exactly one request per poll, regardless of what
+        the request actually contains.
+        """
+        try:
+            health_rep.recv()
+            health_rep.send(datetime.now(tz=timezone.utc).isoformat().encode())
+        except zmq.ZMQError as exc:
+            log.warning("failed to answer health ping: %s", exc)
 
     # ------------------------------------------------------------------
     # Timer loop

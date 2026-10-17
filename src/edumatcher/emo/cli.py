@@ -181,7 +181,11 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-stats", "--verbose"],
         "healthcheck": ["pm-stats-cli", "health", "-q"],
     },
-    {"name": "clearing", "command": ["pm-clearing", "--verbose"]},
+    {
+        "name": "clearing",
+        "command": ["pm-clearing", "--verbose"],
+        "healthcheck": ["pm-clearing-cli", "health", "-q"],
+    },
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
     {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {

@@ -1611,7 +1611,7 @@ _shtab_pm_clearing_cli_commands() {
     eod:'End-of-day sentinel events written by pm-clearing on system.eod'
     exposure:'Net/gross notional exposure'
     gateways:'List gateways with P&L totals'
-    health:'DB metadata and row counts'
+    health:'Check the pm-clearing process and clearing database read/write health'
     pnl:'Realized/unrealized/total P&L'
     positions:'Current positions by gateway/symbol'
     prune:'Delete trade_events rows older than N days (default: 90) and VACUUM'
@@ -1694,6 +1694,9 @@ _shtab_pm_clearing_cli_gateways_defaults_added=0
 
 _shtab_pm_clearing_cli_health_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check clearing.db integrity and read\/write access (PRAGMA quick_check)\; allowed up to 45s for a large database]"
+  {-v,--verbose}"[Describe exactly what was checked, plus database size, row counts, last trade\/flush time and WAL mode when combined with --extended]"
 )
 
 # guard to ensure default positional specs are added only once per session

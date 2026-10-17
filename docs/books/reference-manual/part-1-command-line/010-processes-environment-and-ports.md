@@ -313,7 +313,7 @@ process's own `config.py`.
 | `pm-log-srv` | `5601` PUB (bind) · `5602` PULL (bind) | `5600` | LALF over TCP (collection) · LALF-PS over ZeroMQ (distribution) | Centralized log collector. `5600` accepts LALF log lines from every other `pm-*` process; `5601`/`5602` are the LALF-PS PUB/PULL pair that pushes live rows to log viewers/subscribers without polling `log.db`. |
 | `pm-audit` | `5562` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to every engine event and writes the full audit trail to disk. `5562` only answers `pm-audit-cli health` pings (`EDUMATCHER_AUDIT_BIND_HOST`, `EDUMATCHER_AUDIT_HEALTH_PORT`). |
 | `pm-stats` | `5561` REP (bind); connects out to `5555`, `5556`, `5558` | – | ZeroMQ (SUB/PUSH/REP) | Records market and index statistics to `stats.db`. `5561` only answers `pm-stats-cli health` pings (`EDUMATCHER_STATS_BIND_HOST`, `EDUMATCHER_STATS_HEALTH_PORT`). |
-| `pm-clearing` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to trade events for P&L and settlement. Binds no port of its own. |
+| `pm-clearing` | `5563` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to trade events for P&L and settlement. `5563` only answers `pm-clearing-cli health` pings (`EDUMATCHER_CLEARING_BIND_HOST`, `EDUMATCHER_CLEARING_HEALTH_PORT`). |
 | `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
 | `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
@@ -973,7 +973,8 @@ pm-clearing-cli [--datapath PATH] [--db-name clearing.db] [--format table|json|c
 ```
 
 Unlike `pm-clearing`, this is a one-shot tool: it runs one command, prints
-output, and exits.
+output, and exits. Every verb works on `clearing.db` directly except `health`,
+which also pings the running `pm-clearing` on port `5563`.
 
 **Global options:**
 
@@ -998,7 +999,7 @@ output, and exits.
 | `exposure` | 1000 | Net/gross notional exposure and P&L | `--gateway`, `--symbol`, `--sort` |
 | `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
-| `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
+| `health` | n/a | Check the `pm-clearing` process and ping its health socket; `--extended` adds the clearing DB integrity and read/write check, and `--extended -v` the row counts, flush metadata and journal mode | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 | `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `sessions` | — | Gateway connection and disconnection history | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` (default 500) |
 | `eod`      | 100 | End-of-day sentinel events written by `pm-clearing` on `system.eod` | `--from`, `--to`, `--limit` |

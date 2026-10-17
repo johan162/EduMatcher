@@ -247,7 +247,7 @@ class TestGlobalArgs:
     ) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["pm-clearing-cli", "--datapath", str(tmp_path / "no.db"), "health"],
+            ["pm-clearing-cli", "--datapath", str(tmp_path / "no.db"), "gateways"],
         )
         with pytest.raises(SystemExit) as exc:
             cli_main()
@@ -754,29 +754,242 @@ class TestDatesVerb:
 # ---------------------------------------------------------------------------
 
 
-class TestHealthVerb:
-    def test_returns_single_row(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture,
-        db_path: Path,
-    ) -> None:
-        out = _run_capture(monkeypatch, capsys, db_path, ["--format", "json", "health"])
-        data = json.loads(out)
-        assert len(data) == 1
+def _healthy_process(monkeypatch: pytest.MonkeyPatch, *, running: bool = True) -> None:
+    monkeypatch.setattr(
+        "edumatcher.clearing.cli._find_clearing_pids",
+        lambda: [1234] if running else [],
+    )
+    monkeypatch.setattr(
+        "edumatcher.clearing.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
 
-    def test_row_has_expected_fields(
+
+def _run_health(
+    monkeypatch: pytest.MonkeyPatch, db_path: Path, args: list[str]
+) -> int | str | None:
+    monkeypatch.setattr(
+        "sys.argv", ["pm-clearing-cli", "--datapath", str(db_path), *args]
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        cli_main()
+    return exc_info.value.code
+
+
+class TestHealthVerb:
+    def test_reports_running_process(
         self,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
         db_path: Path,
     ) -> None:
-        out = _run_capture(monkeypatch, capsys, db_path, ["--format", "json", "health"])
-        row = json.loads(out)[0]
-        assert row["trade_events_rows"] == 3
-        assert row["gateway_symbol_positions_rows"] == 4
-        assert "wal_mode" in row
-        assert "db_path" in row
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, db_path, ["health"]) == 0
+        out = capsys.readouterr().out
+        assert "pm-clearing process: OK" in out
+        assert "clearing database:   OK - skipped" in out
+        assert "clearing ZMQ ping:   OK" in out
+        assert "health: OK" in out
+
+    def test_fails_when_pm_clearing_is_not_running(
+        self, monkeypatch: pytest.MonkeyPatch, db_path: Path
+    ) -> None:
+        _healthy_process(monkeypatch, running=False)
+
+        assert _run_health(monkeypatch, db_path, ["health"]) == 1
+
+    def test_does_not_check_database_by_default(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Without --extended a missing database must not fail health -- nor
+        trip the "Clearing DB not found" guard every query verb goes through."""
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, tmp_path / "missing.db", ["health"]) == 0
+
+    def test_extended_fails_when_database_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _healthy_process(monkeypatch)
+        missing = tmp_path / "missing.db"
+
+        assert _run_health(monkeypatch, missing, ["health", "--extended"]) == 1
+        assert not missing.exists()  # the check must never create the file
+
+    def test_extended_fails_when_tables_are_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        tmp_path: Path,
+    ) -> None:
+        import sqlite3
+
+        foreign = tmp_path / "other.db"
+        sqlite3.connect(foreign).close()
+        conn = sqlite3.connect(foreign)
+        conn.execute("CREATE TABLE something_else (x INTEGER)")
+        conn.commit()
+        conn.close()
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, foreign, ["health", "--extended"]) == 1
+        assert "missing table(s): trade_events" in capsys.readouterr().out
+
+    def test_extended_verbose_reports_checks_and_db_stats(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        code = _run_health(monkeypatch, db_path, ["health", "--extended", "-v"])
+
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "clearing database:   OK - read/write and integrity checks passed" in out
+        assert "Database integrity/read-write: yes" in out
+        assert "Database stats:" in out
+        assert "trade_events rows: 3" in out
+        assert "gateway_symbol_positions rows: 4" in out
+        assert "journal mode:" in out
+        assert f"path: {db_path}" in out
+
+    def test_verbose_without_extended_notes_database_was_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, db_path, ["health", "--verbose"]) == 0
+        out = capsys.readouterr().out
+        assert "Database integrity/read-write: no (pass --extended)" in out
+        assert "Database stats:" not in out
+
+    def test_json_format(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        code = _run_health(
+            monkeypatch, db_path, ["--format", "json", "health", "--extended", "-v"]
+        )
+
+        assert code == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["healthy"] is True
+        assert report["process"]["pids"] == [1234]
+        assert report["database"]["checked"] is True
+        assert report["database"]["stats"]["row_counts"]["trade_events"] == 3
+
+    def test_fails_when_zmq_ping_does_not_reply(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        monkeypatch.setattr("edumatcher.clearing.cli._find_clearing_pids", lambda: [1])
+        monkeypatch.setattr(
+            "edumatcher.clearing.cli._check_zmq_health",
+            lambda: (False, "no reply within 1000ms"),
+        )
+
+        assert _run_health(monkeypatch, db_path, ["health"]) == 1
+        assert (
+            "clearing ZMQ ping:   FAIL - no reply within 1000ms"
+            in capsys.readouterr().out
+        )
+
+    def test_quiet_exits_zero_without_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        assert _run_health(monkeypatch, db_path, ["health", "-q"]) == 0
+        assert capsys.readouterr() == ("", "")
+
+    def test_quiet_exits_minus_one_without_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        _healthy_process(monkeypatch, running=False)
+
+        assert _run_health(monkeypatch, db_path, ["health", "-q"]) == -1
+        assert capsys.readouterr() == ("", "")
+
+    def test_run_extended_database_check_times_out_without_waiting_for_the_worker(
+        self, db_path: Path
+    ) -> None:
+        """A check that never returns must not make the caller wait for it."""
+        import threading
+        import time
+        from unittest.mock import patch
+
+        from edumatcher.clearing.cli import _run_extended_database_check
+
+        release = threading.Event()
+
+        def _blocks_until_released(
+            _db_path: Path, *, collect_stats: bool = False
+        ) -> tuple[bool, str, None]:
+            release.wait(timeout=5)
+            return True, "finished late", None
+
+        with patch(
+            "edumatcher.clearing.cli._check_database_health", _blocks_until_released
+        ):
+            started = time.monotonic()
+            healthy, detail, stats = _run_extended_database_check(
+                db_path, timeout_sec=0.1
+            )
+            elapsed = time.monotonic() - started
+
+        release.set()  # let the abandoned worker finish so it doesn't outlive the test
+        assert healthy is False
+        assert "did not finish within" in detail
+        assert stats is None
+        assert elapsed < 2
+
+    def test_zmq_health_check_detects_a_bound_replier(self) -> None:
+        import threading
+
+        from edumatcher.clearing.cli import _check_zmq_health
+        from edumatcher.config import CLEARING_HEALTH_BIND_ADDR
+        from edumatcher.messaging.bus import make_replier
+
+        sock = make_replier(CLEARING_HEALTH_BIND_ADDR)
+        try:
+            # A real pm-clearing would answer from its own receive loop; a
+            # thread here stands in for that loop.
+            def answer_once() -> None:
+                sock.recv()
+                sock.send(b"pong")
+
+            responder = threading.Thread(target=answer_once, daemon=True)
+            responder.start()
+            healthy, detail = _check_zmq_health(timeout_ms=2000)
+            responder.join(timeout=1)
+            assert healthy is True
+            assert "pong" in detail
+        finally:
+            sock.close(0)
+
+    def test_zmq_health_check_times_out_when_nothing_is_bound(self) -> None:
+        from edumatcher.clearing.cli import _check_zmq_health
+
+        healthy, detail = _check_zmq_health(timeout_ms=200)
+        assert healthy is False
+        assert "no reply" in detail
 
 
 # ---------------------------------------------------------------------------
@@ -1043,12 +1256,10 @@ class TestPathResolution:
         db_path: Path,
     ) -> None:
         # Pass the explicit .db file path rather than a directory.
-        monkeypatch.setattr(
-            "sys.argv", ["pm-clearing-cli", "--datapath", str(db_path), "health"]
-        )
-        cli_main()
+        _healthy_process(monkeypatch)
+        _run_health(monkeypatch, db_path, ["health", "--extended", "-v"])
         out = capsys.readouterr().out
-        assert str(db_path) in out
+        assert f"path: {db_path}" in out
 
     def test_db_name_override(
         self,
@@ -1056,6 +1267,7 @@ class TestPathResolution:
         capsys: pytest.CaptureFixture,
         db_path: Path,
     ) -> None:
+        _healthy_process(monkeypatch)
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -1065,11 +1277,14 @@ class TestPathResolution:
                 "--db-name",
                 db_path.name,
                 "health",
+                "--extended",
+                "-v",
             ],
         )
-        cli_main()
+        with pytest.raises(SystemExit):
+            cli_main()
         out = capsys.readouterr().out
-        assert "wal_mode" in out or db_path.name in out
+        assert f"path: {db_path}" in out
 
 
 # ---------------------------------------------------------------------------

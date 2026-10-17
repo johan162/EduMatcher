@@ -130,6 +130,19 @@ AUDIT_HEALTH_BIND_ADDR = (
 )
 AUDIT_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_AUDIT_HEALTH_PORT}"
 
+# pm-clearing healthcheck endpoint: the same REP-socket ping again, for
+# `pm-clearing-cli health`. Port 5563 follows pm-audit's 5562.
+EDUMATCHER_CLEARING_BIND_HOST = os.getenv("EDUMATCHER_CLEARING_BIND_HOST", "127.0.0.1")
+EDUMATCHER_CLEARING_HEALTH_PORT = int(
+    os.getenv("EDUMATCHER_CLEARING_HEALTH_PORT", "5563")
+)
+CLEARING_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_CLEARING_BIND_HOST}:{EDUMATCHER_CLEARING_HEALTH_PORT}"
+)
+CLEARING_HEALTH_ADDR = (
+    f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_CLEARING_HEALTH_PORT}"
+)
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------
