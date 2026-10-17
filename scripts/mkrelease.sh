@@ -33,6 +33,18 @@ if [[ -z "${GITHUB_USER:-}" ]]; then
     exit 1
 fi
 
+# Make sure the `gh` CLI is installed and authenticated
+if ! command -v gh &> /dev/null; then
+    echo -e "${RED}Error: GitHub CLI (gh) is not installed. Please install it to proceed.${NC}" >&2
+    exit 1
+fi
+
+if ! gh auth status &> /dev/null; then
+    echo -e "${RED}Error: GitHub CLI (gh) is not authenticated. Please run 'gh auth login' to authenticate.${NC}" >&2
+    exit 1
+fi
+
+
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare PROGRAMNAME="edumatcher"
 declare PROGRAMNAME_PRETTY="EduMatcher"
@@ -418,21 +430,24 @@ print_step_colored ""
 run_command "git push origin develop" "Pushing updated develop..."
 
 echo -e "${BLUE}🕐${NC} Waiting for CI on main (v$VERSION, ${MAIN_RELEASE_SHA:0:7})..."
-echo ""
+echo "."
 
 if [[ "$DRY_RUN" == "false" ]]; then
     # Match the run triggered by the 2.4 push to main by commit SHA rather than
     # trusting "the latest run" -- ci.yml can also be running a PR check at the
     # same time, and a bare `gh run watch` has no way to tell them apart.
     RUN_ID=""
-    for _ in $(seq 1 30); do
+    for _ in $(seq 1 90); do
         RUN_ID=$(gh run list --workflow ci.yml --branch main --limit 20 \
                     --json databaseId,headSha \
                     --jq "[.[] | select(.headSha == \"$MAIN_RELEASE_SHA\")] | .[0].databaseId" \
                     2>/dev/null || true)
         [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
+        printf "."
+        fflush(stdout)
         sleep 5
     done
+    echo ""
 
     if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
         print_error "No ci.yml run appeared for v$VERSION (${MAIN_RELEASE_SHA:0:7}) on main."

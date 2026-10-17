@@ -1,6 +1,12 @@
+# New company market analysis configuration (scenario)
+# This configuration file contains parameters for analyzing the market potential of a new company.
+# It includes information such as total addressable market (TAM), serviceable available market (SAM), and market structure.
+# Uses: pm-valuation --load newc.yaml 
 pm_valuation: 1
 market:
-  tam: 60bn
-  tam_growth: 20%
-  sam_share: 50%
-  structure: fragmented
+  tam: 60bn # Total addressable market size
+  tam_growth: 20% # Expected annual growth rate of the total addressable market
+  sam_share: 50% # Serviceable available market share expected to be captured
+  structure: fragmented # Market is highly fragmented with many small players
+
+

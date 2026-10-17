@@ -27,8 +27,8 @@ With Podman or Docker installed, one command gets you a running exchange and
 five web applications:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
-bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash
 cd ~/.edumatcher 
 ```
 
@@ -43,15 +43,15 @@ With Podman or Docker installed, one command gets you a running exchange with 30
 model including news and roumours that affects price discovery.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | \
-bash -s -- --sim
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash -s -- --sim
 cd ~/.edumatcher-sim
 ```
 
 ### Commands to try 
 
-Regardless if you started an empty exchange or the simulated exchange you run i and rade 
-with it the exact same wy:
+Regardless if you started an empty exchange or the simulated exchange you run it and trade 
+within it in the exact same way:
 
 Use regular Docker/Podman command to open a shell in the conainer or use the shortcut:
 
@@ -198,7 +198,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.50.4}
+  version = {0.50.5}
 }
 ```
 
