@@ -1,3 +1,24 @@
+## [v0.50.5] - 2026-10-17
+
+Release Type: patch
+
+### 📋 Summary
+This release fixes container setup permission errors on SELinux-enabled Linux
+hosts for both the plain exchange and AI-trader simulation. It also updates
+release tooling checks and clarifies installation examples.
+
+### 🐛 Bug Fixes
+- Fixed container setup failing to create `/data/ref_data` on SELinux-enabled hosts by requesting shared SELinux labels (`:z`) for the curl deployment's data and configuration bind mounts, including the log viewer's read-only data mount
+
+### 📚 Documentation
+- Corrected installation command formatting and trading instructions in the README
+- Documented the valuation scenario's parameters and loading command
+- Corrected the release script filename in the release checklist
+
+### 🛠 Internal
+- Added release preflight checks for GitHub CLI installation and authentication
+- Extended the release script's wait for the matching CI run to appear from 150 to 450 seconds
+
 ## [v0.50.4] - 2026-10-16
 
 Release Type: minor
