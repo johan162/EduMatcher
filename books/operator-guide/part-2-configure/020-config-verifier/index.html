@@ -8443,7 +8443,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M018</code></td>
 <td>ERROR</td>
-<td>Two configured listeners are bound to the same port. Covers <code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, every <code>api_gateways.&lt;name&gt;</code>, and all three of <code>log_server</code>'s own ports — <code>port</code> (LALF/TCP) plus <code>pub_port</code>/<code>pull_port</code> (LALF-PS), the latter two skipped when <code>pubsub_enabled: false</code> since a disabled interface binds nothing</td>
+<td>Two configured listeners are bound to the same port. Covers <code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, every <code>api_gateways.&lt;name&gt;</code>, and all three of <code>log_server</code>'s own ports — <code>port</code> (LALF/TCP) plus <code>pub_port</code>/<code>pull_port</code> (LALF-PS), the latter two skipped when <code>pubsub_enabled: false</code> since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in <code>engine_config.yaml</code> — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any <code>EDUMATCHER_*_PORT</code> override in the verifier's environment</td>
 </tr>
 <tr>
 <td><code>M019</code></td>

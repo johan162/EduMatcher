@@ -10039,7 +10039,7 @@ column like a printed index.</p>
 <a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>│ docs/examples/ref_data/s10-nominal-setup/engine_config.yaml                                      │
 <a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>│ 42.7 kB  ·  2026-10-11 20:27  ·  via --file                                                      │
 <a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>│ ● on sessions   ○ off collars   ● on breakers   ● on mm-oblig                                    │
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>│ 10 symbols   4 participants   2 API gateways   5 keys   11 listeners                             │
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>│ 10 symbols   4 participants   2 API gateways   5 keys   15 listeners                             │
 <a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 <a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>╭─  PORTS &amp; LISTENERS  ────────────────────────────────────────────────────────────────────────────╮
 <a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>│  PORT   PROTO      PROCESS       FUNCTION                                    BIND                │
@@ -10051,21 +10051,25 @@ column like a printed index.</p>
 <a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>│  5557   ZMQ PUB    pm-engine     Drop-copy feed                              127.0.0.1   fixed   │
 <a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>│  5558   ZMQ PUB    pm-index      Index value publish                         127.0.0.1   env     │
 <a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>│  5559   ZMQ PULL   pm-index      Index command intake                        127.0.0.1   env     │
-<a id="__codelineno-40-17" name="__codelineno-40-17" href="#__codelineno-40-17"></a>│  5570   TCP        pm-md-gwy     Market data (CALF)                          0.0.0.0     set     │
-<a id="__codelineno-40-18" name="__codelineno-40-18" href="#__codelineno-40-18"></a>│  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           0.0.0.0     set     │
-<a id="__codelineno-40-19" name="__codelineno-40-19" href="#__codelineno-40-19"></a>│  8080   HTTP       pm-api-gwy    REST API — desk                             0.0.0.0     set     │
-<a id="__codelineno-40-20" name="__codelineno-40-20" href="#__codelineno-40-20"></a>│  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
-<a id="__codelineno-40-21" name="__codelineno-40-21" href="#__codelineno-40-21"></a>╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-<a id="__codelineno-40-22" name="__codelineno-40-22" href="#__codelineno-40-22"></a>╭─  API KEYS  ─────────────────────────────────────────────────────────────────────────────────────╮
-<a id="__codelineno-40-23" name="__codelineno-40-23" href="#__codelineno-40-23"></a>│ GATEWAY ID      API GW        ROLE              API KEY                                          │
-<a id="__codelineno-40-24" name="__codelineno-40-24" href="#__codelineno-40-24"></a>│ ──────────────────────────────────────────────────────────────────────────────────────────────── │
-<a id="__codelineno-40-25" name="__codelineno-40-25" href="#__codelineno-40-25"></a>│ TRADER01        desk          TRADER            key-trader01-••••••••••••••••••••••••••••g6u1    │
-<a id="__codelineno-40-26" name="__codelineno-40-26" href="#__codelineno-40-26"></a>│ TRADER02        desk          TRADER            key-trader02-••••••••••••••••••••••••••••y09z    │
-<a id="__codelineno-40-27" name="__codelineno-40-27" href="#__codelineno-40-27"></a>│ OPS01           desk          ADMIN             key-ops01-••••••••••••••••••••••••••••oes2       │
-<a id="__codelineno-40-28" name="__codelineno-40-28" href="#__codelineno-40-28"></a>│ MM01            desk          MARKET_MAKER      key-mm01-••••••••••••••••••••••••••••1o3s        │
-<a id="__codelineno-40-29" name="__codelineno-40-29" href="#__codelineno-40-29"></a>│ —               dashboards    READ-ONLY         key-readonly-••••••••••••••••••••••••••••nrjd    │
-<a id="__codelineno-40-30" name="__codelineno-40-30" href="#__codelineno-40-30"></a>│ masked — run with -a/--all to reveal                                                             │
-<a id="__codelineno-40-31" name="__codelineno-40-31" href="#__codelineno-40-31"></a>╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+<a id="__codelineno-40-17" name="__codelineno-40-17" href="#__codelineno-40-17"></a>│  5561   ZMQ REP    pm-stats      Health ping                                 127.0.0.1   env     │
+<a id="__codelineno-40-18" name="__codelineno-40-18" href="#__codelineno-40-18"></a>│  5562   ZMQ REP    pm-audit      Health ping                                 127.0.0.1   env     │
+<a id="__codelineno-40-19" name="__codelineno-40-19" href="#__codelineno-40-19"></a>│  5563   ZMQ REP    pm-clearing   Health ping                                 127.0.0.1   env     │
+<a id="__codelineno-40-20" name="__codelineno-40-20" href="#__codelineno-40-20"></a>│  5564   ZMQ REP    pm-index      Health ping                                 127.0.0.1   env     │
+<a id="__codelineno-40-21" name="__codelineno-40-21" href="#__codelineno-40-21"></a>│  5570   TCP        pm-md-gwy     Market data (CALF)                          0.0.0.0     set     │
+<a id="__codelineno-40-22" name="__codelineno-40-22" href="#__codelineno-40-22"></a>│  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           0.0.0.0     set     │
+<a id="__codelineno-40-23" name="__codelineno-40-23" href="#__codelineno-40-23"></a>│  8080   HTTP       pm-api-gwy    REST API — desk                             0.0.0.0     set     │
+<a id="__codelineno-40-24" name="__codelineno-40-24" href="#__codelineno-40-24"></a>│  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
+<a id="__codelineno-40-25" name="__codelineno-40-25" href="#__codelineno-40-25"></a>╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+<a id="__codelineno-40-26" name="__codelineno-40-26" href="#__codelineno-40-26"></a>╭─  API KEYS  ─────────────────────────────────────────────────────────────────────────────────────╮
+<a id="__codelineno-40-27" name="__codelineno-40-27" href="#__codelineno-40-27"></a>│ GATEWAY ID      API GW        ROLE              API KEY                                          │
+<a id="__codelineno-40-28" name="__codelineno-40-28" href="#__codelineno-40-28"></a>│ ──────────────────────────────────────────────────────────────────────────────────────────────── │
+<a id="__codelineno-40-29" name="__codelineno-40-29" href="#__codelineno-40-29"></a>│ TRADER01        desk          TRADER            key-trader01-••••••••••••••••••••••••••••g6u1    │
+<a id="__codelineno-40-30" name="__codelineno-40-30" href="#__codelineno-40-30"></a>│ TRADER02        desk          TRADER            key-trader02-••••••••••••••••••••••••••••y09z    │
+<a id="__codelineno-40-31" name="__codelineno-40-31" href="#__codelineno-40-31"></a>│ OPS01           desk          ADMIN             key-ops01-••••••••••••••••••••••••••••oes2       │
+<a id="__codelineno-40-32" name="__codelineno-40-32" href="#__codelineno-40-32"></a>│ MM01            desk          MARKET_MAKER      key-mm01-••••••••••••••••••••••••••••1o3s        │
+<a id="__codelineno-40-33" name="__codelineno-40-33" href="#__codelineno-40-33"></a>│ —               dashboards    READ-ONLY         key-readonly-••••••••••••••••••••••••••••nrjd    │
+<a id="__codelineno-40-34" name="__codelineno-40-34" href="#__codelineno-40-34"></a>│ masked — run with -a/--all to reveal                                                             │
+<a id="__codelineno-40-35" name="__codelineno-40-35" href="#__codelineno-40-35"></a>╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 </code></pre></div>
 <h3 id="adapting-to-the-terminal">Adapting to the terminal<a class="headerlink" href="#adapting-to-the-terminal" title="Permanent link">&para;</a></h3>
 <p>The layout is computed from the terminal you actually have; there is no fixed
