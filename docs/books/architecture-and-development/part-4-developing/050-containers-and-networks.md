@@ -374,7 +374,8 @@ Backend (`deployment/docker/Dockerfile`): `PYTHON_VERSION`,
 
 Each GUI (`web-apps/*/Dockerfile`): `WEB_PORT`, `NPM_REGISTRY`,
 `NPM_STRICT_SSL`, `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`; config-gui also
-takes `USE_PROXY_CA` and `CA_CERT_FILE`.
+takes `USE_PROXY_CA` and `CA_CERT_FILE`, and log-gui `EDUMATCHER_VERSION` for
+the Python package it bundles.
 
 The backend's package source is selected by what is present rather than by a
 flag:
@@ -387,7 +388,9 @@ RUN if ls /tmp/wheel/*.whl; then pip install /tmp/wheel/*.whl;   # local build
 ```
 
 `make build` puts a freshly built wheel in `.wheel/`; `PYPI=1` and
-`VERSION=x.y.z` clear it first.
+`VERSION=x.y.z` clear it first. log-gui installs the same package the same way
+from `web-apps/log-gui/.wheel/` (its Diagnostics view runs `pm-log-cli`), and
+`make build-guis` and `make ghcr-push` fill that drop box by the same rule.
 
 !!! danger "Always confirm which package went into the image"
     A successful build prints

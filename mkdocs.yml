@@ -139,6 +139,7 @@ nav:
     - "Part I: Install and deploy":
       - "Installation": books/operator-guide/part-1-install-and-deploy/010-installation.md
       - "VM Runtime Image with Pinned PyPI Release": books/operator-guide/part-1-install-and-deploy/020-vm-runtime-image.md
+      - "Inside the Container Deployment": books/operator-guide/part-1-install-and-deploy/030-container-deployment-walkthrough.md
     - "Part II: Configure":
       - "The Configuration Workflow": books/operator-guide/part-2-configure/010-the-configuration-workflow.md
       - "Configuration Verifier (`pm-cverifier`)": books/operator-guide/part-2-configure/020-config-verifier.md

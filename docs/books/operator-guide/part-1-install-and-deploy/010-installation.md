@@ -143,7 +143,7 @@ into this file.
 | `EM_CONFIG` | `s10-basic` | Which bundled example configuration the exchange deploys |
 | `EM_CONFIG_FILE` | *(empty)* | Set to `/config/engine_config.yaml` when you run a configuration of your own. Non-empty wins over `EM_CONFIG` |
 | `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
-| `TZ` | `UTC` | Container timezone. Set it to match the trading calendar in your configuration, e.g. `Europe/Stockholm` |
+| `TZ` | `Europe/Stockholm` | Container timezone. Set it to match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
 | `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
@@ -363,9 +363,15 @@ Each web GUI image (`web-apps/*/Dockerfile`):
 | `NPM_STRICT_SSL` | `true` | Set `false` when a proxy re-signs TLS |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | *(empty)* | Honoured by npm during the build |
 | `USE_PROXY_CA` / `CA_CERT_FILE` | *(empty)* | Declared only by the unused `web-apps/config-gui/Dockerfile.proxy`, not the `Dockerfile` that `compose.config-gui.yaml` actually builds — setting these currently has no effect on `make up-all CONFIG_GUI=1` |
+| `EDUMATCHER_VERSION` | *(empty)* | `log-gui` only: the PyPI release of the bundled `pm-log-cli` when `web-apps/log-gui/.wheel/` holds no wheel. `make build-guis` fills that drop box from your checkout by the same rule as `make build`, and empties it for `PYPI=1` or `VERSION=x.y.z` |
 
 
 ## How the containers are wired
+
+For a step-by-step walkthrough of the images, compose files, pods, volumes
+and ports behind this section, with diagrams and the commands to rebuild
+everything by hand, see
+[Inside the Container Deployment](030-container-deployment-walkthrough.md).
 
 This section is worth reading even if the install "just worked", because the
 one thing that reliably confuses people here — the difference between
@@ -773,6 +779,8 @@ registers nothing; always use `eval` for the zsh script.
 
 ## Where to go next
 
+- [Inside the Container Deployment](030-container-deployment-walkthrough.md) — how the
+  container images, compose files, volumes and ports fit together
 - [Quick Start Guide](../../quick-start/part-1-see-it-run/010-what-is-edumatcher.md) — what EduMatcher is, and your
   first trade
 - [Engine Configuration](../part-2-configure/010-the-configuration-workflow.md) — authoring an
