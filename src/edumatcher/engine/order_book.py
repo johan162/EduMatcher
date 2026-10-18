@@ -24,6 +24,8 @@ from __future__ import annotations
 import heapq
 import logging
 from collections import deque
+from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
@@ -55,6 +57,33 @@ _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
         OrderStatus.EXPIRED,
     }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class BookStats:
+    """Sizes of one book, for the health beacon (operator dashboard §8.3).
+
+    ``resting_orders`` counts every order the book holds -- stops and trailing
+    stops included, as ``resting_orders()`` does; ``stop_orders`` is the live
+    subset of those that are stops. ``heap_entries`` includes entries already
+    invalidated but not yet compacted; ``live_entries`` does not.
+    """
+
+    resting_orders: int
+    stop_orders: int
+    bid_levels: int
+    ask_levels: int
+    heap_entries: int
+    live_entries: int
+    recent_trades: int
+
+    @property
+    def heap_garbage_pct(self) -> float:
+        """Share of heap entries that are dead -- whether compaction keeps up."""
+        if self.heap_entries == 0:
+            return 0.0
+        return 100.0 * (self.heap_entries - self.live_entries) / self.heap_entries
+
 
 #: Rebuild the heaps once they hold more than this many entries per live order
 #: (plus _COMPACT_SLACK) -- see OrderBook._compact_heaps.
@@ -540,6 +569,51 @@ class OrderBook:
             for o in self._order_index.values()
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
+
+    def book_stats(self) -> BookStats:
+        """Sizes for the health beacon. O(levels + stops), never O(orders):
+        every figure is a container length except the live-stop count, which
+        walks the stop heaps only."""
+        live_stops = sum(
+            1
+            for heap in (self._buy_stops, self._sell_stops)
+            for e in heap
+            if e.valid and e.order.status not in _DEAD_STATUSES
+        ) + sum(1 for o in self._trailing_stops if o.status not in _DEAD_STATUSES)
+        return BookStats(
+            resting_orders=len(self._order_index),
+            stop_orders=live_stops,
+            bid_levels=len(self._bid_qty),
+            ask_levels=len(self._ask_qty),
+            heap_entries=len(self._bids)
+            + len(self._asks)
+            + len(self._buy_stops)
+            + len(self._sell_stops),
+            live_entries=len(self._entry_index),
+            recent_trades=len(self.recent_trades),
+        )
+
+    def containers(self) -> Iterator[object]:
+        """Every container this book owns, for a shallow size estimate."""
+        yield from (
+            self._bids,
+            self._asks,
+            self._buy_stops,
+            self._sell_stops,
+            self._trailing_stops,
+            self._bid_qty,
+            self._ask_qty,
+            self._order_index,
+            self._entry_index,
+            self._orders_by_gateway,
+            self.recent_trades,
+        )
+        yield from self._orders_by_gateway.values()
+
+    def resting_count_by_gateway(self) -> Iterator[tuple[str, int]]:
+        """(gateway_id, resting orders here) for every gateway with any."""
+        for gateway_id, order_ids in self._orders_by_gateway.items():
+            yield gateway_id, len(order_ids)
 
     def orders_for_gateway(self, gateway_id: str) -> list[Order]:
         """Return all of this gateway's resting orders in this book, any

@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import time
 from collections.abc import Generator
+from typing import Any
 from pathlib import Path
 
 import pytest
@@ -202,6 +203,42 @@ def _no_live_log_server_detection(
     from edumatcher.logclient import discovery
 
     monkeypatch.setattr(discovery, "_probe_server", lambda *args, **kwargs: False)
+
+
+@pytest.fixture(autouse=True)
+def _engine_reject_count_invariant(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Every Engine built in any test must count exactly the rejects it sends.
+
+    engine.metrics.rejects is fed by four funnel methods; this checks the
+    total against the order-flow acks with accepted=False actually published
+    (tests/engine_invariants.py). Suite-wide, so a reject site that bypasses
+    the funnel fails whichever existing test exercises it.
+    """
+    if "perf" in request.keywords:
+        # A benchmark measures the engine; a Python proxy on every publish
+        # (and a JSON decode per ack) would measure this harness instead.
+        yield
+        return
+    from edumatcher.engine.main import Engine
+    from tests.engine_invariants import (
+        assert_reject_count_matches,
+        install_reject_tally,
+    )
+
+    engines: list[Engine] = []
+    original_init = Engine.__init__
+
+    def init(self: Engine, *args: Any, **kwargs: Any) -> None:
+        original_init(self, *args, **kwargs)
+        install_reject_tally(self)
+        engines.append(self)
+
+    monkeypatch.setattr(Engine, "__init__", init)
+    yield
+    for engine in engines:
+        assert_reject_count_matches(engine)
 
 
 @pytest.fixture(autouse=True)

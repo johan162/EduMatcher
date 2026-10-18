@@ -171,6 +171,9 @@ def make_engine(
         monotonic=_time.monotonic,
         time=_time.time,
         time_ns=_time.time_ns,
+        # The health metrics time dispatch and persistence (engine/metrics.py).
+        perf_counter=_time.perf_counter,
+        perf_counter_ns=_time.perf_counter_ns,
     )
     monkeypatch.setattr("edumatcher.engine.main.time", _engine_time)
 

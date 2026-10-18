@@ -20,6 +20,10 @@ Status: In implementation — progress in
 >   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
 >   are unchanged (I9).
 > - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - After WP-A4: the per-book metrics are `engine.book_*`, not `book.*`
+>   (`book.` is the prefix of the parameterised topic `book.{symbol}`).
+>   Gateway labels are bounded in the engine itself: unconfigured ids count
+>   as `(unknown)`. Perf-gate results are in A4.10 (I24–I30).
 > - After WP-A3: codes are S124–S131 and M029–M030. "PULL/PUB distinct"
 >   needs no code of its own, since M018 already reports it. `bind_address`
 >   is stored as authored and resolved by pm-monitor at bind time (B1.2).
@@ -475,13 +479,13 @@ not every beacon: all of it is O(number of books), none of it O(orders).
 | Metric | K | Label | Source |
 |---|---|---|---|
 | `engine.books` | G | | `len(self.books)` |
-| `book.resting_orders` | G | symbol | `len(book._order_index)` |
-| `book.stop_orders` | G | symbol | `len(_buy_stops) + len(_sell_stops) + len(_trailing_stops)` |
-| `book.bid_levels` / `book.ask_levels` | G | symbol | `len(_bid_qty)`, `len(_ask_qty)` |
-| `book.heap_entries` | G | symbol | `len(_bids) + len(_asks)` — includes lazily-invalidated entries |
-| `book.heap_garbage_pct` | G | symbol | `100 × (heap_entries − live entries) / heap_entries` — shows whether `_compact_heaps` is keeping up |
-| `book.est_bytes` | G | symbol | `OrderBook.memory_estimate()` below |
-| `book.halted` | G | symbol | 0/1 from `_halted_symbols` (a `dict[str, bool]`) |
+| `engine.book_resting_orders` | G | symbol | `len(book._order_index)` |
+| `engine.book_stop_orders` | G | symbol | `len(_buy_stops) + len(_sell_stops) + len(_trailing_stops)` |
+| `engine.book_bid_levels` / `engine.book_ask_levels` | G | symbol | `len(_bid_qty)`, `len(_ask_qty)` |
+| `engine.book_heap_entries` | G | symbol | `len(_bids) + len(_asks)` — includes lazily-invalidated entries |
+| `engine.book_heap_garbage_pct` | G | symbol | `100 × (heap_entries − live entries) / heap_entries` — shows whether `_compact_heaps` is keeping up |
+| `engine.book_est_bytes` | G | symbol | `OrderBook.memory_estimate()` below |
+| `engine.book_halted` | G | symbol | 0/1 from `_halted_symbols` (a `dict[str, bool]`) |
 
 **Memory per order book (G10).** Python offers no cheap exact answer:
 `sys.getsizeof` is shallow, `tracemalloc` costs 30–50 % throughput and cannot
@@ -500,7 +504,7 @@ a unit test builds a book with 10 000 representative orders under
 `tracemalloc`, divides, and asserts the constants in `engine/metrics.py` are
 within ±15 % of the measurement — so they cannot rot silently when `Order`
 gains a field. The dashboard labels the figure "est." everywhere. The sum of
-all `book.est_bytes` divided by engine RSS is shown as "books share of
+all `engine.book_est_bytes` divided by engine RSS is shown as "books share of
 engine memory", which is the operationally useful number.
 
 ### 8.4 Engine — processing health
@@ -686,7 +690,7 @@ Static, from configuration (§14), evaluated every second in `pm-monitor`:
 | Engine `handle_us_p99` | > 2 000 µs | > 10 000 µs |
 | Process RSS growth | > 50 % over 1 h | > 100 % over 1 h |
 | Reject ratio (exchange) | > 10 % / 5 min | > 30 % / 5 min |
-| `book.heap_garbage_pct` | > 50 % | > 80 % |
+| `engine.book_heap_garbage_pct` | > 50 % | > 80 % |
 | `md.disconnects{slow_client}`, `gwy.slow_client_disconnects`, `api.dropped_events`, `stats.feed_gaps` | any increase in 5 min | — |
 
 A breach or clear produces a `THRESHOLD` event and a single `WARNING` /
@@ -1592,6 +1596,17 @@ beacon, and its main loop ticks — with no measurable throughput loss.
   `pytest -m perf tests/test_perf.py::...::test_max_tps` is no more than 2 %
   slower than on the base commit (run both 5× on the same machine, compare
   medians; record numbers in the PR description).
+  *As measured (2026-10-19, interleaved base/new runs, medians of per-run
+  medians; one run's own spread is ~9 %, so 5 runs cannot resolve 2 %):*
+  −1.93 % (15+15 runs) and −2.33 % (21+21 runs) after optimisation, i.e. at
+  the limit. Of that, about −0.75 % appears on the *unchanged* base engine
+  merely by importing the health stack (larger GC heap; no single import
+  stands out above noise). `test_max_tps` calls `_handle_new_order` directly,
+  so it does not see the run-loop additions (`tick()`, dispatch timing):
+  ≈ 0.38 µs per message more, ≈ 1 % at this benchmark's ≈ 36 µs per order.
+  Hot-path shape that got it here: `fills` keyed by raw id with plain dict
+  increments (labels applied at sample time), `order_in()` specialised,
+  explicit-keyword ack wrapper (a `**kwargs` wrapper cost ≈ 200 ns per ack).
 
 **Tests:** `tests/test_engine_metrics.py` (new), `tests/engine_invariants.py`
 (+ `assert_reject_count_matches`), `tests/test_perf.py` (gate).
