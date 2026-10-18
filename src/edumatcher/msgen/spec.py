@@ -53,6 +53,13 @@ UNITS = (
     "percent",
     "dimensionless",
     "money",
+    # Added for the monitor family (operator dashboard design, section 7.4):
+    # its fields are memory sizes and loop timings, which `dimensionless`
+    # would hide from exactly the reader the unit column is for.
+    "bytes",
+    "duration_seconds",
+    "duration_millis",
+    "duration_micros",
 )
 
 #: Numeric types for which lint requires a declared ``unit`` (B.18 rule 13).
@@ -81,6 +88,10 @@ PUBLISHERS = (
     "log_server",
     "log_client",
     "market_sim",
+    # The beacon is sent by the shared HealthReporter that every long-running
+    # process embeds, so the role is the module, not one of the processes.
+    "health_reporter",
+    "monitor",
 )
 
 #: ZeroMQ / external-protocol patterns (design section B.4).

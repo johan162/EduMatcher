@@ -89,9 +89,14 @@ class TestTheAppendixDocumentsEveryMessage:
         test_every_topic_has_a_section above it) guards against is the
         generated reference page silently omitting a message, not the total
         staying fixed at some past value.
+
+
+        121 -> 124: the health family (health.beacon, health.snapshot,
+        health.event) for the operator dashboard -- see
+        docs-design/EduMatcher-Operator-Dashboard.md WP-A1.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 121, total
+        assert total == 124, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

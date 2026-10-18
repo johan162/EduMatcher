@@ -1,8 +1,27 @@
-Version: 0.3.0
+Version: 0.3.1
 
 Date: 2026-10-18
 
-Status: Design proposal — not implemented
+Status: In implementation — progress in
+[`EduMatcher-Operator-Dashboard-Workplan.md`](EduMatcher-Operator-Dashboard-Workplan.md)
+
+> **Changelog v0.3.1 — after WP-A1**
+>
+> - §11.1 now points at `spec/messages/health.yaml` as the wire shape and
+>   lists how it differs from the v0.3.0 TypeScript sketch (no maps or tuples
+>   on the wire, `GatewayStats`/`ActiveBreach`/`RateStats` defined,
+>   `ProcessHealth.group`/`metrics` added). The `json_payload` fallback A1
+>   allowed for was not needed.
+> - The bus family is **`health`** (`health.beacon`, `health.snapshot`,
+>   `health.event`), not `monitor`: the API gateway's `/admin/monitor`
+>   WebSocket already sends frames typed `"monitor.snapshot"` (trader-gui's
+>   admin monitor), and `pm-msgen grep-literals` flagged the clash. Decided
+>   with Johan 2026-10-18. Transport names (`monitor_push`/`monitor_pub`),
+>   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
+>   are unchanged (I9).
+> - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - A2, A4, A5 and B1 gained watch-outs from A1: generated constructors
+>   validate, so a bad sample raises in the sampler thread.
 
 > **Changelog v0.3.0 — re-checked against the tree after v0.50.x**
 >
@@ -210,14 +229,14 @@ without history.
 | G17 | Engine diagnostics | Broadcast on failure | Counts not visible when zero | Engine beacon carries `engine.diagnostics{component}` (§8.4) |
 | G18 | Session state, halts | Yes, broadcast | Not on any operator timeline | `pm-monitor` subscribes and records annotations (§9.2) |
 
-New **messages** needed (all in a new `spec/messages/monitor.yaml`, generated
+New **messages** needed (all in a new `spec/messages/health.yaml`, generated
 by `pm-msgen` like every other family):
 
 | Message | Topic | Transport | Direction |
 |---|---|---|---|
-| `beacon` | `monitor.beacon` | `monitor_push` (new) | every `pm-*` process → `pm-monitor` |
-| `snapshot` | `monitor.snapshot` | `monitor_pub` (new) | `pm-monitor` → dashboard bridge, 1 Hz |
-| `event` | `monitor.event` | `monitor_pub` | `pm-monitor` → bridge, on each status change / lifecycle event |
+| `beacon` | `health.beacon` | `monitor_push` (new) | every `pm-*` process → `pm-monitor` |
+| `snapshot` | `health.snapshot` | `monitor_pub` (new) | `pm-monitor` → dashboard bridge, 1 Hz |
+| `event` | `health.event` | `monitor_pub` | `pm-monitor` → bridge, on each status change / lifecycle event |
 
 No new engine bus topic is needed: the engine's metrics travel in its own
 beacon like every other process's.
@@ -237,9 +256,9 @@ flowchart LR
     SVC["pm-log-srv / pm-stats / pm-audit<br/>pm-clearing / pm-scheduler / pm-index ..."]
   end
 
-  ENG -- "monitor.beacon (PUSH)" --> PULL
-  GW -- "monitor.beacon (PUSH)" --> PULL
-  SVC -- "monitor.beacon (PUSH)" --> PULL
+  ENG -- "health.beacon (PUSH)" --> PULL
+  GW -- "health.beacon (PUSH)" --> PULL
+  SVC -- "health.beacon (PUSH)" --> PULL
   ENG -- "engine PUB :5556<br/>gateway_auth / gateway_bye /<br/>diagnostic / session / CB halt" --> SUB
 
   subgraph MON["pm-monitor"]
@@ -248,7 +267,7 @@ flowchart LR
     HOST["host sampler<br/>(psutil)"]
     PROF["expected roster<br/>(emo active profile)"]
     AGG["aggregator<br/>rates · health · thresholds"]
-    PUB["PUB :5611<br/>monitor.snapshot / monitor.event"]
+    PUB["PUB :5611<br/>health.snapshot / health.event"]
     DB[("metrics.db<br/>SQLite WAL")]
     PULL --> AGG
     SUB --> AGG
@@ -292,7 +311,7 @@ New package `src/edumatcher/health/`:
 
 ```python
 class HealthReporter:
-    """Samples this process and PUSHes monitor.beacon every interval."""
+    """Samples this process and PUSHes health.beacon every interval."""
 
     def __init__(self, process: str, instance: str | None = None) -> None: ...
     def start(self) -> None: ...          # starts the sampler thread
@@ -319,7 +338,7 @@ reporter there would start a thread and open a ZMQ socket in every test.
 | Half | Runs on | Does |
 |---|---|---|
 | `tick()` / `publish()` | the process's **main loop** | Stores `time.monotonic()` into one float; every interval stores an immutable tuple of `MetricSample` built from the process's own counters. Never touches a socket. |
-| sampler | a daemon thread | Every `beacon_interval_sec`: reads `psutil.Process()` (RSS, CPU, threads, FDs), reads the last tick time and the last published tuple, builds `monitor.beacon`, sends it on its own `PUSH` socket. |
+| sampler | a daemon thread | Every `beacon_interval_sec`: reads `psutil.Process()` (RSS, CPU, threads, FDs), reads the last tick time and the last published tuple, builds `health.beacon`, sends it on its own `PUSH` socket. |
 
 The split exists for one reason: **if the main loop hangs, the thread keeps
 reporting** — with a growing `loop_age_ms`. A beacon built on the main loop
@@ -351,14 +370,14 @@ Short-lived CLIs (`pm-*-cli`, `pm-config-*`, `pm-setup`, `pm-help`, …) and
 the TUIs (`pm-viewer`, `pm-board`, `pm-ticker`, `pm-orders`,
 `pm-alf-console`) do **not** emit beacons.
 
-### 7.4 `monitor.beacon` fields
+### 7.4 `health.beacon` fields
 
 | Field | Type | Unit | Notes |
 |---|---|---|---|
 | `process` | string ≤ 32 | — | Same name the process uses in its LALF `HELLO` (`CLIENT`): the module's existing `_CLIENT_NAME` constant (`"pm-engine"`, …); `pm-log-srv` has none and uses the literal |
 | `instance` | string ≤ 32, optional | — | e.g. `desk` / `dashboards` for `pm-api-gwy` |
 | `pid` | int | — | |
-| `host` | string ≤ 64 | — | `socket.gethostname()` |
+| `host` | string ≤ 128 | — | `socket.gethostname()` (128 as `LogRow.host`: a longer FQDN failing validation would silence the process) |
 | `boot_id` | string ≤ 16 | — | Random per process start; a change means restart even if PID is reused |
 | `seq` | int ≥ 0 | — | Per `boot_id`; gaps = lost beacons |
 | `started_at_ns` | int | epoch_nanos | Process start |
@@ -540,13 +559,13 @@ Loop, 200 ms tick:
 1. Drain `PULL :5610` → update per-`(process, instance, host)` state.
 2. Drain `SUB` on the engine PUB → lifecycle events (§9.2).
 3. Every 1 s: sample host (§8.1), evaluate health (§10) and thresholds
-   (§9.6), publish `monitor.snapshot`.
+   (§9.6), publish `health.snapshot`.
 4. Every 10 s: write raw samples batch to `metrics.db`.
 5. Every 60 s: roll raw → 1-minute buckets; every 60 min: apply retention.
 
 ### 9.2 Engine bus subscriptions (events only)
 
-| Topic prefix | Becomes `monitor.event` kind |
+| Topic prefix | Becomes `health.event` kind |
 |---|---|
 | `system.gateway_auth.` | `CONNECT` / `AUTH_REJECT` (with reason) |
 | `system.gateway_bye.` | `DISCONNECT` (with reason — `heartbeat_timeout` is highlighted) |
@@ -591,7 +610,7 @@ For a counter `c` with samples `(t_i, v_i)`:
 - **Avg per day** = mean of `daily_totals` over the last 7 trading days that
   have data.
 
-All four are computed in `pm-monitor` and shipped in `monitor.snapshot`, so the
+All four are computed in `pm-monitor` and shipped in `health.snapshot`, so the
 browser never re-derives them and every client agrees.
 
 ### 9.5 `metrics.db`
@@ -703,51 +722,41 @@ type ServerMsg =
   | { type: "event"; data: MonitorEvent }             // as they happen
   | { type: "monitor_state"; monitor: "UP" | "DOWN" }; // no snapshot for 3 s
 
-interface MonitorSnapshot {
-  ts: string;
-  exchange: { status: "OPERATIONAL" | "DEGRADED" | "IMPAIRED" | "DOWN";
-              sessionState: string; tradingDate: string };
-  host: { cpuPct: number; cpuPerCore: number[]; load: [number, number, number];
-          memTotal: number; memUsed: number; swapUsed: number;
-          diskFree: number; diskTotal: number; files: Record<string, number> };
-  processes: ProcessHealth[];
-  trading: { ordersToday: number; ordersPerSecNow: number;
-             ordersAvgPerMin: number; ordersAvgPerHour: number; ordersAvgPerDay: number | null;
-             tradesToday: number; tradesPerSecNow: number; /* same avgs */
-             tradedValueToday: number; rejectPct5m: number;
-             handleP50Us: number; handleP99Us: number };
-  participants: ParticipantStats[];
-  books: BookStats[];
-  gateways: GatewayStats[];
-  thresholds: ActiveBreach[];
-}
-
-interface ProcessHealth {
-  key: string; process: string; instance: string | null; host: string; pid: number;
-  state: "HEALTHY" | "DEGRADED" | "HUNG" | "SILENT" | "DEAD" | "MISSING" | "STOPPED";
-  restartedRecently: boolean; uptimeSec: number;
-  rssBytes: number; cpuPct: number; threads: number; fds: number | null;
-  loopAgeMs: number; loopLagMs: number; lastBeaconAgeMs: number;
-  spark: { rss: number[]; cpu: number[] };   // last 60 samples, for inline sparklines
-}
-
-interface ParticipantStats {
-  id: string; role: string; connected: boolean; connectedSince: string | null;
-  ordersToday: number; ordersPerMinNow: number; ordersAvgPerMin: number;
-  ordersAvgPerHour: number; ordersAvgPerDay: number | null;
-  rejectPct: number; fillsToday: number; restingOrders: number;
-  connectsToday: number; disconnectsToday: number; heartbeatTimeoutsToday: number;
-}
-
-interface BookStats {
-  symbol: string; restingOrders: number; stopOrders: number;
-  bidLevels: number; askLevels: number; estBytes: number;
-  heapGarbagePct: number; tradesToday: number; halted: boolean;
-}
+// MonitorSnapshot / MonitorEvent: see below.
 ```
 
+**The wire shape is `spec/messages/health.yaml`** (implemented in WP-A1),
+not a TypeScript sketch. `dash-types` (C2.5) mirrors it; the bridge passes
+the payload through with snake_case keys or maps them 1:1 to camelCase, but
+never re-derives a figure. Summary of the generated records:
+
+| Record | Fields |
+|---|---|
+| `health.snapshot` | `ts` (ISO-8601 UTC ms), `seq`, `exchange`, `host`, `processes[]`, `trading`, `participants[]`, `books[]`, `gateways[]`, `thresholds[]` |
+| `ExchangeStatus` | `status` (OPERATIONAL/DEGRADED/IMPAIRED/DOWN), `session_state`, `trading_date`, `session_timezone` |
+| `HostStats` | `cpu_pct`, `cpu_per_core[]`, `load1`/`load5`/`load15`, `mem_total/used/available_bytes`, `swap_used_bytes`, `disk_free/total_bytes`, `files[]` of `FileSize{name, size_bytes}` |
+| `ProcessHealth` | `key`, `process`, `instance` (null), `host`, `group` (EXCHANGE/BOT), `pid`, `state` (7 values, §10), `restarted_recently`, `uptime_sec`, `rss_bytes`, `cpu_pct`, `threads`, `fds` (null), `loop_age_ms`, `loop_lag_ms`, `last_beacon_age_ms`, `spark{rss[], cpu[]}` (≤ 60 each), `metrics[]` (the latest beacon's `MetricSample`s, as sent) |
+| `RateStats` | `today`, `per_sec_now`, `avg_per_min`, `avg_per_hour`, `avg_per_day` (null before a full day) — §9.4 |
+| `TradingStats` | `orders: RateStats`, `trades: RateStats`, `traded_value_today`, `reject_pct_5m`, `handle_p50_us`, `handle_p99_us`, `busy_pct` |
+| `ParticipantStats` | `id`, `role`, `connected`, `connected_since` (null), `orders: RateStats`, `reject_pct`, `fills_today`, `resting_orders`, `connects_today`, `disconnects_today`, `heartbeat_timeouts_today` |
+| `BookStats` | `symbol`, `resting_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_garbage_pct`, `trades_today`, `halted` |
+| `GatewayStats` | `key`, `kind` (ALF/BALF/MD/RALF/DC/API/LOG), `clients`, `clients_max` (null), `msgs_per_sec`, `disconnects_today`, `slow_disconnects_today` |
+| `ActiveBreach` | `rule`, `subject`, `level` (WARN/CRIT), `value`, `threshold`, `since` |
+| `health.event` | `seq` (= `metrics.db` `events.seq`), `ts`, `kind` (§9.2 kinds + PROCESS_STATUS/THRESHOLD), `severity` (INFO/WARN/CRIT), `subject`, `detail` |
+
+Differences from the v0.3.0 sketch, all forced by the spec family's rules
+or by gaps in the sketch: `files` was a map and `load` a positional tuple
+(both excluded on the wire); `GatewayStats` and `ActiveBreach` were never
+defined; the orders/trades rate fields repeated, so they became one
+`RateStats` record (a participant's "/min now" is `per_sec_now × 60`, a
+display conversion); `group`, `metrics`, `busy_pct`, `session_timezone` and
+the event `severity` were added. `ProcessHealth.metrics` makes every metric
+name the UI reads (D3.1) reachable without a spec change, at the cost of
+roughly 25 KB per snapshot for the engine's labelled series — B1 measures it.
+
 The snapshot is ~20–60 KB at 30 participants and 20 symbols; 1 Hz is fine
-on a LAN. Sparkline arrays are only included for processes.
+on a LAN. Sparkline arrays are only included for processes. Measured in A1
+at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 
 ### 11.2 REST (history)
 
@@ -1122,7 +1131,7 @@ src/edumatcher/
     store.py             metrics.db schema, writer, downsampling, retention (§9.5)
   engine/
     metrics.py           EngineMetrics + OrderBook memory constants (§8.2–§8.4)
-spec/messages/monitor.yaml
+spec/messages/health.yaml
 spec/transports.yaml      + monitor_push, monitor_pub
 
 web-apps/dash-gui/
@@ -1206,7 +1215,7 @@ commit message per WP.
 | WP | Content | Depends on | Est. |
 |---|---|---|---|
 | **Phase A — instrumentation** | | | |
-| A1 | Message spec `monitor.yaml`, transports, publishers, generated code | — | 0.5 d |
+| A1 | Message spec `health.yaml`, transports, publishers, generated code | — | 0.5 d |
 | A2 | `edumatcher.health` (`HealthReporter`), `psutil` | A1, A3 | 1.5 d |
 | A3 | `monitor` config section end to end | — | 1.5 d |
 | A4 | Engine metrics and reporter | A2 | 3 d |
@@ -1243,8 +1252,8 @@ could show HUNG too (follow-up, §19.3).
 
 ### WP-A1 — Message spec and generated bindings
 
-**Objective:** Declare `monitor.beacon`, `monitor.snapshot` and
-`monitor.event` in the spec so Python code gets generated, validating
+**Objective:** Declare `health.beacon`, `health.snapshot` and
+`health.event` in the spec so Python code gets generated, validating
 constructors and parsers, exactly like every other bus message.
 
 **Depends on:** —
@@ -1274,27 +1283,27 @@ constructors and parsers, exactly like every other bus message.
   `src/edumatcher/msgen/spec.py`. *Verify with tests that* a spec using
   `published_by: [monitor]` loads, and an unknown publisher still raises
   `SpecError` with the "nearest" hint (extend `tests/test_msgen_spec.py`).
-- **A1.3** Write `spec/messages/monitor.yaml` with `types:` `MetricSample`
+- **A1.3** Write `spec/messages/health.yaml` with `types:` `MetricSample`
   (`name` ≤ 64, `kind` enum `COUNTER`/`GAUGE`, `label` ≤ 32 default `""`,
   `value` float) and the three messages. Field list for `beacon` is §7.4.
   Follow `system.yaml` style: `doc.motivation`, `published_by`, `since: "1.2"`,
   `see_also`, `encoding: { frames: [topic, json_payload] }`. *Verify with
   tests that* `pm-msgen lint` passes.
 - **A1.4** Run `make msgen` (= `poetry run pm-msgen generate`). It writes
-  `src/edumatcher/models/generated/monitor.py`, updates `registry.py`, the C
+  `src/edumatcher/models/generated/health.py`, updates `registry.py`, the C
   headers and the generated protocol-reference Markdown. *Verify with tests
   that* `pm-msgen check` reports no drift (this is what `make msgen-check`
   runs in CI).
-- **A1.5** New `tests/test_msgen_monitor.py`, modelled on
+- **A1.5** New `tests/test_msgen_health.py`, modelled on
   `tests/test_msgen_system.py`. *Verify with tests that* each message
   round-trips `make_*` → `decode` → `parse_*` unchanged; `validate()` rejects
   an over-long `process`, a negative `seq`, a `kind` outside the enum; a beacon
   with zero `metrics` is valid.
 
-**Tests:** `tests/test_msgen_monitor.py` (new), `tests/test_msgen_spec.py`
+**Tests:** `tests/test_msgen_health.py` (new), `tests/test_msgen_spec.py`
 (extended), `pm-msgen check`.
 
-**Done when:** `make _check` is green, `models/generated/monitor.py` exists
+**Done when:** `make _check` is green, `models/generated/health.py` exists
 and is committed together with the spec, and the generated reference doc
 lists the three messages.
 
@@ -1313,10 +1322,10 @@ lists the three messages.
 ### WP-A2 — `HealthReporter`
 
 **Objective:** One small shared module that any long-running process can
-use to emit `monitor.beacon` every `beacon_interval_sec`, from a daemon
+use to emit `health.beacon` every `beacon_interval_sec`, from a daemon
 thread, with main-loop age and lag (§7).
 
-**Depends on:** A1 (generated `make_monitor_beacon`), A3 (`MonitorConfig`
+**Depends on:** A1 (generated `make_health_beacon`), A3 (`MonitorConfig`
 in the compiled artifact for host/port/interval).
 
 **Might change if:**
@@ -1384,6 +1393,11 @@ behaviours above are covered.
   beaconing — that is correct (DEAD/SILENT is then the monitor's job).
 - Do not log from the sampler thread on every drop; one WARNING per minute at
   most, otherwise a down monitor floods the log server.
+- `make_health_beacon` validates (A1). A sample with an over-long label or
+  name raises `MessageValidationError` **in the sampler thread**; catch it per
+  beacon, drop only the offending samples (or the beacon), count it, and keep
+  the thread alive — an uncaught exception there would turn a labelling bug
+  into a SILENT process. Truncate `socket.gethostname()` to 128.
 
 ---
 
@@ -1578,6 +1592,9 @@ gate passes.
   the invariant counts. Do not "fix" it to zero.
 - Gateway ids must be clamped (`_clamp_wire_id`) before they become labels,
   or an attacker-controlled id creates unbounded label cardinality (K4).
+  `MetricSample.label` is ≤ 32 characters, which equals the clamp bound for
+  gateway ids and exceeds the 16 of symbols; a label longer than 32 fails
+  validation in the sampler thread (see A2).
 - `perf` tests are skipped in normal CI (`-m perf`), so the gate must be run
   deliberately.
 - Don't use `_dbg_count` for metrics: it only counts at DEBUG level and is
@@ -1704,7 +1721,7 @@ audit/clearing tests unchanged and green.
 ### WP-B1 — `pm-monitor` skeleton
 
 **Objective:** A runnable `pm-monitor` that receives beacons, keeps
-per-process state and publishes `monitor.snapshot` at 1 Hz (without
+per-process state and publishes `health.snapshot` at 1 Hz (without
 health rules, rates or persistence yet).
 
 **Depends on:** A1, A2, A3.
@@ -1712,7 +1729,13 @@ health rules, rates or persistence yet).
 **Might change if:**
 - The snapshot size (§11.1, 20–60 KB) proves too large at 1 Hz for the
   bridge or the browser — then `snapshot` every 5 s plus a small `delta` at
-  1 Hz (needs a spec change in A1).
+  1 Hz (needs a spec change in A1). The first thing to trim is
+  `ProcessHealth.metrics` for the engine (its per-gateway/per-symbol series
+  are already summarised in `participants` and `books`).
+- Measured in A1 (15 processes, engine with 430 labelled samples, 30
+  participants, 20 books, full sparklines): **≈ 65 KB** per snapshot and
+  **0.8 ms** for `make_health_snapshot` including validation. Validation
+  cost is a non-issue at 1 Hz; size is just above the §11.1 estimate.
 
 **Tasks:**
 - **B1.1** `src/edumatcher/monitor/main.py`: argparse (`--version` via
@@ -1735,7 +1758,7 @@ health rules, rates or persistence yet).
   `(process, instance, host)` holding last beacon, receive time, `boot_id`,
   ring of last 60 RSS/CPU values, latest metric samples. *Verify with tests
   that* a new `boot_id` resets the ring and sets `restarted_at`.
-- **B1.4** 1 Hz snapshot publish (`make_monitor_snapshot`) with the process
+- **B1.4** 1 Hz snapshot publish (`make_health_snapshot`) with the process
   list (state still `HEALTHY`/`UNKNOWN` placeholder until B2). *Verify with
   tests that* a test `SUB` receives a snapshot within 1.5 s containing a
   process that beaconed.
@@ -1826,7 +1849,7 @@ lifecycle events (§9.2), sample the host (§8.1) and evaluate thresholds
 - **B3.2** `SUB` to `ENGINE_PUB_ADDR` with prefixes `system.gateway_auth.`,
   `system.gateway_bye.`, `system.diagnostic`, `session.state`,
   `circuit_breaker.halt.`, `circuit_breaker.resume.`; parse with the
-  generated `parse_*` functions; emit `monitor.event`. *Verify with tests
+  generated `parse_*` functions; emit `health.event`. *Verify with tests
   that* each topic produces the right `kind`/`subject`/`detail`, and a
   `gateway_bye` with `reason="heartbeat_timeout"` is flagged.
 - **B3.3** `monitor/host.py`: §8.1 metrics with psutil; file sizes from

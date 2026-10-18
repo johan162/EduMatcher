@@ -22,6 +22,7 @@ from edumatcher.models.generated import auction as _auction
 from edumatcher.models.generated import book as _book
 from edumatcher.models.generated import circuit_breaker as _circuit_breaker
 from edumatcher.models.generated import drop_copy as _drop_copy
+from edumatcher.models.generated import health as _health
 from edumatcher.models.generated import index as _index
 from edumatcher.models.generated import log as _log
 from edumatcher.models.generated import news as _news
@@ -126,6 +127,30 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "transport": ("drop_copy_pub",),
         "params": ("recipient_id",),
         "fields": _drop_copy.describe_drop_copy_replay(),
+    },
+    _health.TOPIC_HEALTH_BEACON: {
+        "family": "health",
+        "message": "health_beacon",
+        "prefix": _health.TOPIC_HEALTH_BEACON,
+        "transport": ("monitor_push",),
+        "params": (),
+        "fields": _health.describe_health_beacon(),
+    },
+    _health.TOPIC_HEALTH_SNAPSHOT: {
+        "family": "health",
+        "message": "health_snapshot",
+        "prefix": _health.TOPIC_HEALTH_SNAPSHOT,
+        "transport": ("monitor_pub",),
+        "params": (),
+        "fields": _health.describe_health_snapshot(),
+    },
+    _health.TOPIC_HEALTH_EVENT: {
+        "family": "health",
+        "message": "health_event",
+        "prefix": _health.TOPIC_HEALTH_EVENT,
+        "transport": ("monitor_pub",),
+        "params": (),
+        "fields": _health.describe_health_event(),
     },
     _index.TOPIC_INDEX_UPDATE: {
         "family": "index",

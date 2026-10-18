@@ -37,6 +37,13 @@ SRC = REPO_ROOT / "src" / "edumatcher"
 #: one, delete it here in the same change that routes it through its builder.
 ADOPTION_EXCLUSIONS = frozenset({"execution_report"})
 
+#: Messages whose spec has landed but whose producer is a later work package of
+#: the operator dashboard plan (docs-design/EduMatcher-Operator-Dashboard.md):
+#: ``health_beacon`` is built by the HealthReporter (WP-A2), the snapshot and
+#: the event by pm-monitor (WP-B1, WP-B3). Not an exclusion: each entry must be
+#: deleted by the WP that adopts it, which the guard below enforces.
+PENDING_ADOPTION = frozenset({"health_beacon", "health_snapshot", "health_event"})
+
 
 def _builder_calls() -> set[str]:
     """Every ``make_*`` builder name called outside generated/ and msgen/."""
@@ -63,7 +70,15 @@ def test_the_unadopted_set_is_exactly_the_documented_exclusions() -> None:
         if f"make_{message.name}" not in calls
         and f"make_{message.name}_unchecked" not in calls
     }
-    assert unadopted == ADOPTION_EXCLUSIONS
+    assert unadopted == ADOPTION_EXCLUSIONS | PENDING_ADOPTION
+
+
+def test_a_pending_message_is_really_still_pending() -> None:
+    """Fails as soon as a producer adopts a pending builder, so the WP that
+    adopts it also removes it from ``PENDING_ADOPTION``."""
+    calls = _builder_calls()
+    adopted = {name for name in PENDING_ADOPTION if f"make_{name}" in calls}
+    assert not adopted, f"adopted now, remove from PENDING_ADOPTION: {adopted}"
 
 
 def _bus_encode_call_sites() -> set[str]:
