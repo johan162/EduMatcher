@@ -25,6 +25,7 @@ from edumatcher.gateway_ports import (
     LOG_SERVER_EXTRA_PORTS,
     SINGLETON_GATEWAYS,
     effective_port,
+    resolved_fixed_listeners,
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 
@@ -975,7 +976,7 @@ def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, str, int]]:
 def _check_gateway_port_collisions(
     raw: dict[str, Any], results: list[CheckResult]
 ) -> None:
-    """M018 — any two configured gateway sections bound to the same port.
+    """M018 — a configured listener bound to a port that is already taken.
 
     Previously this only checked balf_gateway against post_trade_gateway and
     market_data_gateway. It now checks every pair across alf_gateway,
@@ -983,10 +984,41 @@ def _check_gateway_port_collisions(
     log_server (including its two LALF-PS ZeroMQ ports), and every named
     api_gateways.<name> instance — the full set of independently-configurable
     listeners in engine_config.yaml.
+
+    It also checks each of those against the listeners that never appear in
+    the YAML (engine, index, market-sim and the recorders' health sockets,
+    ``gateway_ports.FIXED_LISTENERS``, with environment overrides applied).
+    Fixed listeners are not checked against each other: that is an
+    environment problem, not a configuration one.
     """
     entries = _collect_gateway_ports(raw)
+    fixed_ports = {fixed.port: fixed for fixed in resolved_fixed_listeners()}
     seen: dict[int, tuple[str, str]] = {}
     for label, field, port in entries:
+        fixed = fixed_ports.get(port)
+        if fixed is not None:
+            moved_by = (
+                f"set {fixed.env_var} to move it"
+                if fixed.env_var
+                else "its port is fixed in the source"
+            )
+            results.append(
+                CheckResult(
+                    code="M018",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"{label}.{field} ({port}) conflicts with "
+                        f"{fixed.process} ({fixed.function}, {fixed.proto}), "
+                        "which binds it outside engine_config.yaml."
+                    ),
+                    suggestion=(
+                        f"Change {field} on {label}; {fixed.process} is not "
+                        f"configured here ({moved_by})."
+                    ),
+                    path=f"{label.split(' ', 1)[0]}.{field}",
+                )
+            )
+            continue
         prior = seen.get(port)
         if prior is not None:
             prior_label, prior_field = prior

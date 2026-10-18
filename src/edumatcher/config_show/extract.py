@@ -15,8 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.config import (
+    EDUMATCHER_AUDIT_BIND_HOST,
+    EDUMATCHER_CLEARING_BIND_HOST,
     EDUMATCHER_ENGINE_BIND_HOST,
     EDUMATCHER_INDEX_BIND_HOST,
+    EDUMATCHER_SIM_BIND_HOST,
+    EDUMATCHER_STATS_BIND_HOST,
     resolve_gateway_bind_host,
 )
 from edumatcher.gateway_ports import (
@@ -124,6 +128,15 @@ def resolve_source(explicit: str | None, default_path: Path) -> Source:
 # ---------------------------------------------------------------------------
 # Listeners
 # ---------------------------------------------------------------------------
+_FIXED_BIND_HOSTS: dict[str, str] = {
+    "pm-market-sim": EDUMATCHER_SIM_BIND_HOST,
+    "pm-index": EDUMATCHER_INDEX_BIND_HOST,
+    "pm-stats": EDUMATCHER_STATS_BIND_HOST,
+    "pm-audit": EDUMATCHER_AUDIT_BIND_HOST,
+    "pm-clearing": EDUMATCHER_CLEARING_BIND_HOST,
+}
+
+
 def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
     out: list[Listener] = []
 
@@ -135,14 +148,10 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
                 proto=fixed.proto,
                 process=fixed.process,
                 function=fixed.function,
-                # The engine trio and the index pair are the only listeners
-                # whose bind host comes from the environment alone; report
-                # what they will actually bind, not the compiled-in default.
-                bind=(
-                    EDUMATCHER_INDEX_BIND_HOST
-                    if fixed.process == "pm-index"
-                    else EDUMATCHER_ENGINE_BIND_HOST
-                ),
+                # These listeners take their bind host from the environment
+                # alone; report what they will actually bind, not the
+                # compiled-in default.
+                bind=_FIXED_BIND_HOSTS.get(fixed.process, EDUMATCHER_ENGINE_BIND_HOST),
                 origin=fixed.origin,
                 enabled=True,
                 section=fixed.env_var or "config.py",

@@ -374,6 +374,29 @@ def test_m018_is_silent_on_an_all_defaults_layout() -> None:
     assert messages == []
 
 
+def test_m018_flags_a_gateway_on_a_fixed_engine_port() -> None:
+    """5555 is the engine's order intake; it never appears in the YAML."""
+    messages = _port_collisions(market_data_gateway={"port": 5555})
+    assert len(messages) == 1
+    assert "pm-md-gwy" in messages[0] and "pm-engine" in messages[0]
+
+
+def test_m018_flags_log_server_pubsub_on_a_health_port() -> None:
+    messages = _port_collisions(log_server={**_GOOD_LOG_SERVER, "pull_port": 5561})
+    assert len(messages) == 1
+    assert "pull_port" in messages[0] and "pm-stats" in messages[0]
+
+
+def test_m018_fixed_port_honours_its_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Moving the health port by environment frees 5561 and claims the new one."""
+    monkeypatch.setenv("EDUMATCHER_STATS_HEALTH_PORT", "5599")
+    assert _port_collisions(dc_gateway={"port": 5561}) == []
+    messages = _port_collisions(dc_gateway={"port": 5599})
+    assert len(messages) == 1 and "pm-stats" in messages[0]
+
+
 # ---------------------------------------------------------------------------
 # End-to-end: generate → verify
 # ---------------------------------------------------------------------------

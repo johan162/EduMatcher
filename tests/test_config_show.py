@@ -12,13 +12,23 @@ assertion.  These are the four that are:
 from __future__ import annotations
 
 import io
+import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 from rich.console import Console
 
+from edumatcher.config import (
+    EDUMATCHER_AUDIT_HEALTH_PORT,
+    EDUMATCHER_CLEARING_HEALTH_PORT,
+    EDUMATCHER_INDEX_HEALTH_PORT,
+    EDUMATCHER_STATS_HEALTH_PORT,
+)
 from edumatcher.config_show.cli import main
 from edumatcher.config_show.extract import build_view, resolve_source
 from edumatcher.config_show.model import ConfigView, Source
@@ -178,7 +188,74 @@ def test_port_inventory_matches_shared_table(path: Path) -> None:
 def test_fixed_and_env_sockets_are_always_shown(path: Path) -> None:
     """They appear nowhere in the YAML, so only the viewer can surface them."""
     ports = {listener.port for listener in _view(path).listeners}
-    assert {5555, 5556, 5557, 5558, 5559} <= ports
+    assert {5555, 5556, 5557, 5558, 5559, 5561, 5562, 5563, 5564} <= ports
+
+
+def test_health_listeners_match_config_constants() -> None:
+    """The shared table must not drift from the ports the recorders bind."""
+    by_env = {
+        listener.env_var: listener.port
+        for listener in FIXED_LISTENERS
+        if listener.env_var
+    }
+    assert by_env["EDUMATCHER_STATS_HEALTH_PORT"] == EDUMATCHER_STATS_HEALTH_PORT
+    assert by_env["EDUMATCHER_AUDIT_HEALTH_PORT"] == EDUMATCHER_AUDIT_HEALTH_PORT
+    assert by_env["EDUMATCHER_CLEARING_HEALTH_PORT"] == EDUMATCHER_CLEARING_HEALTH_PORT
+    assert by_env["EDUMATCHER_INDEX_HEALTH_PORT"] == EDUMATCHER_INDEX_HEALTH_PORT
+
+
+def test_fixed_listeners_report_their_own_bind_host() -> None:
+    """Each fixed listener shows its process's bind-host variable, not the engine's.
+
+    The hosts are read from the environment at import, so this runs in a
+    fresh interpreter with every one set to a distinct value.
+    """
+    hosts = {
+        "EDUMATCHER_ENGINE_BIND_HOST": "10.0.0.1",
+        "EDUMATCHER_SIM_BIND_HOST": "10.0.0.2",
+        "EDUMATCHER_INDEX_BIND_HOST": "10.0.0.3",
+        "EDUMATCHER_STATS_BIND_HOST": "10.0.0.4",
+        "EDUMATCHER_AUDIT_BIND_HOST": "10.0.0.5",
+        "EDUMATCHER_CLEARING_BIND_HOST": "10.0.0.6",
+    }
+    script = (
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "from edumatcher.config_show.extract import build_view, resolve_source\n"
+        "p = Path(sys.argv[1])\n"
+        "v = build_view({}, resolve_source(str(p), p))\n"
+        "print(json.dumps({str(l.port): l.bind for l in v.listeners}))\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", script, str(CONFIGS[0])],
+        env={**os.environ, **hosts},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    bind = json.loads(proc.stdout)
+    assert bind["5553"] == bind["5554"] == "10.0.0.2"
+    assert bind["5555"] == bind["5556"] == bind["5557"] == "10.0.0.1"
+    assert bind["5558"] == bind["5559"] == bind["5564"] == "10.0.0.3"
+    assert bind["5561"] == "10.0.0.4"
+    assert bind["5562"] == "10.0.0.5"
+    assert bind["5563"] == "10.0.0.6"
+
+
+def test_gateway_on_health_port_is_marked_as_collision(tmp_path: Path) -> None:
+    config = tmp_path / "engine_config.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "symbols": {"AAPL": {"tick_decimals": 2}},
+                "participants": [{"id": "T1", "role": "TRADER"}],
+                "market_data_gateway": {"port": 5561},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _view(config).port_collisions == {5561}
 
 
 def test_collision_is_detected_and_marked(tmp_path: Path) -> None:
