@@ -20,6 +20,11 @@ Status: In implementation — progress in
 >   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
 >   are unchanged (I9).
 > - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - After WP-A6: every process of the `default` profile beacons. No WP had
+>   assigned the participant bots (`pm-mm-bot`, `pm-ai-swarm`) although Q2
+>   wants them in their own group: added as B5.4. `stats.records_dropped` and
+>   `audit.decode_errors` added. The scheduler ticks on every 1 s wake-up but
+>   can go ≈ 4 s without one during an engine round-trip (I38–I43).
 > - After WP-A5: RALF/DC do not disconnect slow or idle clients (they mark
 >   them close-after-flush, which a non-reading client never reaches); two
 >   metrics expose it, the fix is a follow-up (§19.3). `loop_lag_ms` includes
@@ -549,8 +554,10 @@ stop the circuit-breaker timers behind it.
 | | `log.writer_queue` | G | | `LogWriter._queue.qsize()` (a `queue.Queue`; approximate, which is fine for a gauge) |
 | | `log.ps_subscriptions` | G | | LALF-PS leases |
 | `pm-stats` | `stats.events_recorded` | C | | Receive-thread write path. `pm-stats` writes inline in its receive thread — it has **no writer queue**, so no queue gauge (F7) |
+| | `stats.records_dropped` | C | | Added in A6: an engine event whose handler raised, i.e. was not persisted |
 | | `stats.feed_gaps` | C | | Same place that inserts into `feed_gaps` |
-| `pm-audit` | `audit.records` / `audit.bytes` | C | | Writer path |
+| `pm-audit` | `audit.records` / `audit.bytes` | C | | Writer path (lines accepted into the write buffer) |
+| | `audit.decode_errors` | C | | Added in A6: frames that could not be decoded and so are missing from the trail |
 | `pm-clearing` | `clearing.trades_settled` | C | | Settlement path |
 | `pm-scheduler` | `sched.next_transition_in_s` | G | | Seconds until next scheduled transition |
 
@@ -1762,6 +1769,12 @@ audit/clearing tests unchanged and green.
 - `pm-stats` and `pm-audit`: ticking from the main thread would report
   HEALTHY while the receive thread is dead — the exact false positive this
   design exists to remove.
+- *As built:* the scheduler ticks through the `is_running()` closure every
+  wait already calls on each wake-up, and sleeps in `LIVENESS_CHUNK_SEC` = 1 s
+  chunks (`WALLCLOCK_RECHECK_SEC` stays 30 s, a test pins it). An engine
+  round-trip (2 s send timeout + 2 s confirm) can pass ≈ 4 s without a tick:
+  inside `hung_after_sec` = 5, but M030 alone would allow a lower setting --
+  B2 should keep this in mind.
 - `pm-log-srv` logs through itself? No — it uses stderr/file. The reporter's
   own warnings must therefore not assume LALF.
 
@@ -2020,6 +2033,14 @@ profile except `micro`, and so in every container image.
   network. Users who want them on the host use the existing `compose.zmq.yaml`
   overlay pattern, which is a follow-up. Document the decision in the compose
   comment. *Verify with tests that* `make up-all` works without publishing.
+
+- **B5.4** (added after A6, I38) Participant bots: `pm-mm-bot` and
+  `pm-ai-swarm` beacon when started from an emo profile, through the same
+  `HealthReporter.start_from_compiled_config()` + `tick_and_publish()` pair as
+  every exchange process; pm-monitor's B2 roster marks them `group: BOT`, so
+  they never affect the exchange status. *Verify with tests that* each bot's
+  main loop ticks (the A5/A6 recording-reporter pattern) and that a bot run
+  without a deployed monitor section still starts.
 
 **Tests:** `tests/test_emo_cli.py` (extended).
 

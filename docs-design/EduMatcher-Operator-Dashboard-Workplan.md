@@ -23,12 +23,12 @@ before A2).
 | 3 | A2 | `edumatcher.health.HealthReporter`, `psutil` | A1, A3 | ☑ | 2026-10-19 |
 | 4 | A4 | Engine metrics, reject funnel, book memory estimate, reporter, perf gate | A2 | ☑ | 2026-10-19 |
 | 5 | A5 | Gateway metrics and reporters (ALF, BALF, MD, RALF, DC, API) | A2 | ☑ | 2026-10-19 |
-| 6 | A6 | Service metrics and reporters (log-srv, stats, audit, clearing, scheduler, index, market-sim) | A2 | ☐ | |
+| 6 | A6 | Service metrics and reporters (log-srv, stats, audit, clearing, scheduler, index, market-sim) | A2 | ☑ | 2026-10-19 |
 | 7 | B1 | `pm-monitor` skeleton, process state, 1 Hz snapshot | A1–A3 | ☐ | |
 | 8 | B2 | Health model and expected roster | B1 | ☐ | |
 | 9 | B3 | Rates, engine-bus events, thresholds, host sampler | B1 | ☐ | |
 | 10 | B4 | `metrics.db` store, downsampling, retention | B3 | ☐ | |
-| 11 | B5 | Start-up integration: `emo` profiles, container `EXPOSE` | B1 | ☐ | |
+| 11 | B5 | Start-up integration: `emo` profiles, container `EXPOSE`, participant-bot beacons (B5.4, I38) | B1 | ☐ | |
 | 12 | C1 | Scaffold `web-apps/dash-gui` | — | ☐ | |
 | 13 | C2 | Bridge: monitor uplink, `/ws`, history REST | B1, B4, C1 | ☐ | |
 | 14 | D1 | App shell, top bar, time picker, theme, settings | C1 | ☐ | |
@@ -93,4 +93,10 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I35 | A5 | Starlette's `TestClient` is unusable (needs `httpx`, not a dependency); with `from __future__ import annotations`, a FastAPI `ws: WebSocket` parameter whose type is imported inside a function is silently treated as a query param and the socket is refused. | Tests drive the ASGI app directly (as `test_tick_validation.py` does); `WebSocket` imported at module level. |
 | I36 | A5 | `loop_lag_ms` is the longest gap between ticks, so it includes each loop's designed wait: engine ≤ 200 ms when idle (poll timeout), API ≈ 250 ms (health task sleep), socket gateways 5–10 ms. | Documented for B2; the DEGRADED rule (`loop_lag_ms > 1000`) tolerates all of them. A blocked API event loop (1 s) is detected (test). |
 | I37 | A5 | Metric naming across gateways is uneven by design: ALF/BALF export `_global_stats` keys (`gwy.connected_clients`, `gwy.slow_client_disconnects`), RALF/DC use `gwy.clients`/`gwy.slow_clients`, MD uses `md.*`. | B3 must map to `GatewayStats` by **process name**, not by metric prefix. Noted here for B3. |
+| I38 | A6 | No WP assigned the participant bots (`pm-mm-bot`, `pm-ai-swarm`) a reporter, though §7.3 and Q2 say they beacon in their own group. | Added as design task B5.4. |
+| I39 | A6 | The scheduler has no loop object, but every wait already calls an `is_running()` closure on each wake-up. | Ticks there (no signature changes); `LIVENESS_CHUNK_SEC` = 1 s passed by the two callers; `WALLCLOCK_RECHECK_SEC` stays 30 s (pinned by an existing test). `sched.next_transition_in_s` = remaining wait while sleeping, 0 otherwise. |
+| I40 | A6 | Scheduler engine round-trips (2 s send + 2 s confirm) can go ≈ 4 s without a tick -- under `hung_after_sec` = 5, but M030 only requires `hung_after_sec > beacon_interval_sec`. | Noted for B2 in the design; no change now. |
+| I41 | A6 | Two failure counters were missing that an operator would want: stats events that failed to persist, audit frames that could not be decoded. | `stats.records_dropped`, `audit.decode_errors` (design §8.5 updated). |
+| I42 | A6 | Design said pm-stats creates its reporter in `run()`. | All services attach from `main()` (as in A5): same effect, one pattern, and tests construct and run processes without reporters. |
+| I43 | A6 | `log.events_in` counts frames accepted for persistence (the enqueue), not rows committed; `log.writer_queue` is the gap between them. pm-index and pm-market-sim beacon vitals only, so they call `tick()` and never publish samples. | Documented in code. |
 | I8 | A1 | `pm-msgen lint` dies with a raw PyYAML traceback on a YAML syntax error (e.g. a `>` block scalar inside a flow mapping) instead of a `SpecError` naming the file. | Follow-up, out of scope for this plan. |

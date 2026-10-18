@@ -73,6 +73,8 @@ from typing import Callable
 import holidays
 import zmq
 
+from edumatcher.health import HealthReporter, gauge
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
@@ -171,6 +173,17 @@ _ENGINE_START_STATE = SessionState.CLOSED
 # up server time adjustments (NTP sync, manual change, DST) promptly instead
 # of trusting a single duration computed once at the start of a long sleep.
 WALLCLOCK_RECHECK_SEC = 30.0
+
+#: The chunk the scheduler actually sleeps in while waiting for a transition
+#: or midnight. Every wake-up calls ``is_running()``, which ticks the health
+#: beacon, so a scheduler idle for hours still reports a fresh main loop. At
+#: the 30 s re-check bound it would read as HUNG between wake-ups (design
+#: finding F8). Re-deriving the remaining wait more often is harmless.
+LIVENESS_CHUNK_SEC = 1.0
+
+#: Seconds until the scheduler next acts, as last computed while waiting;
+#: 0 when not waiting. Reported as ``sched.next_transition_in_s``.
+_next_wait_sec = 0.0
 
 
 class _Clock:
@@ -389,11 +402,21 @@ def _sleep_until_wallclock(
     ``time.sleep`` call, so the scheduler never sleeps more than
     ``WALLCLOCK_RECHECK_SEC`` (30s) at a stretch.
     """
-    while is_running():
-        remaining = remaining_seconds()
-        if remaining <= 0:
-            return
-        time.sleep(max(0.0, min(max_chunk, remaining)))
+    global _next_wait_sec
+    try:
+        while is_running():
+            remaining = remaining_seconds()
+            if remaining <= 0:
+                return
+            _next_wait_sec = remaining
+            time.sleep(max(0.0, min(max_chunk, remaining)))
+    finally:
+        _next_wait_sec = 0.0
+
+
+def _metric_samples() -> list[MetricSample]:
+    """Design §8.5: how long until the scheduler next acts."""
+    return [gauge("sched.next_transition_in_s", _next_wait_sec)]
 
 
 def _no_wait() -> float:
@@ -600,7 +623,7 @@ def _run_transitions(
             # trusting the single duration captured above, so a wall-clock
             # adjustment during a long wait is picked up promptly instead of
             # only after sleeping out a now-stale duration.
-            _sleep_until_wallclock(step.wait, is_running)
+            _sleep_until_wallclock(step.wait, is_running, max_chunk=LIVENESS_CHUNK_SEC)
             if not is_running():
                 log.info("Interrupted")
                 return False
@@ -765,7 +788,9 @@ def _run_forever(
             "Day complete; sleeping until the next scheduled day (%s)",
             target_day.isoformat(),
         )
-        _sleep_until_wallclock(_wait_until(target_midnight), is_running)
+        _sleep_until_wallclock(
+            _wait_until(target_midnight), is_running, max_chunk=LIVENESS_CHUNK_SEC
+        )
     log.info("Stopped.")
 
 
@@ -969,7 +994,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
+    # Health beacon (operator dashboard §8.5). Every wait in this process
+    # calls _is_running() on each wake-up, so that is where the main loop
+    # ticks; no wait sleeps longer than LIVENESS_CHUNK_SEC between calls.
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+
     def _is_running() -> bool:
+        if reporter is not None:
+            reporter.tick_and_publish(_metric_samples)
         return running
 
     push_sock = make_pusher(ENGINE_PULL_ADDR)
@@ -1073,6 +1105,8 @@ def main() -> None:
                     confirm_sock.close()
     finally:
         push_sock.close()
+        if reporter is not None:
+            reporter.stop()
 
 
 if __name__ == "__main__":
