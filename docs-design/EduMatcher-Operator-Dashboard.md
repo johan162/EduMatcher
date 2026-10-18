@@ -25,9 +25,9 @@ Status: In implementation — progress in
 >   wants them in their own group: added as B5.4. `stats.records_dropped` and
 >   `audit.decode_errors` added. The scheduler ticks on every 1 s wake-up but
 >   can go ≈ 4 s without one during an engine round-trip (I38–I43).
-> - After WP-A5: RALF/DC do not disconnect slow or idle clients (they mark
->   them close-after-flush, which a non-reading client never reaches); two
->   metrics expose it, the fix is a follow-up (§19.3). `loop_lag_ms` includes
+> - After WP-A5: RALF/DC did not disconnect slow or idle clients (they marked
+>   them close-after-flush, which a non-reading client never reaches); fixed
+>   right after A5 with a 5 s close grace (I33, I44). `loop_lag_ms` includes
 >   each loop's designed wait (engine ≤ 200 ms idle, API ≈ 250 ms), which B2's
 >   DEGRADED rule (> 1000 ms) already tolerates (I32–I37).
 > - After WP-A4: the per-book metrics are `engine.book_*`, not `book.*`
@@ -544,7 +544,7 @@ stop the circuit-breaker timers behind it.
 | `pm-md-gwy` | `md.clients` / `md.clients_max` | G | | `len(self._clients)`, `config.max_connections` |
 | | `md.msgs_out` | C | | Fan-out send path |
 | | `md.disconnects` | C | reason | `_disconnect(session, reason=…)` — reasons in use: `peer_closed`, `slow_client`, `close_after_flush`, `auth_timeout`, `idle_timeout`. The MD gateway does not drop messages for a slow client, it disconnects it (F6), so `slow_client` is the back-pressure signal |
-| `pm-ralf-gwy`, `pm-dc-gwy` | `gwy.clients`, `gwy.msgs_out`, `gwy.disconnects{reason}`, `gwy.slow_clients`, `gwy.closing_clients` | G / C / C / C / G | | Same shape as MD, plus two signals added in A5: these gateways do **not** disconnect a slow client -- they mark it close-after-flush, which a client that has stopped reading never reaches (I33). `slow_clients` counts sessions flagged slow (once each); `closing_clients` shows such sessions accumulating |
+| `pm-ralf-gwy`, `pm-dc-gwy` | `gwy.clients`, `gwy.msgs_out`, `gwy.disconnects{reason}`, `gwy.slow_clients`, `gwy.closing_clients` | G / C / C / C / G | | Same shape as MD, plus two signals added in A5: `slow_clients` counts sessions flagged slow (once each), `closing_clients` the sessions draining their final line. Since the I33 fix a closing session is disconnected after at most 5 s (`CLOSE_GRACE_SEC`), so `closing_clients` stays small |
 | `pm-api-gwy` | `api.ws_sessions` | G | channel | Count of open WebSockets per router (`events`, `market-data`, `admin/monitor`, `admin/sim`) |
 | | `api.http_requests` / `api.http_5xx` | C | | A one-line Starlette middleware |
 | | `api.dropped_events` | C | sink | The existing `EngineClient.dropped_events` — already a `dict[str, int]` keyed by sink (F10) |
@@ -2497,8 +2497,5 @@ processes (skipped unless `-m e2e`).
 - `config-gui` editor for the `monitor` section.
 - Publishing 5610/5611 to the host in the `compose.zmq.yaml` overlays.
 - `pm-opctl-cli` integration (Q4).
-- `pm-ralf-gwy` / `pm-dc-gwy`: actually drop a slow or idle client after a
-  grace period (today both only mark it close-after-flush, and the idle path
-  re-queues an `EXIT` line on every loop pass), found in A5 (I33).
 - Optional Prometheus text exposition from `pm-monitor` for users who do run
   Grafana — trivial once `pm-monitor` exists, deliberately not done now.

@@ -226,33 +226,84 @@ def test_md_counts_messages_out_and_a_slow_client(fake_zmq: None) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("name", ["ralf", "dc"])
-def test_slow_client_counted_once_and_visible_while_stuck(
-    name: str, fake_zmq: None
-) -> None:
-    gateway = _gateways()[name](free_port())
+def _stream_session(name: str) -> tuple[Any, socket.socket, socket.socket]:
+    """A gateway session over a socketpair whose peer never reads."""
     left, right = socket.socketpair()
     left.setblocking(False)
-    session = RalfSession(sock=left, addr=("local", 0))
     if name == "dc":
         from edumatcher.dc_gateway.gateway import ClientSession as DcSession
 
-        session = DcSession(sock=left, addr=("local", 0))
+        return DcSession(sock=left, addr=("local", 0)), left, right
+    return RalfSession(sock=left, addr=("local", 0)), left, right
+
+
+def _grace(name: str) -> float:
+    import edumatcher.dc_gateway.gateway as dc_mod
+    import edumatcher.ralf_gateway.gateway as ralf_mod
+
+    return (dc_mod if name == "dc" else ralf_mod).CLOSE_GRACE_SEC
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_a_client_that_stops_reading_is_dropped_as_slow(
+    name: str, fake_zmq: None
+) -> None:
+    """Workplan I33, fixed: flagged once, nothing more queued, and
+    disconnected once the grace runs out -- as pm-md-gwy drops it."""
+    gateway = _gateways()[name](free_port())
+    session, left, right = _stream_session(name)
     gateway._clients[left.fileno()] = session
-    overflow = gateway.config.max_client_queue + 5
     for _ in range(3):  # three flush passes, the client never reads
-        for _ in range(overflow):
+        for _ in range(gateway.config.max_client_queue + 5):
             gateway._queue_raw(session, b"x" * 65536)
         gateway._flush_client_writes()
-    samples = gateway.metric_samples()
-    assert _value(samples, "gwy.slow_clients") == 1
-    assert _value(samples, "gwy.closing_clients") == 1
-    assert _value(samples, "gwy.msgs_out") >= 3 * overflow
 
-    gateway._disconnect(session, reason="peer_closed")
     samples = gateway.metric_samples()
-    assert _value(samples, "gwy.disconnects", "peer_closed") == 1
+    assert _value(samples, "gwy.slow_clients") == 1  # once, not once per pass
+    assert _value(samples, "gwy.closing_clients") == 1
+    assert len(session.out_queue) <= 2  # backlog dropped; no growth after
+    assert session.close_reason == "slow_client"
+
+    session.closing_since -= _grace(name) + 1  # the grace has run out
+    gateway._flush_client_writes()
+    samples = gateway.metric_samples()
+    assert _value(samples, "gwy.disconnects", "slow_client") == 1
     assert _value(samples, "gwy.clients") == 0
+    right.close()
+    gateway.close()
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_an_idle_client_gets_one_exit_and_is_dropped(name: str, fake_zmq: None) -> None:
+    gateway = _gateways()[name](free_port())
+    session, left, right = _stream_session(name)
+    gateway._clients[left.fileno()] = session
+    session.last_activity -= gateway.config.idle_timeout_sec + 1
+    for _ in range(5):  # used to queue a fresh EXIT on every pass
+        gateway._drop_idle_clients()
+    assert sum(b"EXIT" in line for line in session.out_queue) == 1
+    assert session.close_reason == "idle_timeout"
+
+    gateway._flush_client_writes()  # the peer's buffer takes one short line
+    assert _value(gateway.metric_samples(), "gwy.disconnects", "idle_timeout") == 1
+    assert right.recv(4096).startswith(b"EXIT")  # it was told why
+    right.close()
+    gateway.close()
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_dropping_the_backlog_keeps_a_half_sent_line(name: str, fake_zmq: None) -> None:
+    gateway = _gateways()[name](free_port())
+    session, left, right = _stream_session(name)
+    session.out_queue.extend([b"partial-line\n", b"next\n", b"later\n"])
+    session.out_offset = 4
+    gateway._drop_backlog(session)
+    assert list(session.out_queue) == [b"partial-line\n"]
+    assert session.out_offset == 4
+    session.out_offset = 0
+    gateway._drop_backlog(session)
+    assert not session.out_queue
+    left.close()
     right.close()
     gateway.close()
 
@@ -466,3 +517,33 @@ def test_a_blocked_event_loop_shows_as_loop_lag(
     assert lag >= 900
     assert beacon.process == "pm-api-gwy" and beacon.instance == "desk"
     assert any(m.name == "api.http_requests" for m in beacon.metrics)
+
+
+@pytest.mark.parametrize("name", ["ralf", "dc"])
+def test_the_real_loop_closes_an_idle_connection(name: str, fake_zmq: None) -> None:
+    """End to end: a silent client gets EXIT and then EOF from the running
+    gateway -- the socket is really closed, not just marked closing."""
+    port = free_port()
+    if name == "ralf":
+        gateway: Any = RalfGateway(
+            RalfGatewayConfig(bind_address="127.0.0.1", port=port, idle_timeout_sec=1)
+        )
+    else:
+        gateway = DcGateway(
+            DcGatewayConfig(bind_address="127.0.0.1", port=port, idle_timeout_sec=1)
+        )
+    runner = threading.Thread(target=gateway.run, daemon=True)
+    runner.start()
+    try:
+        client = socket.create_connection(("127.0.0.1", port), timeout=5)
+        received = b""
+        while True:
+            chunk = client.recv(4096)  # raises socket.timeout if never closed
+            if not chunk:
+                break  # EOF: the gateway closed the connection
+            received += chunk
+        assert b"EXIT" in received and b"idle_timeout" in received
+        client.close()
+    finally:
+        gateway.stop()
+        runner.join(timeout=5)

@@ -346,7 +346,14 @@ UNSUB|CH=DROP_COPY|SYM=AAPL
 
 When the stream is idle the gateway sends periodic `HB|TS=...` lines.  You can
 probe with `PING`; the gateway replies `PONG`.  If no inbound traffic is
-received for `idle_timeout_sec` seconds the gateway closes the connection.
+received for `idle_timeout_sec` seconds the gateway sends
+`EXIT|REASON=idle_timeout` and closes the connection.
+
+A client that stops reading is dropped too. When its outbound queue exceeds
+`max_client_queue` the gateway discards the backlog (a reconnect with
+`LASTSEQ` replays it), sends `ERR|CODE=SLOW_CLIENT`, and closes the
+connection. Either final line is delivered if the client is still reading;
+the connection is closed after at most 5 seconds whether or not it was.
 
 ### Step 6 — Disconnect
 
