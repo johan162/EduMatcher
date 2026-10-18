@@ -1,8 +1,44 @@
-Version: 0.2.0
+Version: 0.3.0
 
-Date: 2026-10-11
+Date: 2026-10-18
 
 Status: Design proposal — not implemented
+
+> **Changelog v0.3.0 — re-checked against the tree after v0.50.x**
+>
+> - F21 was stale: v0.50.0 added `engine.locale.session_timezone` (default
+>   `Europe/Stockholm`), and `pm-stats`/`pm-clearing` no longer take
+>   `--timezone`. `pm-monitor` reads the same setting, with no CLI flag
+>   (§9.4, A3, B1, B3, B4).
+> - F18 was stale: S122 and S123 are taken; new codes start at **S124**.
+> - New F22: `pm-stats`, `pm-audit`, `pm-clearing` and `pm-index` already
+>   answer a REP ping on 5561–5564 (`healthcheck.py`), which `pm-opctl-cli`
+>   uses. Added to §4. They are now `FIXED_LISTENERS` in `gateway_ports.py`
+>   (done alongside this review). M018 now also checks every configured
+>   listener against `resolved_fixed_listeners()`, so A3.4 only has to
+>   register the monitor ports.
+> - New F23/F24 and WP-E1 tasks for scope that was missing: the
+>   `deployment/curl` stack (`compose.yaml`, `compose.ai-sim.yaml`,
+>   `edumatcher.sh`), the `deployment/docker/compose.ai-sim.yaml` stack, the
+>   SELinux `:ro,z` mount, the Dockerfile `EXPOSE` list, the `mkbld.sh`
+>   `version.json` loop, and the GHCR workflow. The workflow already publishes
+>   `book-gui`, so the image is in scope, not a follow-up.
+> - Corrected that `entrypoint.sh` starts nothing itself; it only runs the
+>   profile. `mm-demo`, `ai-swarm` and `ai-sim` all extend
+>   `DEFAULT_PROCESSES`, so both container defaults get `pm-monitor` (B5).
+> - UI aligned with the family:
+>   - The wordmark is `EduMatcher` + `pm-dash` + version, as in every TopBar.
+>   - Health tokens reuse the family's existing tones rather than introducing
+>     Grafana hex values.
+>   - The Tailwind `ok`/`warning`/`error` aliases are re-pointed, not
+>     duplicated.
+>   - `--missing` (dark) and `--stopped` (light) failed the plan's own
+>     contrast test and were replaced. Series colours are tested at 3:1
+>     (graphical objects), not 4.5:1 (§12, D1).
+> - Smaller fixes:
+>   - `pm-monitor` gets `--verbose` like every profile process.
+>   - K4 label validation is limited to `gateway`/`symbol` labels.
+>   - The "five GUIs" comment becomes "six GUIs".
 
 > **Changelog v0.2.0 — implementation plan detailed and checked against the code**
 >
@@ -142,12 +178,14 @@ Every source below was read in the tree on 2026-10-11.
 | `pm-api-gwy` `GET /api/v1/healthz` | `ok`, `active_gateways` (this instance only), `dropped_events` | Per instance; dropped count is the only rate-like figure. |
 | `stats.db` `order_events` (`pm-stats`) | Every ack / reject / fill / cancel / amend / expire with `gateway_id`, `symbol`, `ts`; indexed `(gateway_id, ts)` | Correct source for **historical** per-participant reports, but a full-table aggregation per refresh is the wrong tool for a 1 Hz dashboard, and it records outcomes, not inbound submissions. |
 | `stats.db` `feed_gaps` | Detected sequence gaps in the engine trade stream | Nobody surfaces it live. |
-| `pm-stats-cli health` | pm-stats process + DB read/write check | Exit code only. |
+| `pm-{stats,audit,clearing,index}-cli health` (`healthcheck.py`) | pgrep for the process, then a ping to a REP socket that the **receive loop** answers (5561 / 5562 / 5563 / 5564, `EDUMATCHER_*_HEALTH_PORT`), plus a data-file check under `--extended`. `pm-opctl-cli` uses it as the `healthcheck` of those four processes | On demand, exit code only, four processes only. It is the one existing loop-liveness probe (F22). The REP ports are `FIXED_LISTENERS` in `gateway_ports.py`. |
 | ALF/BALF/MD gateways | `self._clients` dict per gateway; `max_connections` enforced | Count is never exported. |
 
 **Conclusion.** Liveness by PID and the participant roster exist. Everything
 the request calls a *rate*, every per-participant order figure, per-book
-sizes and memory, CPU, and any trustworthy hung-process signal do **not**.
+sizes and memory, CPU, and any *continuous* hung-process signal do **not**.
+The four recorders' REP pings prove a loop is alive, but only on demand and
+without history.
 
 ## 5. Gap analysis — what needs new instrumentation
 
@@ -541,11 +579,11 @@ For a counter `c` with samples `(t_i, v_i)`:
   restarted (or `boot_id` changed) and `Δ_i = v_i`. This is what lets
   "orders today" survive an engine restart.
 - **Total today** = Σ Δ since the start of the trading day in the exchange
-  session timezone. There is no exchange-wide timezone setting today:
-  `pm-stats` and `pm-clearing` each take `--timezone` (IANA name, default
-  `UTC`) and must agree. `pm-monitor` takes the same flag with the same
-  default and reuses `stats/trading_day.py` (`resolve_timezone`,
-  `timezone_name`), so its "today" is `pm-stats`' "today" (F21).
+  session timezone: `compiled.engine.locale.session_timezone` (IANA name,
+  default `DEFAULT_SESSION_TIMEZONE` = `Europe/Stockholm` when no artifact
+  is deployed). `pm-stats` and `pm-clearing` resolve it the same way, with no
+  CLI flag, so `pm-monitor`'s "today" is `pm-stats`' "today" (F21). It reuses
+  `stats/trading_day.py` (`resolve_timezone`, `timezone_name`).
 - **Rate now** (`/s`, `/min`) = Σ Δ over the last 60 s ÷ 60 (× 60).
 - **Avg per minute** = Σ Δ over the last 60 min ÷ 60.
 - **Avg per hour** = total today ÷ hours elapsed since the session opened
@@ -743,12 +781,17 @@ Ranges: `5m`, `15m`, `1h`, `6h`, `24h`, `7d` — the Grafana time picker set.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ▣ EduMatcher Operator v0.1.0 │ ● OPERATIONAL │ CONTINUOUS · 2026-10-11 │ ⏱ Last 1h ▾ │ ⟳ 1s ▾ │ ☾ │ ⚙ │
+│ ▣ EduMatcher pm-dash v0.1.0 │ ● OPERATIONAL │ CONTINUOUS · 2026-10-11 │ ⏱ Last 1h ▾ │ ⟳ 1s ▾ │ ☾ │ ⚙ │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`TopBar.tsx` follows `book-gui`: wordmark with the application name in the
-orange `--accent`, green `--brand-version`. The status pill takes the
+`TopBar.tsx` follows `book-gui` exactly: an `h-12` `bg-bg-subtle` bar with
+a bottom border, and a monospace wordmark of three spans. `EduMatcher` is
+bold in `text-fg`, the app tag `pm-dash` is in `text-accent` (orange), and
+`v{version}` is in `text-brand-version` (green). The theme toggle uses
+`lucide-react` `Sun`/`Moon`, and settings use the copied `SettingsPopover`.
+The bridge connection shows as `StatusDot` (LIVE / RECONNECTING / OFFLINE)
+on the right, as in book-gui. The status pill takes the
 exchange status colour. A red banner appears under the bar when the bridge
 or `pm-monitor` is unreachable ("pm-monitor down — data frozen at 11:42:05"),
 and all panels dim.
@@ -847,24 +890,44 @@ Same mechanism as `book-gui` and `log-gui`: CSS variables swapped by a
 `.dark` class on `<html>`, dark by default, toggle in the top bar, font-size
 scaling (XS…XXL) via the shared `useFontSizeStore` pattern.
 
-Base tokens (`--bg`, `--bg-subtle`, `--bg-raised`, `--border`, `--fg`,
-`--fg-subtle`, `--accent`, `--brand-version`) are copied from `book-gui`
-unchanged so the apps look like one family.
+Copy `book-gui`'s `index.css` base tokens (`--bg`, `--bg-subtle`,
+`--bg-inset`, `--bg-raised`, `--border`, `--border-strong`,
+`--border-subtle`, `--fg`, `--fg-subtle`, `--fg-faint`, `--accent`,
+`--accent-fg`, `--brand-version`, `--live`, `--offline`, `--zoom`)
+unchanged, together with its `tailwind.config.ts` colour map and
+`fontFamily.mono`, so the apps look like one family. Drop the price tokens
+(`--up*`, `--down*`, `--flash-*`, `--halt*`, `--auction*`); this app has no
+prices.
 
 **Deliberate difference.** `book-gui` reserves green/red for price direction
 only. This app shows no prices, so green/amber/red mean **health**, which is
-the operator convention and Grafana's. New tokens:
+the operator convention and Grafana's. Where the family already has a tone
+for the meaning, the health token **reuses its hex value** (same green as
+`--live`, amber as `--halt`, red as `--offline`, blue as `--auction`), so a
+"healthy" green in dash-gui is the "LIVE" green in book-gui. New tokens:
 
 | Token | Dark | Light | Used for |
 |---|---|---|---|
-| `--ok` | `#73bf69` | `#1a7f37` | HEALTHY, below warn |
-| `--warn` | `#f2cc0c` | `#9a6700` | DEGRADED, warn band |
-| `--crit` | `#f2495c` | `#c8102e` | DEAD / SILENT / critical band |
+| `--ok` | `#26d07c` | `#067647` | HEALTHY, below warn |
+| `--warn` | `#ffb020` | `#8a5a00` | DEGRADED, warn band |
+| `--crit` | `#ff4d5e` | `#c8102e` | DEAD / SILENT / critical band |
 | `--hung` | `#b877d9` | `#8250df` | HUNG (distinct from dead on purpose) |
-| `--missing` | `#8f3b47` | `#82071e` | MISSING |
-| `--stopped` | `#7b8394` | `#808b9c` | STOPPED, no data |
-| `--info` | `#5794f2` | `#0b5fce` | RESTARTED badge, session annotations |
-| `--series-1 … --series-8` | Grafana classic palette: `#7eb26d #eab839 #6ed0e0 #ef843c #e24d42 #1f78c1 #ba43a9 #705da0` | darkened variants with ≥ 4.5:1 contrast on white | Categorical series (processes, participants) |
+| `--missing` | `#e8798a` | `#82071e` | MISSING |
+| `--stopped` | `#8792a6` (= `--fg-subtle`) | `#55606f` (= `--fg-subtle`) | STOPPED, no data |
+| `--info` | `#4d9fff` | `#0b5fce` | RESTARTED badge, session annotations |
+| `--series-1 … --series-8` | Grafana classic palette: `#7eb26d #eab839 #6ed0e0 #ef843c #e24d42 #1f78c1 #ba43a9 #705da0` | darkened variants with ≥ 3:1 contrast on white | Categorical series (processes, participants) |
+
+Contrast rule: every status token is used as text, so it needs ≥ 4.5:1
+against `--bg` and `--bg-subtle` in both themes. All values above meet that;
+the v0.2 `--missing` dark `#8f3b47` (2.7:1) and `--stopped` light
+`#808b9c` (3.5:1) did not. Series colours are lines and areas (WCAG 1.4.11
+non-text), so ≥ 3:1. Never use a series colour for text.
+
+Tailwind: book-gui's config already declares `ok`, `error` and `warning` as
+*aliases* (`var(--up)`, `var(--down)`, `var(--halt)`). In dash-gui, point
+them at `var(--ok)`, `var(--crit)` and `var(--warn)` rather than adding a
+second set of names. Add `hung`, `missing`, `stopped`, `info` and
+`series-1…8`.
 
 State is never shown by colour alone: every state also has a glyph
 (`● ◐ ◆ ✕ ○`) and a text label, for colour-blind operators and for
@@ -943,11 +1006,14 @@ monitor:
   `config_artifact.SCHEMA_VERSION` goes from **4 to 5**, and every deployed
   artifact must be recompiled with `pm-config-deploy` (an old one is refused
   with the existing "redeploy" error — no compatibility path).
-- Validation: `cverifier` layer 2 schema (next free codes **S122+**, plus the
+- Validation: `cverifier` layer 2 schema (next free codes **S124+**; S122
+  and S123 are taken; plus the
   key set in `_PROCESS_BLOCK_KEYS` that drives S121 "unknown key") and layer 3
   semantics (next free codes **M029+**): `warn` < `crit`, except
   `disk_free_pct` where `warn` > `crit`; `hung_after_sec > beacon_interval_sec`;
-  ports not colliding with `gateway_ports.py`. `pm-config-show` gets a
+  ports not colliding with any listener in `gateway_ports.py`, including its
+  `FIXED_LISTENERS` (engine, index, market-sim and the 5561–5564 health REP
+  sockets, F22). `pm-config-show` gets a
   MONITORING panel and `monitor` joins `extract.KNOWN_TOP_LEVEL`;
   `config-gui` support is a follow-up (§19.3).
 - `gateway_ports.py` gains the two listeners so `pm-config-show` and the
@@ -977,7 +1043,11 @@ Following the `web-apps/README.md` numbering scheme with **N = 5**:
 | Dev bridge | `5195` |
 | `pm-monitor` PULL / PUB | `5610` / `5611` |
 
-All verified unused in `src/`, `deployment/` and `web-apps/` on 2026-10-11.
+All verified unused in `src/`, `deployment/` and `web-apps/` (re-checked
+2026-10-18). Nearby fixed ports that are easy to miss: 5561–5564 are the
+recorders' health REP sockets (F22). The Dockerfile `EXPOSE`s 5555–5565,
+5570, 5580, 5590, 5600–5602, 8080, 8081 and 22, and gains `5610 5611` like
+the log server's 5601/5602 (B5.3).
 
 ### 15.2 Packaging
 
@@ -991,11 +1061,18 @@ All verified unused in `src/`, `deployment/` and `web-apps/` on 2026-10-11.
 - The bridge binds `127.0.0.1` by default; compose publishes it as
   `${BIND_ADDR:-127.0.0.1}:8095`, like every other GUI.
 - `deployment/docker/compose.guis.yaml`: new `dash-gui` service
-  (`MONITOR_HOST: edumatcher`, `./data` read-only at `/backend-data`).
-- `deployment/docker/entrypoint.sh` and `emo` built-in profiles: start
-  `pm-monitor` right after `pm-log-srv` (so it is up before the engine and
-  sees the engine's first beacon), with `tcp: "127.0.0.1:5610"`. Added to
-  `default` and `mini`; not to `micro`.
+  (`MONITOR_HOST: edumatcher`, `./data` read-only at `/backend-data` with
+  `:ro,z` so SELinux hosts can read it, as in `deployment/curl`).
+- `emo` built-in profiles: start `pm-monitor` right after `pm-log-srv` (so
+  it is up before the engine and sees the engine's first beacon), with
+  `tcp: "127.0.0.1:5610"`. Add it to `DEFAULT_PROCESSES` and
+  `MINI_PROCESSES`, not to `MICRO_PROCESSES`. `MM_DEMO_PROCESSES`,
+  `AI_SWARM_PROCESSES` and `AI_SIM_PROCESSES` all start with
+  `*DEFAULT_PROCESSES`, so they inherit it. That covers every container
+  default: `EM_PROFILE=default` in `deployment/docker`, `mm-demo` in
+  `deployment/curl`, and `ai-sim` in the `edumatcher-ai-sim` image.
+  `entrypoint.sh` needs no change; it only runs
+  `pm-opctl-cli start "${PROFILE}"`.
 - Container reachability: `pm-monitor` resolves its bind host with
   `edumatcher.config.resolve_gateway_bind_host(cfg.bind_address)`, so the
   `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` that `deployment/docker/compose.yaml`
@@ -1005,7 +1082,22 @@ All verified unused in `src/`, `deployment/` and `web-apps/` on 2026-10-11.
 - `web-apps/Makefile`: `up-dash` / `down-dash` / `logs-dash`, and the app in
   `up`/`down`.
 - `web-apps/README.md`: new row in the app table and the dependency table.
-- GHCR publishing workflow: the sixth image (follow-up, as for `book-gui`).
+- `deployment/docker/compose.ai-sim.yaml`, `deployment/curl/compose.yaml`
+  and `deployment/curl/compose.ai-sim.yaml`: a `dash-gui` service pulling
+  `ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-dash-gui:${EM_VERSION:-latest}`,
+  with container names `edumatcher-dash-gui` / `edumatcher-sim-dash-gui`,
+  `MONITOR_HOST` set to the backend service, and `./data:/backend-data:ro,z`.
+  `deployment/curl/edumatcher.sh` adds the container to both `CONTAINERS`
+  lists and prints its URL (`DASH_GUI_PORT`, default 8095); `install.sh` and
+  `deployment/curl/README.md` list it (E1.4).
+- `.github/workflows/publish-images.yml`: the seventh matrix entry
+  `edumatcher-dash-gui` (context `web-apps/dash-gui`). It already publishes
+  the other five GUIs, and the curl stack pulls from GHCR, so without this
+  the curl stack cannot start (E1.5).
+- `scripts/mkbld.sh`: add `dash` to the
+  `for app in trader terminal log config book` loop that writes each
+  `apps/web/src/version.json`. The `web-apps/*` npm test step picks the new
+  directory up by itself (E1.6).
 - `pyproject.toml`: `psutil` under `[tool.poetry.dependencies]`;
   `types-psutil` under the dev group (mypy runs `strict = true`, and psutil
   ships no inline types); `pm-monitor` under `[tool.poetry.scripts]`.
@@ -1093,7 +1185,7 @@ commit message per WP.
 | F7 | `pm-stats` and `pm-audit` do all work in a receive thread; the main thread only `join()`s it. `pm-stats` writes inline (no writer queue) | `stats/main.py:1687,1851`, `audit/main.py:384` | Tick from `_receive_loop`; no `stats.writer_queue` (A6) |
 | F8 | `pm-scheduler` sleeps in chunks of up to `WALLCLOCK_RECHECK_SEC` = 30 s | `scheduler/main.py:_sleep_until_wallclock` | Would always read as HUNG; tick inside the chunk loop with 1 s chunks (A6) |
 | F9 | `entrypoint.sh:open_gateway_binds()` no longer exists; listeners open via `EDUMATCHER_GATEWAY_BIND_HOST` + `config.resolve_gateway_bind_host()` | `config.py:130`, `deployment/docker/compose.yaml:43` | `pm-monitor` binds through `resolve_gateway_bind_host()` (B1, B5) |
-| F10 | `EngineClient.dropped_events` is a `dict[str, int]` keyed by sink | `api_gateway/engine_client.py:133,596` | Label `sink` (A5) |
+| F10 | `EngineClient.dropped_events` is a read-only property returning a `dict[str, int]` copy keyed by sink | `api_gateway/engine_client.py:133,596` | Label `sink` (A5) |
 | F11 | Engine books live in `self.books` (public); `_halted_symbols` is `dict[str, bool]`; total fills already counted in `self._fills_published`; every trade goes through `_publish_trade` | `engine/main.py:449,491,459,3000` | Increment sites fixed (A4) |
 | F12 | mypy runs `strict = true`; psutil ships no types | `pyproject.toml [tool.mypy]` | `types-psutil` dev dependency (A2) |
 | F13 | Engine unit tests build `Engine` through `tests/engine_harness.py:make_engine` with a `FakeSock`; handlers are called directly | `tests/engine_harness.py:33,112` | Reporter created in `main()`, not `__init__`; metrics testable with the harness (A4) |
@@ -1101,10 +1193,13 @@ commit message per WP.
 | F15 | `book-gui`'s bridge has neither ZeroMQ nor SQLite; `log-gui`'s has both (`zeromq ^6.1.2`, `node:sqlite` `DatabaseSync` read-only), image `node:22-slim` | `web-apps/log-gui/apps/bridge/src/lalf-ps-uplink.ts`, `log-db.ts` | Copy those two files' patterns, not book-gui's uplink (C2) |
 | F16 | `_run_maintenance()` runs a tuple of flushes, each guarded and reported as `MAINTENANCE_FLUSH` diagnostic on failure | `engine/main.py:6650` | Engine metrics assembled in a new `_flush_metrics` entry (A4) |
 | F17 | The 32 bundled `engine_config.yaml` are generated by `pm-config-gen` (`docs/examples/ref_data/*/mkrefdata.sh`); none authors `log_server` | `docs/examples/ref_data/` | No example change (A3) |
-| F18 | cverifier: last codes S121 and M028; S121 is driven by `_PROCESS_BLOCK_KEYS`, which `tests/test_cverifier.py` pins to the loader dataclasses; `config_show/extract.py:KNOWN_TOP_LEVEL` decides "UNRECOGNISED TOP-LEVEL KEYS" | `cverifier/layer2_schema.py:2716`, `config_show/extract.py:49` | New codes start at S122 / M029 (A3) |
+| F18 | cverifier: last codes S123 and M028 (S122/S123 were added after v0.2 of this plan); S121 is driven by `_PROCESS_BLOCK_KEYS`, which `tests/test_cverifier.py` pins to the loader dataclasses; `config_show/extract.py:KNOWN_TOP_LEVEL` decides "UNRECOGNISED TOP-LEVEL KEYS" | `cverifier/layer2_schema.py:1972,2006,2750`, `config_show/extract.py:49` | New codes start at S124 / M029 (A3) |
 | F19 | Adding a `CompiledConfig` field changes the artifact shape; `SCHEMA_VERSION = 4` | `config_artifact.py:53` | Bump to 5; redeploy required (A3) |
-| F20 | `pm-opctl-cli` exposes `load_profiles()`, `read_active_profile()`, `matches_command()`; built-in lists `DEFAULT_PROCESSES` / `MINI_PROCESSES` / `MICRO_PROCESSES` | `emo/cli.py` | Reused by `pm-monitor` roster (B2) and extended (B5) |
-| F21 | No exchange-wide session timezone: `pm-stats`/`pm-clearing` take `--timezone` (default UTC); helpers in `stats/trading_day.py` | `stats/main.py:2064` | `pm-monitor --timezone`, same default (B3) |
+| F20 | `pm-opctl-cli` exposes `load_profiles()`, `read_active_profile()`, `matches_command()`; built-in lists `DEFAULT_PROCESSES` / `MICRO_PROCESSES` / `MINI_PROCESSES` / `MM_DEMO_PROCESSES` / `AI_SWARM_PROCESSES` / `AI_SIM_PROCESSES`; the last three start with `*DEFAULT_PROCESSES` | `emo/cli.py:172–411` | Reused by `pm-monitor` roster (B2) and extended (B5) |
+| F21 | The exchange session timezone is `engine.locale.session_timezone` (v0.50.0, default `Europe/Stockholm`). `pm-stats` and `pm-clearing` read it from the compiled config (no `--timezone` flag) and pin it in their store's meta table; helpers in `stats/trading_day.py` | `engine/config_loader.py:74`, `stats/main.py:2384`, `clearing/main.py:1100` | `pm-monitor` resolves it the same way, with no CLI flag, and pins it in `metrics.db` (B1, B3, B4) |
+| F22 | `pm-stats`, `pm-audit`, `pm-clearing` and `pm-index` bind a REP socket that their receive loop answers (5561–5564, env-overridable); `*-cli health` pings it and `pm-opctl-cli` uses that as `healthcheck` | `healthcheck.py`, `config.py:116–150` | Listed in §4 and recorded as `FIXED_LISTENERS` in `gateway_ports.py`. M018 checks configured listeners against each other and against `resolved_fixed_listeners()`, so registering the monitor ports (A3.5) is enough. Beacons do not replace them; the CLI health commands stay |
+| F23 | The released stack is `deployment/curl` (GHCR images, `edumatcher.sh` with fixed `CONTAINERS` lists). `publish-images.yml` already publishes all five GUIs; both stacks mount `./data` with `:ro,z` for SELinux (except the older `deployment/docker/compose.guis.yaml`) | `deployment/curl/*`, `.github/workflows/publish-images.yml:34–57` | dash-gui added to both stacks and the workflow (E1.4, E1.5) |
+| F24 | `scripts/mkbld.sh` writes each GUI's `version.json` from a hard-coded app list | `scripts/mkbld.sh:384` | Add `dash` (E1.6) |
 
 ### 18.2 Overview
 
@@ -1132,10 +1227,10 @@ commit message per WP.
 | D3 | Dashboard rows 1–7 | C2, D2 | 2 d |
 | D4 | Drawers and deep links | D3 | 1 d |
 | **Phase E — integration and docs** | | | |
-| E1 | Compose, Makefiles, READMEs | C1, B5 | 0.5 d |
+| E1 | Compose (docker + curl stacks), GHCR workflow, `mkbld.sh`, Makefiles, READMEs | C1, B5 | 1 d |
 | E2 | Operator-guide chapter and reference docs | D4, A3 | 1 d |
 | E3 | End-to-end scenarios | all | 1.5 d |
-| | **Total** | | **≈ 31 d** |
+| | **Total** | | **≈ 31.5 d** |
 
 The estimate grew from 27 d (v0.1.0) because the reject funnel (F4), the
 scheduler sleep change (F8) and the config-artifact version bump (F19) are
@@ -1301,8 +1396,6 @@ same shape as `log_server` (§14).
 **Depends on:** —
 
 **Might change if:**
-- A config-level exchange session timezone is introduced elsewhere (F21) —
-  then `monitor` would read it instead of a CLI flag.
 - The open question on threshold configurability is answered "fixed in
   code": then `thresholds` is dropped from the schema (fewer keys is better).
 - Another WP in flight bumps `SCHEMA_VERSION` first — coordinate; there must
@@ -1327,7 +1420,7 @@ same shape as `log_server` (§14).
   version-4 artifact is refused with the existing "redeploy with
   pm-config-deploy" error (`tests/test_config_artifact.py`).
 - **A3.3** cverifier layer 2: `_check_monitor(raw, results)` registered in
-  the list at `layer2_schema.py:53–73`, codes **S122–S12x** (types, port
+  the list at `layer2_schema.py:53–73`, codes **S124–S12x** (types, port
   range, positive intervals, threshold mapping shape), and
   `"monitor": frozenset({...})` in `_PROCESS_BLOCK_KEYS` so S121 reports a
   misspelt key. Finish with the same "run the runtime validator too" step
@@ -1336,8 +1429,12 @@ same shape as `log_server` (§14).
   `_PROCESS_BLOCK_KEYS` to the dataclass fields passes.
 - **A3.4** cverifier layer 3: codes **M029+** — `warn < crit` (inverted
   for `disk_free_pct`), `hung_after_sec > beacon_interval_sec`, PULL/PUB ports
-  distinct and not colliding with any other configured listener. *Verify
-  with tests that* each rule fires and a valid config produces no M029+.
+  distinct. Collisions with other configured listeners and with
+  `gateway_ports.resolved_fixed_listeners()` (engine 5555–5557, index
+  5558/5559, health REP 5561–5564; F22) come from M018 once A3.5 registers
+  the ports. *Verify with tests that* each rule fires,
+  `monitor.pull_port: 5561` is reported as M018, and a valid config produces
+  no M029+.
 - **A3.5** `gateway_ports.py`: two `ExtraPortSpec` entries for 5610/5611
   under a `monitor` spec. *Verify with tests that* the existing port-collision
   test sees them (configure `monitor.pull_port: 5600` → collision reported).
@@ -1619,12 +1716,17 @@ health rules, rates or persistence yet).
 
 **Tasks:**
 - **B1.1** `src/edumatcher/monitor/main.py`: argparse (`--version` via
-  `add_version_argument`, `--log-level`, `--timezone` default `UTC`), logging
-  through `resolve_handler` with `client_name="pm-monitor"`, load
-  `MonitorConfig`; exit 2 with a clear message when `enabled` is false.
-  Register `pm-monitor = "edumatcher.monitor.main:main"` in `pyproject.toml`.
-  *Verify with tests that* `pm-monitor --version` works and
-  `enabled: false` exits non-zero with the message.
+  `add_version_argument`, `--log-level`, `--verbose` as in `pm-stats`),
+  logging through `resolve_handler` with `client_name="pm-monitor"`, load
+  `MonitorConfig`, and resolve the session timezone from
+  `compiled.engine.locale.session_timezone` (fallback
+  `DEFAULT_SESSION_TIMEZONE`, `parser.error` on an unknown name, exactly as
+  `stats/main.py` does; F21). Exit 2 with a clear message when `enabled` is
+  false. Register `pm-monitor = "edumatcher.monitor.main:main"` in
+  `pyproject.toml`. *Verify with tests that* `pm-monitor --version` works,
+  `enabled: false` exits non-zero with the message, and an artifact with
+  `locale.session_timezone: America/New_York` is the timezone logged at
+  INFO.
 - **B1.2** Sockets: `PULL` bound to
   `tcp://{resolve_gateway_bind_host(cfg.bind_address)}:{pull_port}`, `PUB`
   on `pub_port` (F9); `zmq.Poller` loop with a 200 ms timeout. *Verify with
@@ -1712,7 +1814,7 @@ lifecycle events (§9.2), sample the host (§8.1) and evaluate thresholds
   the snapshot may be.
 - The session-open definition for "avg per hour" is disputed: today it is
   the first `session.state` broadcast out of `CLOSED` on the trading date,
-  else midnight in `--timezone`.
+  else midnight in the session timezone.
 
 **Tasks:**
 - **B3.1** `monitor/rates.py`: per `(source, name, label)` keep last value;
@@ -1751,8 +1853,9 @@ plausible rates in the snapshot and a disconnect appears as an event.
 **Watch out for:**
 - The engine bus carries everything; subscribe to the listed prefixes only,
   or `pm-monitor` decodes every book snapshot.
-- `--timezone` must match `pm-stats` (F21) or "orders today" and the stats
-  daily rollup disagree near midnight. Log the chosen timezone at INFO.
+- The session timezone must come from the compiled config, as `pm-stats`
+  does (F21); a separate flag would let "orders today" and the stats daily
+  rollup disagree near midnight. Log the resolved timezone at INFO.
 
 ---
 
@@ -1801,14 +1904,17 @@ from samples_1m'` is non-zero and retention keeps the file bounded.
 - The bridge opens the file read-only while `pm-monitor` writes: WAL is
   required, and long-running write transactions block nothing only in WAL.
 - Use UTC ISO-8601 with milliseconds for `ts`, like every other EduMatcher
-  store; trading dates in `daily_totals` use `--timezone`.
+  store; trading dates in `daily_totals` use the session timezone. Pin it in
+  a `meta` row on first open and refuse a mismatch with the same message
+  shape as `pm-stats`' `stats_meta` check (F21). Otherwise a
+  `locale.session_timezone` change silently re-buckets history.
 
 ---
 
 ### WP-B5 — Start-up integration
 
-**Objective:** `pm-monitor` starts automatically with the `default` and
-`mini` profiles and in the container.
+**Objective:** `pm-monitor` starts automatically with every built-in
+profile except `micro`, and so in every container image.
 
 **Depends on:** B1.
 
@@ -1820,15 +1926,20 @@ from samples_1m'` is non-zero and retention keeps the file bounded.
 - **B5.1** `emo/cli.py`: insert
   `{"name": "monitor", "command": ["pm-monitor", "--verbose"], "tcp": "127.0.0.1:5610"}`
   directly after `log` in `DEFAULT_PROCESSES` and `MINI_PROCESSES`; not in
-  `MICRO_PROCESSES`. *Verify with tests that* `pm-opctl-cli init` writes the
-  entry and `start mini` launches it (existing emo tests, extended).
+  `MICRO_PROCESSES`. `mm-demo`, `ai-swarm` and `ai-sim` inherit it through
+  `*DEFAULT_PROCESSES` (F20). *Verify with tests that* `pm-opctl-cli init`
+  writes the entry, `start mini` launches it, and every built-in profile
+  except `micro` contains exactly one `pm-monitor` entry (existing emo tests,
+  extended).
 - **B5.2** Container: confirm `EDUMATCHER_GATEWAY_BIND_HOST` reaches
   `pm-monitor` (it inherits the environment from `pm-opctl-cli`). *Verify
   with tests that* inside the container `ss -ltn` (or
   `python -c "import psutil; ..."`) shows `0.0.0.0:5610/5611` — part of E3.
-- **B5.3** Expose 5610/5611 in `deployment/docker/compose.yaml` only if the
-  host needs them (the GUIs reach the backend on the compose network, so by
-  default **do not** publish them). Document the decision in the compose
+- **B5.3** Add `5610 5611` to the `EXPOSE` line in
+  `deployment/docker/Dockerfile` (documentation, like 5601/5602). Do **not**
+  publish them in any compose file; the GUIs reach the backend on the compose
+  network. Users who want them on the host use the existing `compose.zmq.yaml`
+  overlay pattern, which is a follow-up. Document the decision in the compose
   comment. *Verify with tests that* `make up-all` works without publishing.
 
 **Tests:** `tests/test_emo_cli.py` (extended).
@@ -1951,12 +2062,16 @@ font-size settings, disconnected banner.
   AppShell/TopBar/font-size store come from there instead of a copy.
 
 **Tasks:**
-- **D1.1** `index.css`: book-gui's base tokens unchanged plus the health and
-  series tokens of §12.5 for both themes. *Verify with tests that* a
-  contrast test computes ≥ 4.5:1 for every `--series-*` and status token
-  against `--bg` in both themes.
-- **D1.2** `TopBar.tsx`: wordmark "EduMatcher Operator", version, status pill
-  (colour + glyph + text), session badge. *Verify with tests that* each
+- **D1.1** `index.css` and `tailwind.config.ts`: book-gui's base tokens and
+  colour map, plus the health and series tokens and the re-pointed
+  `ok`/`warning`/`error` aliases of §12.5, for both themes. *Verify with
+  tests that* a contrast test computes ≥ 4.5:1 for every status token and
+  ≥ 3:1 for every `--series-*` token against `--bg` and `--bg-subtle` in both
+  themes.
+- **D1.2** `TopBar.tsx`: wordmark `EduMatcher` / `pm-dash` / `v{version}`
+  in the book-gui spans and classes (§12.2), status pill
+  (colour + glyph + text), session badge, `StatusDot` for the bridge
+  connection. *Verify with tests that* each
   exchange status renders its text and glyph (not colour only).
 - **D1.3** `TimePicker.tsx` + URL sync (`?from=now-1h`), refresh selector;
   state in `useDashStore`. *Verify with tests that* choosing 6 h updates the
@@ -2102,34 +2217,62 @@ with routes (§12.4).
 
 ### WP-E1 — Compose, Makefiles, READMEs
 
-**Objective:** `dash-gui` starts with the rest of the stack and is
-documented where the other apps are.
+**Objective:** `dash-gui` starts with the rest of the stack in both
+deployments (`deployment/docker` and the released `deployment/curl`), is
+published to GHCR, and is documented where the other apps are.
 
 **Depends on:** C1, B5.
 
 **Might change if:**
-- The GHCR publishing workflow is extended in the same release — then the
-  image is added there too (currently a follow-up, §19.3).
+- `deployment/docker/compose.guis.yaml` gets `:z` on its existing
+  `log-gui` mount in other work. dash-gui uses `:ro,z` either way.
 
 **Tasks:**
 - **E1.1** `deployment/docker/compose.guis.yaml`: `dash-gui` service
   (`MONITOR_HOST: edumatcher`, `MONITOR_PUB_PORT: "5611"`,
-  `METRICS_DB_PATH: /backend-data/metrics.db`, `./data` read-only at
-  `/backend-data`, port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`).
+  `METRICS_DB_PATH: /backend-data/metrics.db`, `./data:/backend-data:ro,z`,
+  port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`).
   *Verify with tests that* `make up-all` starts it and `make down-all`
   removes it.
 - **E1.2** `web-apps/Makefile`: `up-dash`, `down-dash`, `logs-dash`; include
-  in `up`/`down`/`ps`; header comment "five GUIs". *Verify with tests that*
-  `make -n up` lists dash-gui.
+  in `up`/`down`/`ps`; header comment "five GUIs" becomes "six GUIs".
+  *Verify with tests that* `make -n up` lists dash-gui.
 - **E1.3** `web-apps/README.md`: app table row (`dash-gui`, `pm-dash`,
   8195/5195, 8095) and dependency table (`pm-monitor` required, `metrics.db`
   read-only). `web-apps/dash-gui/README.md` from book-gui's template.
   *Verify with tests that* the docs build (`make -C docs` or mkdocs) has no
   broken links.
+- **E1.4** Released and simulation stacks (F23):
+  - Add a `dash-gui` service to `deployment/curl/compose.yaml`,
+    `deployment/curl/compose.ai-sim.yaml` and
+    `deployment/docker/compose.ai-sim.yaml`, modelled on each file's
+    `log-gui` service.
+  - Use the GHCR image, container name `edumatcher-dash-gui` /
+    `edumatcher-sim-dash-gui`, `MONITOR_HOST` set to the backend service
+    name, `./data:/backend-data:ro,z`, and port
+    `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`.
+  - `deployment/curl/edumatcher.sh`: add the container to both `CONTAINERS`
+    lists (normal and `--sim`) and an "Operator Dashboard" line to the URL
+    listing.
+  - `install.sh` and `deployment/curl/README.md`: list the new GUI.
+
+  *Verify with tests that* `./edumatcher.sh up` and `./edumatcher.sh --sim
+  up` on a fresh install directory start it, `./edumatcher.sh status` lists
+  it, and on an SELinux-enforcing Linux host the bridge can open
+  `metrics.db`.
+- **E1.5** `.github/workflows/publish-images.yml`: add
+  `edumatcher-dash-gui` (context `web-apps/dash-gui`) to the build matrix and
+  to the summary list. *Verify with tests that* a `workflow_dispatch` run
+  pushes the image, or that `act`/a dry review shows the new matrix leg.
+- **E1.6** `scripts/mkbld.sh`: add `dash` to the `version.json` loop
+  (`for app in trader terminal log config book dash`; F24). *Verify with
+  tests that* `scripts/mkbld.sh` writes
+  `web-apps/dash-gui/apps/web/src/version.json` with the project version.
 
 **Tests:** manual + E3.
 
-**Done when:** a clean `make up-all` shows the dashboard on 8095 with data.
+**Done when:** a clean `make up-all` shows the dashboard on 8095 with data,
+and so does a fresh `deployment/curl` install pulling the published image.
 
 **Watch out for:**
 - The deployment collision trap (project memory): `deployment/docker` and
@@ -2159,7 +2302,7 @@ documents the `monitor` block and the new messages.
   book builds and the chapter is in its `SUMMARY`/index.
 - **E2.2** `docs/books/reference-manual/part-3-configuration/010-schema-and-process-blocks.md`
   and `030-formal-specification.md`: the `monitor` block (every key,
-  default, validation code S122+/M029+). *Verify with tests that* the
+  default, validation code S124+/M029+). *Verify with tests that* the
   documented defaults equal `MonitorConfig()` (a doc test that parses the
   table, if the book already has one for `log_server`; otherwise review).
 - **E2.3** `pm-help`/`pm-man` entry for `pm-monitor` in
@@ -2233,7 +2376,7 @@ processes (skipped unless `-m e2e`).
 | K1 | Counter increments on the engine hot path cost throughput | Plain `dict[str,int]` `+=` keyed by already-interned gateway ids; latency ring writes one int; percentiles computed once per interval. Gate on `test_max_tps` (≤ 2 % regression) in A4 |
 | K2 | `psutil` sampling in a thread contends for the GIL | One sample every 2 s, ~50 µs; negligible. `cpu_percent(None)` is non-blocking |
 | K3 | Book memory estimate is wrong | Measured constants with a guard test (§8.3); labelled "est." in the UI |
-| K4 | Label cardinality explodes (participants × metrics) | Labels are only configured gateways and symbols — bounded by config. `pm-monitor` rejects samples whose label is unknown to the compiled config and counts them (`monitor.rejected_samples`) |
+| K4 | Label cardinality explodes (participants × metrics) | `gateway` and `symbol` labels are bounded by the compiled config: `pm-monitor` rejects samples whose `gateway`/`symbol` label is unknown to it and counts them (`monitor.rejected_samples`). The other labels (`sink`, `reason`, `component`, process key) are closed sets fixed in code, so they are checked against those sets, not the config |
 | K5 | `metrics.db` grows large | 10 s raw resolution, short raw retention, measured in B4 |
 | K6 | Clock skew between hosts | `pm-monitor` stamps samples with its **receive** time; sender `started_at_ns` only used for uptime |
 | K7 | The loopback-bind trap hides `pm-monitor` from the bridge container | `pm-monitor` resolves its bind host through `resolve_gateway_bind_host()`, so the `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` that `compose.yaml` already sets opens it like every gateway (B5, F9); verified inside the container with `ss -ltn`, not from the host |
@@ -2252,7 +2395,7 @@ processes (skipped unless `-m e2e`).
 ### 19.3 Follow-ups (not in this plan)
 
 - `config-gui` editor for the `monitor` section.
-- GHCR publishing of the `dash-gui` image.
+- Publishing 5610/5611 to the host in the `compose.zmq.yaml` overlays.
 - `pm-opctl-cli` integration (Q4).
 - Optional Prometheus text exposition from `pm-monitor` for users who do run
   Grafana — trivial once `pm-monitor` exists, deliberately not done now.
