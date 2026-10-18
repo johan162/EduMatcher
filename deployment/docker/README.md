@@ -222,6 +222,11 @@ make up-all                        # recreate the containers whose image changed
 make up-all BUILD=1 GUI=log-gui    # both steps in one
 ```
 
+`log-gui` is the one web app with the Python package inside (its Diagnostics
+view runs `pm-log-cli`). Rebuilding it builds a wheel from this checkout into
+`web-apps/log-gui/.wheel/`, as `make build` does for the backend; `PYPI=1` or
+`VERSION=x.y.z` installs a PyPI release instead.
+
 For the day-to-day inner loop — running a web app on your machine with hot
 reload against this container stack — see
 [The Development Loop](../../docs/books/architecture-and-development/part-4-developing/020-development-workflow.md) and
@@ -516,8 +521,9 @@ you see it.
 ## Publishing images by hand
 
 Releases publish images from `.github/workflows/publish-images.yml`, which
-builds each of the six natively on amd64 and arm64 and joins them into one
-manifest list. `make ghcr-push` is the escape hatch for when that workflow
+builds all seven images (the exchange, `edumatcher-ai-sim` and the five web
+GUIs) natively on amd64 and arm64 and joins each pair into one manifest list.
+`make ghcr-push` is the escape hatch for when that workflow
 cannot run — a registry outage, a fork without Actions, or an image you want in
 someone's hands before a release exists.
 
@@ -544,8 +550,8 @@ merely stuck rather than unavailable, re-run it instead:
 gh workflow run publish-images.yml -f tag=v0.20.6
 ```
 
-A newly created GHCR package is **private**. Until each of the six is made
-public in its package settings, nobody but you can pull them.
+A newly created GHCR package is **private**. Until each package is made public
+in its package settings, nobody but you can pull it.
 
 ## Configuration reference (`.env`)
 
@@ -559,16 +565,17 @@ is git-ignored, so it is the right place for host-specific choices.
 | `WITH_SSH` | `1` | Install `openssh-server` in the image |
 | `EM_CONFIG` | `s10-basic` | Bundled example configuration to deploy |
 | `EM_PROFILE` | `default` | `pm-opctl-cli` profile to start |
-| `TZ` | `UTC` | Container timezone — match your trading calendar |
+| `TZ` | `Europe/Stockholm` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
 | `SSH_PORT` | `2222` | Host port forwarded to sshd |
 | `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` | Host ports for the GUIs started by `make up-all` |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 
-**Timezone matters.** The scheduler runs auctions against a market calendar.
-Leaving `TZ=UTC` is fine and predictable; setting `TZ=Europe/Stockholm` makes
-the container agree with your wall clock.
+**Timezone matters.** The scheduler runs the trading day in the container's
+local time. The default, `Europe/Stockholm`, matches the Swedish calendar the
+bundled examples use; set `TZ` to your own zone if your configuration follows
+another market's hours.
 
 ## Building from PyPI instead of local source
 
@@ -678,11 +685,11 @@ detected; `CONTAINER_ENGINE=docker` forces an engine.
 The health check is a TCP connect to the engine on 5555. If it fails, the
 engine did not start: `make logs`, then `tail data/emo/engine.log`.
 
-**`make health` reports FAIL but everything works.**
-With the stock `default` profile, `index-srv` is probed on `127.0.0.1:5610`
-while `pm-index` actually binds 5558/5559, so that one row is always
-`not responding`. Everything else is a real signal. Fix it for your own setup
-with `pm-opctl-cli init` and correct the `tcp:` line in `data/emo-config.yaml`.
+**`make health` reports FAIL for a process.**
+Each row is that process's own check — a TCP connect, or for `pm-stats`,
+`pm-audit`, `pm-clearing` and `pm-index` their `*-cli health` command. Look at
+`data/emo/<name>.log` for the failing process; `make status` shows whether it
+is running at all.
 
 **A port is already in use on the host.**
 Something else is on 5555–5602 or 8080/8081 — often a `pm-*` process you

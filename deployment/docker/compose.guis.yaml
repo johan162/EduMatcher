@@ -18,6 +18,9 @@ services:
       context: ../../web-apps/log-gui
       dockerfile: Dockerfile
       args:
+        # PyPI release of the bundled pm-log-cli when .wheel/ holds no wheel
+        # (make build-guis PYPI=1 / VERSION=x.y.z); empty = the newest.
+        EDUMATCHER_VERSION: ${EDUMATCHER_VERSION:-}
         NPM_STRICT_SSL:
         HTTP_PROXY:
         HTTPS_PROXY:
