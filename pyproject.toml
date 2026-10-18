@@ -37,6 +37,7 @@ fastapi = ">=0.141.1"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
 holidays = ">=0.103"
 reportlab = ">=4.2"
+psutil = "^7.2.2"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
@@ -52,6 +53,7 @@ flake8 = "^7.3.0"
 black = "^26.5.1"
 shtab = "^1.12.1"
 mypy = "^2.3.1"
+types-psutil = "^7.2.2.20260906"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -119,6 +121,7 @@ markers = [
     # registered -- so under --strict-markers nothing could actually use it.
     "heavy: long-running tests, deselected by default (run with '-m heavy')",
     "real_log_discovery: opt out of the conftest guard that blocks pm-log-srv auto-detection",
+    "real_health_reporter: opt out of the conftest guard that keeps processes from sending health beacons",
 ]
 addopts = [
     "--strict-markers",

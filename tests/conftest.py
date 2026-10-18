@@ -205,6 +205,31 @@ def _no_live_log_server_detection(
 
 
 @pytest.fixture(autouse=True)
+def _no_health_beacons(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep processes under test from beaconing to a real pm-monitor.
+
+    The suite's data directory has no deployed artifact, so the ``monitor``
+    section resolves to its defaults -- enabled, sending to 127.0.0.1:5610.
+    Every test that runs a real process loop would then feed a developer's
+    live pm-monitor, the same trap as ``_no_live_log_server_detection``.
+
+    Tests *about* the reporter opt back in with
+    ``@pytest.mark.real_health_reporter`` and point it at their own port.
+    """
+    if "real_health_reporter" in request.keywords:
+        return
+    from edumatcher.health.reporter import HealthReporter
+
+    monkeypatch.setattr(
+        HealthReporter,
+        "from_compiled_config",
+        classmethod(lambda cls, process, instance=None: None),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _private_clearing_health_endpoint(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:

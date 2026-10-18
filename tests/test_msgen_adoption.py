@@ -39,10 +39,11 @@ ADOPTION_EXCLUSIONS = frozenset({"execution_report"})
 
 #: Messages whose spec has landed but whose producer is a later work package of
 #: the operator dashboard plan (docs-design/EduMatcher-Operator-Dashboard.md):
-#: ``health_beacon`` is built by the HealthReporter (WP-A2), the snapshot and
-#: the event by pm-monitor (WP-B1, WP-B3). Not an exclusion: each entry must be
-#: deleted by the WP that adopts it, which the guard below enforces.
-PENDING_ADOPTION = frozenset({"health_beacon", "health_snapshot", "health_event"})
+#: the snapshot and the event are built by pm-monitor (WP-B1, WP-B3);
+#: ``health_beacon`` left this set in WP-A2 with the HealthReporter. Not an
+#: exclusion: each entry must be deleted by the WP that adopts it, which the
+#: guard below enforces.
+PENDING_ADOPTION = frozenset({"health_snapshot", "health_event"})
 
 
 def _builder_calls() -> set[str]:

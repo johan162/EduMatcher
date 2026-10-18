@@ -20,7 +20,7 @@ before A2).
 |---|---|---|---|---|---|
 | 1 | A1 | Message spec `health.yaml`, transports, publishers, generated code | — | ☑ | 2026-10-18 |
 | 2 | A3 | `monitor` config section end to end (SCHEMA_VERSION 5, cverifier S124+/M029+, config-show, ports) | — | ☑ | 2026-10-18 |
-| 3 | A2 | `edumatcher.health.HealthReporter`, `psutil` | A1, A3 | ☐ | |
+| 3 | A2 | `edumatcher.health.HealthReporter`, `psutil` | A1, A3 | ☑ | 2026-10-19 |
 | 4 | A4 | Engine metrics, reject funnel, book memory estimate, reporter, perf gate | A2 | ☐ | |
 | 5 | A5 | Gateway metrics and reporters (ALF, BALF, MD, RALF, DC, API) | A2 | ☐ | |
 | 6 | A6 | Service metrics and reporters (log-srv, stats, audit, clearing, scheduler, index, market-sim) | A2 | ☐ | |
@@ -73,4 +73,10 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I15 | A3 | Would deferring config-gui support (§19.3) lose a `monitor:` block on save? | No: config-gui's yaml-codec keeps unknown sections in `unmappedYaml` and re-emits them. Deferral is safe. |
 | I16 | A3 | `log_server`'s loader uses `bool(...)` on `enabled`, so a quoted `"false"` reads as True (only S096 at verify time stops it). | `monitor` loader is strict (`must be true or false`). log_server left alone (out of scope). |
 | I17 | A3 | CHANGELOG has no Unreleased section; entries are written at release. | Breaking change (SCHEMA_VERSION 5 → redeploy) stated in the A3 commit message; CHANGELOG entry in E2.4. Verified a v4 artifact is refused with "redeploy with pm-config-deploy". |
+| I18 | A2 | `psutil` was not installed at all; the design's "already a transitive dev dependency" (§3) was stale. `poetry.lock` is git-ignored in this repo, so only `pyproject.toml` records the change. | `psutil ^7.2.2` (runtime) and `types-psutil` (dev) added. Container installs the wheel via pip, which resolves psutil from PyPI; E3 confirms. |
+| I19 | A2 | With no deployed artifact the monitor section resolves to *enabled* defaults, so once A4–A6 wire reporters, every test running a real process loop would beacon into a developer's live pm-monitor on 5610 (the `pm-log-srv` trap again). | Autouse `_no_health_beacons` in `tests/conftest.py` + `real_health_reporter` marker (registered in `pyproject.toml`); guard pinned by `tests/test_health_guard.py`. Noted in design A4. |
+| I20 | A2 | LINGER 0 (design §7.5) would discard the final beacon, making every clean stop look DEAD. Without `ZMQ_IMMEDIATE`, up to 10 beacons queue for an absent monitor and arrive as a stale burst when it binds. | `stop()` closes with a 500 ms linger (still returns < 1 s with no peer, tested). B1 watch-out added: drain fully, judge by highest `seq` per `boot_id`. |
+| I21 | A2 | Per-sample validation needs its own counter, distinct from dropped beacons. | `health.samples_rejected` added (design §8.6). |
+| I22 | A2 | `tick()` measured at ≈ 160 ns; the engine pays it once per message. | Recorded in design A4 for the ≤ 2 % perf gate; test bound 10 µs (holds under coverage tracing). |
+| I23 | A2 | `started_at_ns` taken from `psutil.Process().create_time()` (process start), not from the reporter's construction, so uptime is right even when a process wires its reporter late. | — |
 | I8 | A1 | `pm-msgen lint` dies with a raw PyYAML traceback on a YAML syntax error (e.g. a `>` block scalar inside a flow mapping) instead of a `SpecError` naming the file. | Follow-up, out of scope for this plan. |

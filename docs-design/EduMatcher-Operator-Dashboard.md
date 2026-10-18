@@ -548,7 +548,10 @@ stop the circuit-breaker timers behind it.
 ### 8.6 Every process — supplied by `HealthReporter`
 
 `health.beacons_dropped` (C), `health.gc_gen2` (C, `gc.get_stats()[2]["collections"]`
-— long gen-2 pauses show up as `loop_lag_ms` spikes, and this shows why).
+— long gen-2 pauses show up as `loop_lag_ms` spikes, and this shows why),
+`health.samples_rejected` (C, added in A2: application samples dropped in the
+sampler thread because they failed spec validation, e.g. a label over 32
+characters — the beacon itself still goes out).
 
 ## 9. `pm-monitor` — the collector
 
@@ -1378,7 +1381,9 @@ in the compiled artifact for host/port/interval).
   calling `tick()` for 3 s, beacons keep arriving and `loop_age_ms` grows
   past 2 900; when ticks resume, it drops below 100.
 - **A2.6** `stop()` sends one final beacon with `final=True`, joins the
-  thread, closes the socket. *Verify with tests that* the last received
+  thread, closes the socket. *As built:* the socket is closed with a 500 ms
+  linger, because LINGER 0 would discard exactly this beacon and turn every
+  clean shutdown into DEAD; every other beacon still uses LINGER 0. *Verify with tests that* the last received
   beacon has `final=True`.
 - **A2.7** Add `health.beacons_dropped` and `health.gc_gen2` to every beacon
   (§8.6). *Verify with tests that* both are present on the first beacon.
@@ -1605,7 +1610,12 @@ gate passes.
   gateway ids and exceeds the 16 of symbols; a label longer than 32 fails
   validation in the sampler thread (see A2).
 - `perf` tests are skipped in normal CI (`-m perf`), so the gate must be run
-  deliberately.
+  deliberately. Measured in A2: `tick()` costs ≈ 160 ns, paid once per engine
+  message.
+- Tests: `tests/conftest.py:_no_health_beacons` makes
+  `HealthReporter.from_compiled_config` return `None` in every test (no
+  beacons into a developer's live pm-monitor). A test that needs a real
+  reporter uses `@pytest.mark.real_health_reporter` and its own port.
 - Don't use `_dbg_count` for metrics: it only counts at DEBUG level and is
   cleared every summary.
 
@@ -1787,6 +1797,11 @@ processes in a `pm-monitor` snapshot read with a 10-line Python SUB script.
   ages.
 - Bound the number of tracked sources (e.g. 256) so a misconfigured client
   loop cannot grow memory without limit; count rejects.
+- (From A2) A process that beaconed while pm-monitor was down has up to
+  SNDHWM = 10 queued beacons, delivered as a burst when the PULL binds. Drain
+  the PULL completely before evaluating state, and keep the beacon with the
+  highest `seq` per `boot_id`, so a stale `loop_age_ms` from the burst is never
+  judged on its own.
 
 ---
 
