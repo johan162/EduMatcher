@@ -1005,6 +1005,17 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
     assert "#   --snapshot-interval" not in captured.out
 
 
+# pm-config-gen refuses an index whose constituents have no reference price
+# (pm-index could not start on it); it only writes real prices when seeding
+# them from a market-maker midpoint.
+_INDEX_REFERENCE_PRICES = [
+    "--seed-mm-mid-range",
+    "100:400",
+    "--seed-last-prices-from-mm",
+    "--no-mm-seed-quotes",
+]
+
+
 def test_index_section_is_emitted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1019,6 +1030,8 @@ def test_index_section_is_emitted(
             "TSLA",
             "--participants",
             "TRADER01",
+            "MM01:MARKET_MAKER",
+            *_INDEX_REFERENCE_PRICES,
             "--outstanding-shares",
             "AAPL:15000000000",
             "--outstanding-shares",
@@ -1060,6 +1073,8 @@ def test_index_two_indices_emitted(
             "JPM",
             "--participants",
             "TRADER01",
+            "MM01:MARKET_MAKER",
+            *_INDEX_REFERENCE_PRICES,
             "--outstanding-shares",
             "AAPL:15000000000",
             "--outstanding-shares",
@@ -1104,6 +1119,8 @@ def test_index_custom_file_paths(
             "AAPL",
             "--participants",
             "TRADER01",
+            "MM01:MARKET_MAKER",
+            *_INDEX_REFERENCE_PRICES,
             "--outstanding-shares",
             "AAPL:15000000000",
             "--index",
@@ -1135,6 +1152,8 @@ def test_index_default_file_paths_derived_from_id(
             "AAPL",
             "--participants",
             "TRADER01",
+            "MM01:MARKET_MAKER",
+            *_INDEX_REFERENCE_PRICES,
             "--outstanding-shares",
             "AAPL:15000000000",
             "--index",
@@ -1577,3 +1596,70 @@ def test_alf_port_collision_is_warned(
     )
     err = capsys.readouterr().err
     assert "Port collision: alf_gateway" in err and "market_data_gateway" in err
+
+
+def _engine_loader_rejects(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _reject(_path: Path) -> None:
+        raise ValueError("symbols.AAPL.tick_decimals must be an integer")
+
+    monkeypatch.setattr("edumatcher.config_gen.cli.load_engine_config", _reject)
+
+
+@pytest.mark.parametrize("output", ["file", "stdout", "dry-run"])
+def test_config_that_fails_validation_is_never_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    output: str,
+) -> None:
+    """A config pm-engine's own loader rejects is a hard error wherever it
+    would have gone -- not a warning followed by exit 0."""
+    out_file = tmp_path / "engine_config.yaml"
+    destination = {
+        "file": ["--output", str(out_file)],
+        "stdout": [],
+        "dry-run": ["--output", str(out_file), "--dry-run"],
+    }[output]
+    _engine_loader_rejects(monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        _run_main(
+            monkeypatch,
+            ["--symbols", "AAPL", "--participants", "TRADER01", *destination],
+        )
+
+    assert exc.value.code == 2
+    assert not out_file.exists()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert (
+        "[ERROR] Generated config failed validation: "
+        "symbols.AAPL.tick_decimals must be an integer" in captured.err
+    )
+
+
+def test_mm_quote_stub_template_is_written_without_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one deliberate exception: unseeded MM quotes are null placeholders
+    for the operator to fill in, so the template cannot load until then."""
+    out_file = tmp_path / "engine_config.yaml"
+    _engine_loader_rejects(monkeypatch)
+
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--participants",
+            "TRADER01",
+            "MM01:MARKET_MAKER",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    assert out_file.exists()
+    assert "Fill all market_maker_quotes" in capsys.readouterr().err

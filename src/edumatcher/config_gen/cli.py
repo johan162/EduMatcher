@@ -9,7 +9,7 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from dataclasses import replace
 
@@ -1454,9 +1454,38 @@ def _build_api_gateway_specs(
     )
 
 
-def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
+_INDEX_DETAIL_FLAGS = (
+    ("index_constituents", "--index-constituents"),
+    ("index_base_value", "--index-base-value"),
+    ("index_interval", "--index-interval"),
+    ("index_history_file", "--index-history-file"),
+    ("index_state_file", "--index-state-file"),
+)
+
+
+def _reject_repeated_index_flag(flag: str, idx_id: str, seen: dict[str, Any]) -> None:
+    # Each of these flags sets one value per index; a second occurrence for the
+    # same id used to silently replace the first.
+    if idx_id in seen:
+        hint = (
+            "list all of its constituents in one flag, e.g. ID:SYM1,SYM2"
+            if flag == "--index-constituents"
+            else "give each index one value"
+        )
+        raise ValueError(f"{flag} given more than once for index '{idx_id}'; {hint}")
+
+
+def _parse_index_specs(
+    args: argparse.Namespace, outstanding_shares: dict[str, int]
+) -> tuple[IndexSpec, ...]:
     """Parse all --index* flags and return a tuple of IndexSpec objects."""
     if not args.index:
+        stray = [flag for attr, flag in _INDEX_DETAIL_FLAGS if getattr(args, attr)]
+        if stray:
+            raise ValueError(
+                f"{', '.join(stray)} given without --index; define the index "
+                "with --index ID[:DESCRIPTION] first"
+            )
         return ()
 
     allowed_symbols = {s.upper() for s in args.symbols}
@@ -1471,10 +1500,11 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
         idx_id = idx_id_raw.strip().upper()
         if not idx_id:
             raise ValueError(f"Invalid --index '{raw}': id cannot be empty")
-        if not idx_id.replace("_", "").replace("-", "").isalnum():
+        # Letters and digits only: the config verifier (S045) rejects anything
+        # else, and the id becomes part of file names and CALF topics.
+        if not (idx_id.isascii() and idx_id.isalnum()):
             raise ValueError(
-                f"Invalid --index '{raw}': id must be alphanumeric "
-                "(letters, digits, hyphens, underscores)"
+                f"Invalid --index '{raw}': id must contain only letters and digits"
             )
         if idx_id in index_defs:
             raise ValueError(f"Duplicate --index id '{idx_id}'")
@@ -1496,6 +1526,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
             raise ValueError(
                 f"--index-constituents references unknown index '{idx_id}'"
             )
+        _reject_repeated_index_flag("--index-constituents", idx_id, index_constituents)
         syms = [s.strip().upper() for s in syms_raw.split(",") if s.strip()]
         if not syms:
             raise ValueError(
@@ -1506,6 +1537,18 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
                 raise ValueError(
                     f"--index-constituents '{raw}': symbol '{sym}' is not in --symbols"
                 )
+            if sym not in outstanding_shares:
+                raise ValueError(
+                    f"--index-constituents '{raw}': symbol '{sym}' has no "
+                    f"outstanding shares; pm-index weights constituents by market "
+                    f"cap, so add --outstanding-shares {sym}:N"
+                )
+        duplicates = sorted({sym for sym in syms if syms.count(sym) > 1})
+        if duplicates:
+            raise ValueError(
+                f"--index-constituents '{raw}': duplicate symbol(s) "
+                f"{', '.join(duplicates)}"
+            )
         index_constituents[idx_id] = syms
 
     # ── --index-base-value ID:VALUE ──────────────────────────────────────────
@@ -1517,6 +1560,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
         idx_id = idx_id_raw.strip().upper()
         if idx_id not in index_defs:
             raise ValueError(f"--index-base-value references unknown index '{idx_id}'")
+        _reject_repeated_index_flag("--index-base-value", idx_id, index_base_values)
         try:
             value = float(val_raw.strip())
         except ValueError as exc:
@@ -1536,6 +1580,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
         idx_id = idx_id_raw.strip().upper()
         if idx_id not in index_defs:
             raise ValueError(f"--index-interval references unknown index '{idx_id}'")
+        _reject_repeated_index_flag("--index-interval", idx_id, index_intervals)
         try:
             value = float(val_raw.strip())
         except ValueError as exc:
@@ -1557,6 +1602,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
             raise ValueError(
                 f"--index-history-file references unknown index '{idx_id}'"
             )
+        _reject_repeated_index_flag("--index-history-file", idx_id, index_history_files)
         path = path_raw.strip()
         if not path:
             raise ValueError(f"--index-history-file '{raw}': path cannot be empty")
@@ -1571,6 +1617,7 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
         idx_id = idx_id_raw.strip().upper()
         if idx_id not in index_defs:
             raise ValueError(f"--index-state-file references unknown index '{idx_id}'")
+        _reject_repeated_index_flag("--index-state-file", idx_id, index_state_files)
         path = path_raw.strip()
         if not path:
             raise ValueError(f"--index-state-file '{raw}': path cannot be empty")
@@ -1857,28 +1904,51 @@ def _write_output(output_path: Path, content: str, force: bool) -> None:
     output_path.write_text(content, encoding="utf-8")
 
 
-def _validate_generated_when_possible(
-    content: str, skip_validation: bool
-) -> str | None:
-    # With MM stubs bid/ask are null by design, so parser validation is expected to fail.
-    if skip_validation:
-        return None
+def _validate_generated(content: str) -> None:
+    """Load the rendered YAML exactly as pm-engine will, or raise ValueError.
 
+    A config the engine's own loader rejects is never written or printed: it
+    would only move the failure from generation to engine startup, after the
+    file may already have been deployed.
+    """
     with NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
         fh.write(content)
         tmp_path = Path(fh.name)
 
     try:
         load_engine_config(tmp_path)
-    except Exception as exc:  # pragma: no cover - defensive
-        return f"[WARN] Internal validation failed for generated config: {exc}"
+    except Exception as exc:
+        raise ValueError(f"Generated config failed validation: {exc}") from exc
     finally:
         try:
             tmp_path.unlink(missing_ok=True)
         except OSError:
             pass
 
-    return "[INFO] Generated config passed load_engine_config() validation."
+
+def _require_index_reference_prices(config: dict[str, Any]) -> None:
+    """Refuse a config pm-index could not start on.
+
+    pm-index sets each index's initial divisor from its constituents' last
+    prices, and exits at startup if a constituent has neither last_buy_price
+    nor last_sell_price. pm-config-gen only emits real prices when it seeds
+    them from a market-maker midpoint.
+    """
+    symbols = config.get("symbols", {})
+    for idx in config.get("indices", []):
+        missing = [
+            sym
+            for sym in idx["constituents"]
+            if symbols[sym].get("last_buy_price") is None
+            and symbols[sym].get("last_sell_price") is None
+        ]
+        if missing:
+            raise ValueError(
+                f"index '{idx['id']}': constituent(s) {', '.join(missing)} have no "
+                "reference price, so pm-index could not compute the initial divisor. "
+                "Add a MARKET_MAKER participant with --seed-mm-mid-range MIN:MAX "
+                "--seed-last-prices-from-mm"
+            )
 
 
 def main() -> None:
@@ -1898,7 +1968,7 @@ def main() -> None:
             outstanding_shares,
             seed_mm_mid_range,
         ) = _parse_specs(args)
-        indices = _parse_index_specs(args)
+        indices = _parse_index_specs(args, outstanding_shares)
         tick_decimals_by_symbol = _tick_decimals_by_symbol(
             symbols, symbol_overrides, int(args.tick_decimals)
         )
@@ -2036,6 +2106,11 @@ def main() -> None:
         raise SystemExit(1)
 
     config = ConfigBuilder(spec).build()
+    try:
+        _require_index_reference_prices(config)
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
     cmd_line = "pm-config-gen " + " ".join(sys.argv[1:])
     default_config_field_comment_lines = (
         build_default_engine_field_comment_lines(config)
@@ -2055,12 +2130,20 @@ def main() -> None:
     mm_quotes_pending_fill = (
         has_mm_gateway and seed_mm_mid_range is None and not args.no_mm_seed_quotes
     )
-    validation_line = _validate_generated_when_possible(
-        content=rendered,
-        skip_validation=mm_quotes_pending_fill,
-    )
-    if validation_line:
-        print(validation_line, file=sys.stderr)
+    # The one deliberate exception: with MM quote stubs the bid/ask prices are
+    # null placeholders for the operator to fill in, so the template cannot
+    # load until they do (the hint below says so).
+    if not mm_quotes_pending_fill:
+        try:
+            _validate_generated(rendered)
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            print("[ERROR] Nothing was written.", file=sys.stderr)
+            raise SystemExit(2) from exc
+        print(
+            "[INFO] Generated config passed load_engine_config() validation.",
+            file=sys.stderr,
+        )
 
     if args.dry_run or output_path is None:
         print(rendered, end="")

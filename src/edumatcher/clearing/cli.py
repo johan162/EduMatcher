@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from edumatcher.clearing.store import (
-    _require_trade_events_id_primary_key,
+    require_trade_events_id_primary_key,
     open_readonly_connection,
     open_writer_connection as _open_writer,
     prune_old_events,
@@ -776,7 +776,7 @@ def _check_database_health(
         missing = [t for t in _CLEARING_TABLES if t not in present]
         if missing:
             return False, f"missing table(s): {', '.join(missing)}", None
-        _require_trade_events_id_primary_key(conn)
+        require_trade_events_id_primary_key(conn)
         conn.execute("BEGIN")
         conn.execute("CREATE TEMP TABLE pm_clearing_health_check (value INTEGER)")
         conn.execute("INSERT INTO pm_clearing_health_check VALUES (1)")

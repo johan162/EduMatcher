@@ -9,6 +9,7 @@ to the config viewer's list of known top-level sections.
 from __future__ import annotations
 
 import pytest
+import yaml
 
 from edumatcher.config_gen.cli_comments import build_default_engine_field_comment_lines
 from edumatcher.config_show.extract import KNOWN_TOP_LEVEL
@@ -56,3 +57,15 @@ def test_api_gateway_and_log_client_fields_are_shown_and_explained() -> None:
     for key in sorted(layer2_schema._LOG_CLIENT_KEYS):
         assert f"{key}:" in log_shape
         assert f"client.{key}" in log_notes
+
+
+def test_indices_shape_is_a_valid_list_of_index_entries() -> None:
+    """The block is meant to be uncommented as-is; a lost ``- id:`` line made
+    the first entry's fields hang off ``indices:`` and the block unparseable."""
+    entries = yaml.safe_load(_shape("indices"))["indices"]
+    assert isinstance(entries, list) and entries
+    for entry in entries:
+        assert isinstance(entry, dict)
+        assert str(entry.get("id", "")).isalnum(), entry
+        assert entry.get("description"), entry
+        assert entry.get("constituents"), entry

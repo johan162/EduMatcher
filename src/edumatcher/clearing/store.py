@@ -302,7 +302,7 @@ class DailySummaryRow:
 def apply_schema(conn: sqlite3.Connection) -> None:
     """Apply WAL pragmas and create all tables, indexes, and views."""
     conn.executescript(_PRAGMAS)
-    _require_trade_events_id_primary_key(conn)
+    require_trade_events_id_primary_key(conn)
     conn.executescript(SCHEMA)
     _add_column_if_missing(
         conn, "trade_events", "tick_decimals", "INTEGER NOT NULL DEFAULT 2"
@@ -321,7 +321,7 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     )
 
 
-def _require_trade_events_id_primary_key(conn: sqlite3.Connection) -> None:
+def require_trade_events_id_primary_key(conn: sqlite3.Connection) -> None:
     """Reject clearing databases that predate durable trade identity."""
     info = list(conn.execute("PRAGMA table_info(trade_events)"))
     if not info:

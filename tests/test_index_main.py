@@ -416,13 +416,13 @@ def test_run_loop_answers_health_ping_with_utc_timestamp(
     class _FakeReplier(_FakeSocket):
         def __init__(self) -> None:
             super().__init__()
-            self.sent: list[bytes] = []
+            self.replies: list[bytes] = []
 
         def recv(self) -> bytes:
             return b"ping"
 
         def send(self, data: bytes) -> None:
-            self.sent.append(data)
+            self.replies.append(data)
 
     health = _FakeReplier()
 
@@ -449,8 +449,8 @@ def test_run_loop_answers_health_ping_with_utc_timestamp(
     proc.run()
     proc.close()
 
-    assert len(health.sent) == 1
-    assert datetime.fromisoformat(health.sent[0].decode()).tzinfo is not None
+    assert len(health.replies) == 1
+    assert datetime.fromisoformat(health.replies[0].decode()).tzinfo is not None
 
 
 def test_load_state_reset_deletes_file(

@@ -331,6 +331,18 @@ Output and safety options:
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
 | `--comment-default-config-fields` | Flag | off | Add a header comment block listing defaultable `engine_config.yaml` fields currently omitted from the generated file |
 
+Before writing or printing anything, `pm-config-gen` loads the generated YAML
+with the same loader `pm-engine` uses at startup. If that load fails, it prints
+`[ERROR] Generated config failed validation: …`, writes nothing (to the file or
+to stdout, `--dry-run` included) and exits with code `2`, just as it does for
+invalid flags. A file `pm-config-gen` writes therefore always loads.
+
+The one deliberate exception is a `MARKET_MAKER` participant whose quotes are
+not seeded (no `--seed-mm-mid-range` and no `--no-mm-seed-quotes`). The file
+is then a template: `market_maker_quotes` holds `null` bid and ask prices for
+you to fill in, so validation is skipped and `pm-config-gen` prints a hint
+instead. Run `pm-cverifier` on the file once you have filled them in.
+
 Post-trade gateway options:
 
 | Option                                       | Type        | Default                    | Description                                                 |
@@ -498,14 +510,19 @@ Index options:
 
 | Option                                  | Type       | Default         | Description                                                                                 |
 |-----------------------------------------|------------|-----------------|---------------------------------------------------------------------------------------------|
-| `--index ID[:DESCRIPTION]`              | Repeatable | none            | Define an index; `ID` is alphanumeric, `DESCRIPTION` is optional text after the first colon |
+| `--index ID[:DESCRIPTION]`              | Repeatable | none            | Define an index; `ID` is letters and digits, `DESCRIPTION` is optional text after the first colon |
 | `--index-constituents ID:SYM[,SYM,...]` | Repeatable | none            | Set constituent symbols for the named index                                                 |
 | `--index-base-value ID:VALUE`           | Repeatable | `1000.0`        | Override `base_value` for the named index                                                   |
 | `--index-interval ID:SECS`              | Repeatable | `1.0`           | Override `publish_interval_sec` for the named index                                         |
 | `--index-history-file ID:PATH`          | Repeatable | derived from ID | Override `history_file` path; default is `data/indexes/<ID>_history.jsonl`                  |
 | `--index-state-file ID:PATH`            | Repeatable | derived from ID | Override `state_file` path; default is `data/indexes/<ID>_state.json`                       |
 
-Up to 5 indices may be defined. Every constituent symbol must appear in `--symbols`. Every index must have at least one constituent. Each `ID` must be alphanumeric. When `history_file` and `state_file` are omitted, `pm-config-gen` derives them from the index ID under `data/indexes/`.
+Up to 5 indices may be defined. Each `ID` may contain only letters and digits (no hyphens or underscores), and is upper-cased. The other `--index-*` flags are repeatable across indices but take one value per index: give each at most once per `ID`, listing all of an index's constituents in a single `--index-constituents`, and only for an `ID` defined with `--index`. Every index must have at least one constituent, with no symbol listed twice. When `history_file` and `state_file` are omitted, `pm-config-gen` derives them from the index ID under `data/indexes/`.
+
+Every constituent must also be something `pm-index` can price, so `pm-config-gen` refuses a constituent that has:
+
+- no `--outstanding-shares SYM:N`, which `pm-index` needs to weight constituents by market capitalisation;
+- no reference price. `pm-index` sets each index's initial divisor from the constituents' last prices, and `pm-config-gen` only writes real prices when it seeds them from a market-maker midpoint: add a `MARKET_MAKER` participant with `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm`. Add `--no-mm-seed-quotes` as well if the book should still start empty. `--seed-last-prices` only writes `null` placeholders, which is not enough.
 
 When `--api-gateway` is enabled, `pm-config-gen` emits sensible local defaults
 and automatically generates one bearer token for each configured ALF gateway.
@@ -948,10 +965,13 @@ Index calculation config with `pm-index`:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --sessions-enabled \
   --index EDU100:"EduMatcher broad index" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
@@ -979,10 +999,13 @@ With multiple indices and custom settings:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15400000000 \
   --outstanding-shares MSFT:7430000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --index TECH2:"Technology pair" \
   --index-constituents TECH2:AAPL,MSFT \
   --index-base-value TECH2:500.0 \

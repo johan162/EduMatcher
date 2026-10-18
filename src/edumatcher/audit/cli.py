@@ -52,7 +52,7 @@ from edumatcher.audit.indexer import (
     query_index_events,
 )
 from edumatcher.audit.query import (
-    _parse_line,
+    parse_line,
     discover_log_files,
     parse_ts,
     query_events,
@@ -829,7 +829,7 @@ def _check_log_file_health(
         last_line = read_last_line(log_file)
         last_ts: str | None = None
         if last_line is not None:
-            parsed = _parse_line(last_line)
+            parsed = parse_line(last_line)
             if parsed is None:
                 return False, "last audit log entry is malformed", None
             last_ts = parsed[0]

@@ -30,7 +30,7 @@ from edumatcher.audit.indexer import (
 )
 from edumatcher.audit.query import (
     AuditEntry,
-    _parse_line,
+    parse_line,
     _summarise,
     date_to_range,
     discover_log_files,
@@ -261,7 +261,7 @@ class TestDiscoverLogFiles:
 
 class TestParseLine:
     def test_valid_line(self) -> None:
-        result = _parse_line(_LINES[0])
+        result = parse_line(_LINES[0])
         assert result is not None
         ts, topic, payload, meta = result
         assert ts == _TS1
@@ -279,7 +279,7 @@ class TestParseLine:
             "cause=01ARZ3NDEKTSV4RRFFQ69G5FAB chain=01ARZ3NDEKTSV4RRFFQ69G5FAB] "
             '{"order_id": "ORD-001"}'
         )
-        result = _parse_line(line)
+        result = parse_line(line)
         assert result is not None
         _ts, topic, payload, meta = result
 
@@ -291,13 +291,13 @@ class TestParseLine:
         assert meta["chain"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
 
     def test_empty_line_returns_none(self) -> None:
-        assert _parse_line("") is None
+        assert parse_line("") is None
 
     def test_malformed_json_returns_none(self) -> None:
-        assert _parse_line(f"[{_TS1}] [order.new] {{bad json}}") is None
+        assert parse_line(f"[{_TS1}] [order.new] {{bad json}}") is None
 
     def test_missing_brackets_returns_none(self) -> None:
-        assert _parse_line("just some text without brackets") is None
+        assert parse_line("just some text without brackets") is None
 
 
 # ===========================================================================

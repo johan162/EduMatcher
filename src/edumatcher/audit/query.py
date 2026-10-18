@@ -236,7 +236,7 @@ def _open_file(path: Path) -> Iterator[str]:
             yield from fh
 
 
-def _parse_line(
+def parse_line(
     raw: str,
 ) -> tuple[str, str, dict[str, Any], dict[str, str]] | None:
     """Return ``(timestamp_str, topic, payload_dict, meta)`` or ``None``.
@@ -380,7 +380,7 @@ def iter_entries(
         # Counted over raw lines, not parsed ones: the ordinal has to be what
         # `sed -n 118423p` would show, or it is no use for tracing back.
         for line_no, raw in enumerate(_open_file(path), start=1):
-            parsed = _parse_line(raw)
+            parsed = parse_line(raw)
             if parsed is None:
                 continue
             ts_str, topic, payload, meta = parsed

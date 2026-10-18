@@ -2652,12 +2652,14 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 
 | Flag | Description |
 |---|---|
-| `--index INDEX_ID` | Add an index to the config; repeatable |
-| `--index-constituents SYM [SYM ...]` | Constituents for the last `--index` |
-| `--index-base-value N` | Base value for the last `--index` |
-| `--index-interval SEC` | Publish interval for the last `--index` |
-| `--index-history-file PATH` | History file path for the last `--index` |
-| `--index-state-file PATH` | State file path for the last `--index` |
+| `--index ID[:DESCRIPTION]` | Add an index (up to 5); `ID` is letters and digits only |
+| `--index-constituents ID:SYM[,SYM,...]` | Constituents of index `ID` |
+| `--index-base-value ID:VALUE` | Base value of index `ID` (default `1000.0`) |
+| `--index-interval ID:SECS` | Publish interval of index `ID` (default `1.0`) |
+| `--index-history-file ID:PATH` | History file of index `ID` (default `data/indexes/<ID>_history.jsonl`) |
+| `--index-state-file ID:PATH` | State file of index `ID` (default `data/indexes/<ID>_state.json`) |
+
+Each `--index-*` flag takes one value per index: give it at most once per `ID`, and only for an `ID` defined with `--index`. Every constituent needs `--outstanding-shares` and a reference price, which `pm-config-gen` only writes with a `MARKET_MAKER` participant and `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm`; otherwise it refuses with an error.
 
 #### Schedule
 
