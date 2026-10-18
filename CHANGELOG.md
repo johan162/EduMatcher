@@ -1,3 +1,27 @@
+## [v0.50.7] - 2026-10-18
+
+Release Type: patch
+
+### 📋 Summary
+This patch release makes port reporting and port-collision checks cover every listener, including the health-check ports. It also fixes the log GUI's container mount on SELinux hosts and removes port race conditions from the test suites.
+
+### 🚀 Improvements
+- Added the health-check ports 5561–5564 (pm-stats, pm-audit, pm-clearing, pm-index) to the port map shown by `pm-config-show`
+- Extended the `pm-cverifier` port-collision check (`M018`) to report configured ports that clash with the engine, market-simulator, market-index, and health-check listeners, honouring any `EDUMATCHER_*_PORT` overrides
+
+### 🐛 Bug Fixes
+- Fixed `pm-config-show` reporting the market simulator's ports 5553/5554 with the engine's bind host instead of `EDUMATCHER_SIM_BIND_HOST`
+- Fixed the log GUI container failing to read the shared data mount on SELinux-enabled Linux hosts
+- Fixed a false positive warning when building completions that the `data/ref_data/` could not be found
+
+### 📚 Documentation
+- Updated the configuration workflow and config-verifier guides to cover the health-check ports and the wider `M018` check
+- Revised the operator-dashboard design plan
+
+### 🛠 Internal
+- Fixed intermittent port reuse failures in the log-server Python tests and the `lalf-client` npm tests
+- Increased build parallelism: npm app tests now run two at a time and `make check` runs six jobs in parallel
+
 ## [v0.50.6] - 2026-10-18
 
 Release Type: minor
