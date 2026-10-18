@@ -364,8 +364,10 @@ def last_buy_price(config_path: Path, symbol: str) -> str | None:
     return None
 
 
-def run_config_gen(config_gen: list[str], args: list[str]) -> None:
-    subprocess.run(config_gen + args, check=True)
+def run_config_gen(config_gen: list[str], args: list[str], setup_dir: Path) -> None:
+    # --output is relative; run inside the setup directory, as mks150.sh and
+    # mks300.sh do with ``cd``, or the config lands in the caller's cwd.
+    subprocess.run(config_gen + args, check=True, cwd=setup_dir)
 
 
 def main() -> None:
@@ -436,7 +438,7 @@ def main() -> None:
         if seed_quotes:
             # Pass 1: generate the base config to obtain seeded MM quote /
             # last-price values.
-            run_config_gen(config_gen, common + extra)
+            run_config_gen(config_gen, common + extra, setup_dir)
             price_a = last_buy_price(config_path, combo_a)
             price_b = last_buy_price(config_path, combo_b)
             if not price_a or not price_b:
@@ -455,9 +457,9 @@ def main() -> None:
         # Pass 2 (or only pass, for nomm): regenerate with --combo so
         # pm-config-gen validates the combo entry. The same seed guarantees
         # identical MM quote prices across both passes.
-        run_config_gen(config_gen, common + extra + ["--combo", combo])
+        run_config_gen(config_gen, common + extra + ["--combo", combo], setup_dir)
     else:
-        run_config_gen(config_gen, common + extra)
+        run_config_gen(config_gen, common + extra, setup_dir)
 
     print(f"Generated {config_path}")
 

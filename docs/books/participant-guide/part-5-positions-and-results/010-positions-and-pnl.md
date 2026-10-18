@@ -44,7 +44,9 @@ pm-clearing
 ```
 
 No arguments are required. The process connects to the engine's PUB socket
-(port 5556), creates or opens `data/clearing.db`, and begins tracking P&L.
+(port 5556), creates or opens `data/clearing.db`, and begins tracking P&L. It
+also binds a health socket (`127.0.0.1:5563` by default) that answers
+[`pm-clearing-cli health`](#health-process-liveness-and-database-health) pings.
 It can be started before or after trading begins — it will pick up all trades
 from the moment it subscribes.
 
@@ -760,7 +762,7 @@ themselves do not accept them.
 | `exposure` | `gateway_symbol_positions` | Net and gross notional exposure, sorted by size | `--gateway`, `--symbol`, `--sort`, `--limit` |
 | `symbols` | `gateway_daily_summary` + `gateway_symbol_positions` | Symbol-level cleared volume, notional, P&L, and open position | `--date`, `--from`, `--to`, `--sort`, `--limit` |
 | `dates` | `trade_events` / `daily_exchange_totals` | Available trading dates; add `--with-totals` for per-date volume and net amount | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals`, `--limit` |
-| `health` | Three tables + WAL pragma | Row counts, last trade timestamp, last flush timestamp, WAL mode | — |
+| `health` | `pm-clearing` process + health socket; with `--extended`, the whole DB | Liveness of `pm-clearing`; with `--extended`, DB integrity and read/write access; with `--extended -v`, row counts, last trade/flush time and journal mode | `--extended`, `-v`, `-q` |
 | `reconcile` | `trade_events` vs `gateway_daily_summary` | Discrepancies between raw facts and aggregates (both sides), including keys present only in the summaries | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `sessions` | `gateway_sessions` | Gateway connect and disconnect history written from the engine's `system.gateway_auth` / `system.gateway_bye` broadcasts | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` |
 | `eod` | `session_events` | End-of-day sentinel rows written on `system.eod`, including mark prices applied | `--from`, `--to`, `--limit` |
@@ -998,21 +1000,81 @@ pm-clearing-cli dates --from 2026-07-01 --to 2026-07-05 --with-totals
 ```
 
 
-### health — DB metadata and freshness
+### health — process liveness and database health
 
-Returns a single-row operational summary of the clearing database. A clearing house uses this as a **liveness and monitoring check**: it confirms that `pm-clearing` is actively writing, reports how many records are stored, and shows when the last flush occurred so operators can detect a stalled or disconnected clearing process before it causes a data gap.
+Checks that `pm-clearing` is alive and actually processing messages. A
+clearing house uses this as a **liveness and monitoring check**: it detects a
+stalled or dead clearing process before it causes a gap in positions and P&L.
+By default two fast checks run:
+
+- **Process** — a `pm-clearing` process is running (found with `pgrep`).
+- **ZMQ ping** — `pm-clearing` answers a ping on its health socket (port
+  `5563`) with its current UTC time. The reply comes from the clearing
+  process's own receive loop, so it proves the loop is running, not just that
+  the process exists.
+
+The database check is opt-in with `--extended`, because it runs a full-file
+`PRAGMA quick_check` that can take many seconds on a large `clearing.db`. It
+checks that the database passes the integrity check, contains the
+`trade_events`, `gateway_symbol_positions` and `gateway_daily_summary` tables
+with the current trade-identity schema, and accepts a (rolled-back) write. The
+file is never created if it is missing. The check is allowed up to 45 seconds
+before it is reported as failed.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-
-No filter options — `health` always returns a single summary row.
+| `--extended` | flag | off | Also check `clearing.db` integrity, schema and read/write access (up to 45 s) |
+| `-v`, `--verbose` | flag | off | List exactly which checks ran; with `--extended`, also print the database size, row counts, last trade and last flush time, and journal mode |
+| `-q`, `--quiet` | flag | off | Print nothing; report only through the exit code |
 
 ```bash
 pm-clearing-cli health
+pm-clearing-cli health --extended
+pm-clearing-cli health --extended --verbose
+pm-clearing-cli --format json health
+pm-clearing-cli health --quiet
 ```
 
-Output fields: `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`,
-`gateway_daily_summary_rows`, `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
+```text
+pm-clearing process: OK - pm-clearing is running
+clearing database:   OK - skipped (pass --extended to check integrity and read/write access)
+clearing ZMQ ping:   OK - replied at 2026-10-17T14:23:37.797827+00:00
+health: OK
+```
+
+With `--extended --verbose` the report ends with the checks performed and the
+database metadata — the row counts and freshness figures earlier versions of
+`health` printed as a table row:
+
+```text
+Checks performed:
+  pm-clearing process (pgrep):   yes
+  ZMQ health ping:                yes
+  Database integrity/read-write: yes
+
+Database stats:
+  path: data/clearing.db
+  size: 18.4MB
+  trade_events rows: 48211
+  gateway_symbol_positions rows: 312
+  gateway_daily_summary rows: 1904
+  last trade: 2026-07-08T15:59:58.412000+00:00
+  last flush: 2026-07-08T16:00:02.977000+00:00
+  journal mode: wal
+```
+
+The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
+printed and the exit code is `0` when healthy or `-1` (255 in a shell)
+otherwise. `--format json` prints the same report as a JSON object (`csv`
+prints the same text as `table`); `--raw-output` does not apply.
+
+Unlike the query verbs, `health` runs even when `clearing.db` does not exist; a
+missing database is only reported as a failure under `--extended`.
+
+The health socket binds to `127.0.0.1:5563` by default; set
+`EDUMATCHER_CLEARING_BIND_HOST` / `EDUMATCHER_CLEARING_HEALTH_PORT` to change
+where `pm-clearing` binds it, and `EDUMATCHER_ENGINE_HOST` /
+`EDUMATCHER_CLEARING_HEALTH_PORT` to change where `pm-clearing-cli` connects.
 
 
 ### reconcile — verify aggregate consistency (buy and sell sides)
@@ -1222,10 +1284,13 @@ pm-clearing-cli symbols --date 2026-07-05 --sort realized_pnl
 
 ```bash
 pm-clearing-cli health
+pm-clearing-cli health --extended --verbose
 ```
 
-Compare `last_flush_ts_ns` against the current time. If it is more than a few
-minutes stale during active trading, `pm-clearing` may have stopped.
+The first command tells you whether `pm-clearing` is running and its receive
+loop still answers. The second also shows `last flush`: if it is more than a few
+minutes stale during active trading, `pm-clearing` may be alive but no longer
+receiving trades — check that the engine is up.
 
 ### "What was the official EOD mark for AAPL yesterday?"
 

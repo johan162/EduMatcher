@@ -777,6 +777,7 @@ _shtab_pm_audit_cli_commands() {
   local _commands=(
     events:'Search log entries by topic, gateway, symbol, and time range'
     gateways:'List gateways and summarise their audit trail activity'
+    health:'Check the pm-audit process and audit log file health'
     index:'Build or update the optional SQLite index for faster queries'
     orders:'Find order lifecycle events for specific order IDs or filters'
     stats:'Show summary statistics about audit log files'
@@ -827,6 +828,16 @@ _shtab_pm_audit_cli_gateways_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_cli_gateways_defaults_added=0
+
+_shtab_pm_audit_cli_health_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check the audit log file is readable, writable and ends in a well-formed entry\; allowed up to 15s]"
+  {-v,--verbose}"[Describe exactly what was checked, plus log file size, rotated backups and last entry time when combined with --extended]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_cli_health_defaults_added=0
 
 _shtab_pm_audit_cli_index_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -930,6 +941,7 @@ _shtab_pm_audit_cli() {
       case $line[1] in
         events) _arguments -C -s $_shtab_pm_audit_cli_events_options ;;
         gateways) _arguments -C -s $_shtab_pm_audit_cli_gateways_options ;;
+        health) _arguments -C -s $_shtab_pm_audit_cli_health_options ;;
         index) _arguments -C -s $_shtab_pm_audit_cli_index_options ;;
         orders) _arguments -C -s $_shtab_pm_audit_cli_orders_options ;;
         stats) _arguments -C -s $_shtab_pm_audit_cli_stats_options ;;
@@ -1599,7 +1611,7 @@ _shtab_pm_clearing_cli_commands() {
     eod:'End-of-day sentinel events written by pm-clearing on system.eod'
     exposure:'Net/gross notional exposure'
     gateways:'List gateways with P&L totals'
-    health:'DB metadata and row counts'
+    health:'Check the pm-clearing process and clearing database read/write health'
     pnl:'Realized/unrealized/total P&L'
     positions:'Current positions by gateway/symbol'
     prune:'Delete trade_events rows older than N days (default: 90) and VACUUM'
@@ -1682,6 +1694,9 @@ _shtab_pm_clearing_cli_gateways_defaults_added=0
 
 _shtab_pm_clearing_cli_health_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check clearing.db integrity and read\/write access (PRAGMA quick_check)\; allowed up to 45s for a large database]"
+  {-v,--verbose}"[Describe exactly what was checked, plus database size, row counts, last trade\/flush time and WAL mode when combined with --extended]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -2065,12 +2080,12 @@ _shtab_pm_config_gen_options=(
   "--holidays-closing-end[HH\:MM]:HH:MM:"
   "--country[Country pm-scheduler uses for its bank-holiday\/weekend calendar (name, e.g. \"Sweden\", or ISO 3166-1 alpha-2 code, e.g. \"SE\"). Defaults to \"Sweden\" when omitted.]:COUNTRY:"
   "--session-timezone[IANA timezone every process bucketing events into a trading day (pm-stats, pm-clearing, ...) uses, e.g. America\/New_York. Defaults to \"UTC\" when omitted.]:TZ:"
-  "*--index[Define an index (repeatable, up to 5). ID is alphanumeric\; DESCRIPTION is optional text after the first colon.]:ID[:DESCRIPTION]:"
-  "*--index-constituents[Constituent symbols for an index. Can be repeated.]:ID:SYM[,SYM,...]:"
-  "*--index-base-value[Override base_value for an index (default\: 1000.0). Can be repeated.]:ID:VALUE:"
-  "*--index-interval[Override publish_interval_sec for an index (default\: 1.0). Can be repeated.]:ID:SECS:"
-  "*--index-history-file[Override history_file path for an index. Can be repeated.]:ID:PATH:"
-  "*--index-state-file[Override state_file path for an index. Can be repeated.]:ID:PATH:"
+  "*--index[Define an index (repeatable, up to 5). ID is letters and digits only\; DESCRIPTION is optional text after the first colon.]:ID[:DESCRIPTION]:"
+  "*--index-constituents[Constituent symbols for an index, all in one flag\; once per index. Each needs --outstanding-shares and a reference price (--seed-mm-mid-range with --seed-last-prices-from-mm).]:ID:SYM[,SYM,...]:"
+  "*--index-base-value[Override base_value for an index (default\: 1000.0). Once per index.]:ID:VALUE:"
+  "*--index-interval[Override publish_interval_sec for an index (default\: 1.0). Once per index.]:ID:SECS:"
+  "*--index-history-file[Override history_file path for an index. Once per index.]:ID:PATH:"
+  "*--index-state-file[Override state_file path for an index. Once per index.]:ID:PATH:"
   "*--combo[Seed a market-maker combo order\: ID\:TYPE\:TIF\:SYM\/SIDE\/TYPE\/QTY\[\/PRICE\[\/STOP\[\/SMP\]\]\],...]:COMBO_SPEC:"
   "--output[Output file path.]:FILE:"
   "--force[Overwrite existing output file.]"
@@ -2753,6 +2768,7 @@ fi
 _shtab_pm_index_cli_commands() {
   local _commands=(
     events:'Show structural events: INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST.'
+    health:'Check the pm-index process and its state/history file health'
     indices:'List indices from --config, or the deployed exchange'"'"'s compiled configuration if --config is omitted.'
   )
   _describe 'pm-index-cli commands' _commands
@@ -2783,6 +2799,16 @@ _shtab_pm_index_cli_events_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_index_cli_events_defaults_added=0
 
+_shtab_pm_index_cli_health_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
+  "--extended[Also check every configured index\'s state and history files are readable, writable and well-formed\; allowed up to 15s]"
+  {-v,--verbose}"[Describe exactly what was checked, plus each index\'s file paths, history size, last record and last level when combined with --extended]"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_index_cli_health_defaults_added=0
+
 _shtab_pm_index_cli_indices_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
 )
@@ -2810,6 +2836,7 @@ _shtab_pm_index_cli() {
       curcontext="${curcontext%:*:*}:_shtab_pm_index_cli-$line[1]:"
       case $line[1] in
         events) _arguments -C -s $_shtab_pm_index_cli_events_options ;;
+        health) _arguments -C -s $_shtab_pm_index_cli_health_options ;;
         indices) _arguments -C -s $_shtab_pm_index_cli_indices_options ;;
       esac
   esac

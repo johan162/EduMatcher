@@ -89,15 +89,22 @@ on the PULL socket (port 5559).
 ## Exercise 1: Configure an Index
 
 Generate a complete config with one index, three constituents, and outstanding
-shares:
+shares. `pm-index` also needs a reference price for every constituent, and
+`pm-config-gen` only writes one by seeding it from a market maker's midpoint:
+hence the `MM01:MARKET_MAKER` participant and the `--seed-mm-mid-range` /
+`--seed-last-prices-from-mm` flags. `--no-mm-seed-quotes` keeps the book empty
+at startup.
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --sessions-enabled \
   --seed 20260625 \
   --index EDU100:"EduMatcher broad index" \
@@ -526,10 +533,13 @@ Configure a second, narrower index alongside `EDU100`:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --sessions-enabled \
   --seed 20260625 \
   --index EDU100:"EduMatcher broad index" \

@@ -38,7 +38,7 @@ services:
       # specific interface. It does not affect the engine/index core plane;
       # that is EDUMATCHER_ENGINE_BIND_HOST / _INDEX_BIND_HOST, via ZMQ=1.
       EDUMATCHER_GATEWAY_BIND_HOST: ${EDUMATCHER_GATEWAY_BIND_HOST:-0.0.0.0}
-      TZ: ${TZ:-UTC}
+      TZ: ${TZ:-Europe/Stockholm}
     volumes:
       # Every trade, log and database the exchange produces. Survives
       # stop/start; removed only by './edumatcher.sh uninstall --data'.

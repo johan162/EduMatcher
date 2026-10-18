@@ -1233,7 +1233,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="ID[:DESCRIPTION]",
         help=(
             "Define an index (repeatable, up to 5). "
-            "ID is alphanumeric; DESCRIPTION is optional text after the first colon."
+            "ID is letters and digits only; DESCRIPTION is optional text after the first colon."
         ),
     )
     parser.add_argument(
@@ -1241,35 +1241,39 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="ID:SYM[,SYM,...]",
-        help="Constituent symbols for an index. Can be repeated.",
+        help=(
+            "Constituent symbols for an index, all in one flag; once per index. "
+            "Each needs --outstanding-shares and a reference price "
+            "(--seed-mm-mid-range with --seed-last-prices-from-mm)."
+        ),
     )
     parser.add_argument(
         "--index-base-value",
         action="append",
         default=[],
         metavar="ID:VALUE",
-        help="Override base_value for an index (default: 1000.0). Can be repeated.",
+        help="Override base_value for an index (default: 1000.0). Once per index.",
     )
     parser.add_argument(
         "--index-interval",
         action="append",
         default=[],
         metavar="ID:SECS",
-        help="Override publish_interval_sec for an index (default: 1.0). Can be repeated.",
+        help="Override publish_interval_sec for an index (default: 1.0). Once per index.",
     )
     parser.add_argument(
         "--index-history-file",
         action="append",
         default=[],
         metavar="ID:PATH",
-        help="Override history_file path for an index. Can be repeated.",
+        help="Override history_file path for an index. Once per index.",
     )
     parser.add_argument(
         "--index-state-file",
         action="append",
         default=[],
         metavar="ID:PATH",
-        help="Override state_file path for an index. Can be repeated.",
+        help="Override state_file path for an index. Once per index.",
     )
 
     parser.add_argument(

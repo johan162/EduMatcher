@@ -119,6 +119,40 @@ STATS_HEALTH_BIND_ADDR = (
 )
 STATS_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_STATS_HEALTH_PORT}"
 
+# pm-audit healthcheck endpoint: the same REP-socket ping as pm-stats' above,
+# so `pm-audit-cli health` can confirm the recorder's receive loop is alive
+# rather than just that its process exists or its log file is writable.
+# Port 5562 is the next free one after pm-stats' 5561.
+EDUMATCHER_AUDIT_BIND_HOST = os.getenv("EDUMATCHER_AUDIT_BIND_HOST", "127.0.0.1")
+EDUMATCHER_AUDIT_HEALTH_PORT = int(os.getenv("EDUMATCHER_AUDIT_HEALTH_PORT", "5562"))
+AUDIT_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_AUDIT_BIND_HOST}:{EDUMATCHER_AUDIT_HEALTH_PORT}"
+)
+AUDIT_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_AUDIT_HEALTH_PORT}"
+
+# pm-clearing healthcheck endpoint: the same REP-socket ping again, for
+# `pm-clearing-cli health`. Port 5563 follows pm-audit's 5562.
+EDUMATCHER_CLEARING_BIND_HOST = os.getenv("EDUMATCHER_CLEARING_BIND_HOST", "127.0.0.1")
+EDUMATCHER_CLEARING_HEALTH_PORT = int(
+    os.getenv("EDUMATCHER_CLEARING_HEALTH_PORT", "5563")
+)
+CLEARING_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_CLEARING_BIND_HOST}:{EDUMATCHER_CLEARING_HEALTH_PORT}"
+)
+CLEARING_HEALTH_ADDR = (
+    f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_CLEARING_HEALTH_PORT}"
+)
+
+# pm-index healthcheck endpoint: the same REP-socket ping again, for
+# `pm-index-cli health`. pm-index already has its own bind host for 5558/5559
+# (EDUMATCHER_INDEX_BIND_HOST above), so the health socket uses it too. Port
+# 5564 follows pm-clearing's 5563 and is the last free one before 5565.
+EDUMATCHER_INDEX_HEALTH_PORT = int(os.getenv("EDUMATCHER_INDEX_HEALTH_PORT", "5564"))
+INDEX_HEALTH_BIND_ADDR = (
+    f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_HEALTH_PORT}"
+)
+INDEX_HEALTH_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_HEALTH_PORT}"
+
 # ---------------------------------------------------------------------------
 # Service-layer bind host
 # ---------------------------------------------------------------------------

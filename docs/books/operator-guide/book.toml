@@ -11,6 +11,7 @@ dir = "part-1-install-and-deploy"
 files = [
   "010-installation.md",
   "020-vm-runtime-image.md",
+  "030-container-deployment-walkthrough.md",
 ]
 
 [[parts]]

@@ -55,7 +55,10 @@ def test_receive_buffers_and_flushes_audit_lines(tmp_path: Path) -> None:
     fake_sub = _FakeSub(frame_count=2)
     log_path = tmp_path / "audit.log"
 
-    with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
 
     with (
@@ -89,7 +92,10 @@ def test_receive_survives_decode_errors_and_continues(
     fake_sub = _FakeSub(frame_count=2)
     log_path = tmp_path / "audit.log"
 
-    with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=100)
 
     with (
@@ -152,7 +158,10 @@ class TestTopicFamily:
     def test_all_families(self, topic: str, expected: str, tmp_path: Path) -> None:
         from unittest.mock import patch
 
-        with patch("edumatcher.audit.main.make_subscriber"):
+        with (
+            patch("edumatcher.audit.main.make_subscriber"),
+            patch("edumatcher.audit.main.make_replier"),
+        ):
             proc = AuditProcess(log_path=tmp_path / "a.log", to_terminal=False)
         assert proc._topic_family(topic) == expected
 
@@ -168,7 +177,10 @@ def test_add_to_buffer_flushes_on_overflow(tmp_path: Path) -> None:
 
     log_path = tmp_path / "overflow.log"
 
-    with patch("edumatcher.audit.main.make_subscriber"):
+    with (
+        patch("edumatcher.audit.main.make_subscriber"),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=3)
 
     for i in range(3):
@@ -182,7 +194,10 @@ def test_flush_timer_is_scheduled_on_first_message(tmp_path: Path) -> None:
     """The flush timer should be started when the first line enters an empty buffer."""
     from unittest.mock import patch
 
-    with patch("edumatcher.audit.main.make_subscriber"):
+    with (
+        patch("edumatcher.audit.main.make_subscriber"),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
         proc = AuditProcess(
             log_path=tmp_path / "t.log", to_terminal=False, buffer_size=100
         )
@@ -198,9 +213,70 @@ def test_flush_buffer_is_idempotent_on_empty(tmp_path: Path) -> None:
     from unittest.mock import patch
 
     log_path = tmp_path / "empty.log"
-    with patch("edumatcher.audit.main.make_subscriber"):
+    with (
+        patch("edumatcher.audit.main.make_subscriber"),
+        patch("edumatcher.audit.main.make_replier"),
+    ):
         proc = AuditProcess(log_path=log_path, to_terminal=False)
 
     proc._flush_buffer()  # Buffer already empty — should not raise.
     # No output written for an empty flush.
     assert not log_path.exists() or log_path.read_text() == ""
+
+
+# ---------------------------------------------------------------------------
+# Health REP socket
+# ---------------------------------------------------------------------------
+
+
+class _FakeReplier:
+    def __init__(self) -> None:
+        self.sent: list[bytes] = []
+        self.closed = False
+
+    def recv(self) -> bytes:
+        return b"ping"
+
+    def send(self, data: bytes) -> None:
+        self.sent.append(data)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_receive_answers_health_ping_with_utc_timestamp(tmp_path: Path) -> None:
+    """Intent: the health ping is answered from the receive loop itself, so a
+    reply proves that loop is pumping."""
+    from datetime import datetime
+
+    fake_sub = _FakeSub(frame_count=0)
+    fake_rep = _FakeReplier()
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+        patch("edumatcher.audit.main.make_replier", return_value=fake_rep),
+    ):
+        proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+
+    with patch(
+        "edumatcher.audit.main.zmq.Poller",
+        return_value=_PollerWithNEvents(fake_rep, events=1),
+    ):
+        proc._receive()
+
+    assert len(fake_rep.sent) == 1
+    assert datetime.fromisoformat(fake_rep.sent[0].decode()).tzinfo is not None
+
+
+def test_failed_health_socket_setup_closes_the_subscriber(tmp_path: Path) -> None:
+    fake_sub = _FakeSub(frame_count=0)
+    with (
+        patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub),
+        patch(
+            "edumatcher.audit.main.make_replier",
+            side_effect=zmq.ZMQError(errno.EADDRINUSE),
+        ),
+        pytest.raises(zmq.ZMQError),
+    ):
+        AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
+
+    assert fake_sub.closed is True

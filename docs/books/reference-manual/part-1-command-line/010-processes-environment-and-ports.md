@@ -311,8 +311,9 @@ process's own `config.py`.
 |---|---|---|---|---|
 | `pm-engine` | `5555` PULL (bind) · `5556` PUB (bind) · `5557` PUB (bind) | – | ZeroMQ (PULL/PUB) | Matching engine. `5555` receives all inbound commands; `5556` broadcasts all market/session events; `5557` is the dedicated drop-copy fill feed. |
 | `pm-log-srv` | `5601` PUB (bind) · `5602` PULL (bind) | `5600` | LALF over TCP (collection) · LALF-PS over ZeroMQ (distribution) | Centralized log collector. `5600` accepts LALF log lines from every other `pm-*` process; `5601`/`5602` are the LALF-PS PUB/PULL pair that pushes live rows to log viewers/subscribers without polling `log.db`. |
-| `pm-audit` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to every engine event and writes the full audit trail to disk. Binds no port of its own. |
-| `pm-clearing` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to trade events for P&L and settlement. Binds no port of its own. |
+| `pm-audit` | `5562` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to every engine event and writes the full audit trail to disk. `5562` only answers `pm-audit-cli health` pings (`EDUMATCHER_AUDIT_BIND_HOST`, `EDUMATCHER_AUDIT_HEALTH_PORT`). |
+| `pm-stats` | `5561` REP (bind); connects out to `5555`, `5556`, `5558` | – | ZeroMQ (SUB/PUSH/REP) | Records market and index statistics to `stats.db`. `5561` only answers `pm-stats-cli health` pings (`EDUMATCHER_STATS_BIND_HOST`, `EDUMATCHER_STATS_HEALTH_PORT`). |
+| `pm-clearing` | `5563` REP (bind); connects out to `5556` | – | ZeroMQ (SUB/REP) | Subscribes to trade events for P&L and settlement. `5563` only answers `pm-clearing-cli health` pings (`EDUMATCHER_CLEARING_BIND_HOST`, `EDUMATCHER_CLEARING_HEALTH_PORT`). |
 | `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
 | `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
 | `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
@@ -320,7 +321,7 @@ process's own `config.py`.
 | `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (code default; example configs may assign additional instances other ports, e.g. `8081`) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
-| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind) · `5564` REP (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL/REP) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests; `5564` only answers `pm-index-cli health` pings (`EDUMATCHER_INDEX_BIND_HOST`, `EDUMATCHER_INDEX_HEALTH_PORT`). No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
 | `pm-market-sim` | `5553` PUB (bind) · `5554` PULL (bind); connects out to `5555`, `5556` | – | ZeroMQ (PUB/PULL) | The market model: every symbol's true value, and news. `5553` publishes `sim.value`, the `sim.state` heartbeat and `news.event`; `5554` takes `sim.command` from ADMIN participants. Loopback only by default (`EDUMATCHER_SIM_BIND_HOST`). See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md). |
 
 **Internal-only utilities** (ZeroMQ clients; no listening port of their own):
@@ -864,7 +865,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 
 ## pm-audit-cli — Audit Log Query CLI
 
-`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required.
+`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for `health`, which pings the running `pm-audit` on port `5562`.
 
 ```bash
 pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|csv] [--no-header] [--use-index PATH] COMMAND [options]
@@ -893,6 +894,7 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
 | `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+| `health`   | —    | Check the `pm-audit` process and ping its health socket; `--extended` adds the audit log read/write and last-entry check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 **No-row behaviour:**
 
@@ -971,7 +973,8 @@ pm-clearing-cli [--datapath PATH] [--db-name clearing.db] [--format table|json|c
 ```
 
 Unlike `pm-clearing`, this is a one-shot tool: it runs one command, prints
-output, and exits.
+output, and exits. Every verb works on `clearing.db` directly except `health`,
+which also pings the running `pm-clearing` on port `5563`.
 
 **Global options:**
 
@@ -996,7 +999,7 @@ output, and exits.
 | `exposure` | 1000 | Net/gross notional exposure and P&L | `--gateway`, `--symbol`, `--sort` |
 | `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
-| `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
+| `health` | n/a | Check the `pm-clearing` process and ping its health socket; `--extended` adds the clearing DB integrity and read/write check, and `--extended -v` the row counts, flush metadata and journal mode | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 | `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `sessions` | — | Gateway connection and disconnection history | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` (default 500) |
 | `eod`      | 100 | End-of-day sentinel events written by `pm-clearing` on `system.eod` | `--from`, `--to`, `--limit` |
@@ -1302,7 +1305,7 @@ prints output, and exits.
 | `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
 | `instruments`      | Show instrument reference data (tick scale per symbol)  | `--symbol`                                                          |
 | `gaps`             | Show detected feed gaps (trades the recorder never received) | `--date`, `--from`, `--to`, `--limit` (default 500)            |
-| `health`           | Check the `pm-stats` process and stats DB read/write health | `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
+| `health`           | Check the `pm-stats` process and ping its health socket; `--extended` adds the stats DB integrity and read/write check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 `--after CURSOR` pages through results returned by a previous call to the same
 subcommand — pass the cursor value from that call's last row to fetch the next page.
@@ -2649,12 +2652,14 @@ Each flag below enables a top-level YAML section for the corresponding gateway p
 
 | Flag | Description |
 |---|---|
-| `--index INDEX_ID` | Add an index to the config; repeatable |
-| `--index-constituents SYM [SYM ...]` | Constituents for the last `--index` |
-| `--index-base-value N` | Base value for the last `--index` |
-| `--index-interval SEC` | Publish interval for the last `--index` |
-| `--index-history-file PATH` | History file path for the last `--index` |
-| `--index-state-file PATH` | State file path for the last `--index` |
+| `--index ID[:DESCRIPTION]` | Add an index (up to 5); `ID` is letters and digits only |
+| `--index-constituents ID:SYM[,SYM,...]` | Constituents of index `ID` |
+| `--index-base-value ID:VALUE` | Base value of index `ID` (default `1000.0`) |
+| `--index-interval ID:SECS` | Publish interval of index `ID` (default `1.0`) |
+| `--index-history-file ID:PATH` | History file of index `ID` (default `data/indexes/<ID>_history.jsonl`) |
+| `--index-state-file ID:PATH` | State file of index `ID` (default `data/indexes/<ID>_state.json`) |
+
+Each `--index-*` flag takes one value per index: give it at most once per `ID`, and only for an `ID` defined with `--index`. Every constituent needs `--outstanding-shares` and a reference price, which `pm-config-gen` only writes with a `MARKET_MAKER` participant and `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm`; otherwise it refuses with an error.
 
 #### Schedule
 
@@ -2717,7 +2722,7 @@ For more details on the options see [Configuration Chapter](../../operator-guide
 
 Reads the structural/corporate-action audit JSONL files written by `pm-index`
 directly from disk and renders them as a table, JSON, or CSV. No running
-process is required. It does not expose level or EOD history — use
+process is required, except for `health`. It does not expose level or EOD history — use
 `pm-stats-cli index-daily` / `index-snapshots` for that instead (see the
 pm-stats-cli section above).
 
@@ -2745,13 +2750,15 @@ None.
 |------------|---------------|-------------------------------------------------------------------------|
 | `events`   | 1,000         | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
 | `indices`  | —             | List configured indices from `engine_config.yaml`                       |
+| `health`   | —             | Check the `pm-index` process and ping its health socket; `--extended` adds every index's state/history file check. Options: `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 The `events` subcommand accepts `--index ID` (repeatable), `--days N`,
 `--from DATE_OR_TS`, `--to DATE_OR_TS`, `--limit N`, and `--type TYPE` to
 filter to a specific structural event kind.
 
-Like `pm-stats-cli`, this is a read-only offline tool. It does not connect to
-any ZeroMQ socket.
+Like `pm-stats-cli`, this is a read-only tool that works offline. The only
+ZeroMQ connection it ever makes is `health`'s ping to `pm-index` on port
+`5564`.
 
 See [pm-index-cli in the commands reference](../../operator-guide/part-3-run/020-admin-console-and-commands.md)
 for the full option reference, output column descriptions, and examples

@@ -174,10 +174,13 @@ Constraints:
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --sessions-enabled \
   --index EDU100:"EduMatcher broad index" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
@@ -187,13 +190,17 @@ pm-config-gen \
 File paths are derived from the index ID automatically when `--index-history-file`
 and `--index-state-file` are not specified.
 
-!!! warning "The generated file has no reference prices yet"
+!!! note "Why the market maker and price-seeding flags are needed"
     `pm-index` refuses a constituent that has neither `last_buy_price` nor
-    `last_sell_price`, and `pm-config-gen` does not invent them. Either pass
-    `--seed-last-prices` (emits `null` placeholders you then fill in by hand) or
-    `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm` (needs at least one
-    `MARKET_MAKER` gateway), or add the two fields to each symbol yourself. Then
-    install the result with `pm-config-deploy engine_config.yaml`.
+    `last_sell_price`, since it sets the initial divisor from them. The only
+    way `pm-config-gen` writes real prices is to seed them from a market-maker
+    midpoint, so the command adds a `MARKET_MAKER` participant with
+    `--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm`.
+    `--no-mm-seed-quotes` keeps the book empty at startup despite that
+    participant. Without them `pm-config-gen` stops with an error rather than
+    writing a config `pm-index` could not start on; the same applies to a
+    constituent with no `--outstanding-shares`. Install the result with
+    `pm-config-deploy engine_config.yaml`.
 
 
 ## How Calculation Works
@@ -568,8 +575,10 @@ the wire is as shown, but clients should parse by key.
 ### Using `pm-index-cli` for structural/audit records
 
 `pm-index-cli` queries the structural/audit JSONL files directly from the
-command line — no running `pm-index` process is needed. It does **not** have
-level or EOD subcommands; use `pm-stats-cli` for that (next section).
+command line — no running `pm-index` process is needed, except for its
+[`health`](../part-3-run/020-admin-console-and-commands.md#health-process-and-index-file-health)
+command, which pings the running process. It does **not** have level or EOD
+subcommands; use `pm-stats-cli` for that (next section).
 
 `--config`, `--data-dir`, `--format`, and `--no-header` are global options and
 must come **before** the subcommand (`events` / `indices`); putting them after
@@ -677,19 +686,22 @@ EOF
 
 ## Example Configurations
 
-The `pm-config-gen` commands below need the reference prices described in the
-[warning above](#generating-with-pm-config-gen) (for example `--seed-last-prices`)
-before `pm-index` will accept the result.
+The `pm-config-gen` commands below seed reference prices from a market-maker
+midpoint, as explained in the [note above](#generating-with-pm-config-gen);
+`pm-index` needs them to compute each index's initial divisor.
 
 ### Single index, three constituents
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 TRADER02 OPS01:ADMIN \
+  --participants TRADER01 TRADER02 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --sessions-enabled \
   --index EDU100:"EduMatcher broad index" \
   --index-constituents EDU100:AAPL,MSFT,TSLA \
@@ -701,10 +713,13 @@ pm-config-gen \
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
-  --participants TRADER01 OPS01:ADMIN \
+  --participants TRADER01 OPS01:ADMIN MM01:MARKET_MAKER \
   --outstanding-shares AAPL:15000000000 \
   --outstanding-shares MSFT:7400000000 \
   --outstanding-shares TSLA:3200000000 \
+  --seed-mm-mid-range 100:400 \
+  --seed-last-prices-from-mm \
+  --no-mm-seed-quotes \
   --index BROAD:"Broad market" \
   --index-constituents BROAD:AAPL,MSFT,TSLA \
   --index-base-value BROAD:1000.0 \

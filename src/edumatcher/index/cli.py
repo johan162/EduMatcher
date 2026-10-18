@@ -1,7 +1,8 @@
 """pm-index-cli — read-only query tool for index structural/audit JSONL files.
 
 Reads JSONL history files written by ``pm-index`` directly from disk.
-No running process is required.
+No running process is required, except for ``health``, which pings the
+running pm-index to confirm it is alive.
 
 These files hold only structural/corporate-action audit records
 (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST) — index level and
@@ -19,8 +20,17 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
+from edumatcher.config import INDEX_HEALTH_ADDR
+from edumatcher.healthcheck import (
+    PING_TIMEOUT_MS,
+    find_process_pids,
+    format_bytes,
+    ping_health_endpoint,
+    read_last_line,
+    run_with_timeout,
+)
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
 
 _FORMATS = ("table", "json", "csv")
@@ -49,6 +59,49 @@ _INDICES_COLUMNS = [
 
 # Event types shown by the 'events' subcommand.
 _STRUCTURAL_TYPES = set(STRUCTURAL_RECORD_TYPES)
+
+# The file check reads the tail of each history file, parses each state file,
+# and opens both for append; all normally instant, but on a stalled or
+# network-mounted volume any can block -- opt-in via --extended rather than in
+# every health call, and bounded so a check that never returns cannot hang
+# the CLI indefinitely.
+_EXTENDED_HEALTH_TIMEOUT_SEC = 15.0
+
+
+class _HealthProcessReport(TypedDict):
+    healthy: bool
+    pids: list[int]
+    detail: str
+
+
+class _HealthIndexFileStats(TypedDict):
+    index_id: str
+    state_path: str
+    history_path: str
+    history_size_bytes: int
+    last_record_type: str | None
+    last_record_ts: str | None
+    last_level: float | None
+    state_updated: str | None
+
+
+class _HealthFilesReport(TypedDict):
+    healthy: bool
+    detail: str
+    checked: bool
+    stats: list[_HealthIndexFileStats] | None
+
+
+class _HealthZmqReport(TypedDict):
+    healthy: bool
+    detail: str
+
+
+class _HealthReport(TypedDict):
+    healthy: bool
+    process: _HealthProcessReport
+    files: _HealthFilesReport
+    zmq: _HealthZmqReport
 
 
 # ---------------------------------------------------------------------------
@@ -88,13 +141,14 @@ def _ts_to_str(ts: float) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _load_engine_config(config_path: str | None) -> Any:
-    """Return the EngineConfig to query, exiting on failure.
+def _try_load_engine_config(config_path: str | None) -> tuple[Any, str]:
+    """Return ``(EngineConfig, "")``, or ``(None, error)`` on failure.
 
     With an explicit *config_path*, parses that YAML file directly. With
     none, falls back to the canonical compiled config used by the running
     exchange, so the common case ("what does the deployed exchange have
-    configured?") needs no flag.
+    configured?") needs no flag. Never prints or exits, so `health -q` can
+    stay silent.
     """
     if config_path is None:
         from edumatcher.config import COMPILED_CONFIG_FILE
@@ -102,21 +156,27 @@ def _load_engine_config(config_path: str | None) -> Any:
 
         compiled = load_compiled_config()
         if compiled is None:
-            print(
-                f"[ERROR] No compiled configuration at {COMPILED_CONFIG_FILE} and "
-                "no --config given. Run pm-config-deploy, or pass --config PATH.",
-                file=sys.stderr,
+            return None, (
+                f"No compiled configuration at {COMPILED_CONFIG_FILE} and "
+                "no --config given. Run pm-config-deploy, or pass --config PATH."
             )
-            raise SystemExit(1)
-        return compiled.engine
+        return compiled.engine, ""
 
     from edumatcher.engine.config_loader import load_engine_config
 
     try:
-        return load_engine_config(Path(config_path))
+        return load_engine_config(Path(config_path)), ""
     except Exception as exc:
-        print(f"[ERROR] Could not load config {config_path!r}: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
+        return None, f"Could not load config {config_path!r}: {exc}"
+
+
+def _load_engine_config(config_path: str | None) -> Any:
+    """Return the EngineConfig to query, exiting on failure."""
+    cfg, error = _try_load_engine_config(config_path)
+    if cfg is None:
+        print(f"[ERROR] {error}", file=sys.stderr)
+        raise SystemExit(1)
+    return cfg
 
 
 def _config_index_map(config_path: str | None) -> dict[str, Any]:
@@ -412,6 +472,37 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # ---------------------------------------------------------------- health
+    health = sub.add_parser(
+        "health",
+        help="Check the pm-index process and its state/history file health",
+    )
+    health.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print nothing; exit 0 when healthy or -1 otherwise",
+    )
+    health.add_argument(
+        "--extended",
+        action="store_true",
+        help=(
+            "Also check every configured index's state and history files are "
+            "readable, writable and well-formed; allowed up to "
+            f"{_EXTENDED_HEALTH_TIMEOUT_SEC:.0f}s"
+        ),
+    )
+    health.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Describe exactly what was checked, plus each index's file paths, "
+            "history size, last record and last level when combined with "
+            "--extended"
+        ),
+    )
+
     return parser
 
 
@@ -537,6 +628,249 @@ def _cmd_indices(args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
+def _find_index_pids() -> list[int]:
+    """Find pm-index processes without matching this pm-index-cli process."""
+    return find_process_pids("pm-index")
+
+
+def _ns_to_iso(ts_ns: int) -> str:
+    return datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc).isoformat()
+
+
+def _check_state_file(index_id: str, path: Path) -> tuple[str | None, dict[str, Any]]:
+    """Return ``(problem, state)``; `problem` is None when the file is sound."""
+    if not path.is_file():
+        return f"state file not found: {path}", {}
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return f"state file is not valid JSON: {path}", {}
+    if not isinstance(state, dict):
+        return f"state file is not a JSON object: {path}", {}
+    state_id = str(state.get("index_id", "")).upper()
+    if state_id and state_id != index_id:
+        return f"state file belongs to index {state_id!r}: {path}", {}
+    # Opening for append and writing nothing proves pm-index could still
+    # rewrite the file without touching it.
+    with path.open("ab"):
+        pass
+    return None, state
+
+
+def _check_history_file(path: Path) -> tuple[str | None, dict[str, Any] | None]:
+    """Return ``(problem, last_record)``; `last_record` is None if empty."""
+    if not path.is_file():
+        return f"history file not found: {path}", None
+    last_line = read_last_line(path)
+    record: dict[str, Any] | None = None
+    if last_line is not None:
+        try:
+            parsed = json.loads(last_line)
+        except json.JSONDecodeError:
+            return f"last history record is malformed: {path}", None
+        if (
+            not isinstance(parsed, dict)
+            or parsed.get("type") not in _STRUCTURAL_TYPES
+            or not isinstance(parsed.get("ts_ns"), int)
+        ):
+            return f"last history record is not a structural record: {path}", None
+        record = parsed
+    with path.open("ab"):
+        pass
+    return None, record
+
+
+def _check_index_files_health(
+    config_path: str | None, *, collect_stats: bool = False
+) -> tuple[bool, str, list[_HealthIndexFileStats] | None]:
+    """Check every configured index's state and history files."""
+    cfg, error = _try_load_engine_config(config_path)
+    if cfg is None:
+        return False, error, None
+    if not cfg.indices:
+        return (
+            True,
+            "no indices configured; nothing to check",
+            [] if collect_stats else None,
+        )
+    from edumatcher.config import resolve_data_path
+
+    problems: list[str] = []
+    stats: list[_HealthIndexFileStats] = []
+    try:
+        for idx in cfg.indices:
+            state_path = resolve_data_path(idx.state_file)
+            history_path = resolve_data_path(idx.history_file)
+            state_problem, state = _check_state_file(idx.id, state_path)
+            history_problem, last = _check_history_file(history_path)
+            problems += [
+                f"{idx.id}: {p}" for p in (state_problem, history_problem) if p
+            ]
+            if collect_stats and not state_problem and not history_problem:
+                updated = state.get("last_updated")
+                level = state.get("last_level")
+                stats.append(
+                    {
+                        "index_id": idx.id,
+                        "state_path": str(state_path),
+                        "history_path": str(history_path),
+                        "history_size_bytes": history_path.stat().st_size,
+                        "last_record_type": last["type"] if last else None,
+                        "last_record_ts": _ns_to_iso(last["ts_ns"]) if last else None,
+                        "last_level": (
+                            float(level) if isinstance(level, (int, float)) else None
+                        ),
+                        "state_updated": (
+                            datetime.fromtimestamp(updated, tz=timezone.utc).isoformat()
+                            if isinstance(updated, (int, float))
+                            else None
+                        ),
+                    }
+                )
+    except OSError as exc:
+        return False, f"index file read/write check failed: {exc}", None
+    if problems:
+        return False, "; ".join(problems), None
+    count = len(cfg.indices)
+    noun = "index" if count == 1 else "indices"
+    return (
+        True,
+        f"state and history checks passed for {count} {noun}",
+        stats if collect_stats else None,
+    )
+
+
+def _run_extended_index_files_check(
+    config_path: str | None,
+    *,
+    collect_stats: bool = False,
+    timeout_sec: float = _EXTENDED_HEALTH_TIMEOUT_SEC,
+) -> tuple[bool, str, list[_HealthIndexFileStats] | None]:
+    """Run `_check_index_files_health`, bounded by `timeout_sec`."""
+    try:
+        return run_with_timeout(
+            lambda: _check_index_files_health(config_path, collect_stats=collect_stats),
+            timeout_sec,
+        )
+    except TimeoutError as exc:
+        return False, f"index file check {exc}", None
+
+
+def _check_zmq_health(timeout_ms: int = PING_TIMEOUT_MS) -> tuple[bool, str]:
+    """Ping pm-index's health REP socket and confirm it replies."""
+    return ping_health_endpoint(INDEX_HEALTH_ADDR, timeout_ms)
+
+
+def _health_report(
+    config_path: str | None, *, extended: bool = False, collect_stats: bool = False
+) -> tuple[bool, _HealthReport]:
+    pids = _find_index_pids()
+    zmq_ok, zmq_detail = _check_zmq_health()
+    if extended:
+        files_ok, files_detail, files_stats = _run_extended_index_files_check(
+            config_path, collect_stats=collect_stats
+        )
+        files_checked = True
+    else:
+        files_ok, files_detail, files_stats = (
+            True,
+            "skipped (pass --extended to check state and history files)",
+            None,
+        )
+        files_checked = False
+    report: _HealthReport = {
+        "healthy": bool(pids) and files_ok and zmq_ok,
+        "process": {
+            "healthy": bool(pids),
+            "pids": pids,
+            "detail": "pm-index is running" if pids else "pm-index process not found",
+        },
+        "files": {
+            "healthy": files_ok,
+            "detail": files_detail,
+            "checked": files_checked,
+            "stats": files_stats,
+        },
+        "zmq": {"healthy": zmq_ok, "detail": zmq_detail},
+    }
+    return bool(report["healthy"]), report
+
+
+def _cmd_health(args: argparse.Namespace) -> None:
+    try:
+        healthy, report = _health_report(
+            args.config,
+            extended=args.extended,
+            collect_stats=args.extended and args.verbose,
+        )
+    except (OSError, ValueError) as exc:
+        healthy = False
+        report = _HealthReport(
+            healthy=False,
+            process={"healthy": False, "pids": [], "detail": str(exc)},
+            files={
+                "healthy": False,
+                "detail": "health check could not run",
+                "checked": False,
+                "stats": None,
+            },
+            zmq={"healthy": False, "detail": "health check could not run"},
+        )
+    if args.quiet:
+        raise SystemExit(0 if healthy else -1)
+    if args.format == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        process = report["process"]
+        files = report["files"]
+        zmq_report = report["zmq"]
+        print(
+            f"pm-index process: {'OK' if process['healthy'] else 'FAIL'} - {process['detail']}"
+        )
+        print(
+            f"index files:      {'OK' if files['healthy'] else 'FAIL'} - {files['detail']}"
+        )
+        print(
+            f"index ZMQ ping:   {'OK' if zmq_report['healthy'] else 'FAIL'} - {zmq_report['detail']}"
+        )
+        print(f"health: {'OK' if healthy else 'FAIL'}")
+        if args.verbose:
+            print()
+            print("Checks performed:")
+            print("  pm-index process (pgrep):     yes")
+            print("  ZMQ health ping:               yes")
+            print(
+                "  Index state/history files:     "
+                + ("yes" if files["checked"] else "no (pass --extended)")
+            )
+            stats = files["stats"]
+            if stats:
+                print()
+                print("Index files:")
+                for entry in stats:
+                    print(f"  {entry['index_id']}:")
+                    print(f"    state:       {entry['state_path']}")
+                    print(
+                        f"    history:     {entry['history_path']} "
+                        f"({format_bytes(entry['history_size_bytes'])})"
+                    )
+                    if entry["last_record_type"] is None:
+                        print("    last record: (empty history)")
+                    else:
+                        print(
+                            f"    last record: {entry['last_record_type']} "
+                            f"at {entry['last_record_ts']}"
+                        )
+                    print(f"    last level:  {entry['last_level']}")
+                    print(f"    state saved: {entry['state_updated'] or '(unknown)'}")
+    raise SystemExit(0 if healthy else 1)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -553,6 +887,8 @@ def main() -> None:
         _cmd_events(args)
     elif args.command == "indices":
         _cmd_indices(args)
+    elif args.command == "health":
+        _cmd_health(args)
     else:  # pragma: no cover
         parser.print_help()
         raise SystemExit(2)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import errno
+import signal
 import argparse
 from collections.abc import Generator
 from pathlib import Path
@@ -7,6 +9,7 @@ import time
 from typing import Any
 
 import pytest
+import zmq
 
 import edumatcher.index.main as index_main
 from edumatcher.index.config_loader import IndexRuntimeConfig
@@ -45,6 +48,7 @@ def proc_with_fakes(
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
 
     cfg = IndexRuntimeConfig(
         id="EDU100",
@@ -368,7 +372,11 @@ def test_close_closes_sockets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
     monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
+
+    fake_health = _FakeSocket()
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: fake_health)
 
     proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)
     proc.close()
@@ -376,6 +384,73 @@ def test_close_closes_sockets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert fake_sub.closed is True
     assert fake_pull.closed is True
     assert fake_pub.closed is True
+    assert fake_health.closed is True
+
+
+def test_failed_health_socket_setup_closes_the_other_sockets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fakes = [_FakeSocket(), _FakeSocket(), _FakeSocket()]
+    monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fakes[0])
+    monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fakes[1])
+    monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fakes[2])
+
+    def _addr_in_use(*_a: Any, **_k: Any) -> Any:
+        raise zmq.ZMQError(errno.EADDRINUSE)
+
+    monkeypatch.setattr(index_main, "make_replier", _addr_in_use)
+
+    with pytest.raises(zmq.ZMQError):
+        index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)
+
+    assert all(sock.closed for sock in fakes)
+
+
+def test_run_loop_answers_health_ping_with_utc_timestamp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ping is answered from the poll loop itself, so a reply proves the
+    loop is pumping."""
+    from datetime import datetime
+
+    class _FakeReplier(_FakeSocket):
+        def __init__(self) -> None:
+            super().__init__()
+            self.replies: list[bytes] = []
+
+        def recv(self) -> bytes:
+            return b"ping"
+
+        def send(self, data: bytes) -> None:
+            self.replies.append(data)
+
+    health = _FakeReplier()
+
+    class _HealthThenEintr:
+        def __init__(self) -> None:
+            self._polled = False
+
+        def register(self, _sock: Any, _mask: int) -> None:
+            return None
+
+        def poll(self, timeout: int) -> list[tuple[Any, int]]:
+            if not self._polled:
+                self._polled = True
+                return [(health, zmq.POLLIN)]
+            raise zmq.ZMQError(errno.EINTR)
+
+    for name in ("make_subscriber", "make_puller", "make_publisher"):
+        monkeypatch.setattr(index_main, name, lambda *_a, **_k: _FakeSocket())
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: health)
+    monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
+    monkeypatch.setattr(zmq, "Poller", _HealthThenEintr)
+
+    proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)
+    proc.run()
+    proc.close()
+
+    assert len(health.replies) == 1
+    assert datetime.fromisoformat(health.replies[0].decode()).tzinfo is not None
 
 
 def test_load_state_reset_deletes_file(
@@ -403,6 +478,7 @@ def test_load_state_reset_deletes_file(
     monkeypatch.setattr(index_main, "make_subscriber", lambda *_a, **_k: fake_sub)
     monkeypatch.setattr(index_main, "make_puller", lambda *_a, **_k: fake_pull)
     monkeypatch.setattr(index_main, "make_publisher", lambda *_a, **_k: fake_pub)
+    monkeypatch.setattr(index_main, "make_replier", lambda *_a, **_k: _FakeSocket())
 
     proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=True)
     divisor, last_prices = proc._load_state(cfg)
@@ -572,7 +648,7 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert args.verbose == 0
     assert args.quiet is False
 
-    called: dict[str, Any] = {"run": 0, "close": 0}
+    called: dict[str, Any] = {"run": 0, "close": 0, "stop": 0}
 
     class _DummyProc:
         # main() no longer passes a path: pm-index takes its indices from the
@@ -588,6 +664,15 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         def close(self) -> None:
             called["close"] += 1
 
+        def stop(self) -> None:
+            called["stop"] += 1
+
+    handlers: dict[int, Any] = {}
+    monkeypatch.setattr(
+        signal,
+        "signal",
+        lambda signum, handler: handlers.__setitem__(signum, handler),
+    )
     monkeypatch.setattr(index_main, "IndexProcess", _DummyProc)
     monkeypatch.setattr(
         argparse.ArgumentParser,
@@ -603,6 +688,35 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     index_main.main()
     assert called["run"] == 1
     assert called["close"] == 1
+
+    # SIGTERM and SIGINT both ask the process to stop, so run() returns and
+    # close() flushes history and releases the sockets.
+    assert set(handlers) == {signal.SIGINT, signal.SIGTERM}
+    handlers[signal.SIGTERM](signal.SIGTERM, None)
+    handlers[signal.SIGINT](signal.SIGINT, None)
+    assert called["stop"] == 2
+
+
+def test_stop_ends_the_run_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("make_subscriber", "make_puller", "make_publisher", "make_replier"):
+        monkeypatch.setattr(index_main, name, lambda *_a, **_k: _FakeSocket())
+    monkeypatch.setattr(index_main, "load_index_runtime_configs", lambda _p: [])
+    proc = index_main.IndexProcess(config_path=tmp_path / "x.yaml", reset=False)
+
+    class _StopOnFirstPoll:
+        def register(self, _sock: Any, _mask: int) -> None:
+            return None
+
+        def poll(self, timeout: int) -> list[tuple[Any, int]]:
+            proc.stop()  # as the SIGTERM handler would, mid-poll
+            return []
+
+    monkeypatch.setattr(zmq, "Poller", _StopOnFirstPoll)
+
+    proc.run()  # returns instead of polling forever
+    proc.close()
 
 
 def test_build_parser_logging_flags() -> None:

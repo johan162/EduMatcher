@@ -89,12 +89,11 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Documentation only; the compose files decide what is actually published.
-EXPOSE 5555 5556 5557 5558 5559 5560 5561 5565 5570 5580 5590 5600 5601 5602 8080 8081 22
+EXPOSE 5555 5556 5557 5558 5559 5560 5561 5562 5563 5564 5565 5570 5580 5590 5600 5601 5602 8080 8081 22
 
-# Deliberately the engine's order-intake socket rather than
-# `pm-opctl-cli health -q`: that command reports FAIL on the stock 'default'
-# profile because its index-srv entry probes 127.0.0.1:5610 while pm-index
-# binds 5558/5559. `make health` still shows the full per-process table.
+# A cheap liveness probe of the core: the engine's order-intake socket. The
+# per-process view (every process's own check, whatever the profile) is
+# `make health`, i.e. `pm-opctl-cli health`.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import socket; socket.create_connection(('127.0.0.1', 5555), 3).close()" || exit 1
 

@@ -1,3 +1,25 @@
+## [v0.50.6] - 2026-10-18
+
+Release Type: minor
+
+### 📋 Summary
+This release adds service health checks for audit, clearing, and market index processes, and improves deployment consistency and configuration validation.
+
+### ✨ Additions
+- Added health checks for audit, clearing, and market index processes
+- Added graceful SIGTERM handling to the market index process
+
+### 🚀 Improvements
+- Standardized container deployments on the `Europe/Stockholm` time zone and the locally built wheel
+- Hardened configuration indexing and made internal configuration-generator validation warnings fatal
+
+### 📚 Documentation
+- Added a detailed container deployment walkthrough and expanded health-check and market-index operating guidance
+
+### 🛠 Internal
+- Extracted shared health-check functionality for audit, clearing, and statistics services
+- Increased the release script's wait time for the matching CI pipeline
+
 ## [v0.50.5] - 2026-10-17
 
 Release Type: patch

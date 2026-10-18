@@ -64,6 +64,16 @@ def test_load_profiles_returns_builtins_when_no_config_file() -> None:
     assert profiles["default"] == DEFAULT_PROCESSES
 
 
+def test_default_profile_recorders_use_their_cli_healthchecks() -> None:
+    """pm-audit, pm-stats, pm-clearing and pm-index bind no TCP port worth probing, so without their
+    own `health -q` command `list` could only report the PID as alive."""
+    by_name = {p["name"]: p for p in DEFAULT_PROCESSES}
+    assert by_name["audit"]["healthcheck"] == ["pm-audit-cli", "health", "-q"]
+    assert by_name["stats"]["healthcheck"] == ["pm-stats-cli", "health", "-q"]
+    assert by_name["clearing"]["healthcheck"] == ["pm-clearing-cli", "health", "-q"]
+    assert by_name["index-srv"]["healthcheck"] == ["pm-index-cli", "health", "-q"]
+
+
 def test_ai_swarm_profile_anchors_the_market_maker_and_adds_model_and_traders() -> None:
     processes = load_profiles()["ai-swarm"]
     mm_demo = load_profiles()["mm-demo"]

@@ -374,7 +374,8 @@ Backend (`deployment/docker/Dockerfile`): `PYTHON_VERSION`,
 
 Each GUI (`web-apps/*/Dockerfile`): `WEB_PORT`, `NPM_REGISTRY`,
 `NPM_STRICT_SSL`, `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`; config-gui also
-takes `USE_PROXY_CA` and `CA_CERT_FILE`.
+takes `USE_PROXY_CA` and `CA_CERT_FILE`, and log-gui `EDUMATCHER_VERSION` for
+the Python package it bundles.
 
 The backend's package source is selected by what is present rather than by a
 flag:
@@ -387,7 +388,9 @@ RUN if ls /tmp/wheel/*.whl; then pip install /tmp/wheel/*.whl;   # local build
 ```
 
 `make build` puts a freshly built wheel in `.wheel/`; `PYPI=1` and
-`VERSION=x.y.z` clear it first.
+`VERSION=x.y.z` clear it first. log-gui installs the same package the same way
+from `web-apps/log-gui/.wheel/` (its Diagnostics view runs `pm-log-cli`), and
+`make build-guis` and `make ghcr-push` fill that drop box by the same rule.
 
 !!! danger "Always confirm which package went into the image"
     A successful build prints
@@ -460,7 +463,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and seven multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.50.5`
+the same version. That coupling is what lets `install.sh --version 0.50.6`
 pin an entire system with one number.
 
 ```mermaid
@@ -787,12 +790,14 @@ host. Several hosts means running the engine independently on each and wiring
 the variables by hand.
 
 **No cross-host health signalling.** `pm-opctl-cli health`'s built-in
-`index-srv` entry has no TCP probe or healthcheck command configured at all
-(unlike, say, `balf-gwy`'s `"tcp": "127.0.0.1:5560"`) — it only checks that
-the process is still alive, not that `pm-index` (which binds 5558/5559) is
-actually reachable. That is one more reason the image `HEALTHCHECK`
-TCP-probes the engine on 5555 instead: a real connectivity check, just not
-one that says anything about `pm-index` or any other host.
+recorder entries — `stats`, `audit`, `clearing` and `index-srv` — run each
+process's own `*-cli health -q`, which pings a health socket on loopback
+(5561–5564). That proves the process's loop is alive on *this* host; it says
+nothing about whether another host can reach it, because those health sockets
+bind `127.0.0.1` by default and the image does not publish them. That is one
+more reason the image `HEALTHCHECK` TCP-probes the engine on 5555 instead: a
+real connectivity check, just not one that says anything about `pm-index` or
+any other host.
 
 ```mermaid
 flowchart LR

@@ -30,7 +30,7 @@ from edumatcher.audit.indexer import (
 )
 from edumatcher.audit.query import (
     AuditEntry,
-    _parse_line,
+    parse_line,
     _summarise,
     date_to_range,
     discover_log_files,
@@ -261,7 +261,7 @@ class TestDiscoverLogFiles:
 
 class TestParseLine:
     def test_valid_line(self) -> None:
-        result = _parse_line(_LINES[0])
+        result = parse_line(_LINES[0])
         assert result is not None
         ts, topic, payload, meta = result
         assert ts == _TS1
@@ -279,7 +279,7 @@ class TestParseLine:
             "cause=01ARZ3NDEKTSV4RRFFQ69G5FAB chain=01ARZ3NDEKTSV4RRFFQ69G5FAB] "
             '{"order_id": "ORD-001"}'
         )
-        result = _parse_line(line)
+        result = parse_line(line)
         assert result is not None
         _ts, topic, payload, meta = result
 
@@ -291,13 +291,13 @@ class TestParseLine:
         assert meta["chain"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
 
     def test_empty_line_returns_none(self) -> None:
-        assert _parse_line("") is None
+        assert parse_line("") is None
 
     def test_malformed_json_returns_none(self) -> None:
-        assert _parse_line(f"[{_TS1}] [order.new] {{bad json}}") is None
+        assert parse_line(f"[{_TS1}] [order.new] {{bad json}}") is None
 
     def test_missing_brackets_returns_none(self) -> None:
-        assert _parse_line("just some text without brackets") is None
+        assert parse_line("just some text without brackets") is None
 
 
 # ===========================================================================
@@ -2241,3 +2241,293 @@ class TestCliLogDir:
         )
         data = json.loads(capsys.readouterr().out)
         assert len(data) == 4
+
+
+# ---------------------------------------------------------------------------
+# health
+# ---------------------------------------------------------------------------
+
+
+def _healthy_process(monkeypatch: pytest.MonkeyPatch, *, running: bool = True) -> None:
+    monkeypatch.setattr(
+        "edumatcher.audit.cli._find_audit_pids", lambda: [1234] if running else []
+    )
+    monkeypatch.setattr(
+        "edumatcher.audit.cli._check_zmq_health", lambda: (True, "replied at t")
+    )
+
+
+class TestCliHealth:
+    def test_health_reports_running_process(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "pm-audit process: OK" in output
+        assert "audit log file:   OK - skipped" in output
+        assert "audit ZMQ ping:   OK" in output
+        assert "health: OK" in output
+
+    def test_health_fails_when_pm_audit_is_not_running(
+        self, monkeypatch: pytest.MonkeyPatch, log_file: Path
+    ) -> None:
+        _healthy_process(monkeypatch, running=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health"])
+
+        assert exc_info.value.code == 1
+
+    def test_health_does_not_check_log_file_by_default(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Without --extended a missing log must not fail health -- nor trip
+        the "Audit log not found" guard every query command goes through."""
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(
+                monkeypatch, ["--log-file", str(tmp_path / "missing.log"), "health"]
+            )
+
+        assert exc_info.value.code == 0
+
+    def test_health_extended_fails_when_log_file_is_missing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(tmp_path / "missing.log"), "health", "--extended"],
+            )
+
+        assert exc_info.value.code == 1
+        assert "audit log file:   FAIL - audit log not found" in capsys.readouterr().out
+
+    def test_health_extended_fails_on_malformed_last_entry(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(log, [*_LINES, "[2026-07-08T10:00:01.000+00:00] [trunc"])
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log), "health", "--extended"])
+
+        assert exc_info.value.code == 1
+
+    def test_health_extended_accepts_an_empty_log(
+        self, monkeypatch: pytest.MonkeyPatch, empty_log: Path
+    ) -> None:
+        """A freshly started pm-audit has written nothing yet; that is healthy."""
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(
+                monkeypatch, ["--log-file", str(empty_log), "health", "--extended"]
+            )
+
+        assert exc_info.value.code == 0
+
+    def test_health_extended_verbose_reports_checks_and_log_stats(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _write_log(log_file.with_name("audit.log.1"), _LINES[:1])
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(log_file), "health", "--extended", "--verbose"],
+            )
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "Checks performed:" in output
+        assert "Log file read/write/entry:     yes" in output
+        assert "Log file stats:" in output
+        assert "rotated backups: 1" in output
+        assert f"last entry: {_TS4}" in output
+
+    def test_health_verbose_without_extended_notes_log_file_was_skipped(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health", "-v"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "Log file read/write/entry:     no (pass --extended)" in output
+        assert "Log file stats:" not in output
+
+    def test_health_json_format(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(
+                monkeypatch,
+                ["--log-file", str(log_file), "--format", "json", "health"],
+            )
+
+        assert exc_info.value.code == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["healthy"] is True
+        assert report["process"]["pids"] == [1234]
+        assert report["log_file"]["checked"] is False
+
+    def test_health_fails_when_zmq_ping_does_not_reply(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr("edumatcher.audit.cli._find_audit_pids", lambda: [1234])
+        monkeypatch.setattr(
+            "edumatcher.audit.cli._check_zmq_health",
+            lambda: (False, "no reply within 1000ms"),
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health"])
+
+        assert exc_info.value.code == 1
+        assert (
+            "audit ZMQ ping:   FAIL - no reply within 1000ms" in capsys.readouterr().out
+        )
+
+    def test_health_quiet_exits_zero_without_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health", "-q"])
+
+        assert exc_info.value.code == 0
+        assert capsys.readouterr() == ("", "")
+
+    def test_health_quiet_exits_minus_one_without_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _healthy_process(monkeypatch, running=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health", "-q"])
+
+        assert exc_info.value.code == -1
+        assert capsys.readouterr() == ("", "")
+
+    def test_health_reports_pgrep_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        log_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def _boom() -> list[int]:
+            raise OSError("pgrep failed with exit code 3")
+
+        monkeypatch.setattr("edumatcher.audit.cli._find_audit_pids", _boom)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _run_cli(monkeypatch, ["--log-file", str(log_file), "health"])
+
+        assert exc_info.value.code == 1
+        assert "pgrep failed with exit code 3" in capsys.readouterr().out
+
+    def test_run_extended_log_file_check_times_out_without_waiting_for_the_worker(
+        self, log_file: Path
+    ) -> None:
+        """A check that never returns must not make the caller wait for it."""
+        import threading
+        from unittest.mock import patch
+
+        from edumatcher.audit.cli import _run_extended_log_file_check
+
+        release = threading.Event()
+
+        def _blocks_until_released(
+            _log_file: Path,
+            _log_dir: Path | None = None,
+            *,
+            collect_stats: bool = False,
+        ) -> tuple[bool, str, None]:
+            release.wait(timeout=5)
+            return True, "finished late", None
+
+        with patch(
+            "edumatcher.audit.cli._check_log_file_health", _blocks_until_released
+        ):
+            started = time.monotonic()
+            healthy, detail, stats = _run_extended_log_file_check(
+                log_file, timeout_sec=0.1
+            )
+            elapsed = time.monotonic() - started
+
+        release.set()  # let the abandoned worker finish so it doesn't outlive the test
+        assert healthy is False
+        assert "did not finish within" in detail
+        assert stats is None
+        assert elapsed < 2
+
+    def test_zmq_health_check_detects_a_bound_replier(self) -> None:
+        import threading
+
+        from edumatcher.audit.cli import _check_zmq_health
+        from edumatcher.config import AUDIT_HEALTH_BIND_ADDR
+        from edumatcher.messaging.bus import make_replier
+
+        sock = make_replier(AUDIT_HEALTH_BIND_ADDR)
+        try:
+            # A real pm-audit would answer from its own receive loop; a thread
+            # here stands in for that loop without pulling in the whole process.
+            def answer_once() -> None:
+                sock.recv()
+                sock.send(b"pong")
+
+            responder = threading.Thread(target=answer_once, daemon=True)
+            responder.start()
+            healthy, detail = _check_zmq_health(timeout_ms=2000)
+            responder.join(timeout=1)
+            assert healthy is True
+            assert "pong" in detail
+        finally:
+            sock.close(0)
+
+    def test_zmq_health_check_times_out_when_nothing_is_bound(self) -> None:
+        from edumatcher.audit.cli import _check_zmq_health
+
+        healthy, detail = _check_zmq_health(timeout_ms=200)
+        assert healthy is False
+        assert "no reply" in detail

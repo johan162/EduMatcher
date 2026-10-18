@@ -2,7 +2,8 @@
 
 Reads the JSONL log files written by ``pm-audit`` directly from disk.
 No ZeroMQ connection is made; the tool works even when ``pm-audit`` is not
-running as long as the log files exist.
+running as long as the log files exist. The one exception is ``health``,
+which pings pm-audit's health REP socket to confirm it is alive.
 
 Usage::
 
@@ -26,6 +27,7 @@ Commands
   timeline    Show raw chronological event stream
   stats       Show summary statistics about log files
   index       Build or update the optional SQLite index
+  health      Check the pm-audit process (and, with --extended, its log file)
 
 ``events`` and ``timeline`` accept ``-f``/``--follow`` to keep printing new
 entries as they are appended to the log, polling every ``--interval``
@@ -35,11 +37,12 @@ seconds (default 1.0) until interrupted with Ctrl-C.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from edumatcher.audit.formatters import render, render_stats
 from edumatcher.audit.indexer import (
@@ -49,6 +52,7 @@ from edumatcher.audit.indexer import (
     query_index_events,
 )
 from edumatcher.audit.query import (
+    parse_line,
     discover_log_files,
     parse_ts,
     query_events,
@@ -61,7 +65,15 @@ from edumatcher.audit.query import (
     validate_date,
     validate_iso_ts,
 )
-from edumatcher.config import AUDIT_LOG_FILE
+from edumatcher.config import AUDIT_HEALTH_ADDR, AUDIT_LOG_FILE
+from edumatcher.healthcheck import (
+    PING_TIMEOUT_MS,
+    find_process_pids,
+    format_bytes,
+    ping_health_endpoint,
+    read_last_line,
+    run_with_timeout,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -69,6 +81,46 @@ from edumatcher.config import AUDIT_LOG_FILE
 
 _FORMATS = ("table", "json", "csv")
 _DEFAULT_INDEX_NAME = "audit_index.db"
+
+# The log-file check reads the tail of audit.log and opens it for append; both
+# are normally instant, but on a stalled or network-mounted volume either can
+# block -- opt-in via --extended rather than in every health call, and bounded
+# so a check that never returns cannot hang the CLI indefinitely.
+_EXTENDED_HEALTH_TIMEOUT_SEC = 15.0
+
+
+class _HealthProcessReport(TypedDict):
+    healthy: bool
+    pids: list[int]
+    detail: str
+
+
+class _HealthLogFileStats(TypedDict):
+    size_bytes: int
+    rotated_files: int
+    total_size_bytes: int
+    last_entry_ts: str | None
+
+
+class _HealthLogFileReport(TypedDict):
+    healthy: bool
+    path: str
+    detail: str
+    checked: bool
+    stats: _HealthLogFileStats | None
+
+
+class _HealthZmqReport(TypedDict):
+    healthy: bool
+    detail: str
+
+
+class _HealthReport(TypedDict):
+    healthy: bool
+    process: _HealthProcessReport
+    log_file: _HealthLogFileReport
+    zmq: _HealthZmqReport
+
 
 # ---------------------------------------------------------------------------
 # Column definitions
@@ -369,6 +421,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--incremental",
         action="store_true",
         help="Add only new entries since last index",
+    )
+
+    # ------------------------------------------------------------------ health
+    health = sub.add_parser(
+        "health",
+        help="Check the pm-audit process and audit log file health",
+    )
+    health.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print nothing; exit 0 when healthy or -1 otherwise",
+    )
+    health.add_argument(
+        "--extended",
+        action="store_true",
+        help=(
+            "Also check the audit log file is readable, writable and ends in a "
+            f"well-formed entry; allowed up to {_EXTENDED_HEALTH_TIMEOUT_SEC:.0f}s"
+        ),
+    )
+    health.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Describe exactly what was checked, plus log file size, rotated "
+            "backups and last entry time when combined with --extended"
+        ),
     )
 
     return parser
@@ -713,6 +794,185 @@ def _handle_index(
 
 
 # ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
+def _find_audit_pids() -> list[int]:
+    """Find pm-audit processes without matching this pm-audit-cli process."""
+    return find_process_pids("pm-audit")
+
+
+def _collect_log_stats(
+    log_file: Path, log_dir: Path | None, last_entry_ts: str | None
+) -> _HealthLogFileStats:
+    """Active file size plus rotated backups, for --extended --verbose."""
+    rotated = [p for p in discover_log_files(log_file, log_dir) if p != log_file]
+    size = log_file.stat().st_size
+    return {
+        "size_bytes": size,
+        "rotated_files": len(rotated),
+        "total_size_bytes": size + sum(p.stat().st_size for p in rotated),
+        "last_entry_ts": last_entry_ts,
+    }
+
+
+def _check_log_file_health(
+    log_file: Path, log_dir: Path | None = None, *, collect_stats: bool = False
+) -> tuple[bool, str, _HealthLogFileStats | None]:
+    """Check the audit log is readable, writable, and ends in a valid entry."""
+    if not log_file.exists():
+        return False, f"audit log not found: {log_file}", None
+    if not log_file.is_file():
+        return False, f"audit log is not a regular file: {log_file}", None
+    try:
+        last_line = read_last_line(log_file)
+        last_ts: str | None = None
+        if last_line is not None:
+            parsed = parse_line(last_line)
+            if parsed is None:
+                return False, "last audit log entry is malformed", None
+            last_ts = parsed[0]
+        # Opening for append and writing nothing proves pm-audit could still
+        # write here without touching the trail itself.
+        with log_file.open("ab"):
+            pass
+        stats = (
+            _collect_log_stats(log_file, log_dir, last_ts) if collect_stats else None
+        )
+    except OSError as exc:
+        return False, f"audit log read/write check failed: {exc}", None
+    return True, "read/write and last-entry checks passed", stats
+
+
+def _run_extended_log_file_check(
+    log_file: Path,
+    log_dir: Path | None = None,
+    *,
+    collect_stats: bool = False,
+    timeout_sec: float = _EXTENDED_HEALTH_TIMEOUT_SEC,
+) -> tuple[bool, str, _HealthLogFileStats | None]:
+    """Run `_check_log_file_health`, bounded by `timeout_sec`."""
+    try:
+        return run_with_timeout(
+            lambda: _check_log_file_health(
+                log_file, log_dir, collect_stats=collect_stats
+            ),
+            timeout_sec,
+        )
+    except TimeoutError as exc:
+        return False, f"log file check {exc}", None
+
+
+def _check_zmq_health(timeout_ms: int = PING_TIMEOUT_MS) -> tuple[bool, str]:
+    """Ping pm-audit's health REP socket and confirm it replies."""
+    return ping_health_endpoint(AUDIT_HEALTH_ADDR, timeout_ms)
+
+
+def _health_report(
+    log_file: Path,
+    log_dir: Path | None = None,
+    *,
+    extended: bool = False,
+    collect_stats: bool = False,
+) -> tuple[bool, _HealthReport]:
+    pids = _find_audit_pids()
+    zmq_ok, zmq_detail = _check_zmq_health()
+    if extended:
+        file_ok, file_detail, file_stats = _run_extended_log_file_check(
+            log_file, log_dir, collect_stats=collect_stats
+        )
+        file_checked = True
+    else:
+        file_ok, file_detail, file_stats = (
+            True,
+            "skipped (pass --extended to check read/write access)",
+            None,
+        )
+        file_checked = False
+    report: _HealthReport = {
+        "healthy": bool(pids) and file_ok and zmq_ok,
+        "process": {
+            "healthy": bool(pids),
+            "pids": pids,
+            "detail": "pm-audit is running" if pids else "pm-audit process not found",
+        },
+        "log_file": {
+            "healthy": file_ok,
+            "path": str(log_file),
+            "detail": file_detail,
+            "checked": file_checked,
+            "stats": file_stats,
+        },
+        "zmq": {"healthy": zmq_ok, "detail": zmq_detail},
+    }
+    return bool(report["healthy"]), report
+
+
+def _handle_health(
+    args: argparse.Namespace, log_file: Path, log_dir: Path | None
+) -> None:
+    try:
+        healthy, report = _health_report(
+            log_file,
+            log_dir,
+            extended=args.extended,
+            collect_stats=args.extended and args.verbose,
+        )
+    except (OSError, ValueError) as exc:
+        healthy = False
+        report = _HealthReport(
+            healthy=False,
+            process={"healthy": False, "pids": [], "detail": str(exc)},
+            log_file={
+                "healthy": False,
+                "path": str(log_file),
+                "detail": "health check could not run",
+                "checked": False,
+                "stats": None,
+            },
+            zmq={"healthy": False, "detail": "health check could not run"},
+        )
+    if args.quiet:
+        raise SystemExit(0 if healthy else -1)
+    if args.format == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        process = report["process"]
+        file_report = report["log_file"]
+        zmq_report = report["zmq"]
+        print(
+            f"pm-audit process: {'OK' if process['healthy'] else 'FAIL'} - {process['detail']}"
+        )
+        print(
+            f"audit log file:   {'OK' if file_report['healthy'] else 'FAIL'} - {file_report['detail']}"
+        )
+        print(
+            f"audit ZMQ ping:   {'OK' if zmq_report['healthy'] else 'FAIL'} - {zmq_report['detail']}"
+        )
+        print(f"health: {'OK' if healthy else 'FAIL'}")
+        if args.verbose:
+            print()
+            print("Checks performed:")
+            print("  pm-audit process (pgrep):     yes")
+            print("  ZMQ health ping:               yes")
+            print(
+                "  Log file read/write/entry:     "
+                + ("yes" if file_report["checked"] else "no (pass --extended)")
+            )
+            stats = file_report["stats"]
+            if stats is not None:
+                print()
+                print("Log file stats:")
+                print(f"  path: {file_report['path']}")
+                print(f"  size: {format_bytes(stats['size_bytes'])}")
+                print(f"  rotated backups: {stats['rotated_files']}")
+                print(f"  total size: {format_bytes(stats['total_size_bytes'])}")
+                print(f"  last entry: {stats['last_entry_ts'] or '(empty log)'}")
+    raise SystemExit(0 if healthy else 1)
+
+
+# ---------------------------------------------------------------------------
 # Main entry-point
 # ---------------------------------------------------------------------------
 
@@ -729,6 +989,11 @@ def main() -> None:
 
     log_file = Path(args.log_file).expanduser()
     log_dir = Path(args.log_dir).expanduser() if args.log_dir else None
+
+    # health reports a missing log file itself (under --extended) rather than
+    # refusing to run, and needs none of the log discovery below.
+    if args.command == "health":
+        _handle_health(args, log_file, log_dir)
 
     # stats and index do not need the log files to exist beforehand
     if args.command not in ("stats", "index") and not log_file.exists():

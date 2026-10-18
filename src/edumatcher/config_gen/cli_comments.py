@@ -415,6 +415,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
     lines.extend(
         [
             "indices:",
+            "  - id: EDU100",
             "    description: Broad technology benchmark",
             "    base_value: 1000.0",
             "    publish_interval_sec: 1.0",

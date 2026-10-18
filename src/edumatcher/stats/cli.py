@@ -5,18 +5,20 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import sqlite3
-import subprocess
 import sys
-import threading
 from datetime import tzinfo
 from pathlib import Path
 from typing import Any, TypedDict
 
-import zmq
-
 from edumatcher.config import STATS_DB_FILE, STATS_HEALTH_ADDR, resolve_data_path
+from edumatcher.healthcheck import (
+    PING_TIMEOUT_MS,
+    find_process_pids,
+    format_bytes,
+    ping_health_endpoint,
+    run_with_timeout,
+)
 from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.main import SCHEMA_VERSION
 from edumatcher.stats.query import (
@@ -162,8 +164,6 @@ _FEED_GAPS_COLUMNS = [
 _AFTER_HELP = (
     "Opaque cursor from a previous run's truncation notice; fetches the next page"
 )
-
-_HEALTH_PING_TIMEOUT_MS = 1000
 
 # The integrity/read-write check does a full-file PRAGMA quick_check, which on
 # a multi-hundred-MB stats.db can run well past a few seconds -- opt-in via
@@ -406,33 +406,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _find_stats_pids() -> list[int]:
     """Find pm-stats processes without matching this pm-stats-cli process."""
-    pattern = r"(^|/)pm-stats([[:space:]]|$)"
-    result = subprocess.run(
-        ["pgrep", "-f", pattern],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode not in (0, 1):
-        raise OSError(f"pgrep failed with exit code {result.returncode}")
-    pids: list[int] = []
-    for line in result.stdout.splitlines():
-        try:
-            pid = int(line.strip())
-        except ValueError:
-            continue
-        if pid != os.getpid():
-            pids.append(pid)
-    return sorted(set(pids))
-
-
-def _format_bytes(size: int) -> str:
-    value = float(size)
-    for unit in ("B", "KB", "MB", "GB"):
-        if value < 1024 or unit == "GB":
-            return f"{value:.1f}{unit}" if unit != "B" else f"{int(value)}B"
-        value /= 1024
-    return f"{value:.1f}TB"  # pragma: no cover - stats.db won't get here
+    return find_process_pids("pm-stats")
 
 
 def _collect_db_stats(conn: sqlite3.Connection, db_path: Path) -> _HealthDatabaseStats:
@@ -482,51 +456,19 @@ def _run_extended_database_check(
     collect_stats: bool = False,
     timeout_sec: float = _EXTENDED_HEALTH_TIMEOUT_SEC,
 ) -> tuple[bool, str, _HealthDatabaseStats | None]:
-    """Run `_check_database_health` off-thread, bounded by `timeout_sec`.
-
-    The worker is a daemon thread rather than a `ThreadPoolExecutor`: the
-    latter's atexit hook joins every worker before the interpreter exits,
-    which would make a timed-out `quick_check` block process exit for however
-    long it actually takes regardless of the timeout reported here. A daemon
-    thread is simply abandoned when the CLI exits.
-    """
-    outcome: list[tuple[bool, str, _HealthDatabaseStats | None]] = []
-
-    def _run() -> None:
-        outcome.append(_check_database_health(db_path, collect_stats=collect_stats))
-
-    worker = threading.Thread(target=_run, daemon=True)
-    worker.start()
-    worker.join(timeout_sec)
-    if worker.is_alive():
-        return False, f"database check did not finish within {timeout_sec:.0f}s", None
-    return outcome[0]
-
-
-def _check_zmq_health(timeout_ms: int = _HEALTH_PING_TIMEOUT_MS) -> tuple[bool, str]:
-    """Ping pm-stats' health REP socket and confirm it replies.
-
-    Unlike the pgrep and SQLite checks, this is the only one that actually
-    exercises the running process's receive loop: a reply proves pm-stats is
-    not just alive but pumping messages, not merely a process the OS still
-    lists.
-    """
-    ctx: zmq.Context[Any] = zmq.Context.instance()
-    sock = ctx.socket(zmq.REQ)
-    sock.setsockopt(zmq.LINGER, 0)
-    sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-    sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
+    """Run `_check_database_health`, bounded by `timeout_sec`."""
     try:
-        sock.connect(STATS_HEALTH_ADDR)
-        sock.send(b"ping")
-        reply = sock.recv()
-        return True, f"replied at {reply.decode(errors='replace')}"
-    except zmq.Again:
-        return False, f"no reply within {timeout_ms}ms"
-    except zmq.ZMQError as exc:
-        return False, f"ZMQ ping failed: {exc}"
-    finally:
-        sock.close(0)
+        return run_with_timeout(
+            lambda: _check_database_health(db_path, collect_stats=collect_stats),
+            timeout_sec,
+        )
+    except TimeoutError as exc:
+        return False, f"database check {exc}", None
+
+
+def _check_zmq_health(timeout_ms: int = PING_TIMEOUT_MS) -> tuple[bool, str]:
+    """Ping pm-stats's health REP socket and confirm it replies."""
+    return ping_health_endpoint(STATS_HEALTH_ADDR, timeout_ms)
 
 
 def _health_report(
@@ -829,7 +771,7 @@ def main() -> None:
                     print()
                     print("Database stats:")
                     print(f"  path: {database['path']}")
-                    print(f"  size: {_format_bytes(stats['size_bytes'])}")
+                    print(f"  size: {format_bytes(stats['size_bytes'])}")
                     for table, count in stats["row_counts"].items():
                         print(f"  {table} rows: {count}")
         raise SystemExit(0 if healthy else 1)

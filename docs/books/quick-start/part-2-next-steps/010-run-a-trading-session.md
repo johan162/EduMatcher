@@ -69,7 +69,7 @@ pm-opctl-cli start
 
 The process set includes `pm-scheduler`, which moves the exchange through the
 phases at the times in the timetable — in the container's time zone, which is
-UTC unless you set `TZ` in `.env`. Outside those hours the exchange simply sits
+`Europe/Stockholm` unless you set `TZ` in `.env`. Outside those hours the exchange simply sits
 in `CLOSED`. In this chapter you will drive the phases by hand, which works
 at any time of day.
 

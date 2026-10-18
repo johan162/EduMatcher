@@ -198,6 +198,27 @@ init: .env
 
 
 # --- Build -----------------------------------------------------------------
+# Two images install the edumatcher package from a .wheel/ drop box: the
+# backend (./.wheel) and log-gui. stage_wheel fills the given drop boxes by
+# the rule `make build` documents below -- a wheel freshly built from this
+# checkout, or, with PYPI=1 or VERSION=x.y.z, an empty drop box so the
+# Dockerfile installs from PyPI (EDUMATCHER_VERSION, set from VERSION, pins
+# it). A shell fragment, for use inside a recipe's own `set -eu` script.
+LOG_GUI_WHEEL_DIR := ../../web-apps/log-gui/.wheel
+BUILD_ENV := $(if $(VERSION),EDUMATCHER_VERSION=$(VERSION))
+
+define stage_wheel
+if [ -n "$(VERSION)" ] || [ "$(PYPI)" = "1" ]; then \
+	echo "==> $(1): edumatcher from PyPI $(or $(VERSION),(latest))"; \
+	for d in $(1); do rm -f "$$d"/*.whl; done; \
+else \
+	echo "==> building wheel from the repository checkout for $(1)"; \
+	(cd ../.. && poetry build --format wheel); \
+	whl="$$(ls -t ../../dist/*.whl | head -1)"; \
+	for d in $(1); do rm -f "$$d"/*.whl; cp "$$whl" "$$d"/; done; \
+	echo "==> using $$(basename "$$whl")"; \
+fi
+endef
 # Default: build from a freshly built local wheel (what DEV=1 used to mean —
 # DEV=1 is still accepted for anyone's muscle memory, but is now a no-op).
 # PYPI=1 installs the latest PyPI release instead; VERSION=x.y.z pins one
@@ -232,6 +253,10 @@ build: check .env
 #
 # PUBLISH_COMPOSE_FILES is used rather than ALL_COMPOSE_FILES so config-gui is
 # always buildable here, whether or not CONFIG_GUI=1 is set for the start.
+#
+# log-gui is the one web app with the Python package inside (its Diagnostics
+# view runs pm-log-cli), so it gets the same package `make build` would use:
+# this checkout by default, PyPI with PYPI=1 or VERSION=x.y.z.
 build-guis: check .env
 	@set -eu; \
 	if [ -n "$(GUI)" ]; then \
@@ -240,11 +265,16 @@ build-guis: check .env
 			*) echo "ERROR: unknown GUI '$(GUI)'." >&2; \
 			   echo "       One of: $(GUI_SERVICES)" >&2; exit 1;; \
 		esac; \
+	fi; \
+	if [ -z "$(GUI)" ] || [ "$(GUI)" = "log-gui" ]; then \
+		$(call stage_wheel,$(LOG_GUI_WHEEL_DIR)); \
+	fi; \
+	if [ -n "$(GUI)" ]; then \
 		echo "==> rebuilding $(GUI)"; \
-		$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI); \
+		$(BUILD_ENV) $(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI); \
 	else \
 		echo "==> rebuilding all web-app images"; \
-		$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI_SERVICES); \
+		$(BUILD_ENV) $(COMPOSE) $(PUBLISH_COMPOSE_FILES) build $(GUI_SERVICES); \
 	fi
 	@echo "==> rebuilt. 'make up-all' recreates the containers whose image changed."
 
@@ -577,6 +607,7 @@ ghcr-push: check
 			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
 	esac; \
 	echo "==> building all six images from this checkout"; \
+	$(call stage_wheel,.wheel $(LOG_GUI_WHEEL_DIR)); \
 	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
 	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \
 		-u "$$GITHUB_USER" --password-stdin; \

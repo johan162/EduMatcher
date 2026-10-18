@@ -82,7 +82,9 @@ pm-audit  # writes to $HOME/sessions/morning/audit.log
 ## pm-audit — Event Recorder
 
 `pm-audit` subscribes to all topics on the engine's PUB socket and appends
-every message as a single JSON line to the configured log file.
+every message as a single JSON line to the configured log file. It also binds
+a small health socket (port `5562`) that answers
+[`pm-audit-cli health`](#health-recorder-and-log-file-health) pings.
 
 ```bash
 pm-audit [options]
@@ -252,7 +254,9 @@ batch of messages is always written to disk.
 
 `pm-audit-cli` is a read-only command-line tool for querying audit logs
 without shell pipelines or SQL knowledge. It reads JSONL files directly from
-disk and produces structured output.
+disk and produces structured output. The one command that talks to the running
+recorder is [`health`](#health-recorder-and-log-file-health), which pings
+`pm-audit` to confirm it is alive.
 
 ```bash
 pm-audit-cli [global-options] COMMAND [command-options]
@@ -287,7 +291,8 @@ These flags are parsed once, before the subcommand:
     directly and never consult the SQLite index, even when one exists and
     `--use-index` is given. `--format`/`--no-header` are also ignored by
     `stats` (its output is a fixed text summary, not a table) and by `index`
-    (which prints build progress, not rows).
+    (which prints build progress, not rows). `health` honours `--format json`
+    (the report as a JSON object); `csv` prints the same text as `table`.
 
     The auto-detected index path is always `<the directory containing
     --log-file>/audit_index.db` — it does **not** use `--log-dir`. If
@@ -911,6 +916,77 @@ pm-audit-cli --use-index /tmp/session_idx.db \
 
     For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.
 
+### `health` — Recorder and log file health
+
+Check that `pm-audit` is alive and actually recording. By default two fast
+checks run:
+
+- **Process** — a `pm-audit` process is running (found with `pgrep`).
+- **ZMQ ping** — `pm-audit` answers a ping on its health socket (port `5562`)
+  with its current UTC time. The reply comes from the recorder's own receive
+  loop, so it proves the loop is running, not just that the process exists.
+
+The log file check is opt-in with `--extended`. It checks that `--log-file`
+exists and is a regular file, that its last entry is a well-formed audit line
+(an empty log is fine — a freshly started `pm-audit` has written nothing yet),
+and that the file can be opened for append. Nothing is ever written to the
+log. Only the tail of the file is read, so the check stays fast however large
+the log grows; it is still bounded at 15 seconds so a stalled or
+network-mounted volume cannot hang the command.
+
+Unlike the query commands, `health` runs even when the log file does not
+exist; a missing file is only reported as a failure under `--extended`.
+
+```bash
+pm-audit-cli health
+pm-audit-cli health --extended
+pm-audit-cli health --extended --verbose
+pm-audit-cli --format json health
+pm-audit-cli health --quiet
+```
+
+```text
+pm-audit process: OK - pm-audit is running
+audit log file:   OK - skipped (pass --extended to check read/write access)
+audit ZMQ ping:   OK - replied at 2026-10-17T14:23:37.797827+00:00
+health: OK
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--extended` | Also check the audit log file is readable, writable and ends in a well-formed entry (up to 15 s) |
+| `-v`, `--verbose` | List exactly which checks ran; with `--extended`, also print the log size, rotated backups and last entry time |
+| `-q`, `--quiet` | Print nothing; report only through the exit code |
+
+With `--extended --verbose` the report ends with the checks performed and the
+log file figures. Rotated backups are found the same way as for the query
+commands, so `--log-dir` applies:
+
+```text
+Checks performed:
+  pm-audit process (pgrep):     yes
+  ZMQ health ping:               yes
+  Log file read/write/entry:     yes
+
+Log file stats:
+  path: data/audit.log
+  size: 2.1MB
+  rotated backups: 2
+  total size: 12.4MB
+  last entry: 2026-07-08T16:29:59.874+00:00
+```
+
+The exit code is `0` when healthy and `1` otherwise. With `--quiet` nothing is
+printed and the exit code is `0` when healthy or `-1` (255 in a shell)
+otherwise.
+
+The health socket binds to `127.0.0.1:5562` by default; set
+`EDUMATCHER_AUDIT_BIND_HOST` / `EDUMATCHER_AUDIT_HEALTH_PORT` to change where
+`pm-audit` binds it, and `EDUMATCHER_ENGINE_HOST` /
+`EDUMATCHER_AUDIT_HEALTH_PORT` to change where `pm-audit-cli` connects.
+
 
 
 ## Cookbook — Common Audit Workflows
@@ -960,6 +1036,7 @@ pm-audit-cli gateways --date 2026-07-08
 ### Check log health before end of day
 
 ```bash
+pm-audit-cli health --extended
 pm-audit-cli stats --verbose
 pm-audit-cli topics --date 2026-07-08 --sort count | head -10
 ```

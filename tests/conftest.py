@@ -204,6 +204,28 @@ def _no_live_log_server_detection(
     monkeypatch.setattr(discovery, "_probe_server", lambda *args, **kwargs: False)
 
 
+@pytest.fixture(autouse=True)
+def _private_clearing_health_endpoint(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Give every test's ClearingProcess.run() its own health endpoint.
+
+    Many clearing tests run the real process loop, in parallel under xdist;
+    binding the shipped 127.0.0.1:5563 in each would collide across workers
+    (and with a real pm-clearing on the developer's machine). A per-test
+    inproc address keeps the real REP socket in the loop without any port.
+    """
+    import uuid
+
+    from edumatcher.clearing import main as clearing_main
+
+    monkeypatch.setattr(
+        clearing_main,
+        "CLEARING_HEALTH_BIND_ADDR",
+        f"inproc://clearing-health-{uuid.uuid4().hex}",
+    )
+
+
 def make_order(
     *,
     symbol: str = "AAPL",

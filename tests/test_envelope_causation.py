@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from edumatcher.audit.query import AuditEntry, _parse_line, parse_meta
+from edumatcher.audit.query import AuditEntry, parse_line, parse_meta
 from edumatcher.messaging.bus import (
     CausalPublisher,
     CausalPusher,
@@ -271,7 +271,7 @@ class TestAuditLineCarriesTheEnvelope:
         pub.set_cause(submission)
         pub.send_multipart([b"order.ack.GW1", b'{"order_id":"O1","gateway_id":"GW1"}'])
 
-        parsed = _parse_line(self._line(sock.sent[0]))
+        parsed = parse_line(self._line(sock.sent[0]))
         assert parsed is not None
         entry = AuditEntry(*parsed)
 
@@ -287,7 +287,7 @@ class TestAuditLineCarriesTheEnvelope:
         """Archived lines predate the metadata section; reading a mixed archive
         must not need a flag."""
         ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-        parsed = _parse_line(f'[{ts}] [trade.executed] {{"id":"T1"}}')
+        parsed = parse_line(f'[{ts}] [trade.executed] {{"id":"T1"}}')
         assert parsed is not None
         entry = AuditEntry(*parsed)
 

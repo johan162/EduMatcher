@@ -128,12 +128,21 @@ In a second terminal:
 pm-clearing-cli health
 ```
 
-Expected: one row showing the DB path, row counts for each table, the last
-trade and last flush timestamps, and `wal_mode` enabled.
+Expected: `pm-clearing process: OK`, `clearing ZMQ ping: OK` and `health: OK`.
+The database line says `skipped` — the database itself is only checked when
+you ask for it:
 
-Run `health` again after a few trades to see the row counts grow.
+```bash
+pm-clearing-cli health --extended --verbose
+```
 
-:material-checkbox-blank-outline: **Checkpoint:** `health` returns a row with WAL mode enabled.
+Expected: `clearing database: OK`, followed by the DB path, row counts for
+each table, the last trade and last flush timestamps, and `journal mode: wal`.
+
+Run `health --extended --verbose` again after a few trades to see the row
+counts grow.
+
+:material-checkbox-blank-outline: **Checkpoint:** `health` reports `OK`, and `--extended --verbose` shows WAL journal mode.
 
 ---
 
