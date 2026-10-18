@@ -2351,10 +2351,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#health-db-metadata-and-freshness" class="md-nav__link">
+  <a href="#health-process-liveness-and-database-health" class="md-nav__link">
     <span class="md-ellipsis">
       
-        health — DB metadata and freshness
+        health — process liveness and database health
       
     </span>
   </a>
@@ -2960,6 +2960,34 @@
     
   
     VM Runtime Image with Pinned PyPI Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
   
 
     
@@ -8044,7 +8072,9 @@ real-time P&amp;L accounting with no credit risk — every trade settles instant
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-clearing
 </code></pre></div>
 <p>No arguments are required. The process connects to the engine's PUB socket
-(port 5556), creates or opens <code>data/clearing.db</code>, and begins tracking P&amp;L.
+(port 5556), creates or opens <code>data/clearing.db</code>, and begins tracking P&amp;L. It
+also binds a health socket (<code>127.0.0.1:5563</code> by default) that answers
+<a href="#health-process-liveness-and-database-health"><code>pm-clearing-cli health</code></a> pings.
 It can be started before or after trading begins — it will pick up all trades
 from the moment it subscribes.</p>
 <p><strong>Warm start on restart.</strong> If <code>clearing.db</code> already contains positions,
@@ -9172,9 +9202,9 @@ themselves do not accept them.</p>
 </tr>
 <tr>
 <td><code>health</code></td>
-<td>Three tables + WAL pragma</td>
-<td>Row counts, last trade timestamp, last flush timestamp, WAL mode</td>
-<td>—</td>
+<td><code>pm-clearing</code> process + health socket; with <code>--extended</code>, the whole DB</td>
+<td>Liveness of <code>pm-clearing</code>; with <code>--extended</code>, DB integrity and read/write access; with <code>--extended -v</code>, row counts, last trade/flush time and journal mode</td>
+<td><code>--extended</code>, <code>-v</code>, <code>-q</code></td>
 </tr>
 <tr>
 <td><code>reconcile</code></td>
@@ -9635,8 +9665,25 @@ units using that precision for all output formats.</p>
 <a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="c1"># Narrow date window with totals</span>
 <a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
 </code></pre></div>
-<h3 id="health-db-metadata-and-freshness">health — DB metadata and freshness<a class="headerlink" href="#health-db-metadata-and-freshness" title="Permanent link">&para;</a></h3>
-<p>Returns a single-row operational summary of the clearing database. A clearing house uses this as a <strong>liveness and monitoring check</strong>: it confirms that <code>pm-clearing</code> is actively writing, reports how many records are stored, and shows when the last flush occurred so operators can detect a stalled or disconnected clearing process before it causes a data gap.</p>
+<h3 id="health-process-liveness-and-database-health">health — process liveness and database health<a class="headerlink" href="#health-process-liveness-and-database-health" title="Permanent link">&para;</a></h3>
+<p>Checks that <code>pm-clearing</code> is alive and actually processing messages. A
+clearing house uses this as a <strong>liveness and monitoring check</strong>: it detects a
+stalled or dead clearing process before it causes a gap in positions and P&amp;L.
+By default two fast checks run:</p>
+<ul>
+<li><strong>Process</strong> — a <code>pm-clearing</code> process is running (found with <code>pgrep</code>).</li>
+<li><strong>ZMQ ping</strong> — <code>pm-clearing</code> answers a ping on its health socket (port
+  <code>5563</code>) with its current UTC time. The reply comes from the clearing
+  process's own receive loop, so it proves the loop is running, not just that
+  the process exists.</li>
+</ul>
+<p>The database check is opt-in with <code>--extended</code>, because it runs a full-file
+<code>PRAGMA quick_check</code> that can take many seconds on a large <code>clearing.db</code>. It
+checks that the database passes the integrity check, contains the
+<code>trade_events</code>, <code>gateway_symbol_positions</code> and <code>gateway_daily_summary</code> tables
+with the current trade-identity schema, and accepts a (rolled-back) write. The
+file is never created if it is missing. The check is allowed up to 45 seconds
+before it is reported as failed.</p>
 <table>
 <thead>
 <tr>
@@ -9648,18 +9695,64 @@ units using that precision for all output formats.</p>
 </thead>
 <tbody>
 <tr>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td><code>--extended</code></td>
+<td>flag</td>
+<td>off</td>
+<td>Also check <code>clearing.db</code> integrity, schema and read/write access (up to 45 s)</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--verbose</code></td>
+<td>flag</td>
+<td>off</td>
+<td>List exactly which checks ran; with <code>--extended</code>, also print the database size, row counts, last trade and last flush time, and journal mode</td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>flag</td>
+<td>off</td>
+<td>Print nothing; report only through the exit code</td>
 </tr>
 </tbody>
 </table>
-<p>No filter options — <code>health</code> always returns a single summary row.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-clearing-cli<span class="w"> </span>health
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>pm-clearing-cli<span class="w"> </span>health<span class="w"> </span>--extended
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>pm-clearing-cli<span class="w"> </span>health<span class="w"> </span>--extended<span class="w"> </span>--verbose
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>health
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>pm-clearing-cli<span class="w"> </span>health<span class="w"> </span>--quiet
 </code></pre></div>
-<p>Output fields: <code>db_path</code>, <code>trade_events_rows</code>, <code>gateway_symbol_positions_rows</code>,
-<code>gateway_daily_summary_rows</code>, <code>last_trade_ts_ns</code>, <code>last_flush_ts_ns</code>, <code>wal_mode</code></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-clearing process: OK - pm-clearing is running
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>clearing database:   OK - skipped (pass --extended to check integrity and read/write access)
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>clearing ZMQ ping:   OK - replied at 2026-10-17T14:23:37.797827+00:00
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>health: OK
+</code></pre></div>
+<p>With <code>--extended --verbose</code> the report ends with the checks performed and the
+database metadata — the row counts and freshness figures earlier versions of
+<code>health</code> printed as a table row:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>Checks performed:
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>  pm-clearing process (pgrep):   yes
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>  ZMQ health ping:                yes
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>  Database integrity/read-write: yes
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>Database stats:
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>  path: data/clearing.db
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>  size: 18.4MB
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>  trade_events rows: 48211
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>  gateway_symbol_positions rows: 312
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a>  gateway_daily_summary rows: 1904
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>  last trade: 2026-07-08T15:59:58.412000+00:00
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a>  last flush: 2026-07-08T16:00:02.977000+00:00
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>  journal mode: wal
+</code></pre></div>
+<p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
+printed and the exit code is <code>0</code> when healthy or <code>-1</code> (255 in a shell)
+otherwise. <code>--format json</code> prints the same report as a JSON object (<code>csv</code>
+prints the same text as <code>table</code>); <code>--raw-output</code> does not apply.</p>
+<p>Unlike the query verbs, <code>health</code> runs even when <code>clearing.db</code> does not exist; a
+missing database is only reported as a failure under <code>--extended</code>.</p>
+<p>The health socket binds to <code>127.0.0.1:5563</code> by default; set
+<code>EDUMATCHER_CLEARING_BIND_HOST</code> / <code>EDUMATCHER_CLEARING_HEALTH_PORT</code> to change
+where <code>pm-clearing</code> binds it, and <code>EDUMATCHER_ENGINE_HOST</code> /
+<code>EDUMATCHER_CLEARING_HEALTH_PORT</code> to change where <code>pm-clearing-cli</code> connects.</p>
 <h3 id="reconcile-verify-aggregate-consistency-buy-and-sell-sides">reconcile — verify aggregate consistency (buy and sell sides)<a class="headerlink" href="#reconcile-verify-aggregate-consistency-buy-and-sell-sides" title="Permanent link">&para;</a></h3>
 <p>Cross-checks raw <code>trade_events</code> fact totals against the pre-computed aggregates in <code>gateway_daily_summary</code> for both the buy side and the sell side. A clearing house uses this as a <strong>data integrity gate</strong>: it should return zero rows on a healthy DB, and any discrepancy identifies exactly which date, gateway, symbol, and direction has diverged — pointing directly to the rows that need investigation.</p>
 <p>The comparison is a <strong>full outer</strong> one: it is driven by the union of keys on
@@ -9713,20 +9806,20 @@ false positives for legitimately pruned days.</p>
 </table>
 <p>Output columns: <code>side</code> (<code>BUY</code> or <code>SELL</code>), <code>trade_date</code>, <code>gateway_id</code>, <code>symbol</code>,
 <code>raw_qty</code>, <code>summary_qty</code>, <code>qty_diff</code>, <code>raw_notional</code>, <code>summary_notional</code>, <code>notional_diff</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Full reconciliation (both sides)</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-clearing-cli<span class="w"> </span>reconcile
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Scope to one gateway or date range</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="c1"># Ignore days older than the raw-retention window (avoids false positives</span>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="c1"># for pruned days once trade_events has been pruned but summaries remain)</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--retention-days<span class="w"> </span><span class="m">90</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="c1"># JSON output (on a clean DB the line "OK — no discrepancies found." is printed</span>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="c1"># on stdout ahead of the payload, so filter it or check the exit status)</span>
-<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>reconcile
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Full reconciliation (both sides)</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-clearing-cli<span class="w"> </span>reconcile
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Scope to one gateway or date range</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="c1"># Ignore days older than the raw-retention window (avoids false positives</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="c1"># for pruned days once trade_events has been pruned but summaries remain)</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--retention-days<span class="w"> </span><span class="m">90</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a><span class="c1"># JSON output (on a clean DB the line "OK — no discrepancies found." is printed</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a><span class="c1"># on stdout ahead of the payload, so filter it or check the exit status)</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>reconcile
 </code></pre></div>
 <h3 id="sessions-gateway-connection-and-disconnection-history">sessions — gateway connection and disconnection history<a class="headerlink" href="#sessions-gateway-connection-and-disconnection-history" title="Permanent link">&para;</a></h3>
 <p>Returns the timeline of every gateway connection recorded by <code>pm-clearing</code> from the engine's <code>system.gateway_auth</code> (accepted connect) and <code>system.gateway_bye</code> (disconnect) broadcasts. A clearing house uses this for <strong>participant access auditing</strong>: it establishes exactly when each participant was active, how long they were connected, and whether a disconnect was clean or forced — context that is essential when investigating missing trades or unexpected position changes.</p>
@@ -9772,20 +9865,20 @@ false positives for legitimately pruned days.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># All sessions today</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># History for one gateway</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Only currently-open sessions (no recorded disconnect)</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>
-<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="c1"># Date range</span>
-<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>
-<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="c1"># JSON export</span>
-<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>sessions<span class="w"> </span>&gt;<span class="w"> </span>sessions.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># All sessions today</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="c1"># History for one gateway</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="c1"># Only currently-open sessions (no recorded disconnect)</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="c1"># Date range</span>
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>
+<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a><span class="c1"># JSON export</span>
+<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>sessions<span class="w"> </span>&gt;<span class="w"> </span>sessions.json
 </code></pre></div>
 <p>Output fields: <code>gateway_id</code>, <code>connect_date</code>, <code>connected_at_ns</code>,
 <code>disconnected_at_ns</code>, <code>disconnect_reason</code></p>
@@ -9828,25 +9921,25 @@ history going forward.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Latest EOD markers</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-clearing-cli<span class="w"> </span>eod
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Date range</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># Most recent session close</span>
-<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Latest EOD markers</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-clearing-cli<span class="w"> </span>eod
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Date range</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="c1"># Most recent session close</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
 </code></pre></div>
 <p>Output fields: <code>id</code>, <code>event_type</code> (always <code>EOD</code>), <code>ts_ns</code>, <code>trade_date</code>,
 <code>payload_json</code> (JSON object with <code>eod_marks</code> dict and <code>symbols_count</code>).</p>
 <p>To extract the EOD mark prices for AAPL from the JSON payload:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="s2">import json, sys</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="s2">marks = json.loads(row['payload_json'])['eod_marks']</span>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="s2">print('AAPL EOD mark:', marks.get('AAPL', 'n/a'))</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="s2">import json, sys</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="s2">marks = json.loads(row['payload_json'])['eod_marks']</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="s2">print('AAPL EOD mark:', marks.get('AAPL', 'n/a'))</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="s2">"</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -9888,14 +9981,14 @@ quiet period.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Delete rows older than 90 days</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-clearing-cli<span class="w"> </span>prune
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Custom retention window</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">180</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="c1"># See what would be deleted without deleting</span>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--dry-run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="c1"># Delete rows older than 90 days</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>pm-clearing-cli<span class="w"> </span>prune
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="c1"># Custom retention window</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">180</span>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># See what would be deleted without deleting</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--dry-run
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -9904,72 +9997,75 @@ rarely needed. Use <code>--dry-run</code> first if you are uncertain.</p>
 </div>
 <h2 id="clearing-cookbook-common-questions-and-answers">Clearing cookbook — common questions and answers<a class="headerlink" href="#clearing-cookbook-common-questions-and-answers" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-our-live-pl-right-now">"What is our live P&amp;L right now?"<a class="headerlink" href="#what-is-our-live-pl-right-now" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-clearing-cli<span class="w"> </span>pnl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-clearing-cli<span class="w"> </span>pnl
 </code></pre></div>
 <p>Or for a specific gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 </code></pre></div>
 <h3 id="which-gatewaysymbol-positions-have-the-largest-open-exposure">"Which gateway/symbol positions have the largest open exposure?"<a class="headerlink" href="#which-gatewaysymbol-positions-have-the-largest-open-exposure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>gross_notional<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>gross_notional<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
 <p><code>exposure</code> returns one row per (gateway, symbol); use <code>pm-clearing-cli gateways</code>
 for per-gateway P&amp;L totals.</p>
 <h3 id="show-me-every-trade-trader07-did-today">"Show me every trade TRADER07 did today"<a class="headerlink" href="#show-me-every-trade-trader07-did-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="what-was-the-total-exchange-volume-and-notional-today">"What was the total exchange volume and notional today?"<a class="headerlink" href="#what-was-the-total-exchange-volume-and-notional-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
 </code></pre></div>
 <p>(<code>daily --date</code> returns one row per gateway and symbol, not exchange totals.)</p>
 <p>Or for a date range, including net amounts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
 </code></pre></div>
 <h3 id="which-symbols-generated-the-biggest-pl-swings">"Which symbols generated the biggest P&amp;L swings?"<a class="headerlink" href="#which-symbols-generated-the-biggest-pl-swings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--sort<span class="w"> </span>realized_pnl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--sort<span class="w"> </span>realized_pnl
 </code></pre></div>
 <h3 id="did-clearing-stop-updating-when-was-the-last-flush">"Did clearing stop updating? When was the last flush?"<a class="headerlink" href="#did-clearing-stop-updating-when-was-the-last-flush" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-clearing-cli<span class="w"> </span>health
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-clearing-cli<span class="w"> </span>health
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>pm-clearing-cli<span class="w"> </span>health<span class="w"> </span>--extended<span class="w"> </span>--verbose
 </code></pre></div>
-<p>Compare <code>last_flush_ts_ns</code> against the current time. If it is more than a few
-minutes stale during active trading, <code>pm-clearing</code> may have stopped.</p>
+<p>The first command tells you whether <code>pm-clearing</code> is running and its receive
+loop still answers. The second also shows <code>last flush</code>: if it is more than a few
+minutes stale during active trading, <code>pm-clearing</code> may be alive but no longer
+receiving trades — check that the engine is up.</p>
 <h3 id="what-was-the-official-eod-mark-for-aapl-yesterday">"What was the official EOD mark for AAPL yesterday?"<a class="headerlink" href="#what-was-the-official-eod-mark-for-aapl-yesterday" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-04<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-04
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-04<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-04
 </code></pre></div>
 <p>This returns the sentinel row written by <code>pm-clearing</code> on <code>system.eod</code>,
 including the exact close timestamp and the <code>payload_json</code> field which
 contains the EOD mark prices applied to each symbol.</p>
 <h3 id="when-did-trader07-connect-and-disconnect-today">"When did TRADER07 connect and disconnect today?"<a class="headerlink" href="#when-did-trader07-connect-and-disconnect-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="which-gateways-were-connected-during-todays-session">"Which gateways were connected during today's session?"<a class="headerlink" href="#which-gateways-were-connected-during-todays-session" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="which-gateways-are-currently-connected-no-recorded-disconnect">"Which gateways are currently connected (no recorded disconnect)?"<a class="headerlink" href="#which-gateways-are-currently-connected-no-recorded-disconnect" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
 </code></pre></div>
 <h3 id="why-does-trader07-have-no-trades-today-was-it-ever-connected">"Why does TRADER07 have no trades today — was it ever connected?"<a class="headerlink" href="#why-does-trader07-have-no-trades-today-was-it-ever-connected" title="Permanent link">&para;</a></h3>
 <p>Run the session history first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <p>This tells you whether the gateway connected at all. If no rows are returned,
 TRADER07 never authenticated. If a row is present with a rapid
 <code>disconnected_at_ns</code>, the gateway was kicked mid-session. Then check trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="export-todays-daily-summary-for-the-finance-team">"Export today's daily summary for the finance team"<a class="headerlink" href="#export-todays-daily-summary-for-the-finance-team" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>clearing_2026-07-05.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>clearing_2026-07-05.csv
 </code></pre></div>
 <h3 id="verify-the-database-is-internally-consistent">"Verify the database is internally consistent"<a class="headerlink" href="#verify-the-database-is-internally-consistent" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-clearing-cli<span class="w"> </span>reconcile
-<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="c1"># OK — no discrepancies found.</span>
-<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="c1"># No rows found.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>pm-clearing-cli<span class="w"> </span>reconcile
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a><span class="c1"># OK — no discrepancies found.</span>
+<a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a><span class="c1"># No rows found.</span>
 </code></pre></div>
 <p>If the reconcile output shows rows, contact the EduMatcher operations team.</p>
 <h3 id="how-do-i-isolate-per-session-data">"How do I isolate per-session data?"<a class="headerlink" href="#how-do-i-isolate-per-session-data" title="Permanent link">&para;</a></h3>
 <p>Set <code>EDUMATCHER_DATA_DIR</code> before starting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
-<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w">  </span><span class="c1"># reads morning/clearing.db</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w">  </span><span class="c1"># reads morning/clearing.db</span>
 </code></pre></div>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>

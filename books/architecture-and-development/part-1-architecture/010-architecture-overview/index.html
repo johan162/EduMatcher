@@ -2116,6 +2116,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8720,20 +8748,20 @@ publishes the market model: true values for the AI traders, ADMIN and
 </tr>
 <tr>
 <td>pm-audit</td>
-<td>SUB→:5556</td>
-<td>Connects</td>
+<td>SUB→:5556, REP :5562</td>
+<td><strong>Binds</strong> :5562 (health); connects→:5556</td>
 <td>Universal event log (subscribes to all topics)</td>
 </tr>
 <tr>
 <td>pm-clearing</td>
-<td>SUB→:5556</td>
-<td>Connects</td>
+<td>SUB→:5556, REP :5563</td>
+<td><strong>Binds</strong> :5563 (health); connects→:5556</td>
 <td>P&amp;L tracking and trade settlement</td>
 </tr>
 <tr>
 <td>pm-stats</td>
-<td>SUB→:5556</td>
-<td>Connects</td>
+<td>SUB→:5556, SUB→:5558, PUSH→:5555, REP :5561</td>
+<td><strong>Binds</strong> :5561 (health); connects→:5555, :5556, :5558</td>
 <td>OHLCV statistics and SQLite persistence</td>
 </tr>
 <tr>
@@ -8750,8 +8778,8 @@ publishes the market model: true values for the AI traders, ADMIN and
 </tr>
 <tr>
 <td>pm-index</td>
-<td>PULL :5559, PUB :5558, SUB→:5556</td>
-<td><strong>Binds</strong> :5558 and :5559; connects→:5556</td>
+<td>PULL :5559, PUB :5558, REP :5564, SUB→:5556</td>
+<td><strong>Binds</strong> :5558, :5559 and :5564 (health); connects→:5556</td>
 <td>Index calculation, OHLC, corporate actions</td>
 </tr>
 <tr>

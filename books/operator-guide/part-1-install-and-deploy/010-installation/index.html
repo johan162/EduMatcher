@@ -2522,6 +2522,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7783,7 +7811,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.5
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.6
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -7833,8 +7861,8 @@ into this file.</p>
 </tr>
 <tr>
 <td><code>TZ</code></td>
-<td><code>UTC</code></td>
-<td>Container timezone. Set it to match the trading calendar in your configuration, e.g. <code>Europe/Stockholm</code></td>
+<td><code>Europe/Stockholm</code></td>
+<td>Container timezone. Set it to match the trading calendar in your configuration</td>
 </tr>
 <tr>
 <td><code>BIND_ADDR</code></td>
@@ -8231,9 +8259,18 @@ need these mainly behind a corporate proxy.</p>
 <td><em>(empty)</em></td>
 <td>Declared only by the unused <code>web-apps/config-gui/Dockerfile.proxy</code>, not the <code>Dockerfile</code> that <code>compose.config-gui.yaml</code> actually builds — setting these currently has no effect on <code>make up-all CONFIG_GUI=1</code></td>
 </tr>
+<tr>
+<td><code>EDUMATCHER_VERSION</code></td>
+<td><em>(empty)</em></td>
+<td><code>log-gui</code> only: the PyPI release of the bundled <code>pm-log-cli</code> when <code>web-apps/log-gui/.wheel/</code> holds no wheel. <code>make build-guis</code> fills that drop box from your checkout by the same rule as <code>make build</code>, and empties it for <code>PYPI=1</code> or <code>VERSION=x.y.z</code></td>
+</tr>
 </tbody>
 </table>
 <h2 id="how-the-containers-are-wired">How the containers are wired<a class="headerlink" href="#how-the-containers-are-wired" title="Permanent link">&para;</a></h2>
+<p>For a step-by-step walkthrough of the images, compose files, pods, volumes
+and ports behind this section, with diagrams and the commands to rebuild
+everything by hand, see
+<a href="../030-container-deployment-walkthrough/">Inside the Container Deployment</a>.</p>
 <p>This section is worth reading even if the install "just worked", because the
 one thing that reliably confuses people here — the difference between
 <code>127.0.0.1</code> and <code>0.0.0.0</code> — appears in three separate places that mean three
@@ -8608,7 +8645,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.5<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.6<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -8668,7 +8705,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.5<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.6<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -8773,6 +8810,8 @@ in <code>~/.zshrc</code>. Loading the file with <code>source</code> instead of <
 registers nothing; always use <code>eval</code> for the zsh script.</p>
 <h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="../030-container-deployment-walkthrough/">Inside the Container Deployment</a> — how the
+  container images, compose files, volumes and ports fit together</li>
 <li><a href="../../../quick-start/part-1-see-it-run/010-what-is-edumatcher/">Quick Start Guide</a> — what EduMatcher is, and your
   first trade</li>
 <li><a href="../../part-2-configure/010-the-configuration-workflow/">Engine Configuration</a> — authoring an

@@ -2116,6 +2116,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8551,17 +8579,24 @@ process's own <code>config.py</code>.</p>
 </tr>
 <tr>
 <td><code>pm-audit</code></td>
-<td>connects out to <code>5556</code></td>
+<td><code>5562</code> REP (bind); connects out to <code>5556</code></td>
 <td>–</td>
-<td>ZeroMQ (SUB)</td>
-<td>Subscribes to every engine event and writes the full audit trail to disk. Binds no port of its own.</td>
+<td>ZeroMQ (SUB/REP)</td>
+<td>Subscribes to every engine event and writes the full audit trail to disk. <code>5562</code> only answers <code>pm-audit-cli health</code> pings (<code>EDUMATCHER_AUDIT_BIND_HOST</code>, <code>EDUMATCHER_AUDIT_HEALTH_PORT</code>).</td>
+</tr>
+<tr>
+<td><code>pm-stats</code></td>
+<td><code>5561</code> REP (bind); connects out to <code>5555</code>, <code>5556</code>, <code>5558</code></td>
+<td>–</td>
+<td>ZeroMQ (SUB/PUSH/REP)</td>
+<td>Records market and index statistics to <code>stats.db</code>. <code>5561</code> only answers <code>pm-stats-cli health</code> pings (<code>EDUMATCHER_STATS_BIND_HOST</code>, <code>EDUMATCHER_STATS_HEALTH_PORT</code>).</td>
 </tr>
 <tr>
 <td><code>pm-clearing</code></td>
-<td>connects out to <code>5556</code></td>
+<td><code>5563</code> REP (bind); connects out to <code>5556</code></td>
 <td>–</td>
-<td>ZeroMQ (SUB)</td>
-<td>Subscribes to trade events for P&amp;L and settlement. Binds no port of its own.</td>
+<td>ZeroMQ (SUB/REP)</td>
+<td>Subscribes to trade events for P&amp;L and settlement. <code>5563</code> only answers <code>pm-clearing-cli health</code> pings (<code>EDUMATCHER_CLEARING_BIND_HOST</code>, <code>EDUMATCHER_CLEARING_HEALTH_PORT</code>).</td>
 </tr>
 <tr>
 <td><code>pm-scheduler</code></td>
@@ -8614,10 +8649,10 @@ process's own <code>config.py</code>.</p>
 </tr>
 <tr>
 <td><code>pm-index</code></td>
-<td><code>5558</code> PUB (bind) · <code>5559</code> PULL (bind); connects out to <code>5556</code></td>
+<td><code>5558</code> PUB (bind) · <code>5559</code> PULL (bind) · <code>5564</code> REP (bind); connects out to <code>5556</code></td>
 <td>–</td>
-<td>ZeroMQ (PUB/PULL)</td>
-<td>Real-time cap-weighted index calculation. <code>5558</code> broadcasts <code>index.update</code>; <code>5559</code> receives operator commands and history requests. No external protocol of its own — external consumers reach index data via <code>pm-md-gwy</code>/CALF.</td>
+<td>ZeroMQ (PUB/PULL/REP)</td>
+<td>Real-time cap-weighted index calculation. <code>5558</code> broadcasts <code>index.update</code>; <code>5559</code> receives operator commands and history requests; <code>5564</code> only answers <code>pm-index-cli health</code> pings (<code>EDUMATCHER_INDEX_BIND_HOST</code>, <code>EDUMATCHER_INDEX_HEALTH_PORT</code>). No external protocol of its own — external consumers reach index data via <code>pm-md-gwy</code>/CALF.</td>
 </tr>
 <tr>
 <td><code>pm-market-sim</code></td>
@@ -9835,7 +9870,7 @@ changing the raw event log format.</p>
 </tbody>
 </table>
 <h2 id="pm-audit-cli-audit-log-query-cli">pm-audit-cli — Audit Log Query CLI<a class="headerlink" href="#pm-audit-cli-audit-log-query-cli" title="Permanent link">&para;</a></h2>
-<p><code>pm-audit-cli</code> is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required.</p>
+<p><code>pm-audit-cli</code> is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required — except for <code>health</code>, which pings the running <code>pm-audit</code> on port <code>5562</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-dir<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span><span class="o">[</span>--use-index<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Global options:</strong></p>
@@ -9938,6 +9973,12 @@ changing the raw event log format.</p>
 <td style="text-align: right;">—</td>
 <td>Build or update the optional SQLite index for faster queries</td>
 <td><code>--output PATH</code></td>
+</tr>
+<tr>
+<td><code>health</code></td>
+<td style="text-align: right;">—</td>
+<td>Check the <code>pm-audit</code> process and ping its health socket; <code>--extended</code> adds the audit log read/write and last-entry check</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
 </tr>
 </tbody>
 </table>
@@ -10083,7 +10124,8 @@ and a maintenance command (<code>prune</code>) that deletes old raw trade rows.<
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-clearing-cli<span class="w"> </span><span class="o">[</span>--datapath<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-name<span class="w"> </span>clearing.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span><span class="o">[</span>--raw-output<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p>Unlike <code>pm-clearing</code>, this is a one-shot tool: it runs one command, prints
-output, and exits.</p>
+output, and exits. Every verb works on <code>clearing.db</code> directly except <code>health</code>,
+which also pings the running <code>pm-clearing</code> on port <code>5563</code>.</p>
 <p><strong>Global options:</strong></p>
 <table>
 <thead>
@@ -10188,8 +10230,8 @@ output, and exits.</p>
 <tr>
 <td><code>health</code></td>
 <td style="text-align: right;">n/a</td>
-<td>DB row counts, flush metadata, and WAL mode</td>
-<td>none</td>
+<td>Check the <code>pm-clearing</code> process and ping its health socket; <code>--extended</code> adds the clearing DB integrity and read/write check, and <code>--extended -v</code> the row counts, flush metadata and journal mode</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
 </tr>
 <tr>
 <td><code>reconcile</code></td>
@@ -10855,8 +10897,8 @@ prints output, and exits.</p>
 </tr>
 <tr>
 <td><code>health</code></td>
-<td>Check the <code>pm-stats</code> process and stats DB read/write health</td>
-<td><code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+<td>Check the <code>pm-stats</code> process and ping its health socket; <code>--extended</code> adds the stats DB integrity and read/write check</td>
+<td><code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
 </tr>
 </tbody>
 </table>
@@ -13986,31 +14028,32 @@ can be recreated without manual YAML editing.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>--index INDEX_ID</code></td>
-<td>Add an index to the config; repeatable</td>
+<td><code>--index ID[:DESCRIPTION]</code></td>
+<td>Add an index (up to 5); <code>ID</code> is letters and digits only</td>
 </tr>
 <tr>
-<td><code>--index-constituents SYM [SYM ...]</code></td>
-<td>Constituents for the last <code>--index</code></td>
+<td><code>--index-constituents ID:SYM[,SYM,...]</code></td>
+<td>Constituents of index <code>ID</code></td>
 </tr>
 <tr>
-<td><code>--index-base-value N</code></td>
-<td>Base value for the last <code>--index</code></td>
+<td><code>--index-base-value ID:VALUE</code></td>
+<td>Base value of index <code>ID</code> (default <code>1000.0</code>)</td>
 </tr>
 <tr>
-<td><code>--index-interval SEC</code></td>
-<td>Publish interval for the last <code>--index</code></td>
+<td><code>--index-interval ID:SECS</code></td>
+<td>Publish interval of index <code>ID</code> (default <code>1.0</code>)</td>
 </tr>
 <tr>
-<td><code>--index-history-file PATH</code></td>
-<td>History file path for the last <code>--index</code></td>
+<td><code>--index-history-file ID:PATH</code></td>
+<td>History file of index <code>ID</code> (default <code>data/indexes/&lt;ID&gt;_history.jsonl</code>)</td>
 </tr>
 <tr>
-<td><code>--index-state-file PATH</code></td>
-<td>State file path for the last <code>--index</code></td>
+<td><code>--index-state-file ID:PATH</code></td>
+<td>State file of index <code>ID</code> (default <code>data/indexes/&lt;ID&gt;_state.json</code>)</td>
 </tr>
 </tbody>
 </table>
+<p>Each <code>--index-*</code> flag takes one value per index: give it at most once per <code>ID</code>, and only for an <code>ID</code> defined with <code>--index</code>. Every constituent needs <code>--outstanding-shares</code> and a reference price, which <code>pm-config-gen</code> only writes with a <code>MARKET_MAKER</code> participant and <code>--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm</code>; otherwise it refuses with an error.</p>
 <h4 id="schedule">Schedule<a class="headerlink" href="#schedule" title="Permanent link">&para;</a></h4>
 <table>
 <thead>
@@ -14184,7 +14227,7 @@ on the runtime ZeroMQ sockets.</p>
 <h2 id="pm-index-cli-index-structuralaudit-history-query-tool">pm-index-cli — Index Structural/Audit History Query Tool<a class="headerlink" href="#pm-index-cli-index-structuralaudit-history-query-tool" title="Permanent link">&para;</a></h2>
 <p>Reads the structural/corporate-action audit JSONL files written by <code>pm-index</code>
 directly from disk and renders them as a table, JSON, or CSV. No running
-process is required. It does not expose level or EOD history — use
+process is required, except for <code>health</code>. It does not expose level or EOD history — use
 <code>pm-stats-cli index-daily</code> / <code>index-snapshots</code> for that instead (see the
 pm-stats-cli section above).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
@@ -14248,13 +14291,19 @@ pm-stats-cli section above).</p>
 <td>—</td>
 <td>List configured indices from <code>engine_config.yaml</code></td>
 </tr>
+<tr>
+<td><code>health</code></td>
+<td>—</td>
+<td>Check the <code>pm-index</code> process and ping its health socket; <code>--extended</code> adds every index's state/history file check. Options: <code>--extended</code>, <code>-v</code>/<code>--verbose</code>, <code>-q</code>/<code>--quiet</code> (print nothing; exit <code>0</code> when healthy, <code>-1</code> otherwise)</td>
+</tr>
 </tbody>
 </table>
 <p>The <code>events</code> subcommand accepts <code>--index ID</code> (repeatable), <code>--days N</code>,
 <code>--from DATE_OR_TS</code>, <code>--to DATE_OR_TS</code>, <code>--limit N</code>, and <code>--type TYPE</code> to
 filter to a specific structural event kind.</p>
-<p>Like <code>pm-stats-cli</code>, this is a read-only offline tool. It does not connect to
-any ZeroMQ socket.</p>
+<p>Like <code>pm-stats-cli</code>, this is a read-only tool that works offline. The only
+ZeroMQ connection it ever makes is <code>health</code>'s ping to <code>pm-index</code> on port
+<code>5564</code>.</p>
 <p>See <a href="../../../operator-guide/part-3-run/020-admin-console-and-commands/">pm-index-cli in the commands reference</a>
 for the full option reference, output column descriptions, and examples
 including CSV export and Python plotting.</p>

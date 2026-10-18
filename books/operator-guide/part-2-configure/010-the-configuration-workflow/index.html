@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/books/operator-guide/part-2-configure/010-the-configuration-workflow/">
       
       
-        <link rel="prev" href="../../part-1-install-and-deploy/020-vm-runtime-image/">
+        <link rel="prev" href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/">
       
       
         <link rel="next" href="../020-config-verifier/">
@@ -2111,6 +2111,34 @@
     
   
     VM Runtime Image with Pinned PyPI Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
   
 
     
@@ -8195,6 +8223,16 @@ for each MM quote seed at generation time.</p>
 </tr>
 </tbody>
 </table>
+<p>Before writing or printing anything, <code>pm-config-gen</code> loads the generated YAML
+with the same loader <code>pm-engine</code> uses at startup. If that load fails, it prints
+<code>[ERROR] Generated config failed validation: …</code>, writes nothing (to the file or
+to stdout, <code>--dry-run</code> included) and exits with code <code>2</code>, just as it does for
+invalid flags. A file <code>pm-config-gen</code> writes therefore always loads.</p>
+<p>The one deliberate exception is a <code>MARKET_MAKER</code> participant whose quotes are
+not seeded (no <code>--seed-mm-mid-range</code> and no <code>--no-mm-seed-quotes</code>). The file
+is then a template: <code>market_maker_quotes</code> holds <code>null</code> bid and ask prices for
+you to fill in, so validation is skipped and <code>pm-config-gen</code> prints a hint
+instead. Run <code>pm-cverifier</code> on the file once you have filled them in.</p>
 <p>Post-trade gateway options:</p>
 <table>
 <thead>
@@ -8927,7 +8965,7 @@ other's <em>defaults</em>, not only against explicitly-set values), and
 <td><code>--index ID[:DESCRIPTION]</code></td>
 <td>Repeatable</td>
 <td>none</td>
-<td>Define an index; <code>ID</code> is alphanumeric, <code>DESCRIPTION</code> is optional text after the first colon</td>
+<td>Define an index; <code>ID</code> is letters and digits, <code>DESCRIPTION</code> is optional text after the first colon</td>
 </tr>
 <tr>
 <td><code>--index-constituents ID:SYM[,SYM,...]</code></td>
@@ -8961,7 +8999,12 @@ other's <em>defaults</em>, not only against explicitly-set values), and
 </tr>
 </tbody>
 </table>
-<p>Up to 5 indices may be defined. Every constituent symbol must appear in <code>--symbols</code>. Every index must have at least one constituent. Each <code>ID</code> must be alphanumeric. When <code>history_file</code> and <code>state_file</code> are omitted, <code>pm-config-gen</code> derives them from the index ID under <code>data/indexes/</code>.</p>
+<p>Up to 5 indices may be defined. Each <code>ID</code> may contain only letters and digits (no hyphens or underscores), and is upper-cased. The other <code>--index-*</code> flags are repeatable across indices but take one value per index: give each at most once per <code>ID</code>, listing all of an index's constituents in a single <code>--index-constituents</code>, and only for an <code>ID</code> defined with <code>--index</code>. Every index must have at least one constituent, with no symbol listed twice. When <code>history_file</code> and <code>state_file</code> are omitted, <code>pm-config-gen</code> derives them from the index ID under <code>data/indexes/</code>.</p>
+<p>Every constituent must also be something <code>pm-index</code> can price, so <code>pm-config-gen</code> refuses a constituent that has:</p>
+<ul>
+<li>no <code>--outstanding-shares SYM:N</code>, which <code>pm-index</code> needs to weight constituents by market capitalisation;</li>
+<li>no reference price. <code>pm-index</code> sets each index's initial divisor from the constituents' last prices, and <code>pm-config-gen</code> only writes real prices when it seeds them from a market-maker midpoint: add a <code>MARKET_MAKER</code> participant with <code>--seed-mm-mid-range MIN:MAX --seed-last-prices-from-mm</code>. Add <code>--no-mm-seed-quotes</code> as well if the book should still start empty. <code>--seed-last-prices</code> only writes <code>null</code> placeholders, which is not enough.</li>
+</ul>
 <p>When <code>--api-gateway</code> is enabled, <code>pm-config-gen</code> emits sensible local defaults
 and automatically generates one bearer token for each configured ALF gateway.
 Pass <code>--seed N</code> to make those generated keys reproducible. Use
@@ -9454,14 +9497,17 @@ of <code>pm-api-gwy</code>.</p>
 <p>Index calculation config with <code>pm-index</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15400000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">"EduMatcher broad index"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>--seed-mm-mid-range<span class="w"> </span><span class="m">100</span>:400<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span>--seed-last-prices-from-mm<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span>--no-mm-seed-quotes<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">"EduMatcher broad index"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Expected emitted section shape:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nt">indices</span><span class="p">:</span>
@@ -9479,17 +9525,20 @@ of <code>pm-api-gwy</code>.</p>
 <p>With multiple indices and custom settings:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>MM01:MARKET_MAKER<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15400000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">"Technology pair"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">  </span>--index<span class="w"> </span>VOLAT1:<span class="s2">"High-beta watch"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>VOLAT1:TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">  </span>--seed-mm-mid-range<span class="w"> </span><span class="m">100</span>:400<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">  </span>--seed-last-prices-from-mm<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">  </span>--no-mm-seed-quotes<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">"Technology pair"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">  </span>--index<span class="w"> </span>VOLAT1:<span class="s2">"High-beta watch"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a><span class="w">  </span>--index-constituents<span class="w"> </span>VOLAT1:TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Startup combo seeds with two pairs:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>

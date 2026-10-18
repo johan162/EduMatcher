@@ -2116,6 +2116,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8110,7 +8138,8 @@ switch takes effect without an explicit <code>down</code>.</p>
 <code>EDUMATCHER_VERSION</code>, <code>PIP_INDEX_URL</code>, <code>WITH_SSH</code>.</p>
 <p>Each GUI (<code>web-apps/*/Dockerfile</code>): <code>WEB_PORT</code>, <code>NPM_REGISTRY</code>,
 <code>NPM_STRICT_SSL</code>, <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>NO_PROXY</code>; config-gui also
-takes <code>USE_PROXY_CA</code> and <code>CA_CERT_FILE</code>.</p>
+takes <code>USE_PROXY_CA</code> and <code>CA_CERT_FILE</code>, and log-gui <code>EDUMATCHER_VERSION</code> for
+the Python package it bundles.</p>
 <p>The backend's package source is selected by what is present rather than by a
 flag:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">COPY</span><span class="w"> </span>.wheel/<span class="w"> </span>/tmp/wheel/
@@ -8119,7 +8148,9 @@ flag:</p>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="k">else</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>edumatcher<span class="p">;</span><span class="w"> </span><span class="k">fi</span><span class="w">                              </span>#<span class="w"> </span>newest<span class="w"> </span>on<span class="w"> </span>PyPI
 </code></pre></div>
 <p><code>make build</code> puts a freshly built wheel in <code>.wheel/</code>; <code>PYPI=1</code> and
-<code>VERSION=x.y.z</code> clear it first.</p>
+<code>VERSION=x.y.z</code> clear it first. log-gui installs the same package the same way
+from <code>web-apps/log-gui/.wheel/</code> (its Diagnostics view runs <code>pm-log-cli</code>), and
+<code>make build-guis</code> and <code>make ghcr-push</code> fill that drop box by the same rule.</p>
 <div class="admonition danger">
 <p class="admonition-title">Always confirm which package went into the image</p>
 <p>A successful build prints
@@ -8217,7 +8248,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and seven multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.50.5</code>
+the same version. That coupling is what lets <code>install.sh --version 0.50.6</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -8561,12 +8592,14 @@ variable naming one host.</p>
 host. Several hosts means running the engine independently on each and wiring
 the variables by hand.</p>
 <p><strong>No cross-host health signalling.</strong> <code>pm-opctl-cli health</code>'s built-in
-<code>index-srv</code> entry has no TCP probe or healthcheck command configured at all
-(unlike, say, <code>balf-gwy</code>'s <code>"tcp": "127.0.0.1:5560"</code>) — it only checks that
-the process is still alive, not that <code>pm-index</code> (which binds 5558/5559) is
-actually reachable. That is one more reason the image <code>HEALTHCHECK</code>
-TCP-probes the engine on 5555 instead: a real connectivity check, just not
-one that says anything about <code>pm-index</code> or any other host.</p>
+recorder entries — <code>stats</code>, <code>audit</code>, <code>clearing</code> and <code>index-srv</code> — run each
+process's own <code>*-cli health -q</code>, which pings a health socket on loopback
+(5561–5564). That proves the process's loop is alive on <em>this</em> host; it says
+nothing about whether another host can reach it, because those health sockets
+bind <code>127.0.0.1</code> by default and the image does not publish them. That is one
+more reason the image <code>HEALTHCHECK</code> TCP-probes the engine on 5555 instead: a
+real connectivity check, just not one that says anything about <code>pm-index</code> or
+any other host.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph EngineHost["Engine host — the one pm-engine"]
         E["pm-engine\nbind 0.0.0.0:5555/5556/5557"]

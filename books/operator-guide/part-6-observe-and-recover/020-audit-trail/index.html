@@ -2124,6 +2124,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-1-install-and-deploy/030-container-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inside the Container Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3400,6 +3428,17 @@
     <span class="md-ellipsis">
       
         index — Build or update the SQLite index
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#health-recorder-and-log-file-health" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        health — Recorder and log file health
       
     </span>
   </a>
@@ -7718,7 +7757,9 @@ persistent files:</p>
 </code></pre></div>
 <h2 id="pm-audit-event-recorder">pm-audit — Event Recorder<a class="headerlink" href="#pm-audit-event-recorder" title="Permanent link">&para;</a></h2>
 <p><code>pm-audit</code> subscribes to all topics on the engine's PUB socket and appends
-every message as a single JSON line to the configured log file.</p>
+every message as a single JSON line to the configured log file. It also binds
+a small health socket (port <code>5562</code>) that answers
+<a href="#health-recorder-and-log-file-health"><code>pm-audit-cli health</code></a> pings.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <h3 id="startup-options">Startup options<a class="headerlink" href="#startup-options" title="Permanent link">&para;</a></h3>
@@ -8023,7 +8064,9 @@ batch of messages is always written to disk.</p>
 <h2 id="pm-audit-cli-query-tool">pm-audit-cli — Query Tool<a class="headerlink" href="#pm-audit-cli-query-tool" title="Permanent link">&para;</a></h2>
 <p><code>pm-audit-cli</code> is a read-only command-line tool for querying audit logs
 without shell pipelines or SQL knowledge. It reads JSONL files directly from
-disk and produces structured output.</p>
+disk and produces structured output. The one command that talks to the running
+recorder is <a href="#health-recorder-and-log-file-health"><code>health</code></a>, which pings
+<code>pm-audit</code> to confirm it is alive.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
 </code></pre></div>
 <h3 id="why-a-separate-query-tool">Why a separate query tool<a class="headerlink" href="#why-a-separate-query-tool" title="Permanent link">&para;</a></h3>
@@ -8080,7 +8123,8 @@ operation. Keeping them separate means:</p>
 directly and never consult the SQLite index, even when one exists and
 <code>--use-index</code> is given. <code>--format</code>/<code>--no-header</code> are also ignored by
 <code>stats</code> (its output is a fixed text summary, not a table) and by <code>index</code>
-(which prints build progress, not rows).</p>
+(which prints build progress, not rows). <code>health</code> honours <code>--format json</code>
+(the report as a JSON object); <code>csv</code> prints the same text as <code>table</code>.</p>
 <p>The auto-detected index path is always <code>&lt;the directory containing
 --log-file&gt;/audit_index.db</code> — it does <strong>not</strong> use <code>--log-dir</code>. If
 <code>--log-dir</code> points somewhere other than <code>--log-file</code>'s own parent
@@ -9076,68 +9120,143 @@ index location.</p>
 </ul>
 <p>For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.</p>
 </div>
+<h3 id="health-recorder-and-log-file-health"><code>health</code> — Recorder and log file health<a class="headerlink" href="#health-recorder-and-log-file-health" title="Permanent link">&para;</a></h3>
+<p>Check that <code>pm-audit</code> is alive and actually recording. By default two fast
+checks run:</p>
+<ul>
+<li><strong>Process</strong> — a <code>pm-audit</code> process is running (found with <code>pgrep</code>).</li>
+<li><strong>ZMQ ping</strong> — <code>pm-audit</code> answers a ping on its health socket (port <code>5562</code>)
+  with its current UTC time. The reply comes from the recorder's own receive
+  loop, so it proves the loop is running, not just that the process exists.</li>
+</ul>
+<p>The log file check is opt-in with <code>--extended</code>. It checks that <code>--log-file</code>
+exists and is a regular file, that its last entry is a well-formed audit line
+(an empty log is fine — a freshly started <code>pm-audit</code> has written nothing yet),
+and that the file can be opened for append. Nothing is ever written to the
+log. Only the tail of the file is read, so the check stays fast however large
+the log grows; it is still bounded at 15 seconds so a stalled or
+network-mounted volume cannot hang the command.</p>
+<p>Unlike the query commands, <code>health</code> runs even when the log file does not
+exist; a missing file is only reported as a failure under <code>--extended</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-audit-cli<span class="w"> </span>health
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-audit-cli<span class="w"> </span>health<span class="w"> </span>--extended
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>pm-audit-cli<span class="w"> </span>health<span class="w"> </span>--extended<span class="w"> </span>--verbose
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>health
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-audit-cli<span class="w"> </span>health<span class="w"> </span>--quiet
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-audit process: OK - pm-audit is running
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>audit log file:   OK - skipped (pass --extended to check read/write access)
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>audit ZMQ ping:   OK - replied at 2026-10-17T14:23:37.797827+00:00
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>health: OK
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--extended</code></td>
+<td>Also check the audit log file is readable, writable and ends in a well-formed entry (up to 15 s)</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--verbose</code></td>
+<td>List exactly which checks ran; with <code>--extended</code>, also print the log size, rotated backups and last entry time</td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>Print nothing; report only through the exit code</td>
+</tr>
+</tbody>
+</table>
+<p>With <code>--extended --verbose</code> the report ends with the checks performed and the
+log file figures. Rotated backups are found the same way as for the query
+commands, so <code>--log-dir</code> applies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>Checks performed:
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>  pm-audit process (pgrep):     yes
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>  ZMQ health ping:               yes
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>  Log file read/write/entry:     yes
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>Log file stats:
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>  path: data/audit.log
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>  size: 2.1MB
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>  rotated backups: 2
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>  total size: 12.4MB
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>  last entry: 2026-07-08T16:29:59.874+00:00
+</code></pre></div>
+<p>The exit code is <code>0</code> when healthy and <code>1</code> otherwise. With <code>--quiet</code> nothing is
+printed and the exit code is <code>0</code> when healthy or <code>-1</code> (255 in a shell)
+otherwise.</p>
+<p>The health socket binds to <code>127.0.0.1:5562</code> by default; set
+<code>EDUMATCHER_AUDIT_BIND_HOST</code> / <code>EDUMATCHER_AUDIT_HEALTH_PORT</code> to change where
+<code>pm-audit</code> binds it, and <code>EDUMATCHER_ENGINE_HOST</code> /
+<code>EDUMATCHER_AUDIT_HEALTH_PORT</code> to change where <code>pm-audit-cli</code> connects.</p>
 <h2 id="cookbook-common-audit-workflows">Cookbook — Common Audit Workflows<a class="headerlink" href="#cookbook-common-audit-workflows" title="Permanent link">&para;</a></h2>
 <h3 id="investigate-a-specific-order">Investigate a specific order<a class="headerlink" href="#investigate-a-specific-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Find all events for order ORD-GW01-00142</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Same as JSON (attach to support ticket)</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="c1"># Find by gateway and time window (when order ID is not known)</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Find all events for order ORD-GW01-00142</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Same as JSON (attach to support ticket)</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Find by gateway and time window (when order ID is not known)</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
 </code></pre></div>
 <h3 id="reconstruct-a-trade">Reconstruct a trade<a class="headerlink" href="#reconstruct-a-trade" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Find trade details by symbol and time</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T10:15:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:15:01+00:00
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="c1"># Find all large trades above a price threshold</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--min-price<span class="w"> </span><span class="m">150</span>.0<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Find trade details by symbol and time</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T10:15:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:15:01+00:00
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="c1"># Find all large trades above a price threshold</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--min-price<span class="w"> </span><span class="m">150</span>.0<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
 </code></pre></div>
 <h3 id="verify-session-phases-fired-correctly">Verify session phases fired correctly<a class="headerlink" href="#verify-session-phases-fired-correctly" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># See all session transitions in order</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Timeline around market open</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:25:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># See all session transitions in order</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="c1"># Timeline around market open</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:25:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
 </code></pre></div>
 <h3 id="identify-the-most-active-gateway">Identify the most active gateway<a class="headerlink" href="#identify-the-most-active-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
 </code></pre></div>
 <h3 id="check-log-health-before-end-of-day">Check log health before end of day<a class="headerlink" href="#check-log-health-before-end-of-day" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-audit-cli<span class="w"> </span>health<span class="w"> </span>--extended
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
 </code></pre></div>
 <h3 id="export-a-full-session-for-offline-analysis">Export a full session for offline analysis<a class="headerlink" href="#export-a-full-session-for-offline-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Build index first for speed</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="c1"># Export all trades</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="c1"># Export all order events for gateway GW01</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="c1"># Build index first for speed</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="c1"># Export all trades</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="c1"># Export all order events for gateway GW01</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
 </code></pre></div>
 <h3 id="filter-across-rotated-log-backups">Filter across rotated log backups<a class="headerlink" href="#filter-across-rotated-log-backups" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-audit-cli<span class="w"> </span>--log-dir<span class="w"> </span>data/<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="c1"># Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>pm-audit-cli<span class="w"> </span>--log-dir<span class="w"> </span>data/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">  </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span>
 </code></pre></div>
 <h3 id="watch-a-live-training-session">Watch a live training session<a class="headerlink" href="#watch-a-live-training-session" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># Everything, as it happens</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--follow
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="c1"># Just order lifecycle events for one gateway, while proctoring a session</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--follow
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>
-<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="c1"># Full raw payloads for the whole floor, piped to a file for later replay</span>
-<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="c1"># (each poll batch is its own JSON array back to back -- see Follow mode</span>
-<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="c1"># above -- not JSON Lines, so replay tooling should parse incrementally)</span>
-<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>timeline<span class="w"> </span>--follow<span class="w"> </span>&gt;<span class="w"> </span>live_session.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="c1"># Everything, as it happens</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--follow
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="c1"># Just order lifecycle events for one gateway, while proctoring a session</span>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--follow
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="c1"># Full raw payloads for the whole floor, piped to a file for later replay</span>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a><span class="c1"># (each poll batch is its own JSON array back to back -- see Follow mode</span>
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a><span class="c1"># above -- not JSON Lines, so replay tooling should parse incrementally)</span>
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>pm-audit-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>timeline<span class="w"> </span>--follow<span class="w"> </span>&gt;<span class="w"> </span>live_session.json
 </code></pre></div>
 <h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
 <table>
