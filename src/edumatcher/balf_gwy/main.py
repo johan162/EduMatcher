@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.health import HealthReporter
 from edumatcher.balf_gwy.config import (
     BalfGatewayConfig,
     load_default_balf_gateway_config,
@@ -188,6 +189,9 @@ def main() -> None:
     )
 
     gateway = BalfGateway(config)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        gateway.attach_reporter(reporter)
     try:
         gateway.run()
     except Exception as exc:

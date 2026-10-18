@@ -19,6 +19,9 @@ from typing import Any
 
 import zmq
 
+from edumatcher.health import HealthReporter
+from edumatcher.health.samples import client_gateway_samples
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
@@ -83,6 +86,15 @@ class RalfGateway:
         self._next_seq_by_channel: dict[str, int] = {ch: 1 for ch in _ALLOWED_CHANNELS}
         self._journal: deque[JournalEvent] = deque()
         self._clients: dict[int, ClientSession] = {}
+        # Health beacon (operator dashboard §8.5); attached by main().
+        # slow_clients counts sessions *flagged* slow, once each: this gateway
+        # marks a slow client close-after-flush rather than dropping it, and a
+        # client that has stopped reading never drains, so closing_clients
+        # (a gauge) is what shows such sessions accumulating (workplan I33).
+        self._reporter: HealthReporter | None = None
+        self._msgs_out = 0
+        self._slow_clients = 0
+        self._disconnects: dict[str, int] = {}
         self._server: socket.socket | None = None
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
@@ -111,8 +123,11 @@ class RalfGateway:
             self.config.engine_pub_addr,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_engine_events()
@@ -128,7 +143,25 @@ class RalfGateway:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this gateway's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: clients, lines out, disconnects by reason, plus the
+        two signals for clients stuck in close-after-flush."""
+        return client_gateway_samples(
+            "gwy",
+            clients=len(self._clients),
+            msgs_out=self._msgs_out,
+            disconnects=self._disconnects,
+            slow_clients=self._slow_clients,
+            closing_clients=sum(1 for s in self._clients.values() if s.closing),
+        )
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         log.info("closing RALF gateway")
         for sess in list(self._clients.values()):
             try:
@@ -216,6 +249,8 @@ class RalfGateway:
                     sess.out_queue.popleft()
                     sess.out_offset = 0
             if len(sess.out_queue) > self.config.max_client_queue:
+                if not sess.closing:
+                    self._slow_clients += 1
                 log.warning(
                     "disconnecting slow client fd=%d queue=%d max=%d",
                     sess.sock.fileno(),
@@ -601,8 +636,10 @@ class RalfGateway:
 
     def _queue_raw(self, sess: ClientSession, payload: bytes) -> None:
         sess.out_queue.append(payload)
+        self._msgs_out += 1
 
     def _disconnect(self, sess: ClientSession, reason: str = "unspecified") -> None:
+        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fileno = sess.sock.fileno()
         client_id = sess.client_id or "-"
         try:

@@ -44,7 +44,7 @@ import secrets
 import socket
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import psutil
 import zmq
@@ -123,9 +123,28 @@ class HealthReporter:
             interval_sec=cfg.beacon_interval_sec,
         )
 
+    @classmethod
+    def start_from_compiled_config(
+        cls, process: str, instance: str | None = None
+    ) -> HealthReporter | None:
+        """``from_compiled_config`` + ``start``: what a process's ``main()``
+        calls. ``None`` when monitoring is disabled."""
+        reporter = cls.from_compiled_config(process, instance)
+        if reporter is not None:
+            reporter.start()
+        return reporter
+
     # ------------------------------------------------------------------
     # main-loop half
     # ------------------------------------------------------------------
+
+    def tick_and_publish(self, samples: Callable[[], Sequence[MetricSample]]) -> None:
+        """``tick()``, then ``publish(samples())`` when due -- the one call a
+        service loop makes per iteration. ``samples`` runs on the calling
+        (main-loop) thread, so it may read the process's own state freely."""
+        self.tick()
+        if time.monotonic() >= self._next_due:
+            self.publish(samples())
 
     def start(self) -> None:
         """Start the sampler thread. The first beacon goes out immediately."""

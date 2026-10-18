@@ -20,6 +20,11 @@ Status: In implementation — progress in
 >   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
 >   are unchanged (I9).
 > - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - After WP-A5: RALF/DC do not disconnect slow or idle clients (they mark
+>   them close-after-flush, which a non-reading client never reaches); two
+>   metrics expose it, the fix is a follow-up (§19.3). `loop_lag_ms` includes
+>   each loop's designed wait (engine ≤ 200 ms idle, API ≈ 250 ms), which B2's
+>   DEGRADED rule (> 1000 ms) already tolerates (I32–I37).
 > - After WP-A4: the per-book metrics are `engine.book_*`, not `book.*`
 >   (`book.` is the prefix of the parameterised topic `book.{symbol}`).
 >   Gateway labels are bounded in the engine itself: unconfigured ids count
@@ -534,7 +539,7 @@ stop the circuit-breaker timers behind it.
 | `pm-md-gwy` | `md.clients` / `md.clients_max` | G | | `len(self._clients)`, `config.max_connections` |
 | | `md.msgs_out` | C | | Fan-out send path |
 | | `md.disconnects` | C | reason | `_disconnect(session, reason=…)` — reasons in use: `peer_closed`, `slow_client`, `close_after_flush`, `auth_timeout`, `idle_timeout`. The MD gateway does not drop messages for a slow client, it disconnects it (F6), so `slow_client` is the back-pressure signal |
-| `pm-ralf-gwy`, `pm-dc-gwy` | `gwy.clients`, `gwy.msgs_out`, `gwy.disconnects{reason}` | G / C | | Same shape as MD (`pm-ralf-gwy` also disconnects slow clients) |
+| `pm-ralf-gwy`, `pm-dc-gwy` | `gwy.clients`, `gwy.msgs_out`, `gwy.disconnects{reason}`, `gwy.slow_clients`, `gwy.closing_clients` | G / C / C / C / G | | Same shape as MD, plus two signals added in A5: these gateways do **not** disconnect a slow client -- they mark it close-after-flush, which a client that has stopped reading never reaches (I33). `slow_clients` counts sessions flagged slow (once each); `closing_clients` shows such sessions accumulating |
 | `pm-api-gwy` | `api.ws_sessions` | G | channel | Count of open WebSockets per router (`events`, `market-data`, `admin/monitor`, `admin/sim`) |
 | | `api.http_requests` / `api.http_5xx` | C | | A one-line Starlette middleware |
 | | `api.dropped_events` | C | sink | The existing `EngineClient.dropped_events` — already a `dict[str, int]` keyed by sink (F10) |
@@ -1687,7 +1692,9 @@ message counters and disconnect reasons (§8.5).
   for 1 s in a test endpoint shows `loop_lag_ms ≥ 900`.
 
 **Tests:** `tests/test_gateway_metrics.py` (new, one class per gateway),
-extended `tests/test_api_gateway_runtime.py`.
+extended `tests/test_api_gateway_runtime.py`. *As built:* all API tests are in
+`test_gateway_metrics.py` and drive the ASGI app directly -- Starlette's
+`TestClient` needs `httpx`, which this project does not depend on.
 
 **Done when:** all six gateway processes beacon with the §8.5 metrics and
 `HEALTHY` loop ages when idle.
@@ -2469,5 +2476,8 @@ processes (skipped unless `-m e2e`).
 - `config-gui` editor for the `monitor` section.
 - Publishing 5610/5611 to the host in the `compose.zmq.yaml` overlays.
 - `pm-opctl-cli` integration (Q4).
+- `pm-ralf-gwy` / `pm-dc-gwy`: actually drop a slow or idle client after a
+  grace period (today both only mark it close-after-flush, and the idle path
+  re-queues an `EXIT` line on every loop pass), found in A5 (I33).
 - Optional Prometheus text exposition from `pm-monitor` for users who do run
   Grafana — trivial once `pm-monitor` exists, deliberately not done now.

@@ -131,6 +131,8 @@ class EngineClient:
         # Plain counters, not _dbg_count: these must be readable in a normal
         # run, because they are the only server-side evidence of dropped events.
         self._dropped_events: defaultdict[str, int] = defaultdict(int)
+        # Replies the engine did not send in time (health beacon, §8.5).
+        self._engine_timeouts = 0
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = 0.0
 
@@ -335,6 +337,7 @@ class EngineClient:
             # from _pending so cancelled futures do not accumulate if the engine
             # never sends the matching topic.
             self._drop_pending(key, future)
+            self._engine_timeouts += 1
             raise TimeoutError(f"Timed out waiting for {key}") from exc
 
     def _resolve_pending(self, topic: str, payload: dict[str, Any]) -> None:
@@ -596,6 +599,11 @@ class EngineClient:
     def dropped_events(self) -> dict[str, int]:
         """Events discarded per sink because a consumer could not keep up."""
         return dict(self._dropped_events)
+
+    @property
+    def engine_timeouts(self) -> int:
+        """Engine replies awaited in vain since start."""
+        return self._engine_timeouts
 
     def get_caches(self, gateway_id: str) -> SessionCaches:
         return self._caches[gateway_id]

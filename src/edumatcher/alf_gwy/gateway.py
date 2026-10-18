@@ -20,6 +20,9 @@ from typing import Any, cast
 
 import zmq
 
+from edumatcher.health import HealthReporter
+from edumatcher.health.samples import gateway_stats_samples
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.protocol import (
     AlfProtocolError,
@@ -270,6 +273,8 @@ class AlfGateway:
             "slow_client_disconnects": 0,
             "auth_failures": 0,
         }
+        # Health beacon (operator dashboard §8.5); attached by main().
+        self._reporter: HealthReporter | None = None
 
     def _ensure_fd_limit(self) -> None:
         """Make sure the process may open one socket per allowed client.
@@ -325,8 +330,11 @@ class AlfGateway:
             self.config.max_connections,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 # Wait for work instead of sleeping a fixed 10 ms. (The old
                 # select() also broke once a descriptor passed 1024.)
                 busy = bool(self._dirty) or any(
@@ -362,8 +370,18 @@ class AlfGateway:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this gateway's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: the existing ``_global_stats``, exported as they are."""
+        return gateway_stats_samples(self._global_stats, self.config.max_connections)
+
     def close(self) -> None:
         log.info("closing ALF gateway")
+        if self._reporter is not None:
+            self._reporter.stop()
         for session in list(self._clients.values()):
             self._disconnect(session, reason="gateway_shutdown")
         self._clients.clear()

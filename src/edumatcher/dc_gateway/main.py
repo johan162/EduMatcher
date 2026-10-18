@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.health import HealthReporter
 from edumatcher.dc_gateway.config import (
     DcGatewayConfig,
     load_default_dc_gateway_config,
@@ -168,6 +169,9 @@ def main() -> None:
     )
 
     gateway = DcGateway(config)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        gateway.attach_reporter(reporter)
     try:
         gateway.run()
     except Exception as exc:
