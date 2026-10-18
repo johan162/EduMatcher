@@ -2,7 +2,8 @@
 
 See docs-design/EduMatcher-Operator-Dashboard.md §8.2-§8.4. ``EngineMetrics``
 holds only what the engine does not already keep: per-gateway counters
-incremented on the handler funnels, the dispatch-latency ring and busy time.
+incremented on the handler funnels, and the dispatch-latency ring and busy
+time, both fed from 1 message in ``SAMPLE_EVERY`` (design A4.10).
 Everything else in the beacon -- trades, books, sessions, diagnostics -- is
 read from the engine's existing state when the beacon is built, so there is
 no second copy that could disagree.
@@ -52,7 +53,7 @@ MAX_LABEL_LEN = 32
 #: Raw-id -> label cache bound; ids beyond it are resolved on each call.
 _LABEL_CACHE_MAX = 4096
 
-#: Dispatch durations kept for the per-interval percentiles. A power of two so
+#: Sampled dispatch durations kept for the per-interval percentiles. A power of two so
 #: the index wraps with a mask; the ring is preallocated and never resized.
 LATENCY_RING = 1024
 _RING_MASK = LATENCY_RING - 1

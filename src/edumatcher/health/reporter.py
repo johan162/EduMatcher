@@ -1,20 +1,20 @@
 """``HealthReporter``: the health beacon every long-running process sends.
 
-See docs-design/EduMatcher-Operator-Dashboard.md §7. Three lines wire it into
-a process::
+See docs-design/EduMatcher-Operator-Dashboard.md §7. How every process wires
+it (``None`` means monitoring is disabled)::
 
-    reporter = HealthReporter.from_compiled_config("pm-engine")
-    if reporter is not None:
-        reporter.start()
+    reporter = HealthReporter.start_from_compiled_config("pm-alf-gwy")
     ...
     while running:
         if reporter is not None:
-            reporter.tick()
-            if reporter.due():
-                reporter.publish(my_samples())
+            reporter.tick_and_publish(my_samples)  # tick(); publish() when due
         ...
     if reporter is not None:
-        reporter.stop()
+        reporter.stop()  # final beacon, final=True
+
+A loop that only needs liveness calls ``tick()`` alone (pm-index,
+pm-market-sim); the engine ticks per iteration and publishes from its
+maintenance flush.
 
 Why two halves
 --------------
@@ -150,6 +150,7 @@ class HealthReporter:
         """Start the sampler thread. The first beacon goes out immediately."""
         if self._thread is not None:
             return
+        self._stop.clear()  # so a stopped reporter can be started again
         self._last_tick = time.monotonic()
         self._thread = threading.Thread(
             target=self._run, name=f"health-{self.process}", daemon=True
