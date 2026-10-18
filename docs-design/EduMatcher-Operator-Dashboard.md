@@ -512,7 +512,7 @@ engine memory", which is the operationally useful number.
 | Metric | K | Label | Source |
 |---|---|---|---|
 | `engine.msgs_in` | C | | Every PULL message dispatched |
-| `engine.handle_us_p50` / `_p99` / `_max` | G | | Per-interval: `time.perf_counter_ns()` around the dispatch call into a fixed 1024-slot ring, percentiles computed at publish time (not per message) |
+| `engine.handle_us_p50` / `_p99` / `_max` | G | | Per-interval: `time.perf_counter_ns()` around the dispatch of **1 message in 16** (plus the first of each window) into a fixed 1024-slot ring, percentiles computed at publish time (A4.10 decision) |
 | `engine.busy_pct` | G | | Share of wall time in the interval spent inside `_dispatch_pull_message` + `_run_maintenance`. The engine receives **exactly one** message per poll iteration (`run()`), so a "batch size" does not exist; ZeroMQ does not expose PULL-queue depth either. Busy % approaching 100 is the saturation signal: messages are arriving faster than they are handled (F3) |
 | `engine.diagnostics` | C | component | The existing `_error_count`, `_unknown_topic_count`, `_undecodable_count`, `_flush_error_count` — published even when zero (G17) |
 | `engine.session_state` | G | | Enum ordinal of `_session_state`; `pm-monitor` maps it back to the name |
@@ -1607,6 +1607,14 @@ beacon, and its main loop ticks — with no measurable throughput loss.
   Hot-path shape that got it here: `fills` keyed by raw id with plain dict
   increments (labels applied at sample time), `order_in()` specialised,
   explicit-keyword ack wrapper (a `**kwargs` wrapper cost ≈ 200 ns per ack).
+  **Decision (Johan, 2026-10-19): time 1 message in N.** The run loop times
+  one message and one maintenance pass in `SAMPLE_EVERY` = 16, plus the first
+  message after every beacon window (so a quiet engine still reports a
+  latency); `msgs_in` stays exact via loop-local counts. `engine.handle_us_*`
+  are percentiles/max *of the sampled messages*; `engine.busy_pct` is
+  estimated as mean sampled duration × count. `tick()` still runs every
+  iteration. Result: run-loop additions ≈ 230 ns/message (was ≈ 380, of which
+  `tick()` ≈ 160), and `test_max_tps` −1.67 % (15+15 interleaved runs).
 
 **Tests:** `tests/test_engine_metrics.py` (new), `tests/engine_invariants.py`
 (+ `assert_reject_count_matches`), `tests/test_perf.py` (gate).

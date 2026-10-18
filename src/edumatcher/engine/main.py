@@ -69,6 +69,7 @@ from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.metrics import (
+    SAMPLE_MASK,
     SESSION_STATE_ORDER,
     EngineMetrics,
     book_samples,
@@ -6941,9 +6942,18 @@ class Engine:
         signal.signal(signal.SIGINT, lambda *_: setattr(self, "_running", False))
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "_running", False))
 
+        # Health instrumentation, bound once: the loop below runs per message.
+        # Message and pass counts are locals, and only 1 in SAMPLE_EVERY
+        # messages / maintenance passes is timed (design A4.10, I31).
+        metrics = self.metrics
+        clock_ns = time.perf_counter_ns
+        tick = self._reporter.tick if self._reporter is not None else None
+        msg_count = 0
+        pass_count = 0
+
         while self._running:
-            if self._reporter is not None:
-                self._reporter.tick()
+            if tick is not None:
+                tick()
             try:
                 socks = dict(poller.poll(timeout=200))  # 200 ms tick
             except zmq.ZMQError:
@@ -7011,17 +7021,24 @@ class Engine:
                     # indistinguishable, to any reader, from one that was
                     # dropped. A read's answer starts its own chain instead.
                     self.pub_sock.set_cause(cause if recorded else None)
-                    started_ns = time.perf_counter_ns()
+                    msg_count += 1
+                    sampled = not msg_count & SAMPLE_MASK or metrics.sample_next
+                    started_ns = clock_ns() if sampled else 0
                     try:
                         self._dispatch_pull_message(topic, payload)
                     finally:
                         self.pub_sock.clear_cause()
-                        self.metrics.record_dispatch(
-                            time.perf_counter_ns() - started_ns
-                        )
-            started_ns = time.perf_counter_ns()
-            self._run_maintenance()
-            self.metrics.record_busy(time.perf_counter_ns() - started_ns)
+                        if sampled:
+                            metrics.record_dispatch(clock_ns() - started_ns, msg_count)
+            pass_count += 1
+            if pass_count & SAMPLE_MASK:
+                self._run_maintenance()
+            else:
+                started_ns = clock_ns()
+                self._run_maintenance()
+                metrics.record_maintenance(
+                    clock_ns() - started_ns, pass_count, msg_count
+                )
 
         self._flush_debug_summary(force=True)
         self._shutdown()

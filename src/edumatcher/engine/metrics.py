@@ -57,6 +57,13 @@ _LABEL_CACHE_MAX = 4096
 LATENCY_RING = 1024
 _RING_MASK = LATENCY_RING - 1
 
+#: The run loop times one message (and one maintenance pass) in this many --
+#: a power of two, tested with a mask. Timing every message cost about 1 % of
+#: throughput; percentiles over 1-in-16 are statistically the same at any
+#: rate where they mean anything (design A4.10, workplan I28/I31).
+SAMPLE_EVERY = 16
+SAMPLE_MASK = SAMPLE_EVERY - 1
+
 #: ``engine.session_state`` is the index of the state in this tuple; pm-monitor
 #: maps it back to the name with the same tuple.
 SESSION_STATE_ORDER: tuple[SessionState, ...] = tuple(SessionState)
@@ -100,11 +107,21 @@ class EngineMetrics:
         self._dynamic: set[str] = set()
         self._labels: dict[str, str] = {}
 
+        # Sampled timing (I31): durations of 1 message in SAMPLE_EVERY.
         self._ring = [0] * LATENCY_RING
         self._ring_pos = 0
-        self._ring_count = 0  # durations recorded since the last sample
-        self._busy_ns = 0
+        self._ring_count = 0  # sampled durations since the last window
+        self._dispatch_ns = 0
+        self._dispatch_samples = 0
+        self._maint_ns = 0
+        self._maint_samples = 0
+        self._iterations = 0
+        self._window_msgs = 0
+        self._window_iterations = 0
         self._window_start_ns = time.perf_counter_ns()
+        #: True until a message has been timed in the current window, so even a
+        #: quiet engine reports a latency rather than zeros. Read by the loop.
+        self.sample_next = True
 
     # ------------------------------------------------------------------
     # labels
@@ -168,31 +185,67 @@ class EngineMetrics:
     # timing
     # ------------------------------------------------------------------
 
-    def record_dispatch(self, duration_ns: int) -> None:
-        """One handled PULL message: latency ring + busy time."""
-        self.msgs_in += 1
+    def record_dispatch(self, duration_ns: int, msgs_total: int) -> None:
+        """One *sampled* PULL message (design A4.10, I31).
+
+        The run loop times one message in ``SAMPLE_EVERY`` -- plus the first
+        after every beacon window, see ``sample_next`` -- and passes its own
+        running message count, so ``msgs_in`` stays exact without an
+        attribute update on every message.
+        """
+        self.msgs_in = msgs_total
+        self.sample_next = False
         self._ring[self._ring_pos & _RING_MASK] = duration_ns
         self._ring_pos += 1
         self._ring_count += 1
-        self._busy_ns += duration_ns
+        self._dispatch_ns += duration_ns
+        self._dispatch_samples += 1
 
-    def record_busy(self, duration_ns: int) -> None:
-        """Busy time that is not message handling (maintenance flushes)."""
-        self._busy_ns += duration_ns
+    def record_maintenance(
+        self, duration_ns: int, iterations_total: int, msgs_total: int
+    ) -> None:
+        """One *sampled* maintenance pass; ``iterations_total`` is the loop's
+        running count of passes, sampled or not.
+
+        Also syncs ``msgs_in``: maintenance runs when idle too (every poll
+        timeout), so the count catches up within SAMPLE_EVERY passes after a
+        burst instead of waiting for the next sampled message.
+        """
+        self._iterations = iterations_total
+        self.msgs_in = msgs_total
+        self._maint_ns += duration_ns
+        self._maint_samples += 1
 
     def timing_samples(self, now_ns: int | None = None) -> list[MetricSample]:
         """Percentiles and busy share for the interval since the last call,
-        which starts a new interval."""
+        which starts a new interval.
+
+        Percentiles and max are over the *sampled* messages; busy time is
+        estimated as mean sampled duration x count, separately for message
+        handling and for maintenance passes.
+        """
         now_ns = time.perf_counter_ns() if now_ns is None else now_ns
         n = min(self._ring_count, LATENCY_RING)
         recent = sorted(
             self._ring[(self._ring_pos - i - 1) & _RING_MASK] for i in range(n)
         )
+        busy_ns = 0.0
+        if self._dispatch_samples:
+            msgs = self.msgs_in - self._window_msgs
+            busy_ns += self._dispatch_ns / self._dispatch_samples * msgs
+        if self._maint_samples:
+            passes = self._iterations - self._window_iterations
+            busy_ns += self._maint_ns / self._maint_samples * passes
         elapsed = now_ns - self._window_start_ns
-        busy_pct = min(100.0, 100.0 * self._busy_ns / elapsed) if elapsed > 0 else 0.0
+        busy_pct = min(100.0, 100.0 * busy_ns / elapsed) if elapsed > 0 else 0.0
+
         self._ring_count = 0
-        self._busy_ns = 0
+        self._dispatch_ns = self._dispatch_samples = 0
+        self._maint_ns = self._maint_samples = 0
+        self._window_msgs = self.msgs_in
+        self._window_iterations = self._iterations
         self._window_start_ns = now_ns
+        self.sample_next = True
         return [
             gauge("engine.handle_us_p50", percentile(recent, 50) / 1000.0),
             gauge("engine.handle_us_p99", percentile(recent, 99) / 1000.0),

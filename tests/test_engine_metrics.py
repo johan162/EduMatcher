@@ -26,6 +26,7 @@ from edumatcher.engine.metrics import (
     GATEWAY_COUNTERS,
     LATENCY_RING,
     MAX_DYNAMIC_LABELS,
+    SAMPLE_EVERY,
     ORDER_BYTES,
     SESSION_STATE_ORDER,
     UNKNOWN_LABEL,
@@ -377,35 +378,66 @@ class TestProcessingMetrics:
 
     def test_percentiles_of_a_known_ring(self) -> None:
         m = EngineMetrics()
-        for us in range(1, 101):
-            m.record_dispatch(us * 1000)
+        for i, us in enumerate(range(1, 101), start=1):
+            m.record_dispatch(us * 1000, msgs_total=i * SAMPLE_EVERY)
         samples = m.timing_samples()
         assert _value(samples, "engine.handle_us_p50") == 50
         assert _value(samples, "engine.handle_us_p99") == 99
         assert _value(samples, "engine.handle_us_max") == 100
-        assert m.msgs_in == 100
+        assert m.msgs_in == 100 * SAMPLE_EVERY  # exact, from the loop's count
 
     def test_each_interval_starts_empty(self) -> None:
         m = EngineMetrics()
-        m.record_dispatch(5_000_000)
+        m.record_dispatch(5_000_000, msgs_total=1)
         m.timing_samples()
         assert _value(m.timing_samples(), "engine.handle_us_max") == 0
 
     def test_only_the_last_ring_full_counts(self) -> None:
         m = EngineMetrics()
-        for _ in range(LATENCY_RING):
-            m.record_dispatch(9_000_000)
-        for _ in range(LATENCY_RING):
-            m.record_dispatch(1_000)
+        for i in range(LATENCY_RING):
+            m.record_dispatch(9_000_000, msgs_total=i)
+        for i in range(LATENCY_RING):
+            m.record_dispatch(1_000, msgs_total=LATENCY_RING + i)
         assert _value(m.timing_samples(), "engine.handle_us_max") == 1
 
-    @pytest.mark.parametrize(("busy", "pct"), [(0, 0.0), (25, 25.0), (250, 100.0)])
-    def test_busy_pct_is_bounded(self, busy: int, pct: float) -> None:
+    def test_busy_is_estimated_from_the_samples(self) -> None:
+        """Mean sampled duration x messages, plus the same for maintenance."""
         m = EngineMetrics()
         start = m._window_start_ns
-        m.record_busy(busy)
-        samples = m.timing_samples(now_ns=start + 100)
-        assert _value(samples, "engine.busy_pct") == pytest.approx(pct)
+        m.record_dispatch(1_000, msgs_total=80)
+        m.record_dispatch(3_000, msgs_total=160)  # mean 2 us over 160 messages
+        m.record_maintenance(500, iterations_total=200, msgs_total=160)
+        samples = m.timing_samples(now_ns=start + 1_000_000)
+        # (2_000 * 160 + 500 * 200) / 1_000_000 = 42 %
+        assert _value(samples, "engine.busy_pct") == pytest.approx(42.0)
+
+    def test_busy_counts_only_the_current_window(self) -> None:
+        m = EngineMetrics()
+        m.record_dispatch(1_000, msgs_total=1_000)
+        start = m._window_start_ns
+        m.timing_samples(now_ns=start + 1)
+        nxt = m._window_start_ns
+        m.record_dispatch(1_000, msgs_total=1_100)  # 100 messages this window
+        samples = m.timing_samples(now_ns=nxt + 1_000_000)
+        assert _value(samples, "engine.busy_pct") == pytest.approx(10.0)
+
+    @pytest.mark.parametrize("elapsed", [0, 1])
+    def test_busy_pct_is_bounded(self, elapsed: int) -> None:
+        m = EngineMetrics()
+        m.record_dispatch(10**9, msgs_total=10)
+        pct = _value(
+            m.timing_samples(now_ns=m._window_start_ns + elapsed), "engine.busy_pct"
+        )
+        assert 0.0 <= pct <= 100.0
+
+    def test_the_first_message_of_each_window_is_always_timed(self) -> None:
+        """So a quiet engine reports a latency, not zeros (I31)."""
+        m = EngineMetrics()
+        assert m.sample_next is True
+        m.record_dispatch(1_000, msgs_total=1)
+        assert m.sample_next is False
+        m.timing_samples()
+        assert m.sample_next is True
 
     def test_percentile_edges(self) -> None:
         assert percentile([], 99) == 0.0
@@ -417,6 +449,56 @@ class TestProcessingMetrics:
     ) -> None:
         state = _value(engine.metric_samples(), "engine.session_state")
         assert SESSION_STATE_ORDER[int(state)] == engine._session_state
+
+
+class TestTheRunLoopSamples:
+    """I31: the real loop times 1 message in SAMPLE_EVERY, counts all."""
+
+    def test_a_burst_is_counted_exactly_and_sampled(
+        self, engine: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from edumatcher.models.message import encode
+
+        n_msgs, idle_passes = 100, 3 * SAMPLE_EVERY
+        frames = encode(em.TOPIC_GATEWAYS_REQUEST, {"gateway_id": "GW01"})
+
+        class Pull:
+            def recv_multipart(self) -> list[bytes]:
+                return list(frames)
+
+            def close(self) -> None:
+                pass
+
+        pull = Pull()
+        state = {"polls": 0}
+
+        class Poller:
+            def register(self, *_a: Any, **_k: Any) -> None:
+                pass
+
+            def poll(self, timeout: int | None = None) -> dict[Any, int]:
+                state["polls"] += 1
+                if state["polls"] > n_msgs + idle_passes:
+                    engine._running = False
+                    return {}
+                return {pull: 1} if state["polls"] <= n_msgs else {}
+
+        engine.pull_sock = pull
+        monkeypatch.setattr(em.zmq, "Poller", Poller)
+        monkeypatch.setattr(em, "DropCopyPublisher", lambda *a, **k: None)
+        reset_trade_ids_for_tests()
+        monkeypatch.setattr(em, "load_and_bump_run_seq", lambda _: 1)
+        monkeypatch.setattr(em.signal, "signal", lambda *_a: None)
+        monkeypatch.setattr(engine, "_restore_gtc", lambda: None)
+        monkeypatch.setattr(engine, "_load_config", lambda: None)
+        monkeypatch.setattr(engine, "_shutdown", lambda: None)
+        engine.run()
+
+        m = engine.metrics
+        assert m.msgs_in == n_msgs  # exact: idle passes synced the count
+        # message 1 (forced: first of the window) + every 16th
+        assert m._ring_count == 1 + n_msgs // SAMPLE_EVERY
+        assert _value(m.timing_samples(), "engine.handle_us_max") > 0
 
 
 class _DueReporter:
