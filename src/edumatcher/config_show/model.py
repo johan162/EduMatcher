@@ -29,6 +29,29 @@ class Listener:
 
 
 @dataclass(frozen=True)
+class MonitoringView:
+    """The ``monitor`` section as pm-monitor will resolve it (defaults applied).
+
+    ``configured`` is False when the YAML has no ``monitor`` block, so the
+    panel can say "defaults" rather than imply someone chose these values.
+    ``error`` carries the loader's message for a malformed block; the viewer
+    shows it instead of crashing, because a viewer is most needed when the
+    file is wrong.
+    """
+
+    configured: bool = False
+    enabled: bool = True
+    endpoint: str = ""
+    beacon_interval_sec: float = 0.0
+    hung_after_sec: float = 0.0
+    silent_after_beacons: int = 0
+    raw_hours: int = 0
+    minute_days: int = 0
+    thresholds: tuple[tuple[str, float, float], ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class Participant:
     gid: str
     role: str
@@ -227,6 +250,7 @@ class ConfigView:
     schedule: Schedule = field(default_factory=Schedule)
     tuning: dict[str, Any] = field(default_factory=dict)
     gateway_sections: dict[str, dict[str, Any]] = field(default_factory=dict)
+    monitoring: MonitoringView = field(default_factory=MonitoringView)
     unknown_keys: tuple[str, ...] = ()
 
     @property

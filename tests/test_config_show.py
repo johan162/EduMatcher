@@ -37,6 +37,7 @@ from edumatcher.config_show.render_term import render
 from edumatcher.gateway_ports import (
     DEFAULT_API_GATEWAY_PORT,
     LOG_SERVER_EXTRA_PORTS,
+    MONITOR_PORTS,
     SINGLETON_GATEWAYS,
     FIXED_LISTENERS,
 )
@@ -180,6 +181,10 @@ def test_port_inventory_matches_shared_table(path: Path) -> None:
     for section in (raw.get("api_gateways") or {}).values():
         if isinstance(section, dict):
             expected.add(section.get("port", DEFAULT_API_GATEWAY_PORT))
+    # pm-monitor binds whether or not the block is present.
+    monitor = raw.get("monitor") or {}
+    for extra in MONITOR_PORTS:
+        expected.add(monitor.get(extra.field, extra.default_port))
 
     assert {listener.port for listener in _view(path).listeners} == expected
 
@@ -287,6 +292,83 @@ def test_section_without_port_key_still_binds_its_default() -> None:
 
 
 # ---------------------------------------------------------------------------
+# monitor section (operator dashboard WP-A3)
+# ---------------------------------------------------------------------------
+_SOURCE = Source(Path("x.yaml"), True, 0, 0.0, "--file")
+
+
+def _monitor_listeners(raw: dict[str, object]) -> list[object]:
+    view = build_view(raw, _SOURCE)
+    return [x for x in view.listeners if x.process == "pm-monitor"]
+
+
+def test_an_absent_monitor_block_still_lists_its_default_ports() -> None:
+    listeners = _monitor_listeners({})
+    assert sorted((x.port, x.origin, x.enabled) for x in listeners) == [  # type: ignore[attr-defined]
+        (5610, "default", True),
+        (5611, "default", True),
+    ]
+
+
+def test_a_disabled_monitor_lists_its_ports_as_off() -> None:
+    listeners = _monitor_listeners({"monitor": {"enabled": False, "pub_port": 6611}})
+    assert sorted((x.port, x.origin, x.enabled) for x in listeners) == [  # type: ignore[attr-defined]
+        (5610, "default", False),
+        (6611, "configured", False),
+    ]
+
+
+def test_a_gateway_on_a_default_monitor_port_is_a_collision() -> None:
+    """The case an absent block hides from a presence-based check."""
+    view = build_view({"alf_gateway": {"port": 5610}}, _SOURCE)
+    assert view.port_collisions == {5610}
+
+
+def test_monitor_is_a_recognised_top_level_key() -> None:
+    view = build_view({"monitor": {"enabled": True}}, _SOURCE)
+    assert "monitor" not in view.unknown_keys
+
+
+def test_the_monitoring_panel_shows_resolved_values() -> None:
+    raw = {
+        "monitor": {
+            "hung_after_sec": 7,
+            "thresholds": {"host_cpu_pct": {"warn": 70, "crit": 90}},
+        }
+    }
+    output = _render(build_view(raw, _SOURCE), 200, 1)
+    assert "MONITORING" in _panel_titles(output)
+    assert "hung 7s" in output
+    assert "warn 70 · crit 90" in output
+    assert "engine_handle_p99_us" in output  # an untouched rule shows its default
+
+
+def test_the_monitoring_panel_says_when_defaults_apply() -> None:
+    output = _render(build_view({}, _SOURCE), 200, 1)
+    assert "defaults" in output
+
+
+def test_a_malformed_monitor_block_is_shown_not_raised() -> None:
+    view = build_view({"monitor": {"pull_port": "nope"}}, _SOURCE)
+    assert view.monitoring.error is not None
+    assert "monitor.pull_port" in _render(view, 200, 1)
+
+
+def test_the_pdf_carries_the_monitoring_section(tmp_path: Path) -> None:
+    pytest.importorskip("reportlab")
+    config = tmp_path / "engine_config.yaml"
+    config.write_text(
+        CONFIGS[0].read_text(encoding="utf-8") + "\nmonitor:\n  hung_after_sec: 7\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "out.pdf"
+    assert (
+        main(["--file", str(config), "--format", "pdf", "--output", str(target)]) == 0
+    )
+    assert target.read_bytes().startswith(b"%PDF")
+
+
+# ---------------------------------------------------------------------------
 # density
 # ---------------------------------------------------------------------------
 #: Panel titles sit inside the top border, and a row may carry several, so
@@ -320,6 +402,8 @@ def test_density_is_monotone(path: Path) -> None:
         {"symbols": {"AAPL": None}, "participants": ["nope"]},
         {"market_data_gateway": {"port": "not-an-int"}},
         {"api_gateways": {"desk": {"credentials": ["nope", {"api_key": None}]}}},
+        {"monitor": "not a mapping"},
+        {"monitor": {"thresholds": {"host_cpu_pct": 5}, "retention": []}},
     ],
 )
 def test_malformed_sections_never_raise(raw: object) -> None:
@@ -384,6 +468,7 @@ SPEC_DEFAULT_PORTS = {
     "log_server": 5600,
 }
 SPEC_LOG_SERVER_EXTRA_PORTS = {"pub_port": 5601, "pull_port": 5602}
+SPEC_MONITOR_PORTS = {"pull_port": 5610, "pub_port": 5611}
 SPEC_API_GATEWAY_PORT = 8080
 
 
@@ -394,6 +479,9 @@ def test_shared_table_matches_the_specification() -> None:
     assert {
         extra.field: extra.default_port for extra in LOG_SERVER_EXTRA_PORTS
     } == SPEC_LOG_SERVER_EXTRA_PORTS
+    assert {
+        extra.field: extra.default_port for extra in MONITOR_PORTS
+    } == SPEC_MONITOR_PORTS
     assert DEFAULT_API_GATEWAY_PORT == SPEC_API_GATEWAY_PORT
 
 
@@ -401,6 +489,7 @@ def test_every_documented_default_port_is_unique() -> None:
     """Two sections sharing a default would make M018 fire on every config."""
     ports = list(SPEC_DEFAULT_PORTS.values())
     ports += list(SPEC_LOG_SERVER_EXTRA_PORTS.values())
+    ports += list(SPEC_MONITOR_PORTS.values())
     ports += [SPEC_API_GATEWAY_PORT]
     ports += [listener.port for listener in FIXED_LISTENERS]
     assert len(ports) == len(set(ports))

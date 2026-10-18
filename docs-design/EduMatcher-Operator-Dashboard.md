@@ -20,6 +20,11 @@ Status: In implementation — progress in
 >   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
 >   are unchanged (I9).
 > - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - After WP-A3: codes are S124–S131 and M029–M030. "PULL/PUB distinct"
+>   needs no code of its own, since M018 already reports it. `bind_address`
+>   is stored as authored and resolved by pm-monitor at bind time (B1.2).
+>   The monitor ports count in M018 and config-show even when the block is
+>   absent (I11–I13).
 > - A2, A4, A5 and B1 gained watch-outs from A1: generated constructors
 >   validate, so a bad sample raises in the sampler thread.
 
@@ -1022,7 +1027,10 @@ monitor:
   `disk_free_pct` where `warn` > `crit`; `hung_after_sec > beacon_interval_sec`;
   ports not colliding with any listener in `gateway_ports.py`, including its
   `FIXED_LISTENERS` (engine, index, market-sim and the 5561–5564 health REP
-  sockets, F22). `pm-config-show` gets a
+  sockets, F22). *As built (A3):* S124 mapping, S125 `enabled` bool, S126
+  ports, S127 host strings, S128 timings, S129 retention, S130 threshold
+  bands, S131 loader drift net; M029 band order, M030 hung vs. interval;
+  `pull_port == pub_port` and every other clash are M018. `pm-config-show` gets a
   MONITORING panel and `monitor` joins `extract.KNOWN_TOP_LEVEL`;
   `config-gui` support is a follow-up (§19.3).
 - `gateway_ports.py` gains the two listeners so `pm-config-show` and the
@@ -1442,8 +1450,9 @@ same shape as `log_server` (§14).
   a crafted bad config and `tests/test_cverifier.py`'s pin of
   `_PROCESS_BLOCK_KEYS` to the dataclass fields passes.
 - **A3.4** cverifier layer 3: codes **M029+** — `warn < crit` (inverted
-  for `disk_free_pct`), `hung_after_sec > beacon_interval_sec`, PULL/PUB ports
-  distinct. Collisions with other configured listeners and with
+  for `disk_free_pct`), `hung_after_sec > beacon_interval_sec`. (PULL/PUB
+  ports distinct turned out to be M018 already — both ports are in its
+  inventory — so no M031; I13.) Collisions with other configured listeners and with
   `gateway_ports.resolved_fixed_listeners()` (engine 5555–5557, index
   5558/5559, health REP 5561–5564; F22) come from M018 once A3.5 registers
   the ports. *Verify with tests that* each rule fires,
@@ -1752,7 +1761,9 @@ health rules, rates or persistence yet).
   INFO.
 - **B1.2** Sockets: `PULL` bound to
   `tcp://{resolve_gateway_bind_host(cfg.bind_address)}:{pull_port}`, `PUB`
-  on `pub_port` (F9); `zmq.Poller` loop with a 200 ms timeout. *Verify with
+  on `pub_port` (F9). `MonitorConfig.bind_address` is the *authored* value
+  (A3, I12), so this call is the only place the env override applies — do
+  not skip it; `zmq.Poller` loop with a 200 ms timeout. *Verify with
   tests that* `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` changes the bind host.
 - **B1.3** `monitor/state.py`: `ProcessState` keyed by
   `(process, instance, host)` holding last beacon, receive time, `boot_id`,

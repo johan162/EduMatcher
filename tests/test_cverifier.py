@@ -906,6 +906,12 @@ class TestLayer2UnknownProcessKeys:
         from edumatcher.md_gateway.config import MarketDataGatewayConfig
         from edumatcher.ralf_gateway.config import RalfGatewayConfig
         from edumatcher.dc_gateway.config import DcGatewayConfig
+        from edumatcher.monitor.config import (
+            MonitorConfig,
+            MonitorRetention,
+            MonitorThresholds,
+            ThresholdBand,
+        )
 
         def keys(cls: type, *not_in_yaml: str) -> frozenset[str]:
             return frozenset(f.name for f in dataclasses.fields(cls)) - set(not_in_yaml)
@@ -922,8 +928,12 @@ class TestLayer2UnknownProcessKeys:
             "post_trade_gateway": keys(RalfGatewayConfig, *addrs),
             "dc_gateway": keys(DcGatewayConfig, "drop_copy_pub_addr"),
             "log_server": keys(LogServerConfig) | {"client"},
+            "monitor": keys(MonitorConfig),
         }
         assert layer2_schema._PROCESS_BLOCK_KEYS == expected
+        assert layer2_schema._MONITOR_RETENTION_KEYS == keys(MonitorRetention)
+        assert layer2_schema._MONITOR_THRESHOLD_KEYS == keys(MonitorThresholds)
+        assert layer2_schema._MONITOR_BAND_KEYS == keys(ThresholdBand)
         assert layer2_schema._LOG_CLIENT_KEYS == keys(LogClientConfig)
         assert layer2_schema._API_INSTANCE_KEYS == keys(ApiGatewayConfig, "name")
         assert layer2_schema._API_RATE_LIMIT_KEYS == keys(RateLimitConfig)
@@ -2729,3 +2739,177 @@ class TestLayer4InternalGuards:
         results: list[CheckResult] = []
         layer4_complete._check_unused_risk_levels(raw, results)
         assert not any(r.path == "risk_controls.levels.ALT" for r in results)
+
+
+class TestMonitorSection:
+    """Operator dashboard WP-A3: S124-S131 (shape), M029-M030 (semantics),
+    M018 (ports), S121 (unknown keys at every level)."""
+
+    _BASE = "symbols:\n  AAPL: {}\nparticipants:\n    - id: GW01\n"
+
+    def _l2(self, block: str) -> list[CheckResult]:
+        return layer2_schema.check(_raw(self._BASE + block), Path("x.yaml"))
+
+    def _l3(self, block: str) -> list[CheckResult]:
+        return layer3_semantic.check(_raw(self._BASE + block), Path("x.yaml"))
+
+    def test_a_valid_block_is_clean_in_both_layers(self) -> None:
+        block = (
+            "monitor:\n"
+            "  enabled: true\n"
+            "  bind_address: 127.0.0.1\n"
+            "  pull_port: 5610\n"
+            "  pub_port: 5611\n"
+            "  beacon_interval_sec: 2\n"
+            "  hung_after_sec: 5\n"
+            "  silent_after_beacons: 3\n"
+            "  retention: {raw_hours: 6, minute_days: 7}\n"
+            "  thresholds:\n"
+            "    disk_free_pct: {warn: 15, crit: 5}\n"
+            "    host_cpu_pct: {warn: 80, crit: 95}\n"
+        )
+        assert self._l2(block) == []
+        assert [r for r in self._l3(block) if r.path.startswith("monitor")] == []
+
+    def test_no_block_is_clean(self) -> None:
+        assert self._l2("") == []
+
+    @pytest.mark.parametrize(
+        ("block", "code", "path"),
+        [
+            ("monitor: 5\n", "S124", "monitor"),
+            ("monitor:\n  enabled: 'false'\n", "S125", "monitor.enabled"),
+            ("monitor:\n  pull_port: 0\n", "S126", "monitor.pull_port"),
+            ("monitor:\n  pub_port: 70000\n", "S126", "monitor.pub_port"),
+            ("monitor:\n  pub_port: true\n", "S126", "monitor.pub_port"),
+            ("monitor:\n  host: ''\n", "S127", "monitor.host"),
+            ("monitor:\n  bind_address: 5\n", "S127", "monitor.bind_address"),
+            (
+                "monitor:\n  beacon_interval_sec: 0\n",
+                "S128",
+                "monitor.beacon_interval_sec",
+            ),
+            ("monitor:\n  hung_after_sec: x\n", "S128", "monitor.hung_after_sec"),
+            (
+                "monitor:\n  silent_after_beacons: 1.5\n",
+                "S128",
+                "monitor.silent_after_beacons",
+            ),
+            ("monitor:\n  retention: 5\n", "S129", "monitor.retention"),
+            (
+                "monitor:\n  retention: {raw_hours: 0}\n",
+                "S129",
+                "monitor.retention.raw_hours",
+            ),
+            ("monitor:\n  thresholds: []\n", "S130", "monitor.thresholds"),
+            (
+                "monitor:\n  thresholds: {host_cpu_pct: 80}\n",
+                "S130",
+                "monitor.thresholds.host_cpu_pct",
+            ),
+            (
+                "monitor:\n  thresholds: {host_cpu_pct: {warn: 80}}\n",
+                "S130",
+                "monitor.thresholds.host_cpu_pct.crit",
+            ),
+            (
+                "monitor:\n  thresholds: {host_mem_pct: {warn: -1, crit: 9}}\n",
+                "S130",
+                "monitor.thresholds.host_mem_pct.warn",
+            ),
+        ],
+    )
+    def test_each_shape_code_fires(self, block: str, code: str, path: str) -> None:
+        assert (code, path) in [(r.code, r.path) for r in self._l2(block)]
+
+    def test_the_drift_net_reports_what_the_loader_rejects(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """S131 catches a loader rule layer 2 has not been taught yet."""
+
+        def stricter(raw: dict[str, Any]) -> None:
+            raise ValueError("monitor.future_rule failed")
+
+        monkeypatch.setattr(layer2_schema, "validate_monitor_section", stricter)
+        results = self._l2("monitor:\n  enabled: true\n")
+        assert ("S131", "monitor") in [(r.code, r.path) for r in results]
+
+    def test_the_drift_net_stays_quiet_after_a_specific_error(self) -> None:
+        codes = _codes(self._l2("monitor:\n  pull_port: 0\n"))
+        assert "S126" in codes and "S131" not in codes
+
+    @pytest.mark.parametrize(
+        ("block", "path"),
+        [
+            ("monitor:\n  hung_afer_sec: 5\n", "monitor.hung_afer_sec"),
+            ("monitor:\n  retention: {raw_hour: 6}\n", "monitor.retention.raw_hour"),
+            (
+                "monitor:\n  thresholds: {host_cpu: {warn: 1, crit: 2}}\n",
+                "monitor.thresholds.host_cpu",
+            ),
+            (
+                "monitor:\n  thresholds: {host_cpu_pct: {warn: 1, crit: 2, ok: 0}}\n",
+                "monitor.thresholds.host_cpu_pct.ok",
+            ),
+        ],
+    )
+    def test_s121_reports_unknown_keys_at_every_level(
+        self, block: str, path: str
+    ) -> None:
+        assert path in [r.path for r in self._l2(block) if r.code == "S121"]
+
+    @pytest.mark.parametrize(
+        "band",
+        [
+            "host_cpu_pct: {warn: 95, crit: 80}",
+            "host_cpu_pct: {warn: 80, crit: 80}",
+            "disk_free_pct: {warn: 5, crit: 15}",
+        ],
+    )
+    def test_m029_a_band_in_the_wrong_order(self, band: str) -> None:
+        results = self._l3(f"monitor:\n  thresholds:\n    {band}\n")
+        assert "M029" in _codes(results)
+
+    def test_m029_names_the_inverted_rule_in_its_advice(self) -> None:
+        results = self._l3(
+            "monitor:\n  thresholds:\n    disk_free_pct: {warn: 5, crit: 15}\n"
+        )
+        m029 = next(r for r in results if r.code == "M029")
+        assert "lower value is worse" in m029.suggestion
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            "monitor:\n  hung_after_sec: 2\n",  # equal to the default interval
+            "monitor:\n  beacon_interval_sec: 10\n",  # above the default hung
+            "monitor:\n  beacon_interval_sec: 3\n  hung_after_sec: 1\n",
+        ],
+    )
+    def test_m030_hung_must_exceed_the_interval(self, block: str) -> None:
+        assert "M030" in _codes(self._l3(block))
+
+    def test_m018_a_monitor_port_on_a_health_socket(self) -> None:
+        results = self._l3("monitor:\n  pull_port: 5561\n")
+        m018 = [r for r in results if r.code == "M018"]
+        assert m018 and m018[0].path == "monitor.pull_port"
+        assert "pm-stats" in m018[0].message
+
+    def test_m018_a_gateway_on_a_default_monitor_port_with_no_block(self) -> None:
+        """An absent block still binds 5610/5611, so the clash is real."""
+        results = self._l3("alf_gateway:\n  port: 5610\n")
+        assert "M018" in _codes(results)
+
+    def test_m018_no_clash_when_the_monitor_is_disabled(self) -> None:
+        results = self._l3("monitor:\n  enabled: false\nalf_gateway:\n  port: 5610\n")
+        assert "M018" not in _codes(results)
+
+    def test_m018_reports_pull_and_pub_on_the_same_port(self) -> None:
+        results = self._l3("monitor:\n  pull_port: 5615\n  pub_port: 5615\n")
+        m018 = [r for r in results if r.code == "M018"]
+        assert len(m018) == 1 and m018[0].path == "monitor.pub_port"
+
+    def test_m018_a_gateway_moved_onto_a_configured_monitor_port(self) -> None:
+        results = self._l3(
+            "monitor:\n  pub_port: 5700\nmarket_data_gateway:\n  port: 5700\n"
+        )
+        assert "M018" in _codes(results)

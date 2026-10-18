@@ -26,11 +26,15 @@ from edumatcher.config import (
 from edumatcher.gateway_ports import (
     DEFAULT_API_GATEWAY_PORT,
     LOG_SERVER_EXTRA_PORTS,
+    MONITOR_PORTS,
+    MONITOR_PROCESS,
+    MONITOR_SECTION,
     SINGLETON_GATEWAYS,
     effective_port,
     resolved_fixed_listeners,
 )
 
+from edumatcher.monitor.config import THRESHOLD_RULES, monitor_config_from_raw
 from edumatcher.config_show.model import (
     ApiGateway,
     CBLevel,
@@ -40,6 +44,7 @@ from edumatcher.config_show.model import (
     DaySchedule,
     Index,
     Listener,
+    MonitoringView,
     Participant,
     RiskLevel,
     Schedule,
@@ -70,6 +75,7 @@ KNOWN_TOP_LEVEL: frozenset[str] = frozenset(
         "market_data_gateway",
         "dc_gateway",
         "log_server",
+        "monitor",
         "api_gateways",
         "symbols",
         "market_maker_combos",
@@ -206,6 +212,31 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
                         f"{spec.key}.{extra.field}",
                     )
                 )
+
+    # pm-monitor binds even when the block is absent (every built-in emo
+    # profile starts it), so an absent block lists its defaults; an explicit
+    # `enabled: false` lists them as off.
+    monitor = raw.get(MONITOR_SECTION)
+    monitor = {} if monitor is None else monitor
+    if isinstance(monitor, dict):
+        monitor_bind = resolve_gateway_bind_host(monitor.get("bind_address"))
+        monitor_enabled = monitor.get("enabled", True) is not False
+        for extra in MONITOR_PORTS:
+            mport = effective_port(monitor, extra.default_port, key=extra.field)
+            if mport is None:
+                continue
+            out.append(
+                Listener(
+                    mport,
+                    extra.proto,
+                    MONITOR_PROCESS,
+                    extra.function,
+                    monitor_bind,
+                    "configured" if extra.field in monitor else "default",
+                    monitor_enabled,
+                    f"{MONITOR_SECTION}.{extra.field}",
+                )
+            )
 
     for name, section in _as_dict(raw.get("api_gateways")).items():
         if not isinstance(section, dict):
@@ -427,6 +458,33 @@ def _schedule_view(schedule: dict[str, Any]) -> Schedule:
 
 
 # ---------------------------------------------------------------------------
+def _monitoring(raw: dict[str, Any]) -> MonitoringView:
+    """Resolve the monitor block through pm-monitor's own loader."""
+    configured = MONITOR_SECTION in raw
+    try:
+        cfg = monitor_config_from_raw(raw)
+    except ValueError as exc:
+        return MonitoringView(configured=configured, error=str(exc))
+    return MonitoringView(
+        configured=configured,
+        enabled=cfg.enabled,
+        endpoint=f"{cfg.host}:{cfg.pull_port} / :{cfg.pub_port}",
+        beacon_interval_sec=cfg.beacon_interval_sec,
+        hung_after_sec=cfg.hung_after_sec,
+        silent_after_beacons=cfg.silent_after_beacons,
+        raw_hours=cfg.retention.raw_hours,
+        minute_days=cfg.retention.minute_days,
+        thresholds=tuple(
+            (
+                rule,
+                getattr(cfg.thresholds, rule).warn,
+                getattr(cfg.thresholds, rule).crit,
+            )
+            for rule in THRESHOLD_RULES
+        ),
+    )
+
+
 def build_view(raw: Any, source: Source) -> ConfigView:
     """Turn a parsed YAML document into the read-only view model."""
     raw = _as_dict(raw)
@@ -492,5 +550,6 @@ def build_view(raw: Any, source: Source) -> ConfigView:
             for spec in SINGLETON_GATEWAYS
             if isinstance(raw.get(spec.key), dict)
         },
+        monitoring=_monitoring(raw),
         unknown_keys=tuple(sorted(k for k in raw if k not in KNOWN_TOP_LEVEL)),
     )

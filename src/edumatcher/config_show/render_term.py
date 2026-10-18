@@ -159,6 +159,16 @@ def build_panels(
                     max_w=58,
                 )
             )
+        panels.append(
+            Panel(
+                "monitoring",
+                44,
+                52,
+                lambda w: P.build_monitoring(view, w),
+                band="risk",
+                max_w=60,
+            )
+        )
     if density >= 2 and view.tuning:
         panels.append(
             Panel(

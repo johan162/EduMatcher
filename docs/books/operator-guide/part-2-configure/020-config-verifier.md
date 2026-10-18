@@ -202,7 +202,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S121`)
+### Layer 2 — Schema (`S001`–`S131`)
 
 **Top-level structure**
 
@@ -272,7 +272,7 @@ the key if it appears on a risk level.
 | `S118` | `participant_defaults` is not a mapping, or has a key other than `smp_action` / `disconnect_behaviour` |
 | `S119` | `participant_defaults.disconnect_behaviour` is not a recognised value |
 | `S120` | `participant_defaults.smp_action` is not a recognised value |
-| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
+| `S121` | A key in `alf_gateway`, `balf_gateway`, `market_data_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server` (or `log_server.client`), `monitor` (or `monitor.retention`, `monitor.thresholds`, or one of its `{warn, crit}` bands), or an `api_gateways.<name>` instance (or its `rate_limit`, `timeouts` or `credentials[]`) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name |
 
 **Circuit breaker fields**
 
@@ -474,10 +474,30 @@ field, and both are conditions `pm-log-srv` refuses to start on:
   would make that default unreachable, which is incoherent rather than
   merely unusual.
 
+**Monitoring (`monitor` section)**
+
+The optional `monitor` block configures health beacons and `pm-monitor`
+(operator dashboard). An absent block means defaults with monitoring on.
+
+| Code    | Condition |
+|---------|-----------|
+| `S124`  | `monitor` present but not a mapping |
+| `S125`  | `monitor.enabled` not a boolean (a quoted `"false"` is a string and would otherwise leave monitoring on) |
+| `S126`  | `monitor.pull_port` or `monitor.pub_port` not an integer in 1–65535 |
+| `S127`  | `monitor.bind_address` or `monitor.host` not a non-empty string |
+| `S128`  | `monitor.beacon_interval_sec`, `hung_after_sec` or `book_metrics_interval_sec` not a positive number, or `silent_after_beacons` not a positive integer |
+| `S129`  | `monitor.retention` not a mapping, or `raw_hours`/`minute_days` not a positive integer |
+| `S130`  | `monitor.thresholds` not a mapping, a rule not a `{warn, crit}` mapping, or `warn`/`crit` missing or not a non-negative number |
+| `S131`  | `monitor` fails runtime-loader validation for a reason not covered by `S124`–`S130` (drift safety net; only fires when none of those already reported) |
+
+The rules that relate two `monitor` fields are semantic checks (`M029`,
+`M030`); a `monitor` port that collides with another listener, or
+`pull_port` equal to `pub_port`, is `M018`.
+
 See [LALF-PS](../part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M028`)
+### Layer 3 — Semantic (`M001`–`M030`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -501,7 +521,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
 | `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
-| `M018` | ERROR    | Two configured listeners are bound to the same port. Covers `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, every `api_gateways.<name>`, and all three of `log_server`'s own ports — `port` (LALF/TCP) plus `pub_port`/`pull_port` (LALF-PS), the latter two skipped when `pubsub_enabled: false` since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in `engine_config.yaml` — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any `EDUMATCHER_*_PORT` override in the verifier's environment |
+| `M018` | ERROR    | Two configured listeners are bound to the same port. Covers `alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, every `api_gateways.<name>`, `monitor.pull_port`/`pub_port` (counted even when the `monitor` block is absent, since `pm-monitor` then binds 5610/5611; skipped only for `enabled: false`), and all three of `log_server`'s own ports — `port` (LALF/TCP) plus `pub_port`/`pull_port` (LALF-PS), the latter two skipped when `pubsub_enabled: false` since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in `engine_config.yaml` — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any `EDUMATCHER_*_PORT` override in the verifier's environment |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
 | `M021` | ERROR    | A `schedule` time value isn't a quoted `"HH:MM"` string (e.g. YAML mis-parsed it as a sexagesimal integer) |
@@ -512,6 +532,8 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M026` | WARN     | `locale.country` is not recognised by the `holidays` package (`pm-scheduler` falls back to Sweden at runtime) |
 | `M027` | ERROR    | `schedule` has an unknown top-level key (valid keys: `weekdays`, `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`, `weekend`, `holidays`) |
 | `M028` | ERROR    | `schedule` specifies both `weekend` and an individual `sat`/`sun` block — use one or the other |
+| `M029` | ERROR    | A `monitor.thresholds` band is in the wrong order: `warn` must be strictly below `crit`, except `disk_free_pct`, where a lower value is worse and `warn` must be strictly above `crit` |
+| `M030` | ERROR    | `monitor.hung_after_sec` is not greater than `monitor.beacon_interval_sec` |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
