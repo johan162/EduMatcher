@@ -51,6 +51,10 @@ HELP=false
 BUILD_INTRO=false
 NO_DOCS=false
 
+# Determine available number of CPU cores for parallel execution
+# For both Linux and macOS
+NUM_CORES=$(nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
+
 # =====================================
 # Functions to print colored output
 # =====================================
@@ -146,12 +150,12 @@ run_parallel_commands2() {
         return 0
     fi
 
-    print_sub_step "Running PDF bundle builds in parallel"
-    echo "Executing (background): $cmd1"
+    print_sub_step "Running two commands in parallel"
+    echo -e "${YELLOW}  ->Executing (background): $cmd1${NC}"
     eval "$cmd1" &
     local pid1=$!
 
-    echo "Executing (background): $cmd2"
+    echo -e "${YELLOW}  ->Executing (background): $cmd2${NC}"
     eval "$cmd2" &
     local pid2=$!
 
@@ -195,15 +199,15 @@ run_parallel_commands3() {
     fi
 
     print_sub_step "Running PDF bundle builds in parallel"
-    echo "Executing (background): $cmd1"
+    echo -e "${YELLOW}  ->Executing (background): $cmd1${NC}"
     eval "$cmd1" &
     local pid1=$!
 
-    echo "Executing (background): $cmd2"
+    echo -e "${YELLOW}  ->Executing (background): $cmd2${NC}"
     eval "$cmd2" &
     local pid2=$!
 
-    echo "Executing (background): $cmd3"
+    echo -e "${YELLOW}  ->Executing (background): $cmd3${NC}"
     eval "$cmd3" &
     local pid3=$!
 
@@ -369,7 +373,7 @@ else
 fi
 
 # 1.3 Clean previous build and coverage artifacts
-run_command "rm -rf dist/ build/ src/*.egg-info/ htmlcov/" "Cleaning previous build and coverage artifacts"
+run_command "rm -rf dist/ build/ src/*.egg-info/ htmlcov/ docs/dist/*" "Cleaning previous build and coverage artifacts"
 
 # 1.4 Get VERSION from pyproject.toml
 VERSION="$(poetry version --short)"
@@ -394,9 +398,13 @@ print_step_colored ""
 
 # Step 2.1: Generate shell completions, messages and schema documentation
 print_sub_step "Generating shell completions, messages and schema documentation"
-run_command "make completion" "Generating shell completion scripts"
-run_command "make msgen" "Update generated messages and documentation"
-run_command "make dbdocs" "Update generated SQLite schema documentation"
+# run_command "make completion" "Generating shell completion scripts"
+# run_command "make msgen" "Update generated messages and documentation"
+# run_command "make dbdocs" "Update generated SQLite schema documentation"
+
+run_parallel_commands3 "make completion" "Generating shell completion scripts" \
+"make msgen" "Update generated messages and documentation" \
+"make dbdocs" "Update generated SQLite schema documentation"
 
 # Step 2.2: Run static analysis and formatting checks
 print_sub_step "Running static analysis and formatting checks"
@@ -435,18 +443,26 @@ else
 fi
 
 print_sub_step "Running npm tests for web applications"
-# Step 3.1 run all npm tests for the web applications under web-apps
+# Step 3.1: Run npm verification and tests for two web applications at a time
 if [ -d "web-apps" ]; then
+    pending_command=""
+    pending_description=""
     for app_dir in web-apps/*; do
         if [ -d "$app_dir" ]; then
-            print_sub_step "Running npm tests for $app_dir"
-            (cd "$app_dir" && npm install && npm run typecheck && npm run lint && npm test)
-            if [ $? -ne 0 ]; then
-                print_warning "npm tests failed for $app_dir"
-                exit 1;
+            printf -v app_command '(cd %q && npm install && npm run typecheck && npm run lint && npm test)' "$app_dir"
+            app_description="npm verification and tests for $app_dir"
+            if [ -z "$pending_command" ]; then
+                pending_command="$app_command"
+                pending_description="$app_description"
+            else
+                run_parallel_commands2 "$pending_command" "$pending_description" "$app_command" "$app_description"
+                pending_command=""
             fi
         fi
     done
+    if [ -n "$pending_command" ]; then
+        run_command "$pending_command" "$pending_description"
+    fi
 else
     print_warning "web-apps directory not found; skipping npm tests for web applications"
 fi
@@ -536,30 +552,30 @@ if [ "$NO_DOCS" = false ]; then
         
         run_command "make -C docs-exchange-intro clean" "Cleaning previous PDF artifacts"
         print_sub_step "Building Exchange Intro Booklet"
-        run_command "make -C docs-exchange-intro -j16 all" "Building Exchange Intro Booklet" 
+        run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
 
         run_command "make -C docs clean" "Cleaning previous PDF artifacts"
         print_sub_step "Building User Guide Omnibus"
-        run_command "make -C docs -j7 covers" "Building Books Covers" 
-        run_command "make -C docs -j16 omnibus" "Building Books" 
+        run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
+        run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
 
     else
         if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
             print_sub_step "Building Exchange Intro Booklet"
-            run_command "make -C docs-exchange-intro -j16 all" "Building Exchange Intro Booklet" 
+            run_command "make -C docs-exchange-intro -j${NUM_CORES} all" "Building Exchange Intro Booklet" 
 
         fi
     
         if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
             print_sub_step "Building User Guide Omnibus"
-            run_command "make -C docs -j7 covers" "Building Books Covers" 
-            run_command "make -C docs -j16 omnibus" "Building Books" 
+            run_command "make -C docs -j${NUM_CORES} covers" "Building Books Covers" 
+            run_command "make -C docs -j${NUM_CORES} omnibus" "Building Books" 
         fi
     fi
     
     # Step 4.6: Build HTML docs site/
     print_sub_step "Generating HTML version of User Guide for site/ ..."
-    run_command "make -C docs docs" "Building HTML docs with Makefile"
+    run_command "make -C docs -j${NUM_CORES} docs" "Building HTML docs with Makefile"
     
     # Step 4.7: Bump the multipass bootstrap script version in the docs to match the current project version
     print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"

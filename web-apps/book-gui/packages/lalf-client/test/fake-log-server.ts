@@ -23,6 +23,7 @@ export interface FakeLogServerOptions {
 export class FakeLogServer {
   private server: Server | null = null;
   private readonly sockets = new Set<Socket>();
+  private available = true;
 
   readonly frames: ReceivedFrame[] = [];
   connectionCount = 0;
@@ -45,6 +46,11 @@ export class FakeLogServer {
     this.sockets.add(socket);
     socket.on("error", () => undefined);
     socket.on("close", () => this.sockets.delete(socket));
+
+    if (!this.available) {
+      socket.destroy();
+      return;
+    }
 
     let buf = Buffer.alloc(0);
     let pending: { msgType: string; fields: Record<string, string>; len: number } | null = null;
@@ -98,6 +104,12 @@ export class FakeLogServer {
     this.sockets.clear();
   }
 
+  /** Simulate an outage without releasing the port to another test. */
+  setAvailable(available: boolean): void {
+    this.available = available;
+    if (!available) this.dropConnections();
+  }
+
   framesOfType(msgType: string): ReceivedFrame[] {
     return this.frames.filter((frame) => frame.msgType === msgType);
   }
@@ -134,15 +146,4 @@ export async function waitFor(
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`);
-}
-
-/** A port with nothing listening on it, for probe-failure tests. */
-export async function unusedPort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (typeof address === "string" || address === null) throw new Error("no port assigned");
-  const { port } = address;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  return port;
 }

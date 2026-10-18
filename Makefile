@@ -295,7 +295,7 @@ verify: ## Run end-to-end deterministic matching verification suite
 # Code quality
 # ============================================================================================
 check: ## Run all code quality checks in parallel (format + lint + typecheck)
-	$(MAKE) -j 4 _check
+	$(MAKE) -j 6 _check
 
 _check: format lint typecheck typecheck-pyright msgen-check dbdocs-check ## Run all code quality checks (format + lint + typecheck + generated docs)
 	@:

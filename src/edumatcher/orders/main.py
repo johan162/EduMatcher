@@ -117,7 +117,7 @@ def _resolve_compiled_config_path(
 
     Every warning is appended (not printed) to ``warnings`` — this runs at
     import time, before logging is configured, so printing directly here
-    would only ever reach stderr. The caller prints immediately (so the
+    would only ever reach stderr. main() prints them to stderr (so the
     warning is visible right away, before the Live UI takes over the
     terminal) and replays the same messages through the logger once
     _configure_logging() has wired up the pm-log-srv client, so both the
@@ -195,10 +195,9 @@ def _load_tick_decimals() -> tuple[dict[str, int], list[str]]:
 def _log_startup_warnings(warnings: list[str]) -> None:
     """Send collected startup warnings to the logger.
 
-    The stderr copy already happened immediately at import time (see below
-    _load_tick_decimals's call site), before logging was configured. Call
-    this once from main(), right after _configure_logging() has wired up
-    the pm-log-srv-backed handler, so the same messages also reach the
+    main() prints the stderr copy before logging is configured. Call this
+    once from main(), right after _configure_logging() has wired up the
+    pm-log-srv-backed handler, so the same messages also reach the
     central log."""
     for msg in warnings:
         log.warning(msg)
@@ -207,12 +206,10 @@ def _log_startup_warnings(warnings: list[str]) -> None:
 # Loaded once at import time — the same convention as every other module
 # constant here. tick_decimals is deployed configuration (engine_config.json
 # is only written by the deploy step per REF_DATA_DIR's docstring), not
-# something that changes while pm-orders is running. The stderr copy of any
-# warning happens immediately (print() doesn't need logging configured);
-# the log-server copy is deferred to main(), see _startup_warnings below.
+# something that changes while pm-orders is running. Any warning is only
+# collected here and reported from main(), so merely importing the module
+# (e.g. tools/gen_completion.py) stays silent.
 _TICK_DECIMALS, _startup_warnings = _load_tick_decimals()
-for _msg in _startup_warnings:
-    print(f"[pm-orders] WARNING: {_msg}", file=sys.stderr)
 
 
 def _format_price(value: Any, symbol: str | None) -> str:
@@ -989,6 +986,8 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    for msg in _startup_warnings:
+        print(f"[pm-orders] WARNING: {msg}", file=sys.stderr)
     log_level = _configure_logging(args)
     log.info("starting pm-orders with log level %s", logging.getLevelName(log_level))
     _log_startup_warnings(_startup_warnings)

@@ -84,8 +84,8 @@ DEFAULT_API_GATEWAY_PORT = 8080
 # Sockets bound outside the YAML entirely
 # ---------------------------------------------------------------------------
 # Mirrors the module-level constants in edumatcher/config.py. Ports are fixed
-# source constants; the bind host for both the engine trio and the index pair
-# is overridable via EDUMATCHER_ENGINE_BIND_HOST / EDUMATCHER_INDEX_BIND_HOST.
+# source constants or env-overridable; bind hosts come from
+# EDUMATCHER_{ENGINE,SIM,INDEX,STATS,AUDIT,CLEARING}_BIND_HOST.
 # Either way they are invisible in engine_config.yaml, which is exactly why a
 # viewer must show them.
 FIXED_LISTENERS: tuple[FixedListener, ...] = (
@@ -124,14 +124,49 @@ FIXED_LISTENERS: tuple[FixedListener, ...] = (
         "env",
         "EDUMATCHER_INDEX_PULL_PORT",
     ),
+    # Health REP sockets: each recorder's receive loop answers a ping on its
+    # own port so `pm-*-cli health` (and pm-opctl-cli's healthcheck) can tell a
+    # live loop from a merely existing process.
+    FixedListener(
+        5561,
+        "ZMQ REP",
+        "pm-stats",
+        "Health ping",
+        "env",
+        "EDUMATCHER_STATS_HEALTH_PORT",
+    ),
+    FixedListener(
+        5562,
+        "ZMQ REP",
+        "pm-audit",
+        "Health ping",
+        "env",
+        "EDUMATCHER_AUDIT_HEALTH_PORT",
+    ),
+    FixedListener(
+        5563,
+        "ZMQ REP",
+        "pm-clearing",
+        "Health ping",
+        "env",
+        "EDUMATCHER_CLEARING_HEALTH_PORT",
+    ),
+    FixedListener(
+        5564,
+        "ZMQ REP",
+        "pm-index",
+        "Health ping",
+        "env",
+        "EDUMATCHER_INDEX_HEALTH_PORT",
+    ),
 )
 
 
 def resolved_fixed_listeners() -> tuple[FixedListener, ...]:
     """``FIXED_LISTENERS`` with the environment overrides applied.
 
-    The index ports honour ``EDUMATCHER_INDEX_PUB_PORT`` /
-    ``EDUMATCHER_INDEX_PULL_PORT``; a non-integer value is ignored so the
+    Every ``env`` listener honours its ``env_var`` (e.g.
+    ``EDUMATCHER_INDEX_PUB_PORT``); a non-integer value is ignored so the
     viewer shows the compiled-in default rather than crashing on a typo in
     someone's shell profile.
     """

@@ -1,9 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { LalfClient } from "../src/client.js";
-import { FakeLogServer, unusedPort, waitFor } from "./fake-log-server.js";
+import { FakeLogServer, waitFor } from "./fake-log-server.js";
 
 const servers: FakeLogServer[] = [];
 const clients: LalfClient[] = [];
@@ -50,11 +51,31 @@ describe("startup probe", () => {
     expect(server.framesOfType("HELLO")).toHaveLength(1);
   });
 
-  it("reports failure when nothing is listening, leaving the caller on stdout", async () => {
-    const client = makeClient(await unusedPort());
+  it("reports failure when the server closes the connection, leaving the caller on stdout", async () => {
+    const server = await startServer();
+    server.setAvailable(false);
+    const client = makeClient(server.port);
 
     expect(await client.attach()).toBe(false);
     expect(client.state).toBe("IDLE");
+    expect(server.connectionCount).toBe(1);
+  });
+
+  it("keeps the port reserved during an outage and recovers on the same port", async () => {
+    const server = await startServer();
+    server.setAvailable(false);
+    const contender = createServer();
+    try {
+      await expect(new Promise<void>((resolve, reject) => {
+        contender.once("error", reject);
+        contender.listen(server.port, "127.0.0.1", resolve);
+      })).rejects.toMatchObject({ code: "EADDRINUSE" });
+    } finally {
+      if (contender.listening) await new Promise<void>((resolve) => contender.close(() => resolve()));
+    }
+
+    server.setAvailable(true);
+    expect(await makeClient(server.port).attach()).toBe(true);
   });
 
   it("gives up on a server that accepts but never answers", async () => {
@@ -191,8 +212,7 @@ describe("failover", () => {
     const server = await startServer();
     const client = makeClient(server.port, { failoverTimeoutSec: 0.3 });
     await client.attach();
-    await server.stop();
-    servers.splice(servers.indexOf(server), 1);
+    server.setAvailable(false);
     await waitFor(() => client.state === "FAILED_OVER", 5000, "failover");
     return client;
   }
@@ -221,8 +241,7 @@ describe("failover", () => {
     const server = await startServer();
     const client = makeClient(server.port, { failoverTimeoutSec: 0.3 });
     await client.attach();
-    await server.stop();
-    servers.splice(servers.indexOf(server), 1);
+    server.setAvailable(false);
 
     await waitFor(() => client.state === "RECONNECTING", 2000, "the drop to be noticed");
     client.log(info("queued before failover"));
@@ -239,26 +258,20 @@ describe("failover", () => {
     const server = await startServer();
     const client = makeClient(server.port, { failoverTimeoutSec: 0.3 });
     await client.attach();
-    const port = server.port;
-    await server.stop();
-    servers.splice(servers.indexOf(server), 1);
+    server.setAvailable(false);
     await waitFor(() => client.state === "FAILED_OVER", 5000, "failover");
 
-    // Bring a server back on the same port; the client must ignore it.
-    const revived = new FakeLogServer();
-    servers.push(revived);
-    await new Promise<void>((resolve) => {
-      const s = revived as unknown as { start: () => Promise<number> };
-      void s.start().then(() => resolve());
-    });
+    const connectionCount = server.connectionCount;
+    server.setAvailable(true);
 
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(client.state).toBe("FAILED_OVER");
-    expect(port).toBeGreaterThan(0);
+    expect(server.connectionCount).toBe(connectionCount);
   });
 
   it("names the file after the instance when one is configured", async () => {
-    const client = makeClient(await unusedPort(), { instance: "b" });
+    const server = await startServer();
+    const client = makeClient(server.port, { instance: "b" });
     expect(client.fallbackPath.endsWith("pm-terminal-bridge-b.log")).toBe(true);
   });
 });
