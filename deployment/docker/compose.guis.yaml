@@ -46,7 +46,7 @@ services:
       # mounted read-only. The bridge opens log.db with { readOnly: true } and
       # pm-log-srv keeps the database in rollback-journal mode, so there is no
       # -wal/-shm write to fail on a read-only mount.
-      - ./data:/backend-data:ro
+      - ./data:/backend-data:ro,z
       # This project's own ack store, read-write and persisted across restarts.
       - log-gui-acks:/app/ack-data
 
