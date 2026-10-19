@@ -4,7 +4,7 @@ Tracks the implementation of
 [`EduMatcher-Operator-Dashboard.md`](EduMatcher-Operator-Dashboard.md) (v0.3.0),
 §18. One work package (WP) at a time; each WP ends with a holistic test run
 (`make _check` + the full test suite, or `npm run typecheck && npm test` for
-web apps), a review for new insights, and a proposed commit message. The
+web apps), a holistic review for new insights, and a proposed commit message. The
 maintainer commits.
 
 Started: 2026-10-18
@@ -24,7 +24,7 @@ before A2).
 | 4 | A4 | Engine metrics, reject funnel, book memory estimate, reporter, perf gate | A2 | ☑ | 2026-10-19 |
 | 5 | A5 | Gateway metrics and reporters (ALF, BALF, MD, RALF, DC, API) | A2 | ☑ | 2026-10-19 |
 | 6 | A6 | Service metrics and reporters (log-srv, stats, audit, clearing, scheduler, index, market-sim) | A2 | ☑ | 2026-10-19 |
-| 7 | B1 | `pm-monitor` skeleton, process state, 1 Hz snapshot | A1–A3 | ☐ | |
+| 7 | B1 | `pm-monitor` skeleton, process state, 1 Hz snapshot | A1–A3 | ☑ | 2026-10-19 |
 | 8 | B2 | Health model and expected roster | B1 | ☐ | |
 | 9 | B3 | Rates, engine-bus events, thresholds, host sampler | B1 | ☐ | |
 | 10 | B4 | `metrics.db` store, downsampling, retention | B3 | ☐ | |
@@ -64,6 +64,7 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I5 | A1 | The UI needs to know which processes are bots (Q2) and needs to read raw metrics not summarised elsewhere (row 6, D3.1). | Added `ProcessHealth.group` (EXCHANGE/BOT) and `ProcessHealth.metrics`; also `TradingStats.busy_pct`, `ExchangeStatus.session_timezone`, `health.event.severity`. |
 | I6 | A1 | Measured a realistic snapshot: ≈ 65 KB, 0.8 ms to build and validate. | Validation cost dismissed; size noted in §11.1 and B1 (trim `ProcessHealth.metrics` for the engine first if needed). |
 | I7 | A1 | `unit` vocabulary had no bytes/seconds/ms/µs; existing specs fudge these as `dimensionless`. | Added `bytes`, `duration_seconds`, `duration_millis`, `duration_micros` to `msgen/spec.py:UNITS`. Retro-fitting `log.yaml`'s `*_sec`/`*_ms` fields is a possible follow-up (doc-only change to its reference). |
+| I8 | A1 | `pm-msgen lint` dies with a raw PyYAML traceback on a YAML syntax error (e.g. a `>` block scalar inside a flow mapping) instead of a `SpecError` naming the file. | Follow-up, out of scope for this plan. |
 | I9 | A1 | The holistic run caught that `"monitor.snapshot"` already exists as the frame type of the API gateway's `/admin/monitor` WebSocket (trader-gui), an unrelated protocol; `pm-msgen grep-literals` flagged it. | Johan chose to rename the bus family to `health` (`health.beacon/snapshot/event`, `spec/messages/health.yaml`); transports, publisher, config section and process name keep `monitor`. Design doc updated throughout. |
 | I10 | A1 | Adding a spec family trips four cross-cutting gates: the pinned family list and message count, the audit-replay lexicon (every top-level enum value needs a gloss), and the builder-adoption gate (every message needs a `make_*` producer in `src/`). | Lexicon glosses for `health.event` `kind`/`severity`; count 121 → 124; a self-expiring `PENDING_ADOPTION` set in `test_msgen_adoption.py` that A2 (beacon) and B1/B3 (snapshot/event) must empty, enforced by a guard test. |
 | I11 | A3 | M018 and the config-show port panel only looked at sections *present* in the YAML. pm-monitor binds 5610/5611 with no `monitor:` block at all, so `alf_gateway.port: 5610` would have passed verification and failed at start-up. | `gateway_ports.MONITOR_PORTS` + `monitor_section()`: counted unless `enabled: false`. Tested in both consumers. `log_server` has the same latent gap (pm-log-srv binds 5600–5602 on defaults when the block is absent); follow-up, not fixed here. |
@@ -102,4 +103,8 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I44 | A5 fix | Fix for I33 in `pm-ralf-gwy` and `pm-dc-gwy`, as `pm-md-gwy` drops a slow client: slow/idle detection fires once per session; a closing session takes no further lines and is disconnected when its final line drains or after `CLOSE_GRACE_SEC` = 5 s regardless, with the cause as reason (`slow_client`, `idle_timeout`). The slow-client backlog is dropped before the `ERR` (RALF too, now; clients recover via `LASTSEQ`), keeping a half-sent line so the wire is never torn. | Unit tests with a never-reading peer for both gateways; real-loop test that a silent client gets `EXIT` then EOF; operator-guide RALF/DC sections updated. |
 | I45 | review | Reporters start in `main()`, before each loop exists, so start-up work (engine GTC restore + config load, clearing retention prune, index initialise) showed as a growing `loop_age_ms`: a slow but healthy start would read HUNG, indistinguishable from a stuck one. | `health.beacon.starting` (true until the first `tick()`, derived in the sampler thread at zero hot-path cost); B2 must apply a start-up grace while `starting`. Tests added. |
 | I46 | review | Reporter docstring showed the pre-A5 wiring; `start()` after `stop()` exited at once (stop event never cleared); engine-metrics comments predated 1-in-16 sampling. | Fixed (commit `5e1a2dc3`), restart covered by a test. Rest of Phase A re-checked (reject funnel, counters vs. threads, RALF/DC close logic, API middleware, service tick placement, names vs. emo commands, every `monitor` field has a consumer): no further defects. Daily trade counters are not restored on restart, so their COUNTER semantics hold for B3. |
-| I8 | A1 | `pm-msgen lint` dies with a raw PyYAML traceback on a YAML syntax error (e.g. a `>` block scalar inside a flow mapping) instead of a `SpecError` naming the file. | Follow-up, out of scope for this plan. |
+| I47 | B1 | `ProcessHealth` has no `starting` field, so the dashboard cannot tell a process that is still starting (start-up grace) from a healthy one, although the beacon carries it. | B2.5 added: B2 decides, with the grace rule, whether `ProcessHealth` gains `starting` (spec change, cheap before C2). |
+| I48 | B1 | Two live processes with the same `(process, instance, host)` would alternate `boot_id` and look like a restart every beacon. | A beacon from an incarnation with a lower `started_at_ns` than the current one is stale: the newer one is shown and `monitor.beacons_stale` rises. Tested. |
+| I49 | B1 | The snapshot-size question (§11.1) is best answered on a live exchange, not once. A bare `pm-engine` with no deployed config gives ≈ 3.9 KB (two processes). | pm-monitor's own beacon carries `monitor.snapshot_bytes` and `monitor.snapshot_build_ms`; revisit the 5 s/delta option only if they say so (E3). |
+| I50 | B1 | A new `pm-*` entry point trips the shell-completion gate (`tests/test_shell_completion.py`): the committed bash/zsh files are generated from every parser. | Regenerated with `tools/gen_completion.py`. The `pm-help` entry stays in E2.3. |
+| I51 | B1 | Nothing relates `monitor.host` to `monitor.bind_address`: binding a specific non-loopback address while `host` stays `127.0.0.1` silently drops every beacon, pm-monitor's own included. | Noted for E2 (operator guide) as a possible verifier warning; no change now, the default (both loopback) is coherent. |

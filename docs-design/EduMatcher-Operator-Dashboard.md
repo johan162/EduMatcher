@@ -23,6 +23,12 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After WP-B1: the loop lives in `monitor/collector.py` (`Monitor`),
+>   `main.py` is the CLI only (§16). Two live processes claiming one identity
+>   show as the newer incarnation, never as a restart every beacon. The
+>   snapshot size is a live gauge (`monitor.snapshot_bytes`). `ProcessHealth`
+>   does not carry the beacon's `starting` flag: B2 decides whether it must
+>   (B2.5) (I47–I51).
 > - After WP-A6: every process of the `default` profile beacons. No WP had
 >   assigned the participant bots (`pm-mm-bot`, `pm-ai-swarm`) although Q2
 >   wants them in their own group: added as B5.4. `stats.records_dropped` and
@@ -1152,9 +1158,10 @@ src/edumatcher/
     samples.py           MetricSample helpers, counter registry
   monitor/
     __init__.py
-    main.py              pm-monitor entry point, poll loop (§9.1)
+    main.py              pm-monitor entry point: CLI, config, logging
+    collector.py         Monitor: sockets, poll loop, 1 Hz snapshot (§9.1)
     config.py            monitor section loader
-    state.py             per-process state, health evaluation (§10)
+    state.py             per-process state (B1), health evaluation (§10, B2)
     rates.py             counter → increment/rate/avg (§9.4)
     host.py              psutil host sampler (§8.1)
     roster.py            expected processes from emo profile (§9.3)
@@ -1850,6 +1857,17 @@ processes in a `pm-monitor` snapshot read with a 10-line Python SUB script.
   highest `seq` per `boot_id`, so a stale `loop_age_ms` from the burst is never
   judged on its own.
 
+**Outcome (2026-10-19):** `monitor/collector.py` holds the `Monitor` class
+(sockets, loop, snapshot) so tests drive it without `main()`; `main.py` is
+the CLI. A beacon from an *older* incarnation (`started_at_ns` lower than
+the current one's) is stale, so two live processes with one identity show
+as the newer one with `monitor.beacons_stale` rising. pm-monitor's own
+beacon carries `monitor.snapshot_bytes` and `monitor.snapshot_build_ms`,
+which answers the size question on a live exchange (a bare `pm-engine`
+without a deployed config: ≈ 3.9 KB with two processes). Until B2/B3 the
+snapshot's state is `STOPPED` after a final beacon, else `HEALTHY`, and the
+exchange status is a fixed `OPERATIONAL`: build nothing on those figures.
+
 ---
 
 ### WP-B2 — Health model and expected roster
@@ -1884,6 +1902,11 @@ status, using the active `pm-opctl-cli` profile as the expected roster.
 - **B2.4** Exchange status rule (§10, last paragraph) and the
   `PROCESS_STATUS` event on every state change. *Verify with tests that*
   engine HUNG → `DOWN`; stats DEGRADED → `DEGRADED`; bots never affect it.
+- **B2.5** (added after B1, I47) The beacon's `starting` flag is in
+  `ProcessState.beacon` but not in `ProcessHealth`, so the dashboard cannot
+  tell "healthy" from "healthy, still starting". Decide with the start-up
+  grace whether `ProcessHealth` gains `starting` (a spec change, cheap
+  before C2) and replace B1's placeholder states (`collector.Monitor.snapshot`).
 
 **Tests:** `tests/test_monitor_health.py`, `tests/test_monitor_roster.py`.
 
