@@ -23,6 +23,9 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After B7: `pm-config-gen` writes the `monitor` block (`--monitor`,
+>   `--monitor-*`, `--monitor-threshold RULE:WARN:CRIT`), refusing what
+>   `pm-config-deploy` would refuse (I98).
 > - WP-B7: E2's process and CLI documentation pulled forward (operator-guide
 >   chapter `060-health-monitor.md`, reference manual, formal specification,
 >   `pm-help`), plus `pm-monitor-cli health --extended`; `pm-config-show` now

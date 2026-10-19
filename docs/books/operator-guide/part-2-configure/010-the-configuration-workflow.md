@@ -329,7 +329,7 @@ Output and safety options:
 | `--output FILE` | Path | none | Write YAML to file |
 | `--force` | Flag | off | Overwrite existing output file |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
-| `--comment-default-config-fields` | Flag | off | Add a header comment block listing defaultable `engine_config.yaml` fields currently omitted from the generated file |
+| `--comment-default-config-fields` | Flag | off | Add a commented-out header showing every optional section with its default values, ready to uncomment — the engine settings and the process sections (the gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`), each field explained. A section's own option (`--log-server`, `--monitor`, …) writes that section for real instead |
 
 Before writing or printing anything, `pm-config-gen` loads the generated YAML
 with the same loader `pm-engine` uses at startup. If that load fails, it prints
@@ -475,6 +475,44 @@ pm-config-gen --symbols AAPL --participants GW01 --log-server-pubsub-disabled
 # Reap dead viewers within 10 s, and cap concurrent viewers at 8
 pm-config-gen --symbols AAPL --participants GW01 \
   --log-server-lease-sec 10 --log-server-max-subscribers 8
+```
+
+Monitor options — health beacons and `pm-monitor`, see
+[Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md#configuration):
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--monitor` | Flag | off | Emit the top-level `monitor` block with every field. Without it the block is omitted and every process runs on the defaults |
+| `--monitor-enabled` / `--monitor-disabled` | Flag pair | unset (`true` when emitted) | Set `monitor.enabled`; disabled means no beacons and an idle `pm-monitor` |
+| `--monitor-bind-address` | string | `127.0.0.1` | `monitor.bind_address` — the interface `pm-monitor` binds |
+| `--monitor-host` | string | `127.0.0.1` | `monitor.host` — where every process sends its beacons |
+| `--monitor-pull-port` | int | `5610` | `monitor.pull_port` — beacons in |
+| `--monitor-pub-port` | int | `5611` | `monitor.pub_port` — snapshots and events out |
+| `--monitor-beacon-interval-sec` | float (`> 0`) | `2` | `monitor.beacon_interval_sec` |
+| `--monitor-hung-after-sec` | float (`> interval`) | `5` | `monitor.hung_after_sec` |
+| `--monitor-silent-after-beacons` | int (`> 0`) | `3` | `monitor.silent_after_beacons` |
+| `--monitor-book-metrics-interval-sec` | float (`> 0`) | `10` | `monitor.book_metrics_interval_sec` |
+| `--monitor-raw-hours` | int (`> 0`) | `6` | `monitor.retention.raw_hours` |
+| `--monitor-minute-days` | int (`> 0`) | `7` | `monitor.retention.minute_days` |
+| `--monitor-threshold RULE:WARN:CRIT` | repeatable | the §9.6 bands | One threshold band, e.g. `host_cpu_pct:70:90`; rules `host_cpu_pct`, `host_mem_pct`, `disk_free_pct`, `engine_handle_p99_us`, `reject_pct_5m`, `rss_growth_pct_1h`, `heap_garbage_pct` |
+
+Passing any of these implies the `monitor` block. The emitted block lists
+every field, defaults included, so the file shows what `pm-monitor` will run
+with. `pm-config-gen` refuses (exit 2) what `pm-config-deploy` would refuse: a
+value out of range, an unknown rule, a band in the wrong order (warn below
+crit, except `disk_free_pct` where a lower value is worse — `M029`),
+`hung-after-sec` not above the beacon interval (`M030`), or equal pull and
+pub ports. A `host` that cannot reach `bind_address` is written with a
+warning (`M031`).
+
+```bash
+# Monitor a busier exchange: quieter CPU alarm, longer raw history
+pm-config-gen --symbols AAPL --participants GW01 \
+  --monitor-threshold host_cpu_pct:90:98 --monitor-raw-hours 12
+
+# Beacons from other hosts: pm-monitor listens everywhere, clients send to its name
+pm-config-gen --symbols AAPL --participants GW01 \
+  --monitor-bind-address 0.0.0.0 --monitor-host monitor.example.lan
 ```
 
 API gateway options:

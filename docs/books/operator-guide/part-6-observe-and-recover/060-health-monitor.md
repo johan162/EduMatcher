@@ -290,6 +290,9 @@ monitor:
 | `retention.minute_days` | `7` | 1-minute buckets, events and counter state |
 | `thresholds.<rule>` | see [Thresholds](#thresholds-and-events) | `{warn, crit}`; warn below crit, except `disk_free_pct` (`M029`). Omit a rule to keep its default |
 
+`pm-config-gen --monitor` writes the whole block, and the `--monitor-*`
+options set its fields (see "Monitor options" in
+[Generate Configs with `pm-config-gen`](../part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen)).
 `pm-cverifier` checks the block's shape (`S124`–`S131`), its cross-field
 rules (`M029`–`M031`) and its ports against every other listener (`M018`); see
 [Config Verifier](../part-2-configure/020-config-verifier.md). Changing

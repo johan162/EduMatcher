@@ -11,7 +11,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, TypeVar
 
-from dataclasses import replace
+from dataclasses import fields, replace
 
 import holidays
 
@@ -21,6 +21,12 @@ from edumatcher.engine.config_loader import is_known_timezone, load_engine_confi
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.price import TickViolation, to_ticks_exact_at
+from edumatcher.monitor.config import (
+    INVERTED_THRESHOLDS,
+    THRESHOLD_RULES,
+    MonitorConfig,
+    monitor_config_from_raw,
+)
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
@@ -1193,6 +1199,115 @@ def _build_dc_gateway_spec(
     )
 
 
+#: (option dest, monitor field) for the scalar --monitor-* overrides.
+_MONITOR_FIELDS: tuple[tuple[str, str], ...] = (
+    ("monitor_enabled", "enabled"),
+    ("monitor_bind_address", "bind_address"),
+    ("monitor_host", "host"),
+    ("monitor_pull_port", "pull_port"),
+    ("monitor_pub_port", "pub_port"),
+    ("monitor_beacon_interval_sec", "beacon_interval_sec"),
+    ("monitor_hung_after_sec", "hung_after_sec"),
+    ("monitor_silent_after_beacons", "silent_after_beacons"),
+    ("monitor_book_metrics_interval_sec", "book_metrics_interval_sec"),
+)
+
+
+def _parse_monitor_thresholds(values: list[str]) -> dict[str, dict[str, float]]:
+    """``RULE:WARN:CRIT`` options as a ``thresholds`` mapping."""
+    out: dict[str, dict[str, float]] = {}
+    for value in values:
+        parts = value.split(":")
+        if len(parts) != 3:
+            raise ValueError(
+                f"--monitor-threshold {value!r}: expected RULE:WARN:CRIT, "
+                "e.g. host_cpu_pct:70:90"
+            )
+        rule, warn_text, crit_text = parts
+        if rule not in THRESHOLD_RULES:
+            raise ValueError(
+                f"--monitor-threshold {value!r}: unknown rule {rule!r}; one of "
+                + ", ".join(THRESHOLD_RULES)
+            )
+        if rule in out:
+            raise ValueError(f"--monitor-threshold given twice for {rule!r}")
+        try:
+            out[rule] = {"warn": float(warn_text), "crit": float(crit_text)}
+        except ValueError:
+            raise ValueError(
+                f"--monitor-threshold {value!r}: WARN and CRIT must be numbers"
+            ) from None
+    return out
+
+
+def _build_monitor_spec(args: argparse.Namespace) -> MonitorConfig | None:
+    """The ``monitor`` block the options ask for, or ``None`` to omit it.
+
+    Built through pm-monitor's own loader, so defaults and range checks are
+    the runtime's; the cross-field rules the loader leaves to the verifier
+    (M029 band order, M030 hung above the interval, distinct ports) are
+    checked here too, so pm-config-gen never writes a block pm-config-deploy
+    would refuse. A host that cannot reach the bind address (M031) is only a
+    warning, as in the verifier.
+    """
+    raw: dict[str, Any] = {
+        field: getattr(args, dest)
+        for dest, field in _MONITOR_FIELDS
+        if getattr(args, dest, None) is not None
+    }
+    retention = {
+        key: value
+        for key, value in (
+            ("raw_hours", getattr(args, "monitor_raw_hours", None)),
+            ("minute_days", getattr(args, "monitor_minute_days", None)),
+        )
+        if value is not None
+    }
+    if retention:
+        raw["retention"] = retention
+    if getattr(args, "monitor_threshold", None):
+        raw["thresholds"] = _parse_monitor_thresholds(args.monitor_threshold)
+    if not raw and not getattr(args, "monitor", False):
+        return None
+    try:
+        config = monitor_config_from_raw({"monitor": raw})
+    except ValueError as exc:
+        raise ValueError(f"monitor options: {exc}") from None
+    if config.pull_port == config.pub_port:
+        raise ValueError(
+            f"--monitor-pull-port and --monitor-pub-port must differ "
+            f"(both {config.pull_port})"
+        )
+    if config.hung_after_sec <= config.beacon_interval_sec:
+        raise ValueError(
+            f"--monitor-hung-after-sec ({config.hung_after_sec:g}) must be greater "
+            f"than the beacon interval ({config.beacon_interval_sec:g}) (M030)"
+        )
+    for f in fields(config.thresholds):
+        band = getattr(config.thresholds, f.name)
+        inverted = f.name in INVERTED_THRESHOLDS
+        if (band.warn <= band.crit) if inverted else (band.warn >= band.crit):
+            order = "above" if inverted else "below"
+            raise ValueError(
+                f"monitor threshold {f.name}: warn ({band.warn:g}) must be strictly "
+                f"{order} crit ({band.crit:g}) (M029)"
+            )
+    wildcard = config.bind_address in ("0.0.0.0", "::", "*")
+    loopback = {"127.0.0.1", "localhost", "::1"}
+    if not (
+        wildcard
+        or config.bind_address == config.host
+        or (config.bind_address in loopback and config.host in loopback)
+    ):
+        print(
+            f"[WARN] monitor.bind_address ({config.bind_address}) is neither a "
+            f"wildcard nor monitor.host ({config.host}): beacons sent to "
+            f"{config.host} may not reach pm-monitor (M031)",
+            file=sys.stderr,
+        )
+    return config
+
+
 def _build_log_server_spec(
     args: argparse.Namespace,
 ) -> LogServerSpec | None:
@@ -2081,6 +2196,7 @@ def main() -> None:
             alf_gateway=_build_alf_gateway_spec(args),
             dc_gateway=_build_dc_gateway_spec(args),
             log_server=_build_log_server_spec(args),
+            monitor=_build_monitor_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
             combos=combos,

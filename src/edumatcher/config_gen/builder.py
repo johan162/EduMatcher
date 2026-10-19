@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 import random
 import string
 from typing import Any
 
 from edumatcher.models.order import SmpAction
+from edumatcher.monitor.config import MonitorConfig
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 from .cb_spec import CbSpec
@@ -187,6 +188,9 @@ class ConfigSpec:
     alf_gateway: AlfGatewaySpec | None = None
     dc_gateway: DcGatewaySpec | None = None
     log_server: LogServerSpec | None = None
+    #: The ``monitor`` block, already resolved and validated by
+    #: ``monitor_config_from_raw`` (``None``: not emitted, defaults apply).
+    monitor: MonitorConfig | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
     indices: tuple[IndexSpec, ...] = ()
     combos: list[ComboSpec] = field(default_factory=list)
@@ -407,6 +411,8 @@ class ConfigBuilder:
             cfg["dc_gateway"] = self._build_dc_gateway()
         if self.spec.log_server is not None:
             cfg["log_server"] = self._build_log_server()
+        if self.spec.monitor is not None:
+            cfg["monitor"] = self._build_monitor()
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
@@ -571,6 +577,39 @@ class ConfigBuilder:
             "max_backfill_rows": spec.max_backfill_rows,
             "max_pending_rows": spec.max_pending_rows,
             "pub_sndhwm": spec.pub_sndhwm,
+        }
+
+    def _build_monitor(self) -> dict[str, Any]:
+        """Every field of the ``monitor`` block, defaults included, so the
+        generated file documents what pm-monitor will run with."""
+        m = self.spec.monitor
+        if m is None:
+            return {}
+
+        def num(value: float) -> float | int:
+            return int(value) if float(value).is_integer() else value
+
+        return {
+            "enabled": m.enabled,
+            "bind_address": m.bind_address,
+            "host": m.host,
+            "pull_port": m.pull_port,
+            "pub_port": m.pub_port,
+            "beacon_interval_sec": num(m.beacon_interval_sec),
+            "hung_after_sec": num(m.hung_after_sec),
+            "silent_after_beacons": m.silent_after_beacons,
+            "book_metrics_interval_sec": num(m.book_metrics_interval_sec),
+            "retention": {
+                "raw_hours": m.retention.raw_hours,
+                "minute_days": m.retention.minute_days,
+            },
+            "thresholds": {
+                f.name: {
+                    "warn": num(getattr(m.thresholds, f.name).warn),
+                    "crit": num(getattr(m.thresholds, f.name).crit),
+                }
+                for f in fields(m.thresholds)
+            },
         }
 
     def _build_api_gateways(self) -> dict[str, Any]:

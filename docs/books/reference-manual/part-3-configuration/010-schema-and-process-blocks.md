@@ -643,8 +643,10 @@ monitor:
 `pm-cverifier` checks the shape (`S124`–`S131`), the cross-field rules
 (`M029` band order, `M030` `hung_after_sec` above the interval, `M031` `host`
 reaching `bind_address`) and the two ports against every other listener
-(`M018`, counted even when the block is absent). There is no
-`pm-config-gen` option for this block; write it by hand.
+(`M018`, counted even when the block is absent). `pm-config-gen` writes the
+block with `--monitor` and the `--monitor-*` options — see "Monitor options"
+in
+[Generate Configs with pm-config-gen](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen).
 
 
 ## Engine Behavior Flags

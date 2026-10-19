@@ -18,6 +18,7 @@ artifact.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,12 @@ from edumatcher.config_gen.renderer import render_yaml
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.config_deploy import CompileError
 from edumatcher.index.config_loader import index_runtime_configs
-from edumatcher.monitor.config import MonitorConfig, ThresholdBand
+from edumatcher.monitor.config import (
+    MonitorConfig,
+    MonitorRetention,
+    MonitorThresholds,
+    ThresholdBand,
+)
 from edumatcher.models.order import SmpAction
 
 # Where each generated top-level key lands in the artifact. A key with no entry
@@ -61,8 +67,7 @@ KEY_LANDINGS: dict[str, object] = {
     "dc_gateway": lambda c: c.dc_gateway,
     "balf_gateway": lambda c: c.balf_gateway,
     "log_server": lambda c: c.log_server,
-    # Not emitted by pm-config-gen today (the examples run on its defaults),
-    # but mapped so that the day the generator learns it, it lands somewhere.
+    # Emitted with --monitor / --monitor-* (the examples run on its defaults).
     "monitor": lambda c: c.monitor,
     "api_gateways": lambda c: c.api_gateways or None,
     "symbols": lambda c: c.engine.symbols or None,
@@ -95,6 +100,12 @@ def _maximal_spec() -> ConfigSpec:
         ace_initial_band_pct=0.13,
         ace_random_end_max_ns=7_000_000_000,
         ace_expansions=[(0.11, 60_000_000_000), (0.23, 180_000_000_000)],
+        # Not the defaults, so a dropped block would be noticed.
+        monitor=MonitorConfig(
+            hung_after_sec=7.0,
+            retention=MonitorRetention(raw_hours=3, minute_days=5),
+            thresholds=MonitorThresholds(reject_pct_5m=ThresholdBand(4.0, 25.0)),
+        ),
     )
 
 
@@ -234,7 +245,8 @@ class TestTheMonitorSectionReachesTheArtifact:
     """WP-A3: an authored monitor block survives verification and compiling."""
 
     def _compile(self, tmp_path: Path, monitor_yaml: str) -> CompiledConfig:
-        payload = ConfigBuilder(_maximal_spec()).build()
+        # The hand-written block below replaces the generated one.
+        payload = ConfigBuilder(replace(_maximal_spec(), monitor=None)).build()
         source = tmp_path / "engine_config.yaml"
         source.write_text(
             render_yaml(
@@ -248,12 +260,28 @@ class TestTheMonitorSectionReachesTheArtifact:
         )
         return compile_config(source)
 
-    def test_a_generated_config_carries_default_monitoring(
+    def test_a_generated_block_reaches_the_artifact_intact(
         self, compiled: tuple[CompiledConfig, dict[str, object]]
     ) -> None:
         config, payload = compiled
-        assert "monitor" not in payload
-        assert config.monitor == MonitorConfig()
+        assert "monitor" in payload
+        assert config.monitor == _maximal_spec().monitor
+
+    def test_without_a_block_the_artifact_carries_the_defaults(
+        self, tmp_path: Path
+    ) -> None:
+        spec = replace(_maximal_spec(), monitor=None)
+        source = tmp_path / "plain.yaml"
+        source.write_text(
+            render_yaml(
+                ConfigBuilder(spec).build(),
+                command="pm-config-gen (test)",
+                generated_version="test",
+                generated_date="2026-10-19",
+            ),
+            encoding="utf-8",
+        )
+        assert compile_config(source).monitor == MonitorConfig()
 
     def test_an_authored_block_lands_in_the_artifact(self, tmp_path: Path) -> None:
         config = self._compile(

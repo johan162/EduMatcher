@@ -2706,7 +2706,7 @@ Each `--index-*` flag takes one value per index: give it at most once per `ID`, 
 | `--output FILE` | stdout | Output YAML file path |
 | `--force` | off | Overwrite existing output file |
 | `--dry-run` | off | Print generated YAML; do not write file |
-| `--comment-default-config-fields` | off | Annotate YAML output with comment markers for default-valued fields |
+| `--comment-default-config-fields` | off | Add a commented-out header with every optional section (engine settings, gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`) at its default values, ready to uncomment |
 
 **Expected runtime input arguments:**
 

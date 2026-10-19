@@ -1083,6 +1083,111 @@ def build_parser() -> argparse.ArgumentParser:
         help="log_server.pub_sndhwm override (> 0).",
     )
 
+    # monitor: health beacons and pm-monitor (operator dashboard)
+    parser.add_argument(
+        "--monitor",
+        action="store_true",
+        help=(
+            "Emit a top-level monitor section (health beacons and pm-monitor) "
+            "with every field. Without it every process uses the defaults; "
+            "--comment-default-config-fields shows them as comments."
+        ),
+    )
+    parser.add_argument(
+        "--monitor-enabled",
+        dest="monitor_enabled",
+        action="store_true",
+        default=None,
+        help="Set monitor.enabled: true.",
+    )
+    parser.add_argument(
+        "--monitor-disabled",
+        dest="monitor_enabled",
+        action="store_false",
+        default=None,
+        help="Set monitor.enabled: false (no beacons; pm-monitor idles).",
+    )
+    parser.add_argument(
+        "--monitor-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="monitor.bind_address override (default 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--monitor-host",
+        default=None,
+        metavar="HOST",
+        help="monitor.host override: where every process sends its beacons.",
+    )
+    parser.add_argument(
+        "--monitor-pull-port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="monitor.pull_port override, beacons in (default 5610).",
+    )
+    parser.add_argument(
+        "--monitor-pub-port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="monitor.pub_port override, snapshots and events out (default 5611).",
+    )
+    parser.add_argument(
+        "--monitor-beacon-interval-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="monitor.beacon_interval_sec override (> 0, default 2).",
+    )
+    parser.add_argument(
+        "--monitor-hung-after-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="monitor.hung_after_sec override (> beacon interval, default 5).",
+    )
+    parser.add_argument(
+        "--monitor-silent-after-beacons",
+        type=int,
+        default=None,
+        metavar="N",
+        help="monitor.silent_after_beacons override (> 0, default 3).",
+    )
+    parser.add_argument(
+        "--monitor-book-metrics-interval-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="monitor.book_metrics_interval_sec override (> 0, default 10).",
+    )
+    parser.add_argument(
+        "--monitor-raw-hours",
+        type=int,
+        default=None,
+        metavar="N",
+        help="monitor.retention.raw_hours override (> 0, default 6).",
+    )
+    parser.add_argument(
+        "--monitor-minute-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help="monitor.retention.minute_days override (> 0, default 7).",
+    )
+    parser.add_argument(
+        "--monitor-threshold",
+        action="append",
+        default=None,
+        metavar="RULE:WARN:CRIT",
+        help=(
+            "monitor.thresholds.<RULE> override, repeatable, e.g. "
+            "host_cpu_pct:70:90. Rules: host_cpu_pct, host_mem_pct, "
+            "disk_free_pct (warn above crit), engine_handle_p99_us, "
+            "reject_pct_5m, rss_growth_pct_1h, heap_garbage_pct."
+        ),
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",
@@ -1303,8 +1408,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--comment-default-config-fields",
         action="store_true",
         help=(
-            "Add a header comment block listing defaultable engine_config fields "
-            "and their default values."
+            "Add a commented-out header showing every optional section with its "
+            "default values, ready to uncomment: the engine settings and the "
+            "process sections (gateways, api_gateways, log_server, monitor, "
+            "indices, schedule), each field explained. A section's own option "
+            "(e.g. --log-server, --monitor) writes it for real instead."
         ),
     )
 
