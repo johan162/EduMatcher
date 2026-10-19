@@ -160,7 +160,7 @@ types:
       - { name: trades, type: nested, ref: RateStats }
       - { name: traded_value_today, type: float, unit: money, validate: { ge: 0 } }
       - { name: reject_pct_5m, type: float, unit: percent, validate: { ge: 0 },
-          doc: "Rejects over orders in the last 5 minutes; 0 when no orders." }
+          doc: "Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none." }
       - { name: handle_p50_us, type: float, unit: duration_micros, validate: { ge: 0 } }
       - { name: handle_p99_us, type: float, unit: duration_micros, validate: { ge: 0 } }
       - { name: busy_pct, type: float, unit: percent, validate: { ge: 0 },
@@ -177,7 +177,7 @@ types:
           doc: "ISO-8601 UTC of the current session's connect; null when not connected or not seen." }
       - { name: orders, type: nested, ref: RateStats }
       - { name: reject_pct, type: float, unit: percent, validate: { ge: 0 },
-          doc: "Rejects over orders today; 0 when no orders." }
+          doc: "Rejected acks over inbound requests today (as TradingStats.reject_pct_5m); 0 when none." }
       - { name: fills_today, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: resting_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: connects_today, type: int, unit: dimensionless, validate: { ge: 0 } }

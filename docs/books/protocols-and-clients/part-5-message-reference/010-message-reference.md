@@ -1176,7 +1176,7 @@ Exchange-wide trading activity, summed over gateways and symbols.
 | `orders` | [`RateStats`](#ratestats) | required | — | engine.orders_in: inbound new orders, including those then rejected. |
 | `trades` | [`RateStats`](#ratestats) | required | — |  |
 | `traded_value_today` | `float` | required | ge 0, unit `money` |  |
-| `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejects over orders in the last 5 minutes; 0 when no orders. |
+| `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none. |
 | `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` |  |
 | `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` |  |
 | `busy_pct` | `float` | required | ge 0, unit `percent` | Engine share of wall time spent handling; near 100 means saturated. |
@@ -1192,7 +1192,7 @@ One configured participant (gateway id) as the engine counts it.
 | `connected` | `bool` | required | — |  |
 | `connected_since` | `string` | `null` when unset | max_len 32 | ISO-8601 UTC of the current session's connect; null when not connected or not seen. |
 | `orders` | [`RateStats`](#ratestats) | required | — |  |
-| `reject_pct` | `float` | required | ge 0, unit `percent` | Rejects over orders today; 0 when no orders. |
+| `reject_pct` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests today (as TradingStats.reject_pct_5m); 0 when none. |
 | `fills_today` | `int` | required | ge 0, unit `dimensionless` |  |
 | `resting_orders` | `int` | required | ge 0, unit `dimensionless` |  |
 | `connects_today` | `int` | required | ge 0, unit `dimensionless` |  |

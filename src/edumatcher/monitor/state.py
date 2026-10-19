@@ -63,6 +63,10 @@ SPARK_LEN = 60
 MAX_SOURCES = 256
 #: How long the RESTARTED badge stays on after a ``boot_id`` change (§10).
 RESTART_BADGE_SEC = 600.0
+#: RSS history for the growth-over-one-hour threshold (§9.6): one reading per
+#: minute, a little over an hour of them.
+RSS_HISTORY_EVERY_SEC = 60.0
+RSS_GROWTH_WINDOW_SEC = 3600.0
 
 #: Participant bots: clients of the exchange, shown in their own group and
 #: never counted in the exchange status (design Q2).
@@ -177,14 +181,18 @@ def missing_health(process: str, instance: str | None) -> dict[str, Any]:
 
 
 def exchange_status(
-    processes: Iterable[dict[str, Any]], expected: Collection[Identity] | None
+    processes: Iterable[dict[str, Any]],
+    expected: Collection[Identity] | None,
+    *,
+    degraded: bool = False,
 ) -> str:
     """OPERATIONAL / DEGRADED / IMPAIRED / DOWN from ``ProcessHealth`` records.
 
     ``expected`` is the roster (``None`` without an active profile). With a
     roster, only its processes can impair the exchange, and a STOPPED one
     does; without one, every exchange process that beacons counts, and a
-    STOPPED one was stopped on purpose.
+    STOPPED one was stopped on purpose. ``degraded`` is a threshold breach
+    that belongs to no process (the host, the reject ratio, a book).
     """
     exchange = [p for p in processes if p["group"] == "EXCHANGE"]
     engines = [p for p in exchange if p["process"] == "pm-engine"]
@@ -200,7 +208,7 @@ def exchange_status(
             p["state"] in DOWN_STATES or p["state"] == "STOPPED"
         ):
             return "IMPAIRED"
-    if any(p["state"] == "DEGRADED" for p in exchange):
+    if degraded or any(p["state"] == "DEGRADED" for p in exchange):
         return "DEGRADED"
     return "OPERATIONAL"
 
@@ -214,9 +222,15 @@ class ProcessState:
     restarted_at: float | None = None  # monotonic; None until a boot_id change
     rss: deque[int] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
     cpu: deque[float] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
+    #: ``(receive time, rss)`` once a minute, for the RSS growth rule.
+    rss_history: deque[tuple[float, int]] = field(
+        default_factory=lambda: deque(
+            maxlen=int(RSS_GROWTH_WINDOW_SEC / RSS_HISTORY_EVERY_SEC) + 2
+        )
+    )
 
     def __post_init__(self) -> None:
-        self._record(self.beacon)
+        self._record(self.beacon, self.received_at)
 
     @property
     def boot_id(self) -> str:
@@ -277,11 +291,33 @@ class ProcessState:
             self.restarted_at = now
             self.rss.clear()
             self.cpu.clear()
+            self.rss_history.clear()
             outcome = Ingest.RESTARTED
         self.beacon = beacon
         self.received_at = now
-        self._record(beacon)
+        self._record(beacon, now)
         return outcome
+
+    def is_live(self, now: float, rules: HealthRules) -> bool:
+        """Beacons still arrive and the process has not stopped: its figures
+        are current, so thresholds may judge them."""
+        b = self.beacon
+        return (
+            not b.final
+            and now - self.received_at <= rules.silent_after_beacons * b.interval_sec
+        )
+
+    def rss_growth_pct(self, now: float) -> float | None:
+        """RSS growth over the last hour in percent; ``None`` before an hour
+        of history (or after a restart, which clears it)."""
+        base: int | None = None
+        for t, rss in self.rss_history:
+            if t > now - RSS_GROWTH_WINDOW_SEC:
+                break
+            base = rss
+        if not base:
+            return None
+        return 100.0 * (self.beacon.rss_bytes - base) / base
 
     def restarted_recently(self, now: float) -> bool:
         return (
@@ -318,9 +354,12 @@ class ProcessState:
             "metrics": [m.to_dict() for m in b.metrics],
         }
 
-    def _record(self, beacon: HealthBeacon) -> None:
+    def _record(self, beacon: HealthBeacon, now: float) -> None:
         self.rss.append(beacon.rss_bytes)
         self.cpu.append(beacon.cpu_pct)
+        history = self.rss_history
+        if not history or now - history[-1][0] >= RSS_HISTORY_EVERY_SEC:
+            history.append((now, beacon.rss_bytes))
 
 
 class ProcessTable:

@@ -23,6 +23,11 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After WP-B3: §9.2, §9.4 and §9.6 record what was built: bucketed rate
+>   windows and the first-value rule, the fixed threshold rules and their
+>   hysteresis, and that a breach on no process degrades the exchange. B4
+>   restores the day from `metrics.db` and fills `avg_per_day`. Reject
+>   ratios divide by all inbound requests, quotes included (I59–I68).
 > - After WP-B2: `ProcessHealth.starting` added (closes B2.5). The exchange
 >   status is DOWN for a stopped or unknown engine too, and a STOPPED process
 >   the profile expects impairs it (§10). `PROCESS_STATUS` events are published
@@ -615,6 +620,14 @@ Plus internally generated: `PROCESS_STATUS` (every health-state change of a
 process, §10), `THRESHOLD` (breach / clear). These are the dashboard's
 annotations and its event log.
 
+As implemented in B3 (`monitor/events.py`): the subject is the gateway id,
+the diagnostic component, the symbol, or `session` for `SESSION`; the
+detail is the reason, `detail (xN): error`, `PREV -> STATE`, or the halt
+level and source. A CONNECT sets the participant's `connected_since`. The
+engine's own `engine.session_state` gauge (an ordinal) also feeds
+`session_state`, so the snapshot has it even when pm-monitor started after
+the last transition.
+
 ### 9.3 Expected roster
 
 At start and when the file changes, `pm-monitor` reads
@@ -651,6 +664,17 @@ For a counter `c` with samples `(t_i, v_i)`:
   (first `SESSION` transition out of `CLOSED` today, else midnight).
 - **Avg per day** = mean of `daily_totals` over the last 7 trading days that
   have data.
+
+As implemented in B3 (`monitor/rates.py`, I60–I61): each figure keeps
+"today" plus three bucketed windows (60 s in 1 s buckets, 5 min in 5 s,
+60 min in 1 min), at most 60 buckets each whatever the beacon rate, so
+memory is fixed per figure and only the figures the snapshot shows are
+kept, not one window per series. A counter's **first** value (pm-monitor
+started after the process) never enters a window; it counts towards today
+only when the process started on the current trading date or the counter
+is one the engine resets daily (`engine.trades`, `traded_qty`,
+`traded_value`), and is otherwise a baseline that B4 completes from
+`metrics.db`. `avg_per_day` is `null` until B4.
 
 All four are computed in `pm-monitor` and shipped in `health.snapshot`, so the
 browser never re-derives them and every client agrees.
@@ -726,6 +750,22 @@ Static, from configuration (§14), evaluated every second in `pm-monitor`:
 A breach or clear produces a `THRESHOLD` event and a single `WARNING` /
 `ERROR` log line through LALF (`"threshold engine.handle_us_p99 CRIT 12345 > 10000"`),
 so `log-gui` alerting already covers notification. No second alerting system.
+
+As implemented in B3 (`monitor/thresholds.py`, I62–I65): rule names are
+the configuration keys, plus four fixed ones — `loop_age_ms` (warn only),
+`slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (any
+increase in 5 min). A level rises at once and eases after three
+consecutive lower seconds, to the highest level of that run; a reading that
+stops arriving counts as OK. Log lines read `threshold host_cpu_pct WARN 81
+> 80 on host` (WARNING / ERROR, the clear at INFO). A breach on a process
+key makes that process DEGRADED; one on anything else (`host`,
+`exchange`, a symbol) makes the exchange DEGRADED. The reject ratio is
+rejected acks over **all** inbound requests (orders, combos, OCOs,
+cancels, amends, quotes — the set `engine.rejects` counts) and is judged
+from 20 requests in 5 min; heap garbage from 100 heap entries (I67–I68).
+"Memory used" is
+`total − available`. A process recovering from HUNG passes through
+DEGRADED for three seconds while its `loop_age_ms` warning clears.
 
 ## 10. Health model — healthy, degraded, hung, dead
 
@@ -1191,6 +1231,9 @@ src/edumatcher/
     collector.py         Monitor: sockets, poll loop, 1 Hz snapshot (§9.1)
     config.py            monitor section loader
     state.py             per-process state (B1), health evaluation (§10, B2)
+    activity.py          beacon metrics → trading/participants/books/gateways (B3)
+    events.py            engine bus lifecycle topics → health.event (§9.2)
+    timefmt.py           the family's ISO-8601 UTC timestamp
     rates.py             counter → increment/rate/avg (§9.4)
     host.py              psutil host sampler (§8.1)
     roster.py            expected processes from emo profile (§9.3)
@@ -2015,6 +2058,16 @@ plausible rates in the snapshot and a disconnect appears as an event.
   does (F21); a separate flag would let "orders today" and the stats daily
   rollup disagree near midnight. Log the resolved timezone at INFO.
 
+**Outcome (2026-10-19):** `monitor/rates.py` (increments, bucketed
+windows), `monitor/activity.py` (beacon metrics → trading, participant,
+book and gateway blocks; gateways mapped by process name, I37),
+`monitor/events.py` (engine bus → events), `monitor/host.py`,
+`monitor/thresholds.py`, wired in `monitor/collector.py`. Refinements to
+§9.2, §9.4 and §9.6 are listed there (I59–I68). A hand run (engine,
+ALF gateway, `pm-mm-bot`, `pm-ai-trader`) showed plausible orders, trades,
+p99 and gateway figures, kept the morning's orders across a pm-monitor
+restart, and reported the trader's disconnect as an event.
+
 ---
 
 ### WP-B4 — `metrics.db`
@@ -2031,6 +2084,11 @@ plausible rates in the snapshot and a disconnect appears as an event.
   not a table.
 
 **Tasks:**
+- (From B3, I60) Restore today's totals from `daily_totals` at start and
+  reconcile them with B3's first-value rule (§9.4), so a pm-monitor restart
+  neither loses nor double-counts the day. `RateStats.avg_per_day` is `null`
+  until B4 computes it from `daily_totals`. Add `metrics.db` to
+  `monitor/host.py:default_files()`.
 - (From B2, I58) `health.event` is already published by B2 with a
   per-start `seq`; B4 makes that `seq` the `events.seq` of the stored row.
 - **B4.1** `monitor/store.py`: schema of §9.5, WAL mode, `METRICS_DB_FILE`

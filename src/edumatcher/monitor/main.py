@@ -30,6 +30,7 @@ import sys
 
 import zmq
 
+from edumatcher.config import ENGINE_PUB_ADDR
 from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -39,6 +40,7 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
+from edumatcher.monitor.host import HostSampler, default_files
 from edumatcher.stats.trading_day import resolve_timezone
 
 _CLIENT_NAME = "pm-monitor"
@@ -162,8 +164,20 @@ def main() -> None:
         )
     log.info("session timezone %s", session_tz_name)
 
+    roles = (
+        {}
+        if compiled is None
+        else {gw: cfg.role.value for gw, cfg in compiled.engine.fix_gateways.items()}
+    )
+    log_db = None if compiled is None else compiled.log_server.db_path
     try:
-        monitor = Monitor(config, session_tz)
+        monitor = Monitor(
+            config,
+            session_tz,
+            engine_pub_addr=ENGINE_PUB_ADDR,
+            roles=roles,
+            host_sampler=HostSampler(default_files(log_db)),
+        )
     except zmq.ZMQError as exc:
         log.error(
             "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s",

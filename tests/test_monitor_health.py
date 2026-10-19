@@ -27,6 +27,7 @@ from edumatcher.monitor.state import (
     process_alive,
 )
 from tests.conftest import free_ports
+from tests.test_monitor_main import QuietHost
 from tests.test_monitor_main import _beacon_frames
 
 RULES = HealthRules(hung_after_sec=5.0, silent_after_beacons=3, local_host="box")
@@ -252,6 +253,7 @@ def _monitor(clock: _Clock, roster: Any = None) -> Monitor:
         clock=clock,
         roster=_FixedRoster(None) if roster is None else roster,
         local_host="box",
+        host_sampler=QuietHost(),
         alive=_gone,
     )
 
@@ -301,11 +303,15 @@ class TestTransitions:
         mon.snapshot()
         mon.receive(_beacon_frames(seq=2, loop_age_ms=7000.0), clock.t)
         mon.snapshot()
-        mon.receive(_beacon_frames(seq=3), clock.t)
-        mon.snapshot()
-        assert events == [
+        for seq in range(3, 7):
+            mon.receive(_beacon_frames(seq=seq), clock.t)
+            mon.snapshot()
+        # The loop_age_ms warning (§9.6) clears after 3 OK seconds, so the
+        # way back passes through DEGRADED.
+        assert [e for e in events if e[0] == "PROCESS_STATUS"] == [
             ("PROCESS_STATUS", "CRIT", "pm-engine@box", "HEALTHY -> HUNG"),
-            ("PROCESS_STATUS", "INFO", "pm-engine@box", "HUNG -> HEALTHY"),
+            ("PROCESS_STATUS", "WARN", "pm-engine@box", "HUNG -> DEGRADED"),
+            ("PROCESS_STATUS", "INFO", "pm-engine@box", "DEGRADED -> HEALTHY"),
         ]
 
     def test_silence_then_death(
@@ -430,6 +436,7 @@ def test_kill_stop_and_block_read_dead_silent_hung() -> None:
         MonitorConfig(pull_port=pull, pub_port=pub, hung_after_sec=0.5),
         ZoneInfo("Europe/Stockholm"),
         roster=_FixedRoster(None),
+        host_sampler=QuietHost(),
     )
     children = {
         name: subprocess.Popen([sys.executable, "-c", _CHILD, str(pull), name])

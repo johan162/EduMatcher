@@ -4,15 +4,20 @@ See docs-design/EduMatcher-Operator-Dashboard.md §9.1. One thread, one
 ``zmq.Poller`` with a 200 ms timeout -- the EduMatcher norm:
 
 1. Drain the ``PULL`` (beacons from every process) into the
-   :class:`~edumatcher.monitor.state.ProcessTable`.
-2. Once a second, drain again (so a burst that has just arrived is judged by
-   its newest beacon, never by a stale one), re-read the expected roster if
-   the active ``emo`` profile changed, judge every process (§10), ``PUB`` a
-   ``health.event`` for each state change and then the ``health.snapshot``.
+   :class:`~edumatcher.monitor.state.ProcessTable`, and each accepted beacon's
+   metrics into :class:`~edumatcher.monitor.activity.Activity` (rates, §9.4).
+2. Drain the ``SUB`` on the engine bus (a few lifecycle topics, §9.2) into
+   ``health.event``.
+3. Once a second, drain the ``PULL`` again (so a burst that has just arrived
+   is judged by its newest beacon, never by a stale one), re-read the
+   expected roster if the active ``emo`` profile changed, sample the host
+   (§8.1), evaluate the thresholds (§9.6), judge every process (§10),
+   ``PUB`` a ``health.event`` for each change and then the
+   ``health.snapshot``.
 
-Processes, their health and the exchange status are complete (WP-B1, B2).
-The host, trading, participant, book, gateway and threshold blocks are zero
-placeholders until B3 fills them; the wire shape is final already.
+Thresholds are evaluated before the processes are judged, because a breach
+on a process makes it DEGRADED. A breach that belongs to no process (the
+host, the exchange reject ratio, a book) makes the exchange DEGRADED.
 
 MISSING waits for one silence period after pm-monitor starts: every process
 of a running exchange needs a beacon interval to be heard from, and judging
@@ -26,14 +31,14 @@ import logging
 import socket
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone, tzinfo
+from datetime import tzinfo
 from typing import Any
 
 import zmq
 
 from edumatcher.config import resolve_gateway_bind_host
 from edumatcher.health import HealthReporter, counter, gauge
-from edumatcher.messaging.bus import get_context
+from edumatcher.messaging.bus import get_context, make_subscriber
 from edumatcher.models.generated._runtime import MessageValidationError
 from edumatcher.models.generated.health import (
     TOPIC_HEALTH_BEACON,
@@ -42,8 +47,28 @@ from edumatcher.models.generated.health import (
     make_health_snapshot,
     parse_health_beacon,
 )
+from edumatcher.monitor.activity import Activity
 from edumatcher.monitor.config import MonitorConfig
+from edumatcher.monitor.events import SUBSCRIPTIONS, translate
+from edumatcher.monitor.host import (
+    HostSampler,
+    HostSource,
+    disk_free_pct,
+    mem_used_pct,
+)
 from edumatcher.monitor.roster import ExpectedRoster, Roster
+from edumatcher.monitor.thresholds import (
+    LOOP_AGE_RULE,
+    LOOP_AGE_WARN_MS,
+    MIN_HEAP_ENTRIES,
+    MIN_REQUESTS_5M,
+    Change,
+    Reading,
+    ThresholdBook,
+    band_reading,
+    increase_reading,
+)
+from edumatcher.monitor.timefmt import iso_utc
 from edumatcher.monitor.state import (
     HealthRules,
     Ingest,
@@ -54,7 +79,7 @@ from edumatcher.monitor.state import (
     process_alive,
     process_key,
 )
-from edumatcher.stats.trading_day import timezone_name, trading_date
+from edumatcher.stats.trading_day import timezone_name
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +96,17 @@ WARN_EVERY_SEC = 60.0
 #: beacon, so a process stopped or killed by hand does not stay listed (and
 #: hold one of MAX_SOURCES) for the life of pm-monitor.
 FORGET_AFTER_SEC = 3600.0
+#: Engine bus messages read per drain at most.
+ENGINE_DRAIN_BUDGET = 1024
+#: The engine bus carries a few events a second at most on our topics; a
+#: modest buffer rides out a burst of connects at the open.
+ENGINE_SUB_RCVHWM = 10_000
+#: The log level of a threshold change, by its new level.
+THRESHOLD_LOG_LEVEL = {
+    "OK": logging.INFO,
+    "WARN": logging.WARNING,
+    "CRIT": logging.ERROR,
+}
 #: How a state change is coloured in the event log.
 STATE_SEVERITY = {
     "HEALTHY": "INFO",
@@ -81,56 +117,6 @@ STATE_SEVERITY = {
     "DEAD": "CRIT",
     "MISSING": "CRIT",
 }
-
-
-def iso_utc(epoch_sec: float) -> str:
-    """ISO-8601 UTC with milliseconds and a ``Z``, as every health timestamp."""
-    return (
-        datetime.fromtimestamp(epoch_sec, timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
-
-
-def _zero_rates() -> dict[str, Any]:
-    return {
-        "today": 0,
-        "per_sec_now": 0.0,
-        "avg_per_min": 0.0,
-        "avg_per_hour": 0.0,
-        "avg_per_day": None,
-    }
-
-
-def _placeholder_host() -> dict[str, Any]:
-    """HostStats until B3's host sampler."""
-    return {
-        "cpu_pct": 0.0,
-        "cpu_per_core": [],
-        "load1": 0.0,
-        "load5": 0.0,
-        "load15": 0.0,
-        "mem_total_bytes": 0,
-        "mem_used_bytes": 0,
-        "mem_available_bytes": 0,
-        "swap_used_bytes": 0,
-        "disk_free_bytes": 0,
-        "disk_total_bytes": 0,
-        "files": [],
-    }
-
-
-def _placeholder_trading() -> dict[str, Any]:
-    """TradingStats until B3's rates."""
-    return {
-        "orders": _zero_rates(),
-        "trades": _zero_rates(),
-        "traded_value_today": 0.0,
-        "reject_pct_5m": 0.0,
-        "handle_p50_us": 0.0,
-        "handle_p99_us": 0.0,
-        "busy_pct": 0.0,
-    }
 
 
 class Monitor:
@@ -146,7 +132,14 @@ class Monitor:
         roster: ExpectedRoster | None = None,
         local_host: str | None = None,
         alive: Callable[[int, int], bool] = process_alive,
+        engine_pub_addr: str | None = None,
+        roles: dict[str, str] | None = None,
+        host_sampler: HostSource | None = None,
     ) -> None:
+        """``engine_pub_addr`` is the engine bus to subscribe to (``main()``
+        passes ``ENGINE_PUB_ADDR``; ``None`` runs without it, so a test never
+        joins a developer's live engine). ``roles`` maps each configured
+        gateway id to its participant role."""
         self.config = config
         self.session_tz = session_tz
         self._clock = clock
@@ -179,7 +172,19 @@ class Monitor:
             self._pub.close()
             raise
 
+        self._engine_sub: zmq.Socket[bytes] | None = None
+        if engine_pub_addr is not None:
+            self._engine_sub = make_subscriber(
+                engine_pub_addr, *SUBSCRIPTIONS, rcvhwm=ENGINE_SUB_RCVHWM
+            )
+            self._engine_sub.setsockopt(zmq.LINGER, 0)
+
         self.table = ProcessTable()
+        self.activity = Activity(session_tz, roles)
+        self.thresholds = ThresholdBook()
+        self.host_sampler: HostSource = (
+            HostSampler() if host_sampler is None else host_sampler
+        )
         self._running = True
         self._reporter: HealthReporter | None = None
         self._snapshot_seq = 0
@@ -199,6 +204,9 @@ class Monitor:
         self.snapshot_build_ms = 0.0
         self.events_out = 0
         self.sources_forgotten = 0
+        self.engine_events_in = 0
+        self.engine_events_invalid = 0
+        self.threshold_changes = 0
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -219,6 +227,8 @@ class Monitor:
         )
         poller = zmq.Poller()
         poller.register(self._pull, zmq.POLLIN)
+        if self._engine_sub is not None:
+            poller.register(self._engine_sub, zmq.POLLIN)
         reporter = self._reporter
         next_snapshot = self._clock()
         while self._running:
@@ -233,6 +243,8 @@ class Monitor:
                 continue  # a signal; stop() has cleared _running
             if self._pull in events:
                 self.drain()
+            if self._engine_sub is not None and self._engine_sub in events:
+                self.drain_engine()
             now = self._clock()
             if now >= next_snapshot:
                 self.drain()
@@ -253,6 +265,8 @@ class Monitor:
             self._reporter = None
         self._pull.close()
         self._pub.close()
+        if self._engine_sub is not None:
+            self._engine_sub.close()
 
     # ------------------------------------------------------------------
     # beacons in
@@ -282,6 +296,13 @@ class Monitor:
             self._warn("invalid", "invalid health beacon dropped: %s", exc)
             return None
         outcome = self.table.ingest(beacon, now)
+        if outcome in (Ingest.NEW, Ingest.UPDATED, Ingest.RESTARTED):
+            self.activity.observe(
+                process_key(beacon.process, beacon.instance, beacon.host),
+                beacon,
+                now,
+                self._wall_clock(),
+            )
         if outcome is Ingest.STALE:
             self.beacons_stale += 1
         elif outcome is Ingest.REJECTED:
@@ -308,17 +329,40 @@ class Monitor:
             )
         return outcome
 
+    def drain_engine(self) -> int:
+        """Read queued engine bus messages into events; return the count."""
+        sub = self._engine_sub
+        if sub is None:
+            return 0
+        n = 0
+        while n < ENGINE_DRAIN_BUDGET:
+            try:
+                frames = sub.recv_multipart(flags=zmq.NOBLOCK)
+            except zmq.Again:
+                break
+            n += 1
+            self.receive_engine(frames)
+        return n
+
+    def receive_engine(self, frames: list[bytes]) -> None:
+        """One engine bus message: update activity, publish its event."""
+        self.engine_events_in += 1
+        try:
+            event = translate(frames, self.activity, self._wall_clock())
+        except Exception as exc:  # a malformed message must not stop us
+            self.engine_events_invalid += 1
+            self._warn("engine", "engine bus message not understood: %s", exc)
+            return
+        if event is not None:
+            self.publish_event(event.kind, event.severity, event.subject, event.detail)
+
     # ------------------------------------------------------------------
     # snapshot out
     # ------------------------------------------------------------------
 
-    def processes(self, now: float) -> list[dict[str, Any]]:
-        """Every process as a judged ``ProcessHealth`` record.
-
-        Re-reads the roster when its files changed and forgets long-silent
-        sources nobody expects. Sources first (exchange, then bots), then the
-        expected processes never heard from.
-        """
+    def refresh_sources(self, now: float) -> None:
+        """Re-read the roster when its files changed; forget long-silent
+        sources nobody expects."""
         self.roster.refresh()
         expected = self.roster.expected
 
@@ -327,13 +371,30 @@ class Monitor:
                 return True
             return now - state.received_at <= FORGET_AFTER_SEC
 
-        self.sources_forgotten += len(self.table.forget(keep))
+        for state in self.table.forget(keep):
+            self.sources_forgotten += 1
+            self.activity.forget_source(state.key)
 
+    def processes(
+        self, now: float, breached: set[str] | frozenset[str] = frozenset()
+    ) -> list[dict[str, Any]]:
+        """Every process as a judged ``ProcessHealth`` record.
+
+        ``breached``: process keys with a threshold in breach (DEGRADED).
+        Sources first (exchange, then bots), then the expected processes
+        never heard from.
+        """
+        self.refresh_sources(now)
+        expected = self.roster.expected
         now_wall = self._wall_clock()
         states = self.table.states()
         records = [
             state.health(
-                now, now_wall, state.evaluate(now, self.rules, alive=self._alive)
+                now,
+                now_wall,
+                state.evaluate(
+                    now, self.rules, breached=state.key in breached, alive=self._alive
+                ),
             )
             for state in states
         ]
@@ -354,32 +415,93 @@ class Monitor:
             now - self._started_at > cfg.silent_after_beacons * cfg.beacon_interval_sec
         )
 
+    def readings(self, now: float, host: dict[str, Any]) -> list[Reading]:
+        """Everything the §9.6 rules judge, measured now."""
+        t = self.config.thresholds
+        out = [
+            band_reading(t, "host_cpu_pct", "host", host["cpu_pct"]),
+            band_reading(t, "host_mem_pct", "host", mem_used_pct(host)),
+        ]
+        if self.activity.requests_5m(now) >= MIN_REQUESTS_5M:
+            out.append(
+                band_reading(
+                    t, "reject_pct_5m", "exchange", self.activity.reject_pct_5m(now)
+                )
+            )
+        free = disk_free_pct(host)
+        if free is not None:
+            out.append(band_reading(t, "disk_free_pct", "host", free))
+        for state in self.table.states():
+            if not state.is_live(now, self.rules):
+                continue
+            b = state.beacon
+            if not b.starting:
+                out.append(
+                    Reading(
+                        LOOP_AGE_RULE, state.key, b.loop_age_ms, warn=LOOP_AGE_WARN_MS
+                    )
+                )
+            growth = state.rss_growth_pct(now)
+            if growth is not None:
+                out.append(band_reading(t, "rss_growth_pct_1h", state.key, growth))
+            if b.process == "pm-engine":
+                for sample in b.metrics:
+                    if sample.name == "engine.handle_us_p99" and not sample.label:
+                        out.append(
+                            band_reading(
+                                t, "engine_handle_p99_us", state.key, sample.value
+                            )
+                        )
+        for symbol, book in self.activity.books.items():
+            garbage = book.gauges.get("engine.book_heap_garbage_pct")
+            entries = book.gauges.get("engine.book_heap_entries", 0.0)
+            if garbage is not None and entries >= MIN_HEAP_ENTRIES:
+                out.append(band_reading(t, "heap_garbage_pct", symbol, garbage))
+        for (rule, key), rate in self.activity.increases.items():
+            out.append(increase_reading(rule, key, rate.last_5m(now)))
+        return out
+
     def snapshot(self) -> dict[str, Any]:
         """The ``health.snapshot`` payload for now (unvalidated dict).
 
-        Publishes a ``PROCESS_STATUS`` event for every state that changed
-        since the previous snapshot.
+        Publishes a ``THRESHOLD`` event for every threshold change and a
+        ``PROCESS_STATUS`` event for every state that changed since the
+        previous snapshot.
         """
         now = self._clock()
-        processes = self.processes(now)
-        self._publish_transitions(processes)
         now_wall = self._wall_clock()
+        self.activity.roll_day(now_wall)
+        self.refresh_sources(now)
+        host = self.host_sampler.sample()
+        for change in self.thresholds.evaluate(
+            self.readings(now, host), iso_utc(now_wall)
+        ):
+            self._publish_threshold(change)
+        breached = self.thresholds.breached_subjects()
+        processes = self.processes(now, breached)
+        self._publish_transitions(processes)
+        process_keys = {p["key"] for p in processes}
+        a = self.activity
         return {
             "ts": iso_utc(now_wall),
             "seq": self._snapshot_seq,
             "exchange": {
-                "status": exchange_status(processes, self.roster.expected),
-                "session_state": "",
-                "trading_date": trading_date(now_wall, self.session_tz),
+                "status": exchange_status(
+                    processes,
+                    self.roster.expected,
+                    degraded=bool(breached - process_keys),
+                ),
+                "session_state": a.session_state[:32],
+                "trading_date": a.date,
                 "session_timezone": timezone_name(self.session_tz),
             },
-            "host": _placeholder_host(),
+            "host": host,
             "processes": processes,
-            "trading": _placeholder_trading(),
-            "participants": [],
-            "books": [],
-            "gateways": [],
-            "thresholds": [],
+            "trading": a.trading(now, now_wall),
+            "participants": a.participant_records(now, now_wall),
+            "books": a.book_records(),
+            "gateways": a.gateway_records(now, (p["key"] for p in processes)),
+            "thresholds": self.thresholds.active(),
         }
 
     # ------------------------------------------------------------------
@@ -417,6 +539,16 @@ class Monitor:
             )
             self.publish_event("PROCESS_STATUS", severity, key, detail)
         self._last_states = current
+
+    def _publish_threshold(self, change: Change) -> None:
+        self.threshold_changes += 1
+        log.log(
+            THRESHOLD_LOG_LEVEL[change.level],
+            "threshold %s on %s",
+            change.detail,
+            change.subject,
+        )
+        self.publish_event("THRESHOLD", change.severity, change.subject, change.detail)
 
     def publish_event(
         self, kind: str, severity: str, subject: str, detail: str
@@ -472,6 +604,10 @@ class Monitor:
             counter("monitor.snapshot_errors", self.snapshot_errors),
             counter("monitor.events_out", self.events_out),
             counter("monitor.sources_forgotten", self.sources_forgotten),
+            counter("monitor.engine_events_in", self.engine_events_in),
+            counter("monitor.engine_events_invalid", self.engine_events_invalid),
+            counter("monitor.threshold_changes", self.threshold_changes),
+            gauge("monitor.series_tracked", len(self.activity.tracker)),
             gauge("monitor.snapshot_bytes", self.snapshot_bytes),
             gauge("monitor.snapshot_build_ms", self.snapshot_build_ms),
         ]

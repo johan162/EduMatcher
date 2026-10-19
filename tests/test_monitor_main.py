@@ -25,12 +25,34 @@ from edumatcher.models.generated.health import (
     parse_health_snapshot,
 )
 from edumatcher.monitor import main as monitor_main
-from edumatcher.monitor.collector import Monitor, iso_utc
+from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
 from edumatcher.monitor.state import Ingest
+from edumatcher.monitor.timefmt import iso_utc
 from tests.conftest import free_ports
 
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
+
+
+class QuietHost:
+    """A host sampler for an idle machine, so a busy CI box cannot trip a
+    host threshold and change what a test sees."""
+
+    def sample(self) -> dict[str, Any]:
+        return {
+            "cpu_pct": 1.0,
+            "cpu_per_core": [1.0],
+            "load1": 0.1,
+            "load5": 0.1,
+            "load15": 0.1,
+            "mem_total_bytes": 1000,
+            "mem_used_bytes": 100,
+            "mem_available_bytes": 900,
+            "swap_used_bytes": 0,
+            "disk_free_bytes": 900,
+            "disk_total_bytes": 1000,
+            "files": [],
+        }
 
 
 def _config(**overrides: Any) -> MonitorConfig:
@@ -60,7 +82,7 @@ def _beacon_frames(**overrides: Any) -> list[bytes]:
 
 @pytest.fixture
 def monitor() -> Iterator[Monitor]:
-    mon = Monitor(_config(), STOCKHOLM)
+    mon = Monitor(_config(), STOCKHOLM, host_sampler=QuietHost())
     try:
         yield mon
     finally:
@@ -121,7 +143,9 @@ def running(monitor: Monitor) -> Iterator[_Running]:
 def _compiled(monitor_cfg: MonitorConfig, tz: str = "Europe/Stockholm") -> Any:
     return SimpleNamespace(
         monitor=monitor_cfg,
-        engine=SimpleNamespace(locale=SimpleNamespace(session_timezone=tz)),
+        engine=SimpleNamespace(
+            locale=SimpleNamespace(session_timezone=tz), fix_gateways={}
+        ),
         log_client=LogClientConfig(),
         log_server=LogServerConfig(),
     )
@@ -226,7 +250,7 @@ class TestBind:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(C, "EDUMATCHER_GATEWAY_BIND_HOST", "0.0.0.0")
-        mon = Monitor(_config(), STOCKHOLM)
+        mon = Monitor(_config(), STOCKHOLM, host_sampler=QuietHost())
         try:
             assert mon.pull_endpoint.startswith("tcp://0.0.0.0:")
             assert mon.pub_endpoint.startswith("tcp://0.0.0.0:")
@@ -237,9 +261,9 @@ class TestBind:
         cfg = _config()
         clash = MonitorConfig(pull_port=cfg.pull_port, pub_port=monitor.config.pub_port)
         with pytest.raises(zmq.ZMQError):
-            Monitor(clash, STOCKHOLM)
+            Monitor(clash, STOCKHOLM, host_sampler=QuietHost())
         # the PULL port that did bind is free again
-        Monitor(cfg, STOCKHOLM).close()
+        Monitor(cfg, STOCKHOLM, host_sampler=QuietHost()).close()
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +352,9 @@ class TestSnapshot:
     def test_trading_date_and_ts_follow_the_clocks(self) -> None:
         # 23:30 UTC on 2026-10-19 is already the 20th in Stockholm (CEST)
         wall = datetime(2026, 10, 19, 23, 30, tzinfo=timezone.utc).timestamp()
-        mon = Monitor(_config(), STOCKHOLM, wall_clock=lambda: wall)
+        mon = Monitor(
+            _config(), STOCKHOLM, wall_clock=lambda: wall, host_sampler=QuietHost()
+        )
         try:
             payload = mon.snapshot()
         finally:

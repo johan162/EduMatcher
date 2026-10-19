@@ -20,6 +20,7 @@ from edumatcher.monitor.roster import (
     expected_from_profile,
 )
 from tests.conftest import free_ports
+from tests.test_monitor_main import QuietHost
 
 
 def _ids(*processes: str) -> frozenset[Expected]:
@@ -181,6 +182,7 @@ def monitor_with_roster(data_dir: Path) -> Iterator[tuple[Monitor, _Clock]]:
         ZoneInfo("Europe/Stockholm"),
         clock=clock,
         local_host="box",
+        host_sampler=QuietHost(),
     )
     try:
         yield m, clock
