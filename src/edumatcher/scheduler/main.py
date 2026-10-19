@@ -178,8 +178,11 @@ WALLCLOCK_RECHECK_SEC = 30.0
 #: or midnight. Every wake-up calls ``is_running()``, which ticks the health
 #: beacon, so a scheduler idle for hours still reports a fresh main loop. At
 #: the 30 s re-check bound it would read as HUNG between wake-ups (design
-#: finding F8). Re-deriving the remaining wait more often is harmless.
-LIVENESS_CHUNK_SEC = 1.0
+#: finding F8). It must also stay well under pm-monitor's DEGRADED line for
+#: ``loop_lag_ms`` (1 s, the longest gap between ticks): at exactly 1 s every
+#: gap measured a hair over it and an idle scheduler read DEGRADED forever
+#: (I76). Re-deriving the remaining wait more often is harmless.
+LIVENESS_CHUNK_SEC = 0.5
 
 #: Seconds until the scheduler next acts, as last computed while waiting;
 #: 0 when not waiting. Reported as ``sched.next_transition_in_s``.

@@ -343,9 +343,17 @@ def test_the_gauge_reports_the_remaining_wait(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_the_wallclock_bound_is_unchanged() -> None:
-    """The 1 s liveness chunk sits inside the 30 s re-check bound."""
+    """The liveness chunk sits inside the 30 s re-check bound."""
     assert sched.WALLCLOCK_RECHECK_SEC == 30.0
     assert sched.LIVENESS_CHUNK_SEC <= sched.WALLCLOCK_RECHECK_SEC
+
+
+def test_an_idle_scheduler_is_not_degraded() -> None:
+    """Its designed wait is the gap pm-monitor measures as loop_lag_ms, so it
+    must sit well under the DEGRADED line (I76), with room for jitter."""
+    from edumatcher.monitor.state import LOOP_LAG_DEGRADED_MS
+
+    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_DEGRADED_MS / 2
 
 
 # ---------------------------------------------------------------------------

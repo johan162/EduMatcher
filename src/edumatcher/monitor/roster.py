@@ -31,8 +31,8 @@ from edumatcher.emo import cli as emo_cli
 
 log = logging.getLogger(__name__)
 
-#: Programs that send ``health.beacon`` (Phase A, plus pm-monitor itself).
-#: The participant bots join with design task B5.4.
+#: Programs that send ``health.beacon``: Phase A, pm-monitor itself, and the
+#: participant bots (B5.4), which the snapshot shows as group BOT.
 BEACONING_PROCESSES = frozenset(
     {
         "pm-engine",
@@ -50,6 +50,8 @@ BEACONING_PROCESSES = frozenset(
         "pm-index",
         "pm-market-sim",
         "pm-monitor",
+        "pm-mm-bot",
+        "pm-ai-swarm",
     }
 )
 

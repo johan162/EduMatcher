@@ -22,7 +22,9 @@ from typing import Any
 
 import zmq
 
+from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.models.envelope import new_ulid
 from edumatcher.models.price import (
     get_tick_decimals,
@@ -409,6 +411,10 @@ class MMBot:
 
         self._pending_fills: list[dict[str, Any]] = []
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        # Health beacon (operator dashboard, B5.4): main() attaches a reporter.
+        self._reporter: HealthReporter | None = None
+        self._msgs_out = 0
+        self._msgs_in = 0
         self._debug_last_summary = time.monotonic()
 
         # Engine session: authenticated, and when it last heard from us. The
@@ -804,6 +810,7 @@ class MMBot:
     def _send(self, frames: list[bytes]) -> None:
         if self._push_sock:
             self._push_sock.send_multipart(frames)
+            self._msgs_out += 1
             self._dbg_count("outgoing_total")
             if frames:
                 topic = frames[0].decode("utf-8", errors="replace")
@@ -1522,6 +1529,7 @@ class MMBot:
 
     def _dispatch(self, topic: str, payload: dict[str, Any]) -> None:
         """Route an incoming message to the appropriate handler."""
+        self._msgs_in += 1
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
 
@@ -1743,6 +1751,22 @@ class MMBot:
             st.reissue_at = time.monotonic()
             return
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this bot's health beacon through ``reporter`` (main()).
+
+        Ticked by the quoting loop only: start-up (authentication, symbol
+        bootstrap, waiting for a session) reads as ``starting``.
+        """
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design B5.4: traffic both ways and the symbols being quoted."""
+        return [
+            counter("mmbot.msgs_out", self._msgs_out),
+            counter("mmbot.msgs_in", self._msgs_in),
+            gauge("mmbot.symbols_active", len(self._active_symbols())),
+        ]
+
     def run(self) -> int:
         """Run the bot event loop. Returns exit code."""
         self._log(
@@ -1836,7 +1860,10 @@ class MMBot:
         poll_timeout_ms = self._poll_timeout_ms(active)
 
         next_tick = 0.0
+        reporter = self._reporter
         while self._running:
+            if reporter is not None:
+                reporter.tick_and_publish(self.metric_samples)
             socks = dict(poller.poll(timeout=poll_timeout_ms))
             if self._sub_sock in socks:
                 topic, payload = decode(self._sub_sock.recv_multipart())

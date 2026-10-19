@@ -23,6 +23,9 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After WP-B5: `pm-monitor` starts in every built-in profile but `micro`;
+>   the bots beacon (§8.5 rows added); the scheduler's liveness chunk is 0.5 s,
+>   because at 1 s an idle scheduler read DEGRADED (I76–I79).
 > - After WP-B4: `metrics.db` as built (§9.5): a `series` table with
 >   `WITHOUT ROWID` sample tables (3.3× smaller; Q3 answered, defaults kept),
 >   `counter_last` for exact restarts, `n` for merging split minutes, a
@@ -583,6 +586,10 @@ stop the circuit-breaker timers behind it.
 | | `audit.decode_errors` | C | | Added in A6: frames that could not be decoded and so are missing from the trail |
 | `pm-clearing` | `clearing.trades_settled` | C | | Settlement path |
 | `pm-scheduler` | `sched.next_transition_in_s` | G | | Seconds until next scheduled transition |
+| `pm-mm-bot` (B5.4) | `mmbot.msgs_out` / `mmbot.msgs_in` | C | | Messages sent to and received from the engine bus |
+| | `mmbot.symbols_active` | G | | Symbols being quoted |
+| `pm-ai-swarm` (B5.4) | `swarm.workers` / `swarm.workers_alive` / `swarm.workers_gave_up` / `swarm.agents` | G | | The supervisor's view of its worker processes |
+| | `swarm.worker_restarts` | C | | Workers restarted after dying |
 
 ### 8.6 Every process — supplied by `HealthReporter`
 
@@ -2220,6 +2227,17 @@ profile except `micro`, and so in every container image.
 - Start order: `pm-monitor` after `pm-log-srv` (so it can log) and before the
   engine (so the engine's first beacons are not lost).
 
+**Outcome (2026-10-19):** `monitor` sits between `log` and the next
+process in `default` and `mini` (and so `mm-demo`, `ai-swarm`, `ai-sim`);
+`micro` has none. `pm-opctl-cli start mini` + `list` showed it running with
+its tcp check passing, and the profile's snapshot read OPERATIONAL with
+every process HEALTHY once the scheduler fix below was in. `EXPOSE` gained
+5610 5611; no compose file publishes them (the compose comment says why; a
+test pins it). Bots beacon: `pm-mm-bot` from its quoting loop (start-up reads
+as `starting`), `pm-ai-swarm` from its supervisor loop; both are in the
+roster's `BEACONING_PROCESSES`. B5.2 (the bind host inside the container) needs
+an image build and stays with E3. Insights I76–I79.
+
 ---
 
 ### WP-C1 — Scaffold `web-apps/dash-gui`
@@ -2671,5 +2689,8 @@ processes (skipped unless `-m e2e`).
 - `config-gui` editor for the `monitor` section.
 - Publishing 5610/5611 to the host in the `compose.zmq.yaml` overlays.
 - `pm-opctl-cli` integration (Q4).
+- Per-worker beacons for `pm-ai-swarm` (B5, I78): today the supervisor beacons
+  and reports worker counts, so a hung worker *loop* is invisible until the
+  worker dies.
 - Optional Prometheus text exposition from `pm-monitor` for users who do run
   Grafana — trivial once `pm-monitor` exists, deliberately not done now.

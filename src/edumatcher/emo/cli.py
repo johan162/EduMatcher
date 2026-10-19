@@ -172,6 +172,13 @@ RESET = "\033[0m"
 # All default processes necessary for a full exchange setup
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
+    # pm-monitor (operator dashboard): after the log server, so it can log,
+    # and before the engine, so the engine's first beacons are received.
+    {
+        "name": "monitor",
+        "command": ["pm-monitor", "--verbose"],
+        "tcp": "127.0.0.1:5610",
+    },
     {
         "name": "audit",
         "command": ["pm-audit", "--verbose"],
@@ -240,6 +247,13 @@ MICRO_PROCESSES: list[dict[str, Any]] = [
 # A minimal set of processes for a mini exchange setup that allows external clients to connect
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
+    # pm-monitor (operator dashboard): after the log server, so it can log,
+    # and before the engine, so the engine's first beacons are received.
+    {
+        "name": "monitor",
+        "command": ["pm-monitor", "--verbose"],
+        "tcp": "127.0.0.1:5610",
+    },
     {
         "name": "stats",
         "command": ["pm-stats", "--verbose"],

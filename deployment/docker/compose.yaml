@@ -3,8 +3,12 @@
 # the process manager inside that namespace, exactly as it is inside the
 # Multipass runtime VM.
 #
-# This file publishes the client-facing gateways only. The two overlays add
-# the optional surfaces:
+# This file publishes the client-facing gateways only. pm-monitor's beacon
+# intake (5610) and snapshot feed (5611) are not published on purpose: every
+# beaconing process runs in this namespace, and the operator dashboard
+# reaches 5611 over the compose network (EDUMATCHER_GATEWAY_BIND_HOST below
+# binds it to 0.0.0.0 inside the container). The two overlays add the
+# optional surfaces:
 #   compose.zmq.yaml  — raw ZeroMQ bus ports (make up ZMQ=1)
 #   compose.ssh.yaml  — sshd on the host port (make up SSH=1)
 

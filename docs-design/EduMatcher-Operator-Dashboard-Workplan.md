@@ -28,7 +28,7 @@ before A2).
 | 8 | B2 | Health model and expected roster | B1 | ☑ | 2026-10-19 |
 | 9 | B3 | Rates, engine-bus events, thresholds, host sampler | B1 | ☑ | 2026-10-19 |
 | 10 | B4 | `metrics.db` store, downsampling, retention | B3 | ☑ | 2026-10-19 |
-| 11 | B5 | Start-up integration: `emo` profiles, container `EXPOSE`, participant-bot beacons (B5.4, I38) | B1 | ☐ | |
+| 11 | B5 | Start-up integration: `emo` profiles, container `EXPOSE`, participant-bot beacons (B5.4, I38) | B1 | ☑ | 2026-10-19 |
 | 12 | C1 | Scaffold `web-apps/dash-gui` | — | ☐ | |
 | 13 | C2 | Bridge: monitor uplink, `/ws`, history REST | B1, B4, C1 | ☐ | |
 | 14 | D1 | App shell, top bar, time picker, theme, settings | C1 | ☐ | |
@@ -132,3 +132,7 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I73 | B4 | Two pm-monitors on one data directory (different ports) would both add increments to the same daily totals; `daily_totals` without a source cannot restore a gateway's figures to its process. | Exclusive `flock` on `metrics.db.lock` (POSIX; refused with a clear message, exit 1); `daily_totals.source` added to the key. |
 | I74 | B4 | `main()` tests would have created a real `metrics.db` in the suite's shared data directory, leaking the session timezone from one test to the next and locking across xdist workers. | The `deployed` fixture points `monitor.main.METRICS_DB_FILE` at `tmp_path`. |
 | I75 | B4 | `metrics.db` is operational history like `log.db`, not state the engine reloads. | Added to `pm-opctl-cli clear --all` (`NON_STATE_PATHS`), not `--state`; also to the dashboard's file sizes and the generated SQLite schema reference. |
+| I76 | B5 | Running the `mini` profile: `pm-scheduler` read DEGRADED forever. Its liveness chunk (A6) was exactly 1 s, so every gap between ticks measured a hair over the 1 000 ms `loop_lag_ms` line; I36 had checked every loop but this one. | `LIVENESS_CHUNK_SEC` = 0.5 s; a test pins it at half the DEGRADED line or less. The profile then reads OPERATIONAL. |
+| I77 | B5 | The roster matches a profile entry by program and `--instance`, and the bots' profile commands have no `--instance`. | Bots beacon without an instance (a gateway-id instance would read MISSING forever). Two bots of one program on one host show as the newer (I48). |
+| I78 | B5 | `pm-ai-swarm` is a supervisor plus worker processes; the agents' loops run in the workers. | The supervisor beacons (its loop ticks) with worker counts and restarts; per-worker beacons are a §19.3 follow-up. |
+| I79 | B5 | B5.2 (the bind host inside the container) and "`make up-all` works" need an image build. | Deferred to E3. A test pins `EXPOSE 5610 5611` and that no compose file publishes them; the compose comment documents the decision. |

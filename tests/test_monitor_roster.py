@@ -52,6 +52,7 @@ class TestExpectedFromProfile:
     def test_mini(self) -> None:
         assert expected_from_profile(emo_cli.MINI_PROCESSES) == {
             ("pm-log-srv", None),
+            ("pm-monitor", None),
             ("pm-stats", None),
             ("pm-engine", None),
             ("pm-scheduler", None),
@@ -61,6 +62,10 @@ class TestExpectedFromProfile:
             ("pm-ralf-gwy", None),
             ("pm-dc-gwy", None),
         }
+
+    def test_bots_are_expected(self) -> None:
+        expected = expected_from_profile(emo_cli.AI_SWARM_PROCESSES)
+        assert {("pm-mm-bot", None), ("pm-ai-swarm", None)} <= expected
 
     def test_instances_are_separate(self) -> None:
         expected = expected_from_profile(emo_cli.DEFAULT_PROCESSES)
@@ -82,7 +87,6 @@ class TestExpectedFromProfile:
     def test_programs_without_a_beacon_are_not_expected(self) -> None:
         entries = [
             {"name": "trader", "command": ["pm-alf-console", "--id", "T1"]},
-            {"name": "bot", "command": ["pm-mm-bot", "--gateway-id", "MM01"]},
             {"name": "empty", "command": []},
         ]
         assert expected_from_profile(entries) == frozenset()
@@ -90,11 +94,10 @@ class TestExpectedFromProfile:
     def test_every_builtin_profile_program_is_known(self) -> None:
         """A program a built-in profile runs either beacons or is a known
         exception -- so a new process cannot silently drop off the roster."""
-        not_beaconing = {"pm-mm-bot", "pm-ai-swarm"}  # B5.4
         for profile in emo_cli.BUILTIN_PROFILES.values():
             for entry in profile:
                 program = os.path.basename(entry["command"][0])
-                assert program in BEACONING_PROCESSES | not_beaconing, program
+                assert program in BEACONING_PROCESSES, program
 
 
 class TestRoster:
