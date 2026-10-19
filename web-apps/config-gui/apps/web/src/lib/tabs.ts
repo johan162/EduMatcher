@@ -33,6 +33,7 @@ export const TABS: TabDef[] = [
   { id: "indices", path: "/indices", label: "Indices", minPersona: "I" },
   { id: "combos", path: "/combos", label: "Combos", minPersona: "E" },
   { id: "gateways", path: "/gateways", label: "Auxiliary Gateways", minPersona: "I" },
+  { id: "monitor", path: "/monitor", label: "Health Monitoring", minPersona: "I" },
   { id: "engine-tuning", path: "/engine-tuning", label: "Engine Tuning", minPersona: "E" },
   { id: "review", path: "/review", label: "Review & Export", minPersona: "B" },
 ];

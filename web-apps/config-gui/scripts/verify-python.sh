@@ -3,8 +3,9 @@
 # Golden-file cross-language check (design §12.4 / §18).
 #
 # Generates representative configs through the GUI codec and pipes each through
-# the real Python `load_engine_config()` to guarantee GUI output stays
-# parser-valid. Run from the config-gui directory. Requires the edumatcher
+# the real Python `load_engine_config()` -- and `compile_config()`, which
+# runs every other section's loader and the verifier -- to guarantee GUI
+# output stays parser-valid. Run from the config-gui directory. Requires the edumatcher
 # Python environment (poetry) to be installed at the repo root.
 set -euo pipefail
 
@@ -22,7 +23,9 @@ for f in "$OUT_DIR"/*.yaml; do
   if (cd "$REPO_ROOT" && poetry run python -c "
 from pathlib import Path
 from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.config_deploy import compile_config
 load_engine_config(Path('$f'))
+compile_config(Path('$f'))  # every other loader: monitor, log client, API...
 print('OK')
 "); then
     :

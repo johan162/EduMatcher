@@ -101,7 +101,8 @@ Container-only build args (`docker-compose.yml`, for corporate proxies):
 | `clean`           | Remove local build artifacts and `dist/`                               |
 
 `npm run verify:python` (outside `make`) runs the golden-file check that
-validates generated configs with the real Python `load_engine_config()`;
+validates generated configs with the real Python `load_engine_config()`
+and `compile_config()` (every section's loader, including `monitor`);
 it needs Poetry and is the authoritative correctness gate for the YAML
 codec.
 
@@ -117,3 +118,14 @@ format has two owners: Python `pm-config-gen` and this codec. When you add
 or change an engine-config field, update both sides — grep for
 `MAINTENANCE:` comments across `packages/` to find every file that mirrors
 a Python source before shipping a format change.
+
+Two mirrors are enforced rather than left to memory:
+
+- `packages/yaml-codec/src/defaultFieldComments.ts` (the
+  `--comment-default-config-fields` text) is generated — rerun
+  `poetry run python tools/gen_config_gui_comments.py` after changing
+  `config_gen/cli_comments.py`.
+- `tests/test_config_gui_mirrors.py` (part of the Python suite) fails when a
+  section or key Python accepts is missing from `build.ts`/`parse.ts`, when a
+  default in `packages/schema/src/defaults.ts` drifts from its Python source,
+  or when the generated comment text is stale.

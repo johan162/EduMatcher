@@ -16,7 +16,12 @@ import {
   DEFAULT_DYNAMIC_BAND_PCT,
   DEFAULT_INDEX_BASE_VALUE,
   DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
+  DEFAULT_LOG_CLIENT,
   DEFAULT_LOG_SERVER,
+  DEFAULT_MONITOR,
+  DEFAULT_MONITOR_THRESHOLDS,
+  DEFAULT_SESSION_TIMEZONE,
+  DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC,
   DEFAULT_MARKET_DATA_GATEWAY,
   DEFAULT_MM_MIN_QTY,
   DEFAULT_MM_SPREAD_TICKS,
@@ -31,7 +36,9 @@ import {
   DEFAULT_TICK_DECIMALS,
   defaultDisconnectBehaviour,
 } from "./defaults.js";
+import { MONITOR_THRESHOLD_RULES } from "./types.js";
 import type {
+  MonitorConfigDraft,
   AlfGatewayProcConfig,
   ApiGatewayConfig,
   BalfGatewayConfig,
@@ -185,6 +192,18 @@ export function createLogServer(): LogServerConfig {
     maxBackfillRows: DEFAULT_LOG_SERVER.maxBackfillRows,
     maxPendingRows: DEFAULT_LOG_SERVER.maxPendingRows,
     pubSndhwm: DEFAULT_LOG_SERVER.pubSndhwm,
+    client: { ...DEFAULT_LOG_CLIENT },
+  };
+}
+
+/** The `monitor` block at its defaults, not written until `include`. */
+export function createMonitor(): MonitorConfigDraft {
+  return {
+    include: false,
+    ...DEFAULT_MONITOR,
+    thresholds: Object.fromEntries(
+      MONITOR_THRESHOLD_RULES.map((rule) => [rule, { ...DEFAULT_MONITOR_THRESHOLDS[rule] }]),
+    ) as MonitorConfigDraft["thresholds"],
   };
 }
 
@@ -297,6 +316,8 @@ export function createBlankDraft(): EngineConfigDraft {
     sessionsEnabled: false,
     requireMmSeedQuotes: true,
     country: DEFAULT_COUNTRY,
+    sessionTimezone: DEFAULT_SESSION_TIMEZONE,
+    auctionIndicativeIntervalSec: DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC,
     emitSchedule: true,
     snapshotIntervalSec: DEFAULT_SNAPSHOT_INTERVAL_SEC,
     quoteHistoryMaxlen: DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -356,6 +377,7 @@ export function createBlankDraft(): EngineConfigDraft {
     dcGateway: createDcGateway(),
     logServer: createLogServer(),
     apiGateways: [],
+    monitor: createMonitor(),
     output: { filename: "engine_config.yaml", commentDefaultFields: false },
     unmappedYaml: {},
   };

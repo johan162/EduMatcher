@@ -9,6 +9,8 @@
 import { z } from "zod";
 import {
   API_LOG_LEVELS,
+  MONITOR_THRESHOLD_RULES,
+  type MonitorThresholdRule,
   COMBO_TYPES,
   DISCONNECT_BEHAVIOURS,
   DUPLICATE_SESSION_POLICIES,
@@ -281,6 +283,39 @@ export const logServerSchema = z.object({
   maxBackfillRows: z.number().int().positive(),
   maxPendingRows: z.number().int().positive(),
   pubSndhwm: z.number().int().positive(),
+  client: z.object({
+    connectTimeoutSec: z.number().positive(),
+    failoverTimeoutSec: z.number().nonnegative(),
+    failoverDir: z.string().min(1),
+  }),
+});
+
+const thresholdBandSchema = z.object({
+  warn: z.number().nonnegative(),
+  crit: z.number().nonnegative(),
+});
+
+// Shape and ranges as monitor/config.py; the cross-field rules (M029-M031,
+// ports) live in the diagnostics package.
+export const monitorSchema = z.object({
+  include: z.boolean(),
+  enabled: z.boolean(),
+  bindAddress: z.string().min(1),
+  host: z.string().min(1),
+  pullPort: z.number().int().min(1).max(65535),
+  pubPort: z.number().int().min(1).max(65535),
+  beaconIntervalSec: z.number().positive(),
+  hungAfterSec: z.number().positive(),
+  silentAfterBeacons: z.number().int().positive(),
+  bookMetricsIntervalSec: z.number().positive(),
+  rawHours: z.number().int().positive(),
+  minuteDays: z.number().int().positive(),
+  thresholds: z.object(
+    Object.fromEntries(MONITOR_THRESHOLD_RULES.map((rule) => [rule, thresholdBandSchema])) as Record<
+      MonitorThresholdRule,
+      typeof thresholdBandSchema
+    >,
+  ),
 });
 
 export const apiCredentialSchema = z.object({
@@ -298,6 +333,12 @@ export const apiGatewaySchema = z.object({
   logLevel: z.enum(API_LOG_LEVELS),
   statsDb: z.string().min(1),
   auditDb: z.string().min(1).optional(),
+  clearingDb: z.string().min(1).optional(),
+  marketDataCacheSec: z.number().nonnegative().optional(),
+  enginePullAddr: z.string().min(1).optional(),
+  enginePubAddr: z.string().min(1).optional(),
+  indexPullAddr: z.string().min(1).optional(),
+  indexPubAddr: z.string().min(1).optional(),
   credentials: z.array(apiCredentialSchema),
   rateLimitWritesPerSecond: z.number().int().positive(),
   rateLimitBurst: z.number().int().positive(),
@@ -312,6 +353,8 @@ export const engineConfigDraftSchema = z.object({
   sessionsEnabled: z.boolean(),
   requireMmSeedQuotes: z.boolean(),
   country: z.string().min(1),
+  sessionTimezone: z.string().min(1),
+  auctionIndicativeIntervalSec: z.number().positive(),
   emitSchedule: z.boolean(),
   snapshotIntervalSec: z.number().positive(),
   quoteHistoryMaxlen: z.number().int().positive(),
@@ -358,6 +401,7 @@ export const engineConfigDraftSchema = z.object({
   dcGateway: dcGatewaySchema,
   logServer: logServerSchema,
   apiGateways: z.array(apiGatewaySchema),
+  monitor: monitorSchema,
   output: z.object({
     filename: z.string().min(1),
     commentDefaultFields: z.boolean(),

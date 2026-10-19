@@ -58,8 +58,8 @@ so anything the GUI exports is guaranteed to load (see
     _Screenshot placeholder._ Capture the application in light theme on the
     **Basics** tab, showing the full three-pane layout (navigation list on the
     left, the active panel in the centre, the diagnostics drawer on the right)
-    and the top bar (persona switcher, **Import**, **New**, theme toggle,
-    **Save**). Suggested file: `images/config-gui/fig-01-main-window.png`.
+    and the top bar (persona switcher, **Comment defaults**, **Import**,
+    **New**, theme toggle, **Save**). Suggested file: `images/config-gui/fig-01-main-window.png`.
 
 ## Prerequisites
 
@@ -197,7 +197,7 @@ know what to edit, what you are editing, and what still needs attention.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Top bar:  [Persona ▾]                     Import  New  ☾  Save       │
+│  Top bar:  [Persona ▾] [☐ Comment defaults]  Import  New  ☾  Save     │
 ├───────────────┬─────────────────────────────────┬────────────────────┤
 │  Navigation   │        Active panel             │   Diagnostics      │
 │  (tab list    │   (fields for the selected      │   drawer           │
@@ -206,7 +206,10 @@ know what to edit, what you are editing, and what still needs attention.
 └───────────────┴─────────────────────────────────┴────────────────────┘
 ```
 
-- **Top bar** — the [persona](#personas) switcher, **Import** (load an existing
+- **Top bar** — the [persona](#personas) switcher, **Comment defaults** (add
+  the commented reference block of every optional field at its default to the
+  exported file — `pm-config-gen --comment-default-config-fields`; the same
+  setting as the Review tab's toggle), **Import** (load an existing
   YAML file), **New** (start a blank draft, with a confirmation), the light/dark
   **theme toggle** (☾ / ☀), and **Save** (shows a confirmation toast; the draft
   is already autosaved to `localStorage` continuously on every change, so a
@@ -247,7 +250,7 @@ up:
 | Persona | Tabs shown |
 |---|---|
 | **Beginner** | Basics, Sessions & Schedule, Market Maker¹, Review & Export |
-| **Intermediate** | …the above **plus** Risk & Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways |
+| **Intermediate** | …the above **plus** Risk & Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways, Health Monitoring |
 | **Expert** | …the above **plus** Combos, Engine Tuning |
 
 ¹ The **Market Maker** tab appears at any persona. It is greyed out and
@@ -264,7 +267,7 @@ editable.
 
 | Tab | Persona | Configures | Reference chapter |
 |---|---|---|---|
-| **Basics** | Beginner | The symbol universe and the participants list | [Participants](010-the-configuration-workflow.md#participants), [ALF gateway](../part-5-gateways/010-alf-gateway.md) |
+| **Basics** | Beginner | The locale (country, session time zone), the symbol universe, and the participants list | [Participants](010-the-configuration-workflow.md#participants), [ALF gateway](../part-5-gateways/010-alf-gateway.md) |
 | **Sessions & Schedule** | Beginner | Whether the scheduler drives the trading day, and the phase times | [Auctions & Session Scheduling](../part-4-run-a-market/030-sessions-and-scheduling.md) |
 | **Risk & Collars** | Intermediate | The global collar band, named risk levels, and collar enforcement | [Price collars](../part-4-run-a-market/040-risk-controls.md#price-collars) |
 | **Circuit Breakers** | Intermediate | The halt ladder, reference window, and CB enforcement | [Circuit breakers](../part-4-run-a-market/040-risk-controls.md#circuit-breakers) |
@@ -273,7 +276,8 @@ editable.
 | **Indices** | Intermediate | Cap-weighted index definitions and constituents | [Market Index](../part-4-run-a-market/070-market-index.md) |
 | **Combos** | Expert | Multi-leg startup seed orders | [Combo Orders](../../participant-guide/part-2-orders/030-combo-and-oco-orders.md) |
 | **Auxiliary Gateways** | Intermediate | Post-Trade, Market-Data, BALF, and API gateway processes | [RALF](../part-5-gateways/040-ralf-gateway.md), [CALF](../part-5-gateways/030-calf-gateway.md), [BALF](../part-5-gateways/020-balf-gateway.md), [API](../part-5-gateways/050-api-gateway.md) |
-| **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs | [`engine_tuning`](010-the-configuration-workflow.md#engine_tuning) |
+| **Health Monitoring** | Intermediate | Health beacons and `pm-monitor`: liveness timing, history, alert thresholds (network at Expert) | [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md) |
+| **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs, and the auction indicative-price interval | [`engine_tuning`](010-the-configuration-workflow.md#engine_tuning) |
 | **Review & Export** | Beginner | Diagnostics summary, YAML preview, download, and verify | [Config Verifier](020-config-verifier.md) |
 
 ¹ Editable only once a `MARKET_MAKER` gateway exists; before that the tab is
@@ -289,6 +293,12 @@ just want to produce a working file quickly, follow the
 The **Basics** tab is the mandatory foundation: at least one **symbol** and one
 **participant** are required before anything can be exported.
 
+- **Locale** — the exchange's **country** (pm-scheduler's holiday calendar)
+  and, from Intermediate, its **session time zone** (the IANA zone the
+  schedule's times are in and that every process uses to split events into
+  trading days). Both are written to the `locale` block, each only when it
+  differs from its default (`Sweden`, `Europe/Stockholm`). An unknown time
+  zone is an error: the engine refuses it.
 - **Symbols** are the instruments that trade on the exchange. Add them with the
   [IPO dialog](#symbols-and-the-ipo-dialog); names are uppercased automatically
   and must be unique.
@@ -678,6 +688,18 @@ they are written — lease duration, subscriber and backfill limits, and the
 PUB socket's send high-water mark. See [LALF-PS](../../operator-guide/part-6-observe-and-recover/040-log-server.md)
 for what each setting controls at the protocol level.
 
+At Expert the **Log Server** sub-tab ends with **Log client — every
+process**: the `log_server.client` settings that every *other* process reads —
+how long it waits to connect, how long it keeps trying before writing its log
+to a local file instead, and where. They are written only when one differs
+from its default.
+
+The **API** sub-tab also takes the instance's **Clearing DB path** (realized
+P&L on position rows), **Market-data cache** (seconds of recent trades kept so
+a reconnecting WebSocket client can resume), and the four **engine and index
+bus addresses** — needed only when the API gateway runs on another host than
+the engine. Each is written only when set.
+
 The **API** sub-tab includes **Order cache retention (s)**
 (`order_retention_sec`, default `3600`), which bounds how long a terminal
 order — `FILLED`, `CANCELLED`, `EXPIRED`, `REJECTED` — stays in the gateway's
@@ -686,6 +708,32 @@ order table, so the setting decides how far back those views reach. Resting
 orders are never evicted whatever their age. `0` disables eviction entirely,
 letting the cache grow for the lifetime of the process. See
 [API Gateway → Order cache retention](../part-5-gateways/050-api-gateway.md#order-cache-retention).
+
+### Health monitoring
+
+The **Health Monitoring** tab (Intermediate+) edits the `monitor` block read
+by every process (its health beacon) and by `pm-monitor`, which judges each
+process and the exchange from those beacons — see
+[Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md).
+
+**Write monitor section** off leaves the block out of the file; monitoring
+then still runs, on the defaults the tab shows. To turn monitoring off, write
+the section and switch **Monitoring enabled** off. With the section written:
+
+| Group | Persona | Fields |
+|---|---|---|
+| Liveness | Intermediate | Beacon interval, Hung after, Silent after (beacons) |
+| Liveness | Expert | Book metrics interval |
+| History | Intermediate | Raw samples kept (hours), Minute averages kept (days) |
+| Alert thresholds | Intermediate | Warn and crit for each of the seven rules, each with a reset to its default |
+| Network | Expert | Bind address, Host, Beacon (PULL) port, Publish (PUB) port |
+
+The diagnostics mirror `pm-cverifier`: warn must be below crit (above, for
+**Disk free**, where lower is worse — `M029`); *Hung after* must exceed the
+beacon interval (`M030`); a host that cannot reach the bind address is a
+warning (`M031`); and the two ports must differ. pm-monitor's ports join the
+cross-gateway port-collision check even when the section is not written,
+since it then binds its defaults (5610, 5611).
 
 ### Engine tuning
 
@@ -711,6 +759,10 @@ exposes five fields:
 - **Depth snapshot tolerance** —
   [`engine_tuning.depth_snapshot_tolerance_ticks`](010-the-configuration-workflow.md#engine_tuningdepth_snapshot_tolerance_ticks),
   the published depth window around the last trade, measured in ticks.
+
+A separate **Auctions** section holds **Indicative price interval**
+(`auction_indicative_interval_sec`, default `1.0`): how often the engine
+broadcasts each auctioning symbol's indicative price and volume.
 
 The GUI presents these in the same way as the rest of the application: default
 values are shown as hints, changing a value marks the field as explicitly set,
@@ -755,6 +807,11 @@ schema — is preserved verbatim in a per-section **"unmapped YAML" passthrough*
 and re-emitted unchanged on export, so import → edit → export never silently
 drops data. A banner marks any tab that carries unmapped content.
 
+A file written by an earlier `config-gui` may carry a top-level `country`,
+which no process reads. Import does not convert it (it is kept as unmapped
+YAML); set the country again on the Basics tab so it is written under
+`locale`, where the scheduler looks.
+
 !!! note "Comments are not round-tripped"
     The GUI is a *structural* editor, not a text editor. It regenerates the
     header/comment block fresh (matching `pm-config-gen`'s convention) but does
@@ -773,7 +830,8 @@ The **Review & Export** tab (Beginner) is the final pass:
 1. **Diagnostics summary** — the full issue list grouped by tab.
 2. **Output options** — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
-   matching `pm-config-gen --comment-default-config-fields`).
+   matching `pm-config-gen --comment-default-config-fields`; the top bar's
+   **Comment defaults** checkbox is the same setting).
 3. **YAML preview** — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview *is*
    the dry-run view.

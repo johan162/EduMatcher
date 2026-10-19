@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { NavLink } from "react-router-dom";
 import {
+  DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC,
   DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
   DEFAULT_DROP_COPY_BUFFER_SIZE,
   DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -54,8 +55,11 @@ function isConfigured(draft: EngineConfigDraft, tabId: string): boolean {
         draft.quoteHistoryMaxlen !== DEFAULT_QUOTE_HISTORY_MAXLEN ||
         draft.dropCopyBufferSize !== DEFAULT_DROP_COPY_BUFFER_SIZE ||
         draft.recentTradesMaxlen !== DEFAULT_RECENT_TRADES_MAXLEN ||
-        draft.depthSnapshotToleranceTicks !== DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
+        draft.depthSnapshotToleranceTicks !== DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS ||
+        draft.auctionIndicativeIntervalSec !== DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
       );
+    case "monitor":
+      return draft.monitor.include;
     case "review":
       return true;
     default:

@@ -167,7 +167,10 @@ class _Minute:
 
 
 class MetricsStore:
-    """The single writer of ``metrics.db``."""
+    """The single writer of ``metrics.db``.
+
+    Failed initialization closes the connection and releases the writer lock.
+    """
 
     def __init__(
         self,
@@ -182,8 +185,9 @@ class MetricsStore:
         self.minute_days = minute_days
         path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = self._acquire_lock(path)
+        conn: sqlite3.Connection | None = None
         try:
-            self.conn = sqlite3.connect(str(path), isolation_level=None)
+            conn = self.conn = sqlite3.connect(str(path), isolation_level=None)
             # Only takes effect on a new file, and only before anything is
             # written to it -- switching to WAL writes the header, so first.
             self.conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
@@ -191,8 +195,18 @@ class MetricsStore:
             self.conn.execute("PRAGMA synchronous = NORMAL")
             initialize_schema(self.conn)
             self._pin_timezone(session_tz_name)
+            self._series: dict[SeriesKey, int] = {
+                (src, name, label): sid
+                for sid, src, name, label in self.conn.execute(
+                    "SELECT id, source, name, label FROM series"
+                )
+            }
         except Exception:
-            self._release_lock()
+            try:
+                if conn is not None:
+                    conn.close()
+            finally:
+                self._release_lock()
             raise
         self._raw: dict[SeriesKey, tuple[float, float]] = {}  # -> (wall, value)
         self._minutes: dict[SeriesKey, _Minute] = {}
@@ -201,12 +215,6 @@ class MetricsStore:
         self._next_raw = 0.0
         self._next_retention = 0.0
         self._new_series: list[SeriesKey] = []
-        self._series: dict[SeriesKey, int] = {
-            (src, name, label): sid
-            for sid, src, name, label in self.conn.execute(
-                "SELECT id, source, name, label FROM series"
-            )
-        }
 
     # ------------------------------------------------------------------
     # open / close

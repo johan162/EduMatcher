@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -71,8 +72,42 @@ class TestOpen:
 
     def test_initialize_schema_twice(self) -> None:
         conn = sqlite3.connect(":memory:")
-        initialize_schema(conn)
-        initialize_schema(conn)
+        try:
+            initialize_schema(conn)
+            initialize_schema(conn)
+        finally:
+            conn.close()
+
+    def test_schema_failure_closes_connection_and_releases_lock(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "metrics.db"
+        conn = sqlite3.connect(str(path), isolation_level=None)
+        with (
+            patch("edumatcher.monitor.store.sqlite3.connect", return_value=conn),
+            patch(
+                "edumatcher.monitor.store.initialize_schema",
+                side_effect=sqlite3.OperationalError("schema failed"),
+            ),
+        ):
+            with pytest.raises(sqlite3.OperationalError, match="schema failed"):
+                _store(path)
+        try:
+            with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+                conn.execute("SELECT 1")
+        finally:
+            conn.close()
+        _store(path).close(OPEN)
+
+    def test_connection_failure_releases_lock(self, tmp_path: Path) -> None:
+        path = tmp_path / "metrics.db"
+        with patch(
+            "edumatcher.monitor.store.sqlite3.connect",
+            side_effect=sqlite3.OperationalError("open failed"),
+        ):
+            with pytest.raises(sqlite3.OperationalError, match="open failed"):
+                _store(path)
+        _store(path).close(OPEN)
 
     def test_a_second_writer_is_refused(self, tmp_path: Path) -> None:
         path = tmp_path / "metrics.db"
@@ -97,8 +132,15 @@ class TestOpen:
     def test_the_session_timezone_is_pinned(self, tmp_path: Path) -> None:
         path = tmp_path / "metrics.db"
         _store(path).close(OPEN)
-        with pytest.raises(IncompatibleStoreError, match="'Europe/Stockholm'"):
-            _store(path, "America/New_York")
+        conn = sqlite3.connect(str(path), isolation_level=None)
+        with patch("edumatcher.monitor.store.sqlite3.connect", return_value=conn):
+            with pytest.raises(IncompatibleStoreError, match="'Europe/Stockholm'"):
+                _store(path, "America/New_York")
+        try:
+            with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+                conn.execute("SELECT 1")
+        finally:
+            conn.close()
         _store(path).close(OPEN)  # a refused open released its lock
 
 

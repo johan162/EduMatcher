@@ -22,6 +22,7 @@ This directory is a lightweight workspace for design ideas across **EduMatcher**
 - `EduMatcher-Trading-GUI.md`
 - `EduMatcher-GUI-ECharts-Adaptation.md`
 - `EduMatcher-Config-GUI.md`
+- `EduMatcher-Config-GUI-Monitor-Extension.md`
 - `EduMatcher-Terminal-GUI.md`
 - `EduMatcher-log-GUI.md`
 - `EduMatcher-CALF-Extensions.md`
