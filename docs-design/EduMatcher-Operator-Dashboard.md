@@ -23,6 +23,13 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - A+B review (the interaction of the two phases): the engine's trade
+>   counters reset at PRE_OPEN although the spec defines a COUNTER as
+>   monotonic since process start -- now exported with a carry (§8.2); the API
+>   gateway beacons its `--instance`, not the config entry name, so the roster
+>   matches it; verifier `M031` warns when `monitor.host` cannot reach
+>   `monitor.bind_address`; `tests/test_health_contract.py` pins every name,
+>   kind, identity and timing constant the two sides share (I89–I92).
 > - Phase B review: a loop step can no longer kill pm-monitor; a stop is
 >   recorded (final-beacon grace); a gone engine or gateway no longer shows
 >   stale connections and gauges; RSS growth waits out start-up; "daily"
@@ -498,7 +505,7 @@ existing handler funnels.
 | `engine.amends_in` | C | gateway | Inbound amend requests |
 | `engine.quotes_in` | C | gateway | Inbound quote messages (market makers) |
 | `engine.fills` | C | gateway | Two increments per trade (buy and sell gateway) in `_publish_trade`, the single trade-publication path every flow already goes through |
-| `engine.trades` | C | symbol | Read from the existing `OrderBook.daily_trades` — no new increment |
+| `engine.trades` | C | symbol | Read from the existing `OrderBook.daily_trades` — no new increment. *A+B review (I89):* exported as `EngineMetrics.trade_totals()` = the book's daily figure plus everything carried over its PRE_OPEN resets, so it is a true COUNTER (monotonic since process start) like every other; the same for `traded_qty` and `traded_value` |
 | `engine.traded_qty` | C | symbol | Existing `OrderBook.daily_qty` |
 | `engine.traded_value` | C | symbol | Existing `daily_value_ticks`, converted at the boundary like `system.volume` |
 | `engine.participants_connected` | G | `""` and role | `sum(s.connected for s in self._sessions.values())` |

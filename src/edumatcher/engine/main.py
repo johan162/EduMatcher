@@ -5378,6 +5378,7 @@ class Engine:
             # M14: reset per-symbol 'daily' counters at the start of a new
             # trading day so a multi-day run does not report cumulative volume.
             for book in self.books.values():
+                self.metrics.carry_daily(book)  # health counters stay monotonic
                 book.daily_qty = 0
                 book.daily_value_ticks = 0
                 book.daily_trades = 0
@@ -6816,9 +6817,12 @@ class Engine:
             out.append(gauge("engine.resting_orders", n, label))
 
         for symbol, book in sorted(self.books.items()):
-            out.append(counter("engine.trades", book.daily_trades, symbol))
-            out.append(counter("engine.traded_qty", book.daily_qty, symbol))
-            out.append(counter("engine.traded_value", book.daily_value, symbol))
+            trades, qty, value_ticks = m.trade_totals(book)
+            out.append(counter("engine.trades", trades, symbol))
+            out.append(counter("engine.traded_qty", qty, symbol))
+            out.append(
+                counter("engine.traded_value", from_ticks(value_ticks, symbol), symbol)
+            )
             out.append(
                 gauge(
                     "engine.book_halted",

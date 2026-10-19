@@ -489,7 +489,7 @@ def test_a_blocked_event_loop_shows_as_loop_lag(
     for name in ("EngineClient", "IndexClient", "SimClient"):
         monkeypatch.setattr(api_main, name, _FakeListener)
     monkeypatch.setattr(api_main, "load_sectors", lambda _path: {})
-    app: FastAPI = api_main.create_app(ApiGatewayConfig(name="desk"))
+    app: FastAPI = api_main.create_app(ApiGatewayConfig(name="desk"), instance="desk")
 
     @app.get("/_block")
     async def block() -> dict[str, bool]:  # pyright: ignore[reportUnusedFunction]
@@ -547,3 +547,33 @@ def test_the_real_loop_closes_an_idle_connection(name: str, fake_zmq: None) -> N
     finally:
         gateway.stop()
         runner.join(timeout=5)
+
+
+@pytest.mark.parametrize("instance", [None, "desk"])
+def test_the_api_beacon_carries_the_command_line_instance(
+    monkeypatch: pytest.MonkeyPatch, instance: str | None
+) -> None:
+    """A+B review, I90: the pm-opctl-cli roster knows a process by its command
+    line, so a bare pm-api-gwy beacons without an instance even when it picked
+    a configured entry (here named "dashboards")."""
+    from edumatcher.api_gateway.config import ApiGatewayConfig
+
+    seen: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        HealthReporter,
+        "start_from_compiled_config",
+        classmethod(
+            lambda cls, process, instance=None: seen.append((process, instance))
+        ),
+    )
+    for name in ("EngineClient", "IndexClient", "SimClient"):
+        monkeypatch.setattr(api_main, name, _FakeListener)
+    monkeypatch.setattr(api_main, "load_sectors", lambda _path: {})
+    app = api_main.create_app(ApiGatewayConfig(name="dashboards"), instance=instance)
+
+    async def scenario() -> None:
+        async with app.router.lifespan_context(app):
+            pass
+
+    asyncio.run(scenario())
+    assert seen == [("pm-api-gwy", instance)]

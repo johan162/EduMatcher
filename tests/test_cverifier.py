@@ -2888,6 +2888,27 @@ class TestMonitorSection:
     def test_m030_hung_must_exceed_the_interval(self, block: str) -> None:
         assert "M030" in _codes(self._l3(block))
 
+    @pytest.mark.parametrize(
+        ("block", "warned"),
+        [
+            ("monitor:\n  enabled: true\n", False),  # defaults: both loopback
+            ("monitor:\n  bind_address: 0.0.0.0\n", False),
+            ("monitor:\n  bind_address: 10.0.0.5\n  host: 10.0.0.5\n", False),
+            ("monitor:\n  host: localhost\n", False),
+            ("monitor:\n  bind_address: 10.0.0.5\n", True),  # host 127.0.0.1
+            ("monitor:\n  host: monitor.lan\n", True),  # bind 127.0.0.1
+        ],
+    )
+    def test_m031_beacons_must_reach_the_bind_address(
+        self, block: str, warned: bool
+    ) -> None:
+        """A+B review (I51, I91): reporters send to host, pm-monitor binds
+        bind_address; a mismatch loses every beacon silently."""
+        results = [r for r in self._l3(block) if r.code == "M031"]
+        assert bool(results) is warned
+        if warned:
+            assert results[0].severity == Severity.WARN
+
     def test_m018_a_monitor_port_on_a_health_socket(self) -> None:
         results = self._l3("monitor:\n  pull_port: 5561\n")
         m018 = [r for r in results if r.code == "M018"]

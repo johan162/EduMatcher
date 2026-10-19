@@ -103,6 +103,15 @@ class EngineMetrics:
 
         self.msgs_in = 0
         self.gtc_flush_ms = 0.0
+        #: Per symbol, the books' daily (trades, qty, value ticks) carried over
+        #: their PRE_OPEN resets. engine.trades/traded_qty/traded_value are
+        #: exported as carried + daily, so they are COUNTERs as the health spec
+        #: defines them -- monotonic since process start -- although each book
+        #: zeroes its daily figures every trading day. Exported raw, a reset
+        #: read as a process restart in pm-monitor and lost the trades between
+        #: the previous beacon and the reset (A+B review, I89). Updated only at
+        #: the reset, never on the trade path.
+        self._carried: dict[str, tuple[int, int, int]] = {}
 
         self._known: frozenset[str] | None = None
         self._dynamic: set[str] = set()
@@ -127,6 +136,24 @@ class EngineMetrics:
     # ------------------------------------------------------------------
     # labels
     # ------------------------------------------------------------------
+
+    def carry_daily(self, book: OrderBook) -> None:
+        """Fold a book's daily figures in; call just before they are zeroed."""
+        trades, qty, value = self._carried.get(book.symbol, (0, 0, 0))
+        self._carried[book.symbol] = (
+            trades + book.daily_trades,
+            qty + book.daily_qty,
+            value + book.daily_value_ticks,
+        )
+
+    def trade_totals(self, book: OrderBook) -> tuple[int, int, int]:
+        """(trades, qty, value ticks) of a book since process start."""
+        trades, qty, value = self._carried.get(book.symbol, (0, 0, 0))
+        return (
+            trades + book.daily_trades,
+            qty + book.daily_qty,
+            value + book.daily_value_ticks,
+        )
 
     def set_known_gateways(self, known: frozenset[str] | None) -> None:
         """Configured participants; ``None`` when running without config."""

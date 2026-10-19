@@ -491,13 +491,13 @@ The optional `monitor` block configures health beacons and `pm-monitor`
 | `S131`  | `monitor` fails runtime-loader validation for a reason not covered by `S124`–`S130` (drift safety net; only fires when none of those already reported) |
 
 The rules that relate two `monitor` fields are semantic checks (`M029`,
-`M030`); a `monitor` port that collides with another listener, or
+`M030`, `M031`); a `monitor` port that collides with another listener, or
 `pull_port` equal to `pub_port`, is `M018`.
 
 See [LALF-PS](../part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M030`)
+### Layer 3 — Semantic (`M001`–`M031`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -534,6 +534,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M028` | ERROR    | `schedule` specifies both `weekend` and an individual `sat`/`sun` block — use one or the other |
 | `M029` | ERROR    | A `monitor.thresholds` band is in the wrong order: `warn` must be strictly below `crit`, except `disk_free_pct`, where a lower value is worse and `warn` must be strictly above `crit` |
 | `M030` | ERROR    | `monitor.hung_after_sec` is not greater than `monitor.beacon_interval_sec` |
+| `M031` | WARN     | `monitor.bind_address` is neither a wildcard nor `monitor.host` (loopback on both sides counts as a match): every process sends its beacons to `host`, where pm-monitor may not be listening. A warning because `EDUMATCHER_GATEWAY_BIND_HOST` overrides the bind address at run time |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 

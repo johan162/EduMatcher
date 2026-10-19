@@ -243,6 +243,27 @@ class TestTradesAndFills:
             row["value"]
         )
 
+    def test_trade_counters_survive_the_daily_reset(self, engine: Any) -> None:
+        """The books zero their daily figures at PRE_OPEN; the health counters
+        must not -- a COUNTER is monotonic since process start, and pm-monitor
+        reads a drop as a restart (A+B review, I89)."""
+        connect(engine, "GW01", "GW02")
+        _submit(engine, "GW01", Side.SELL, 10, 100.0)
+        _submit(engine, "GW02", Side.BUY, 10, 100.0)  # one trade
+        before = engine.metric_samples()
+        engine._sessions_enabled = True
+        for state in ("CLOSING_AUCTION", "CLOSED", "PRE_OPEN", "CONTINUOUS"):
+            engine._handle_session_transition({"to_state": state})
+        book = engine.books["AAPL"]
+        assert (book.daily_trades, book.daily_qty) == (0, 0)  # the books reset
+        _submit(engine, "GW01", Side.SELL, 5, 100.0)
+        _submit(engine, "GW02", Side.BUY, 5, 100.0)  # one more trade
+        after = engine.metric_samples()
+        assert _value(before, "engine.trades", "AAPL") == 1
+        assert _value(after, "engine.trades", "AAPL") == 2
+        assert _value(after, "engine.traded_qty", "AAPL") == 15
+        assert _value(after, "engine.traded_value", "AAPL") == pytest.approx(1500.0)
+
 
 class TestParticipants:
     """A4.5"""

@@ -107,8 +107,14 @@ def _validation_reject_code(error_type: str, message: str) -> str:
     return "INVALID_VALUE"
 
 
-def create_app(config: ApiGatewayConfig) -> FastAPI:
+def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> FastAPI:
     """Create a configured FastAPI application.
+
+    ``instance`` is the ``--instance`` this process was started with (``None``
+    without one). The health beacon carries it rather than ``config.name``: the
+    pm-opctl-cli roster knows a process by its command line, and a bare
+    ``pm-api-gwy`` that picked the single configured entry (or the built-in
+    ``default``) would otherwise read MISSING next to itself (A+B review, I90).
 
     FastAPI automatically publishes OpenAPI at ``/openapi.json`` and Swagger UI
     at ``/docs``.  Those endpoints are controlled by ``swagger_enabled`` in the
@@ -167,7 +173,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         # Health beacon: a task that only sleeps and ticks, so loop_lag_ms is
         # the event loop's own stall time. Never ticked from EngineClient's
         # receive thread -- the loop is what must not stall (design A5.4).
-        reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME, config.name)
+        reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME, instance)
 
         async def _report_health(reporter: HealthReporter) -> None:
             while True:
@@ -487,7 +493,7 @@ def main() -> None:
     if not config.enabled:
         log.warning("selected api_gateways entry is disabled")
         sys.exit(1)
-    app = create_app(config)
+    app = create_app(config, instance=args.instance)
     _route_uvicorn_logging(config.log_level)
     try:
         uvicorn.run(

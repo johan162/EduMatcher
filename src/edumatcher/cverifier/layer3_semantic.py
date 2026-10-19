@@ -32,8 +32,10 @@ from edumatcher.gateway_ports import (
     resolved_fixed_listeners,
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
+from edumatcher.config import MONITOR_HOST
 from edumatcher.monitor.config import (
     DEFAULT_BEACON_INTERVAL_SEC,
+    DEFAULT_BIND_ADDRESS,
     DEFAULT_HUNG_AFTER_SEC,
     INVERTED_THRESHOLDS,
 )
@@ -1125,7 +1127,7 @@ def _iter_api_gateway_credential_ids(raw: dict[str, Any]) -> list[tuple[str, str
 
 
 # ---------------------------------------------------------------------------
-# monitor section (M029-M030)
+# monitor section (M029-M031)
 # ---------------------------------------------------------------------------
 # Cross-field rules the runtime loader deliberately leaves to the verifier
 # (edumatcher/monitor/config.py). pm-config-deploy refuses on any of them, so
@@ -1199,3 +1201,36 @@ def _check_monitor_semantic(raw: dict[str, Any], results: list[CheckResult]) -> 
                 path="monitor.hung_after_sec",
             )
         )
+
+    bind = section.get("bind_address", DEFAULT_BIND_ADDRESS)
+    host = section.get("host", MONITOR_HOST)
+    if isinstance(bind, str) and isinstance(host, str) and not _reaches(bind, host):
+        results.append(
+            CheckResult(
+                code="M031",
+                severity=Severity.WARN,
+                message=(
+                    f"'monitor.bind_address' ({bind}) is neither a wildcard nor "
+                    f"'monitor.host' ({host}): every process sends its beacons to "
+                    f"{host}, where pm-monitor may not be listening."
+                ),
+                suggestion=(
+                    "Set host to the address pm-monitor binds, or bind 0.0.0.0. "
+                    "EDUMATCHER_GATEWAY_BIND_HOST overrides bind_address at run "
+                    "time (the container sets 0.0.0.0), which is why this is a "
+                    "warning, not an error."
+                ),
+                path="monitor.bind_address",
+            )
+        )
+
+
+_WILDCARDS = frozenset({"0.0.0.0", "::", "*", ""})
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _reaches(bind: str, host: str) -> bool:
+    """Whether beacons sent to ``host`` reach a socket bound to ``bind``."""
+    if bind in _WILDCARDS or bind == host:
+        return True
+    return bind in _LOOPBACK and host in _LOOPBACK

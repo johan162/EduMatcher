@@ -2746,7 +2746,7 @@ def _check_log_server_lease_bounds(
 # monitor section (S124-S131)
 # ---------------------------------------------------------------------------
 # Shape only; the cross-field rules (band order, hung vs. interval) are layer 3
-# (M029-M030) and port collisions are M018. Unknown keys at every level are
+# (M029-M031) and port collisions are M018. Unknown keys at every level are
 # S121. See docs-design/EduMatcher-Operator-Dashboard.md §14.
 
 _MONITOR_PORT_FIELDS = (("pull_port", 5610), ("pub_port", 5611))
