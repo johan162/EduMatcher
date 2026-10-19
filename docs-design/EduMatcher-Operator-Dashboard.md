@@ -2464,6 +2464,14 @@ fan-out to browsers, and read-only history from `metrics.db`.
 - **C2.4** REST routes in `server.ts` with parameter validation (unknown
   metric → 400, range > 7 d → 400). *Verify with tests that* invalid input
   is rejected with 400 and valid input returns 200.
+- (From C1, I99) The scaffold already has `/ws` (not book-gui's
+  `/ws/stream`), the `hello` and `monitor_state` frames, `BridgeConfig.monitor`
+  (`MONITOR_HOST`, `MONITOR_PUB_PORT`, `MONITOR_DOWN_AFTER_SEC`) and
+  `metricsDbPath` (`METRICS_DB_PATH`, default `<data dir>/metrics.db`).
+  `hello.sessionTz` is a fixed `"UTC"` placeholder until the uplink has a
+  snapshot to take `exchange.session_timezone` from; `monitor` is fixed
+  `DOWN`. zeromq is already a dependency, allowed in `allowScripts`, and
+  loads in the image.
 - **C2.5** `packages/dash-types`: the §11.1 TypeScript types, shared by
   bridge and web. *Verify with tests that* `tsc --noEmit` passes in both
   apps against the shared types.
@@ -2701,6 +2709,13 @@ published to GHCR, and is documented where the other apps are.
   (`for app in trader terminal log config book dash`; F24). *Verify with
   tests that* `scripts/mkbld.sh` writes
   `web-apps/dash-gui/apps/web/src/version.json` with the project version.
+- **E1.7** (From C1, I100) `scripts/mkghrelease.sh` lists every published
+  image when the image workflow finishes; add `edumatcher-dash-gui` to that
+  list next to `edumatcher-book-gui`. The bridge's `hello.version` and
+  `/api/bridge/status` version come from `apps/bridge/package.json`, which
+  nothing bumps (0.1.0, as in every GUI's packages): either have
+  `mkbld.sh` set it as well, or make the bridge report the `version.json`
+  build version — the dashboard must not show two different versions.
 
 **Tests:** manual + E3.
 
