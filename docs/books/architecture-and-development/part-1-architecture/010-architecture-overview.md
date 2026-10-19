@@ -369,6 +369,15 @@ publishes the market model: true values for the AI traders, ADMIN and
 | pm-ai-trader / pm-ai-swarm | SUB→:5556, SUB→:5553, PUSH→:5555; ALF TCP to pm-alf-gwy | Connects | AI traders; orders go through `pm-alf-gwy`, only read requests to :5555 |
 | pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |
 | pm-ralf-gwy (RALF) | SUB→:5556 | Connects | Translates trade events to RALF TCP for external post-trade / clearing parties |
+| pm-monitor | PULL :5610, PUB :5611, SUB→:5556 | **Binds** :5610 and :5611; connects→:5556 | Health collector: judges every process from its beacon, computes rates and thresholds, keeps `metrics.db`, publishes `health.snapshot`/`health.event` |
+
+Every long-running process above (not the interactive viewers and consoles)
+also has a `HealthReporter`: a background thread with a PUSH→:5610 socket
+that sends a `health.beacon` to `pm-monitor` every two seconds — memory, CPU,
+how long ago its main loop last completed an iteration, and its counters.
+Sent from a thread rather than the loop, so a hung loop still reports (with a
+growing loop age), and sent without blocking, so a missing `pm-monitor` costs
+nothing. See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md).
 
 
 

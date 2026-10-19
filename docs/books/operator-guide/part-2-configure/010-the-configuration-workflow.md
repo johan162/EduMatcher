@@ -1298,7 +1298,7 @@ column like a printed index.
 │ docs/examples/ref_data/s10-nominal-setup/engine_config.yaml                                      │
 │ 42.7 kB  ·  2026-10-11 20:27  ·  via --file                                                      │
 │ ● on sessions   ○ off collars   ● on breakers   ● on mm-oblig                                    │
-│ 10 symbols   4 participants   2 API gateways   5 keys   15 listeners                             │
+│ 10 symbols   4 participants   2 API gateways   5 keys   17 listeners                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─  PORTS & LISTENERS  ────────────────────────────────────────────────────────────────────────────╮
 │  PORT   PROTO      PROCESS       FUNCTION                                    BIND                │
@@ -1316,6 +1316,8 @@ column like a printed index.
 │  5564   ZMQ REP    pm-index      Health ping                                 127.0.0.1   env     │
 │  5570   TCP        pm-md-gwy     Market data (CALF)                          0.0.0.0     set     │
 │  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           0.0.0.0     set     │
+│  5610   ZMQ PULL   pm-monitor    Health beacons (in)                         127.0.0.1   default │
+│  5611   ZMQ PUB    pm-monitor    Health snapshot feed                        127.0.0.1   default │
 │  8080   HTTP       pm-api-gwy    REST API — desk                             0.0.0.0     set     │
 │  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

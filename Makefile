@@ -291,6 +291,18 @@ verify: ## Run end-to-end deterministic matching verification suite
 	fi
 	@bash tools/verify_matching.sh
 
+stress-test: ## Run stress tests for the system
+	@echo -e "$(DARKYELLOW)- Running stress tests...$(NC)"
+	@for i in 1 2 3 4 5; do \ 
+		echo -e "$(DARKYELLOW)  - Stress test iteration $$i...$(NC)"; \
+		timeout 900 poetry run pytest -n auto tests \
+	    -m "not perf" -q --no-cov -p no:randomly -rf 2>&1 | grep -E "^FAILED|passed|failed" | tail -3; \
+	done
+	@if [ $$? -ne 0 ]; then \
+		echo -e "$(RED)✗ Stress tests failed$(NC)"; exit 1; \
+	fi
+	@echo -e "$(GREEN)✓ Stress tests completed$(NC)"
+
 # ============================================================================================
 # Code quality
 # ============================================================================================

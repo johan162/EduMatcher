@@ -177,7 +177,9 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {
         "name": "monitor",
         "command": ["pm-monitor", "--verbose"],
-        "tcp": "127.0.0.1:5610",
+        # A snapshot proves the collector loop runs; a TCP connect only
+        # proved the socket was bound (WP-B6).
+        "healthcheck": ["pm-monitor-cli", "health", "-q"],
     },
     {
         "name": "audit",
@@ -252,7 +254,9 @@ MINI_PROCESSES: list[dict[str, Any]] = [
     {
         "name": "monitor",
         "command": ["pm-monitor", "--verbose"],
-        "tcp": "127.0.0.1:5610",
+        # A snapshot proves the collector loop runs; a TCP connect only
+        # proved the socket was bound (WP-B6).
+        "healthcheck": ["pm-monitor-cli", "health", "-q"],
     },
     {
         "name": "stats",

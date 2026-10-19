@@ -242,12 +242,19 @@ asymmetry between them is deliberate rather than historical.
 
 | | Core plane | Service layer |
 |---|---|---|
-| Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy` |
-| Ports | 5555–5559 | 5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081 |
+| Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy`, `pm-monitor` |
+| Ports | 5555–5559 | 5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 5610/5611, 8080/8081 |
 | Who dials in | Other `pm-*` processes only | GUI containers, student clients, `curl`, Swagger |
 | Default bind host | `127.0.0.1` | `0.0.0.0` |
 | Constant | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `EDUMATCHER_GATEWAY_BIND_HOST` |
 | Opened by | `ZMQ=1` / `EM_ZMQ=1` | already open |
+
+`pm-monitor` is the one service-layer process whose own default is
+`127.0.0.1` (`monitor.bind_address`): every process that sends it a beacon
+runs in the same namespace. The compose file's
+`EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` still opens it to the Compose network,
+which is how the operator dashboard reaches its snapshot port 5611. Its ports
+are `EXPOSE`d by the image but published by no compose file.
 
 The core plane is an internal bus. Every peer shares the backend's namespace,
 so loopback is both sufficient and the safer default; `ZMQ=1` widens it when
@@ -792,7 +799,8 @@ the variables by hand.
 **No cross-host health signalling.** `pm-opctl-cli health`'s built-in
 recorder entries — `stats`, `audit`, `clearing` and `index-srv` — run each
 process's own `*-cli health -q`, which pings a health socket on loopback
-(5561–5564). That proves the process's loop is alive on *this* host; it says
+(5561–5564); the `monitor` entry runs `pm-monitor-cli health -q`, which waits
+for one of `pm-monitor`'s snapshots on 5611. That proves the process's loop is alive on *this* host; it says
 nothing about whether another host can reach it, because those health sockets
 bind `127.0.0.1` by default and the image does not publish them. That is one
 more reason the image `HEALTHCHECK` TCP-probes the engine on 5555 instead: a

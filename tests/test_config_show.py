@@ -310,6 +310,21 @@ def test_an_absent_monitor_block_still_lists_its_default_ports() -> None:
     ]
 
 
+def test_the_monitor_ports_show_pm_monitors_own_bind_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """pm-monitor binds loopback by default, unlike the gateways' 0.0.0.0;
+    the port map once showed 0.0.0.0 for an absent bind_address."""
+    import edumatcher.config as C
+
+    monkeypatch.setattr(C, "EDUMATCHER_GATEWAY_BIND_HOST", None)
+    assert {x.bind for x in _monitor_listeners({})} == {"127.0.0.1"}  # type: ignore[attr-defined]
+    authored: dict[str, object] = {"monitor": {"bind_address": "10.0.0.5"}}
+    assert {x.bind for x in _monitor_listeners(authored)} == {"10.0.0.5"}  # type: ignore[attr-defined]
+    monkeypatch.setattr(C, "EDUMATCHER_GATEWAY_BIND_HOST", "0.0.0.0")
+    assert {x.bind for x in _monitor_listeners({})} == {"0.0.0.0"}  # type: ignore[attr-defined]
+
+
 def test_a_disabled_monitor_lists_its_ports_as_off() -> None:
     listeners = _monitor_listeners({"monitor": {"enabled": False, "pub_port": 6611}})
     assert sorted((x.port, x.origin, x.enabled) for x in listeners) == [  # type: ignore[attr-defined]

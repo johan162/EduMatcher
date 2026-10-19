@@ -23,6 +23,14 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - WP-B7: E2's process and CLI documentation pulled forward (operator-guide
+>   chapter `060-health-monitor.md`, reference manual, formal specification,
+>   `pm-help`), plus `pm-monitor-cli health --extended`; `pm-config-show` now
+>   shows the monitor ports on pm-monitor's own default bind (I96–I97).
+> - WP-B6 (added after the A+B review): `pm-monitor-cli` -- `health`,
+>   `status` (exit code = exchange status), `events [--follow]`; the profile
+>   checks `monitor` with it. The scheduler's engine round-trips now tick the
+>   beacon while they wait (I93–I95).
 > - A+B review (the interaction of the two phases): the engine's trade
 >   counters reset at PRE_OPEN although the spec defines a COUNTER as
 >   monotonic since process start -- now exported with a carry (§8.2); the API
@@ -1399,6 +1407,8 @@ commit message per WP.
 | B3 | Rates, engine-bus events, thresholds, host sampler | B1 | 2 d |
 | B4 | `metrics.db` store, downsampling, retention | B3 | 1.5 d |
 | B5 | Start-up integration: `emo` profiles, container | B1 | 0.5 d |
+| B6 | `pm-monitor-cli`: health, status, events (added after the A+B review) | B4, B5 | 1 d |
+| B7 | Process and CLI documentation, `health --extended` (E2's first half, pulled forward) | B6 | 1 d |
 | **Phase C — bridge** | | | |
 | C1 | Scaffold `web-apps/dash-gui` | — | 0.5 d |
 | C2 | Bridge: monitor uplink, `/ws`, history REST | B1, B4, C1 | 2 d |
@@ -1411,7 +1421,7 @@ commit message per WP.
 | E1 | Compose (docker + curl stacks), GHCR workflow, `mkbld.sh`, Makefiles, READMEs | C1, B5 | 1 d |
 | E2 | Operator-guide chapter and reference docs | D4, A3 | 1 d |
 | E3 | End-to-end scenarios | all | 1.5 d |
-| | **Total** | | **≈ 31.5 d** |
+| | **Total** | | **≈ 33.5 d** |
 
 The estimate grew from 27 d (v0.1.0) because the reject funnel (F4), the
 scheduler sleep change (F8) and the config-artifact version bump (F19) are
@@ -2266,6 +2276,105 @@ an image build and stays with E3. Insights I76–I79.
 
 ---
 
+### WP-B6 — `pm-monitor-cli`
+
+*Added after the A+B review (2026-10-19), at the maintainer's request.*
+
+**Objective:** A read-only query CLI for pm-monitor, as `pm-stats-cli`,
+`pm-audit-cli` and `pm-clearing-cli` are for their recorders, so an operator
+with only a shell -- SSH into the container, a CI job, E3's scenarios -- can
+see what the dashboard will show. `pm-opctl-cli` manages processes (PID and a
+TCP probe); it cannot tell HUNG from SILENT, knows nothing of other hosts,
+rates, thresholds or history. Nothing here writes, so it has no side effects.
+
+**Depends on:** B4 (events in `metrics.db`), B5 (the profile entry).
+
+**Tasks:**
+- **B6.1** `monitor/cli.py`, entry point `pm-monitor-cli`. Global options:
+  `--version`, `--host`/`--port` (default: the deployed `monitor` section's
+  `host` and `pub_port`), `--db` (default `METRICS_DB_FILE`), `--format
+  table|json`, `--timeout` (seconds to wait for a snapshot, default 3 -- the
+  bridge's "monitor down" rule).
+- **B6.2** `health [-q] [-v]`: healthy when a `health.snapshot` arrives
+  within the timeout. Snapshots come from pm-monitor's main loop, so this
+  proves the loop runs -- no REP socket needed, unlike the recorders. `-q`
+  prints nothing and exits 0 / -1 like the siblings; `-v` adds the PIDs, the
+  snapshot's age and sequence. The `monitor` profile entry uses it as its
+  `healthcheck` instead of the TCP probe, which only proved the socket bound.
+- **B6.3** `status`: one snapshot as a table (exchange status, session,
+  trading summary, every process with state, PID, uptime, RSS, CPU, loop lag,
+  last-beacon age and the restarted badge, active breaches); `--format json`
+  prints the snapshot as received. Exit code from the exchange status: 0
+  OPERATIONAL, 1 DEGRADED, 3 IMPAIRED, 4 DOWN, 5 pm-monitor unreachable (2
+  stays the usage-error code argparse and the sibling CLIs use).
+- **B6.4** `events [--since ISO] [--kind K] [--subject TEXT] [--limit N]`:
+  the event log from `metrics.db`, opened read-only with short reads (I87);
+  `--follow` then prints live `health.event`s as they arrive, from the PUB,
+  skipping any `seq` already printed; `--count N` stops after N live events
+  (scripts, tests).
+
+**Tests:** `tests/test_monitor_cli.py`.
+
+**Done when:** against a running profile, `pm-monitor-cli status` shows the
+same states the dashboard snapshot does and exits 0, `pm-opctl-cli list` shows
+`monitor` with `healthcheck passed`, and stopping the engine makes `status`
+exit 4.
+
+**Watch out for:**
+- The CLI must never write `metrics.db` or keep a read transaction open.
+- A SUB joins late (slow joiner); wait for the *next* snapshot, never
+  assume one is waiting.
+
+**Outcome (2026-10-19):** `monitor/cli.py`, entry point `pm-monitor-cli`.
+The `monitor` profile entry's check is now `pm-monitor-cli health -q`. A
+real `mm-demo` run: `list` showed `healthcheck passed`; `status` printed all
+16 processes HEALTHY and exited 0; stopping the engine made it exit 4, and
+stopping the profile made it exit 5; `events --follow --kind
+PROCESS_STATUS` printed the history and then the live `HEALTHY -> STOPPED`.
+`--follow` subscribes before reading the history and fills any `seq` gap
+from `metrics.db`, so no event is lost between the two. The run also
+showed the scheduler DEGRADED for 6 s at start-up: its engine round-trips
+polled up to 2 s without ticking; they now poll in 0.5 s slices that tick
+(I93–I95).
+
+---
+
+### WP-B7 — Process and CLI documentation
+
+*Added after B6 (2026-10-19), at the maintainer's request: E2's documentation
+of `pm-monitor` and `pm-monitor-cli`, pulled forward because Phase B is
+complete and in every profile, while the dashboard chapter waits for D4.*
+
+**Tasks (all done):**
+- **B7.1** `pm-monitor-cli health --extended` (parity with `pm-stats-cli`):
+  `metrics.db` integrity, schema, pinned timezone against the deployed one,
+  write access; `-v` adds size, WAL size and row counts. Strictly read-only:
+  a `mode=ro` connection and `os.access`, never a writable connection.
+- **B7.2** Operator guide: new chapter
+  `part-6-observe-and-recover/060-health-monitor.md` (beacons, the health
+  states and exchange status, thresholds and events, rates, `metrics.db`,
+  the `monitor` section, `pm-monitor-cli` with exit codes and a cookbook,
+  troubleshooting), in `book.toml` and `mkdocs.yml`.
+- **B7.3** Reference manual: `pm-monitor` in the port tables; `pm-monitor`
+  and `pm-monitor-cli` sections; `Configuring pm-monitor` and the `monitor`
+  rows in the schema tables; the formal specification (`MonitorSpec`, §6.8,
+  CV23).
+- **B7.4** `pm-help` entries for both commands (was E2.3).
+- **B7.5** Stale pages: architecture overview (process table, beacons),
+  containers-and-networks (service layer, health checks), running the
+  exchange (data files, profiles, start order), configuration workflow
+  (`pm-config-show` sample), config verifier (wrong link).
+- **B7.6** `tests/test_docs_monitor_config.py`: the reference example and the
+  formal specification's defaults equal `MonitorConfig()` (was E2.2's test).
+
+**Outcome (2026-10-19):** all of the above; `mkdocs build --strict` clean.
+Writing the docs found a real bug: `pm-config-show` printed the monitor ports
+as bound on `0.0.0.0` when `bind_address` was absent, while pm-monitor binds
+its own default `127.0.0.1` (I96). The CHANGELOG stays with the release
+(E2.4).
+
+---
+
 ### WP-C1 — Scaffold `web-apps/dash-gui`
 
 **Objective:** An empty but buildable, testable and containerised app with
@@ -2616,20 +2725,15 @@ documents the `monitor` block and the new messages.
 
 **Tasks:**
 - **E2.1** New chapter
-  `docs/books/operator-guide/part-6-observe-and-recover/060-operator-dashboard.md`
-  (next free number after `050-log-console.md`): starting it, reading each
-  row, the seven health states and what to do for each, thresholds and how
-  they reach log-gui alerts. *Verify with tests that* the operator-guide
+  `docs/books/operator-guide/part-6-observe-and-recover/070-operator-dashboard.md`
+  (`060-health-monitor.md` is B7's): starting it and reading each row; link
+  to `060-health-monitor.md` for the health states, thresholds and
+  `metrics.db` rather than repeating them. *Verify with tests that* the operator-guide
   book builds and the chapter is in its `SUMMARY`/index.
-- **E2.2** `docs/books/reference-manual/part-3-configuration/010-schema-and-process-blocks.md`
-  and `030-formal-specification.md`: the `monitor` block (every key,
-  default, validation code S124+/M029+). *Verify with tests that* the
-  documented defaults equal `MonitorConfig()` (a doc test that parses the
-  table, if the book already has one for `log_server`; otherwise review).
-- **E2.3** `pm-help`/`pm-man` entry for `pm-monitor` in
-  `src/edumatcher/pm_help/registry.py` (same shape as the `pm-stats` entry,
-  with `related=("pm-opctl-cli", "pm-log-srv")`). *Verify with tests that*
-  `pm-help pm-monitor` prints the page.
+- **E2.2** *Done in B7* (the `monitor` block in both reference pages, with
+  the doc test). Add `pm-dash` to the reference manual's process and port
+  tables.
+- **E2.3** *Done in B7* for `pm-monitor` and `pm-monitor-cli`.
 - **E2.4** CHANGELOG: breaking artifact change (SCHEMA_VERSION 5), new
   process, new app. *Verify with tests that* — review only.
 

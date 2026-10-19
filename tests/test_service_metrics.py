@@ -415,3 +415,40 @@ def test_market_sim_loop_ticks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     runner.run()
     assert reporter.ticks >= 10
     assert reporter.stopped
+
+
+class _SlowSock:
+    """A socket that is never readable; poll() waits its timeout and records it."""
+
+    def __init__(self, readable_after: int | None = None) -> None:
+        self.timeouts: list[int] = []
+        self.readable_after = readable_after
+
+    def poll(self, timeout: int = 0) -> int:
+        self.timeouts.append(timeout)
+        if self.readable_after is not None and len(self.timeouts) > self.readable_after:
+            return 1
+        time.sleep(timeout / 1000)
+        return 0
+
+
+def test_engine_round_trips_tick_while_they_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A+B review, I93: a 2 s wait for the engine's reply was one poll, so the
+    beacon saw the scheduler's loop ~2 s late at start-up and every transition."""
+    monkeypatch.setattr(sched, "LIVENESS_CHUNK_SEC", 0.05)
+    wakes: list[float] = []
+    sock = _SlowSock()
+    assert not sched._poll_live(sock, 230, lambda: wakes.append(time.monotonic()))
+    assert max(sock.timeouts) <= 50
+    assert len(wakes) >= 4
+    gaps = [b - a for a, b in zip(wakes, wakes[1:])]
+    assert max(gaps) < 0.2
+
+
+def test_a_reply_ends_the_wait_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sched, "LIVENESS_CHUNK_SEC", 0.05)
+    sock = _SlowSock(readable_after=1)
+    assert sched._poll_live(sock, 5000, None)
+    assert len(sock.timeouts) == 2

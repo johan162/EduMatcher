@@ -49,7 +49,7 @@ def test_the_monitor_entry() -> None:
     assert entry == {
         "name": "monitor",
         "command": ["pm-monitor", "--verbose"],
-        "tcp": "127.0.0.1:5610",
+        "healthcheck": ["pm-monitor-cli", "health", "-q"],
     }
 
 

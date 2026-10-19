@@ -34,6 +34,9 @@ from edumatcher.gateway_ports import (
     resolved_fixed_listeners,
 )
 
+from edumatcher.monitor.config import (
+    DEFAULT_BIND_ADDRESS as DEFAULT_MONITOR_BIND_ADDRESS,
+)
 from edumatcher.monitor.config import THRESHOLD_RULES, monitor_config_from_raw
 from edumatcher.config_show.model import (
     ApiGateway,
@@ -219,7 +222,11 @@ def _listeners(raw: dict[str, Any]) -> tuple[Listener, ...]:
     monitor = raw.get(MONITOR_SECTION)
     monitor = {} if monitor is None else monitor
     if isinstance(monitor, dict):
-        monitor_bind = resolve_gateway_bind_host(monitor.get("bind_address"))
+        # pm-monitor's own default (loopback), not the gateways' 0.0.0.0: the
+        # port map must show what pm-monitor actually binds (B7 docs review).
+        monitor_bind = resolve_gateway_bind_host(
+            monitor.get("bind_address", DEFAULT_MONITOR_BIND_ADDRESS)
+        )
         monitor_enabled = monitor.get("enabled", True) is not False
         for extra in MONITOR_PORTS:
             mport = effective_port(monitor, extra.default_port, key=extra.field)

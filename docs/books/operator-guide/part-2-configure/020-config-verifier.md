@@ -494,7 +494,7 @@ The rules that relate two `monitor` fields are semantic checks (`M029`,
 `M030`, `M031`); a `monitor` port that collides with another listener, or
 `pull_port` equal to `pub_port`, is `M018`.
 
-See [LALF-PS](../part-6-observe-and-recover/040-log-server.md#lalf-ps-the-zeromq-log-distribution-interface)
+See [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md#configuration)
 for what these fields do.
 
 ### Layer 3 — Semantic (`M001`–`M031`)
