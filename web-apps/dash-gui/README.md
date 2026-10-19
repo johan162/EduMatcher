@@ -9,9 +9,8 @@ Zustand for client state.
 The design, and the reasons behind it, are in
 [`docs-design/EduMatcher-Operator-Dashboard.md`](../../docs-design/EduMatcher-Operator-Dashboard.md).
 
-> **Status:** scaffold (WP-C1). The bridge serves the app, greets each tab
-> on `/ws` and answers `/api/bridge/status`; the pm-monitor uplink and
-> history routes arrive in WP-C2, the dashboard itself in WP-D1–D4.
+> **Status:** the bridge is complete (WP-C2): live snapshots and events on
+> `/ws`, history over REST. The dashboard screens arrive in WP-D1–D4.
 
 **Dependencies:** `pm-monitor` is required — the bridge subscribes to its PUB
 socket (`monitor.pub_port`, default 5611) for the 1 Hz `health.snapshot` and
@@ -57,6 +56,31 @@ make dev         # bridge on 127.0.0.1:5195, Vite on http://localhost:8195
 
 Vite proxies `/api` and `/ws` to the bridge, so open the Vite URL.
 
+## Bridge interface
+
+`/ws` (WebSocket): `hello` (version, pm-monitor UP/DOWN, session timezone),
+then the latest `snapshot` when pm-monitor is up, then every `snapshot`
+(1 Hz), `event` and `monitor_state` as they come. Snapshot and event
+payloads are pm-monitor's `health.snapshot` / `health.event`, unchanged
+(snake_case; `packages/dash-types/src/health.ts`, pinned to
+`spec/messages/health.yaml` by `tests/test_dash_types_mirror.py`). A tab
+that does not read is cut off rather than buffered for.
+
+REST (history from `metrics.db`, read-only; times in a request are ISO-8601
+UTC or epoch ms, in a response epoch ms; ranges at most 7 days):
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/series?name=&label=&source=&from=&to=` (or `range=5m\|15m\|1h\|6h\|24h\|7d`) | One series, at most 1000 points; every 10 s sample up to `MONITOR_RAW_HOURS`, the minute roll-up beyond. `source=` is required when several processes record the name |
+| `GET /api/series/multi?name=&labels=a,b&source=&range=` | Several labels of one metric (all of them when `labels=` is left out, at most 50) |
+| `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` | Counter increments per bucket, summed over sources (and labels when none is given) |
+| `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
+| `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |
+| `GET /api/bridge/status` | Uplink state, counts, `metrics.db` health, tabs, logging |
+
+A bad parameter is a 400 `{error, message}`; an unknown label or source a
+404; a missing `metrics.db` a 503.
+
 ## Environment variables
 
 | Variable | Default | Meaning |
@@ -66,6 +90,7 @@ Vite proxies `/api` and `/ws` to the bridge, so open the Vite URL.
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long → pm-monitor shown DOWN |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | pm-monitor's history, opened read-only |
+| `MONITOR_RAW_HOURS` | `6` | `monitor.retention.raw_hours`: ranges up to this read the 10 s samples |
 | `EDUMATCHER_DATA_DIR` | `src/data` in a checkout | The data directory, as the Python processes resolve it |
 | `CORS_ORIGIN` | `*` | Restrict when exposed beyond localhost |
 | `STATIC_DIR` | unset | Built web app to serve (set in the container) |

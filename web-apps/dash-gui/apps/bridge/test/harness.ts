@@ -7,7 +7,7 @@ import WebSocket from "ws";
 import type { ServerFrame } from "@edumatcher/dash-types";
 import type { BridgeConfig } from "../src/config.js";
 import type { Logger } from "../src/logging/logger.js";
-import { buildBridge, type Bridge } from "../src/server.js";
+import { buildBridge, type Bridge, type BuildOptions } from "../src/server.js";
 
 export const silentLogger: Logger = {
   debug: () => undefined,
@@ -30,6 +30,7 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     wsMaxBufferedBytes: 5_000_000,
     monitor: { host: "127.0.0.1", pubPort: 5611, downAfterSec: 3 },
     metricsDbPath: "/nonexistent/metrics.db",
+    rawHours: 6,
     logServer: {
       enabled: false,
       host: "127.0.0.1",
@@ -61,10 +62,11 @@ export class Tab {
     return tab;
   }
 
-  async next<T extends ServerFrame["type"]>(type: T, timeoutMs = 3000): Promise<Extract<ServerFrame, { type: T }>> {
+  /** The first frame of `type` at or after index `from`. */
+  async next<T extends ServerFrame["type"]>(type: T, from = 0, timeoutMs = 3000): Promise<Extract<ServerFrame, { type: T }>> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
-      const hit = this.frames.find((f): f is Extract<ServerFrame, { type: T }> => f.type === type);
+      const hit = this.frames.slice(from).find((f): f is Extract<ServerFrame, { type: T }> => f.type === type);
       if (hit) return hit;
       if (Date.now() > deadline) throw new Error(`no ${type} frame; got ${this.frames.map((f) => f.type).join(",")}`);
       await new Promise((r) => setTimeout(r, 10));
@@ -82,10 +84,32 @@ export interface Rig {
   stop(): Promise<void>;
 }
 
-export async function startRig(overrides: Partial<BridgeConfig> = {}): Promise<Rig> {
-  const bridge = await buildBridge(testConfig(overrides), silentLogger);
+/** The bridge on an ephemeral port; by default its uplink is fed by the test, not ZeroMQ. */
+export async function startRig(overrides: Partial<BridgeConfig> = {}, opts: BuildOptions = { connect: false }): Promise<Rig> {
+  const bridge = await buildBridge(testConfig(overrides), silentLogger, opts);
   await bridge.app.listen({ host: "127.0.0.1", port: 0 });
   const addr = bridge.app.server.address();
   const port = addr && typeof addr === "object" ? addr.port : 0;
   return { bridge, port, stop: () => bridge.close() };
+}
+
+/** Two frames as pm-monitor sends them: topic, JSON payload. */
+export function frames(topic: string, payload: unknown): Buffer[] {
+  return [Buffer.from(topic, "utf8"), Buffer.from(JSON.stringify(payload), "utf8")];
+}
+
+/** The smallest snapshot the bridge reads anything from. */
+export function snapshot(seq: number, tz = "Europe/Stockholm"): Record<string, unknown> {
+  return {
+    ts: `2026-10-19T08:00:${String(seq % 60).padStart(2, "0")}.000Z`,
+    seq,
+    exchange: { status: "OPERATIONAL", session_state: "CONTINUOUS", trading_date: "2026-10-19", session_timezone: tz },
+    host: {},
+    processes: [],
+    trading: {},
+    participants: [],
+    books: [],
+    gateways: [],
+    thresholds: [],
+  };
 }

@@ -34,6 +34,11 @@ export interface BridgeConfig {
 
   /** pm-monitor's history, opened read-only. */
   metricsDbPath: string;
+  /**
+   * `monitor.retention.raw_hours`: ranges up to this read every 10 s sample,
+   * longer ones the one-minute roll-up. Set it to what pm-monitor keeps.
+   */
+  rawHours: number;
 
   logServer: {
     enabled: boolean;
@@ -102,6 +107,7 @@ export function loadBridgeConfig(): BridgeConfig {
     },
 
     metricsDbPath: process.env["METRICS_DB_PATH"] ?? join(dataDir, "metrics.db"),
+    rawHours: intFromEnv("MONITOR_RAW_HOURS", 6),
 
     logServer: {
       enabled: boolFromEnv("LOG_SRV_ENABLED", true),

@@ -297,11 +297,11 @@ stress-test: ## Run stress tests for the system
 		echo -e "$(DARKYELLOW)  - Stress test iteration $$i...$(NC)"; \
 		poetry run pytest -n auto tests \
 	    -m "not perf" -q --no-cov -p no:randomly -rf 2>&1 | grep -E "^FAILED|passed|failed" | tail -3; \
+		if [ $$? -ne 0 ]; then \
+			echo -e "$(RED)✗ Stress tests failed$(NC)"; exit 1; \
+		fi; \
 	done
-	@if [ $$? -ne 0 ]; then \
-		echo -e "$(RED)✗ Stress tests failed$(NC)"; exit 1; \
-	fi
-	@echo -e "$(GREEN)✓ Stress tests completed$(NC)"
+	echo -e "$(GREEN)✓ Stress test completed$(NC)"; 
 
 # ============================================================================================
 # Code quality

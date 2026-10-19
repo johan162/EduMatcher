@@ -22,7 +22,10 @@ describe("bridge", () => {
     expect(body).toMatchObject({
       monitor: "DOWN",
       source: "127.0.0.1:5611",
-      metricsDb: "/nonexistent/metrics.db",
+      snapshotsIn: 0,
+      eventsIn: 0,
+      lastSnapshotTs: null,
+      metricsDb: { path: "/nonexistent/metrics.db", ok: false },
       wsClients: 0,
       logging: "test",
     });

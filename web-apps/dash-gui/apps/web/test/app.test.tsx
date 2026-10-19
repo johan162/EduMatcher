@@ -38,7 +38,7 @@ beforeEach(() => {
   localStorage.clear();
   FakeSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeSocket);
-  useDashStore.setState({ socket: "CONNECTING", monitor: null, bridgeVersion: null, sessionTz: "UTC" });
+  useDashStore.setState({ socket: "CONNECTING", monitor: null, bridgeVersion: null, sessionTz: "UTC", snapshot: null, events: [] });
   usePrefsStore.setState({ theme: "dark" });
 });
 

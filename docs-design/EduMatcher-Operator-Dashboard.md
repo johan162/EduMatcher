@@ -947,6 +947,21 @@ at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 
 Ranges: `5m`, `15m`, `1h`, `6h`, `24h`, `7d` — the Grafana time picker set.
 
+As built (WP-C2): request times are ISO-8601 UTC or epoch ms, `range=` is an
+alternative to `from=`; every response time is epoch ms. `source=` is
+optional and required only when several processes record the name (a
+`proc.*` vital is recorded by every process — the dashboard passes the
+`ProcessHealth.key`, which *is* the series source). `/api/rate` and
+`/api/daily` sum over sources, and over labels when none is given (rates add
+up; gauges do not, which is why `/api/series` refuses to merge). The raw
+table answers ranges up to `MONITOR_RAW_HOURS` (the bridge's copy of
+`monitor.retention.raw_hours`, default 6) and the minute table beyond, or
+when raw rows are gone. `/api/events` also takes `after_seq=` (catch-up) and
+`limit=` (≤ 1000, newest kept). Errors: 400 for bad input, 404
+`unknown_series`, 503 `metrics_db_unavailable`. Snapshot and event payloads
+reach the browser unchanged in snake_case; `dash-types/src/health.ts` is
+pinned to the spec by `tests/test_dash_types_mirror.py`.
+
 ## 12. Screen design
 
 ### 12.1 Layout principles (from Grafana)
