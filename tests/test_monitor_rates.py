@@ -192,8 +192,10 @@ class TestActivityCounting:
             ],
         )
         assert a.orders.today == 3
-        # trades are a daily counter: the first value is all today's
-        assert a.trades.today == 8
+        # the engine's "daily" trade counter is a baseline too: it is zeroed
+        # at PRE_OPEN, not midnight (or never, without sessions), so its first
+        # value may hold earlier days (review R3)
+        assert a.trades.today == 1
 
     def test_today_resets_at_local_midnight(self) -> None:
         a = Activity(STOCKHOLM)

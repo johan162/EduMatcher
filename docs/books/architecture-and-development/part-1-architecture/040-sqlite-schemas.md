@@ -952,6 +952,12 @@ CREATE VIEW v_samples_raw AS
     FROM samples_raw r JOIN series s ON s.id = r.series
 ```
 
+#### `index idx_daily_name`
+
+```sql
+CREATE INDEX idx_daily_name ON daily_totals(name, label, date)
+```
+
 #### `index idx_ev_ts`
 
 ```sql

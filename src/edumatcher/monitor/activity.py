@@ -14,14 +14,14 @@ process, which metric means what.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, time as dtime, tzinfo
 from typing import Any
 
 from edumatcher.engine.metrics import SESSION_STATE_ORDER
 from edumatcher.models.generated.health import HealthBeacon
-from edumatcher.monitor.rates import DAILY_COUNTERS, CounterTracker, Rate, Step
+from edumatcher.monitor.rates import CounterTracker, Rate, Step
 from edumatcher.monitor.timefmt import iso_utc
 from edumatcher.stats.trading_day import trading_date
 
@@ -251,7 +251,7 @@ class Activity:
                 continue
             delta, step = self.tracker.step((key, name, label), beacon.boot_id, value)
             windowed = step is Step.LIVE
-            if step is Step.FIRST and not (started_today or name in DAILY_COUNTERS):
+            if step is Step.FIRST and not started_today:
                 continue  # a baseline from before today
             if delta <= 0:
                 continue
@@ -407,10 +407,15 @@ class Activity:
         requests = self.requests.last_5m(now)
         return 0.0 if requests <= 0 else 100.0 * self.rejects.last_5m(now) / requests
 
-    def trading(self, now: float, now_wall: float) -> dict[str, Any]:
+    def trading(
+        self, now: float, now_wall: float, *, engine_live: bool = True
+    ) -> dict[str, Any]:
+        """``TradingStats``. Without a live engine (STOPPED, DEAD, never
+        heard of) its last latency and load gauges are history, not now, so
+        they read 0; the day's counts stay (review R2)."""
         self.roll_day(now_wall)
         hours = self.hours_open(now_wall)
-        g = self.engine_gauges
+        g = self.engine_gauges if engine_live else {}
         return {
             "orders": self.orders.stats(
                 now, hours, self.daily_averages.get(("engine.orders_in", None))
@@ -425,16 +430,21 @@ class Activity:
             "busy_pct": max(0.0, g.get("engine.busy_pct", 0.0)),
         }
 
-    def participant_records(self, now: float, now_wall: float) -> list[dict[str, Any]]:
+    def participant_records(
+        self, now: float, now_wall: float, *, engine_live: bool = True
+    ) -> list[dict[str, Any]]:
+        """``ParticipantStats``; nobody is connected to an engine that is not
+        running, whatever its last beacon said (review R2)."""
         hours = self.hours_open(now_wall)
         out = []
         for gateway_id, p in sorted(self.participants.items()):
+            connected = bool(p.connected) and engine_live
             out.append(
                 {
                     "id": gateway_id[:32],
                     "role": self.roles.get(gateway_id, "")[:32],
-                    "connected": bool(p.connected),
-                    "connected_since": p.connected_since if p.connected else None,
+                    "connected": connected,
+                    "connected_since": p.connected_since if connected else None,
                     "orders": p.orders.stats(
                         now,
                         hours,
@@ -473,8 +483,12 @@ class Activity:
             )
         return out
 
-    def gateway_records(self, now: float, keys: Iterable[str]) -> list[dict[str, Any]]:
-        """``GatewayStats`` for the gateway processes among ``keys``."""
+    def gateway_records(
+        self, now: float, keys: Iterable[str], gone: Collection[str] = ()
+    ) -> list[dict[str, Any]]:
+        """``GatewayStats`` for the gateway processes among ``keys``. A gateway
+        in ``gone`` (STOPPED or DEAD) has no clients, whatever its last beacon
+        said (review R2)."""
         out = []
         for key in keys:
             g = self.gateways.get(key)
@@ -486,7 +500,9 @@ class Activity:
                 {
                     "key": key,
                     "kind": spec.kind,
-                    "clients": int(g.gauge_sum(spec.clients) or 0),
+                    "clients": (
+                        0 if key in gone else int(g.gauge_sum(spec.clients) or 0)
+                    ),
                     "clients_max": None if clients_max is None else int(clients_max),
                     "msgs_per_sec": g.traffic.minute.total(now) / 60.0,
                     "disconnects_today": int(g.disconnects),

@@ -94,6 +94,11 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: poll timeout's floor. Ticking after every message cost most of the bot's
 #: CPU at 300 symbols, where messages arrive in the thousands a second.
 _TICK_MIN_SEC = 0.05
+#: With a health reporter attached the quoting loop wakes at least this often,
+#: so its designed idle wait stays well under pm-monitor's 1 s DEGRADED line
+#: for ``loop_lag_ms``; a patient symbol's 2.5 s poll read as a late loop
+#: forever (review R8). A few idle wake-ups a second cost nothing.
+_LIVENESS_POLL_MS = 500
 
 
 def _update_position(
@@ -1861,6 +1866,8 @@ class MMBot:
 
         next_tick = 0.0
         reporter = self._reporter
+        if reporter is not None:
+            poll_timeout_ms = min(poll_timeout_ms, _LIVENESS_POLL_MS)
         while self._running:
             if reporter is not None:
                 reporter.tick_and_publish(self.metric_samples)

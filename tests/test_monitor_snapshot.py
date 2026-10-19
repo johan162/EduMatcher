@@ -63,7 +63,9 @@ def _g(name: str, value: float, label: str = "") -> dict[str, Any]:
     return {"name": name, "kind": "GAUGE", "label": label, "value": value}
 
 
-def _engine(seq: int, gw1_orders: float, mm_orders: float, **extra: Any) -> list[bytes]:
+def _engine(
+    seq: int, gw1_orders: float, mm_orders: float, *, final: bool = False, **extra: Any
+) -> list[bytes]:
     metrics = [
         _c("engine.orders_in", gw1_orders, "GW1"),
         _c("engine.orders_in", mm_orders, "MM01"),
@@ -87,7 +89,7 @@ def _engine(seq: int, gw1_orders: float, mm_orders: float, **extra: Any) -> list
         _g("engine.book_halted", 0, "AAA"),
     ]
     started = int((OPEN - 3600) * 1e9)  # started this morning
-    return _beacon_frames(seq=seq, metrics=metrics, started_at_ns=started)
+    return _beacon_frames(seq=seq, metrics=metrics, started_at_ns=started, final=final)
 
 
 def _snapshot(mon: Monitor) -> HealthSnapshot:
@@ -316,3 +318,45 @@ def test_heap_garbage_needs_a_real_heap(
     )
     rules = [(b.rule, b.subject) for b in _snapshot(mon).thresholds]
     assert rules == ([("heap_garbage_pct", "AAA")] if breached else [])
+
+
+def test_a_stopped_engine_has_no_connections_or_latency(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """Review R2: the last beacon of a gone engine is history, not now."""
+    mon.receive(_engine(0, 0, 0, mm_connected=1), clocks.mono)
+    clocks.advance(2.0)
+    mon.receive(_engine(1, 4, 2, mm_connected=1), clocks.mono)
+    live = _snapshot(mon)
+    assert live.trading.handle_p99_us == 80.0
+    assert all(p.connected for p in live.participants)
+
+    mon.receive(_engine(2, 4, 2, mm_connected=1, final=True), clocks.mono)
+    stopped = _snapshot(mon)
+    assert [p.state for p in stopped.processes] == ["STOPPED"]
+    assert stopped.exchange.status == "DOWN"
+    assert (stopped.trading.handle_p99_us, stopped.trading.busy_pct) == (0.0, 0.0)
+    assert not any(p.connected for p in stopped.participants)
+    assert all(p.connected_since is None for p in stopped.participants)
+    assert stopped.trading.orders.today == 6  # the day's counts stay
+
+
+def test_a_stopped_gateway_has_no_clients(mon: Monitor, clocks: _Clocks) -> None:
+    started = int((OPEN - 3600) * 1e9)
+    metrics = [_g("md.clients", 5), _c("md.msgs_out", 0)]
+    mon.receive(
+        _beacon_frames(process="pm-md-gwy", metrics=metrics, started_at_ns=started),
+        clocks.mono,
+    )
+    assert _snapshot(mon).gateways[0].clients == 5
+    mon.receive(
+        _beacon_frames(
+            process="pm-md-gwy",
+            seq=1,
+            final=True,
+            metrics=metrics,
+            started_at_ns=started,
+        ),
+        clocks.mono,
+    )
+    assert _snapshot(mon).gateways[0].clients == 0

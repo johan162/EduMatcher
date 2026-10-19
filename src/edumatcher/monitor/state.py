@@ -67,6 +67,11 @@ RESTART_BADGE_SEC = 600.0
 #: minute, a little over an hour of them.
 RSS_HISTORY_EVERY_SEC = 60.0
 RSS_GROWTH_WINDOW_SEC = 3600.0
+#: RSS history starts this long after pm-monitor first heard from an
+#: incarnation (and never while it is ``starting``): a process loading its
+#: configuration, books or caches grows by design, and judging that against a
+#: just-started baseline would read every start-up as a leak (review R4).
+RSS_WARMUP_SEC = 600.0
 
 #: Participant bots: clients of the exchange, shown in their own group and
 #: never counted in the exchange status (design Q2).
@@ -220,6 +225,8 @@ class ProcessState:
     beacon: HealthBeacon
     received_at: float  # pm-monitor monotonic clock
     restarted_at: float | None = None  # monotonic; None until a boot_id change
+    #: When pm-monitor first heard from the current incarnation (monotonic).
+    boot_seen_at: float = -1.0
     rss: deque[int] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
     cpu: deque[float] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
     #: ``(receive time, rss)`` once a minute, for the RSS growth rule.
@@ -230,6 +237,8 @@ class ProcessState:
     )
 
     def __post_init__(self) -> None:
+        if self.boot_seen_at < 0:
+            self.boot_seen_at = self.received_at
         self._record(self.beacon, self.received_at)
 
     @property
@@ -289,6 +298,7 @@ class ProcessState:
             if beacon.started_at_ns < current.started_at_ns:
                 return Ingest.STALE
             self.restarted_at = now
+            self.boot_seen_at = now
             self.rss.clear()
             self.cpu.clear()
             self.rss_history.clear()
@@ -357,6 +367,8 @@ class ProcessState:
     def _record(self, beacon: HealthBeacon, now: float) -> None:
         self.rss.append(beacon.rss_bytes)
         self.cpu.append(beacon.cpu_pct)
+        if beacon.starting or now - self.boot_seen_at < RSS_WARMUP_SEC:
+            return
         history = self.rss_history
         if not history or now - history[-1][0] >= RSS_HISTORY_EVERY_SEC:
             history.append((now, beacon.rss_bytes))

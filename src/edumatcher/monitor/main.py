@@ -13,8 +13,13 @@ See docs-design/EduMatcher-Operator-Dashboard.md §9.
 Configuration comes from the ``monitor:`` section of the deployed artifact
 (there are no flags for it): ``bind_address``, ``pull_port`` (beacons in,
 default 5610) and ``pub_port`` (snapshots out, default 5611).
-``EDUMATCHER_GATEWAY_BIND_HOST`` overrides ``bind_address``. With
-``monitor.enabled: false`` pm-monitor refuses to start (exit 2).
+``EDUMATCHER_GATEWAY_BIND_HOST`` overrides ``bind_address``.
+
+With ``monitor.enabled: false`` pm-monitor says so once and then idles --
+binding nothing, writing nothing -- until it is stopped (exit 0). It does not
+exit at once: every built-in pm-opctl-cli profile runs it, and the
+container's once-a-minute ``list --restart`` would restart an exited
+pm-monitor forever, logging the same refusal each time (review R5).
 
 The trading date in the snapshot follows the engine's session timezone
 (``engine.locale.session_timezone``), as pm-stats does, so "today" means the
@@ -28,6 +33,7 @@ import logging
 import signal
 import sqlite3
 import sys
+import threading
 import time
 
 import zmq
@@ -140,6 +146,15 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return level
 
 
+def _idle_until_stopped() -> None:
+    """Block until SIGTERM or SIGINT, doing nothing."""
+    stopped = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopped.set())
+    signal.signal(signal.SIGINT, lambda *_: stopped.set())
+    while not stopped.wait(3600):
+        pass
+
+
 def main() -> None:
     from edumatcher.config_artifact import load_compiled_config, report_deployment
     from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
@@ -153,12 +168,15 @@ def main() -> None:
     compiled = load_compiled_config()
     config = MonitorConfig() if compiled is None else compiled.monitor
     if not config.enabled:
-        parser.exit(
-            2,
-            f"{parser.prog}: monitoring is disabled (monitor.enabled: false in "
-            "the deployed configuration); enable it and redeploy to run "
-            "pm-monitor\n",
+        message = (
+            "monitoring is disabled (monitor.enabled: false in the deployed "
+            "configuration): pm-monitor idles until stopped; enable it and "
+            "redeploy to collect health"
         )
+        print(f"{parser.prog}: {message}", file=sys.stderr)
+        log.warning("%s", message)
+        _idle_until_stopped()
+        sys.exit(0)
     session_tz_name = (
         DEFAULT_SESSION_TIMEZONE
         if compiled is None

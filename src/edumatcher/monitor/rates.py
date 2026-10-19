@@ -20,8 +20,12 @@ pm-monitor can start long after the process it watches. A counter's first
 value then holds everything since that process started, and none of it
 happened in the last minute, so it never enters a rolling window. It counts
 towards *today* only when it is known to belong to today: the process started
-on the current trading date, or the counter is one the engine resets every
-trading day (``DAILY_COUNTERS``). Otherwise it is a baseline.
+on the current trading date. Otherwise it is a baseline.
+
+That holds for the engine's "daily" book counters (``engine.trades``,
+``traded_qty``, ``traded_value``) too: the engine zeroes them on the move to
+PRE_OPEN, not at midnight, and never when sessions are off, so their first
+value can hold yesterday's trades or a week's (review R3).
 
 After a pm-monitor restart the tracker is *primed* from ``metrics.db``
 (``counter_last``, WP-B4): the first value of a primed series is a
@@ -36,12 +40,6 @@ import enum
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
-
-#: Engine counters that start from zero every trading day (the book's daily
-#: figures), so a first value is entirely today's.
-DAILY_COUNTERS = frozenset(
-    {"engine.trades", "engine.traded_qty", "engine.traded_value"}
-)
 
 #: Smallest "hours since the session opened" used for avg_per_hour, so the
 #: first seconds after the open do not divide by almost nothing.

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from edumatcher.models.generated.health import HealthBeacon, ProcessHealth
 from edumatcher.monitor.state import (
     MAX_SOURCES,
@@ -204,3 +206,53 @@ class TestHealthRecord:
         record = state.health(9.0, 1.0, "HEALTHY")  # clocks behind the beacon
         assert record["last_beacon_age_ms"] == 0.0
         assert record["uptime_sec"] == 0.0
+
+
+class TestRssGrowth:
+    """The rss_growth_pct_1h threshold's input (design §9.6, review R4)."""
+
+    def _run(self, table: ProcessTable, minutes: int, rss: Any, **kw: Any) -> None:
+        for m in range(minutes + 1):
+            table.ingest(beacon(seq=m, rss_bytes=rss(m), **kw), m * 60.0)
+
+    def test_no_figure_before_an_hour_after_warm_up(self) -> None:
+        table = ProcessTable()
+        self._run(table, 60, lambda m: 100)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(60 * 60.0) is None
+
+    def test_start_up_growth_is_not_a_leak(self) -> None:
+        """Growing from 100 to 300 in the first 10 minutes, then flat: the
+        baseline is taken after the warm-up, so growth over the hour is 0."""
+        table = ProcessTable()
+        self._run(table, 80, lambda m: 100 + 20 * min(m, 10))
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(80 * 60.0) == pytest.approx(0.0)
+
+    def test_a_leak_after_warm_up(self) -> None:
+        table = ProcessTable()
+        self._run(table, 80, lambda m: 100 if m < 10 else 100 + 2 * (m - 10))
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        # 80 min: 240; an hour earlier (20 min): 120 -> +100 %
+        assert state.rss_growth_pct(80 * 60.0) == pytest.approx(100.0)
+
+    def test_not_while_starting(self) -> None:
+        table = ProcessTable()
+        self._run(table, 80, lambda m: 100, starting=True)
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert len(state.rss_history) == 0
+
+    def test_a_restart_clears_the_history(self) -> None:
+        table = ProcessTable()
+        self._run(table, 80, lambda m: 100)
+        table.ingest(
+            beacon(boot_id="b" * 16, started_at_ns=2_000_000_000_000, rss_bytes=999),
+            81 * 60.0,
+        )
+        state = table.get("pm-stats", None, "box")
+        assert state is not None
+        assert state.rss_growth_pct(81 * 60.0) is None

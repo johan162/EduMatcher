@@ -105,6 +105,9 @@ CREATE TABLE IF NOT EXISTS daily_totals (
     total   REAL NOT NULL,
     PRIMARY KEY (date, name, label, source)
 );
+-- avg_per_day looks up one name (and label) across dates; kept for good, so
+-- without this every lookup would scan years of rows (review R6).
+CREATE INDEX IF NOT EXISTS idx_daily_name ON daily_totals(name, label, date);
 
 CREATE TABLE IF NOT EXISTS counter_last (
     source  TEXT NOT NULL,

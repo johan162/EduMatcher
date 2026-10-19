@@ -123,6 +123,15 @@ HOST_SERIES = (
     "swap_used_bytes",
     "disk_free_bytes",
 )
+#: How long pm-monitor keeps collecting after a stop request. ``pm-opctl-cli
+#: stop`` (and ``docker stop``) signal every process at once, so the final
+#: beacons of the rest arrive just after pm-monitor's own SIGTERM; without
+#: this grace it exited first and the stop was never seen -- no STOPPED, no
+#: events, nothing in metrics.db (review R9). Longer than a reporter's 0.5 s
+#: final linger (``health.reporter.FINAL_LINGER_MS``).
+FINAL_GRACE_SEC = 1.5
+#: States in which a process is gone: its last gauges describe the past.
+GONE_STATES = frozenset({"STOPPED", "DEAD", "MISSING"})
 #: How a state change is coloured in the event log.
 STATE_SEVERITY = {
     "HEALTHY": "INFO",
@@ -203,7 +212,9 @@ class Monitor:
         self.host_sampler: HostSource = (
             HostSampler() if host_sampler is None else host_sampler
         )
-        self._running = True
+        self._stop_requested_at: float | None = None
+        #: Seconds of collecting after a stop request (tests may shorten it).
+        self.final_grace_sec = FINAL_GRACE_SEC
         self._reporter: HealthReporter | None = None
         self._snapshot_seq = 0
         #: Per pm-monitor start until WP-B4 makes it metrics.db's events.seq.
@@ -226,6 +237,7 @@ class Monitor:
         self.engine_events_invalid = 0
         self.threshold_changes = 0
         self.store_errors = 0
+        self.loop_errors = 0
 
         self.store = store
         self._next_averages = 0.0
@@ -255,7 +267,13 @@ class Monitor:
             poller.register(self._engine_sub, zmq.POLLIN)
         reporter = self._reporter
         next_snapshot = self._clock()
-        while self._running:
+        while True:
+            requested = self._stop_requested_at
+            if (
+                requested is not None
+                and self._clock() - requested >= self.final_grace_sec
+            ):
+                break
             if reporter is not None:
                 reporter.tick_and_publish(self.metric_samples)
             wait_ms = (next_snapshot - self._clock()) * 1000.0
@@ -264,25 +282,50 @@ class Monitor:
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
-                continue  # a signal; stop() has cleared _running
+                continue  # a signal; stop() has recorded the request
             if self._pull in events:
-                self.drain()
+                self._guarded("drain", self.drain)
             if self._engine_sub is not None and self._engine_sub in events:
-                self.drain_engine()
+                self._guarded("engine", self.drain_engine)
             now = self._clock()
             if now >= next_snapshot:
-                self.drain()
-                self.publish_snapshot()
-                self.store_tick()
+                self._guarded("drain", self.drain)
+                self._guarded("snapshot", self.publish_snapshot)
+                self._guarded("store", self.store_tick)
                 # Fixed cadence; after a stall resume from now, never burst.
                 next_snapshot += SNAPSHOT_INTERVAL_SEC
                 if next_snapshot <= now:
                     next_snapshot = now + SNAPSHOT_INTERVAL_SEC
+        # The final picture: what stopped with us is recorded, published and
+        # stored before pm-monitor goes.
+        self._guarded("drain", self.drain)
+        self._guarded("snapshot", self.publish_snapshot)
+        self._guarded("store", self.store_tick)
+
+    def _guarded(self, step: str, fn: Callable[[], object]) -> None:
+        """Run one step of the loop; a bug in it costs that step, not the
+        process. The watcher must outlive whatever it is watching report
+        (review R1): counted in ``monitor.loop_errors``, logged with its
+        traceback at most once a minute per step."""
+        try:
+            fn()
+        except Exception:
+            self.loop_errors += 1
+            now = self._clock()
+            key = f"loop:{step}"
+            if now - self._last_warning.get(key, float("-inf")) >= WARN_EVERY_SEC:
+                self._last_warning[key] = now
+                log.exception("pm-monitor %s step failed; continuing", step)
 
     def stop(self) -> None:
-        """Ask the loop to exit; ``run()`` returns within one poll timeout."""
-        log.info("stop requested")
-        self._running = False
+        """Ask the loop to exit after ``final_grace_sec`` of collecting the
+        other processes' final beacons; then one last snapshot."""
+        if self._stop_requested_at is None:
+            log.info(
+                "stop requested; collecting final beacons for %.1f s",
+                self.final_grace_sec,
+            )
+            self._stop_requested_at = self._clock()
 
     def close(self) -> None:
         if self._reporter is not None:
@@ -406,15 +449,21 @@ class Monitor:
             self.activity.forget_source(state.key)
 
     def processes(
-        self, now: float, breached: set[str] | frozenset[str] = frozenset()
+        self,
+        now: float,
+        breached: set[str] | frozenset[str] = frozenset(),
+        *,
+        refresh: bool = True,
     ) -> list[dict[str, Any]]:
         """Every process as a judged ``ProcessHealth`` record.
 
         ``breached``: process keys with a threshold in breach (DEGRADED).
-        Sources first (exchange, then bots), then the expected processes
-        never heard from.
+        ``refresh``: re-read the roster and forget old sources first (the
+        snapshot has just done so). Sources first (exchange, then bots), then
+        the expected processes never heard from.
         """
-        self.refresh_sources(now)
+        if refresh:
+            self.refresh_sources(now)
         expected = self.roster.expected
         now_wall = self._wall_clock()
         states = self.table.states()
@@ -511,9 +560,14 @@ class Monitor:
         ):
             self._publish_threshold(change)
         breached = self.thresholds.breached_subjects()
-        processes = self.processes(now, breached)
+        processes = self.processes(now, breached, refresh=False)
         self._publish_transitions(processes)
         process_keys = {p["key"] for p in processes}
+        gone = {p["key"] for p in processes if p["state"] in GONE_STATES}
+        engine_live = any(
+            p["process"] == "pm-engine" and p["key"] not in gone and p["host"]
+            for p in processes
+        )
         a = self.activity
         return {
             "ts": iso_utc(now_wall),
@@ -530,10 +584,12 @@ class Monitor:
             },
             "host": host,
             "processes": processes,
-            "trading": a.trading(now, now_wall),
-            "participants": a.participant_records(now, now_wall),
+            "trading": a.trading(now, now_wall, engine_live=engine_live),
+            "participants": a.participant_records(
+                now, now_wall, engine_live=engine_live
+            ),
             "books": a.book_records(),
-            "gateways": a.gateway_records(now, (p["key"] for p in processes)),
+            "gateways": a.gateway_records(now, process_keys, gone),
             "thresholds": self.thresholds.active(),
         }
 
@@ -760,6 +816,7 @@ class Monitor:
             counter("monitor.engine_events_invalid", self.engine_events_invalid),
             counter("monitor.threshold_changes", self.threshold_changes),
             counter("monitor.store_errors", self.store_errors),
+            counter("monitor.loop_errors", self.loop_errors),
             gauge("monitor.series_tracked", len(self.activity.tracker)),
             gauge("monitor.snapshot_bytes", self.snapshot_bytes),
             gauge("monitor.snapshot_build_ms", self.snapshot_build_ms),

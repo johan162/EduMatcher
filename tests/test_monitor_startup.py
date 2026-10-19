@@ -231,3 +231,41 @@ def test_the_mm_bot_starts_with_monitoring_disabled(
     with pytest.raises(SystemExit) as exc:
         mm_main.main()
     assert exc.value.code == 0
+
+
+def test_designed_idle_waits_stay_under_the_degraded_line() -> None:
+    """Review R8 (and I76): a loop whose idle wait reaches pm-monitor's
+    loop_lag line reads DEGRADED forever, so every bounded wait a beaconing
+    loop is designed to sit in must stay at half of it or less."""
+    from edumatcher.mm_bot import bot as mm_bot
+    from edumatcher.monitor.state import LOOP_LAG_DEGRADED_MS
+    from edumatcher.scheduler import main as sched
+
+    assert mm_bot._LIVENESS_POLL_MS <= LOOP_LAG_DEGRADED_MS / 2
+    assert sched.LIVENESS_CHUNK_SEC * 1000 <= LOOP_LAG_DEGRADED_MS / 2
+
+
+def test_the_mm_bot_caps_its_poll_when_beaconing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.test_mm_bot_multi import _Poller
+
+    bot, _push, sub, _ = _build_bot(monkeypatch, ["AAPL"])
+    _queue_startup(sub, ["AAPL"])
+    bot.attach_reporter(RecordingReporter())  # type: ignore[arg-type]
+    timeouts: list[int] = []
+    real_poll = _Poller.poll
+
+    def recording_poll(self: _Poller, timeout: int = 0) -> list[tuple[object, int]]:
+        timeouts.append(timeout)
+        return real_poll(self, timeout)
+
+    def patient(active: list[str]) -> int:
+        bot._running = True  # the fake start-up poller stopped the bot
+        timeouts.clear()  # only the quoting loop's polls from here on
+        return 2500  # a passive symbol's natural wait
+
+    monkeypatch.setattr(_Poller, "poll", recording_poll)
+    monkeypatch.setattr(bot, "_poll_timeout_ms", patient)
+    bot.run()
+    assert timeouts and max(timeouts) <= 500

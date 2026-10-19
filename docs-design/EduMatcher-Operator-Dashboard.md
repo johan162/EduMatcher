@@ -23,6 +23,12 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - Phase B review: a loop step can no longer kill pm-monitor; a stop is
+>   recorded (final-beacon grace); a gone engine or gateway no longer shows
+>   stale connections and gauges; RSS growth waits out start-up; "daily"
+>   engine counters get no first-value exception (they reset at PRE_OPEN);
+>   `enabled: false` idles instead of exiting; `pm-mm-bot` caps its idle
+>   poll at 0.5 s so it is not DEGRADED forever (I80–I88).
 > - After WP-B5: `pm-monitor` starts in every built-in profile but `micro`;
 >   the bots beacon (§8.5 rows added); the scheduler's liveness chunk is 0.5 s,
 >   because at 1 s an idle scheduler read DEGRADED (I76–I79).
@@ -617,6 +623,14 @@ Loop, 200 ms tick:
 4. Every 10 s: write raw samples batch to `metrics.db`.
 5. Every 60 s: roll raw → 1-minute buckets; every 60 min: apply retention.
 
+As built (Phase B review, I80, I88): each step runs guarded — an
+unexpected error costs that step, is counted in `monitor.loop_errors` and
+logged once a minute with its traceback, and the loop goes on. On SIGTERM
+pm-monitor keeps collecting for `FINAL_GRACE_SEC` (1.5 s), because
+`pm-opctl-cli stop` and `docker stop` signal every process at once and the
+final beacons arrive after pm-monitor's own signal; then it publishes and
+stores one last snapshot, so a stop is recorded as STOPPED with events.
+
 ### 9.2 Engine bus subscriptions (events only)
 
 | Topic prefix | Becomes `health.event` kind |
@@ -682,10 +696,12 @@ As implemented in B3 (`monitor/rates.py`, I60–I61): each figure keeps
 memory is fixed per figure and only the figures the snapshot shows are
 kept, not one window per series. A counter's **first** value (pm-monitor
 started after the process) never enters a window; it counts towards today
-only when the process started on the current trading date or the counter
-is one the engine resets daily (`engine.trades`, `traded_qty`,
-`traded_value`), and is otherwise a baseline that B4 completes from
-`metrics.db`. `avg_per_day` is `null` until B4.
+only when the process started on the current trading date, and is otherwise
+a baseline (since B4, a pm-monitor restart resumes exactly from
+`metrics.db`, so only a first-ever start loses the morning). The engine's
+"daily" book counters (`engine.trades`, `traded_qty`, `traded_value`) are
+no exception: the engine zeroes them on the move to PRE_OPEN, not at
+midnight, and never with sessions off (Phase B review, I82).
 
 All four are computed in `pm-monitor` and shipped in `health.snapshot`, so the
 browser never re-derives them and every client agrees.
@@ -1929,7 +1945,10 @@ health rules, rates or persistence yet).
   `compiled.engine.locale.session_timezone` (fallback
   `DEFAULT_SESSION_TIMEZONE`, `parser.error` on an unknown name, exactly as
   `stats/main.py` does; F21). Exit 2 with a clear message when `enabled` is
-  false. Register `pm-monitor = "edumatcher.monitor.main:main"` in
+  false (*changed in the Phase B review, I84:* it prints the message and
+  idles until stopped, exit 0, because every built-in profile runs it and the
+  container's minute-by-minute `list --restart` would restart an exiting
+  pm-monitor forever). Register `pm-monitor = "edumatcher.monitor.main:main"` in
   `pyproject.toml`. *Verify with tests that* `pm-monitor --version` works,
   `enabled: false` exits non-zero with the message, and an artifact with
   `locale.session_timezone: America/New_York` is the timezone logged at
@@ -2316,7 +2335,10 @@ fan-out to browsers, and read-only history from `metrics.db`.
   `(series, ts)` key, or read the `v_samples_*` views; build the fixture DB
   with `edumatcher.monitor.store.MetricsStore` so it can never drift from
   the real schema. `/api/events` can use `seq` (= `health.event.seq`) to
-  fetch what a reconnecting browser missed. *Verify with tests that* against a
+  fetch what a reconnecting browser missed. (From the Phase B review, I87)
+  Never hold a read transaction open between requests: a long-lived reader
+  stops WAL checkpoints and `metrics.db-wal` grows without bound.
+  *Verify with tests that* against a
   fixture DB (created by a small Python script in `test/fixtures`), each
   endpoint returns the expected points, and a write through the handle
   throws.

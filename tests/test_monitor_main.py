@@ -20,9 +20,11 @@ import edumatcher.config as C
 from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import LogClientConfig, LogServerConfig
 from edumatcher.models.generated.health import (
+    TOPIC_HEALTH_EVENT,
     TOPIC_HEALTH_SNAPSHOT,
     HealthSnapshot,
     make_health_beacon,
+    parse_health_event,
     parse_health_snapshot,
 )
 from edumatcher.monitor import main as monitor_main
@@ -93,8 +95,9 @@ def monitor() -> Iterator[Monitor]:
 class _Running:
     """A Monitor's loop on a thread, with a SUB on its PUB."""
 
-    def __init__(self, mon: Monitor) -> None:
+    def __init__(self, mon: Monitor, final_grace_sec: float = 0.0) -> None:
         self.mon = mon
+        mon.final_grace_sec = final_grace_sec
         ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         self.sub: zmq.Socket[bytes] = ctx.socket(zmq.SUB)
         self.sub.setsockopt(zmq.LINGER, 0)
@@ -184,19 +187,31 @@ class TestEntryPoint:
         assert exc.value.code == 0
         assert capsys.readouterr().out.startswith("pm-monitor ")
 
-    def test_disabled_refuses_to_start(
+    def test_disabled_idles_until_stopped(
         self,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
         deployed: Any,
+        tmp_path: Path,
     ) -> None:
+        """Review R5: an exit would be restarted every minute by the profile's
+        restart loop; it idles instead, binding and writing nothing."""
         deployed(_compiled(_config(enabled=False)))
+        idled: list[bool] = []
+        monkeypatch.setattr(
+            monitor_main, "_idle_until_stopped", lambda: idled.append(True)
+        )
+        monkeypatch.setattr(
+            Monitor, "__init__", lambda *a, **k: pytest.fail("must not bind")
+        )
         with pytest.raises(SystemExit) as exc:
             _run_main(monkeypatch)
-        assert exc.value.code == 2
+        assert exc.value.code == 0
+        assert idled == [True]
         assert (
             "monitoring is disabled (monitor.enabled: false" in capsys.readouterr().err
         )
+        assert not (tmp_path / "metrics.db").exists()
 
     def test_session_timezone_comes_from_the_engine_locale(
         self,
@@ -442,3 +457,61 @@ def test_main_wires_the_reporter_to_its_own_pull(
     monkeypatch.setattr("signal.signal", lambda *a: None)
     _run_main(monkeypatch)
     assert seen == ["pm-monitor"]
+
+
+def test_a_failing_step_does_not_stop_the_loop(
+    monitor: Monitor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review R1: an unexpected error in one step costs that step only."""
+
+    def broken() -> dict[str, Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(monitor.host_sampler, "sample", broken)
+    running = _Running(monitor)
+    try:
+        deadline = time.monotonic() + 3
+        while monitor.loop_errors < 2 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert running.thread.is_alive()
+    finally:
+        running.close()
+    assert monitor.loop_errors >= 2
+
+
+def test_a_stop_records_what_stopped_with_it(monitor: Monitor) -> None:
+    """Review R9: pm-opctl-cli stop signals everyone at once, so the final
+    beacons arrive after pm-monitor's own stop request -- and still count."""
+    sub: zmq.Socket[bytes] = zmq.Context.instance().socket(zmq.SUB)
+    sub.setsockopt(zmq.LINGER, 0)
+    sub.setsockopt(zmq.SUBSCRIBE, b"health.")
+    sub.connect(monitor.config.pub_connect_addr)
+    running = _Running(monitor, final_grace_sec=1.0)
+    try:
+        time.sleep(0.2)
+        running.push.send_multipart(_beacon_frames())
+        assert running.wait_for("pm-engine", within_sec=2) is not None
+        monitor.stop()  # as SIGTERM would
+        time.sleep(0.3)  # the engine's own final beacon, a moment later
+        running.push.send_multipart(_beacon_frames(seq=1, final=True))
+        running.thread.join(timeout=3)
+        assert not running.thread.is_alive()
+        frames = []
+        while sub.poll(100):
+            frames.append(sub.recv_multipart())
+    finally:
+        running.close()
+        sub.close()
+    events = [
+        parse_health_event(f) for f in frames if f[0] == TOPIC_HEALTH_EVENT.encode()
+    ]
+    assert [(e.kind, e.detail) for e in events] == [
+        ("PROCESS_STATUS", "HEALTHY -> STOPPED")
+    ]
+    last = [
+        parse_health_snapshot(f)
+        for f in frames
+        if f[0] == TOPIC_HEALTH_SNAPSHOT.encode()
+    ][-1]
+    assert [(p.process, p.state) for p in last.processes] == [("pm-engine", "STOPPED")]
+    assert last.exchange.status == "DOWN"
