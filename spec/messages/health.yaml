@@ -287,6 +287,8 @@ messages:
           doc: "Longest gap between two tick() calls since the previous beacon." }
       - { name: final, type: bool, required: false, default: false,
           doc: "True on the last beacon of a clean shutdown: STOPPED, not DEAD." }
+      - { name: starting, type: bool, required: false, default: false,
+          doc: "True until the main loop has ticked once. The reporter starts before a process's loop exists (restoring state, loading config), and that time is not a hung loop; loop_age_ms still grows, so a process stuck starting stays visible." }
       - { name: metrics, type: list, ref: MetricSample,
           doc: "Application metrics (design section 8); may be empty." }
     encoding:

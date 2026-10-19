@@ -20,6 +20,9 @@ Status: In implementation — progress in
 >   the `monitor` publisher, the `monitor:` config section and `pm-monitor`
 >   are unchanged (I9).
 > - §7.4 `host` is ≤ 128 characters, not 64 (I3 in the workplan).
+> - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
+>   because a slow but healthy start-up would otherwise read as HUNG; reporter
+>   docs corrected and restart-after-stop fixed (I45–I46).
 > - After WP-A6: every process of the `default` profile beacons. No WP had
 >   assigned the participant bots (`pm-mm-bot`, `pm-ai-swarm`) although Q2
 >   wants them in their own group: added as B5.4. `stats.records_dropped` and
@@ -408,6 +411,7 @@ the TUIs (`pm-viewer`, `pm-board`, `pm-ticker`, `pm-orders`,
 | `loop_age_ms` | float | ms | §7.3 |
 | `loop_lag_ms` | float | ms | §7.3 |
 | `final` | bool | — | `True` on the last beacon of a clean shutdown → status `STOPPED`, not `DEAD` |
+| `starting` | bool | — | Added in the Phase A review: `True` until the main loop has ticked once. The reporter starts in `main()`, before the loop exists, so start-up work (engine GTC restore, clearing prune, index initialise) would otherwise read as a stale `loop_age_ms`. Derived in the sampler thread (no tick since `start()`), so `tick()` pays nothing |
 | `metrics` | list of `MetricSample` | — | Application metrics, §8 |
 
 `MetricSample` (a list entry, never a map — the spec family's convention):
@@ -719,7 +723,7 @@ Evaluated per process every second in `pm-monitor`:
 | `MISSING` | dark red | In the active profile, never beaconed since `pm-monitor` started |
 | `DEAD` | red | No beacon for `silent_after × interval_sec` **and** (same host) `psutil.pid_exists(pid)` is false, or (other host) no beacon for 2 × that |
 | `SILENT` | red | No beacon for `silent_after × interval_sec`, PID still exists — the whole interpreter is stuck (e.g. a C extension holding the GIL) or the PUSH path is broken |
-| `HUNG` | magenta | Beacons arrive but `loop_age_ms > hung_after_sec × 1000` — the sampler thread runs, the main loop does not |
+| `HUNG` | magenta | Beacons arrive but `loop_age_ms > hung_after_sec × 1000` — the sampler thread runs, the main loop does not. While a beacon says `starting`, B2 applies a longer start-up grace instead of `hung_after_sec` (a process stuck starting must still surface, just later) |
 | `DEGRADED` | amber | Any warn/critical threshold on this process, or `loop_lag_ms > 1000` |
 | `HEALTHY` | green | Otherwise |
 | `RESTARTED` (overlay) | blue badge | `boot_id` changed in the last 10 min |

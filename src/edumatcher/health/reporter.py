@@ -89,8 +89,9 @@ class HealthReporter:
         self.endpoint = f"tcp://{host}:{port}"
         self.boot_id = secrets.token_hex(8)
 
-        # Written by the main loop only.
+        # Written by the main loop only (start() runs there too).
         self._last_tick = time.monotonic()
+        self._started_at = self._last_tick
         self._max_gap = 0.0
         self._gap_epoch_seen = 0
         self._next_due = 0.0
@@ -151,7 +152,7 @@ class HealthReporter:
         if self._thread is not None:
             return
         self._stop.clear()  # so a stopped reporter can be started again
-        self._last_tick = time.monotonic()
+        self._last_tick = self._started_at = time.monotonic()
         self._thread = threading.Thread(
             target=self._run, name=f"health-{self.process}", daemon=True
         )
@@ -243,7 +244,11 @@ class HealthReporter:
         final: bool,
     ) -> None:
         now = time.monotonic()
-        loop_age = max(0.0, now - self._last_tick)
+        last_tick = self._last_tick
+        # No tick since start(): the process is still setting up its loop.
+        # Derived here, so tick() pays nothing for it.
+        starting = last_tick == self._started_at
+        loop_age = max(0.0, now - last_tick)
         loop_lag = self._max_gap
         self._gap_epoch += 1
 
@@ -281,6 +286,7 @@ class HealthReporter:
                 loop_age_ms=loop_age * 1000.0,
                 loop_lag_ms=loop_lag * 1000.0,
                 final=final,
+                starting=starting,
                 metrics=metrics,
             )
         except MessageValidationError as exc:

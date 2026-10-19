@@ -262,6 +262,32 @@ class TestHungSemantics:
         assert collector.until(lambda b: b.loop_lag_ms < 100).seq > lagged.seq
 
 
+class TestStarting:
+    def test_starting_until_the_first_tick(self, collector: Collector) -> None:
+        """Set-up before the loop exists is reported as starting, not as a
+        hung loop -- loop_age_ms still grows, so a stuck start stays visible."""
+        rep = _reporter(collector.port)
+        rep.start()
+        try:
+            first = collector.next()
+            assert first.starting is True
+            rep.tick()
+            assert collector.until(lambda b: not b.starting).seq > first.seq
+        finally:
+            rep.stop()
+
+    def test_a_restart_starts_again(self, collector: Collector) -> None:
+        rep = _reporter(collector.port)
+        rep.start()
+        rep.tick()
+        rep.stop()
+        rep.start()
+        try:
+            assert collector.until(lambda b: b.starting and b.seq > 0).starting
+        finally:
+            rep.stop()
+
+
 class TestStop:
     def test_the_last_beacon_is_final(self, collector: Collector) -> None:
         """A2.6"""

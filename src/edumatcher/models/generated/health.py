@@ -1100,6 +1100,13 @@ _HEALTH_BEACON_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "True on the last beacon of a clean shutdown: STOPPED, not DEAD.",
     },
     {
+        "name": "starting",
+        "type": "bool",
+        "unit": None,
+        "required": False,
+        "doc": "True until the main loop has ticked once. The reporter starts before a process's loop exists (restoring state, loading config), and that time is not a hung loop; loop_age_ms still grows, so a process stuck starting stays visible.",
+    },
+    {
         "name": "metrics",
         "type": "list",
         "unit": None,
@@ -1141,6 +1148,7 @@ class HealthBeacon:
     instance: str | None = None
     fds: int | None = None  # unit: dimensionless
     final: bool = False
+    starting: bool = False
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1234,6 +1242,7 @@ class HealthBeacon:
             loop_age_ms=float(p["loop_age_ms"]),
             loop_lag_ms=float(p["loop_lag_ms"]),
             final=bool(p.get("final", False)),
+            starting=bool(p.get("starting", False)),
             metrics=[MetricSample.from_dict(item) for item in p["metrics"]],
         )
 
@@ -1253,6 +1262,7 @@ class HealthBeacon:
             "loop_age_ms": self.loop_age_ms,
             "loop_lag_ms": self.loop_lag_ms,
             "final": self.final,
+            "starting": self.starting,
             "metrics": [item.to_dict() for item in self.metrics],
         }
         if self.instance is not None:

@@ -1268,6 +1268,7 @@ Every long-running pm-* process to pm-monitor, every beacon_interval_sec: the pr
 | `loop_age_ms` | `float` | required | ge 0, unit `duration_millis` | Time since the main loop last called tick(). |
 | `loop_lag_ms` | `float` | required | ge 0, unit `duration_millis` | Longest gap between two tick() calls since the previous beacon. |
 | `final` | `bool` | defaults to `False` | — | True on the last beacon of a clean shutdown: STOPPED, not DEAD. |
+| `starting` | `bool` | defaults to `False` | — | True until the main loop has ticked once. The reporter starts before a process's loop exists (restoring state, loading config), and that time is not a hung loop; loop_age_ms still grows, so a process stuck starting stays visible. |
 | `metrics` | list of [`MetricSample`](#metricsample) | required | — | Application metrics (design section 8); may be empty. |
 
 !!! note

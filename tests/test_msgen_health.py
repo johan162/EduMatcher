@@ -48,6 +48,7 @@ def _beacon(**overrides: Any) -> dict[str, Any]:
         "loop_age_ms": 12.0,
         "loop_lag_ms": 41.0,
         "final": False,
+        "starting": False,
         "metrics": [_sample(), _sample(name="api.ws_sessions", kind="GAUGE")],
     }
     beacon.update(overrides)
