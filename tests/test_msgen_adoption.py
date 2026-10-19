@@ -37,13 +37,13 @@ SRC = REPO_ROOT / "src" / "edumatcher"
 #: one, delete it here in the same change that routes it through its builder.
 ADOPTION_EXCLUSIONS = frozenset({"execution_report"})
 
-#: Messages whose spec has landed but whose producer is a later work package of
-#: the operator dashboard plan (docs-design/EduMatcher-Operator-Dashboard.md):
-#: the event is built by pm-monitor in WP-B3. ``health_beacon`` left this set
-#: in WP-A2 with the HealthReporter, ``health_snapshot`` in WP-B1. Not an
-#: exclusion: each entry must be deleted by the WP that adopts it, which the
-#: guard below enforces.
-PENDING_ADOPTION = frozenset({"health_event"})
+#: Messages whose spec has landed but whose producer is a later work package.
+#: Empty since the operator dashboard plan adopted all three of its messages
+#: (``health_beacon`` in WP-A2, ``health_snapshot`` in WP-B1, ``health_event``
+#: in WP-B2); kept for the next plan that lands a spec ahead of its producer.
+#: Not an exclusion: each entry must be deleted by the WP that adopts it,
+#: which the guard below enforces.
+PENDING_ADOPTION: frozenset[str] = frozenset()
 
 
 def _builder_calls() -> set[str]:

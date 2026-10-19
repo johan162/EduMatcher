@@ -374,6 +374,7 @@ class ProcessHealth:
     spark: Sparkline
     metrics: list[MetricSample]
     instance: str | None = None
+    starting: bool = False
     fds: int | None = None  # unit: dimensionless
 
     def validate(self) -> None:
@@ -457,6 +458,7 @@ class ProcessHealth:
             pid=int(p["pid"]),
             state=cast(ProcessHealthState, str(p["state"])),
             restarted_recently=bool(p["restarted_recently"]),
+            starting=bool(p.get("starting", False)),
             uptime_sec=float(p["uptime_sec"]),
             rss_bytes=int(p["rss_bytes"]),
             cpu_pct=float(p["cpu_pct"]),
@@ -480,6 +482,7 @@ class ProcessHealth:
             "pid": self.pid,
             "state": self.state,
             "restarted_recently": self.restarted_recently,
+            "starting": self.starting,
             "uptime_sec": self.uptime_sec,
             "rss_bytes": self.rss_bytes,
             "cpu_pct": self.cpu_pct,

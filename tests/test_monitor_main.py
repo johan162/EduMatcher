@@ -313,15 +313,17 @@ class TestSnapshot:
         assert monitor.snapshots_out == 1
         assert monitor.snapshot_bytes > 0
 
-    def test_lists_processes_with_a_placeholder_state(self, monitor: Monitor) -> None:
-        monitor.receive(_beacon_frames(), 1.0)
-        monitor.receive(_beacon_frames(process="pm-stats", final=True), 1.0)
+    def test_lists_judged_processes(self, monitor: Monitor) -> None:
+        now = time.monotonic()
+        monitor.receive(_beacon_frames(), now)
+        monitor.receive(_beacon_frames(process="pm-stats", final=True), now)
         snap = HealthSnapshot.from_dict(monitor.snapshot())
         snap.validate()
         assert [(p.key, p.state) for p in snap.processes] == [
             ("pm-engine@box", "HEALTHY"),
             ("pm-stats@box", "STOPPED"),
         ]
+        assert snap.exchange.status == "OPERATIONAL"
 
     def test_trading_date_and_ts_follow_the_clocks(self) -> None:
         # 23:30 UTC on 2026-10-19 is already the 20th in Stockholm (CEST)

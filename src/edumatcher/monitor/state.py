@@ -19,16 +19,41 @@ repeated ``seq`` is ignored, and so is a beacon from an *older* incarnation
 (lower ``started_at_ns``) that arrives after a newer one. Two live processes
 claiming the same identity therefore show as one, with the stale counter
 rising -- never as a process restarting every two seconds.
+
+Health rules (§10)
+------------------
+:meth:`ProcessState.evaluate` applies the rules in order, first match wins:
+STOPPED (final beacon), DEAD / SILENT (no beacon for ``silent_after_beacons``
+x the *sender's* interval, told apart by whether the PID still runs),
+HUNG (``loop_age_ms`` over ``hung_after_sec``, or over the start-up grace
+while the beacon says ``starting``), DEGRADED (a threshold breach or
+``loop_lag_ms`` over 1 s), else HEALTHY. MISSING has no source by
+definition; :func:`missing_health` builds that record.
+
+HUNG judges ``loop_age_ms`` as the beacon carried it, not aged further by the
+time since it arrived: a beacon arrives every interval while the sampler
+thread runs, so the figure is never more than one interval old, and adding
+that interval would turn the scheduler's ~4 s engine round-trip (I40) into a
+HUNG at the 5 s default.
+
+Exchange status
+---------------
+:func:`exchange_status` -- see the rule in ``spec/messages/health.yaml``
+(``ExchangeStatus.status``). Participant bots never count.
 """
 
 from __future__ import annotations
 
 import enum
 from collections import deque
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+import psutil
+
 from edumatcher.models.generated.health import HealthBeacon
+from edumatcher.monitor.config import MonitorConfig
 
 #: Readings kept per process for the sparklines (``Sparkline`` max_items).
 SPARK_LEN = 60
@@ -43,7 +68,68 @@ RESTART_BADGE_SEC = 600.0
 #: never counted in the exchange status (design Q2).
 BOT_PROCESSES = frozenset({"pm-mm-bot", "pm-ai-swarm"})
 
+#: While a beacon says ``starting``, HUNG waits this long instead of
+#: ``hung_after_sec``: start-up work (engine GTC restore, clearing prune) is
+#: not a hung loop, but a process stuck starting must still surface (I45).
+STARTUP_GRACE_SEC = 120.0
+#: DEGRADED when the worst gap between two loop iterations exceeds this. Every
+#: loop's designed wait is well below it (I36).
+LOOP_LAG_DEGRADED_MS = 1000.0
+#: How far a same-host process's start time may differ from the beacon's
+#: ``started_at_ns`` and still be the same process (PID reuse check).
+START_TIME_TOLERANCE_SEC = 1.0
+
+#: States in which a process is not doing its job.
+DOWN_STATES = frozenset({"DEAD", "SILENT", "HUNG", "MISSING"})
+
 SourceKey = tuple[str, str | None, str]
+#: ``(process, instance)``: an identity without its host, as the roster has it.
+Identity = tuple[str, str | None]
+
+
+def group_of(process: str) -> str:
+    return "BOT" if process in BOT_PROCESSES else "EXCHANGE"
+
+
+@dataclass(frozen=True)
+class HealthRules:
+    """The §10 parameters, from the ``monitor`` section."""
+
+    hung_after_sec: float
+    silent_after_beacons: int
+    #: pm-monitor's own ``socket.gethostname()``: a beacon from this host can
+    #: be checked against the process table, one from elsewhere cannot.
+    local_host: str
+    startup_grace_sec: float = STARTUP_GRACE_SEC
+
+    @classmethod
+    def from_config(cls, config: MonitorConfig, local_host: str) -> HealthRules:
+        return cls(
+            hung_after_sec=config.hung_after_sec,
+            silent_after_beacons=config.silent_after_beacons,
+            local_host=local_host,
+        )
+
+
+def process_alive(pid: int, started_at_ns: int) -> bool:
+    """Whether the process that sent a beacon still runs on this host.
+
+    A PID alone is not enough: after a crash the number can be reused by an
+    unrelated process, which would turn DEAD into SILENT. The start time must
+    match the beacon's ``started_at_ns`` (read from the same kernel clock).
+    An exited process its parent has not reaped yet (a zombie) still holds
+    its PID but runs nothing, so it is dead too.
+    """
+    try:
+        proc = psutil.Process(pid)
+        with proc.oneshot():
+            created = proc.create_time()
+            zombie = proc.status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+    except psutil.Error:  # AccessDenied and the like: it exists
+        return True
+    return not zombie and abs(created - started_at_ns / 1e9) <= START_TIME_TOLERANCE_SEC
 
 
 class Ingest(enum.Enum):
@@ -57,9 +143,66 @@ class Ingest(enum.Enum):
 
 
 def process_key(process: str, instance: str | None, host: str) -> str:
-    """``process/instance@host``, or ``process@host`` without an instance."""
+    """``process/instance@host``, or ``process@host`` without an instance.
+
+    A MISSING process has no host, and its key no ``@``.
+    """
     name = process if instance is None else f"{process}/{instance}"
-    return f"{name}@{host}"
+    return f"{name}@{host}" if host else name
+
+
+def missing_health(process: str, instance: str | None) -> dict[str, Any]:
+    """The ``ProcessHealth`` record of an expected process never heard from."""
+    return {
+        "key": process_key(process, instance, ""),
+        "process": process,
+        "instance": instance,
+        "host": "",
+        "group": group_of(process),
+        "pid": 0,
+        "state": "MISSING",
+        "restarted_recently": False,
+        "starting": False,
+        "uptime_sec": 0.0,
+        "rss_bytes": 0,
+        "cpu_pct": 0.0,
+        "threads": 0,
+        "fds": None,
+        "loop_age_ms": 0.0,
+        "loop_lag_ms": 0.0,
+        "last_beacon_age_ms": 0.0,
+        "spark": {"rss": [], "cpu": []},
+        "metrics": [],
+    }
+
+
+def exchange_status(
+    processes: Iterable[dict[str, Any]], expected: Collection[Identity] | None
+) -> str:
+    """OPERATIONAL / DEGRADED / IMPAIRED / DOWN from ``ProcessHealth`` records.
+
+    ``expected`` is the roster (``None`` without an active profile). With a
+    roster, only its processes can impair the exchange, and a STOPPED one
+    does; without one, every exchange process that beacons counts, and a
+    STOPPED one was stopped on purpose.
+    """
+    exchange = [p for p in processes if p["group"] == "EXCHANGE"]
+    engines = [p for p in exchange if p["process"] == "pm-engine"]
+    if not any(p["state"] not in DOWN_STATES | {"STOPPED"} for p in engines):
+        return "DOWN"
+    for p in exchange:
+        if p["process"] == "pm-engine":
+            continue
+        if expected is None:
+            if p["state"] in DOWN_STATES:
+                return "IMPAIRED"
+        elif (p["process"], p["instance"]) in expected and (
+            p["state"] in DOWN_STATES or p["state"] == "STOPPED"
+        ):
+            return "IMPAIRED"
+    if any(p["state"] == "DEGRADED" for p in exchange):
+        return "DEGRADED"
+    return "OPERATIONAL"
 
 
 @dataclass
@@ -86,7 +229,40 @@ class ProcessState:
 
     @property
     def group(self) -> str:
-        return "BOT" if self.beacon.process in BOT_PROCESSES else "EXCHANGE"
+        return group_of(self.beacon.process)
+
+    @property
+    def identity(self) -> Identity:
+        return self.beacon.process, self.beacon.instance
+
+    def evaluate(
+        self,
+        now: float,
+        rules: HealthRules,
+        *,
+        breached: bool = False,
+        alive: Callable[[int, int], bool] = process_alive,
+    ) -> str:
+        """This source's §10 state; ``now`` is pm-monitor's monotonic clock.
+
+        ``breached`` is whether a threshold on this process is in breach (B3).
+        """
+        b = self.beacon
+        if b.final:
+            return "STOPPED"
+        silence = now - self.received_at
+        limit = rules.silent_after_beacons * b.interval_sec
+        if silence > limit:
+            if b.host == rules.local_host:
+                return "SILENT" if alive(b.pid, b.started_at_ns) else "DEAD"
+            # Another host: no process table to ask, so time decides.
+            return "DEAD" if silence > 2 * limit else "SILENT"
+        hung_after = rules.startup_grace_sec if b.starting else rules.hung_after_sec
+        if b.loop_age_ms > hung_after * 1000.0:
+            return "HUNG"
+        if breached or b.loop_lag_ms > LOOP_LAG_DEGRADED_MS:
+            return "DEGRADED"
+        return "HEALTHY"
 
     def accept(self, beacon: HealthBeacon, now: float) -> Ingest:
         """Fold in a beacon of this source; see the module docstring."""
@@ -116,8 +292,8 @@ class ProcessState:
     def health(self, now: float, now_wall: float, state: str) -> dict[str, Any]:
         """This source as a ``ProcessHealth`` record (wire dict).
 
-        ``state`` is decided by the caller: the health rules (§10) are B2's.
-        ``loop_age_ms`` is the value the beacon carried, not aged further here.
+        ``state`` comes from :meth:`evaluate`. ``loop_age_ms`` is the value the
+        beacon carried (see the module docstring).
         """
         b = self.beacon
         return {
@@ -129,6 +305,7 @@ class ProcessState:
             "pid": b.pid,
             "state": state,
             "restarted_recently": self.restarted_recently(now),
+            "starting": b.starting,
             "uptime_sec": max(0.0, now_wall - b.started_at_ns / 1e9),
             "rss_bytes": b.rss_bytes,
             "cpu_pct": b.cpu_pct,
@@ -170,6 +347,14 @@ class ProcessTable:
                 s.beacon.host,
             ),
         )
+
+    def forget(self, keep: Callable[[ProcessState], bool]) -> list[ProcessState]:
+        """Drop every source ``keep`` rejects; return the dropped ones."""
+        dropped = [s for s in self._states.values() if not keep(s)]
+        for state in dropped:
+            b = state.beacon
+            del self._states[(b.process, b.instance, b.host)]
+        return dropped
 
     def ingest(self, beacon: HealthBeacon, now: float) -> Ingest:
         """Fold one received beacon in; ``now`` is pm-monitor's receive time."""

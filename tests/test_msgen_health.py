@@ -75,6 +75,7 @@ def _process(**overrides: Any) -> dict[str, Any]:
         "pid": 4242,
         "state": "HEALTHY",
         "restarted_recently": False,
+        "starting": False,
         "uptime_sec": 18_720.0,
         "rss_bytes": 118_000_000,
         "cpu_pct": 6.0,
@@ -117,7 +118,7 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
         "processes": [
             _process(),
             _process(
-                key="pm-index@",
+                key="pm-index",
                 process="pm-index",
                 instance=None,
                 host="",

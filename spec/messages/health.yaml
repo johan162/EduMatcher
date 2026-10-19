@@ -62,7 +62,7 @@ types:
     fields:
       - { name: status, type: enum,
           values: [OPERATIONAL, DEGRADED, IMPAIRED, DOWN],
-          doc: "DOWN when pm-engine is DEAD, SILENT, HUNG or MISSING; IMPAIRED when any other expected exchange process is; DEGRADED when anything is DEGRADED; otherwise OPERATIONAL. Participant bots never count." }
+          doc: "DOWN when no pm-engine is running: it is DEAD, SILENT, HUNG, MISSING or STOPPED, or pm-monitor has never heard of one. IMPAIRED when any other expected exchange process is DEAD, SILENT, HUNG or MISSING (or STOPPED while the active emo profile expects it). DEGRADED when any exchange process is DEGRADED. Otherwise OPERATIONAL. Participant bots never count." }
       - { name: session_state, type: string, validate: { max_len: 32 },
           doc: "The engine's session state name; empty before the engine reports one." }
       - { name: trading_date, type: string, validate: { max_len: 10 },
@@ -103,7 +103,7 @@ types:
       zero figures and an empty host).
     fields:
       - { name: key, type: string, validate: { min_len: 1, max_len: 200 },
-          doc: "`process/instance@host`, or `process@host` without an instance. Stable identity for routes and history." }
+          doc: "`process/instance@host`, or `process@host` without an instance; a MISSING process has no host and no `@`. Stable identity for routes and history." }
       - { name: process, type: string, validate: { max_len: 32 } }
       - { name: instance, type: string, required: false, nullable: true,
           validate: { max_len: 32 } }
@@ -117,6 +117,8 @@ types:
           doc: "Design section 10; first matching rule wins." }
       - { name: restarted_recently, type: bool,
           doc: "boot_id changed within the last 10 minutes." }
+      - { name: starting, type: bool, required: false, default: false,
+          doc: "The latest beacon said the main loop has not ticked yet. The state stays HEALTHY through a start-up grace, so this is what tells a process still starting from one that is running." }
       - { name: uptime_sec, type: float, unit: duration_seconds, validate: { ge: 0 } }
       - { name: rss_bytes, type: int, unit: bytes, validate: { ge: 0 } }
       - { name: cpu_pct, type: float, unit: percent, validate: { ge: 0 },

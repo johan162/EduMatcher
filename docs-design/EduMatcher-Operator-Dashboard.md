@@ -23,6 +23,10 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After WP-B2: `ProcessHealth.starting` added (closes B2.5). The exchange
+>   status is DOWN for a stopped or unknown engine too, and a STOPPED process
+>   the profile expects impairs it (§10). `PROCESS_STATUS` events are published
+>   from B2, so `health.event` was adopted there rather than in B3 (I52–I58).
 > - After WP-B1: the loop lives in `monitor/collector.py` (`Monitor`),
 >   `main.py` is the CLI only (§16). Two live processes claiming one identity
 >   show as the newer incarnation, never as a restart every beacon. The
@@ -622,7 +626,11 @@ the roster is "whatever has beaconed", and nothing is `MISSING`.
 
 The mapping profile-entry → beacon is by the first word of `command`
 (`pm-api-gwy`) plus `--instance` when present — the same rule
-`matches_command` already applies.
+`matches_command` already applies. Only programs that beacon are expected
+(`monitor/roster.py:BEACONING_PROCESSES`), so a profile entry that never
+beacons cannot read MISSING forever. MISSING is judged only once pm-monitor
+has run for one silence period (`silent_after × beacon_interval_sec`), so a
+monitor (re)start does not announce every process missing and back.
 
 ### 9.4 Rates — what "avg per min / hour / day" means
 
@@ -741,6 +749,27 @@ Exchange-level status (the big tile in the top bar): `DOWN` if `pm-engine`
 is `DEAD`/`SILENT`/`HUNG`/`MISSING`; `IMPAIRED` if any other expected process
 is; `DEGRADED` if anything is `DEGRADED`; else `OPERATIONAL`.
 
+As implemented in B2 (I52–I57, `monitor/state.py`):
+
+- `DOWN` also when the engine is `STOPPED` or pm-monitor has never heard of
+  one: a stopped engine is a stopped exchange.
+- With an active profile only its processes can impair the exchange, and
+  one that is `STOPPED` does (the profile says it should run). Without a
+  profile every beaconing exchange process counts, and `STOPPED` was on
+  purpose.
+- Boundaries are strict: silent means *more than* `silent_after × interval`,
+  hung *more than* `hung_after_sec`.
+- The start-up grace is `STARTUP_GRACE_SEC` = 120 s of `loop_age_ms` while
+  the beacon says `starting`; `ProcessHealth.starting` shows it.
+- HUNG judges `loop_age_ms` as sent. Adding the time since the beacon
+  arrived would push the scheduler's ≈ 4 s engine round-trip (I40) over
+  the 5 s default.
+- The same-host PID check also compares the process start time with
+  `started_at_ns` (a reused PID is not the process) and counts a zombie as
+  dead.
+- A process the profile does not expect is forgotten after an hour without
+  a beacon (`FORGET_AFTER_SEC`).
+
 ## 11. Bridge ↔ browser protocol
 
 The bridge holds one ZMQ `SUB` to `pm-monitor :5611` and one read-only
@@ -769,7 +798,7 @@ never re-derives a figure. Summary of the generated records:
 | `health.snapshot` | `ts` (ISO-8601 UTC ms), `seq`, `exchange`, `host`, `processes[]`, `trading`, `participants[]`, `books[]`, `gateways[]`, `thresholds[]` |
 | `ExchangeStatus` | `status` (OPERATIONAL/DEGRADED/IMPAIRED/DOWN), `session_state`, `trading_date`, `session_timezone` |
 | `HostStats` | `cpu_pct`, `cpu_per_core[]`, `load1`/`load5`/`load15`, `mem_total/used/available_bytes`, `swap_used_bytes`, `disk_free/total_bytes`, `files[]` of `FileSize{name, size_bytes}` |
-| `ProcessHealth` | `key`, `process`, `instance` (null), `host`, `group` (EXCHANGE/BOT), `pid`, `state` (7 values, §10), `restarted_recently`, `uptime_sec`, `rss_bytes`, `cpu_pct`, `threads`, `fds` (null), `loop_age_ms`, `loop_lag_ms`, `last_beacon_age_ms`, `spark{rss[], cpu[]}` (≤ 60 each), `metrics[]` (the latest beacon's `MetricSample`s, as sent) |
+| `ProcessHealth` | `key`, `process`, `instance` (null), `host`, `group` (EXCHANGE/BOT), `pid`, `state` (7 values, §10), `restarted_recently`, `starting` (B2), `uptime_sec`, `rss_bytes`, `cpu_pct`, `threads`, `fds` (null), `loop_age_ms`, `loop_lag_ms`, `last_beacon_age_ms`, `spark{rss[], cpu[]}` (≤ 60 each), `metrics[]` (the latest beacon's `MetricSample`s, as sent) |
 | `RateStats` | `today`, `per_sec_now`, `avg_per_min`, `avg_per_hour`, `avg_per_day` (null before a full day) — §9.4 |
 | `TradingStats` | `orders: RateStats`, `trades: RateStats`, `traded_value_today`, `reject_pct_5m`, `handle_p50_us`, `handle_p99_us`, `busy_pct` |
 | `ParticipantStats` | `id`, `role`, `connected`, `connected_since` (null), `orders: RateStats`, `reject_pct`, `fills_today`, `resting_orders`, `connects_today`, `disconnects_today`, `heartbeat_timeouts_today` |
@@ -1918,6 +1947,16 @@ loop of a child process in a test produce DEAD, SILENT and HUNG respectively.
   match on the command, never on `name`.
 - PID reuse: always prefer `boot_id` to PID for identity.
 
+**Outcome (2026-10-19):** rules in `monitor/state.py`
+(`ProcessState.evaluate`, `exchange_status`, `process_alive`), roster in
+`monitor/roster.py`, judgement and `PROCESS_STATUS` events in
+`monitor/collector.py`. B2.5 decided: `ProcessHealth.starting` added. The
+"done when" is an automated test
+(`tests/test_monitor_health.py::test_kill_stop_and_block_read_dead_silent_hung`),
+and a hand run with the `micro` profile showed `pm-log-srv` MISSING
+(IMPAIRED), then DEAD and DOWN within 6 s of a `kill -9` of the engine.
+Refinements to §9.3 and §10 are listed there (I52–I58).
+
 ---
 
 ### WP-B3 — Rates, engine-bus events, thresholds, host sampler
@@ -1992,6 +2031,8 @@ plausible rates in the snapshot and a disconnect appears as an event.
   not a table.
 
 **Tasks:**
+- (From B2, I58) `health.event` is already published by B2 with a
+  per-start `seq`; B4 makes that `seq` the `events.seq` of the stored row.
 - **B4.1** `monitor/store.py`: schema of §9.5, WAL mode, `METRICS_DB_FILE`
   constant in `edumatcher/config.py` next to `STATS_DB_FILE`; open/create
   like `log_srv/schema.open_db`. *Verify with tests that* the schema is
@@ -2065,7 +2106,10 @@ profile except `micro`, and so in every container image.
   `pm-ai-swarm` beacon when started from an emo profile, through the same
   `HealthReporter.start_from_compiled_config()` + `tick_and_publish()` pair as
   every exchange process; pm-monitor's B2 roster marks them `group: BOT`, so
-  they never affect the exchange status. *Verify with tests that* each bot's
+  they never affect the exchange status. Add both to
+  `monitor/roster.py:BEACONING_PROCESSES` and drop them from the exception
+  set in `tests/test_monitor_roster.py`, or the mm-demo and ai-swarm
+  profiles never expect them (B2, I55). *Verify with tests that* each bot's
   main loop ticks (the A5/A6 recording-reporter pattern) and that a bot run
   without a deployed monitor section still starts.
 

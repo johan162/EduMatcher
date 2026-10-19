@@ -1096,7 +1096,7 @@ The one-line answer to "is the exchange OK?" (design section 10).
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `status` | enum: `OPERATIONAL`, `DEGRADED`, `IMPAIRED`, `DOWN` | required | — | DOWN when pm-engine is DEAD, SILENT, HUNG or MISSING; IMPAIRED when any other expected exchange process is; DEGRADED when anything is DEGRADED; otherwise OPERATIONAL. Participant bots never count. |
+| `status` | enum: `OPERATIONAL`, `DEGRADED`, `IMPAIRED`, `DOWN` | required | — | DOWN when no pm-engine is running: it is DEAD, SILENT, HUNG, MISSING or STOPPED, or pm-monitor has never heard of one. IMPAIRED when any other expected exchange process is DEAD, SILENT, HUNG or MISSING (or STOPPED while the active emo profile expects it). DEGRADED when any exchange process is DEGRADED. Otherwise OPERATIONAL. Participant bots never count. |
 | `session_state` | `string` | required | max_len 32 | The engine's session state name; empty before the engine reports one. |
 | `trading_date` | `string` | required | max_len 10 | YYYY-MM-DD in the session timezone; what "today" means below. |
 | `session_timezone` | `string` | required | max_len 64 | IANA name from engine.locale.session_timezone. |
@@ -1135,7 +1135,7 @@ One process as pm-monitor sees it: a process that beacons, or one the active emo
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
-| `key` | `string` | required | max_len 200, min_len 1 | `process/instance@host`, or `process@host` without an instance. Stable identity for routes and history. |
+| `key` | `string` | required | max_len 200, min_len 1 | `process/instance@host`, or `process@host` without an instance; a MISSING process has no host and no `@`. Stable identity for routes and history. |
 | `process` | `string` | required | max_len 32 |  |
 | `instance` | `string` | `null` when unset | max_len 32 |  |
 | `host` | `string` | required | max_len 128 |  |
@@ -1143,6 +1143,7 @@ One process as pm-monitor sees it: a process that beacons, or one the active emo
 | `pid` | `int` | required | ge 0, unit `dimensionless` | 0 when the process has never beaconed. |
 | `state` | enum: `HEALTHY`, `DEGRADED`, `HUNG`, `SILENT`, `DEAD`, `MISSING`, `STOPPED` | required | — | Design section 10; first matching rule wins. |
 | `restarted_recently` | `bool` | required | — | boot_id changed within the last 10 minutes. |
+| `starting` | `bool` | defaults to `False` | — | The latest beacon said the main loop has not ticked yet. The state stays HEALTHY through a start-up grace, so this is what tells a process still starting from one that is running. |
 | `uptime_sec` | `float` | required | ge 0, unit `duration_seconds` |  |
 | `rss_bytes` | `int` | required | ge 0, unit `bytes` |  |
 | `cpu_pct` | `float` | required | ge 0, unit `percent` | Percent of one core; may exceed 100 for a multi-threaded process. |
