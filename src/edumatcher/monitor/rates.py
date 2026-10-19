@@ -21,12 +21,18 @@ value then holds everything since that process started, and none of it
 happened in the last minute, so it never enters a rolling window. It counts
 towards *today* only when it is known to belong to today: the process started
 on the current trading date, or the counter is one the engine resets every
-trading day (``DAILY_COUNTERS``). Otherwise it is a baseline. WP-B4 restores
-the day's totals from ``metrics.db`` on top of this.
+trading day (``DAILY_COUNTERS``). Otherwise it is a baseline.
+
+After a pm-monitor restart the tracker is *primed* from ``metrics.db``
+(``counter_last``, WP-B4): the first value of a primed series is a
+``RESUMED`` step whose increment is exactly what happened while pm-monitor
+was down (or the whole value, if the process restarted meanwhile). It counts
+towards today but not into a rolling window, where it would be a spike.
 """
 
 from __future__ import annotations
 
+import enum
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -124,14 +130,33 @@ class Rate:
         }
 
 
+class Step(enum.Enum):
+    """How a counter value relates to what pm-monitor knew of the series."""
+
+    FIRST = "first"  # never seen: the value is everything since process start
+    RESUMED = "resumed"  # first since a pm-monitor restart, primed from disk
+    LIVE = "live"  # seen in this run: a live increment
+
+
 class CounterTracker:
     """The last value of every counter series, per process incarnation."""
 
     def __init__(self) -> None:
         self._last: dict[SeriesKey, tuple[str, float]] = {}  # -> (boot_id, value)
+        self._primed: set[SeriesKey] = set()
 
-    def step(self, key: SeriesKey, boot_id: str, value: float) -> tuple[float, bool]:
-        """``(increment, first)`` for a new value; ``first`` on a new series.
+    @property
+    def state(self) -> dict[SeriesKey, tuple[str, float]]:
+        """``(boot_id, value)`` per series, for ``metrics.db``'s ``counter_last``."""
+        return self._last
+
+    def prime(self, state: dict[SeriesKey, tuple[str, float]]) -> None:
+        """Resume from the counter state ``metrics.db`` last recorded."""
+        self._last.update(state)
+        self._primed.update(state)
+
+    def step(self, key: SeriesKey, boot_id: str, value: float) -> tuple[float, Step]:
+        """The increment of a new value, and what kind of step it was.
 
         A new ``boot_id`` for a known series is a restart: the whole value is
         the increment (§9.4).
@@ -139,14 +164,19 @@ class CounterTracker:
         last = self._last.get(key)
         self._last[key] = (boot_id, value)
         if last is None:
-            return value, True
+            return value, Step.FIRST
         last_boot, last_value = last
-        return increment(last_value, value, restarted=boot_id != last_boot), False
+        delta = increment(last_value, value, restarted=boot_id != last_boot)
+        if key in self._primed:
+            self._primed.discard(key)
+            return delta, Step.RESUMED
+        return delta, Step.LIVE
 
     def forget_source(self, source: str) -> None:
         """Drop every series of a source pm-monitor no longer tracks."""
         for key in [k for k in self._last if k[0] == source]:
             del self._last[key]
+            self._primed.discard(key)
 
     def __len__(self) -> int:
         return len(self._last)

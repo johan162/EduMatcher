@@ -26,11 +26,13 @@ from __future__ import annotations
 import argparse
 import logging
 import signal
+import sqlite3
 import sys
+import time
 
 import zmq
 
-from edumatcher.config import ENGINE_PUB_ADDR
+from edumatcher.config import ENGINE_PUB_ADDR, METRICS_DB_FILE
 from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -41,6 +43,11 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
 from edumatcher.monitor.host import HostSampler, default_files
+from edumatcher.monitor.store import (
+    IncompatibleStoreError,
+    MetricsStore,
+    StoreLockedError,
+)
 from edumatcher.stats.trading_day import resolve_timezone
 
 _CLIENT_NAME = "pm-monitor"
@@ -171,14 +178,26 @@ def main() -> None:
     )
     log_db = None if compiled is None else compiled.log_server.db_path
     try:
+        store = MetricsStore(
+            METRICS_DB_FILE,
+            session_tz_name,
+            raw_hours=config.retention.raw_hours,
+            minute_days=config.retention.minute_days,
+        )
+    except (StoreLockedError, IncompatibleStoreError, sqlite3.Error, OSError) as exc:
+        log.error("cannot open %s: %s", METRICS_DB_FILE, exc)
+        sys.exit(1)
+    try:
         monitor = Monitor(
             config,
             session_tz,
             engine_pub_addr=ENGINE_PUB_ADDR,
             roles=roles,
             host_sampler=HostSampler(default_files(log_db)),
+            store=store,
         )
     except zmq.ZMQError as exc:
+        store.close(time.time())
         log.error(
             "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s",
             config.pull_port,

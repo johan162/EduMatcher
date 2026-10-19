@@ -29,6 +29,7 @@ from __future__ import annotations
 import errno
 import logging
 import socket
+import sqlite3
 import time
 from collections.abc import Callable
 from datetime import tzinfo
@@ -57,6 +58,7 @@ from edumatcher.monitor.host import (
     mem_used_pct,
 )
 from edumatcher.monitor.roster import ExpectedRoster, Roster
+from edumatcher.monitor.store import MetricsStore
 from edumatcher.monitor.thresholds import (
     LOOP_AGE_RULE,
     LOOP_AGE_WARN_MS,
@@ -107,6 +109,20 @@ THRESHOLD_LOG_LEVEL = {
     "WARN": logging.WARNING,
     "CRIT": logging.ERROR,
 }
+#: How often the dashboard's daily averages are re-read from metrics.db.
+AVERAGES_EVERY_SEC = 60.0
+#: Process vitals stored as series (``proc.<field>``) next to the metrics.
+VITALS = ("rss_bytes", "cpu_pct", "threads", "fds", "loop_age_ms", "loop_lag_ms")
+#: Host figures stored as series of source ``host``.
+HOST_SERIES = (
+    "load1",
+    "load5",
+    "load15",
+    "mem_used_bytes",
+    "mem_available_bytes",
+    "swap_used_bytes",
+    "disk_free_bytes",
+)
 #: How a state change is coloured in the event log.
 STATE_SEVERITY = {
     "HEALTHY": "INFO",
@@ -135,11 +151,13 @@ class Monitor:
         engine_pub_addr: str | None = None,
         roles: dict[str, str] | None = None,
         host_sampler: HostSource | None = None,
+        store: MetricsStore | None = None,
     ) -> None:
         """``engine_pub_addr`` is the engine bus to subscribe to (``main()``
         passes ``ENGINE_PUB_ADDR``; ``None`` runs without it, so a test never
         joins a developer's live engine). ``roles`` maps each configured
-        gateway id to its participant role."""
+        gateway id to its participant role. ``store`` is ``metrics.db``
+        (``None`` keeps no history: tests, or a read-only data directory)."""
         self.config = config
         self.session_tz = session_tz
         self._clock = clock
@@ -207,6 +225,12 @@ class Monitor:
         self.engine_events_in = 0
         self.engine_events_invalid = 0
         self.threshold_changes = 0
+        self.store_errors = 0
+
+        self.store = store
+        self._next_averages = 0.0
+        if store is not None:
+            self._resume_from(store)
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -249,6 +273,7 @@ class Monitor:
             if now >= next_snapshot:
                 self.drain()
                 self.publish_snapshot()
+                self.store_tick()
                 # Fixed cadence; after a stall resume from now, never burst.
                 next_snapshot += SNAPSHOT_INTERVAL_SEC
                 if next_snapshot <= now:
@@ -263,6 +288,12 @@ class Monitor:
         if self._reporter is not None:
             self._reporter.stop()
             self._reporter = None
+        if self.store is not None:
+            try:
+                self.store.close(self._wall_clock(), self.activity.tracker.state)
+            except sqlite3.Error as exc:
+                log.error("metrics.db not closed cleanly: %s", exc)
+            self.store = None
         self._pull.close()
         self._pub.close()
         if self._engine_sub is not None:
@@ -297,12 +328,11 @@ class Monitor:
             return None
         outcome = self.table.ingest(beacon, now)
         if outcome in (Ingest.NEW, Ingest.UPDATED, Ingest.RESTARTED):
-            self.activity.observe(
-                process_key(beacon.process, beacon.instance, beacon.host),
-                beacon,
-                now,
-                self._wall_clock(),
-            )
+            key = process_key(beacon.process, beacon.instance, beacon.host)
+            now_wall = self._wall_clock()
+            if self.store is not None:
+                self._record_beacon(self.store, key, beacon, now_wall)
+            self.activity.observe(key, beacon, now, now_wall)
         if outcome is Ingest.STALE:
             self.beacons_stale += 1
         elif outcome is Ingest.REJECTED:
@@ -473,6 +503,9 @@ class Monitor:
         self.activity.roll_day(now_wall)
         self.refresh_sources(now)
         host = self.host_sampler.sample()
+        if self.store is not None:
+            self._record_host(self.store, host, now_wall)
+            self._refresh_averages(self.store, now_wall)
         for change in self.thresholds.evaluate(
             self.readings(now, host), iso_utc(now_wall)
         ):
@@ -553,21 +586,34 @@ class Monitor:
     def publish_event(
         self, kind: str, severity: str, subject: str, detail: str
     ) -> bool:
-        """Validate and publish one ``health.event``; False when it failed."""
+        """Store and publish one ``health.event``; False when it failed.
+
+        With ``metrics.db`` the event's ``seq`` is its ``events.seq``, so the
+        bridge can fetch what it missed by sequence; without it (or when the
+        write fails) a per-start counter continues.
+        """
+        ts = iso_utc(self._wall_clock())
+        subject, detail = subject[:200], detail[:512]
+        seq = self._event_seq
+        if self.store is not None:
+            try:
+                seq = self.store.add_event(ts, kind, severity, subject, detail)
+            except sqlite3.Error as exc:
+                self._store_failed(exc)
         try:
             frames = make_health_event(
-                seq=self._event_seq,
-                ts=iso_utc(self._wall_clock()),
+                seq=seq,
+                ts=ts,
                 kind=kind,
                 severity=severity,
-                subject=subject[:200],
-                detail=detail[:512],
+                subject=subject,
+                detail=detail,
             )
         except MessageValidationError as exc:
             self._warn("event", "health event invalid, not published: %s", exc)
             return False
         self._pub.send_multipart(frames)
-        self._event_seq += 1
+        self._event_seq = seq + 1
         self.events_out += 1
         return True
 
@@ -586,6 +632,112 @@ class Monitor:
         self._snapshot_seq += 1
         self.snapshots_out += 1
         return True
+
+    # ------------------------------------------------------------------
+    # metrics.db
+    # ------------------------------------------------------------------
+
+    def _resume_from(self, store: MetricsStore) -> None:
+        """Continue the day metrics.db recorded (a pm-monitor restart, I69)."""
+        now, now_wall = self._clock(), self._wall_clock()
+        a = self.activity
+        a.tracker.prime(store.counter_state())
+        a.roll_day(now_wall)
+        restored = store.totals_for(a.date)
+        for source, name, label, total in restored:
+            a.restore(source, name, label, total, now, now_wall)
+        if restored:
+            log.info(
+                "resumed %d series of %s from %s", len(restored), a.date, store.path
+            )
+        a.sink = self._store_increment
+        self._refresh_averages(store, now_wall, force=True)
+
+    def _store_increment(
+        self,
+        date: str,
+        source: str,
+        name: str,
+        label: str,
+        delta: float,
+        now_wall: float,
+    ) -> None:
+        if self.store is not None:
+            self.store.record_increment(date, (source, name, label), delta, now_wall)
+
+    @staticmethod
+    def _record_beacon(
+        store: MetricsStore, key: str, beacon: Any, now_wall: float
+    ) -> None:
+        for name in VITALS:
+            value = getattr(beacon, name)
+            if value is not None:
+                store.record(
+                    (key, f"proc.{name}", ""), float(value), now_wall, counter=False
+                )
+        for sample in beacon.metrics:
+            store.record(
+                (key, sample.name, sample.label),
+                sample.value,
+                now_wall,
+                counter=sample.kind == "COUNTER",
+            )
+
+    @staticmethod
+    def _record_host(
+        store: MetricsStore, host: dict[str, Any], now_wall: float
+    ) -> None:
+        def put(name: str, value: float, label: str = "") -> None:
+            store.record(("host", name, label), float(value), now_wall, counter=False)
+
+        put("host.cpu_pct", host["cpu_pct"])
+        for i, pct in enumerate(host["cpu_per_core"]):
+            put("host.cpu_pct", pct, f"cpu{i}")
+        for field_name in HOST_SERIES:
+            put(f"host.{field_name}", host[field_name])
+        for f in host["files"]:
+            put("files.size_bytes", f["size_bytes"], f["name"])
+
+    def _refresh_averages(
+        self, store: MetricsStore, now_wall: float, *, force: bool = False
+    ) -> None:
+        """Re-read the 7-day daily averages the snapshot shows (once a minute)."""
+        if not force and now_wall < self._next_averages:
+            return
+        self._next_averages = now_wall + AVERAGES_EVERY_SEC
+        a = self.activity
+        wanted: list[tuple[str, str | None]] = [
+            ("engine.orders_in", None),
+            ("engine.trades", None),
+            *(("engine.orders_in", gw) for gw in a.participants),
+        ]
+        try:
+            a.daily_averages = {
+                (name, label): store.avg_per_day(name, label, before=a.date)
+                for name, label in wanted
+            }
+        except sqlite3.Error as exc:
+            self._store_failed(exc)
+
+    def store_tick(self) -> None:
+        """Write what is due: raw rows every 10 s, closed minutes, retention.
+
+        A failing disk costs history, never the live snapshot."""
+        store = self.store
+        if store is None:
+            return
+        now_wall = self._wall_clock()
+        try:
+            if store.due_raw(now_wall):
+                store.flush_raw(now_wall, self.activity.tracker.state)
+            store.flush_minutes(now_wall)
+            store.apply_retention(now_wall)
+        except sqlite3.Error as exc:
+            self._store_failed(exc)
+
+    def _store_failed(self, exc: Exception) -> None:
+        self.store_errors += 1
+        self._warn("store", "metrics.db write failed: %s", exc)
 
     # ------------------------------------------------------------------
     # own beacon
@@ -607,6 +759,7 @@ class Monitor:
             counter("monitor.engine_events_in", self.engine_events_in),
             counter("monitor.engine_events_invalid", self.engine_events_invalid),
             counter("monitor.threshold_changes", self.threshold_changes),
+            counter("monitor.store_errors", self.store_errors),
             gauge("monitor.series_tracked", len(self.activity.tracker)),
             gauge("monitor.snapshot_bytes", self.snapshot_bytes),
             gauge("monitor.snapshot_build_ms", self.snapshot_build_ms),

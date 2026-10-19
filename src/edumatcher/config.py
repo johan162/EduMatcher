@@ -285,6 +285,8 @@ AUDIT_REPLAY_DB_FILE = DATA_DIR / "audit_replay.db"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 LOG_DB_FILE = DATA_DIR / "log.db"
+#: pm-monitor's history for the operator dashboard (WP-B4).
+METRICS_DB_FILE = DATA_DIR / "metrics.db"
 LOG_FALLBACK_DIR = DATA_DIR / "logs"
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,10 @@ Status: In implementation — progress in
 > - Phase A review: `health.beacon` gained `starting` (§7.4, §10 HUNG rule),
 >   because a slow but healthy start-up would otherwise read as HUNG; reporter
 >   docs corrected and restart-after-stop fixed (I45–I46).
+> - After WP-B4: `metrics.db` as built (§9.5): a `series` table with
+>   `WITHOUT ROWID` sample tables (3.3× smaller; Q3 answered, defaults kept),
+>   `counter_last` for exact restarts, `n` for merging split minutes, a
+>   single-writer lock (I69–I75).
 > - After WP-B3: §9.2, §9.4 and §9.6 record what was built: bucketed rate
 >   windows and the first-value rule, the fixed threshold rules and their
 >   hysteresis, and that a breach on no process degrades the exchange. B4
@@ -731,6 +735,34 @@ large for an educational install, so the default `raw_hours` is **6**
 (≈ 90 MB) and 1-minute buckets cover the rest (≈ 8 M rows / 7 days,
 ~400 MB). These numbers are estimates to confirm in WP-B4 (§19, Q3).
 
+**As built in B4 (`monitor/store.py`, I69–I75).** The schema above, with
+these changes:
+
+- A `series(id, source, name, label)` table; `samples_raw(series, ts,
+  value)` and `samples_1m(series, ts, v_min, v_avg, v_max, v_last, n,
+  delta)` refer to it by id and are `WITHOUT ROWID` tables keyed on
+  `(series, ts)`. The views `v_samples_raw` and `v_samples_1m` spell the
+  series out for anyone writing SQL. `ts` stays ISO-8601 text.
+- `samples_1m.n` (samples in the bucket), so a minute split by a pm-monitor
+  restart is merged rather than overwritten. Minutes are rolled up from every
+  2 s sample in memory, not from the 10 s raw rows.
+- `daily_totals.source` (part of the key), so a restart restores each
+  gateway's figures to its own process.
+- `counter_last(source, name, label, boot_id, value, ts)`, written in the
+  same transaction as `daily_totals`: after a restart pm-monitor primes its
+  counters from it, so the first beacon of a process that kept running
+  counts exactly what happened while pm-monitor was down.
+- `events.severity`; `metrics_meta` pins the session timezone (F21).
+- A single writer, enforced by an exclusive lock on `metrics.db.lock`.
+
+**Measured (B4.5, `tests/test_monitor_store_perf.py`, `-m perf`):** the
+`s30-complex` shape (30 symbols, 8 gateways, 15 processes, 715 series)
+writes 10.0 MB/h raw and 2.5 MB/h of minutes: **≈ 480 MB** at the defaults
+(6 h raw + 7 days of minutes). The §9.5 shape with 30 participants (979
+series): 13.8 + 3.4 MB/h, **≈ 650 MB**. The first, denormalised schema
+(source/name/label text in every row) measured 3.3× that, 1.6–2.2 GB, which
+is what the `series` table fixed. Q3: the defaults stand.
+
 ### 9.6 Thresholds
 
 Static, from configuration (§14), evaluated every second in `pm-monitor`:
@@ -1238,7 +1270,7 @@ src/edumatcher/
     host.py              psutil host sampler (§8.1)
     roster.py            expected processes from emo profile (§9.3)
     thresholds.py        §9.6
-    store.py             metrics.db schema, writer, downsampling, retention (§9.5)
+    store.py             metrics.db schema, writer, minute roll-up, retention, restart (§9.5)
   engine/
     metrics.py           EngineMetrics + OrderBook memory constants (§8.2–§8.4)
 spec/messages/health.yaml
@@ -2084,6 +2116,14 @@ restart, and reported the trader's disconnect as an event.
   not a table.
 
 **Tasks:**
+**Outcome (2026-10-19):** `monitor/store.py` (`MetricsStore`), wired in
+`monitor/collector.py` (`store_tick()` after each snapshot,
+`_resume_from()` at start) and `monitor/main.py`; `METRICS_DB_FILE` in
+`config.py`; `metrics.db` in `pm-opctl-cli clear --all`, the dashboard's
+file sizes and the generated SQLite schema reference. Schema changes and
+the Q3 measurement are in §9.5 (I69–I75). A 10-minute run of engine, ALF
+gateway, AI trader and pm-monitor filled `samples_1m`.
+
 - (From B3, I60) Restore today's totals from `daily_totals` at start and
   reconcile them with B3's first-value rule (§9.4), so a pm-monitor restart
   neither loses nor double-counts the day. `RateStats.avg_per_day` is `null`
@@ -2253,7 +2293,12 @@ fan-out to browsers, and read-only history from `metrics.db`.
 - **C2.3** `metrics-db.ts` with `node:sqlite` `DatabaseSync(path, {
   readOnly: true })`, as `log-gui/apps/bridge/src/log-db.ts`; queries of
   §11.2 with server-side bucketing to ≤ 1 000 points; choose
-  `samples_raw` vs `samples_1m` by range. *Verify with tests that* against a
+  `samples_raw` vs `samples_1m` by range. (From B4, I70) Samples refer to
+  `series(id)`: look the series up once and range-scan the
+  `(series, ts)` key, or read the `v_samples_*` views; build the fixture DB
+  with `edumatcher.monitor.store.MetricsStore` so it can never drift from
+  the real schema. `/api/events` can use `seq` (= `health.event.seq`) to
+  fetch what a reconnecting browser missed. *Verify with tests that* against a
   fixture DB (created by a small Python script in `test/fixtures`), each
   endpoint returns the expected points, and a write through the handle
   throws.
@@ -2617,7 +2662,7 @@ processes (skipped unless `-m e2e`).
 |---|---|---|
 | Q1 | App name: `pm-dash` / `dash-gui`, or `pm-ops` / `ops-gui`? | `pm-dash` / `dash-gui` |
 | Q2 | Should participant bots (`pm-mm-bot`, `pm-ai-swarm`) beacon? They are clients, possibly on a student's machine | Yes when started from an `emo` profile; shown in their own group, never counted in exchange status |
-| Q3 | Default retention (`raw_hours: 6`, `minute_days: 7`) | Confirm after measuring in B4 |
+| Q3 | Default retention (`raw_hours: 6`, `minute_days: 7`) | **Answered in B4:** kept. ≈ 480 MB steady state for `s30-complex`, ≈ 650 MB with 30 participants, after normalising the sample tables (§9.5, I70) |
 | Q4 | Should `pm-opctl-cli list` read `pm-monitor`'s state to show HUNG/SILENT? | Follow-up, out of scope |
 | Q5 | "Orders submitted" — count inbound requests (including those rejected) or accepted orders only? | Inbound, with rejects as a separate counter; accepted = `orders_in − rejects` is shown in the participant drawer |
 

@@ -63,6 +63,12 @@ def _initialize_audit_replay(conn: sqlite3.Connection) -> None:
     initialize_schema(conn)
 
 
+def _initialize_metrics(conn: sqlite3.Connection) -> None:
+    from edumatcher.monitor.store import initialize_schema
+
+    initialize_schema(conn)
+
+
 def _initialize_log_ui_acks(conn: sqlite3.Connection) -> None:
     conn.executescript(ACK_SCHEMA.read_text(encoding="utf-8"))
 
@@ -90,6 +96,13 @@ def database_specs() -> tuple[DatabaseSpec, ...]:
             "Process log events, connection sessions, and server counters.",
             "src/edumatcher/log_srv/schema.py",
             _initialize_log,
+        ),
+        DatabaseSpec(
+            "metrics.db",
+            "pm-monitor",
+            "Operator-dashboard history: raw and 1-minute samples, daily totals, counter state and events.",
+            "src/edumatcher/monitor/store.py",
+            _initialize_metrics,
         ),
         DatabaseSpec(
             "market_sim_news.db",

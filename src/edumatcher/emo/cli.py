@@ -153,6 +153,7 @@ from edumatcher.config import (
     GTC_ORDERS_FILE,
     BOOK_STATS_FILE,
     LOG_DB_FILE,
+    METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
     STATS_DB_FILE,
     resolve_data_path,
@@ -976,15 +977,18 @@ STATE_PATHS: tuple[Path, ...] = (
     DATA_DIR / "indexes",
 )
 
-# Everything else `--all` additionally removes: logs, the audit trail, and
-# pm-opctl's own process-tracking dir (PIDs + per-process stdout/stderr).
+# Everything else `--all` additionally removes: logs, the audit trail,
+# pm-monitor's history (metrics.db, operational like the logs) and pm-opctl's
+# own process-tracking dir (PIDs + per-process stdout/stderr).
 # Anything already listed in STATE_PATHS is skipped here to avoid double
 # work; ref_data/ is excluded — see the module note above.
 NON_STATE_PATHS: tuple[Path, ...] = (
     AUDIT_LOG_FILE,
     AUDIT_INDEX_DB_FILE,
     LOG_DB_FILE,
+    METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
+    METRICS_DB_FILE,
     DATA_DIR / RUNTIME_DIR_NAME,
 )
 

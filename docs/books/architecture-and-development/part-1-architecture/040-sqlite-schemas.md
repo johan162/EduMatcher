@@ -788,6 +788,176 @@ CREATE INDEX idx_le_session    ON log_events(session)
 CREATE INDEX idx_proc_process ON processes(process, connected_at)
 ```
 
+## `metrics.db`
+
+**Owner:** pm-monitor  
+**Purpose:** Operator-dashboard history: raw and 1-minute samples, daily totals, counter state and events.  
+**Schema source:** `src/edumatcher/monitor/store.py`
+
+### Fields
+
+| Object | Field | Declared type | Not null | Default | Primary key |
+|---|---|---|---|---|---|
+| `table: counter_last` | `source` | `TEXT` | yes |  | 1 |
+| `table: counter_last` | `name` | `TEXT` | yes |  | 2 |
+| `table: counter_last` | `label` | `TEXT` | yes | `''` | 3 |
+| `table: counter_last` | `boot_id` | `TEXT` | yes |  |  |
+| `table: counter_last` | `value` | `REAL` | yes |  |  |
+| `table: counter_last` | `ts` | `TEXT` | yes |  |  |
+| `table: daily_totals` | `date` | `TEXT` | yes |  | 1 |
+| `table: daily_totals` | `source` | `TEXT` | yes |  | 4 |
+| `table: daily_totals` | `name` | `TEXT` | yes |  | 2 |
+| `table: daily_totals` | `label` | `TEXT` | yes | `''` | 3 |
+| `table: daily_totals` | `total` | `REAL` | yes |  |  |
+| `table: events` | `seq` | `INTEGER` | no |  | 1 |
+| `table: events` | `ts` | `TEXT` | yes |  |  |
+| `table: events` | `kind` | `TEXT` | yes |  |  |
+| `table: events` | `severity` | `TEXT` | yes |  |  |
+| `table: events` | `subject` | `TEXT` | yes |  |  |
+| `table: events` | `detail` | `TEXT` | yes | `''` |  |
+| `table: metrics_meta` | `key` | `TEXT` | no |  | 1 |
+| `table: metrics_meta` | `value` | `TEXT` | yes |  |  |
+| `table: samples_1m` | `series` | `INTEGER` | yes |  | 1 |
+| `table: samples_1m` | `ts` | `TEXT` | yes |  | 2 |
+| `table: samples_1m` | `v_min` | `REAL` | no |  |  |
+| `table: samples_1m` | `v_avg` | `REAL` | no |  |  |
+| `table: samples_1m` | `v_max` | `REAL` | no |  |  |
+| `table: samples_1m` | `v_last` | `REAL` | no |  |  |
+| `table: samples_1m` | `n` | `INTEGER` | yes |  |  |
+| `table: samples_1m` | `delta` | `REAL` | no |  |  |
+| `table: samples_raw` | `series` | `INTEGER` | yes |  | 1 |
+| `table: samples_raw` | `ts` | `TEXT` | yes |  | 2 |
+| `table: samples_raw` | `value` | `REAL` | yes |  |  |
+| `table: series` | `id` | `INTEGER` | no |  | 1 |
+| `table: series` | `source` | `TEXT` | yes |  |  |
+| `table: series` | `name` | `TEXT` | yes |  |  |
+| `table: series` | `label` | `TEXT` | yes | `''` |  |
+| `view: v_samples_1m` | `ts` | `TEXT` | no |  |  |
+| `view: v_samples_1m` | `source` | `TEXT` | no |  |  |
+| `view: v_samples_1m` | `name` | `TEXT` | no |  |  |
+| `view: v_samples_1m` | `label` | `TEXT` | no |  |  |
+| `view: v_samples_1m` | `v_min` | `REAL` | no |  |  |
+| `view: v_samples_1m` | `v_avg` | `REAL` | no |  |  |
+| `view: v_samples_1m` | `v_max` | `REAL` | no |  |  |
+| `view: v_samples_1m` | `v_last` | `REAL` | no |  |  |
+| `view: v_samples_1m` | `n` | `INTEGER` | no |  |  |
+| `view: v_samples_1m` | `delta` | `REAL` | no |  |  |
+| `view: v_samples_raw` | `ts` | `TEXT` | no |  |  |
+| `view: v_samples_raw` | `source` | `TEXT` | no |  |  |
+| `view: v_samples_raw` | `name` | `TEXT` | no |  |  |
+| `view: v_samples_raw` | `label` | `TEXT` | no |  |  |
+| `view: v_samples_raw` | `value` | `REAL` | no |  |  |
+
+### DDL
+
+#### `table counter_last`
+
+```sql
+CREATE TABLE counter_last (
+    source  TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    label   TEXT NOT NULL DEFAULT '',
+    boot_id TEXT NOT NULL,
+    value   REAL NOT NULL,
+    ts      TEXT NOT NULL,
+    PRIMARY KEY (source, name, label)
+)
+```
+
+#### `table daily_totals`
+
+```sql
+CREATE TABLE daily_totals (
+    date    TEXT NOT NULL,          -- trading date in the session timezone
+    source  TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    label   TEXT NOT NULL DEFAULT '',
+    total   REAL NOT NULL,
+    PRIMARY KEY (date, name, label, source)
+)
+```
+
+#### `table events`
+
+```sql
+CREATE TABLE events (
+    seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts       TEXT NOT NULL,
+    kind     TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    subject  TEXT NOT NULL,         -- gateway id, process key, symbol, rule
+    detail   TEXT NOT NULL DEFAULT ''
+)
+```
+
+#### `table metrics_meta`
+
+```sql
+CREATE TABLE metrics_meta (
+    key     TEXT PRIMARY KEY,
+    value   TEXT NOT NULL
+)
+```
+
+#### `table samples_1m`
+
+```sql
+CREATE TABLE samples_1m (
+    series  INTEGER NOT NULL,       -- series.id
+    ts      TEXT NOT NULL,          -- bucket start
+    v_min   REAL, v_avg REAL, v_max REAL, v_last REAL,
+    n       INTEGER NOT NULL,       -- samples in the bucket
+    delta   REAL,                   -- counters: reset-corrected increment
+    PRIMARY KEY (series, ts)
+) WITHOUT ROWID
+```
+
+#### `table samples_raw`
+
+```sql
+CREATE TABLE samples_raw (
+    series  INTEGER NOT NULL,       -- series.id
+    ts      TEXT NOT NULL,
+    value   REAL NOT NULL,
+    PRIMARY KEY (series, ts)
+) WITHOUT ROWID
+```
+
+#### `table series`
+
+```sql
+CREATE TABLE series (
+    id      INTEGER PRIMARY KEY,
+    source  TEXT NOT NULL,          -- "process/instance@host" or "host"
+    name    TEXT NOT NULL,
+    label   TEXT NOT NULL DEFAULT '',
+    UNIQUE (name, label, source)
+)
+```
+
+#### `view v_samples_1m`
+
+```sql
+CREATE VIEW v_samples_1m AS
+    SELECT m.ts, s.source, s.name, s.label,
+           m.v_min, m.v_avg, m.v_max, m.v_last, m.n, m.delta
+    FROM samples_1m m JOIN series s ON s.id = m.series
+```
+
+#### `view v_samples_raw`
+
+```sql
+CREATE VIEW v_samples_raw AS
+    SELECT r.ts, s.source, s.name, s.label, r.value
+    FROM samples_raw r JOIN series s ON s.id = r.series
+```
+
+#### `index idx_ev_ts`
+
+```sql
+CREATE INDEX idx_ev_ts ON events(ts)
+```
+
 ## `market_sim_news.db`
 
 **Owner:** pm-market-sim  

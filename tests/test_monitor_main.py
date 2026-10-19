@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Iterator
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -152,11 +153,13 @@ def _compiled(monitor_cfg: MonitorConfig, tz: str = "Europe/Stockholm") -> Any:
 
 
 @pytest.fixture
-def deployed(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Point main() at a fake compiled artifact; returns a setter."""
+def deployed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
+    """Point main() at a fake compiled artifact and a private metrics.db;
+    returns a setter."""
     monkeypatch.setattr(
         "edumatcher.config_artifact.report_deployment", lambda log: None
     )
+    monkeypatch.setattr(monitor_main, "METRICS_DB_FILE", tmp_path / "metrics.db")
 
     def deploy(compiled: Any) -> None:
         monkeypatch.setattr(

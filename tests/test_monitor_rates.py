@@ -14,6 +14,7 @@ from edumatcher.monitor.rates import (
     BucketWindow,
     CounterTracker,
     Rate,
+    Step,
     increment,
 )
 
@@ -42,13 +43,27 @@ class TestCounterTracker:
     def test_steps_and_restarts_by_boot_id(self) -> None:
         tracker = CounterTracker()
         key = ("pm-engine@box", "engine.orders_in", "GW1")
-        assert tracker.step(key, "a", 10.0) == (10.0, True)
-        assert tracker.step(key, "a", 25.0) == (15.0, False)
+        assert tracker.step(key, "a", 10.0) == (10.0, Step.FIRST)
+        assert tracker.step(key, "a", 25.0) == (15.0, Step.LIVE)
         # same value range, new process: everything since its start
-        assert tracker.step(key, "b", 30.0) == (30.0, False)
+        assert tracker.step(key, "b", 30.0) == (30.0, Step.LIVE)
         assert len(tracker) == 1
         tracker.forget_source("pm-engine@box")
         assert len(tracker) == 0
+
+    def test_a_primed_series_resumes_once(self) -> None:
+        """After a pm-monitor restart: what happened while it was down."""
+        tracker = CounterTracker()
+        key = ("pm-engine@box", "engine.orders_in", "GW1")
+        tracker.prime({key: ("a", 100.0)})
+        assert tracker.step(key, "a", 130.0) == (30.0, Step.RESUMED)
+        assert tracker.step(key, "a", 131.0) == (1.0, Step.LIVE)
+
+    def test_a_primed_series_of_a_restarted_process(self) -> None:
+        tracker = CounterTracker()
+        key = ("pm-engine@box", "engine.orders_in", "GW1")
+        tracker.prime({key: ("a", 100.0)})
+        assert tracker.step(key, "b", 7.0) == (7.0, Step.RESUMED)
 
 
 class TestBucketWindow:

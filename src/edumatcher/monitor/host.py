@@ -19,6 +19,7 @@ from edumatcher.config import (
     DATA_DIR,
     GTC_ORDERS_FILE,
     LOG_DB_FILE,
+    METRICS_DB_FILE,
     STATS_DB_FILE,
 )
 
@@ -30,9 +31,9 @@ def default_files(log_db: Path | None = None) -> dict[str, Path]:
     """The data files the dashboard shows, by logical name (``FileSize.name``).
 
     ``log_db`` is the log server's configured ``db_path`` when there is one.
-    ``metrics.db`` joins in WP-B4.
     """
     return {
+        "metrics.db": METRICS_DB_FILE,
         "log.db": LOG_DB_FILE if log_db is None else log_db,
         "stats.db": STATS_DB_FILE,
         "audit": AUDIT_LOG_FILE,

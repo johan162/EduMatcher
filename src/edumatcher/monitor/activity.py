@@ -14,18 +14,25 @@ process, which metric means what.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, time as dtime, tzinfo
 from typing import Any
 
 from edumatcher.engine.metrics import SESSION_STATE_ORDER
 from edumatcher.models.generated.health import HealthBeacon
-from edumatcher.monitor.rates import DAILY_COUNTERS, CounterTracker, Rate
+from edumatcher.monitor.rates import DAILY_COUNTERS, CounterTracker, Rate, Step
 from edumatcher.monitor.timefmt import iso_utc
 from edumatcher.stats.trading_day import trading_date
 
 ENGINE = "pm-engine"
+
+#: Receives every increment counted into today, per series:
+#: ``(date, source key, name, label, delta, now_wall)`` -- metrics.db's
+#: daily totals and minute deltas (WP-B4).
+IncrementSink = Callable[[str, str, str, str, float, float], None]
+#: ``(name, label or None for all labels) -> mean daily total or None``.
+DailyAverages = dict[tuple[str, str | None], float | None]
 
 
 @dataclass(frozen=True)
@@ -175,6 +182,10 @@ class Activity:
         self.gateways: dict[str, Gateway] = {}  # by process key
         #: (rule, source key) -> increases of a watched counter (§9.6)
         self.increases: dict[tuple[str, str], Rate] = {}
+        #: Where counted increments also go (metrics.db); None without one.
+        self.sink: IncrementSink | None = None
+        #: Mean daily totals over the last 7 trading days, from metrics.db.
+        self.daily_averages: DailyAverages = {}
 
     # ------------------------------------------------------------------
     # day
@@ -238,21 +249,51 @@ class Activity:
                 elif gateway is not None:
                     gateway.gauges.setdefault(name, {})[label] = value
                 continue
-            delta, first = self.tracker.step((key, name, label), beacon.boot_id, value)
-            windowed = not first
-            if first and not (started_today or name in DAILY_COUNTERS):
+            delta, step = self.tracker.step((key, name, label), beacon.boot_id, value)
+            windowed = step is Step.LIVE
+            if step is Step.FIRST and not (started_today or name in DAILY_COUNTERS):
                 continue  # a baseline from before today
             if delta <= 0:
                 continue
-            if process == ENGINE:
-                self._engine_counter(name, label, delta, now, windowed)
-            elif gateway is not None and gateway_metrics is not None:
+            if self.sink is not None:
+                self.sink(self.date, key, name, label, delta, now_wall)
+            self._count(key, process, name, label, delta, now, windowed)
+
+    def _count(
+        self,
+        key: str,
+        process: str,
+        name: str,
+        label: str,
+        delta: float,
+        now: float,
+        windowed: bool,
+    ) -> None:
+        """Route one counted increment of one series to its figures."""
+        if process == ENGINE:
+            self._engine_counter(name, label, delta, now, windowed)
+        else:
+            spec = GATEWAYS.get(process)
+            if spec is not None:
+                gateway = self.gateways.setdefault(key, Gateway(process))
                 self._gateway_counter(
-                    gateway, gateway_metrics, key, name, label, delta, now, windowed
+                    gateway, spec, key, name, label, delta, now, windowed
                 )
-            rule = WATCHED_INCREASES.get(name)
-            if rule is not None:
-                self._increase(rule, key, delta, now, windowed)
+        rule = WATCHED_INCREASES.get(name)
+        if rule is not None:
+            self._increase(rule, key, delta, now, windowed)
+
+    def restore(
+        self, key: str, name: str, label: str, total: float, now: float, now_wall: float
+    ) -> None:
+        """Today's total of one series as metrics.db recorded it (a restart).
+
+        Counts towards today only; the rolling windows start empty.
+        """
+        self.roll_day(now_wall)
+        if total > 0:
+            process = key.split("@", 1)[0].split("/", 1)[0]
+            self._count(key, process, name, label, total, now, windowed=False)
 
     def _increase(
         self, rule: str, key: str, delta: float, now: float, windowed: bool
@@ -371,8 +412,12 @@ class Activity:
         hours = self.hours_open(now_wall)
         g = self.engine_gauges
         return {
-            "orders": self.orders.stats(now, hours),
-            "trades": self.trades.stats(now, hours),
+            "orders": self.orders.stats(
+                now, hours, self.daily_averages.get(("engine.orders_in", None))
+            ),
+            "trades": self.trades.stats(
+                now, hours, self.daily_averages.get(("engine.trades", None))
+            ),
             "traded_value_today": max(0.0, self.traded_value),
             "reject_pct_5m": self.reject_pct_5m(now),
             "handle_p50_us": max(0.0, g.get("engine.handle_us_p50", 0.0)),
@@ -390,7 +435,11 @@ class Activity:
                     "role": self.roles.get(gateway_id, "")[:32],
                     "connected": bool(p.connected),
                     "connected_since": p.connected_since if p.connected else None,
-                    "orders": p.orders.stats(now, hours),
+                    "orders": p.orders.stats(
+                        now,
+                        hours,
+                        self.daily_averages.get(("engine.orders_in", gateway_id)),
+                    ),
                     "reject_pct": (
                         0.0 if p.requests <= 0 else 100.0 * p.rejects / p.requests
                     ),

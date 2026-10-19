@@ -58,7 +58,14 @@ def test_an_unreadable_disk_path_reports_zero(tmp_path: Path) -> None:
 
 def test_default_files_live_in_the_data_dir() -> None:
     files = default_files()
-    assert set(files) == {"log.db", "stats.db", "audit", "clearing.db", "gtc"}
+    assert set(files) == {
+        "metrics.db",
+        "log.db",
+        "stats.db",
+        "audit",
+        "clearing.db",
+        "gtc",
+    }
     assert all(path.is_relative_to(DATA_DIR) for path in files.values())
     assert default_files(Path("/elsewhere/log.db"))["log.db"] == Path(
         "/elsewhere/log.db"
