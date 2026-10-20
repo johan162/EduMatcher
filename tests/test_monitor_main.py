@@ -278,10 +278,24 @@ class TestBind:
     def test_a_failed_bind_releases_the_first_socket(self, monitor: Monitor) -> None:
         cfg = _config()
         clash = MonitorConfig(pull_port=cfg.pull_port, pub_port=monitor.config.pub_port)
-        with pytest.raises(zmq.ZMQError):
+        # Held to the end: its traceback keeps the half-built Monitor alive, so
+        # a socket it leaked stays bound instead of being closed by the GC.
+        with pytest.raises(zmq.ZMQError) as failed:
             Monitor(clash, STOCKHOLM, host_sampler=QuietHost())
-        # the PULL port that did bind is free again
-        Monitor(cfg, STOCKHOLM, host_sampler=QuietHost()).close()
+        # the PULL port that did bind is free again -- promptly, not at once:
+        # libzmq shuts a listener on its I/O thread after close() returns, so
+        # an immediate rebind raced it (EADDRINUSE about 2 runs in 3 under
+        # coverage; free within ~2 ms).
+        deadline = time.monotonic() + 2.0
+        while True:
+            try:
+                Monitor(cfg, STOCKHOLM, host_sampler=QuietHost()).close()
+                break
+            except zmq.ZMQError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
+        assert failed.value.errno == zmq.EADDRINUSE
 
 
 # ---------------------------------------------------------------------------
