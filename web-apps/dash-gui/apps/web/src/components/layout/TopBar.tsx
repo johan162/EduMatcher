@@ -1,28 +1,61 @@
 /**
  * Top bar (design §12.2): the wordmark and version as every EduMatcher GUI
- * shows them, then theme, settings and the connection state on the right.
- * WP-D1 adds the exchange status, session clock and time picker.
+ * shows them, the exchange status pill and session badge, then the time
+ * picker, refresh, theme, settings and the bridge connection on the right.
  */
 
+import clsx from "clsx";
 import { Moon, Sun } from "lucide-react";
 import { StatusDot } from "../StatusDot.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
-import { useDashStore, type ConnectionState } from "../../store/useDashStore.js";
+import { RefreshPicker, TimePicker } from "./TimePicker.js";
+import { EXCHANGE_STATUS, UNKNOWN_STATUS } from "../../lib/status.js";
+import { useDashStore, type SocketState } from "../../store/useDashStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
 
-const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; label: string }> = {
-  LIVE: { tone: "live", label: "LIVE" },
-  NO_MONITOR: { tone: "warn", label: "NO MONITOR" },
-  OFFLINE: { tone: "down", label: "OFFLINE" },
+/** The bridge connection only; pm-monitor's own state is the banner's. */
+const SOCKET: Record<SocketState, { tone: "live" | "warn" | "down"; label: string }> = {
+  OPEN: { tone: "live", label: "LIVE" },
+  CONNECTING: { tone: "warn", label: "CONNECTING" },
+  CLOSED: { tone: "down", label: "OFFLINE" },
 };
 
+function ExchangeStatusPill() {
+  const status = useDashStore((s) => s.snapshot?.exchange.status);
+  const look = status ? EXCHANGE_STATUS[status] : UNKNOWN_STATUS;
+  return (
+    <span
+      role="status"
+      aria-label={`Exchange status ${look.label}`}
+      className={clsx("flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-semibold tracking-wider", look.text, look.border)}
+    >
+      <span aria-hidden="true">{look.glyph}</span>
+      {look.label}
+    </span>
+  );
+}
+
+function SessionBadge() {
+  const exchange = useDashStore((s) => s.snapshot?.exchange);
+  if (!exchange) return null;
+  return (
+    <span
+      data-testid="session-badge"
+      title={`Trading date in the session timezone, ${exchange.session_timezone}`}
+      className="font-mono text-xs text-fg-subtle tabular"
+    >
+      {exchange.session_state} · {exchange.trading_date}
+    </span>
+  );
+}
+
 export function TopBar() {
-  const connection = useDashStore((s) => s.connection());
+  const socket = useDashStore((s) => s.socket);
   const theme = usePrefsStore((s) => s.theme);
   const toggleTheme = usePrefsStore((s) => s.toggleTheme);
 
-  const { tone, label } = CONNECTION[connection];
+  const { tone, label } = SOCKET[socket];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
@@ -33,7 +66,12 @@ export function TopBar() {
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
       </div>
 
-      <div className="ml-auto flex items-center gap-4">
+      <ExchangeStatusPill />
+      <SessionBadge />
+
+      <div className="ml-auto flex items-center gap-2">
+        <TimePicker />
+        <RefreshPicker />
         <button
           type="button"
           onClick={toggleTheme}

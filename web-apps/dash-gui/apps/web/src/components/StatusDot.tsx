@@ -8,7 +8,7 @@ export function StatusDot({ tone, children }: { tone: "live" | "warn" | "down"; 
         className={clsx(
           "h-2 w-2 rounded-full",
           tone === "live" && "bg-live",
-          tone === "warn" && "bg-halt",
+          tone === "warn" && "bg-warning",
           tone === "down" && "bg-offline",
         )}
       />

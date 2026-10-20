@@ -18,6 +18,7 @@ import type {
   EventKind,
   EventsResponse,
   MultiSeriesResponse,
+  RangeName,
   RateResponse,
   SeriesResponse,
 } from "@edumatcher/dash-types";
@@ -45,8 +46,8 @@ const EVENT_KINDS: Record<EventKind, true> = {
   THRESHOLD: true,
 };
 
-/** The Grafana time-picker set (§11.2); `range=` is an alternative to `from=`. */
-const RANGES: Record<string, number> = {
+/** The time-picker set (§11.2); `range=` is an alternative to `from=`. */
+const RANGES: Record<RangeName, number> = {
   "5m": 5 * 60_000,
   "15m": 15 * 60_000,
   "1h": 3600_000,
@@ -86,7 +87,7 @@ export function parseTime(raw: string, param: string): number {
 export function parseRange(q: Query, now: number, required = true): TimeRange | undefined {
   if (q.range !== undefined) {
     if (q.from !== undefined) throw bad("bad_range", "give either range= or from=, not both");
-    const span = RANGES[q.range];
+    const span = Object.hasOwn(RANGES, q.range) ? RANGES[q.range as RangeName] : undefined;
     if (span === undefined) throw bad("bad_range", `range=${q.range}; use one of ${Object.keys(RANGES).join(", ")}`);
     const toMs = q.to !== undefined ? parseTime(q.to, "to") : now;
     return { fromMs: toMs - span, toMs };

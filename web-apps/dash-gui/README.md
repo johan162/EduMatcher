@@ -10,7 +10,11 @@ The design, and the reasons behind it, are in
 [`docs-design/EduMatcher-Operator-Dashboard.md`](../../docs-design/EduMatcher-Operator-Dashboard.md).
 
 > **Status:** the bridge is complete (WP-C2): live snapshots and events on
-> `/ws`, history over REST. The dashboard screens arrive in WP-D1–D4.
+> `/ws`, history over REST. The shell is in (WP-D1): top bar with the
+> exchange status, session, time range (`?from=now-1h`), history refresh,
+> theme and settings, and the banner while data is not live. The
+> dashboard rows arrive in WP-D2–D4. `make test-e2e` (repo root) checks the
+> built page in headless Chrome against a real exchange.
 
 **Dependencies:** `pm-monitor` is required — the bridge subscribes to its PUB
 socket (`monitor.pub_port`, default 5611) for the 1 Hz `health.snapshot` and

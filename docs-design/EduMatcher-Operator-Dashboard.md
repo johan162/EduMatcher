@@ -1000,7 +1000,7 @@ pinned to the spec by `tests/test_dash_types_mirror.py`.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ▣ EduMatcher pm-dash v0.1.0 │ ● OPERATIONAL │ CONTINUOUS · 2026-10-11 │ ⏱ Last 1h ▾ │ ⟳ 1s ▾ │ ☾ │ ⚙ │
+│ ▣ EduMatcher pm-dash v0.1.0 │ ● OPERATIONAL │ CONTINUOUS · 2026-10-11 │ ⏱ Last 1h ▾ │ ⟳ 10s ▾ │ ☾ │ ⚙ │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1009,8 +1009,8 @@ a bottom border, and a monospace wordmark of three spans. `EduMatcher` is
 bold in `text-fg`, the app tag `pm-dash` is in `text-accent` (orange), and
 `v{version}` is in `text-brand-version` (green). The theme toggle uses
 `lucide-react` `Sun`/`Moon`, and settings use the copied `SettingsPopover`.
-The bridge connection shows as `StatusDot` (LIVE / RECONNECTING / OFFLINE)
-on the right, as in book-gui. The status pill takes the
+The bridge connection shows as `StatusDot` (as built: LIVE / CONNECTING /
+OFFLINE, I111) on the right, as in book-gui. The status pill takes the
 exchange status colour. A red banner appears under the bar when the bridge
 or `pm-monitor` is unreachable ("pm-monitor down — data frozen at 11:42:05"),
 and all panels dim.
@@ -2569,6 +2569,15 @@ font-size settings, disconnected banner.
 - **D1.5** Settings popover: theme, font size (XS…XXL, as book-gui), stat-tile
   colour mode. Preferences in `localStorage` with try/catch. *Verify with
   tests that* a thrown `localStorage` does not break rendering.
+
+As built (WP-D1, I110–I111):
+- **Refresh selector:** sets how often history panels re-query the bridge (`useDashStore.refresh`, `REFRESH_MS`): Off / 10s / 30s / 1m / 5m, default 10s. Live figures are pushed at 1 Hz regardless, and 10 s is the finest history.
+- **StatusDot:** shows the bridge socket only (LIVE / CONNECTING / OFFLINE); pm-monitor's state is the banner's.
+- **Time range:** `?from=now-<range>` is the range's only source. The picker writes the URL and AppShell copies it into the store; an unknown value means the default 1 h. The range names are `RANGE_NAMES` in dash-types, shared with the bridge.
+- **Status pill:** colour, glyph and text from `lib/status.ts`; "○ NO DATA" before the first snapshot.
+- **Banner:** `DisconnectedBanner` says "pm-monitor down" or "pm-dash-bridge unreachable, reconnecting", then "data frozen at HH:MM:SS" on the session clock. `main` gets `.stale` and `data-stale`.
+- **Preferences:** persisted through `lib/storage.ts`, so a throwing `localStorage` is never fatal.
+- **Browser check:** `make test-e2e` also checks the built page in headless Chrome against the live exchange.
 
 **Tests:** `apps/web/src/**/*.test.tsx`.
 

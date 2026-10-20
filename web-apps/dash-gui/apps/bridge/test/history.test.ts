@@ -103,6 +103,16 @@ describe("/api/series", () => {
     db.close();
   });
 
+  it("uses the raw rows when the series began late in its first minute (I110)", () => {
+    // First sample at :55 of a minute: that minute's row is stamped :00, the
+    // first raw row is written at the next flush, up to 70 s later. Found
+    // end to end: a 15 min chart went to a minute table not yet flushed.
+    const db = new MetricsDb(variant((w) => w.prepare("DELETE FROM samples_raw WHERE ts < ?").run(iso(T0 + 65_000))));
+    const r = db.series("engine.orders_in", "GW01", undefined, { fromMs: T0 - 5 * MIN, toMs: T0 + 10 * MIN }, 0);
+    expect(r.resolution).toBe("raw");
+    db.close();
+  });
+
   it("uses the raw rows while no minute is written yet (pm-monitor just started)", () => {
     const db = new MetricsDb(variant((w) => w.exec("DELETE FROM samples_1m")));
     const r = db.series("host.cpu_pct", "", undefined, { fromMs: T0 - HOUR, toMs: T0 + 2 * HOUR }, 0);

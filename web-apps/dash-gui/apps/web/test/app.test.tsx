@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The whole web app, end to end: the real `App` with its real stream hook and
- * stores, talking to a fake bridge socket. WP-C1 scaffold: the shell, the
- * connection states and the theme.
+ * stores, talking to a fake bridge socket: the shell, the connection
+ * states and the theme (WP-D1's details are in shell.test.tsx).
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -66,24 +66,22 @@ describe("shell", () => {
 });
 
 describe("connection states", () => {
-  it("is LIVE only with both the socket and pm-monitor up", () => {
+  it("the footer follows pm-monitor's state as the bridge reports it", () => {
     const socket = renderAt();
     socket.deliver(hello("UP"));
     expect(screen.getByText("LIVE")).toBeTruthy();
     expect(screen.getByTestId("monitor-state").textContent).toBe("pm-monitor UP");
-
     socket.deliver({ type: "monitor_state", monitor: "DOWN" });
-    expect(screen.getByText("NO MONITOR")).toBeTruthy();
-    expect(screen.getByText(/Waiting for pm-monitor/)).toBeTruthy();
+    expect(screen.getByTestId("monitor-state").textContent).toBe("pm-monitor DOWN");
   });
 
-  it("hides the dashboard while the bridge is unreachable and reconnects", async () => {
+  it("keeps the dashboard, dimmed under the banner, while the bridge is unreachable, and reconnects", async () => {
     const socket = renderAt();
     socket.deliver(hello("UP"));
 
     socket.drop();
-    expect(screen.getByRole("alert").textContent).toContain("Disconnected from pm-dash-bridge");
-    expect(screen.queryByRole("region", { name: "Dashboard" })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("pm-dash-bridge unreachable");
+    expect(screen.getByRole("region", { name: "Dashboard" })).toBeTruthy();
     expect(screen.getByText("OFFLINE")).toBeTruthy();
 
     await waitFor(() => expect(FakeSocket.instances).toHaveLength(2), { timeout: 3000 });
@@ -91,6 +89,7 @@ describe("connection states", () => {
     again.open();
     again.deliver(hello("UP"));
     expect(screen.getByText("LIVE")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

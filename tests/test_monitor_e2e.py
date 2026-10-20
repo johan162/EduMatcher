@@ -14,13 +14,19 @@ The tests run in file order on one exchange: each builds on the one before
 and the destructive ones come last. The processes bind the exchange's fixed
 ports (5555...), so the module runs only with ``-m e2e`` (``make test-e2e``),
 serially, and skips when a port is taken -- by a developer's own exchange,
-for instance. The bridge part needs ``web-apps/dash-gui``'s ``npm install``.
+for instance. The bridge part needs ``web-apps/dash-gui``'s ``npm install``;
+it builds the web app and serves it as the container does. With Chrome
+installed, a headless page (driven over the DevTools protocol, no extra
+dependency) checks what the operator actually sees: the top bar from the
+live exchange, the time range, the theme, and the banner when pm-monitor
+goes away (WP-D1).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import socket
 import sqlite3
@@ -30,8 +36,9 @@ import threading
 import time
 import urllib.request
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypeVar
 from zoneinfo import ZoneInfo
@@ -53,6 +60,10 @@ pytestmark = [
 
 REPO = Path(__file__).resolve().parents[1]
 DASH = REPO / "web-apps" / "dash-gui"
+CHROME = next(
+    (c for c in ("google-chrome", "chromium", "chromium-browser") if shutil.which(c)),
+    None,
+)
 BIN = Path(sys.executable).parent
 #: Every fixed port the mini profile binds (engine, stats health, gateways,
 #: log server, pm-monitor, API desk).
@@ -386,6 +397,15 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
     tsx = DASH / "node_modules" / ".bin" / "tsx"
     if not tsx.exists():
         pytest.skip("web-apps/dash-gui has no node_modules (npm install)")
+    built = subprocess.run(
+        ["npm", "run", "build", "--workspace", "@edumatcher/dash-web"],
+        cwd=DASH,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    assert built.returncode == 0, f"web build failed: {built.stdout}{built.stderr}"
     (port,) = free_ports(1)
     env = {
         **os.environ,
@@ -395,6 +415,7 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
         "METRICS_DB_PATH": str(exchange.data_dir / "metrics.db"),
         "LOG_SRV_ENABLED": "false",
         "LOG_FAILOVER_DIR": str(exchange.data_dir / "logs"),
+        "STATIC_DIR": str(DASH / "apps" / "web" / "dist"),
     }
     proc = subprocess.Popen(
         [str(tsx), "--disable-warning=ExperimentalWarning", "src/main.ts"],
@@ -453,6 +474,118 @@ class Tab:
 def tab(bridge: Bridge) -> Iterator[Tab]:
     with connect(f"ws://127.0.0.1:{bridge.port}/ws", max_size=None) as ws:
         yield Tab(ws)
+
+
+class Page:
+    """A headless Chrome tab, driven over the DevTools protocol."""
+
+    def __init__(self, chrome: str, profile: Path) -> None:
+        self.proc = subprocess.Popen(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--window-size=1600,900",
+                "--remote-debugging-port=0",
+                f"--user-data-dir={profile}",
+                "about:blank",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        active = profile / "DevToolsActivePort"
+        until(
+            lambda: active.exists() and len(active.read_text().splitlines()) >= 2,
+            "Chrome's DevTools port",
+            20,
+        )
+        port, path = active.read_text().splitlines()[:2]
+        self._stack = ExitStack()
+        self.ws = self._stack.enter_context(
+            connect(f"ws://127.0.0.1:{port}{path}", max_size=None)
+        )
+        self._id = 0
+        target = self._call("Target.createTarget", {"url": "about:blank"})["targetId"]
+        attached = self._call(
+            "Target.attachToTarget", {"targetId": target, "flatten": True}
+        )
+        self.session: str = attached["sessionId"]
+
+    def _call(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        session: str | None = None,
+    ) -> dict[str, Any]:
+        self._id += 1
+        message: dict[str, Any] = {
+            "id": self._id,
+            "method": method,
+            "params": params or {},
+        }
+        if session:
+            message["sessionId"] = session
+        self.ws.send(json.dumps(message))
+        while True:
+            reply = json.loads(self.ws.recv(timeout=30))
+            if reply.get("id") == self._id:
+                assert "error" not in reply, f"{method}: {reply['error']}"
+                result: dict[str, Any] = reply["result"]
+                return result
+
+    def goto(self, url: str) -> None:
+        self._call("Page.navigate", {"url": url}, self.session)
+
+    def js(self, expression: str) -> Any:
+        result = self._call(
+            "Runtime.evaluate",
+            {"expression": expression, "returnByValue": True, "awaitPromise": True},
+            self.session,
+        )
+        assert (
+            "exceptionDetails" not in result
+        ), f"{expression}: {result['exceptionDetails']}"
+        return result["result"].get("value")
+
+    def wait(self, expression: str, what: str, timeout: float = 20.0) -> Any:
+        return until(
+            lambda: self.js(expression), what, timeout, seen=lambda: self.js(BODY_TEXT)
+        )
+
+    def close(self) -> None:
+        self._stack.close()
+        self.proc.terminate()
+        self.proc.wait(timeout=10)
+
+
+#: What the page says, for a failure message.
+BODY_TEXT = "document.body ? document.body.innerText.slice(0, 400) : ''"
+PILL = "document.querySelector('[role=status][aria-label^=\"Exchange status\"]')"
+BANNER = "document.querySelector('[role=alert]')"
+MAIN_STALE = "document.querySelector('main')?.dataset.stale"
+
+
+@pytest.fixture(scope="module")
+def page(
+    bridge: Bridge, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[Page | None]:
+    """The dashboard in a browser; None without Chrome (the browser checks skip)."""
+    if CHROME is None:
+        yield None
+        return
+    p = Page(CHROME, tmp_path_factory.mktemp("chrome"))
+    try:
+        yield p
+    finally:
+        p.close()
+
+
+def session_clock(ts: str, tz: str) -> str:
+    """``HH:MM:SS`` of an ISO UTC instant in the session timezone, as lib/time.ts shows it."""
+    moment = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return moment.astimezone(ZoneInfo(tz)).strftime("%H:%M:%S")
 
 
 def latest_snapshot(t: Tab) -> dict[str, Any] | None:
@@ -631,15 +764,12 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     )
     assert daily
     engine = process(feed.latest or {}, "pm-engine")
+    series = f"/api/series?name=engine.orders_in&label=TRADER01&source={engine['key']}&range=15m"
     counter = until(
-        lambda: [
-            pt
-            for pt in bridge.get(
-                f"/api/series?name=engine.orders_in&label=TRADER01&source={engine['key']}&range=15m"
-            )["points"]
-            if pt[1] == 6
-        ],
+        lambda: [pt for pt in bridge.get(series)["points"] if pt[1] == 6],
         "TRADER01's counter at 6 in /api/series (raw, every 10 s)",
+        seen=lambda: {k: v for k, v in bridge.get(series).items() if k != "points"}
+        | {"last": bridge.get(series)["points"][-3:]},
     )
     assert counter
     rss = bridge.get(f"/api/series?name=proc.rss_bytes&source={engine['key']}&range=5m")
@@ -657,6 +787,53 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     caught_up = bridge.get(f"/api/events?after_seq={first}")["events"]
     assert [e["seq"] for e in caught_up] == sorted(e["seq"] for e in caught_up)
     assert all(e["seq"] > first for e in caught_up)
+
+
+def test_the_dashboard_page_shows_the_live_exchange_in_a_browser(
+    exchange: Exchange, bridge: Bridge, page: Page | None
+) -> None:
+    """WP-D1 as the operator sees it: the built page from the bridge, live."""
+    if page is None:
+        pytest.skip("no Chrome to drive")
+    page.goto(f"http://127.0.0.1:{bridge.port}/?from=now-6h")
+    pill = page.wait(
+        f"{PILL}?.getAttribute('aria-label') === 'Exchange status OPERATIONAL' && {PILL}.textContent",
+        "the live exchange status pill",
+    )
+    assert pill == "●OPERATIONAL"
+    badge = page.js("document.querySelector('[data-testid=session-badge]').textContent")
+    assert badge == f"CONTINUOUS · {exchange.today}"
+    header = page.js("document.querySelector('header').innerText")
+    assert "LIVE" in header and "pm-dash" in header
+    assert page.js(f"{BANNER}") is None and page.js(MAIN_STALE) == "false"
+    picker = "document.querySelector('[aria-label^=\"Time range:\"]')"
+    assert page.js(f"{picker}.getAttribute('aria-label')") == "Time range: Last 6 hours"
+
+    # The theme swaps the palette, not just a class.
+    assert (
+        page.js("getComputedStyle(document.body).backgroundColor") == "rgb(10, 12, 16)"
+    )
+    page.js("document.querySelector('[aria-label=\"Theme: dark\"]').click()")
+    page.wait("!document.documentElement.classList.contains('dark')", "the light theme")
+    assert (
+        page.js("getComputedStyle(document.body).backgroundColor")
+        == "rgb(255, 255, 255)"
+    )
+    page.js("document.querySelector('[aria-label=\"Theme: light\"]').click()")
+    page.wait(
+        "document.documentElement.classList.contains('dark')", "the dark theme again"
+    )
+
+    # A range chosen in the picker lands in the URL.
+    page.js(f"{picker}.click()")
+    page.js(
+        "[...document.querySelectorAll('[role=option]')]"
+        ".find(o => o.textContent === 'Last 24 hours').click()"
+    )
+    page.wait("location.search === '?from=now-24h'", "?from=now-24h in the URL")
+    assert (
+        page.js(f"{picker}.getAttribute('aria-label')") == "Time range: Last 24 hours"
+    )
 
 
 def test_a_stopped_process_goes_silent_and_comes_back(
@@ -702,9 +879,10 @@ def test_a_stopped_process_goes_silent_and_comes_back(
 
 
 def test_a_pm_monitor_restart_keeps_todays_totals_and_its_event_numbers(
-    exchange: Exchange, feed: Feed, bridge: Bridge, tab: Tab
+    exchange: Exchange, feed: Feed, bridge: Bridge, tab: Tab, page: Page | None
 ) -> None:
-    """The bridge shows DOWN, then UP; today's figures continue (design §9.4)."""
+    """The bridge shows DOWN, then UP; today's figures continue (design §9.4).
+    In the browser: the banner with the time the data froze, panels dimmed."""
     before = feed.latest
     assert before is not None
     orders, trades = (
@@ -721,6 +899,12 @@ def test_a_pm_monitor_restart_keeps_todays_totals_and_its_event_numbers(
     )
     assert bridge.get("/api/bridge/status")["monitor"] == "DOWN"
     restarted_at = len(feed.snapshots)
+    if page is not None:
+        frozen = session_clock(feed.snapshots[-1]["ts"], exchange.session_tz)
+        banner = page.wait(f"{BANNER}?.textContent", "the banner in the browser")
+        assert banner == f"pm-monitor down — data frozen at {frozen}"
+        assert page.js(MAIN_STALE) == "true"
+        assert page.js(f"{PILL}.textContent") == "●OPERATIONAL"  # frozen, not gone
 
     exchange.cli("pm-opctl-cli", "list", "--restart")
     tab.wait(
@@ -730,6 +914,8 @@ def test_a_pm_monitor_restart_keeps_todays_totals_and_its_event_numbers(
         30,
     )
     feed.wait(lambda s: s["seq"] >= 3, "a few snapshots from the new pm-monitor")
+    if page is not None:
+        page.wait(f"{BANNER} === null && {MAIN_STALE} === 'false'", "the banner gone")
     after = feed.snapshots[restarted_at:]
     assert after, "no snapshot after the restart"
     assert all(s["trading"]["orders"]["today"] == orders for s in after)

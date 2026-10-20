@@ -342,12 +342,15 @@ export class MetricsDb {
    * unless the minute table has rows in it from before the first 10 s row
    * (retention thinned the raw rows there). A gap with no data at all, or
    * a pm-monitor that has not yet closed a minute, leaves raw the answer.
-   * A minute of slack: the first raw row lands up to 10 s into its minute.
+   * The slack is a minute and a raw flush: a minute row is stamped with its
+   * minute's start, the series' first sample may come late in that minute,
+   * and the first raw row is written at the next 10 s flush after it --
+   * up to 70 s after the minute row's stamp (found end to end, I110).
    */
   private rawCovers(db: DatabaseSync, id: number, range: TimeRange): boolean {
     const raw = (db.prepare("SELECT min(ts) AS t FROM samples_raw WHERE series = ?").get(id) as { t: string | null }).t;
     if (raw === null) return false;
-    const before = Date.parse(raw) - MINUTE_SEC * 1000;
+    const before = Date.parse(raw) - (MINUTE_SEC + RAW_SEC) * 1000;
     if (before <= range.fromMs) return true;
     const older = db
       .prepare("SELECT 1 FROM samples_1m WHERE series = ? AND ts >= ? AND ts < ? LIMIT 1")

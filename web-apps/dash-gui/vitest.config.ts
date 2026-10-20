@@ -12,5 +12,8 @@ export default defineConfig({
     // own can be relied on: which of them the bare global resolves to depends
     // on the Node version, and Node's is inert without --localstorage-file.
     setupFiles: ["./test/setup-dom.ts"],
+    // Vitest replaces CSS with an empty string, `?raw` included, unless it
+    // is processed; the contrast test reads the theme tokens from index.css.
+    css: { include: [/index\.css/] },
   },
 });

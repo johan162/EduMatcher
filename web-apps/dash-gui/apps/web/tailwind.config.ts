@@ -3,7 +3,7 @@ import type { Config } from "tailwindcss";
 /**
  * Colors are CSS variables (see src/index.css) so the same class names produce
  * the dark or light palette depending on the `.dark` class on <html>. Same
- * approach as log-gui; token names follow design §15.
+ * approach as log-gui and book-gui; token names follow design §12.5.
  */
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -27,47 +27,38 @@ const config: Config = {
         "fg-faint": "var(--fg-faint)",
         accent: "var(--accent)",
         "accent-fg": "var(--accent-fg)",
-        // Brand wordmark version number only (TopBar) — kept apart from
-        // the price-direction tokens below.
+        // Brand wordmark version number only (TopBar).
         "brand-version": "var(--brand-version)",
 
-        up: "var(--up)",
-        down: "var(--down)",
-        // Semi-transparent fills for the depth ladder's cumulative bars,
-        // carrying their own opacity for the same reason `halt-bg` does.
-        "up-bg": "var(--up-bg)",
-        "down-bg": "var(--down-bg)",
-        halt: "var(--halt)",
-        "halt-bg": "var(--halt-bg)",
-        auction: "var(--auction)",
-        "auction-bg": "var(--auction-bg)",
         live: "var(--live)",
         offline: "var(--offline)",
 
         /*
-         * Aliases, not new palette entries.
-         *
-         * These four names were already in use across the views — `bg-muted`
-         * on table headers and bar tracks, `text-ok`/`text-error` on the halt
-         * corridor marker, `text-warning` on the closing-backstop notice — but
-         * were never declared here, so every one of them resolved to nothing
-         * and the elements rendered unstyled.
-         *
-         * Each maps onto the token that already carries that meaning rather
-         * than introducing a colour of its own: retuning the palette in
-         * index.css must not leave a second, divergent set behind.
+         * Health (design §12.5). `ok`, `error` and `warning` are book-gui's
+         * alias names, pointed at the health tokens rather than adding a
+         * second set of names for the same meaning.
          */
+        ok: "var(--ok)",
+        error: "var(--crit)",
+        warning: "var(--warn)",
+        "error-bg": "var(--crit-bg)",
+        hung: "var(--hung)",
+        missing: "var(--missing)",
+        stopped: "var(--stopped)",
+        info: "var(--info)",
+        // Lines and areas only, never text (>= 3:1, not 4.5:1).
+        "series-1": "var(--series-1)",
+        "series-2": "var(--series-2)",
+        "series-3": "var(--series-3)",
+        "series-4": "var(--series-4)",
+        "series-5": "var(--series-5)",
+        "series-6": "var(--series-6)",
+        "series-7": "var(--series-7)",
+        "series-8": "var(--series-8)",
+
+        // book-gui's aliases for the base tokens, kept so shared markup reads the same.
         muted: "var(--bg-inset)",
-        ok: "var(--up)",
-        error: "var(--down)",
-        // The fifth of that set, missed when the other four were declared
-        // (T-L2). Used on the form controls in TradeTape and IndexView,
-        // where it had been resolving to nothing and leaving them
-        // transparent against the page.
         surface: "var(--bg-raised)",
-        // Amber. The backstop notice is a caution about how a price was
-        // arrived at, which is the same register as a halt.
-        warning: "var(--halt)",
       },
       fontFamily: {
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],

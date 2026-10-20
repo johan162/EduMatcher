@@ -10,15 +10,20 @@
  * `ts`, on the session clock — §12.2, D1.4). `connection()` says whether it
  * is live. `sessionTz` is what every displayed time is shown in
  * (lib/time.ts).
+ *
+ * `range` is the time picker's window for every history panel; the URL's
+ * `?from=` is its source (AppShell copies it in). `refresh` is how often
+ * those panels ask the bridge again.
  */
 
 import { create } from "zustand";
 import type { HealthEvent, HealthSnapshot, MonitorState, ServerFrame } from "@edumatcher/dash-types";
+import { DEFAULT_RANGE, DEFAULT_REFRESH, type RangeName, type RefreshName } from "../lib/range.js";
 
 /** The tab's own socket to the bridge. */
 export type SocketState = "CONNECTING" | "OPEN" | "CLOSED";
 
-/** What the top bar shows: LIVE needs both the socket and pm-monitor. */
+/** Whether the figures on screen are live: that needs both the socket and pm-monitor. */
 export type ConnectionState = "LIVE" | "NO_MONITOR" | "OFFLINE";
 
 /** Events kept for the event log, newest last. */
@@ -31,12 +36,16 @@ interface DashStore {
   sessionTz: string;
   snapshot: HealthSnapshot | null;
   events: HealthEvent[];
+  range: RangeName;
+  refresh: RefreshName;
 
   setSocket: (socket: SocketState) => void;
   apply: (frame: ServerFrame) => void;
   /** Events fetched from `/api/events` (catch-up after a reconnect), merged by seq. */
   addEvents: (batch: HealthEvent[]) => void;
   connection: () => ConnectionState;
+  setRange: (range: RangeName) => void;
+  setRefresh: (refresh: RefreshName) => void;
 }
 
 export const useDashStore = create<DashStore>()((set, get) => ({
@@ -46,6 +55,8 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   sessionTz: "UTC",
   snapshot: null,
   events: [],
+  range: DEFAULT_RANGE,
+  refresh: DEFAULT_REFRESH,
 
   // A dropped socket leaves pm-monitor's state unknown; the snapshot stays, frozen.
   setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null } : { socket }),
@@ -84,4 +95,6 @@ export const useDashStore = create<DashStore>()((set, get) => ({
     if (socket !== "OPEN") return "OFFLINE";
     return monitor === "UP" ? "LIVE" : "NO_MONITOR";
   },
+  setRange: (range) => set({ range }),
+  setRefresh: (refresh) => set({ refresh }),
 }));

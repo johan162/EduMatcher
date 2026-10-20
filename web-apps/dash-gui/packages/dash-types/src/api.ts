@@ -13,6 +13,13 @@
 import type { HealthEvent } from "./health.js";
 import type { MonitorState } from "./ws.js";
 
+/**
+ * The time-picker ranges (design §11.2, the Grafana set): what `range=`
+ * accepts and what the web's picker offers, in that order.
+ */
+export const RANGE_NAMES = ["5m", "15m", "1h", "6h", "24h", "7d"] as const;
+export type RangeName = (typeof RANGE_NAMES)[number];
+
 /** `[epoch ms, value]`, oldest first. */
 export type Point = [number, number];
 

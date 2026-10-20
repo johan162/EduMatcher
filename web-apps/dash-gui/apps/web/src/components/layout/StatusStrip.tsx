@@ -8,7 +8,7 @@ export function StatusStrip() {
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-border bg-bg-subtle px-4 text-xs text-fg-subtle">
-      <span data-testid="monitor-state" className={clsx(monitor !== "UP" && "font-semibold text-halt")}>
+      <span data-testid="monitor-state" className={clsx(monitor !== "UP" && "font-semibold text-warning")}>
         pm-monitor {monitor ?? "unknown"}
       </span>
     </footer>

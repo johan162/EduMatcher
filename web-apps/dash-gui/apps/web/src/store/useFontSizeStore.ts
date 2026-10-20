@@ -12,6 +12,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { prefsStorage } from "../lib/storage.js";
 
 export type FontSize = "XS" | "S" | "M" | "L" | "XL" | "XXL";
 
@@ -38,7 +39,7 @@ export const useFontSizeStore = create<FontSizeStore>()(
       fontSize: "XS",
       setFontSize: (fontSize) => set({ fontSize }),
     }),
-    { name: "dash-font-size" },
+    { name: "dash-font-size", storage: prefsStorage },
   ),
 );
 
