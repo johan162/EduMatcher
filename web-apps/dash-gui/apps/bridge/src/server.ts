@@ -32,8 +32,13 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
+/**
+ * The release version: the web app's version.json, which scripts/mkbld.sh
+ * writes for every GUI, so the top bar, `hello` and /api/bridge/status all
+ * say the same (the workspace package.json versions are never bumped).
+ */
 export const VERSION = (
-  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }
+  JSON.parse(readFileSync(new URL("../../web/src/version.json", import.meta.url), "utf8")) as { version: string }
 ).version;
 
 /** A snapshot or event payload framed for the browser without re-serialising it. */

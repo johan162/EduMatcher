@@ -2288,7 +2288,8 @@ profile except `micro`, and so in every container image.
   `deployment/docker/Dockerfile` (documentation, like 5601/5602). Do **not**
   publish them in any compose file; the GUIs reach the backend on the compose
   network. Users who want them on the host use the existing `compose.zmq.yaml`
-  overlay pattern, which is a follow-up. Document the decision in the compose
+  overlay pattern, which is a follow-up (done in E1, I119: the overlays
+  publish 5611, never 5610). Document the decision in the compose
   comment. *Verify with tests that* `make up-all` works without publishing.
 
 - **B5.4** (added after A6, I38) Participant bots: `pm-mm-bot` and
@@ -2870,6 +2871,20 @@ and so does a fresh `deployment/curl` install pulling the published image.
   `${CONTAINER_NAME:-edumatcher}-dash-gui` pattern so the existing
   foreign-stack check covers it.
 
+As built (WP-E1, I119):
+- **Services:** `dash-gui` in `deployment/docker/compose.guis.yaml` (built from source) and in the three GHCR-pulling files (`deployment/curl/compose.yaml`, both `compose.ai-sim.yaml`). Each sets `MONITOR_HOST: edumatcher`, `METRICS_DB_PATH` and `CONFIG_ARTIFACT_PATH` under `/backend-data` (`:ro,z`), and gets its own `dash-gui-logs` volume for the LALF failover log.
+- **Cross-links:** `LOG_GUI_URL`/`BOOK_GUI_URL` default to `http://localhost:<port>`, the address `up-all` prints. `.env` overrides them for a remote browser; `BIND_ADDR=0.0.0.0` would have made `http://0.0.0.0:…` links.
+- **ZMQ overlays:** both `compose.zmq.yaml` publish 5611, so `pm-monitor-cli` and a dash-gui dev bridge on the host can reach pm-monitor. `make dev-env GUI=dash-gui` prints the bridge's environment and warns without it.
+- **Version:** the bridge reports `apps/web/src/version.json` (what `mkbld.sh` writes and the top bar shows) rather than its never-bumped `package.json`; the image copies that file in.
+- **SELinux (found running `make up-all` on an enforcing host):** the source stack's backend mounted `./data` without `:z`, so the exchange could not create `/data/ref_data` and crash-looped. It came up only once a GUI's `:ro,z` mount had relabelled the directory, after `up-all`'s 60 s wait, and so without the read-only credential. `compose.yaml`, `compose.ai-sim.yaml` (backend and log-gui) and `compose.ssh.yaml` now relabel every host mount.
+- **Tests:** `tests/test_deployment_guis.py` checks that every GUI is in each place listed above, by each file's naming pattern, and that every host bind mount in both deployments carries `z`.
+- **Verified on Fedora (podman, SELinux enforcing):**
+  - a clean `make up-all` deploys at once and shows the dashboard LIVE on 8095;
+  - the bridge reads `metrics.db` through the read-only mount while pm-monitor writes, and its history grows;
+  - pm-monitor stopped: the `-wal` survives while the bridge has the file open, so history stays readable; pm-monitor restarted: UP again;
+  - a fresh curl install from the GHCR-named images: `start` and `status` list it, LIVE, with thresholds from the artifact;
+  - the same with `--sim`.
+
 ---
 
 ### WP-E2 — Documentation
@@ -2901,6 +2916,21 @@ documents the `monitor` block and the new messages.
 - **E2.3** *Done in B7* for `pm-monitor` and `pm-monitor-cli`.
 - **E2.4** CHANGELOG: breaking artifact change (SCHEMA_VERSION 5), new
   process, new app. *Verify with tests that* — review only.
+- **E2.5** (From E1, I119) The pages that list the web GUIs by name, and
+  must now list the Operator Dashboard (`pm-dash`, 8095):
+  - the operator guide: `part-1-install-and-deploy/010-installation.md`,
+    `030-container-deployment-walkthrough.md` and
+    `part-3-run/010-running-the-exchange.md`;
+  - `quick-start/part-1-see-it-run/040-the-browser-applications.md`;
+  - `training-guide/000-installation.md`;
+  - architecture and development: `part-4-developing/020-development-workflow.md`
+    (`make dev-env GUI=dash-gui`, which needs `make up-all ZMQ=1` for 5611),
+    `050-containers-and-networks.md` and `part-5-releasing/010-release-process.md`;
+  - the AI-traders book's simulation chapters (`110-the-simulation-container.md`,
+    `130-watching-the-market.md`, `020-ten-minute-start.md`).
+
+  *Verify with tests that* `grep -l book-gui` over `docs/books` names no
+  page that lacks `dash-gui` unless it is about book-gui itself.
 
 **Tests:** docs build.
 

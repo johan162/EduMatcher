@@ -1,4 +1,4 @@
-# Publish the seven EduMatcher container images to GHCR.
+# Publish the eight EduMatcher container images to GHCR.
 #
 # Runs on the same trigger as publish-to-pypi.yml, so one GitHub release
 # produces the wheel and the images together, all tagged with that release's
@@ -7,7 +7,7 @@
 #
 # Each image is built twice, natively: amd64 on ubuntu-24.04 and arm64 on
 # ubuntu-24.04-arm. The two are pushed by digest and joined into one manifest
-# list in the merge job — no QEMU anywhere, which is what makes a seven-image
+# list in the merge job — no QEMU anywhere, which is what makes an eight-image
 # multi-arch release finish in minutes instead of hours.
 name: Publish Container Images to GHCR
 
@@ -55,6 +55,8 @@ jobs:
             context: web-apps/trader-gui
           - name: edumatcher-book-gui
             context: web-apps/book-gui
+          - name: edumatcher-dash-gui
+            context: web-apps/dash-gui
         platform:
           - arch: amd64
             runner: ubuntu-24.04
@@ -163,6 +165,7 @@ jobs:
           - edumatcher-terminal-gui
           - edumatcher-trader-gui
           - edumatcher-book-gui
+          - edumatcher-dash-gui
 
     steps:
       - name: Resolve the tag being built

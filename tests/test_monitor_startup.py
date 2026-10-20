@@ -92,10 +92,20 @@ def test_the_image_documents_the_monitor_ports() -> None:
     assert {"5610", "5611"} <= set(expose.split()[1:])
 
 
-def test_no_compose_file_publishes_the_monitor_ports() -> None:
-    for compose in (REPO / "deployment/docker").glob("compose*.yaml"):
-        text = compose.read_text()
-        assert ":5610" not in text and ":5611" not in text, compose.name
+def test_only_the_zmq_overlay_publishes_the_snapshot_feed() -> None:
+    """The stacks reach pm-monitor over the compose network, so nothing
+    publishes its ports -- except the opt-in ZMQ overlay, which puts the
+    snapshot feed (5611) on the host for pm-monitor-cli and a dash-gui dev
+    bridge (B5.3's follow-up, I119). The beacon intake (5610) is never
+    published: anything that reached it could report fake health."""
+    for deployment in ("docker", "curl"):
+        for compose in (REPO / "deployment" / deployment).glob("compose*.yaml"):
+            text = compose.read_text()
+            assert ":5610" not in text, compose
+            if compose.name == "compose.zmq.yaml":
+                assert ":5611:5611" in text, compose
+            else:
+                assert ":5611" not in text, compose
 
 
 # ---------------------------------------------------------------------------

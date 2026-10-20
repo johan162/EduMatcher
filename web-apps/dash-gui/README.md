@@ -9,17 +9,10 @@ Zustand for client state.
 The design, and the reasons behind it, are in
 [`docs-design/EduMatcher-Operator-Dashboard.md`](../../docs-design/EduMatcher-Operator-Dashboard.md).
 
-> **Status:** the bridge is complete (WP-C2): live snapshots and events on
-> `/ws`, history over REST. The shell is in (WP-D1): top bar with the
-> exchange status, session, time range (`?from=now-1h`), history refresh,
-> theme and settings, and the banner while data is not live. The
-> widget library is in (WP-D2): `/widgets` shows every widget with
-> synthetic data, in either theme. All seven dashboard rows are in (WP-D3).
-> A process, participant or book row opens its drawer, a URL of its own:
-> `/process/<key>`, `/participant/<id>` and `/book/<symbol>`, keeping
-> `?from=` (WP-D4).
-> `make test-e2e` (repo root) checks the built page in headless Chrome
-> against a real exchange.
+Part of every way EduMatcher is deployed: `make up-all` in
+[`deployment/docker/`](../../deployment/docker/) and the released
+[`deployment/curl/`](../../deployment/curl/) install both start it on
+<http://localhost:8095>.
 
 **Dependencies:** `pm-monitor` is required — the bridge subscribes to its PUB
 socket (`monitor.pub_port`, default 5611) for the 1 Hz `health.snapshot` and
@@ -64,6 +57,34 @@ make dev         # bridge on 127.0.0.1:5195, Vite on http://localhost:8195
 ```
 
 Vite proxies `/api` and `/ws` to the bridge, so open the Vite URL.
+
+## Using it
+
+- **Rows.** Overview (is the exchange OK?), processes, trading activity,
+  participants, order books, gateways and infrastructure, and the event log.
+  Each row folds away and the browser remembers it.
+- **Time.** The picker sets the window for every chart and is in the URL
+  (`?from=now-6h`); live figures arrive once a second whatever it says, and
+  the refresh selector is how often the charts ask for their history again.
+  Every time shown is on the exchange's session clock, not the browser's.
+- **Colours** are pm-monitor's verdict: a tile, gauge or cell is amber or red
+  when pm-monitor reports that rule in breach, or (for the processes tile)
+  when the exchange status says so. The bands drawn are the configured
+  rules; hover a tile or gauge for its definition.
+- **Drawers.** Click a process, participant or order book for its details,
+  with its own URL to paste in an incident: `/process/<key>`,
+  `/participant/<id>`, `/book/<symbol>`. The process and book drawers link
+  into log-gui and book-gui when `LOG_GUI_URL` / `BOOK_GUI_URL` are set.
+- **Frozen data.** When pm-monitor or the bridge is unreachable, a red banner
+  says since when; the last figures stay on screen, dimmed.
+
+## Startup sequence
+
+1. Start the exchange with a profile that runs `pm-monitor` (every built-in
+   profile but `micro` does). It binds `5610`/`5611` and writes `metrics.db`.
+2. Optionally start `pm-log-srv`, for the bridge's own logging.
+3. Start this GUI: `make up` (container) or `make dev` (development). It
+   shows a banner until the first snapshot arrives, then fills in.
 
 ## Bridge interface
 
@@ -139,3 +160,9 @@ SQLite cannot recreate them. It returns as soon as pm-monitor runs.
 `make help` lists them all: `typecheck`, `test`, `build`, `cbuild` (image
 only), `cdist` (image + OCI tarball in `dist/`), and the `ghcr-*` /
 `cpush` publishing targets shared by every EduMatcher GUI.
+
+`make test-e2e` at the repository root checks the built page in headless
+Chrome against a real exchange.
+
+The version in the top bar comes from `apps/web/src/version.json`, which
+`scripts/mkbld.sh` writes for every GUI at release time.

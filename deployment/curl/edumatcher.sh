@@ -30,7 +30,7 @@ die()   { echo -e "${RED}✗ $*${NC}" >&2; exit 1; }
 # file rather than derived from the project, which is why two installs collide
 # — see assert_no_foreign_stack below. detect_engine overrides both of these
 # for an AI-sim install.
-CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui"
+CONTAINERS="edumatcher edumatcher-terminal-gui edumatcher-log-gui edumatcher-config-gui edumatcher-trader-gui edumatcher-book-gui edumatcher-dash-gui"
 CONTAINER_NAME="edumatcher"
 
 # Read one key out of .env without sourcing the whole file.
@@ -64,7 +64,7 @@ detect_engine() {
     if [[ "$(stack)" == "sim" ]]; then
         COMPOSE_FILES="-f compose.ai-sim.yaml"
         CONTAINER_NAME="edumatcher-sim"
-        CONTAINERS="edumatcher-sim edumatcher-sim-terminal-gui edumatcher-sim-log-gui edumatcher-sim-trader-gui edumatcher-sim-book-gui"
+        CONTAINERS="edumatcher-sim edumatcher-sim-terminal-gui edumatcher-sim-log-gui edumatcher-sim-trader-gui edumatcher-sim-book-gui edumatcher-sim-dash-gui"
         return
     fi
     COMPOSE_FILES="-f compose.yaml"
@@ -233,6 +233,7 @@ cmd_urls() {
     [[ "$(stack)" == "sim" ]] || echo "  Configuration GUI          http://localhost:${CONFIG_GUI_PORT:-8092}"
     echo "  Trading GUI                http://localhost:${TRADER_GUI_PORT:-8093}"
     echo "  Order Book Viewer          http://localhost:${BOOK_GUI_PORT:-8094}"
+    echo "  Operator Dashboard         http://localhost:${DASH_GUI_PORT:-8095}"
     echo "  REST API docs              http://localhost:8080/docs"
 }
 

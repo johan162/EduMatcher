@@ -1,6 +1,6 @@
 /** The scaffold bridge end to end: status route, /ws greeting, static serving. */
 
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,7 +34,9 @@ describe("bridge", () => {
       logging: "test",
       links: { logGui: null, bookGui: null },
     });
-    expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
+    // The release version scripts/mkbld.sh writes, as the top bar shows it -- not the workspace package's.
+    const release = JSON.parse(readFileSync(new URL("../../web/src/version.json", import.meta.url), "utf8")) as { version: string };
+    expect(body.version).toBe(release.version);
   });
 
   it("serves the cross-app base URLs it is configured with", async () => {

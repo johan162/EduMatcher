@@ -181,7 +181,7 @@ in `.env` to reach the exchange from other machines on your network.
 ## Exposing the ZeroMQ bus
 
 There are two planes with different defaults. The **service layer** — the four
-protocol gateways, `pm-log-srv` and `pm-api-gwy` — defaults to `0.0.0.0` and
+protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor` — defaults to `0.0.0.0` and
 needs nothing special. The **core plane** — the engine's three bus sockets and
 `pm-index`'s two — defaults to `127.0.0.1` and has to be told otherwise:
 `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and `EDUMATCHER_INDEX_BIND_HOST` to
@@ -205,7 +205,7 @@ running exchange.
 > Everything below builds it from your checkout instead.
 
 ```bash
-make up-all                                # exchange + terminal-, log-, trader- and book-gui
+make up-all                                # exchange + terminal-, log-, trader-, book- and dash-gui
 make up-all CONFIG=s10-nominal             # on a bundled example configuration
 make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
 make up-all CONFIG_GUI=1                   # and the configuration builder too
@@ -217,7 +217,7 @@ its image first — otherwise compose reuses the one it already has and your
 change is invisible:
 
 ```bash
-make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all five)
+make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all six)
 make up-all                        # recreate the containers whose image changed
 make up-all BUILD=1 GUI=log-gui    # both steps in one
 ```
@@ -239,6 +239,7 @@ reload against this container stack — see
 | Configuration GUI (`config-gui`) | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | `pm-api-gwy` 8080 |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
+| Operator Dashboard (`pm-dash`) | <http://localhost:8095> | `pm-monitor` 5611, and `data/metrics.db` and the deployed configuration read-only, `pm-log-srv` 5600 |
 
 ### How the GUIs reach the exchange
 
@@ -433,7 +434,7 @@ make restart
 `edumatcher-ai-sim` image (the `ai-sim` stage of the `Dockerfile`: the
 `s300-sim` example, the `ai-sim` profile, Stockholm trading hours, dead
 processes restarted once a minute) plus TapeDeck, the Order Book Viewer, the
-Log Operator Console and the Trading GUI. It is self-contained (no `.env`
+Log Operator Console, the Trading GUI and the Operator Dashboard. It is self-contained (no `.env`
 needed), pulls every image from GHCR, keeps its data in `./data-sim` and is
 its own compose project, `edumatcher-sim`. It publishes the same host ports
 as the stack above, so run one or the other.
@@ -480,7 +481,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
 | `make mounts` | Which directory on disk is behind each container path, and which image each container came from |
-| `make ghcr-push` | Push all six images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
+| `make ghcr-push` | Push all seven images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
@@ -521,7 +522,7 @@ you see it.
 ## Publishing images by hand
 
 Releases publish images from `.github/workflows/publish-images.yml`, which
-builds all seven images (the exchange, `edumatcher-ai-sim` and the five web
+builds all eight images (the exchange, `edumatcher-ai-sim` and the six web
 GUIs) natively on amd64 and arm64 and joins each pair into one manifest list.
 `make ghcr-push` is the escape hatch for when that workflow
 cannot run — a registry outage, a fork without Actions, or an image you want in
@@ -530,7 +531,7 @@ someone's hands before a release exists.
 ```bash
 export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
 
-make ghcr-push                              # all six, tagged :dev
+make ghcr-push                              # all seven, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 ```
@@ -568,7 +569,8 @@ is git-ignored, so it is the right place for host-specific choices.
 | `TZ` | `Europe/Stockholm` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
 | `SSH_PORT` | `2222` | Host port forwarded to sshd |
-| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` | Host ports for the GUIs started by `make up-all` |
+| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` / `DASH_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` / `8095` | Host ports for the GUIs started by `make up-all` |
+| `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to log-gui and book-gui, as your browser reaches them |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 

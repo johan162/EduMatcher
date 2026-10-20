@@ -69,6 +69,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/bridge ./apps/bridge
 COPY --from=build /app/apps/web/dist ./apps/web/dist
+# The release version the bridge reports (scripts/mkbld.sh writes it).
+COPY --from=build /app/apps/web/src/version.json ./apps/web/src/version.json
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
 # The bridge holds no durable state of its own — history is pm-monitor's

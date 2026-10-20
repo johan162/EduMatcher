@@ -50,10 +50,12 @@ services:
       # The canonical data directory: ref_data/, audit.log, the SQLite
       # databases, emo/ logs and PID files. Survives down/up; wiped by
       # `make clean-data`.
-      - ./data:/data
+      # :z relabels it for SELinux: without it an enforcing host refuses the
+      # container every write, and pm-setup cannot deploy (I119).
+      - ./data:/data:z
       # Where `make up-all CONFIG=<file>` puts an engine configuration of your
       # own. Empty otherwise, and then EM_CONFIG_FILE is unset and ignored.
-      - ./config:/config:ro
+      - ./config:/config:ro,z
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
       - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
