@@ -3026,6 +3026,18 @@ E3 still owes the container runs.
 - Two stacks (`deployment/docker` vs `deployment/curl`) must not run side by
   side during the test.
 
+As built (WP-E3, I122):
+- **The suite:** `tests/test_container_e2e.py`, marker `container`, deselected by default. `make test-container` builds every image from the checkout (`NOBUILD=1` skips that), then runs `deployment/docker`'s `make up-all` and checks the six scenarios in one stack, in order: E3.6, E3.1 + the E3.3 soak, E3.2, E3.5, E3.4, then E3.3's verdict. It sees what an operator sees: the dashboard's own `/ws` and REST from the host, the page in headless Chrome, and commands inside the containers. E3.6's checks run from inside the dash-gui container.
+- **Safety:** it skips while an EduMatcher stack exists or `data/` holds an exchange. It empties `data/` (from inside a container, since the files are the container users') only if it found it empty, and removes a `.env` the build created.
+- **What a few scenarios use:**
+  - E3.1 runs `pm-mm-bot` (MM01) and two `pm-ai-trader`s (TRADER01 market-taker, TRADER02 noise-retail), stopped in a `finally`. It compares pm-monitor's trades today with `pm-stats-cli trades --date`.
+  - E3.3's soak is `E3_SOAK_MIN` (30). The feed keeps only the latest snapshot and a HUNG tally, not 2000 snapshots.
+- **Process matching:** processes are matched as `bin/<name>( |$)`, so a `pm-<name>-cli` health check run by pm-opctl is never hit.
+- **Found:**
+  - `make test`, `test-short`, `test-html` and `stress-test` passed `-m "not perf"`. That replaces the default marker filter, so they ran the e2e suite, and would have brought up the container stack. They now leave the default, as CI does.
+  - A nested `make` inherits `MAKEFLAGS`, so the test clears it.
+- **Platforms:** Podman/Linux (Fedora, SELinux enforcing) is run here. Podman/macOS and Docker/Linux remain for the maintainer, with `make test-container` or the manual checklist in `deployment/docker/README.md`.
+
 ## 19. Risks and open questions
 
 ### 19.1 Risks

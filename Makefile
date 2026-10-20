@@ -2,7 +2,7 @@
 # Structure: timestamp-file dependencies for smart re-runs; each command target
 # may depend on one or more stamp files that track when a task last succeeded.
 
-.PHONY: help install reinstall clean-venv test test-e2e test-short test-html verify \
+.PHONY: help install reinstall clean-venv test test-e2e test-container test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
 black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
@@ -186,7 +186,7 @@ $(TYPECHECK_STAMP): $(SRC_FILES) $(TEST_FILES)
 
 $(TEST_STAMP): $(SRC_FILES) $(TEST_FILES)
 	@echo -e "$(DARKYELLOW)- Running tests with coverage check (≥$(COVERAGE)%)...$(NC)"
-	@if poetry run pytest -n auto tests -m "not perf" \
+	@if poetry run pytest -n auto tests \
 		--cov=$(SRC_DIR)/$(PROJECT) \
 		--cov-report=term-missing \
 		--cov-report=xml \
@@ -271,13 +271,27 @@ test-e2e: ## End-to-end tests on a real exchange: mini profile, trader, pm-monit
 	@echo -e "$(DARKYELLOW)- Running end-to-end tests (needs the exchange ports free and dash-gui npm install)...$(NC)"
 	@poetry run pytest -o addopts='' tests -v -m e2e -p no:cov
 
+# The container stack end to end (WP-E3): builds the images from this
+# checkout (NOBUILD=1 skips that), then deployment/docker's make up-all. Takes
+# E3_SOAK_MIN (30) minutes and more; needs no EduMatcher stack running and an
+# empty deployment/docker/data.
+test-container: ## End-to-end tests on the container stack: make up-all, failures, a soak (E3_SOAK_MIN=30)
+	@echo -e "$(DARKYELLOW)- Running container end-to-end tests (builds the images; E3_SOAK_MIN=$${E3_SOAK_MIN:-30} min soak)...$(NC)"
+	@env_file=deployment/docker/.env; had_env=0; [ -f "$$env_file" ] && had_env=1; \
+	status=0; \
+	{ [ "$(NOBUILD)" = "1" ] || { $(MAKE) -C deployment/docker build && $(MAKE) -C deployment/docker build-guis; }; } \
+		&& poetry run pytest -o addopts='' tests/test_container_e2e.py -v -s -m container -p no:cov \
+		|| status=$$?; \
+	[ "$$had_env" = 1 ] || rm -f "$$env_file"; \
+	exit $$status
+
 test-short: ## Run tests quickly with no coverage output
 	@echo -e "$(DARKYELLOW)- Running short test run (no coverage)...$(NC)"
-	@poetry run pytest tests/ -m "not perf" -q --no-cov
+	@poetry run pytest tests/ -q --no-cov
 
 test-html: ## Run tests, generate HTML + XML coverage reports
 	@echo -e "$(DARKYELLOW)- Running tests with HTML coverage...$(NC)"
-	@poetry run pytest tests/ -m "not perf" \
+	@poetry run pytest tests/ \
 		--cov=$(SRC_DIR)/$(PROJECT) \
 		--cov-report=html \
 		--cov-report=xml \
@@ -300,7 +314,7 @@ stress-test: ## Run stress tests for the system
 	@for i in 1 2 3 4 5; do \
 		echo -e "$(DARKYELLOW)  - Stress test iteration $$i...$(NC)"; \
 		poetry run pytest -n auto tests \
-	    -m "not perf" -q --no-cov -p no:randomly -rf 2>&1 | grep -E "^FAILED|passed|failed" | tail -3; \
+	    -q --no-cov -p no:randomly -rf 2>&1 | grep -E "^FAILED|passed|failed" | tail -3; \
 		if [ $$? -ne 0 ]; then \
 			echo -e "$(RED)✗ Stress tests failed$(NC)"; exit 1; \
 		fi; \

@@ -32,6 +32,7 @@ make down      # stop it
 - [The AI-trader simulation](#the-ai-trader-simulation)
 - [Make targets](#make-targets)
 - [When a GUI shows something unexpected](#when-a-gui-shows-something-unexpected)
+- [Checking the stack end to end](#checking-the-stack-end-to-end)
 - [Publishing images by hand](#publishing-images-by-hand)
 - [Configuration reference (`.env`)](#configuration-reference-env)
 - [Building from PyPI instead of local source](#building-from-pypi-instead-of-local-source)
@@ -518,6 +519,32 @@ otherwise serve you the other install's exchange on these ports with no error
 anywhere. `make up-all` refuses to start alongside a foreign stack, but one
 started before that check existed can still be running — `make mounts` is how
 you see it.
+
+## Checking the stack end to end
+
+`make test-container` at the repository root proves the whole stack on this
+machine: it builds every image from your checkout, runs `make up-all` here,
+and drives it the way an operator would — the health monitor, the operator
+dashboard (its own WebSocket, REST API and, with Chrome installed, the page),
+and the failures the dashboard exists for. It refuses to run while an
+EduMatcher stack is up or `data/` holds an exchange, and empties `data/`
+afterwards only if it found it empty. It takes about 45 minutes, most of it a
+30-minute soak; `E3_SOAK_MIN=1` shortens that, `NOBUILD=1` skips the build.
+
+Where it cannot run (another engine, another OS), the same checklist by hand,
+from this directory, with an empty `data/`:
+
+| # | Do | Expect |
+|---|---|---|
+| 1 | `make up-all`, open <http://localhost:8095> | LIVE, OPERATIONAL, every process HEALTHY. `podman exec edumatcher-dash-gui node -e "fetch('http://127.0.0.1:8095/api/bridge/status').then(r=>r.json()).then(console.log)"` shows `monitor: 'UP'` and `source: 'edumatcher:5611'` — from *inside* the GUI container |
+| 2 | `podman exec -d edumatcher pm-mm-bot --gateway-id MM01 --all-symbols`, then `podman exec -d edumatcher pm-ai-trader --id TRADER01 --preset market-taker --duration 0` | Orders and trades per minute rise on the trading row. Leave it 30 minutes: no process is ever HUNG |
+| 3 | `podman exec edumatcher pkill -f pm-ai-trader; podman exec edumatcher pkill -f pm-mm-bot`, wait a minute | "Trades today" equals the row count of `podman exec edumatcher pm-stats-cli --format json trades --date <trading date> --limit 1000000` |
+| 4 | `podman exec edumatcher pkill -STOP -f 'bin/pm-clearing( \|$)'` | Within about 7 s pm-clearing is SILENT, the exchange IMPAIRED, and the event log shows `HEALTHY -> SILENT`. `pkill -CONT` the same way: HEALTHY, OPERATIONAL |
+| 5 | `podman exec edumatcher pkill -TERM -f 'bin/pm-monitor( \|$)'` | The red banner "pm-monitor down — data frozen at …". `podman exec edumatcher pm-opctl-cli list --restart`: the banner goes, and today's order and trade counts are unchanged |
+| 6 | `podman exec edumatcher pkill -KILL -f 'bin/pm-engine( \|$)'` | pm-engine DEAD, the status pill DOWN. `pm-opctl-cli list --restart`: HEALTHY with the RESTARTED badge, OPERATIONAL |
+
+`docker` works the same in place of `podman`. Then `make down-all`, and
+empty `data/`.
 
 ## Publishing images by hand
 
