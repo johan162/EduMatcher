@@ -79,6 +79,9 @@ Trading terminal :  http://localhost:8090
 # (the browser companion to the pm-viewer command)
 Order book       :  http://localhost:8094
 
+# The exchange operator dashboard
+Operator dashboard: http://localhost:8095
+
 # The central log server to observe what is happening internally
 # in the exchange platform
 Log viewer       :  http://localhost:8091      
@@ -90,9 +93,12 @@ REST API docs    :  http://localhost:8080/docs
 
 Configuring the exchange can be done by either 1) Manually edit the config YAML file (and then verify/lint it with `pm-cverifier`) or, 2) generate it in scripts using the `pm-config-gen` tool or, 3) using the Web application reachable at :
 
-```
+```bash
+# Configuring the exchange reference data
 Config builder   :  http://localhost:8092
 ```
+
+## Run from a plain Python pip/x 
 
 Prefer a Python package? `pipx install edumatcher`, then `pm-setup`. Both
 routes, and three more, are covered in
@@ -106,7 +112,7 @@ venue of your own, with a checkpoint at every step.
 
 - Real exchange mechanics: order books, auctions, clearing, and risk controls
 - Multi-process architecture: gateway, engine, audit, clearing, stats, and tooling
-- Performance-aware implementation: ~80,000 orders/second with microsecond latency on a Linux server
+- Performance-aware implementation: ~25,000 orders/second with microsecond latency on a Linux server
 - Practical protocol design: ALF (ALmost Fix) command language for gateway order entry, RALF (Reconciliation ALF) for post trade consumers and CALF (Channel ALF) to serve market data to subscribers, and finally BALF (Binary ALF) for high performance trade clients
 - Strong engineering discipline: type hints, linting, and high test coverage
 
@@ -135,13 +141,13 @@ Main documentation site [EduMatcher Documentation](https://johan162.github.io/Ed
 - **[Glossary](https://johan162.github.io/EduMatcher/books/reference-manual/90-backmatter/010-glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
 
 ***Note:** Running an exchange is an inherently complex task and there is only
-so much that can be simplified. The user guide and training material are built
-to get you through it.*
+so much that can be simplified and still keep it realistic. The user guide and training material are built
+to get you through it!
 
 ## Performance
 
 EduMatcher does not aim to match venues like NYSE or LSE, but it is still fairly
-fast for a purely Python educational project.
+fast for a purely Python educational project with a thorethical throughput of somewhere between 25,000 - 30,000 TPS
 The figures below reflect the performance on an high end Linux server
 with risk checks enabled (price collar and circuit-breaker).
 
@@ -198,7 +204,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.50.7}
+  version = {0.51.0}
 }
 ```
 
