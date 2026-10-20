@@ -322,7 +322,7 @@ process's own `config.py`.
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
 | `pm-index` | `5558` PUB (bind) · `5559` PULL (bind) · `5564` REP (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL/REP) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests; `5564` only answers `pm-index-cli health` pings (`EDUMATCHER_INDEX_BIND_HOST`, `EDUMATCHER_INDEX_HEALTH_PORT`). No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
-| `pm-monitor` | `5610` PULL (bind) · `5611` PUB (bind); connects out to `5556` | – | ZeroMQ (PULL/PUB/SUB) | Health collector. `5610` receives the `health.beacon` every long-running process pushes every 2 s; `5611` publishes `health.snapshot` (1 Hz) and `health.event` to `pm-monitor-cli` and the operator dashboard. Loopback by default (`monitor.bind_address`, `EDUMATCHER_GATEWAY_BIND_HOST`). See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md). |
+| `pm-monitor` | `5610` PULL (bind) · `5611` PUB (bind); connects out to `5556` | – | ZeroMQ (PULL/PUB/SUB) | Health collector. `5610` receives the `health.beacon` every long-running process pushes every 2 s; `5611` publishes `health.snapshot` (1 Hz) and `health.event` to `pm-monitor-cli` and the [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md). Loopback by default (`monitor.bind_address`, `EDUMATCHER_GATEWAY_BIND_HOST`). See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md). |
 | `pm-market-sim` | `5553` PUB (bind) · `5554` PULL (bind); connects out to `5555`, `5556` | – | ZeroMQ (PUB/PULL) | The market model: every symbol's true value, and news. `5553` publishes `sim.value`, the `sim.state` heartbeat and `news.event`; `5554` takes `sim.command` from ADMIN participants. Loopback only by default (`EDUMATCHER_SIM_BIND_HOST`). See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md). |
 
 Besides the connections listed, every process in the table (and the bots
@@ -356,6 +356,20 @@ the beacons are dropped and counted.
     [`pm-config-show`](#pm-config-show-config-viewer). It derives its port map
     from `edumatcher/gateway_ports.py`, the same table `pm-cverifier` uses for
     its `M018` collision check.
+
+**Web applications** (`web-apps/`; each a Node bridge serving a browser app,
+none part of `engine_config.yaml`). The container port is what the stacks
+publish (`deployment/docker` `make up-all`, `deployment/curl`); `make dev`
+uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
+
+| Application | Container port | Dev web / bridge | Talks to | Guide |
+|---|---|---|---|---|
+| TapeDeck (`pm-terminal`) | `8090` | `8190` / `5190` | `pm-md-gwy` `5570`, `pm-api-gwy` `8081` | [TapeDeck](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md) |
+| Log Operator Console (`pm-log-ui`) | `8091` | `8191` / `5191` | `pm-log-srv` `5601`/`5602`, `log.db` read-only | [Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md) |
+| Configuration GUI (`config-gui`) | `8092` | `8192` / `5192` | nothing | [Configuration GUI](../../operator-guide/part-2-configure/030-config-gui.md) |
+| Trading GUI (`pm-trading-ui`) | `8093` | `8193` / – | `pm-api-gwy` `8080` | [Trading Platform GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md) |
+| Order Book Viewer (`pm-book`) | `8094` | `8194` / `5194` | `pm-api-gwy` `8081` | [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) |
+| Operator Dashboard (`pm-dash`) | `8095` | `8195` / `5195` | `pm-monitor` `5611`, `metrics.db` read-only | [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) |
 
 **Setup and configuration tools:**
 

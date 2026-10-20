@@ -130,9 +130,10 @@ describe("/api/series", () => {
   it("selects a label, and requires source= when two processes record the name", async () => {
     const r = await get<SeriesResponse>(`/api/series?name=engine.orders_in&label=GW02&range=1h`);
     expect(r.source).toBe("pm-engine@h1");
-    // The last 10 s bucket holds the 09:59:50 row (7192) and the shutdown
-    // flush at 09:59:58 (7200): a bucket is the mean of its rows.
-    expect(r.points.at(-1)).toEqual([T0 + 2 * HOUR - 10_000, 7196]);
+    // The last 10 s bucket holds the 09:59:50 row (7192). The shutdown
+    // write's row is stamped with the write's own time, 10:00:00 (every row
+    // of one write shares it), which is the range's end and outside it.
+    expect(r.points.at(-1)).toEqual([T0 + 2 * HOUR - 10_000, 7192]);
     const err = await get<ApiError>(`/api/series?name=proc.rss_bytes&range=1h`, 400);
     expect(err.error).toBe("ambiguous_source");
     expect(err.message).toContain("pm-engine@h1, pm-engine@h2");

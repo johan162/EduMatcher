@@ -10,7 +10,7 @@
     - How to run a web application on your own machine, with hot reload, against
       the exchange running in containers — and why that works without any
       configuration
-    - Exactly what each of the four applications needs from a running backend:
+    - Exactly what each of the six applications needs from a running backend:
       which ports, which files, which credentials
     - Which of the three loops to reach for, given the change you are making
     - The handful of things that will waste an afternoon if you do not know them
@@ -49,7 +49,7 @@ builds an image that does not exist yet, so an image tagged
 is in the working tree, not in the image, and nothing warns you.
 
 The reason it is not simply `--build` by default: that re-evaluates six build
-contexts on every start (the five GUIs plus the backend), which turns a
+contexts on every start (the six GUIs plus the backend), which turns a
 three-second start into a multi-minute one. Building is a separate decision
 from starting.
 
@@ -64,10 +64,10 @@ or, in one step:
 
 ```bash
 make up-all BUILD=1 GUI=terminal-gui
-make up-all BUILD=1                  # all five
+make up-all BUILD=1                  # all six
 ```
 
-`make build-guis` with no `GUI=` rebuilds all five. It builds through
+`make build-guis` with no `GUI=` rebuilds all six. It builds through
 `compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml`, so config-gui
 is always buildable here whether or not you start it with `CONFIG_GUI=1`.
 
@@ -130,7 +130,7 @@ Three facts make this work with no configuration:
 3. **The stack publishes to `127.0.0.1`** by default (`BIND_ADDR`). The two
    halves meet without either being told about the other.
 
-The containerised GUI keeps running on 8090–8094 the whole time. That is
+The containerised GUI keeps running on 8090–8095 the whole time. That is
 useful rather than confusing: it is your reference. Compare `localhost:8190`
 with `localhost:8090` and you are comparing your change against what is
 currently shipped.
@@ -169,6 +169,7 @@ empty history panels and a 401 in the bridge log.
 | trader-gui | 8193 | — | 8093 | 8080 only, proxied by Vite |
 | config-gui | 8192 | 5192 | 8092 | nothing |
 | book-gui | 8194 | 5194 | 8094 | 8081 market data, history + read-only key, 5600 log ingest |
+| dash-gui | 8195 | 5195 | 8095 | 5611 `pm-monitor` (needs `ZMQ=1`), `data/metrics.db`, the deployed configuration, 5600 log ingest |
 
 The dev ports are deliberately `81xx`/`51xx` against the containers' `80xx`, so
 both can run at once.
@@ -218,7 +219,7 @@ cd ../../web-apps/log-gui && make install && make dev
 
 Open <http://localhost:8191>.
 
-**`ZMQ=1` is required here, unlike every other app.** The log bridge subscribes
+**`ZMQ=1` is required here, as for dash-gui.** The log bridge subscribes
 to `pm-log-srv`'s LALF-PS sockets on 5601/5602, and those are ZeroMQ sockets
 published only by the ZMQ overlay. Without it you get the history views —
 which read `log.db` directly — and no live stream. `dev-env` checks for this
@@ -264,6 +265,30 @@ stack.
 
 Its dev server needs the Python side available on your `PATH` — `npm run
 verify:python` checks that.
+
+### dash-gui
+
+```bash
+cd deployment/docker && make up-all ZMQ=1
+eval "$(make -s dev-env GUI=dash-gui)"
+cd ../../web-apps/dash-gui && make install && make dev
+```
+
+Open <http://localhost:8195>.
+
+**`ZMQ=1` is required**, as for log-gui: the bridge subscribes to
+`pm-monitor`'s snapshot feed on 5611, which only the ZMQ overlay publishes on
+the host. Without it you get the history, read from `metrics.db`, but no live
+figures, and the banner says pm-monitor is down. `dev-env` checks for this and
+says so.
+
+`dev-env` exports `METRICS_DB_PATH` and `CONFIG_ARTIFACT_PATH` (the stack's
+`data/metrics.db` and `data/ref_data/engine_config.json`, both opened
+read-only), `MONITOR_HOST`, and the log-gui and book-gui addresses for the
+drawers' links. `make test-e2e` at the repository root runs the built page in
+headless Chrome against a real exchange — see
+[Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md)
+for what each part shows.
 
 
 ## Part 4 — Choosing a loop

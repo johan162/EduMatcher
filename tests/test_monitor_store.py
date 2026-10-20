@@ -129,6 +129,34 @@ class TestOpen:
         finally:
             store.close(OPEN)
 
+    def test_one_raw_write_stamps_every_series_alike(self, tmp_path: Path) -> None:
+        """Beacons arrive at their own moments; a raw write records each
+        series' latest value at the write's time, so the series of one write
+        share a 10 s bucket on any chart (a stacked chart would otherwise dip
+        where one is missing)."""
+        path = tmp_path / "metrics.db"
+        store = _store(path)
+        try:
+            store.record(("a@h", "proc.rss_bytes", ""), 1.0, OPEN + 0.1, counter=False)
+            store.record(("b@h", "proc.rss_bytes", ""), 2.0, OPEN + 1.9, counter=False)
+            store.record(("a@h", "proc.rss_bytes", ""), 3.0, OPEN + 2.1, counter=False)
+            store.flush_raw(OPEN + 2.2)
+            rows = _rows(
+                path, "SELECT source, ts, value FROM v_samples_raw ORDER BY source"
+            )
+            assert rows == [
+                ("a@h", iso_utc(OPEN + 2.2), 3.0),
+                ("b@h", iso_utc(OPEN + 2.2), 2.0),
+            ]
+            # Nothing new from b: the next write has a's row only.
+            store.record(("a@h", "proc.rss_bytes", ""), 4.0, OPEN + 5.0, counter=False)
+            store.flush_raw(OPEN + 12.2)
+            assert _rows(
+                path, "SELECT COUNT(*) FROM v_samples_raw WHERE source = 'b@h'"
+            ) == [(1,)]
+        finally:
+            store.close(OPEN)
+
     def test_the_session_timezone_is_pinned(self, tmp_path: Path) -> None:
         path = tmp_path / "metrics.db"
         _store(path).close(OPEN)

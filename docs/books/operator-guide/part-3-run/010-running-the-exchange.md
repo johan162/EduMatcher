@@ -51,10 +51,10 @@ where they live.
 | Process logs | `data/emo/<name>.log` | `<DATA_DIR>/emo/<name>.log` | each terminal's scrollback |
 | Best for | classrooms, demos, anyone who wants it *running* | scripted or repeated local runs | learning what each process does, and debugging one of them |
 
-¹ The curl installer's `./edumatcher.sh start` brings up all five web
+¹ The curl installer's `./edumatcher.sh start` brings up all six web
 applications unconditionally. From a source checkout, `make up-all` starts
-the four GUIs that talk to a running exchange (`terminal-gui`, `log-gui`,
-`trader-gui`, `book-gui`); `config-gui` — which needs no running exchange —
+the five GUIs that talk to a running exchange (`terminal-gui`, `log-gui`,
+`trader-gui`, `book-gui`, `dash-gui`); `config-gui` — which needs no running exchange —
 is opt-in via `make up-all CONFIG_GUI=1`. See
 [Installation](../part-1-install-and-deploy/010-installation.md).
 
@@ -203,7 +203,7 @@ directory. What is left is shorter:
 | The right configuration is deployed | `make config-show` (or `./edumatcher.sh shell` then `pm-config-show`) | `EM_CONFIG` picks a bundled example; `EM_CONFIG_FILE` overrides it. `./edumatcher.sh config <name>` *selects* a configuration and requires an argument — it does not show what is currently deployed |
 | Every process came up | `./edumatcher.sh status` or `make status` | Runs `pm-opctl-cli list` inside the container |
 | It is *your* exchange on those ports | `./edumatcher.sh mounts` or `make mounts` | A released and a source-built stack use the same container names and host ports |
-| The applications answer | open 8090, 8091, 8093, 8094 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
+| The applications answer | open 8090, 8091, 8093, 8094, 8095 | The two-phase start can succeed for the backend and still leave a GUI unhealthy |
 | Timezone matches the calendar | `TZ` in `.env` | Set it before the session; it affects every timestamp and the trading date |
 
 
@@ -379,7 +379,7 @@ flowchart TD
 | 12 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
 | 13 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
 | 14 | `pm-index` | `pm-index` | Index definitions in deployed config | Started last in the `default` profile; index publications depend on the engine and its own configured indices, not on any other process here. |
-| 15 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the order book viewer needs `pm-api-gwy` for everything; the log console needs `pm-log-srv`. Starting them last is why `up-all` runs in two phases. |
+| 15 | Web applications | `cd deployment/docker && make up-all` | None — `up-all` resolves the read-only API key and the backend hostname itself | TapeDeck needs `pm-md-gwy` for live data and `pm-api-gwy` for history; the order book viewer needs `pm-api-gwy` for everything; the log console needs `pm-log-srv`; the operator dashboard needs `pm-monitor`. Starting them last is why `up-all` runs in two phases. |
 
 This order is approximate for independent consumers, but not arbitrary. The
 recorders can safely wait for the engine to appear, so starting them first is a
@@ -535,7 +535,8 @@ cd deployment/docker && make up-all      # or: ./edumatcher.sh start
 ```
 
 Then open <http://localhost:8090>. The same applies to the log console (8091),
-the Trading GUI (8093) and the order book viewer (8094).
+the Trading GUI (8093), the order book viewer (8094) and the operator
+dashboard (8095).
 
 To run it against an exchange you started by hand instead, start it from
 `web-apps/terminal-gui/` with the key and the gateway URL in its environment:
@@ -574,6 +575,22 @@ exactly as for TapeDeck above — unlike TapeDeck it shows nothing without the
 key, so its `make up` refuses to start without one. See
 [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) for the details.
 
+### Operator dashboard (`pm-dash`)
+
+`pm-dash` is the browser view of `pm-monitor`: every process's health,
+trading activity, participants, books and gateways, live and over time, in
+`web-apps/dash-gui/`. It depends on:
+
+- `pm-monitor`, for its live snapshot (port `5611`) and the history in
+  `metrics.db`, which it reads read-only
+- the deployed configuration, for the threshold bands it draws
+- optionally `pm-log-srv` for bridge logs
+
+The container stack starts it with the other applications; open
+<http://localhost:8095>. See
+[Operator Dashboard](../part-6-observe-and-recover/070-operator-dashboard.md)
+for running it against an exchange you started by hand, and for reading it.
+
 
 ## Process groups by scenario
 
@@ -585,6 +602,7 @@ key, so its `make up` refuses to start without one. See
 | External client integration | core engine/recorders plus `pm-alf-gwy` or `pm-balf-gwy`, `pm-md-gwy`, `pm-ralf-gwy` as needed |
 | Browser market display | core engine/recorders plus `pm-md-gwy`, `pm-api-gwy`, TapeDeck |
 | Browser order book | core engine/recorders plus `pm-api-gwy` (`dashboards`), `pm-book` |
+| Exchange health at a glance | running system (with `pm-monitor`) plus the operator dashboard `pm-dash` |
 | Operational investigation | running system plus `pm-monitor-cli`, `pm-audit-cli`, `pm-stats-cli`, `pm-clearing-cli`, `pm-log-cli`, `pm-admin-cli` |
 | Everything, with the web applications | the container stack: `./edumatcher.sh start`, or `make up-all` from a checkout |
 
@@ -730,6 +748,7 @@ responding` row means the same thing there as on the host.
 | `pm-board` | Multi-symbol terminal board |
 | `pm-ticker` | Scrolling market tape based on stats |
 | TapeDeck | Browser display for live prices, trades, movers, index, auctions and halts |
+| `pm-dash` (dash-gui, port 8095) | Every process's health, trading activity and events in a browser, live and over time |
 | `pm-audit --terminal` | Raw event flow while recording to disk |
 | `pm-log-cli diagnose` | Operational log diagnosis when log server data exists |
 | Log Operator Console (log-gui) | Browsing, searching and acknowledging centralized logs in a browser |

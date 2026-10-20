@@ -36,7 +36,7 @@ snapshot once a second.
 | **`pm-monitor`** | Collector — judges health, computes rates, evaluates thresholds, stores history, publishes `health.snapshot` and `health.event` on port `5611` | Long-running process |
 | **`metrics.db`** | History: samples, 1-minute roll-ups, daily totals, events | SQLite file in the data directory |
 | **`pm-monitor-cli`** | Query tool — health, exchange status, event log | One-shot CLI |
-| **Operator dashboard** | The browser view of the same snapshot (`pm-dash`) | Web app, in development |
+| **[Operator Dashboard](070-operator-dashboard.md)** | The browser view of the same snapshot and history (`pm-dash`) | Web app |
 
 ```mermaid
 flowchart LR
@@ -417,6 +417,8 @@ pm-monitor-cli --format json status | jq '.processes[] | {key, state}'
 
 ## See also
 
+- [Operator Dashboard (`pm-dash`)](070-operator-dashboard.md) — the same
+  snapshot and history in a browser
 - [Running the Exchange](../part-3-run/010-running-the-exchange.md) — `pm-opctl-cli` profiles
 - [Centralized Log Server](040-log-server.md) — where `pm-monitor`'s
   breach and state-change lines go

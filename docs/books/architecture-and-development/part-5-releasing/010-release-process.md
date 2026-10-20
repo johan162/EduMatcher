@@ -26,7 +26,7 @@ flowchart TD
     MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
 
     OUTP["PyPI\nedumatcher X.Y.Z"]
-    OUTC["GHCR\n7 multi-arch images X.Y.Z"]
+    OUTC["GHCR\n8 multi-arch images X.Y.Z"]
 
     USER1["pipx install edumatcher"]
     USER2["curl .../install.sh | bash"]
@@ -44,7 +44,7 @@ Each image is built **natively** on both architectures rather than emulated,
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.
 
-The seven published images are:
+The eight published images are:
 
 ```text
 ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
@@ -54,6 +54,7 @@ ghcr.io/johan162/edumatcher-log-gui         the Log Operator Console
 ghcr.io/johan162/edumatcher-config-gui      the Configuration GUI
 ghcr.io/johan162/edumatcher-trader-gui      the Trading GUI
 ghcr.io/johan162/edumatcher-book-gui        the order-book viewer
+ghcr.io/johan162/edumatcher-dash-gui        the Operator Dashboard
 ```
 
 `latest` is only moved for an exact `vMAJOR.MINOR.PATCH` tag, so a pre-release
@@ -62,7 +63,7 @@ uses to choose between PyPI and TestPyPI.
 
 ### Publishing by hand
 
-`make ghcr-push` in `deployment/docker/` builds all six images from your
+`make ghcr-push` in `deployment/docker/` builds all seven images from your
 checkout and pushes them, for when the workflow cannot run:
 
 ```bash

@@ -8,7 +8,11 @@ writers would each add their own increments to the same daily totals.
 What is written, and when
 -------------------------
 * ``samples_raw`` -- every 10 s, the latest value of each series updated since
-  the previous write (one row per series, not one per beacon).
+  the previous write (one row per series, not one per beacon), every row of
+  one write stamped with the write's time. Stamped with each beacon's own
+  arrival instead, one process's rows could fall either side of a 10 s
+  bucket boundary while another's did not, and a chart of several series
+  would miss one in some buckets (a stacked chart then dips to zero).
 * ``samples_1m`` -- one row per series per closed minute, from every sample
   pm-monitor received (2 s resolution), not from the 10 s raw rows: min, avg,
   max, last, the number of samples, and for a counter the reset-corrected
@@ -213,7 +217,7 @@ class MetricsStore:
             finally:
                 self._release_lock()
             raise
-        self._raw: dict[SeriesKey, tuple[float, float]] = {}  # -> (wall, value)
+        self._raw: dict[SeriesKey, float] = {}  # -> the latest value
         self._minutes: dict[SeriesKey, _Minute] = {}
         self._closed: list[tuple[SeriesKey, _Minute]] = []
         self._daily: dict[tuple[str, str, str, str], float] = {}
@@ -287,7 +291,7 @@ class MetricsStore:
         self, key: SeriesKey, value: float, now_wall: float, *, counter: bool
     ) -> None:
         """One sample of one series, as received."""
-        self._raw[key] = (now_wall, value)
+        self._raw[key] = value
         start = now_wall - now_wall % MINUTE
         minute = self._minutes.get(key)
         if minute is not None and minute.start != start:
@@ -343,10 +347,7 @@ class MetricsStore:
         last = [(*k, boot, v, ts) for k, (boot, v) in (counters or {}).items()]
         conn = self.conn
         with self._transaction():
-            raw = [
-                (self._series_id(key), iso_utc(w), v)
-                for key, (w, v) in self._raw.items()
-            ]
+            raw = [(self._series_id(key), ts, v) for key, v in self._raw.items()]
             conn.executemany(
                 "INSERT OR REPLACE INTO samples_raw(series, ts, value) VALUES (?, ?, ?)",
                 raw,

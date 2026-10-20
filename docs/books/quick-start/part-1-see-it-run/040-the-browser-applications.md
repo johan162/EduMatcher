@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After this chapter you will know:
 
-    - what each of the five browser applications is for
+    - what each of the six browser applications is for
     - how to log in to the Trading GUI with an API key, and where to find one
     - how to place the same kind of order from the browser that you typed in
       the trader console
@@ -12,9 +12,9 @@
 [Install and Start](020-install-and-start.md). The browser applications are
 not part of the Python package.
 
-## Five windows on one exchange
+## Six windows on one exchange
 
-All five applications talk to the same running exchange, so anything you do
+All six applications talk to the same running exchange, so anything you do
 in one — or in a `pm-alf-console` — shows up in the others within a second.
 
 | Address | Application | Read-only? | Use it to… |
@@ -24,6 +24,7 @@ in one — or in a `pm-alf-console` — shows up in the others within a second.
 | <http://localhost:8093> | **Trading GUI** (`pm-trading-ui`) | no | trade, quote or operate the exchange through screens instead of commands |
 | <http://localhost:8091> | **Log Operator Console** (`pm-log-ui`) | yes | read what every process is doing, and why something was rejected |
 | <http://localhost:8092> | **Configuration GUI** (`config-gui`) | — | build an exchange configuration with forms instead of YAML |
+| <http://localhost:8095> | **Operator Dashboard** (`pm-dash`) | yes | see at a glance whether every part of the exchange is healthy, and how busy it is |
 
 The read-only displays need no login. The Trading GUI does, because it can
 change things.
@@ -97,7 +98,8 @@ Each application has its own chapter in the Participant Guide —
 the [Trading GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md)
 and the [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md)
 — and the Operator's Guide covers the
-[Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md)
+[Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md),
+the [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md)
 and the [Configuration GUI](../../operator-guide/part-2-configure/030-config-gui.md).
 Part II of this guide continues with
 [Run a Trading Session](../part-2-next-steps/010-run-a-trading-session.md).

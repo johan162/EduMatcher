@@ -2941,6 +2941,27 @@ working dashboard.
 - The generated protocol reference (A1.4) already documents the messages —
   link to it, don't duplicate.
 
+As built (WP-E2, I120):
+- **Chapter:** `operator-guide/part-6-observe-and-recover/070-operator-dashboard.md`, in `book.toml` and the generated nav. It covers starting it three ways, the top bar, time and the session clock, what the colours mean, the seven rows, drawers and their URLs, settings, configuration, security and troubleshooting, and links to `060-health-monitor.md` rather than repeating it. Three screenshots from a running exchange are in `docs/assets/dash-gui/`.
+- **Reference manual:** a "Web applications" table (all six GUIs: container, dev web and bridge ports, what each talks to) in the port reference, and a glossary entry.
+- **E2.5:** every page that lists the GUIs now lists the dashboard: installation, container walkthrough, running the exchange, quick start, training guide, the architecture chapters, the AI-traders book and the participant front-end chapters. The architecture chapters' counts were already stale (four apps). `tests/test_docs_gui_lists.py` fails a page that names three or more GUI ports without 8095, or a range ending at 8094.
+- **Found while taking the screenshots:** the stacked "Exchange memory" chart dipped to zero at some buckets. pm-monitor stamped each raw sample with its beacon's arrival time, so one process's 10 s row could fall either side of a bucket boundary while another's did not. Raw rows are now stamped with the flush time (`store.py`, tested); every series of one flush shares a bucket.
+- **CHANGELOG (E2.4)** is written at release with `scripts/mkchlogentry.sh <version>`; the maintainer picks the version. Draft for that entry:
+
+  ```
+  ### ✨ Additions
+  - Added `pm-monitor`, which collects a health beacon from every long-running process, judges each process and the exchange (HEALTHY … DEAD; OPERATIONAL … DOWN), computes rates, watches thresholds and keeps history in `metrics.db`
+  - Added `pm-monitor-cli` (`health`, `status`, `events`) for scripts and the terminal
+  - Added the Operator Dashboard (`pm-dash`, web-apps/dash-gui, port 8095): every process's health, trading activity, participants, order books, gateways and events, live and over time, with deep links to a process, participant or book
+  - Added the dashboard to both container deployments, the AI-trader simulation and the published images
+  ### ⚠️ Breaking changes
+  - The deployed configuration artifact is SCHEMA_VERSION 5 (new `monitor:` section); redeploy every configuration with `pm-config-deploy`
+  ### 🐛 Bug Fixes
+  - Fixed the source-built container stack failing on SELinux-enforcing hosts: the exchange's data mount lacked `:z`
+  ### 📚 Documentation
+  - Added the Health Monitoring and Operator Dashboard chapters to the Operator's Guide
+  ```
+
 ---
 
 ### WP-E3 — End-to-end scenarios

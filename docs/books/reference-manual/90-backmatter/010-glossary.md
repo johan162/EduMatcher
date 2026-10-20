@@ -36,6 +36,11 @@ owns every order book and decides every trade.
 example `TRADER01`. It is the participant's `id` from the configuration;
 messages and protocols call it `gateway_id`. See also *Gateway*.
 
+**Operator Dashboard (`pm-dash`):** The browser view of `pm-monitor`'s
+health snapshot and history: every process's state, trading activity,
+participants, order books and events, live and over time. See
+[Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md).
+
 **Participant:** Anyone configured to connect to the exchange — a student, a
 bot or the operator — with an ID and a role. Listed under `participants:` in
 the configuration.
@@ -60,8 +65,8 @@ Also called the *session state*.
 
 **TapeDeck (`pm-terminal`):** The read-only browser market display. The other
 browser applications are the Trading GUI (`pm-trading-ui`), the Order Book
-Viewer (`pm-book`), the Log Operator Console (`pm-log-ui`) and the
-Configuration GUI (`config-gui`).
+Viewer (`pm-book`), the Log Operator Console (`pm-log-ui`), the Operator
+Dashboard (`pm-dash`) and the Configuration GUI (`config-gui`).
 
 **Trading date:** The exchange-local calendar date that daily statistics and
 P&L summaries are grouped by, as opposed to the UTC date of an event's
