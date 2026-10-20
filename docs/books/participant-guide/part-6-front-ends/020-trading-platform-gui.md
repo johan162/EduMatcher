@@ -320,10 +320,6 @@ your config so you can switch roles by reconnecting with a different key.
     you to the login screen — expected for a classroom system running on
     localhost, not a bug.
 
-📷 **Figure 1 — Login screen.** Capture the centered login card (API key
-field, Connect button, the "held in memory" notice) against the dark shell
-background. Suggested file: `images/trader-gui/fig-01-login.png`.
-
 ## Roles and access rights
 
 Your role is a property of the **gateway identity your API key is bound to**,
@@ -368,12 +364,6 @@ may visit.
     TRADER from MARKET_MAKER on the order and quote endpoints.
 
 ## The application shell
-
-📷 **Figure 2 — App shell, TRADER role.** Capture the Trading Workspace with
-the full shell visible: top bar (wordmark, session badge + clock, connection
-health, notification bell, settings, help, gateway id/role, logout) and the
-left sidebar navigation for the TRADER role. Suggested file:
-`images/trader-gui/fig-02-app-shell-trader.png`.
 
 Every authenticated screen shares the same chrome.
 
@@ -462,10 +452,6 @@ event bridge covers the *later* outcomes — fills, cancels, expiries, and OCO
 `↑`/`↓` move, `Enter` runs, `Escape` closes. This is the backbone of
 mouse-free navigation.
 
-📷 **Figure 14 — Command palette open.** Capture `Ctrl+K` pressed with a
-partial query typed, showing filtered navigation and action results.
-Suggested file: `images/trader-gui/fig-14-command-palette.png`.
-
 ### Help drawer
 
 `Ctrl+/` (or the `?` icon) opens a right-edge sheet with a topic list:
@@ -483,11 +469,6 @@ overlays stay usable — and navigating away clears it.
 ## Screens available to every role
 
 ### Market Overview
-
-📷 **Figure 3 — Market Overview.** Capture the symbol table mid-session with
-live bid/ask/last, change %, and volume columns populated, the symbol filter
-box, and at least one row starred into the watchlist. Suggested file:
-`images/trader-gui/fig-03-market-overview.png`.
 
 The reference board, available regardless of role. Columns:
 
@@ -590,10 +571,14 @@ price, and ring-highlighting the suggested side button).
 
 ### Trading Workspace
 
-📷 **Figure 4 — Trading Workspace.** Capture all four quadrants live for one
-symbol: chart (top-left), depth ladder (right), order ticket (bottom-left),
-and the compact blotter strip along the bottom. Suggested file:
-`images/trader-gui/fig-04-trading-workspace.png`.
+![The Trading Workspace for AAPL, logged in as TRADER01.](../../../assets/trader-gui/trader-workspace.png)
+
+*The shell: the top bar (session badge and clocks, connection health,
+notifications, settings, theme, help, gateway id and role, logout) and the
+TRADER sidebar. The four panels follow the active symbol: the chart in
+one-minute candles, the depth ladder (click a price to pre-fill the ticket),
+the compact ticket with the symbol locked, and the working AAPL orders, where
+the iceberg is `PARTIAL` with 157 of 400 left.*
 
 The default TRADER landing screen and cockpit. Four panels, all bound to one
 active symbol chosen with the symbol picker in the header — a dropdown, or a
@@ -623,10 +608,6 @@ a first classroom session stays simple.
 The eight single-leg order type tabs are always shown flat above the ticket
 fields — every single-leg type is one click away. Only OCO and Combo sit
 behind the Advanced disclosure.
-
-📷 **Figure 5 — Order Entry with OCO panel expanded.** Capture the ticket
-plus the OCO sub-panel open beneath it. Suggested file:
-`images/trader-gui/fig-05-order-entry-oco.png`.
 
 #### Ticket fields
 
@@ -788,10 +769,12 @@ client order ID field clears.
 
 ### Active Orders
 
-📷 **Figure 6 — Active Orders blotter.** Capture several working orders of
-different types/statuses, with one row's checkbox selected to show the
-bulk-cancel affordance. Suggested file:
-`images/trader-gui/fig-06-active-orders.png`.
+![Active Orders with one order selected.](../../../assets/trader-gui/trader-active-orders.png)
+
+*TRADER01's seven working orders: limits, an iceberg, a stop and a
+stop-limit, DAY and GTC. The iceberg is `PARTIAL`; the stop shows `—` for its
+price, since a stop carries none. One row is ticked, so the bar below offers
+**Cancel all selected**; each row has Amend, Cancel-Replace and Cancel.*
 
 The full live blotter, driven by the order store — seeded from the
 `orders.snapshot` frame and folded forward from live `order.*` events, so it
@@ -1020,9 +1003,13 @@ Confirmation behaviour differs between the two on purpose:
 
 ### Quote Management
 
-📷 **Figure 7 — Quote Management.** Capture the card grid with two-sided
-quotes on several symbols, including at least one card showing partial-fill
-progress on a leg. Suggested file: `images/trader-gui/fig-07-quote-mgmt.png`.
+![Quote Management for the market maker MM01.](../../../assets/trader-gui/trader-quote-management.png)
+
+*One card per symbol, in alphabetical order. Six carry an `ACTIVE` two-sided
+quote: price × quantity per leg, the fill counter and progress bar, the leg
+status and the quote id. ADBE is halted, and the quotes on ADI and ADSK were
+hit and taken off, so those cards read *No active quote.* The header counts
+the active quotes and shows `syncing…` while the bootstrap refetches.*
 
 The MARKET_MAKER landing screen: **one card per configured symbol**, whether
 or not you currently quote it. A symbol carries at most one active quote per
@@ -1105,10 +1092,6 @@ A cancel that times out waiting for its ack shows *"Cancel submitted for
 
 ### Quote Bootstrap & Legs
 
-📷 **Figure 8 — Quote Bootstrap and Legs view.** Capture both tables with
-several rows of data. Suggested file:
-`images/trader-gui/fig-08-quote-bootstrap.png`.
-
 A diagnostic screen with two complementary read sources and a **Resync**
 button that refetches both, plus a "Reconciled at" stamp.
 
@@ -1134,11 +1117,6 @@ The same Position Summary Panel as TRADER, with the same Flatten / Flatten All
 behaviour — see [Positions and Flatten](#positions-and-flatten) above.
 
 ## The ADMIN role
-
-📷 **Figure 9 — System Dashboard.** Capture the KPI card row (session phase,
-active orders across gateways, connected gateways, active CB halts), the
-per-symbol summary table, and the recent cross-gateway events feed.
-Suggested file: `images/trader-gui/fig-09-admin-dashboard.png`.
 
 ### System Dashboard
 
@@ -1188,10 +1166,6 @@ unavailable — the stats database is not running."*
 
 ### Session Control
 
-📷 **Figure 10 — Session Control.** Capture the current-phase badge and
-the available transition buttons. Suggested file:
-`images/trader-gui/fig-10-session-control.png`.
-
 The current phase as a badge, and a button for **each transition that is
 currently legal** — illegal ones are never offered:
 
@@ -1229,9 +1203,12 @@ reopens via a call auction — there is no per-level resumption mode.
 
 ### Circuit Breakers
 
-📷 **Figure 11 — Circuit Breakers, with an active halt.** Capture the
-manual-trigger form and the active-halts table with at least one row.
-Suggested file: `images/trader-gui/fig-11-circuit-breakers.png`.
+![Circuit Breakers: the manual-halt form and two active halts.](../../../assets/trader-gui/trader-circuit-breakers.png)
+
+*Both halts were set by the operator without a level, so Est. Resume reads
+`indefinite` and the trigger and reference prices are blank; **Clear**
+resumes trading. The Level selector offers only *Indefinite (no level)*:
+this exchange configures no breaker ladder for the symbol.*
 
 The live operational counterpart to Risk Controls, bootstrapped from
 `GET /admin/halts` and kept current by the `circuit_breaker` market-data
@@ -1259,11 +1236,6 @@ confirms and then resumes trading.
     until the symbol halts again. The halt itself is real regardless.
 
 ### Gateway Management and the Kill Switch
-
-📷 **Figure 12 — Gateway Management with Kill Switch panel.** Capture the
-gateway roster table and the Kill Switch panel beneath it, including the
-Global "Kill all" control. Suggested file:
-`images/trader-gui/fig-12-gateway-mgmt-killswitch.png`.
 
 The roster from `GET /admin/gateways` shows Gateway ID, Role, Description and
 a live connection dot (`Connected` / `Offline`), with an `N / M connected`
@@ -1293,11 +1265,6 @@ run, since it is a full-market emergency stop.
     circuit-breaker halt or a session transition.
 
 ### Monitor Log
-
-📷 **Figure 13 — Monitor Log.** Capture the filter bar and a scrolled list
-of mixed event types (ACK, FILL, CANCEL, CB, ADMIN), ideally with one row's
-Order/Gateway cell showing the clickable order-id link. Suggested
-file: `images/trader-gui/fig-13-monitor-log.png`.
 
 The live, filterable tail of cross-gateway activity from the admin monitor
 feed. Columns: Time (`HH:MM:SS.mmm`), Seq, Type, Order / Gateway, Symbol,

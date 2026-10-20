@@ -369,10 +369,14 @@ and redeploy.
 
 ## A tour of the interface
 
-📷 **Figure 1 — The app shell.** Capture the Overview screen in dark theme,
-showing the full shell: the top bar (app name and version, the seven view tabs,
-the density, theme and settings controls, the connection indicator) and the footer status strip.
-Suggested file: `images/terminal-gui/fig-01-app-shell.png`.
+![The Market Overview: the top bar, the first page of the symbol grid and the status strip.](../../../assets/terminal-gui/terminal-overview.png)
+
+*Page 1 of 20 on a 300-symbol exchange, advancing every 8 seconds. AAPL and ADBE
+are starred into the watchlist (the toggle counts five pinned symbols), ADBE
+carries a `HALT` badge, and the status strip reports `2 symbols halted` and
+the age of the last tick beside the CALF state. Every `%CHG` has its `*`: this
+exchange has no previous close on record yet, so change is measured from
+today's open.*
 
 ### Top bar
 
@@ -427,10 +431,6 @@ The default landing view: every tradable symbol, paginated, meant to run
 unattended on a classroom or lobby display just as well as be actively
 browsed.
 
-📷 **Figure 2 — Market Overview.** Capture a multi-page symbol list mid-session
-with a mix of up/down movers and at least one halted symbol, the Watchlist
-toggle visible. Suggested file: `images/terminal-gui/fig-02-overview.png`.
-
 Key behaviors:
 
 - **Auto-paging.** Rows are split into pages sized to fit the viewport
@@ -476,12 +476,14 @@ The deep-dive view for one instrument: a candlestick + midpoint chart, a
 values table, and an optional depth ladder. Large-screen only, by design —
 there is no responsive mobile layout.
 
-📷 **Figure 3 — Symbol Detail.** Capture a symbol with a visible price history
-(1D or 5D preset), both the OHLC and Midpoint series toggled on, and the
-Values panel. A second capture with the Depth toggle on instead of Values
-would usefully show the two-panel swap described below. Suggested files:
-`images/terminal-gui/fig-03-symbol-detail.png` and
-`images/terminal-gui/fig-03b-symbol-detail-depth.png`.
+![Symbol Detail for MSFT on the 1D preset, with the Depth toggle on.](../../../assets/terminal-gui/terminal-symbol-detail.png)
+
+*One-minute OHLC candles with their volume, the VWAP line and the last price
+(Midpoint is toggled off). Below, the Values panel and, beside it, the
+Depth-of-Book ladder: the best prices meet in the middle, the `#` column
+counts the orders at each level, and the percentage beside each price is its
+distance from the touch, which shows at a glance that the levels around
+192.9 and 204–207 are about 3% away.*
 
 - **Header.** Symbol, session badge, last price, change and %change (always
   quoted against the *previous close*, footnoted when no previous close is
@@ -507,13 +509,13 @@ would usefully show the two-panel swap described below. Suggested files:
   may reopen inside, with the last indicative price marked against it. This
   is the visual explanation of *why* a halt is still running: if the marker
   sits outside the band, the call phase was extended rather than printing.
-- **Values panel ↔ Depth ladder.** The `☐ Depth` toggle *replaces* the
-  Values panel with the [Depth-of-Book ladder](#depth-of-book) rather than
-  showing both side by side. This is deliberate, not a space-saving
-  afterthought: unlike `OHLC`/`Midpoint`, which reuse subscriptions the
-  bridge already holds for every symbol, turning Depth on causes the bridge
-  to open a brand-new per-symbol CALF subscription — so it is opt-in per
-  viewer, and the panel swap is a visible reminder that this is a heavier,
+- **Values panel and Depth ladder.** The Values panel is always shown; the
+  `☐ Depth` toggle fills the panel beside it with the
+  [Depth-of-Book ladder](#depth-of-book), which otherwise only says to turn
+  the toggle on. It is off by default on purpose: unlike `OHLC`/`Midpoint`,
+  which reuse subscriptions the bridge already holds for every symbol,
+  turning Depth on causes the bridge to open a brand-new per-symbol CALF
+  subscription — so it is opt-in per viewer, a heavier,
   deliberately-requested data stream.
 
 ### Depth-of-Book
@@ -522,10 +524,6 @@ A Level 2 ladder (aggregated quantity per price level — never per-order
 identity, which CALF does not carry at any version) for whichever symbol
 currently has the Depth toggle on in Symbol Detail. It is not its own
 navigation tab.
-
-📷 **Figure 4 — Depth ladder.** Capture a symbol with resting orders on both
-sides, ideally with at least one row whose distance-from-touch marker is
-visible. Suggested file: `images/terminal-gui/fig-04-depth-ladder.png`.
 
 Columns run outward from the touch in both directions —
 `Cum | Qty | # | Bid ‖ Ask | # | Qty | Cum` — so the two best prices meet in
@@ -555,10 +553,6 @@ mirrored) while a percentage reads the same distance from 50% either way.
 Headline level and a historical chart for a configured exchange index (see
 [Market Index](../../operator-guide/part-4-run-a-market/070-market-index.md)).
 
-📷 **Figure 5 — Index View.** Capture the chart on a `1M`+ preset (to show the
-daily-bar rendering) alongside the Open/High/Low panel and, if any exist,
-the Recent changes strip. Suggested file: `images/terminal-gui/fig-05-index-view.png`.
-
 The headline level, change, and session badge always come from the **live**
 CALF `INDEX` stream, never from a historical REST row for the current date —
 `/history/index-daily`'s `close_level` is only guaranteed final once the
@@ -576,12 +570,6 @@ classroom exchanges.
 ### Trade Tape / Time & Sales
 
 Every print on the exchange, newest first, filterable by symbol.
-
-📷 **Figure 6 — Trade Tape.** Capture the unfiltered tape with several
-symbols' prints visible. If reproducible, a second capture showing a gap
-marker row would be a good addition — see the callout below for how to
-trigger one deliberately in a test environment.
-Suggested file: `images/terminal-gui/fig-06-trade-tape.png`.
 
 The symbol filter narrows what is *displayed*; the bridge's underlying
 `SYM=*` wildcard subscription means every symbol's prints are already
@@ -606,9 +594,6 @@ gap where the pause was.
 A different ranking over the same data the Overview grid already computes —
 no new subscriptions.
 
-📷 **Figure 7 — Movers.** Capture the Gainers tab with several bars of
-different lengths visible. Suggested file: `images/terminal-gui/fig-07-movers.png`.
-
 Three tabs: **Gainers** and **Losers** rank by percentage change from the
 previous close (falling back to today's open, and labelled as such, when no
 previous close is available); **Active** ranks by session turnover (value
@@ -622,9 +607,13 @@ Three panels in one view: the exchange-wide session phase, every symbol
 currently halted with its full circuit-breaker detail, and the auctions that
 have uncrossed since the tab was opened.
 
-📷 **Figure 8 — Session & Halt Status Board.** Capture a state with at least
-one active halt and one completed auction result, so both tables have
-content. Suggested file: `images/terminal-gui/fig-08-session-board.png`.
+![The Session & Halt Status Board just after an opening auction.](../../../assets/terminal-gui/terminal-session-board.png)
+
+*Two operator halts (ADBE, AMZN): level `ADMIN_SYMBOL`, no trigger or
+reference price, resuming only when the operator clears them. Below, the
+opening auction's results, newest first: the equilibrium price, the matched
+quantity, the number of trades and the residual imbalance per symbol, and
+`(no cross)` where nothing could match.*
 
 - **Active halts** shows, per halted symbol: circuit-breaker level, trigger
   and reference price (blank for an operator-initiated halt, which carries

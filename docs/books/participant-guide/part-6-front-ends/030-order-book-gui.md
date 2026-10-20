@@ -476,9 +476,12 @@ Points worth knowing:
 
 ## A tour of the interface
 
-📷 **Figure 1 — The order book viewer.** Capture a liquid symbol mid-session in
-dark theme, with several levels on both sides, a populated trade tape, and the
-footer visible. Suggested file: `images/book-gui/fig-01-book.png`.
+![The order book viewer on MSFT, mid-session.](../../../assets/book-gui/book-viewer.png)
+
+*The top bar, the statistics header, the BIDS and ASKS ladders with depth
+bars scaled to the largest level on screen, the trade tape coloured by tick,
+and the footer: `upstream ACTIVE`, how many levels of each side are shown, and
+the age of the last book update.*
 
 The page has four parts, top to bottom: the top bar, the statistics header, the
 three panels **BIDS**, **ASKS** and **TRADES**, and the footer.
@@ -512,8 +515,11 @@ book.
 
 ### The statistics header
 
-📷 **Figure 2 — The statistics header.** Capture both rows with a positive change
-and the `prev-close` basis. Suggested file: `images/book-gui/fig-02-header.png`.
+![The statistics header.](../../../assets/book-gui/book-header.png)
+
+*MSFT up 1.62%. This exchange has no previous close on record yet, so `Prev`
+is `n/a` and change is measured from the session open (`Basis session-open`).
+The green line under the header: the close is above that reference.*
 
 Two rows, the same fields as `pm-viewer`'s header. The **reference** price that
 change and colour are measured against is the previous close when one is known,
