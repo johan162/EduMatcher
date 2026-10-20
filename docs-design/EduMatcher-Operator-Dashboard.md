@@ -2633,6 +2633,16 @@ the dashboard data.
 **Done when:** all widgets render in a test page in both themes with
 synthetic data.
 
+As built (WP-D2, I112):
+- **Where things are:**
+  - widgets in `components/widgets/`, plus `Sparkline` and `ChartBox` (responsive in the app, fixed `width` in tests);
+  - helpers `lib/format.ts`, `lib/thresholds.ts` (pm-monitor's strict `>`/`<` rule, and the hover text), `lib/topn.ts` and `lib/status.ts`;
+  - stores `useCrosshair` and `useRowStore` (persisted).
+- **Gauge geometry:** SVG angles, clockwise from +x: min, mid and max at 150°, 270° and 30°.
+- **Stat-tile background mode:** writes `--bg` on the status colour; every status token is ≥ 4.5:1 against `--bg`, so the pair is readable both ways.
+- **Formatting:** percent has one decimal below 100.
+- **Gallery:** the test page is `/widgets`, unlinked and outside the live shell, with deterministic data. `make test-e2e` checks it in Chrome in both themes: real chart sizes, and the theme's colours computed on the SVG.
+
 **Watch out for:**
 - Recharts in jsdom: `ResponsiveContainer` has zero size; give tests a fixed
   width/height (log-gui's Dashboard tests show how).
@@ -2650,6 +2660,13 @@ synthetic data.
 - A4–A6 metric names change — the row components read names from one
   constants file (`lib/metrics.ts`) so a rename is one edit.
 - Q2 excludes bots — the "Participant bots" group disappears.
+
+**Open point (from D2, I113), to decide first:** the widgets draw thresholds
+as `{warn, crit, invert}` and explain them on hover, but the snapshot carries
+only active breaches, not the configured `monitor.thresholds`.
+Recommendation: the bridge reads them from the deployed artifact (read-only,
+in the data directory it already mounts) and serves `/api/thresholds`.
+Alternative: a spec change putting them in every 1 Hz snapshot.
 
 **Tasks:**
 - **D3.1** `lib/metrics.ts`: all metric names used by the UI in one place.

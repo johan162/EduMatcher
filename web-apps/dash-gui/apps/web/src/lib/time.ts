@@ -67,3 +67,12 @@ export function formatDate(t: Instant, tz: string): string {
 export function formatDateTime(t: Instant, tz: string): string {
   return `${formatDate(t, tz)} ${formatTime(t, tz)}`;
 }
+
+/**
+ * A chart axis tick: the time of day while the range fits in a day, the
+ * date as well beyond it ("10-19 14:00"), both on the session clock.
+ */
+export function formatAxisTime(t: Instant, tz: string, spanMs: number): string {
+  if (spanMs <= 24 * 3600_000) return formatTime(t, tz, spanMs <= 15 * 60_000);
+  return `${formatDate(t, tz).slice(5)} ${formatTime(t, tz, false)}`;
+}

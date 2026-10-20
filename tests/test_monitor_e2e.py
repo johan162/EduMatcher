@@ -836,6 +836,38 @@ def test_the_dashboard_page_shows_the_live_exchange_in_a_browser(
     )
 
 
+def test_every_widget_renders_in_both_themes_in_a_browser(
+    bridge: Bridge, page: Page | None
+) -> None:
+    """WP-D2's done-when, in a real browser: the /widgets gallery (synthetic
+    data) draws every widget at its real size, and each theme's own colours
+    reach the SVG -- which jsdom cannot show."""
+    if page is None:
+        pytest.skip("no Chrome to drive")
+    page.goto(f"http://127.0.0.1:{bridge.port}/widgets")
+    page.wait("document.querySelectorAll('[role=meter]').length === 4", "the gauges")
+    # The responsive charts measured their panels: none is zero-sized.
+    widths = page.js(
+        "[...document.querySelectorAll('.recharts-surface')]"
+        ".map(s => s.getBoundingClientRect().width)"
+    )
+    assert len(widths) == 3 and min(widths) > 200, widths
+    ok_band = "getComputedStyle(document.querySelector('[data-band=OK]')).stroke"
+    for theme, ok in (("dark", "rgb(38, 208, 124)"), ("light", "rgb(6, 118, 71)")):
+        page.js(
+            f"document.documentElement.classList.toggle('dark', {str(theme == 'dark').lower()})"
+        )
+        assert page.js(ok_band) == ok, theme
+        line = page.js(
+            "getComputedStyle(document.querySelector('.recharts-line-curve')).stroke"
+        )
+        assert line.startswith("rgb("), (theme, line)  # var(--series-1) resolved
+    page.js("document.documentElement.classList.add('dark')")
+    # Back to the dashboard: the scenarios after this one watch it.
+    page.goto(f"http://127.0.0.1:{bridge.port}/")
+    page.wait(f"{PILL}?.textContent === '●OPERATIONAL'", "the dashboard again")
+
+
 def test_a_stopped_process_goes_silent_and_comes_back(
     exchange: Exchange, feed: Feed, tab: Tab
 ) -> None:

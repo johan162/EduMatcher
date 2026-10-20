@@ -69,7 +69,7 @@ const BUILT_IN = new Set([
  */
 const NON_COLOUR: Record<string, Set<string>> = {
   text: new Set(["xs", "sm", "base", "lg", "xl", "left", "right", "center", "justify"]),
-  border: new Set(["t", "b", "l", "r", "x", "y", "solid", "dashed", "dotted", "none", "border"]),
+  border: new Set(["t", "b", "l", "r", "x", "y", "solid", "dashed", "dotted", "none", "border", "collapse", "separate"]),
   bg: new Set(["none", "cover", "contain", "fixed", "local", "scroll"]),
 };
 
@@ -87,13 +87,18 @@ const COLOUR_UTILITIES = [
 ];
 
 /**
- * Strip comments before scanning.
+ * Strip comments (and CSS variable references) before scanning.
  *
  * A comment explaining why `bg-warning/10` is wrong has to be able to write
  * `bg-warning/10`, and flagging it there would make the rule unteachable.
  */
 function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "")
+    // `var(--bg-raised)` in an inline style or SVG attribute is a CSS
+    // variable, not a utility class.
+    .replace(/var\(--[a-z0-9-]+\)/g, "");
 }
 
 /** Colour token names declared in `theme.extend.colors`. */
