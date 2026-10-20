@@ -217,7 +217,7 @@ class Monitor:
         self.final_grace_sec = FINAL_GRACE_SEC
         self._reporter: HealthReporter | None = None
         self._snapshot_seq = 0
-        #: Per pm-monitor start until WP-B4 makes it metrics.db's events.seq.
+        #: The next event's seq; continues metrics.db's (``_resume_from``).
         self._event_seq = 0
         self._last_warning: dict[str, float] = {}
 
@@ -645,15 +645,17 @@ class Monitor:
         """Store and publish one ``health.event``; False when it failed.
 
         With ``metrics.db`` the event's ``seq`` is its ``events.seq``, so the
-        bridge can fetch what it missed by sequence; without it (or when the
-        write fails) a per-start counter continues.
+        bridge can fetch what it missed by sequence. The number continues
+        from metrics.db (``_resume_from``) and is never reused: an event
+        whose write failed is published under its number all the same, and
+        the next one takes the following number.
         """
         ts = iso_utc(self._wall_clock())
         subject, detail = subject[:200], detail[:512]
         seq = self._event_seq
         if self.store is not None:
             try:
-                seq = self.store.add_event(ts, kind, severity, subject, detail)
+                self.store.add_event(seq, ts, kind, severity, subject, detail)
             except sqlite3.Error as exc:
                 self._store_failed(exc)
         try:
@@ -708,6 +710,7 @@ class Monitor:
             )
         a.sink = self._store_increment
         self._refresh_averages(store, now_wall, force=True)
+        self._event_seq = store.next_event_seq()
 
     def _store_increment(
         self,

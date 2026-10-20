@@ -5,8 +5,8 @@
   "type": "module",
   "main": "./src/main.ts",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
+    "dev": "tsx watch --disable-warning=ExperimentalWarning src/main.ts",
+    "start": "tsx --disable-warning=ExperimentalWarning src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

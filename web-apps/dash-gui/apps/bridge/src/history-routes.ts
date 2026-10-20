@@ -4,6 +4,11 @@
  * Every parameter is validated here; a malformed or out-of-bounds request
  * is a 400 with `{ error, message }`, never a database error. Names,
  * labels and sources reach SQL only as bound parameters.
+ *
+ * Times: a request names an instant unambiguously — epoch milliseconds, or
+ * ISO-8601 with `Z` or an offset (a bare local time would be read in the
+ * bridge's own zone, which is neither the browser's nor the exchange's).
+ * Responses are epoch ms. Buckets start on the session clock.
  */
 
 import type { FastifyInstance, FastifyReply } from "fastify";
@@ -17,6 +22,7 @@ import type {
   SeriesResponse,
 } from "@edumatcher/dash-types";
 import { MAX_POINTS, MetricsDb, QueryError, type TimeRange } from "./metrics-db.js";
+import { utcOffsetSec } from "./session-time.js";
 
 /** The longest range any history request may span: the minute table's window. */
 export const MAX_RANGE_MS = 7 * 24 * 3600 * 1000;
@@ -26,17 +32,18 @@ export const MAX_EVENTS = 1000;
 export const DEFAULT_EVENTS = 500;
 export const MAX_DAYS = 366;
 
-const EVENT_KINDS: readonly EventKind[] = [
-  "CONNECT",
-  "AUTH_REJECT",
-  "DISCONNECT",
-  "DIAGNOSTIC",
-  "SESSION",
-  "HALT",
-  "RESUME",
-  "PROCESS_STATUS",
-  "THRESHOLD",
-];
+/** A Record, so a kind added to `EventKind` (the spec) fails typecheck until listed. */
+const EVENT_KINDS: Record<EventKind, true> = {
+  CONNECT: true,
+  AUTH_REJECT: true,
+  DISCONNECT: true,
+  DIAGNOSTIC: true,
+  SESSION: true,
+  HALT: true,
+  RESUME: true,
+  PROCESS_STATUS: true,
+  THRESHOLD: true,
+};
 
 /** The Grafana time-picker set (§11.2); `range=` is an alternative to `from=`. */
 const RANGES: Record<string, number> = {
@@ -50,14 +57,28 @@ const RANGES: Record<string, number> = {
 
 type Query = Record<string, string | undefined>;
 
+/** ISO-8601 date and time with seconds optional, and a zone that is required. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+
 function bad(code: string, message: string): QueryError {
   return new QueryError(400, code, message);
 }
 
-/** ISO-8601 (as metrics.db and the snapshot write it) or epoch milliseconds. */
+/** The query string, each parameter given at most once. */
+function query(raw: unknown): Query {
+  const q = (raw ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(q)) {
+    if (typeof value !== "string") throw bad("bad_param", `${key}= is given more than once`);
+  }
+  return q as Query;
+}
+
+/** Epoch milliseconds, or ISO-8601 with `Z` or an offset (as metrics.db and the snapshot write it). */
 export function parseTime(raw: string, param: string): number {
-  const ms = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
-  if (!Number.isFinite(ms)) throw bad("bad_time", `${param}=${raw} is neither ISO-8601 nor epoch milliseconds`);
+  const ms = /^\d+$/.test(raw) ? Number(raw) : ISO_INSTANT.test(raw) ? Date.parse(raw) : NaN;
+  if (!Number.isFinite(ms)) {
+    throw bad("bad_time", `${param}=${raw} is neither epoch milliseconds nor ISO-8601 with Z or an offset`);
+  }
   return ms;
 }
 
@@ -118,26 +139,38 @@ function send(reply: FastifyReply, run: () => unknown): unknown {
   }
 }
 
-export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: () => number = Date.now): void {
+/**
+ * `sessionTz` is the exchange's IANA zone as the bridge knows it now: buckets
+ * start on that clock.
+ */
+export function registerHistoryRoutes(
+  app: FastifyInstance,
+  db: MetricsDb,
+  sessionTz: () => string,
+  now: () => number = Date.now,
+): void {
+  const offsetFor = (range: TimeRange) => utcOffsetSec(sessionTz(), range.toMs);
+
   app.get("/api/series", (request, reply) =>
     send(reply, (): SeriesResponse => {
-      const q = request.query as Query;
+      const q = query(request.query);
       const name = requireName(q);
       const label = optionalText(q, "label", 32) ?? "";
       const source = optionalText(q, "source", 200);
       const range = parseRange(q, now())!;
       knownMetric(db, name);
-      const result = db.series(name, label, source, range);
+      const result = db.series(name, label, source, range, offsetFor(range));
       return { name, label, ...result };
     }),
   );
 
   app.get("/api/series/multi", (request, reply) =>
     send(reply, (): MultiSeriesResponse => {
-      const q = request.query as Query;
+      const q = query(request.query);
       const name = requireName(q);
       const source = optionalText(q, "source", 200);
       const range = parseRange(q, now())!;
+      const offsetSec = offsetFor(range);
       knownMetric(db, name);
       const labels =
         q.labels !== undefined && q.labels !== ""
@@ -145,11 +178,11 @@ export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: 
           : db.labels(name, MAX_LABELS + 1);
       if (labels.length > MAX_LABELS) throw bad("too_many_labels", `at most ${MAX_LABELS} labels per request`);
       if (labels.some((l) => l.length > 32)) throw bad("bad_label", "a label is at most 32 characters");
-      let results = labels.map((label) => ({ label, ...db.series(name, label, source, range) }));
+      let results = labels.map((label) => ({ label, ...db.series(name, label, source, range, offsetSec) }));
       // One resolution for the whole chart: if any label had to fall back to
       // the minute table, every label is read from it.
       if (results.some((r) => r.resolution === "1m") && results.some((r) => r.resolution === "raw")) {
-        results = labels.map((label) => ({ label, ...db.series(name, label, source, range, "1m") }));
+        results = labels.map((label) => ({ label, ...db.series(name, label, source, range, offsetSec, "1m") }));
       }
       return {
         name,
@@ -163,7 +196,7 @@ export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: 
 
   app.get("/api/rate", (request, reply) =>
     send(reply, (): RateResponse => {
-      const q = request.query as Query;
+      const q = query(request.query);
       const name = requireName(q);
       const label = optionalText(q, "label", 32);
       const source = optionalText(q, "source", 200);
@@ -175,13 +208,13 @@ export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: 
         throw bad("too_many_points", `this range has more than ${MAX_POINTS} ${bucket} buckets; use bucket=1h`);
       }
       knownMetric(db, name);
-      return { name, label: label ?? null, bucket, points: db.rate(name, label, source, range, bucketSec) };
+      return { name, label: label ?? null, bucket, points: db.rate(name, label, source, range, bucketSec, offsetFor(range)) };
     }),
   );
 
   app.get("/api/daily", (request, reply) =>
     send(reply, (): DailyResponse => {
-      const q = request.query as Query;
+      const q = query(request.query);
       const name = requireName(q);
       const label = optionalText(q, "label", 32);
       const source = optionalText(q, "source", 200);
@@ -193,7 +226,7 @@ export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: 
 
   app.get("/api/events", (request, reply) =>
     send(reply, (): EventsResponse => {
-      const q = request.query as Query;
+      const q = query(request.query);
       const limit = positiveInt(q.limit, "limit", DEFAULT_EVENTS, MAX_EVENTS);
       let afterSeq: number | undefined;
       if (q.after_seq !== undefined) {
@@ -202,8 +235,10 @@ export function registerHistoryRoutes(app: FastifyInstance, db: MetricsDb, now: 
       }
       const range = parseRange(q, now(), afterSeq === undefined);
       const kinds = q.kind !== undefined && q.kind !== "" ? q.kind.split(",") : undefined;
-      const unknown = kinds?.filter((k) => !EVENT_KINDS.includes(k as EventKind)) ?? [];
-      if (unknown.length > 0) throw bad("bad_kind", `unknown kind ${unknown.join(", ")}; use ${EVENT_KINDS.join(", ")}`);
+      const unknown = kinds?.filter((k) => !Object.hasOwn(EVENT_KINDS, k)) ?? [];
+      if (unknown.length > 0) {
+        throw bad("bad_kind", `unknown kind ${unknown.join(", ")}; use ${Object.keys(EVENT_KINDS).join(", ")}`);
+      }
       return { events: db.events({ range, afterSeq, kinds, limit }) };
     }),
   );

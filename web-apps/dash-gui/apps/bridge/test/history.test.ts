@@ -3,6 +3,9 @@
  * own MetricsStore (fixtures/make_metrics_db.py documents its timeline).
  */
 
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type {
@@ -15,7 +18,8 @@ import type {
   SeriesResponse,
 } from "@edumatcher/dash-types";
 import { bucketFor, MAX_POINTS, MetricsDb } from "../src/metrics-db.js";
-import { startRig, type Rig } from "./harness.js";
+import { utcOffsetSec } from "../src/session-time.js";
+import { frames, snapshot, startRig, type Rig } from "./harness.js";
 import { buildMetricsFixture, HOUR, MIN, T0 } from "./metrics-fixture.js";
 
 let path: string;
@@ -31,15 +35,25 @@ afterAll(async () => {
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
-async function get<T>(query: string, status = 200): Promise<T> {
-  const res = await fetch(`http://127.0.0.1:${rig.port}${query}`);
+/** A writable copy of the fixture, changed by `edit` before the test reads it. */
+function variant(edit: (db: DatabaseSync) => void): string {
+  const out = join(mkdtempSync(join(tmpdir(), "dash-variant-")), "metrics.db");
+  copyFileSync(path, out);
+  const db = new DatabaseSync(out);
+  edit(db);
+  db.close();
+  return out;
+}
+
+async function get<T>(query: string, status = 200, on: Rig = rig): Promise<T> {
+  const res = await fetch(`http://127.0.0.1:${on.port}${query}`);
   const body = (await res.json()) as T;
   expect(res.status, JSON.stringify(body)).toBe(status);
   return body;
 }
 
 describe("/api/series", () => {
-  it("reads every sample for a range within raw_hours", async () => {
+  it("reads every sample while the 10 s rows cover the range", async () => {
     const r = await get<SeriesResponse>(`/api/series?name=host.cpu_pct&from=${iso(T0)}&to=${iso(T0 + HOUR)}`);
     expect(r).toMatchObject({ name: "host.cpu_pct", label: "", source: "host", resolution: "raw", bucketSec: 10 });
     expect(r.points).toHaveLength(360);
@@ -48,10 +62,12 @@ describe("/api/series", () => {
     expect(r.points.at(-1)![0]).toBe(T0 + HOUR - 10_000);
   });
 
-  it("buckets to at most 1000 points, and uses the minute table beyond raw_hours", async () => {
+  it("buckets to at most 1000 points", async () => {
     const r = await get<SeriesResponse>(`/api/series?name=host.cpu_pct&range=7d`);
-    expect(r.resolution).toBe("1m");
-    expect(r.bucketSec % 60).toBe(0);
+    // Retention never ran on the fixture: its raw rows reach back as far as
+    // its minutes do, so even 7 d is answered from them.
+    expect(r.resolution).toBe("raw");
+    expect(r.bucketSec % 10).toBe(0);
     expect(r.points.length).toBeLessThanOrEqual(MAX_POINTS);
     expect(r.points.length).toBeGreaterThan(0);
     for (const [, v] of r.points) expect(v).toBeGreaterThanOrEqual(10);
@@ -60,11 +76,44 @@ describe("/api/series", () => {
     expect(six.points).toHaveLength(240);
   });
 
-  it("falls back to the minute table when raw rows are gone", async () => {
-    // A 1 h window a day before the fixture's raw rows existed has no raw
-    // data; it is not in the minute table either, so the answer is empty.
+  it("uses the minute table when retention has thinned the start of the range", () => {
+    // Raw rows kept for the last hour only, as raw_hours: 1 would leave them.
+    const db = new MetricsDb(variant((w) => w.prepare("DELETE FROM samples_raw WHERE ts < ?").run(iso(T0 + HOUR))));
+    const two = db.series("host.cpu_pct", "", undefined, { fromMs: T0, toMs: T0 + 2 * HOUR }, 0);
+    expect(two.resolution).toBe("1m");
+    expect(two.points[0]).toEqual([T0, 10]); // not truncated to the last hour
+    expect(db.series("host.cpu_pct", "", undefined, { fromMs: T0 + HOUR, toMs: T0 + 2 * HOUR }, 0).resolution).toBe("raw");
+    db.close();
+  });
+
+  it("uses the raw rows when the range's older part has no data at all (a restart after a gap)", () => {
+    // Found live (I105): retention removed old raw rows but kept that day's
+    // minutes; a 5 min range after the restart must not go to the minute table.
+    const db = new MetricsDb(
+      variant((w) => {
+        w.prepare("DELETE FROM samples_raw WHERE ts < ?").run(iso(T0 + HOUR));
+        w.prepare("DELETE FROM samples_1m WHERE ts >= ? AND ts < ?").run(iso(T0 + 30 * MIN), iso(T0 + HOUR + MIN));
+      }),
+    );
+    const recent = db.series("host.cpu_pct", "", undefined, { fromMs: T0 + 55 * MIN, toMs: T0 + 2 * HOUR }, 0);
+    expect(recent.resolution).toBe("raw");
+    expect(recent.points[0]![0]).toBe(T0 + HOUR);
+    // Reaching back into minutes the raw rows lack: the minute table.
+    expect(db.series("host.cpu_pct", "", undefined, { fromMs: T0, toMs: T0 + 2 * HOUR }, 0).resolution).toBe("1m");
+    db.close();
+  });
+
+  it("uses the raw rows while no minute is written yet (pm-monitor just started)", () => {
+    const db = new MetricsDb(variant((w) => w.exec("DELETE FROM samples_1m")));
+    const r = db.series("host.cpu_pct", "", undefined, { fromMs: T0 - HOUR, toMs: T0 + 2 * HOUR }, 0);
+    expect(r.resolution).toBe("raw");
+    expect(r.points.length).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("a window with no data at all is empty", async () => {
     const r = await get<SeriesResponse>(`/api/series?name=host.cpu_pct&from=${iso(T0 - 24 * HOUR)}&to=${iso(T0 - 23 * HOUR)}`);
-    expect(r).toMatchObject({ resolution: "1m", points: [] });
+    expect(r.points).toEqual([]);
   });
 
   it("selects a label, and requires source= when two processes record the name", async () => {
@@ -105,6 +154,46 @@ describe("/api/rate", () => {
       [T0, 5400],
       [T0 + HOUR, 5400],
     ]);
+  });
+});
+
+describe("buckets on the session clock", () => {
+  it("an hour is an hour of the exchange's day where the zone is not whole hours from UTC", async () => {
+    // Asia/Kolkata is UTC+05:30: its hours start at :30 UTC. The fixture's
+    // two hours from 08:00Z fall into 07:30-08:30 (half), 08:30-09:30 and
+    // 09:30-10:30 (half), 90 orders a minute.
+    const other = await startRig({ metricsDbPath: path }, { connect: false, now: () => T0 + 2 * HOUR });
+    try {
+      other.bridge.uplink.handle(frames("health.snapshot", snapshot(1, "Asia/Kolkata")));
+      const r = await get<RateResponse>(
+        `/api/rate?name=engine.orders_in&bucket=1h&from=${iso(T0)}&to=${iso(T0 + 2 * HOUR)}`,
+        200,
+        other,
+      );
+      expect(r.points).toEqual([
+        [T0 - 30 * MIN, 2700],
+        [T0 + 30 * MIN, 5400],
+        [T0 + 90 * MIN, 2700],
+      ]);
+    } finally {
+      await other.stop();
+    }
+  });
+
+  it("without a snapshot the zone pm-monitor pinned in metrics.db is used", async () => {
+    const status = await get<BridgeStatus>("/api/bridge/status");
+    expect(status.sessionTz).toBe("Europe/Stockholm");
+  });
+
+  it("utcOffsetSec", () => {
+    const summer = Date.parse("2026-07-01T12:00:00Z");
+    const winter = Date.parse("2026-12-01T12:00:00Z");
+    expect(utcOffsetSec("UTC", summer)).toBe(0);
+    expect(utcOffsetSec("Europe/Stockholm", summer)).toBe(7200);
+    expect(utcOffsetSec("Europe/Stockholm", winter)).toBe(3600);
+    expect(utcOffsetSec("America/New_York", winter)).toBe(-5 * 3600);
+    expect(utcOffsetSec("Asia/Kolkata", winter)).toBe(19800);
+    expect(utcOffsetSec("Asia/Kathmandu", winter)).toBe(20700);
   });
 });
 
@@ -151,6 +240,10 @@ describe("validation", () => {
     [`/api/series?name=host.cpu_pct&from=${iso(T0)}&to=${iso(T0 + 8 * 24 * HOUR)}`, "range_too_long"],
     [`/api/series?name=host.cpu_pct&from=${iso(T0)}&to=${iso(T0 - 1)}`, "bad_range"],
     ["/api/series?name=host.cpu_pct&from=yesterday", "bad_time"],
+    ["/api/series?name=host.cpu_pct&from=2026-10-19T08:00:00", "bad_time"], // no zone: whose 08:00?
+    ["/api/series?name=host.cpu_pct&from=2026-10-19", "bad_time"],
+    ["/api/series?name=host.cpu_pct&range=1h&name=host.cpu_pct", "bad_param"],
+    ["/api/events?range=1h&kind=HALT&kind=RESUME", "bad_param"],
     ["/api/series?name=host.cpu_pct&range=2h", "bad_range"],
     ["/api/series?name=host.cpu_pct&range=1h&from=1", "bad_range"],
     [`/api/series?name=${"x".repeat(65)}&range=1h`, "bad_name"],
@@ -171,6 +264,14 @@ describe("validation", () => {
     expect((await get<ApiError>("/api/series?name=engine.orders_in&label=GW99&range=1h", 404)).error).toBe("unknown_series");
   });
 
+  it("an ISO time with an offset is the same instant as its Z form", async () => {
+    const z = await get<SeriesResponse>(`/api/series?name=host.cpu_pct&from=${iso(T0)}&to=${iso(T0 + HOUR)}`);
+    const offset = await get<SeriesResponse>(
+      `/api/series?name=host.cpu_pct&from=${encodeURIComponent("2026-10-19T10:00:00+02:00")}&to=${encodeURIComponent("2026-10-19T11:00:00+02:00")}`,
+    );
+    expect(offset.points).toEqual(z.points);
+  });
+
   it("names reach SQL only as parameters", async () => {
     const r = await get<ApiError>(`/api/series?name=${encodeURIComponent("x' OR '1'='1")}&range=1h`, 400);
     expect(r.error).toBe("unknown_metric");
@@ -179,7 +280,7 @@ describe("validation", () => {
 
 describe("the database handle", () => {
   it("is read-only", () => {
-    const db = new MetricsDb(path, 6);
+    const db = new MetricsDb(path);
     expect(db.health.ok).toBe(true);
     const handle = (db as unknown as { db: DatabaseSync }).db;
     expect(() => handle.exec("DELETE FROM events")).toThrow(/readonly/i);
@@ -199,6 +300,59 @@ describe("the database handle", () => {
       await other.stop();
     }
   });
+
+  it("a file SQLite cannot read is a 503 and unhealthy, not a 500", async () => {
+    const bad = join(mkdtempSync(join(tmpdir(), "dash-bad-")), "metrics.db");
+    writeFileSync(bad, "not a database at all, but long enough to have a header....".repeat(20));
+    const other = await startRig({ metricsDbPath: bad });
+    try {
+      const err = await get<ApiError>("/api/series?name=x&range=1h", 503, other);
+      expect(err).toMatchObject({ error: "metrics_db_unavailable" });
+      expect(err.message).toContain("cannot be read");
+      const status = await get<BridgeStatus>("/api/bridge/status", 200, other);
+      expect(status.metricsDb.ok).toBe(false);
+    } finally {
+      await other.stop();
+    }
+  });
+
+  it("follows a metrics.db replaced under it (pm-opctl-cli clear --all), not the deleted file", () => {
+    const live = variant(() => undefined);
+    const db = new MetricsDb(live);
+    expect(db.events({ afterSeq: 0, limit: 10 })).toHaveLength(5);
+    const fresh = variant((w) => w.exec("DELETE FROM events"));
+    renameSync(fresh, live); // a new file at the same path
+    expect(db.events({ afterSeq: 0, limit: 10 })).toEqual([]);
+    db.close();
+  });
+
+  // Root ignores directory permissions, so the read-only mount cannot be
+  // imitated with chmod there.
+  it.skipIf(process.getuid?.() === 0)(
+    "with pm-monitor stopped and a read-only directory it reads the file immutable, until a -wal appears (I105)",
+    () => {
+      const file = variant(() => undefined);
+      const dir = dirname(file);
+      expect(existsSync(`${file}-wal`)).toBe(false); // a clean close, as pm-monitor's
+      chmodSync(dir, 0o555);
+      const db = new MetricsDb(file);
+      let writer: DatabaseSync | undefined;
+      try {
+        expect(db.events({ afterSeq: 0, limit: 10 })).toHaveLength(5);
+        expect(db.health.detail).toContain("immutable");
+        chmodSync(dir, 0o755);
+        writer = new DatabaseSync(file); // pm-monitor starts: its WAL appears
+        writer.prepare("INSERT INTO events(seq, ts, kind, severity, subject, detail) VALUES (6, ?, 'SESSION', 'INFO', 'x', '')").run(iso(T0));
+        expect(existsSync(`${file}-wal`)).toBe(true);
+        expect(db.events({ afterSeq: 0, limit: 10 })).toHaveLength(6);
+        expect(db.health.detail).toBe("open (read-only)");
+      } finally {
+        chmodSync(dir, 0o755);
+        writer?.close();
+        db.close();
+      }
+    },
+  );
 
   it("buckets widen in multiples of the native spacing", () => {
     expect(bucketFor({ fromMs: 0, toMs: HOUR }, 10)).toBe(10);

@@ -327,10 +327,13 @@ def test_follow_fills_a_gap_from_the_database(
         time.sleep(0.3)  # the follower is connected from here on
         # seq 5 and 6 "happened while it was not yet listening": stored only
         assert mon.store is not None
-        mon.store.add_event("2026-10-19T10:00:00.000Z", "HALT", "WARN", "MSFT", "L1 CB")
         mon.store.add_event(
-            "2026-10-19T10:00:01.000Z", "RESUME", "INFO", "MSFT", "timer"
+            5, "2026-10-19T10:00:00.000Z", "HALT", "WARN", "MSFT", "L1 CB"
         )
+        mon.store.add_event(
+            6, "2026-10-19T10:00:01.000Z", "RESUME", "INFO", "MSFT", "timer"
+        )
+        mon._event_seq = 7
         mon.publish_event("SESSION", "INFO", "session", "PRE_OPEN -> CONTINUOUS")
         assert cli._follow(args, db, sub, last_seq=4, header=False) == 0
     finally:

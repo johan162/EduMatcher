@@ -66,20 +66,33 @@ payloads are pm-monitor's `health.snapshot` / `health.event`, unchanged
 `spec/messages/health.yaml` by `tests/test_dash_types_mirror.py`). A tab
 that does not read is cut off rather than buffered for.
 
-REST (history from `metrics.db`, read-only; times in a request are ISO-8601
-UTC or epoch ms, in a response epoch ms; ranges at most 7 days):
+REST (history from `metrics.db`, read-only; ranges at most 7 days):
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/series?name=&label=&source=&from=&to=` (or `range=5m\|15m\|1h\|6h\|24h\|7d`) | One series, at most 1000 points; every 10 s sample up to `MONITOR_RAW_HOURS`, the minute roll-up beyond. `source=` is required when several processes record the name |
+| `GET /api/series?name=&label=&source=&from=&to=` (or `range=5m\|15m\|1h\|6h\|24h\|7d`) | One series, at most 1000 points; from the 10 s samples, or from the minute roll-up when that holds older data in the range than the 10 s samples still have. `source=` is required when several processes record the name |
 | `GET /api/series/multi?name=&labels=a,b&source=&range=` | Several labels of one metric (all of them when `labels=` is left out, at most 50) |
 | `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` | Counter increments per bucket, summed over sources (and labels when none is given) |
 | `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
 | `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |
-| `GET /api/bridge/status` | Uplink state, counts, `metrics.db` health, tabs, logging |
+| `GET /api/bridge/status` | Uplink state (and whether pm-monitor is reachable at all), counts, session timezone, `metrics.db` health, tabs, logging |
 
-A bad parameter is a 400 `{error, message}`; an unknown label or source a
-404; a missing `metrics.db` a 503.
+A bad parameter (or one given twice) is a 400 `{error, message}`; an unknown
+label or source a 404; a `metrics.db` that is missing or cannot be read a 503.
+The bridge follows the file at `METRICS_DB_PATH`, so one replaced under it
+(`pm-opctl-cli clear --all`) is picked up without a restart.
+
+**Times.** Everything on the wire is UTC: a request gives epoch ms or
+ISO-8601 with `Z` or an offset (a time without a zone is refused), a
+response gives epoch ms. Buckets start on the exchange's session clock
+(`exchange.session_timezone`; with pm-monitor down, the zone it pinned in
+`metrics.db`), so an hourly bar is an hour of the exchange's day. The web
+app shows every time in the session timezone, never the browser's — through
+`apps/web/src/lib/time.ts` only, which a test enforces.
+
+In the container, history is unavailable (503) while pm-monitor is stopped:
+a clean stop removes `metrics.db-wal`/`-shm`, and through the read-only mount
+SQLite cannot recreate them. It returns as soon as pm-monitor runs.
 
 ## Environment variables
 
@@ -90,7 +103,6 @@ A bad parameter is a 400 `{error, message}`; an unknown label or source a
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long → pm-monitor shown DOWN |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | pm-monitor's history, opened read-only |
-| `MONITOR_RAW_HOURS` | `6` | `monitor.retention.raw_hours`: ranges up to this read the 10 s samples |
 | `EDUMATCHER_DATA_DIR` | `src/data` in a checkout | The data directory, as the Python processes resolve it |
 | `CORS_ORIGIN` | `*` | Restrict when exposed beyond localhost |
 | `STATIC_DIR` | unset | Built web app to serve (set in the container) |

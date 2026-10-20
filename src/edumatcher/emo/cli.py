@@ -1006,20 +1006,37 @@ NON_STATE_PATHS: tuple[Path, ...] = (
     LOG_DB_FILE,
     METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
-    METRICS_DB_FILE,
     DATA_DIR / RUNTIME_DIR_NAME,
 )
 
 
+#: SQLite's companions of a database file. Deleting a database but leaving
+#: its ``-wal`` lets SQLite replay the old pages into the next database of
+#: that name, so they go with it.
+SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def _sidecars(path: Path) -> list[Path]:
+    return [path.with_name(path.name + suffix) for suffix in SQLITE_SIDECARS]
+
+
+def _present(path: Path) -> bool:
+    """*path* or any of its SQLite companions exists."""
+    return path.exists() or any(p.exists() for p in _sidecars(path))
+
+
 def _remove_path(path: Path) -> bool:
-    """Delete *path* if it exists. Returns True if anything was removed."""
+    """Delete *path* (and a file's SQLite companions) if it exists. Returns
+    True if anything was removed."""
     if path.is_dir():
         shutil.rmtree(path)
         return True
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    removed = False
+    for p in (path, *_sidecars(path)):
+        if p.exists():
+            p.unlink()
+            removed = True
+    return removed
 
 
 def _running_pm_pids() -> list[int]:
@@ -1042,7 +1059,7 @@ def clear_data(*, scope: str, assume_yes: bool) -> int:
     if scope == "all":
         paths.extend(NON_STATE_PATHS)
 
-    existing = [p for p in paths if p.exists()]
+    existing = [p for p in paths if _present(p)]
 
     label = "all data (including logs and audit files)" if scope == "all" else "state"
     print(f"This will permanently delete {label} under {DATA_DIR}:")

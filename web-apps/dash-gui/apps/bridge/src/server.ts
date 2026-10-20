@@ -20,6 +20,7 @@ import { registerHistoryRoutes } from "./history-routes.js";
 import type { Logger } from "./logging/logger.js";
 import { MetricsDb } from "./metrics-db.js";
 import { MonitorUplink } from "./monitor-uplink.js";
+import { knownTimeZone } from "./session-time.js";
 import { WsHub } from "./ws-fanout.js";
 
 export interface Bridge {
@@ -56,20 +57,52 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
     pingMaxMissed: config.wsPingMaxMissed,
     maxBufferedBytes: config.wsMaxBufferedBytes,
   });
+  let lastErrorLogMs = -Infinity;
   const uplink = new MonitorUplink({
     host: config.monitor.host,
     pubPort: config.monitor.pubPort,
     downAfterSec: config.monitor.downAfterSec,
     now: opts.now,
+    // At most one line a minute: a message that fails tends to fail at 1 Hz.
+    onError: (err) => {
+      const t = Date.now();
+      if (t - lastErrorLogMs < 60_000) return;
+      lastErrorLogMs = t;
+      log.error("dash-bridge.uplink", `a pm-monitor message failed in the bridge (${uplink.handlerErrors} so far): ${String(err)}`);
+    },
   });
-  const db = new MetricsDb(config.metricsDbPath, config.rawHours);
+  const db = new MetricsDb(config.metricsDbPath);
   const source = `${config.monitor.host}:${config.monitor.pubPort}`;
 
-  uplink.on("snapshot", (s) => hub.broadcast(frame("snapshot", s.json)));
+  // The exchange's session timezone: the latest snapshot's, else the one
+  // pm-monitor pinned in metrics.db, else UTC. A snapshot's stays known
+  // after DOWN, so frozen data keeps its clock.
+  let snapshotTz: string | null = null;
+  let warnedTz: string | null = null;
+  const sessionTz = (): string => {
+    const tz = snapshotTz ?? db.sessionTimezone();
+    if (!tz) return "UTC";
+    if (knownTimeZone(tz)) return tz;
+    if (warnedTz !== tz) {
+      warnedTz = tz;
+      log.warn("dash-bridge.time", `session timezone ${tz} is unknown to this Node's ICU; using UTC`);
+    }
+    return "UTC";
+  };
+
+  const downReason = (): string =>
+    uplink.connected
+      ? `connected, but no snapshot for ${config.monitor.downAfterSec} s`
+      : `not reachable at ${source} -- check MONITOR_HOST/MONITOR_PUB_PORT and pm-monitor's bind address`;
+
+  uplink.on("snapshot", (s) => {
+    snapshotTz = s.data.exchange?.session_timezone || snapshotTz;
+    hub.broadcast(frame("snapshot", s.json));
+  });
   uplink.on("event", (e) => hub.broadcast(frame("event", e.json)));
   uplink.on("state", (state) => {
     if (state === "UP") log.info("dash-bridge.uplink", `pm-monitor at ${source} UP`);
-    else log.warn("dash-bridge.uplink", `pm-monitor at ${source} DOWN: no snapshot for ${config.monitor.downAfterSec} s`);
+    else log.warn("dash-bridge.uplink", `pm-monitor DOWN: ${downReason()}`);
     hub.toAll({ type: "monitor_state", monitor: state });
   });
 
@@ -79,7 +112,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
       type: "hello",
       version: VERSION,
       monitor: uplink.state,
-      sessionTz: latest?.data.exchange?.session_timezone || "UTC",
+      sessionTz: sessionTz(),
     };
     const opening = [JSON.stringify(hello)];
     if (latest) opening.push(frame("snapshot", latest.json));
@@ -96,16 +129,20 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
       monitor: uplink.state,
       monitorSince: new Date(uplink.stateSince).toISOString(),
       source,
+      monitorConnected: uplink.connected,
       snapshotsIn: uplink.snapshotsIn,
       eventsIn: uplink.eventsIn,
+      invalidIn: uplink.invalidIn,
+      handlerErrors: uplink.handlerErrors,
       lastSnapshotTs: uplink.latest?.data.ts ?? null,
+      sessionTz: sessionTz(),
       metricsDb: { path: config.metricsDbPath, ...db.health },
       wsClients: hub.clientCount,
       logging: log.destination(),
     }),
   );
 
-  registerHistoryRoutes(app, db, opts.now);
+  registerHistoryRoutes(app, db, sessionTz, opts.now);
 
   if (config.staticDir) {
     const root = isAbsolute(config.staticDir) ? config.staticDir : resolve(process.cwd(), config.staticDir);
@@ -118,7 +155,15 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
     });
   }
 
-  if (opts.connect !== false) uplink.start();
+  // DOWN from the start is not a state change: say once why nothing arrives.
+  let firstCheck: ReturnType<typeof setTimeout> | undefined;
+  if (opts.connect !== false) {
+    uplink.start();
+    firstCheck = setTimeout(() => {
+      if (uplink.snapshotsIn === 0) log.warn("dash-bridge.uplink", `no snapshot from pm-monitor yet: ${downReason()}`);
+    }, config.monitor.downAfterSec * 1000);
+    firstCheck.unref();
+  }
 
   return {
     app,
@@ -126,6 +171,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
     hub,
     db,
     async close() {
+      clearTimeout(firstCheck);
       uplink.stop();
       hub.stop();
       await app.close();

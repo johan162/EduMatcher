@@ -57,6 +57,37 @@ describe("over ZeroMQ", () => {
     expect(states).toEqual(["UP", "DOWN"]);
     expect(uplink.latest).toBeNull();
   });
+
+  it("a message that fails in a listener is counted, and the next still arrives (I105)", async () => {
+    const p = await publisher();
+    pub = p.pub;
+    const errors: unknown[] = [];
+    uplink = new MonitorUplink({ host: "127.0.0.1", pubPort: p.port, downAfterSec: 3, onError: (e) => errors.push(e) });
+    let calls = 0;
+    uplink.on("snapshot", () => {
+      calls += 1;
+      if (calls === 1) throw new Error("listener failed once");
+    });
+    uplink.start();
+    await until(() => uplink!.connected);
+    let seq = 0;
+    while (uplink.snapshotsIn < 3) {
+      await pub.send(frames("health.snapshot", snapshot(seq++)));
+      await new Promise((r) => setTimeout(r, 20));
+      if (seq > 150) throw new Error(`stuck at ${uplink.snapshotsIn} snapshots`);
+    }
+    expect(uplink.handlerErrors).toBe(1);
+    expect(errors.map(String)).toEqual(["Error: listener failed once"]);
+  });
+
+  it("knows whether pm-monitor is reachable at all", async () => {
+    const p = await publisher();
+    uplink = new MonitorUplink({ host: "127.0.0.1", pubPort: p.port, downAfterSec: 3 });
+    uplink.start();
+    await until(() => uplink!.connected);
+    p.pub.close(); // pm-monitor gone: the TCP connection drops
+    await until(() => !uplink!.connected);
+  });
 });
 
 describe("state and decoding", () => {

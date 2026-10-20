@@ -11,6 +11,12 @@
  * The payload is kept as received — its parsed object for the bridge's own
  * use (`exchange.session_timezone`) and its raw text, so the fan-out can
  * frame it for every tab without serialising it again.
+ *
+ * A message that fails in a listener is counted and reported, and the next
+ * one is received as usual: one bad message must not end the subscription
+ * (I105). Whether ZeroMQ holds a TCP connection to pm-monitor is tracked
+ * from the socket's own events, so DOWN can say "not reachable" apart from
+ * "reachable but silent".
  */
 
 import { EventEmitter } from "node:events";
@@ -39,6 +45,8 @@ export interface MonitorUplinkOptions {
   /** How often silence is checked; a tenth of a second keeps DOWN prompt. */
   checkIntervalMs?: number;
   now?: () => number;
+  /** A message whose handling threw; the subscription carries on. */
+  onError?: (err: unknown) => void;
 }
 
 export class MonitorUplink extends EventEmitter<UplinkEvents> {
@@ -53,6 +61,10 @@ export class MonitorUplink extends EventEmitter<UplinkEvents> {
   eventsIn = 0;
   /** Messages that were not two frames of topic + JSON object. */
   invalidIn = 0;
+  /** Messages whose handling threw (see onError). */
+  handlerErrors = 0;
+  /** Whether ZeroMQ has a TCP connection to pm-monitor's PUB socket. */
+  connected = false;
 
   constructor(private readonly opts: MonitorUplinkOptions) {
     super();
@@ -79,6 +91,12 @@ export class MonitorUplink extends EventEmitter<UplinkEvents> {
 
   start(): void {
     this.sub = new zmq.Subscriber();
+    this.sub.events.on("connect", () => {
+      this.connected = true;
+    });
+    this.sub.events.on("disconnect", () => {
+      this.connected = false;
+    });
     this.sub.connect(this.address);
     this.sub.subscribe("health.");
     void this.receiveLoop(this.sub);
@@ -91,6 +109,7 @@ export class MonitorUplink extends EventEmitter<UplinkEvents> {
     this.timer = null;
     this.sub?.close();
     this.sub = null;
+    this.connected = false;
   }
 
   /** One received message; public so tests can feed frames without a socket. */
@@ -141,7 +160,14 @@ export class MonitorUplink extends EventEmitter<UplinkEvents> {
 
   private async receiveLoop(sub: zmq.Subscriber): Promise<void> {
     try {
-      for await (const frames of sub) this.handle(frames as Buffer[]);
+      for await (const frames of sub) {
+        try {
+          this.handle(frames as Buffer[]);
+        } catch (err) {
+          this.handlerErrors += 1;
+          this.opts.onError?.(err);
+        }
+      }
     } catch {
       // the socket was closed by stop()
     }

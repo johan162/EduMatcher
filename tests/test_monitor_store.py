@@ -319,6 +319,28 @@ def test_a_minute_split_by_a_restart_is_merged(db: Path, clocks: _Clocks) -> Non
     assert (n, v_min, v_max, delta) == (5, 0.0, 4.0, 4.0)
 
 
+def test_an_increment_to_another_day_is_not_growth_in_this_minute(db: Path) -> None:
+    """I102: a backfill into an older trading date reaches its daily total
+    only, not the delta of the minute that happens to be open."""
+    store = _store(db)
+    key = ("pm-engine@box", "engine.orders_in", "GW01")
+    try:
+        store.record(key, 10.0, OPEN, counter=True)
+        store.record_increment("2026-10-19", key, 10.0, OPEN)
+        store.record_increment("2026-10-17", key, 500.0, OPEN + 1)
+        store.flush_minutes(OPEN + 1, force=True)
+        store.flush_raw(OPEN + 1)
+    finally:
+        store.close(OPEN + 2)
+    assert _rows(
+        db, "SELECT delta FROM v_samples_1m WHERE name = 'engine.orders_in'"
+    ) == [(10.0,)]
+    assert _rows(db, "SELECT date, total FROM daily_totals ORDER BY date") == [
+        ("2026-10-17", 500.0),
+        ("2026-10-19", 10.0),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # a pm-monitor restart (I69)
 # ---------------------------------------------------------------------------
@@ -369,6 +391,38 @@ def test_event_seq_is_the_stored_seq(mon: Monitor, db: Path) -> None:
         (2, "HALT", "WARN", "AAA"),
     ]
     assert mon._event_seq == 3
+
+
+def test_a_failed_event_write_does_not_reuse_its_seq(mon: Monitor, db: Path) -> None:
+    """The event is published as seq 2 although its write failed; the next
+    stored event must be 3, or a reader would see two different seq 2s."""
+    assert mon.store is not None
+    mon.publish_event("SESSION", "INFO", "session", "CLOSED -> PRE_OPEN")
+    real = mon.store.add_event
+    with patch.object(
+        mon.store, "add_event", side_effect=sqlite3.OperationalError("disk I/O error")
+    ):
+        assert mon.publish_event("HALT", "WARN", "AAA", "L1 CB")
+    with patch.object(mon.store, "add_event", side_effect=real):
+        mon.publish_event("RESUME", "INFO", "AAA", "timer")
+    assert _rows(db, "SELECT seq, kind FROM events") == [(1, "SESSION"), (3, "RESUME")]
+    assert mon.store_errors == 1
+
+
+def test_event_seq_continues_past_events_retention_deleted(
+    db: Path, clocks: _Clocks
+) -> None:
+    first = _monitor(db, clocks)
+    for _ in range(3):
+        first.publish_event("SESSION", "INFO", "session", "x")
+    assert first.store is not None
+    first.store.conn.execute("DELETE FROM events")
+    first.close()
+    second = _monitor(db, clocks)
+    try:
+        assert second._event_seq == 4
+    finally:
+        second.close()
 
 
 def test_retention_keeps_the_windows(db: Path) -> None:

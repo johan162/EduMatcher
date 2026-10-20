@@ -2,9 +2,12 @@
  * The bridge's REST responses (design §11.2). History comes from pm-monitor's
  * metrics.db, opened read-only.
  *
- * Every time in a request is ISO-8601 UTC (what metrics.db and the snapshot
- * hold) or epoch milliseconds; every time in a response is epoch
- * milliseconds, which is what a chart wants.
+ * Every time in a request is epoch milliseconds or ISO-8601 with `Z` or an
+ * offset (what metrics.db and the snapshot hold is UTC with `Z`); every
+ * time in a response is epoch milliseconds, which is what a chart wants.
+ * Buckets start on the session clock (`exchange.session_timezone`), so an
+ * hourly bar is an hour of the exchange's day. Display is the web's job,
+ * always in the session timezone (apps/web/src/lib/time.ts).
  */
 
 import type { HealthEvent } from "./health.js";
@@ -70,10 +73,18 @@ export interface BridgeStatus {
   monitorSince: string;
   /** `host:port` of pm-monitor's PUB socket the bridge subscribes to. */
   source: string;
+  /** Whether ZeroMQ holds a TCP connection to it (DOWN while true: pm-monitor is silent). */
+  monitorConnected: boolean;
   snapshotsIn: number;
   eventsIn: number;
-  /** `ts` of the latest snapshot; null before the first. */
+  /** Messages that were not two frames of topic + JSON object. */
+  invalidIn: number;
+  /** Messages that failed inside the bridge; each is logged (at most once a minute). */
+  handlerErrors: number;
+  /** `ts` of the latest snapshot while UP; null otherwise. */
   lastSnapshotTs: string | null;
+  /** The session timezone in use: the latest snapshot's, else metrics.db's, else UTC. */
+  sessionTz: string;
   metricsDb: { path: string; ok: boolean; detail: string };
   wsClients: number;
   /** Where the bridge's own log records go: `lalf`, `stdout`, … */

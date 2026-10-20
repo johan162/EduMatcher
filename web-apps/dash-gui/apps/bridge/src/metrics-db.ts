@@ -8,16 +8,26 @@
  * ever held between requests, since a long-lived reader stops pm-monitor's
  * WAL checkpoints and `metrics.db-wal` would grow without bound (I87).
  *
+ * The handle follows the file at `path`, not the one it had open, so a
+ * `metrics.db` replaced by `pm-opctl-cli clear --all` is picked up. In the
+ * container, a clean pm-monitor stop removes `metrics.db-wal`/`-shm` and the
+ * read-only mount cannot create them again, so SQLite cannot open the file
+ * the usual way; with no `-wal` the file is complete, and it is read
+ * `immutable` until pm-monitor starts and a `-wal` appears (I105). Any
+ * other failure to read is a 503, never a bare 500.
+ *
  * Samples refer to `series(id)`, so a query looks its series up first and
  * then range-scans the `(series, ts)` primary key. Bucketing is done in SQL,
  * so a request never returns more than `MAX_POINTS` points however long
  * its range; node:sqlite binds every JS number as REAL, so the bucket width
- * is CAST to INTEGER or the division would not floor. Metric names, labels
+ * is CAST to INTEGER or the division would not floor. Buckets start on the
+ * session clock (`offsetSec`, see session-time.ts). Metric names, labels
  * and sources are always bound parameters.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 import type { HealthEvent, Point, Resolution } from "@edumatcher/dash-types";
 
 /** Most points one series returns; the bucket widens to fit the range. */
@@ -26,7 +36,14 @@ export const MAX_POINTS = 1000;
 export const RAW_SEC = 10;
 export const MINUTE_SEC = 60;
 
-/** A request the database cannot answer as asked: becomes a 4xx. */
+/**
+ * Bucket start in epoch seconds, aligned to the session clock. Parameters:
+ * offset, width, width, offset.
+ */
+const BUCKET =
+  "((unixepoch(ts) + CAST(? AS INTEGER)) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) - CAST(? AS INTEGER)";
+
+/** A request the database cannot answer as asked: becomes a 4xx or 503. */
 export class QueryError extends Error {
   constructor(
     readonly status: number,
@@ -35,6 +52,10 @@ export class QueryError extends Error {
   ) {
     super(message);
   }
+}
+
+function unavailable(detail: string): QueryError {
+  return new QueryError(503, "metrics_db_unavailable", detail);
 }
 
 export interface TimeRange {
@@ -70,17 +91,25 @@ export interface SeriesResult {
 
 export class MetricsDb {
   private db: DatabaseSync | null = null;
-  private lastError: string | null = null;
+  /** `dev:ino` of the file the handle has open. */
+  private identity = "";
+  /** Opened `immutable` (pm-monitor stopped, no `-wal`): see the module note. */
+  private immutable = false;
 
-  constructor(
-    readonly path: string,
-    /** `monitor.retention.raw_hours`: ranges up to this read every sample. */
-    private readonly rawHours: number,
-  ) {}
+  constructor(readonly path: string) {}
 
+  /** Whether a query can be answered now; runs one. */
   get health(): { ok: boolean; detail: string } {
-    if (this.db || this.open()) return { ok: true, detail: "open (read-only)" };
-    return { ok: false, detail: this.lastError ?? "not open" };
+    try {
+      this.run((db) => db.prepare("SELECT count(*) FROM series").get());
+      return {
+        ok: true,
+        detail: this.immutable ? "open (read-only, immutable: pm-monitor is stopped)" : "open (read-only)",
+      };
+    } catch (err) {
+      if (err instanceof QueryError) return { ok: false, detail: err.message };
+      throw err;
+    }
   }
 
   close(): void {
@@ -88,43 +117,62 @@ export class MetricsDb {
     this.db = null;
   }
 
+  /** The session timezone pm-monitor pinned in the file; null when unreadable. */
+  sessionTimezone(): string | null {
+    try {
+      const row = this.run((db) =>
+        db.prepare("SELECT value FROM metrics_meta WHERE key = 'session_timezone'").get(),
+      ) as { value: string } | undefined;
+      return row?.value ?? null;
+    } catch (err) {
+      if (err instanceof QueryError) return null;
+      throw err;
+    }
+  }
+
   /** Whether any series of this metric exists, under any label or source. */
   knows(name: string): boolean {
-    return this.ensure().prepare("SELECT 1 FROM series WHERE name = ? LIMIT 1").get(name) !== undefined;
+    return this.run((db) => db.prepare("SELECT 1 FROM series WHERE name = ? LIMIT 1").get(name) !== undefined);
   }
 
   /** Every label recorded for a metric, sorted. */
   labels(name: string, limit: number): string[] {
-    const rows = this.ensure()
-      .prepare("SELECT DISTINCT label FROM series WHERE name = ? ORDER BY label LIMIT ?")
-      .all(name, limit) as { label: string }[];
+    const rows = this.run((db) =>
+      db.prepare("SELECT DISTINCT label FROM series WHERE name = ? ORDER BY label LIMIT ?").all(name, limit),
+    ) as { label: string }[];
     return rows.map((r) => r.label);
   }
 
   /**
    * One series over a range. `source` may be left out when only one process
    * (or `host`) records this name and label; otherwise it is required, since
-   * gauges from two processes cannot be merged into one line. `only: "1m"`
-   * reads the minute table whatever the range.
+   * gauges from two processes cannot be merged into one line. The 10 s
+   * samples answer when they reach back as far as anything recorded does;
+   * otherwise (retention has thinned the start of the range) the minute
+   * table answers. `only: "1m"` reads the minute table whatever the range.
    */
   series(
     name: string,
     label: string,
     source: string | undefined,
     range: TimeRange,
+    offsetSec: number,
     only?: Resolution,
   ): SeriesResult {
-    const one = this.resolveSeries(name, label, source);
-    const useRaw = only !== "1m" && range.toMs - range.fromMs <= this.rawHours * 3600 * 1000;
-    if (useRaw) {
-      const bucketSec = bucketFor(range, RAW_SEC);
-      const points = this.rawPoints(one.id, range, bucketSec);
-      // Older than the raw window (retention deleted it): the minute table
-      // still has the range.
-      if (points.length > 0) return { source: one.source, resolution: "raw", bucketSec, points };
-    }
-    const bucketSec = bucketFor(range, MINUTE_SEC);
-    return { source: one.source, resolution: "1m", bucketSec, points: this.minutePoints(one.id, range, bucketSec) };
+    return this.run((db): SeriesResult => {
+      const one = this.resolveSeries(db, name, label, source);
+      if (only !== "1m" && this.rawCovers(db, one.id, range)) {
+        const bucketSec = bucketFor(range, RAW_SEC);
+        return { source: one.source, resolution: "raw", bucketSec, points: this.rawPoints(db, one.id, range, bucketSec, offsetSec) };
+      }
+      const bucketSec = bucketFor(range, MINUTE_SEC);
+      return {
+        source: one.source,
+        resolution: "1m",
+        bucketSec,
+        points: this.minutePoints(db, one.id, range, bucketSec, offsetSec),
+      };
+    });
   }
 
   /**
@@ -132,22 +180,31 @@ export class MetricsDb {
    * `delta`, summed over every matching series: all sources, and all labels
    * unless one is given. Rates add up, so the sum is meaningful.
    */
-  rate(name: string, label: string | undefined, source: string | undefined, range: TimeRange, bucketSec: number): Point[] {
-    const ids = this.matchingIds(name, label, source);
-    if (ids.length === 0) return [];
-    const marks = ids.map(() => "?").join(",");
-    const rows = this.ensure()
-      .prepare(
-        `SELECT (unixepoch(ts) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket, sum(delta) AS total
-         FROM samples_1m
-         WHERE series IN (${marks}) AND ts >= ? AND ts < ? AND delta IS NOT NULL
-         GROUP BY bucket ORDER BY bucket`,
-      )
-      .all(bucketSec, bucketSec, ...ids, isoUtc(range.fromMs), isoUtc(range.toMs)) as {
-      bucket: number;
-      total: number;
-    }[];
-    return rows.map((r) => [r.bucket * 1000, r.total]);
+  rate(
+    name: string,
+    label: string | undefined,
+    source: string | undefined,
+    range: TimeRange,
+    bucketSec: number,
+    offsetSec: number,
+  ): Point[] {
+    return this.run((db) => {
+      const ids = this.matchingIds(db, name, label, source);
+      if (ids.length === 0) return [];
+      const marks = ids.map(() => "?").join(",");
+      const rows = db
+        .prepare(
+          `SELECT ${BUCKET} AS bucket, sum(delta) AS total
+           FROM samples_1m
+           WHERE series IN (${marks}) AND ts >= ? AND ts < ? AND delta IS NOT NULL
+           GROUP BY bucket ORDER BY bucket`,
+        )
+        .all(offsetSec, bucketSec, bucketSec, offsetSec, ...ids, isoUtc(range.fromMs), isoUtc(range.toMs)) as {
+        bucket: number;
+        total: number;
+      }[];
+      return rows.map((r): Point => [r.bucket * 1000, r.total]);
+    });
   }
 
   /** The latest `days` trading dates' totals, oldest first, summed like {@link rate}. */
@@ -162,12 +219,14 @@ export class MetricsDb {
       where.push("source = ?");
       params.push(source);
     }
-    const rows = this.ensure()
-      .prepare(
-        `SELECT date, sum(total) AS total FROM daily_totals WHERE ${where.join(" AND ")}
-         GROUP BY date ORDER BY date DESC LIMIT ?`,
-      )
-      .all(...params, days) as { date: string; total: number }[];
+    const rows = this.run((db) =>
+      db
+        .prepare(
+          `SELECT date, sum(total) AS total FROM daily_totals WHERE ${where.join(" AND ")}
+           GROUP BY date ORDER BY date DESC LIMIT ?`,
+        )
+        .all(...params, days),
+    ) as { date: string; total: number }[];
     return rows.reverse();
   }
 
@@ -192,43 +251,70 @@ export class MetricsDb {
       params.push(...opts.kinds);
     }
     const order = opts.afterSeq !== undefined ? "ASC" : "DESC";
-    const rows = this.ensure()
-      .prepare(
-        `SELECT seq, ts, kind, severity, subject, detail FROM events
-         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-         ORDER BY seq ${order} LIMIT ?`,
-      )
-      .all(...params, opts.limit) as unknown as HealthEvent[];
+    const rows = this.run((db) =>
+      db
+        .prepare(
+          `SELECT seq, ts, kind, severity, subject, detail FROM events
+           ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+           ORDER BY seq ${order} LIMIT ?`,
+        )
+        .all(...params, opts.limit),
+    ) as unknown as HealthEvent[];
     const events = rows.map((r) => ({ ...r }));
     return order === "DESC" ? events.reverse() : events;
   }
 
   // ------------------------------------------------------------------
 
-  private open(): boolean {
-    if (this.db) return true;
-    if (!existsSync(this.path)) {
-      this.lastError = `metrics.db not found at ${this.path} -- is pm-monitor running with this data directory?`;
-      return false;
-    }
+  /** One query against the current file; any SQLite failure becomes a 503. */
+  private run<T>(query: (db: DatabaseSync) => T): T {
     try {
-      this.db = new DatabaseSync(this.path, { readOnly: true });
-      this.lastError = null;
-      return true;
+      return query(this.ensure());
     } catch (err) {
-      this.lastError = err instanceof Error ? err.message : String(err);
-      this.db = null;
-      return false;
+      if (err instanceof QueryError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      this.close();
+      // SQLite words it by version ("unable to open database file", "attempt
+      // to write a readonly database"): without a -wal, any failure gets one
+      // immutable try, and a file that is truly unreadable fails that too.
+      if (!this.immutable && !existsSync(`${this.path}-wal`)) {
+        this.immutable = true;
+        return this.run(query);
+      }
+      throw unavailable(`metrics.db cannot be read: ${message}`);
     }
   }
 
+  /** The handle on the file now at `path`, opened (or reopened) as needed. */
   private ensure(): DatabaseSync {
-    if (!this.open()) throw new QueryError(503, "metrics_db_unavailable", this.lastError ?? "metrics.db unavailable");
-    return this.db!;
+    let identity: string;
+    try {
+      const st = statSync(this.path);
+      identity = `${st.dev}:${st.ino}`;
+    } catch {
+      this.close();
+      throw unavailable(`metrics.db not found at ${this.path} -- is pm-monitor running with this data directory?`);
+    }
+    if (this.db && identity !== this.identity) this.close(); // replaced since it was opened
+    if (this.immutable && existsSync(`${this.path}-wal`)) {
+      this.close(); // pm-monitor has started: read its WAL again
+      this.immutable = false;
+    }
+    if (!this.db) {
+      try {
+        const url = pathToFileURL(this.path);
+        if (this.immutable) url.searchParams.set("immutable", "1");
+        this.db = new DatabaseSync(this.immutable ? url : this.path, { readOnly: true });
+      } catch (err) {
+        throw unavailable(err instanceof Error ? err.message : String(err));
+      }
+      this.identity = identity;
+    }
+    return this.db;
   }
 
-  private resolveSeries(name: string, label: string, source: string | undefined): SeriesRow {
-    const rows = this.ensure()
+  private resolveSeries(db: DatabaseSync, name: string, label: string, source: string | undefined): SeriesRow {
+    const rows = db
       .prepare(
         source === undefined
           ? "SELECT id, source FROM series WHERE name = ? AND label = ? ORDER BY source"
@@ -251,7 +337,25 @@ export class MetricsDb {
     return rows[0]!;
   }
 
-  private matchingIds(name: string, label: string | undefined, source: string | undefined): number[] {
+  /**
+   * Whether the 10 s samples hold everything there is in the range: true
+   * unless the minute table has rows in it from before the first 10 s row
+   * (retention thinned the raw rows there). A gap with no data at all, or
+   * a pm-monitor that has not yet closed a minute, leaves raw the answer.
+   * A minute of slack: the first raw row lands up to 10 s into its minute.
+   */
+  private rawCovers(db: DatabaseSync, id: number, range: TimeRange): boolean {
+    const raw = (db.prepare("SELECT min(ts) AS t FROM samples_raw WHERE series = ?").get(id) as { t: string | null }).t;
+    if (raw === null) return false;
+    const before = Date.parse(raw) - MINUTE_SEC * 1000;
+    if (before <= range.fromMs) return true;
+    const older = db
+      .prepare("SELECT 1 FROM samples_1m WHERE series = ? AND ts >= ? AND ts < ? LIMIT 1")
+      .get(id, isoUtc(range.fromMs), isoUtc(before));
+    return older === undefined;
+  }
+
+  private matchingIds(db: DatabaseSync, name: string, label: string | undefined, source: string | undefined): number[] {
     const where = ["name = ?"];
     const params: string[] = [name];
     if (label !== undefined) {
@@ -262,20 +366,21 @@ export class MetricsDb {
       where.push("source = ?");
       params.push(source);
     }
-    const rows = this.ensure()
-      .prepare(`SELECT id FROM series WHERE ${where.join(" AND ")}`)
-      .all(...params) as { id: number }[];
+    const rows = db.prepare(`SELECT id FROM series WHERE ${where.join(" AND ")}`).all(...params) as { id: number }[];
     return rows.map((r) => r.id);
   }
 
-  private rawPoints(id: number, range: TimeRange, bucketSec: number): Point[] {
-    const rows = this.ensure()
+  private rawPoints(db: DatabaseSync, id: number, range: TimeRange, bucketSec: number, offsetSec: number): Point[] {
+    const rows = db
       .prepare(
-        `SELECT (unixepoch(ts) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket, avg(value) AS v
+        `SELECT ${BUCKET} AS bucket, avg(value) AS v
          FROM samples_raw WHERE series = ? AND ts >= ? AND ts < ?
          GROUP BY bucket ORDER BY bucket`,
       )
-      .all(bucketSec, bucketSec, id, isoUtc(range.fromMs), isoUtc(range.toMs)) as { bucket: number; v: number }[];
+      .all(offsetSec, bucketSec, bucketSec, offsetSec, id, isoUtc(range.fromMs), isoUtc(range.toMs)) as {
+      bucket: number;
+      v: number;
+    }[];
     return rows.map((r) => [r.bucket * 1000, r.v]);
   }
 
@@ -284,16 +389,19 @@ export class MetricsDb {
    * (its minutes carry a `delta`) is its highest value in the bucket, the
    * level it had reached; how much it grew is what /api/rate is for.
    */
-  private minutePoints(id: number, range: TimeRange, bucketSec: number): Point[] {
-    const rows = this.ensure()
+  private minutePoints(db: DatabaseSync, id: number, range: TimeRange, bucketSec: number, offsetSec: number): Point[] {
+    const rows = db
       .prepare(
-        `SELECT (unixepoch(ts) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) AS bucket,
+        `SELECT ${BUCKET} AS bucket,
                 CASE WHEN max(delta IS NOT NULL) THEN max(v_last)
                      ELSE sum(v_avg * n) / sum(n) END AS v
          FROM samples_1m WHERE series = ? AND ts >= ? AND ts < ?
          GROUP BY bucket ORDER BY bucket`,
       )
-      .all(bucketSec, bucketSec, id, isoUtc(range.fromMs), isoUtc(range.toMs)) as { bucket: number; v: number }[];
+      .all(offsetSec, bucketSec, bucketSec, offsetSec, id, isoUtc(range.fromMs), isoUtc(range.toMs)) as {
+      bucket: number;
+      v: number;
+    }[];
     return rows.map((r) => [r.bucket * 1000, r.v]);
   }
 }

@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from edumatcher.monitor.timefmt import iso_utc
+from edumatcher.stats.trading_day import resolve_timezone, trading_date
 
 try:  # POSIX; on Windows a second writer is documented as unsupported
     import fcntl
@@ -120,7 +121,7 @@ CREATE TABLE IF NOT EXISTS counter_last (
 );
 
 CREATE TABLE IF NOT EXISTS events (
-    seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+    seq      INTEGER PRIMARY KEY AUTOINCREMENT,  -- numbered by pm-monitor; AUTOINCREMENT keeps the high-water mark
     ts       TEXT NOT NULL,
     kind     TEXT NOT NULL,
     severity TEXT NOT NULL,
@@ -183,6 +184,10 @@ class MetricsStore:
         self.path = path
         self.raw_hours = raw_hours
         self.minute_days = minute_days
+        session_tz = resolve_timezone(session_tz_name)
+        if session_tz is None:
+            raise ValueError(f"unknown session timezone {session_tz_name!r}")
+        self._session_tz = session_tz
         path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = self._acquire_lock(path)
         conn: sqlite3.Connection | None = None
@@ -298,11 +303,20 @@ class MetricsStore:
     def record_increment(
         self, date: str, key: SeriesKey, delta: float, now_wall: float
     ) -> None:
-        """An increment counted into ``date``'s total (after :meth:`record`)."""
+        """An increment counted into ``date``'s total (after :meth:`record`).
+
+        It is also growth in the series' open minute -- but only when
+        ``date`` is that minute's trading date: an increment booked to
+        another day (a backfill) did not happen in this minute (I102).
+        """
         day_key = (date, *key)
         self._daily[day_key] = self._daily.get(day_key, 0.0) + delta
         minute = self._minutes.get(key)
-        if minute is not None and minute.start == now_wall - now_wall % MINUTE:
+        if (
+            minute is not None
+            and minute.start == now_wall - now_wall % MINUTE
+            and date == trading_date(minute.start, self._session_tz)
+        ):
             minute.delta = (minute.delta or 0.0) + delta
 
     # ------------------------------------------------------------------
@@ -428,15 +442,28 @@ class MetricsStore:
         conn.execute("DELETE FROM events WHERE ts < ?", (minute_cut,))
         conn.execute("DELETE FROM counter_last WHERE ts < ?", (minute_cut,))
 
+    def next_event_seq(self) -> int:
+        """The ``seq`` the next event takes: past every event ever stored,
+        including those retention has deleted (``AUTOINCREMENT``'s record)."""
+        row = self.conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'events'"
+        ).fetchone()
+        return int(row[0]) + 1 if row else 1
+
     def add_event(
-        self, ts: str, kind: str, severity: str, subject: str, detail: str
-    ) -> int:
-        """Store one event; its ``seq`` is the event's ``seq`` on the wire."""
-        cur = self.conn.execute(
-            "INSERT INTO events(ts, kind, severity, subject, detail) VALUES (?, ?, ?, ?, ?)",
-            (ts, kind, severity, subject, detail),
+        self, seq: int, ts: str, kind: str, severity: str, subject: str, detail: str
+    ) -> None:
+        """Store one event under the ``seq`` it is published with.
+
+        The caller numbers events, not ``AUTOINCREMENT``: an event published
+        while a write failed keeps its number, and the next one stored does
+        not take it again.
+        """
+        self.conn.execute(
+            "INSERT INTO events(seq, ts, kind, severity, subject, detail) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (seq, ts, kind, severity, subject, detail),
         )
-        return int(cur.lastrowid or 0)
 
     @contextmanager
     def _transaction(self) -> Generator[None, None, None]:

@@ -4,6 +4,12 @@
  * The latest `health.snapshot` as pm-monitor sent it, and the recent
  * `health.event`s. Nothing here derives a figure: the rows (WP-D3) read the
  * snapshot as is.
+ *
+ * When pm-monitor or the socket goes away the snapshot is kept, not
+ * dropped: the panels dim and the banner says when the data froze (its
+ * `ts`, on the session clock — §12.2, D1.4). `connection()` says whether it
+ * is live. `sessionTz` is what every displayed time is shown in
+ * (lib/time.ts).
  */
 
 import { create } from "zustand";
@@ -28,6 +34,8 @@ interface DashStore {
 
   setSocket: (socket: SocketState) => void;
   apply: (frame: ServerFrame) => void;
+  /** Events fetched from `/api/events` (catch-up after a reconnect), merged by seq. */
+  addEvents: (batch: HealthEvent[]) => void;
   connection: () => ConnectionState;
 }
 
@@ -39,8 +47,8 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   snapshot: null,
   events: [],
 
-  // A dropped socket makes the snapshot of unknown age: forget it.
-  setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null, snapshot: null } : { socket }),
+  // A dropped socket leaves pm-monitor's state unknown; the snapshot stays, frozen.
+  setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null } : { socket }),
   apply: (frame) => {
     switch (frame.type) {
       case "hello":
@@ -51,15 +59,25 @@ export const useDashStore = create<DashStore>()((set, get) => ({
         break;
       case "event": {
         const events = get().events;
-        // A reconnect may replay what this tab already has.
-        if (events.length > 0 && frame.data.seq <= events[events.length - 1]!.seq) break;
-        set({ events: [...events, frame.data].slice(-MAX_EVENTS) });
+        const last = events.at(-1);
+        // The bridge sends each event once, live, in seq order. An older seq
+        // means the numbering began again (a new metrics.db): what this tab
+        // holds belongs to the old one.
+        if (last && frame.data.seq <= last.seq) set({ events: [frame.data] });
+        else set({ events: [...events, frame.data].slice(-MAX_EVENTS) });
         break;
       }
       case "monitor_state":
-        set(frame.monitor === "DOWN" ? { monitor: "DOWN", snapshot: null } : { monitor: frame.monitor });
+        set({ monitor: frame.monitor });
         break;
     }
+  },
+  // A catch-up may answer after live events newer than it have arrived:
+  // merge by seq rather than append.
+  addEvents: (batch) => {
+    const bySeq = new Map(get().events.map((e) => [e.seq, e]));
+    for (const e of batch) bySeq.set(e.seq, e);
+    set({ events: [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-MAX_EVENTS) });
   },
   connection: () => {
     const { socket, monitor } = get();

@@ -881,7 +881,7 @@ CREATE TABLE daily_totals (
 
 ```sql
 CREATE TABLE events (
-    seq      INTEGER PRIMARY KEY AUTOINCREMENT,
+    seq      INTEGER PRIMARY KEY AUTOINCREMENT,  -- numbered by pm-monitor; AUTOINCREMENT keeps the high-water mark
     ts       TEXT NOT NULL,
     kind     TEXT NOT NULL,
     severity TEXT NOT NULL,

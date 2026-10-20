@@ -30,7 +30,6 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     wsMaxBufferedBytes: 5_000_000,
     monitor: { host: "127.0.0.1", pubPort: 5611, downAfterSec: 3 },
     metricsDbPath: "/nonexistent/metrics.db",
-    rawHours: 6,
     logServer: {
       enabled: false,
       host: "127.0.0.1",

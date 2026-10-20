@@ -247,7 +247,8 @@ process's own metrics, `pm-monitor` stores every process's vitals as
 Retention runs hourly and returns freed pages, so the file stops growing once
 it holds its window: about 480 MB for an exchange like the `s30-complex`
 example (30 symbols), about 650 MB with 30 participants. `pm-opctl-cli clear
---all` deletes it (it is history, like `log.db`); `clear --state` keeps it.
+--all` deletes it (it is history, like `log.db`), together with its
+`metrics.db-wal` and `-shm`; `clear --state` keeps it.
 
 ## Configuration
 

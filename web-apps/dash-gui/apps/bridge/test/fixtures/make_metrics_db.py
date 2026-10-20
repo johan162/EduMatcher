@@ -72,14 +72,11 @@ def main(out: Path) -> None:
         if store.due_raw(now):
             store.flush_raw(now)
         store.flush_minutes(now)
-    # Close every minute first: an increment is also added to its series'
-    # open minute, and these belong to other days.
-    store.flush_minutes(now, force=True)
     for date in ("2026-10-17", "2026-10-18"):
         store.record_increment(date, GW01, 1000.0, now)
         store.record_increment(date, GW02, 2000.0, now)
     for n, (kind, severity, subject, detail) in enumerate(EVENTS, start=1):
-        store.add_event(iso_utc(T0 + n * 600), kind, severity, subject, detail)
+        store.add_event(n, iso_utc(T0 + n * 600), kind, severity, subject, detail)
     store.close(now + STEP)
 
 
