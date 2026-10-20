@@ -369,12 +369,13 @@ class Monitor:
             self.beacons_invalid += 1
             self._warn("invalid", "invalid health beacon dropped: %s", exc)
             return None
-        outcome = self.table.ingest(beacon, now)
+        outcome = self.table.ingest(beacon, now, self.rules.silent_after_beacons)
         if outcome in (Ingest.NEW, Ingest.UPDATED, Ingest.RESTARTED):
             key = process_key(beacon.process, beacon.instance, beacon.host)
             now_wall = self._wall_clock()
-            if self.store is not None:
-                self._record_beacon(self.store, key, beacon, now_wall)
+            state = self.table.get(beacon.process, beacon.instance, beacon.host)
+            if self.store is not None and state is not None:
+                self._record_beacon(self.store, key, state, now_wall)
             self.activity.observe(key, beacon, now, now_wall)
         if outcome is Ingest.STALE:
             self.beacons_stale += 1
@@ -517,7 +518,10 @@ class Monitor:
             if not b.starting:
                 out.append(
                     Reading(
-                        LOOP_AGE_RULE, state.key, b.loop_age_ms, warn=LOOP_AGE_WARN_MS
+                        LOOP_AGE_RULE,
+                        state.key,
+                        state.loop_age_ms,
+                        warn=LOOP_AGE_WARN_MS,
                     )
                 )
             growth = state.rss_growth_pct(now)
@@ -726,10 +730,13 @@ class Monitor:
 
     @staticmethod
     def _record_beacon(
-        store: MetricsStore, key: str, beacon: Any, now_wall: float
+        store: MetricsStore, key: str, state: ProcessState, now_wall: float
     ) -> None:
+        """Vitals as judged -- loop figures less credited silence (I108) --
+        and the beacon's application metrics as sent."""
+        beacon = state.beacon
         for name in VITALS:
-            value = getattr(beacon, name)
+            value = getattr(state if name.startswith("loop_") else beacon, name)
             if value is not None:
                 store.record(
                     (key, f"proc.{name}", ""), float(value), now_wall, counter=False

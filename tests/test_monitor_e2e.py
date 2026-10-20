@@ -1,0 +1,781 @@
+"""End to end: the operator dashboard's whole chain on a real exchange.
+
+Phases A-C as an operator sees them (design §18, E3 in local form).
+``pm-opctl-cli`` starts the ``mini`` profile with the bundled ``s10-basic``
+config in a scratch data directory: a real pm-engine, gateways and services,
+each beaconing (phase A) to a real pm-monitor (B), whose snapshot, events and
+``metrics.db`` the real dashboard bridge (C) serves to a WebSocket client.
+Participants trade over ALF, and every figure is checked against what they
+did -- not against a unit's idea of it. Then the failure states the dashboard
+exists for: SILENT, a pm-monitor restart that keeps today's totals, and a
+killed engine (DEAD, exchange DOWN) restarted by ``pm-opctl-cli``.
+
+The tests run in file order on one exchange: each builds on the one before
+and the destructive ones come last. The processes bind the exchange's fixed
+ports (5555...), so the module runs only with ``-m e2e`` (``make test-e2e``),
+serially, and skips when a port is taken -- by a developer's own exchange,
+for instance. The bridge part needs ``web-apps/dash-gui``'s ``npm install``.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, TypeVar
+from zoneinfo import ZoneInfo
+
+import pytest
+import zmq
+from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import ClientConnection, connect
+
+from edumatcher.alf_client import protocol as alf
+from edumatcher.alf_client.connection import AlfConnection, State
+from edumatcher.emo.cli import MINI_PROCESSES
+from tests.conftest import free_ports
+
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals"),
+]
+
+REPO = Path(__file__).resolve().parents[1]
+DASH = REPO / "web-apps" / "dash-gui"
+BIN = Path(sys.executable).parent
+#: Every fixed port the mini profile binds (engine, stats health, gateways,
+#: log server, pm-monitor, API desk).
+PORTS = (
+    5555,
+    5556,
+    5557,
+    5561,
+    5565,
+    5570,
+    5580,
+    5590,
+    5600,
+    5601,
+    5602,
+    5610,
+    5611,
+    8080,
+)
+MONITOR_PUB = "tcp://127.0.0.1:5611"
+ALF_PORT = 5565
+#: s10-basic: MM01's seeded ask on AAPL, 1000 at 22.98.
+ASK = 2298
+#: interval 2 s x silent_after 3, plus pm-monitor's 1 Hz and some slack.
+SILENT_WITHIN = 15.0
+
+T = TypeVar("T")
+
+
+def until(
+    check: Callable[[], T | None],
+    what: str,
+    timeout: float = 20.0,
+    seen: Callable[[], object] | None = None,
+) -> T:
+    """The first truthy result of ``check`` within ``timeout`` seconds;
+    ``seen`` describes what there was instead, for the failure message."""
+    deadline = time.monotonic() + timeout
+    while True:
+        result = check()
+        if result:
+            return result
+        if time.monotonic() > deadline:
+            extra = f"; seen: {seen()}" if seen is not None else ""
+            raise AssertionError(
+                f"timed out after {timeout:.0f} s waiting for {what}{extra}"
+            )
+        time.sleep(0.1)
+
+
+def _port_taken(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # As the processes bind: a previous run's TIME_WAIT is no listener.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("0.0.0.0", port))
+        except OSError:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# the exchange
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Exchange:
+    data_dir: Path
+    env: dict[str, str]
+    session_tz: str
+
+    def cli(self, *args: str, timeout: float = 90.0) -> str:
+        done = subprocess.run(
+            [str(BIN / args[0]), *args[1:]],
+            env=self.env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        assert done.returncode == 0, f"{' '.join(args)}: {done.stdout}{done.stderr}"
+        return done.stdout
+
+    def pid(self, name: str) -> int:
+        """The PID pm-opctl-cli recorded for a profile entry."""
+        return int((self.data_dir / "emo" / f"{name}.pid").read_text().strip())
+
+    @property
+    def today(self) -> str:
+        return datetime.now(ZoneInfo(self.session_tz)).date().isoformat()
+
+    def metrics_db(self, sql: str, *args: Any) -> list[tuple[Any, ...]]:
+        conn = sqlite3.connect(f"file:{self.data_dir / 'metrics.db'}?mode=ro", uri=True)
+        try:
+            return conn.execute(sql, args).fetchall()
+        finally:
+            conn.close()
+
+
+def _identity(entry: dict[str, Any]) -> tuple[str, str | None]:
+    command: list[str] = entry["command"]
+    instance = (
+        command[command.index("--instance") + 1] if "--instance" in command else None
+    )
+    return command[0], instance
+
+
+EXPECTED = {_identity(e) for e in MINI_PROCESSES}
+
+
+@pytest.fixture(scope="module")
+def exchange(
+    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[Exchange]:
+    # Some Makefile targets pass their own -m, which replaces the default
+    # "not e2e": run only when e2e is asked for by name.
+    if "e2e" not in str(request.config.getoption("markexpr")).replace("not e2e", ""):
+        pytest.skip("end-to-end: run with -m e2e (make test-e2e)")
+    if int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1")) > 1:
+        pytest.skip("one exchange per machine: run serially (make test-e2e)")
+    taken = [p for p in PORTS if _port_taken(p)]
+    if taken:
+        pytest.skip(f"exchange ports in use (another exchange running?): {taken}")
+    data_dir = tmp_path_factory.mktemp("e2e") / "data"
+    data_dir.mkdir()
+    env = {k: v for k, v in os.environ.items() if not k.startswith("EDUMATCHER_")}
+    env["EDUMATCHER_DATA_DIR"] = str(data_dir)
+    ex = Exchange(data_dir, env, "")
+    ex.cli("pm-config-deploy", "--example", "s10-basic")
+    compiled = json.loads((data_dir / "ref_data" / "engine_config.json").read_text())
+    ex.session_tz = compiled["engine"]["locale"]["session_timezone"]
+    try:
+        ex.cli("pm-opctl-cli", "start", "mini")
+        yield ex
+    finally:
+        subprocess.run(
+            [str(BIN / "pm-opctl-cli"), "stop"],
+            env=env,
+            capture_output=True,
+            timeout=60,
+        )
+
+
+# ---------------------------------------------------------------------------
+# pm-monitor's feed, as any subscriber sees it
+# ---------------------------------------------------------------------------
+
+
+class Feed:
+    """Every ``health.snapshot`` and ``health.event`` pm-monitor publishes."""
+
+    def __init__(self) -> None:
+        self.snapshots: list[dict[str, Any]] = []
+        self.events: list[dict[str, Any]] = []
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        sub: zmq.Socket[bytes] = zmq.Context.instance().socket(zmq.SUB)
+        sub.setsockopt(zmq.LINGER, 0)
+        sub.connect(MONITOR_PUB)
+        sub.subscribe(b"health.")
+        try:
+            while not self._stop.is_set():
+                if not sub.poll(100):
+                    continue
+                frames = sub.recv_multipart()
+                data = json.loads(frames[1])
+                if frames[0] == b"health.snapshot":
+                    self.snapshots.append(data)
+                else:
+                    self.events.append(data)
+        finally:
+            sub.close()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2)
+
+    @property
+    def latest(self) -> dict[str, Any] | None:
+        return self.snapshots[-1] if self.snapshots else None
+
+    def wait(
+        self,
+        check: Callable[[dict[str, Any]], T | None],
+        what: str,
+        timeout: float = 20.0,
+    ) -> T:
+        def on_latest() -> T | None:
+            s = self.latest
+            return check(s) if s is not None else None
+
+        return until(on_latest, what, timeout)
+
+    def event(
+        self, kind: str, subject: str, after: int = -1, detail: str = ""
+    ) -> dict[str, Any] | None:
+        return next(
+            (
+                e
+                for e in self.events
+                if e["seq"] > after
+                and e["kind"] == kind
+                and e["subject"] == subject
+                and detail in e["detail"]
+            ),
+            None,
+        )
+
+    def wait_event(
+        self,
+        kind: str,
+        subject: str,
+        after: int = -1,
+        detail: str = "",
+        timeout: float = 20.0,
+    ) -> dict[str, Any]:
+        return until(
+            lambda: self.event(kind, subject, after, detail),
+            f"{kind} {subject} {detail}".rstrip(),
+            timeout,
+            seen=lambda: [
+                (e["seq"], e["kind"], e["subject"], e["detail"])
+                for e in self.events
+                if e["seq"] > after
+            ][-12:],
+        )
+
+
+@pytest.fixture(scope="module")
+def feed(exchange: Exchange) -> Iterator[Feed]:
+    f = Feed()
+    yield f
+    f.close()
+
+
+def process(s: dict[str, Any], name: str) -> dict[str, Any]:
+    return next(p for p in s["processes"] if p["process"] == name)
+
+
+def participant(s: dict[str, Any], pid: str) -> dict[str, Any]:
+    zero = {
+        "connected": False,
+        "fills_today": 0,
+        "resting_orders": 0,
+        "orders": {"today": 0},
+    }
+    return next((p for p in s["participants"] if p["id"] == pid), zero)
+
+
+def gateway(s: dict[str, Any], kind: str) -> dict[str, Any]:
+    return next(g for g in s["gateways"] if g["kind"] == kind)
+
+
+def book(s: dict[str, Any], symbol: str) -> dict[str, Any]:
+    return next(b for b in s["books"] if b["symbol"] == symbol)
+
+
+# ---------------------------------------------------------------------------
+# a participant over ALF
+# ---------------------------------------------------------------------------
+
+
+class Trader:
+    def __init__(self, gateway_id: str) -> None:
+        self.conn = AlfConnection("127.0.0.1", ALF_PORT, gateway_id, client="e2e")
+        self.acks = 0
+        self.fills = 0
+        self.conn.open(time.time())
+        until(self._ready, f"{gateway_id} logged in over ALF", 10)
+
+    def _ready(self) -> bool:
+        self.pump()
+        return self.conn.state == State.READY
+
+    def pump(self) -> None:
+        for m in self.conn.read():
+            if m.msg_type == "ACK" and m.flag("ACCEPTED"):
+                self.acks += 1
+            elif m.msg_type == "FILL":
+                self.fills += 1
+        self.conn.tick(time.time())
+
+    def buy(self, symbol: str, price_ticks: int, qty: int = 10, tag: str = "") -> None:
+        line = alf.new_order(
+            tag=tag or f"E2E{self.acks}",
+            symbol=symbol,
+            side="BUY",
+            order_type="LIMIT",
+            tif="DAY",
+            qty=qty,
+            tick_decimals=2,
+            price_ticks=price_ticks,
+        )
+        assert self.conn.send(line, time.time())
+        self.conn.flush()
+
+    def wait(self, acks: int, fills: int) -> None:
+        def done() -> bool:
+            self.pump()
+            return self.acks >= acks and self.fills >= fills
+
+        until(done, f"{acks} acks and {fills} fills", 10)
+
+    def close(self) -> None:
+        self.conn.close()
+
+
+# ---------------------------------------------------------------------------
+# the dashboard bridge and a browser tab
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Bridge:
+    port: int
+    proc: subprocess.Popen[bytes]
+
+    def get(self, path: str) -> Any:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{self.port}{path}", timeout=5
+        ) as r:
+            return json.load(r)
+
+
+@pytest.fixture(scope="module")
+def bridge(exchange: Exchange) -> Iterator[Bridge]:
+    tsx = DASH / "node_modules" / ".bin" / "tsx"
+    if not tsx.exists():
+        pytest.skip("web-apps/dash-gui has no node_modules (npm install)")
+    (port,) = free_ports(1)
+    env = {
+        **os.environ,
+        "HOST": "127.0.0.1",
+        "PORT": str(port),
+        "MONITOR_HOST": "127.0.0.1",
+        "METRICS_DB_PATH": str(exchange.data_dir / "metrics.db"),
+        "LOG_SRV_ENABLED": "false",
+        "LOG_FAILOVER_DIR": str(exchange.data_dir / "logs"),
+    }
+    proc = subprocess.Popen(
+        [str(tsx), "--disable-warning=ExperimentalWarning", "src/main.ts"],
+        cwd=DASH / "apps" / "bridge",
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    b = Bridge(port, proc)
+
+    def up() -> bool:
+        try:
+            return bool(b.get("/api/bridge/status")["monitor"] == "UP")
+        except OSError:
+            return False
+
+    try:
+        until(up, "the bridge to listen and receive pm-monitor's snapshots", 30)
+        yield b
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+
+
+class Tab:
+    """A browser tab on the bridge's /ws: every frame it receives."""
+
+    def __init__(self, ws: ClientConnection) -> None:
+        self.ws = ws
+        self.frames: list[dict[str, Any]] = []
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        try:
+            for message in self.ws:
+                self.frames.append(json.loads(message))
+        except ConnectionClosed:
+            pass
+
+    def wait(
+        self, match: Callable[[dict[str, Any]], bool], what: str, timeout: float = 20.0
+    ) -> dict[str, Any]:
+        return until(
+            lambda: next((f for f in self.frames if match(f)), None), what, timeout
+        )
+
+    def mark(self) -> int:
+        return len(self.frames)
+
+    def since(self, mark: int) -> list[dict[str, Any]]:
+        return self.frames[mark:]
+
+
+@pytest.fixture(scope="module")
+def tab(bridge: Bridge) -> Iterator[Tab]:
+    with connect(f"ws://127.0.0.1:{bridge.port}/ws", max_size=None) as ws:
+        yield Tab(ws)
+
+
+def latest_snapshot(t: Tab) -> dict[str, Any] | None:
+    return next(
+        (f["data"] for f in reversed(t.frames) if f["type"] == "snapshot"), None
+    )
+
+
+# ---------------------------------------------------------------------------
+# the scenario
+# ---------------------------------------------------------------------------
+
+
+def test_every_process_of_the_profile_beacons_and_is_healthy(
+    exchange: Exchange, feed: Feed
+) -> None:
+    """Phase A+B: every started process is judged from its own beacons."""
+
+    def all_healthy(s: dict[str, Any]) -> dict[str, Any] | None:
+        seen = {(p["process"], p["instance"]): p for p in s["processes"]}
+        ok = all(
+            k in seen and seen[k]["state"] == "HEALTHY" and not seen[k]["starting"]
+            for k in EXPECTED
+        )
+        return s if ok and s["exchange"]["status"] == "OPERATIONAL" else None
+
+    s = feed.wait(
+        all_healthy, "every mini process HEALTHY and the exchange OPERATIONAL", 45
+    )
+    by_name = {e["name"]: _identity(e) for e in MINI_PROCESSES}
+    for name, (proc, instance) in by_name.items():
+        record = next(
+            p
+            for p in s["processes"]
+            if (p["process"], p["instance"]) == (proc, instance)
+        )
+        assert record["pid"] == exchange.pid(name), name
+        assert record["rss_bytes"] > 0 and record["threads"] > 0, name
+    assert s["exchange"]["session_state"] == "CONTINUOUS"
+    assert s["exchange"]["session_timezone"] == exchange.session_tz
+    assert s["exchange"]["trading_date"] == exchange.today
+    assert s["host"]["mem_total_bytes"] > 0
+    files = {f["name"]: f["size_bytes"] for f in s["host"]["files"]}
+    assert files.get("metrics.db", 0) > 0
+    # 1 Hz, numbered
+    seqs = [x["seq"] for x in feed.snapshots[-5:]]
+    assert seqs == list(range(seqs[0], seqs[0] + len(seqs)))
+
+
+def test_a_traders_activity_reaches_every_figure(
+    exchange: Exchange, feed: Feed
+) -> None:
+    """Five crossing orders and one resting one, seen in the snapshot, the
+    events and metrics.db exactly as they were sent."""
+    base = feed.latest
+    assert base is not None
+    first_seq = max((e["seq"] for e in feed.events), default=0)
+    base_orders = base["trading"]["orders"]["today"]
+    base_trades = base["trading"]["trades"]["today"]
+    base_value = base["trading"]["traded_value_today"]
+    base_book = book(base, "AAPL")["trades_today"]
+    base_alf = gateway(base, "ALF")["clients"]
+
+    trader = Trader("TRADER01")
+    try:
+        feed.wait_event("CONNECT", "TRADER01", first_seq)
+        feed.wait(
+            lambda s: participant(s, "TRADER01")["connected"]
+            and gateway(s, "ALF")["clients"] == base_alf + 1,
+            "TRADER01 connected, one more ALF client",
+        )
+        for i in range(5):
+            trader.buy("AAPL", ASK, tag=f"X{i}")
+        trader.buy("AAPL", ASK - 300, tag="REST")
+        trader.wait(acks=6, fills=5)
+
+        s = feed.wait(
+            lambda s: (
+                s
+                if s["trading"]["orders"]["today"] == base_orders + 6
+                and s["trading"]["trades"]["today"] == base_trades + 5
+                else None
+            ),
+            "6 orders and 5 trades in the snapshot",
+        )
+        assert s["trading"]["traded_value_today"] == pytest.approx(
+            base_value + 5 * 10 * 22.98
+        )
+        assert s["trading"]["reject_pct_5m"] == 0.0
+        assert s["trading"]["handle_p99_us"] > 0
+        p = participant(s, "TRADER01")
+        assert (p["orders"]["today"], p["fills_today"], p["resting_orders"]) == (
+            6,
+            5,
+            1,
+        )
+        assert book(s, "AAPL")["trades_today"] == base_book + 5
+    finally:
+        trader.close()
+
+    # CANCEL_ALL on disconnect: the resting order goes with the session.
+    s = feed.wait(
+        lambda s: (
+            s
+            if not participant(s, "TRADER01")["connected"]
+            and participant(s, "TRADER01")["resting_orders"] == 0
+            and gateway(s, "ALF")["clients"] == base_alf
+            else None
+        ),
+        "TRADER01 gone, its resting order cancelled",
+    )
+    assert participant(s, "TRADER01")["fills_today"] == 5
+    feed.wait_event("DISCONNECT", "TRADER01", first_seq)
+
+    # History: the day's total per gateway, and the events under their wire seq.
+    rows = until(
+        lambda: exchange.metrics_db(
+            "SELECT total FROM daily_totals WHERE name = 'engine.orders_in' "
+            "AND label = 'TRADER01' AND date = ?",
+            exchange.today,
+        ),
+        "TRADER01's orders in metrics.db daily_totals",
+    )
+    assert rows == [(6.0,)]
+    live = {(e["seq"], e["kind"]) for e in feed.events if e["subject"] == "TRADER01"}
+    stored = set(
+        exchange.metrics_db("SELECT seq, kind FROM events WHERE subject = 'TRADER01'")
+    )
+    assert live == stored and {k for _, k in live} == {"CONNECT", "DISCONNECT"}
+
+
+def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
+    exchange: Exchange, feed: Feed, bridge: Bridge, tab: Tab
+) -> None:
+    """Phase C: what a browser tab gets is pm-monitor's, live and from metrics.db."""
+    hello = tab.wait(lambda f: f["type"] == "hello", "hello")
+    assert hello["monitor"] == "UP" and hello["sessionTz"] == exchange.session_tz
+    snap = until(lambda: latest_snapshot(tab), "a snapshot frame")
+    assert {(p["process"], p["instance"]) for p in snap["processes"]} >= EXPECTED
+
+    status = bridge.get("/api/bridge/status")
+    assert status["monitor"] == "UP" and status["monitorConnected"]
+    assert status["metricsDb"]["ok"] and status["sessionTz"] == exchange.session_tz
+
+    mark = tab.mark()
+    trader = Trader("TRADER02")
+    try:
+        for i in range(3):
+            trader.buy("AAPL", ASK, tag=f"Y{i}")
+        trader.wait(acks=3, fills=3)
+        tab.wait(
+            lambda f: f["type"] == "event"
+            and f["data"]["kind"] == "CONNECT"
+            and f["data"]["subject"] == "TRADER02",
+            "TRADER02's CONNECT event on the tab",
+        )
+        tab.wait(
+            lambda f: f["type"] == "snapshot"
+            and participant(f["data"], "TRADER02")["fills_today"] == 3,
+            "TRADER02's 3 fills in a snapshot on the tab",
+        )
+    finally:
+        trader.close()
+    assert all(f["type"] in {"snapshot", "event"} for f in tab.since(mark))
+
+    # REST history, as the charts will read it.
+    daily = until(
+        lambda: [
+            d
+            for d in bridge.get("/api/daily?name=engine.orders_in&label=TRADER02")[
+                "days"
+            ]
+            if d["date"] == exchange.today and d["total"] == 3
+        ],
+        "TRADER02's 3 orders in /api/daily",
+    )
+    assert daily
+    engine = process(feed.latest or {}, "pm-engine")
+    counter = until(
+        lambda: [
+            pt
+            for pt in bridge.get(
+                f"/api/series?name=engine.orders_in&label=TRADER01&source={engine['key']}&range=15m"
+            )["points"]
+            if pt[1] == 6
+        ],
+        "TRADER01's counter at 6 in /api/series (raw, every 10 s)",
+    )
+    assert counter
+    rss = bridge.get(f"/api/series?name=proc.rss_bytes&source={engine['key']}&range=5m")
+    assert rss["resolution"] == "raw" and rss["points"]
+    assert rss["points"][-1][1] == pytest.approx(engine["rss_bytes"], rel=0.5)
+    events = bridge.get("/api/events?range=1h&kind=CONNECT,DISCONNECT")["events"]
+    by_subject = {(e["seq"], e["kind"], e["subject"]) for e in events}
+    live = {
+        (e["seq"], e["kind"], e["subject"])
+        for e in feed.events
+        if e["kind"] in {"CONNECT", "DISCONNECT"}
+    }
+    assert live <= by_subject
+    first = min(e["seq"] for e in events)
+    caught_up = bridge.get(f"/api/events?after_seq={first}")["events"]
+    assert [e["seq"] for e in caught_up] == sorted(e["seq"] for e in caught_up)
+    assert all(e["seq"] > first for e in caught_up)
+
+
+def test_a_stopped_process_goes_silent_and_comes_back(
+    exchange: Exchange, feed: Feed, tab: Tab
+) -> None:
+    """SIGSTOP: no beacons, PID alive -> SILENT, the exchange IMPAIRED; SIGCONT heals it."""
+    pid = exchange.pid("stats")
+    key = process(feed.latest or {}, "pm-stats")["key"]
+    after = max((e["seq"] for e in feed.events), default=0)
+    os.kill(pid, signal.SIGSTOP)
+    try:
+        feed.wait(
+            lambda s: process(s, "pm-stats")["state"] == "SILENT"
+            and s["exchange"]["status"] == "IMPAIRED",
+            "pm-stats SILENT and the exchange IMPAIRED",
+            SILENT_WITHIN,
+        )
+        event = feed.wait_event("PROCESS_STATUS", key, after, "HEALTHY -> SILENT")
+        assert event["severity"] == "CRIT"
+    finally:
+        os.kill(pid, signal.SIGCONT)
+    feed.wait(
+        lambda s: process(s, "pm-stats")["state"] == "HEALTHY"
+        and s["exchange"]["status"] == "OPERATIONAL",
+        "pm-stats HEALTHY again",
+    )
+    feed.wait_event("PROCESS_STATUS", key, after, "SILENT -> HEALTHY")
+    # Nothing in between: standing still is SILENT, not a hung or slow loop (I108).
+    assert [
+        (e["kind"], e["detail"])
+        for e in feed.events
+        if e["seq"] > after and e["subject"] == key
+    ] == [
+        ("PROCESS_STATUS", "HEALTHY -> SILENT"),
+        ("PROCESS_STATUS", "SILENT -> HEALTHY"),
+    ]
+    tab.wait(
+        lambda f: f["type"] == "event"
+        and f["data"]["subject"] == key
+        and "-> SILENT" in f["data"]["detail"],
+        "the SILENT event on the tab",
+    )
+
+
+def test_a_pm_monitor_restart_keeps_todays_totals_and_its_event_numbers(
+    exchange: Exchange, feed: Feed, bridge: Bridge, tab: Tab
+) -> None:
+    """The bridge shows DOWN, then UP; today's figures continue (design §9.4)."""
+    before = feed.latest
+    assert before is not None
+    orders, trades = (
+        before["trading"]["orders"]["today"],
+        before["trading"]["trades"]["today"],
+    )
+    last_seq = max(e["seq"] for e in feed.events)
+    mark = tab.mark()
+    os.kill(exchange.pid("monitor"), signal.SIGTERM)
+    tab.wait(
+        lambda f: f in tab.since(mark)
+        and f == {"type": "monitor_state", "monitor": "DOWN"},
+        "monitor_state DOWN on the tab",
+    )
+    assert bridge.get("/api/bridge/status")["monitor"] == "DOWN"
+    restarted_at = len(feed.snapshots)
+
+    exchange.cli("pm-opctl-cli", "list", "--restart")
+    tab.wait(
+        lambda f: f in tab.since(mark)
+        and f == {"type": "monitor_state", "monitor": "UP"},
+        "monitor_state UP on the tab",
+        30,
+    )
+    feed.wait(lambda s: s["seq"] >= 3, "a few snapshots from the new pm-monitor")
+    after = feed.snapshots[restarted_at:]
+    assert after, "no snapshot after the restart"
+    assert all(s["trading"]["orders"]["today"] == orders for s in after)
+    assert all(s["trading"]["trades"]["today"] == trades for s in after)
+
+    trader = Trader("TRADER01")
+    trader.close()
+    event = feed.wait_event("CONNECT", "TRADER01", last_seq)
+    assert event["seq"] > last_seq  # numbering continues from metrics.db (I107)
+
+
+def test_a_killed_engine_is_dead_the_exchange_down_and_a_restart_shows(
+    exchange: Exchange, feed: Feed, tab: Tab
+) -> None:
+    """kill -9 the engine: DEAD, exchange DOWN, a CRIT event on the tab; then
+    pm-opctl-cli restarts it and the dashboard shows the restart."""
+    old_pid = exchange.pid("engine")
+    key = process(feed.latest or {}, "pm-engine")["key"]
+    after = max(e["seq"] for e in feed.events)
+    os.kill(old_pid, signal.SIGKILL)
+    feed.wait(
+        lambda s: process(s, "pm-engine")["state"] == "DEAD"
+        and s["exchange"]["status"] == "DOWN",
+        "pm-engine DEAD and the exchange DOWN",
+        SILENT_WITHIN,
+    )
+    tab.wait(
+        lambda f: f["type"] == "event"
+        and f["data"]["subject"] == key
+        and f["data"]["seq"] > after
+        and f["data"]["detail"].endswith("-> DEAD")
+        and f["data"]["severity"] == "CRIT",
+        "the engine's DEAD event on the tab",
+    )
+
+    exchange.cli("pm-opctl-cli", "list", "--restart")
+    s = feed.wait(
+        lambda s: (
+            s
+            if process(s, "pm-engine")["state"] == "HEALTHY"
+            and process(s, "pm-engine")["pid"] != old_pid
+            and s["exchange"]["status"] == "OPERATIONAL"
+            else None
+        ),
+        "a new pm-engine HEALTHY and the exchange OPERATIONAL",
+        45,
+    )
+    assert process(s, "pm-engine")["restarted_recently"]
+    assert process(s, "pm-engine")["pid"] == exchange.pid("engine")

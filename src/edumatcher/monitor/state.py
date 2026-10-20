@@ -36,6 +36,22 @@ thread runs, so the figure is never more than one interval old, and adding
 that interval would turn the scheduler's ~4 s engine round-trip (I40) into a
 HUNG at the 5 s default.
 
+A process that stood still as a whole -- SIGSTOP, a suspended host -- sends
+no beacon and is reported SILENT. When it runs again, its first beacons carry
+a loop age (and then a worst gap) that includes the time it stood still,
+which would read as HUNG and then DEGRADED although the loop never stalled
+while the process ran (found end to end, I108). That silence was already
+reported, so it is credited: ``loop_age_ms`` loses it until the loop has
+ticked again, and the beacon whose worst gap spans it loses it from
+``loop_lag_ms``. The whole silence is credited -- the process stood still
+for most of it and ran for at most one interval -- so a loop that was hung
+before the stillness is seen HUNG at most one interval later than without
+it. Whether the loop has ticked since is not read from the credit but from
+the resume: a loop age shorter than the time since the first beacon after
+the silence, plus one interval, means a tick after it (the stillness itself
+lasted longer than that interval). Only a silence past the SILENT limit is
+credited, so no time is hidden that was not shown as SILENT.
+
 Exchange status
 ---------------
 :func:`exchange_status` -- see the rule in ``spec/messages/health.yaml``
@@ -53,7 +69,7 @@ from typing import Any
 import psutil
 
 from edumatcher.models.generated.health import HealthBeacon
-from edumatcher.monitor.config import MonitorConfig
+from edumatcher.monitor.config import DEFAULT_SILENT_AFTER_BEACONS, MonitorConfig
 
 #: Readings kept per process for the sparklines (``Sparkline`` max_items).
 SPARK_LEN = 60
@@ -229,6 +245,11 @@ class ProcessState:
     boot_seen_at: float = -1.0
     rss: deque[int] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
     cpu: deque[float] = field(default_factory=lambda: deque(maxlen=SPARK_LEN))
+    #: Silence credited to the loop figures; see the module docstring.
+    age_credit_sec: float = 0.0
+    lag_credit_sec: float = 0.0
+    #: Receive time of the first beacon after the last credited silence.
+    resumed_at: float = 0.0
     #: ``(receive time, rss)`` once a minute, for the RSS growth rule.
     rss_history: deque[tuple[float, int]] = field(
         default_factory=lambda: deque(
@@ -258,6 +279,16 @@ class ProcessState:
     def identity(self) -> Identity:
         return self.beacon.process, self.beacon.instance
 
+    @property
+    def loop_age_ms(self) -> float:
+        """The beacon's loop age less any credited silence."""
+        return max(0.0, self.beacon.loop_age_ms - self.age_credit_sec * 1000.0)
+
+    @property
+    def loop_lag_ms(self) -> float:
+        """The beacon's worst gap less any credited silence."""
+        return max(0.0, self.beacon.loop_lag_ms - self.lag_credit_sec * 1000.0)
+
     def evaluate(
         self,
         now: float,
@@ -281,19 +312,32 @@ class ProcessState:
             # Another host: no process table to ask, so time decides.
             return "DEAD" if silence > 2 * limit else "SILENT"
         hung_after = rules.startup_grace_sec if b.starting else rules.hung_after_sec
-        if b.loop_age_ms > hung_after * 1000.0:
+        if self.loop_age_ms > hung_after * 1000.0:
             return "HUNG"
-        if breached or b.loop_lag_ms > LOOP_LAG_DEGRADED_MS:
+        if breached or self.loop_lag_ms > LOOP_LAG_DEGRADED_MS:
             return "DEGRADED"
         return "HEALTHY"
 
-    def accept(self, beacon: HealthBeacon, now: float) -> Ingest:
+    def accept(
+        self,
+        beacon: HealthBeacon,
+        now: float,
+        silent_after_beacons: int = DEFAULT_SILENT_AFTER_BEACONS,
+    ) -> Ingest:
         """Fold in a beacon of this source; see the module docstring."""
         current = self.beacon
+        credit = 0.0
         if beacon.boot_id == current.boot_id:
             if beacon.seq <= current.seq:
                 return Ingest.STALE
             outcome = Ingest.UPDATED
+            credit = self.age_credit_sec
+            silence = now - self.received_at
+            if silence > silent_after_beacons * current.interval_sec:
+                # It stood still for (nearly all of) the silence, and its
+                # loop with it.
+                credit += silence
+                self.resumed_at = now
         else:
             if beacon.started_at_ns < current.started_at_ns:
                 return Ingest.STALE
@@ -303,6 +347,14 @@ class ProcessState:
             self.cpu.clear()
             self.rss_history.clear()
             outcome = Ingest.RESTARTED
+        self.lag_credit_sec = 0.0
+        since_resume = now - self.resumed_at + beacon.interval_sec
+        if credit and beacon.loop_age_ms < since_resume * 1000.0:
+            # The loop has ticked since: its age is its own again, and this
+            # beacon's worst gap is the one that spans the stillness.
+            self.lag_credit_sec = credit
+            credit = 0.0
+        self.age_credit_sec = credit
         self.beacon = beacon
         self.received_at = now
         self._record(beacon, now)
@@ -339,7 +391,7 @@ class ProcessState:
         """This source as a ``ProcessHealth`` record (wire dict).
 
         ``state`` comes from :meth:`evaluate`. ``loop_age_ms`` is the value the
-        beacon carried (see the module docstring).
+        beacon carried, less any credited silence (see the module docstring).
         """
         b = self.beacon
         return {
@@ -357,8 +409,8 @@ class ProcessState:
             "cpu_pct": b.cpu_pct,
             "threads": b.threads,
             "fds": b.fds,
-            "loop_age_ms": b.loop_age_ms,
-            "loop_lag_ms": b.loop_lag_ms,
+            "loop_age_ms": self.loop_age_ms,
+            "loop_lag_ms": self.loop_lag_ms,
             "last_beacon_age_ms": max(0.0, (now - self.received_at) * 1000.0),
             "spark": {"rss": list(self.rss), "cpu": list(self.cpu)},
             "metrics": [m.to_dict() for m in b.metrics],
@@ -407,12 +459,17 @@ class ProcessTable:
             del self._states[(b.process, b.instance, b.host)]
         return dropped
 
-    def ingest(self, beacon: HealthBeacon, now: float) -> Ingest:
+    def ingest(
+        self,
+        beacon: HealthBeacon,
+        now: float,
+        silent_after_beacons: int = DEFAULT_SILENT_AFTER_BEACONS,
+    ) -> Ingest:
         """Fold one received beacon in; ``now`` is pm-monitor's receive time."""
         source: SourceKey = (beacon.process, beacon.instance, beacon.host)
         state = self._states.get(source)
         if state is not None:
-            return state.accept(beacon, now)
+            return state.accept(beacon, now, silent_after_beacons)
         if len(self._states) >= self.max_sources:
             return Ingest.REJECTED
         self._states[source] = ProcessState(beacon=beacon, received_at=now)

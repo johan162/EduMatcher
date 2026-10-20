@@ -139,7 +139,7 @@ Every second `pm-monitor` judges each process. The first matching rule wins:
 | **MISSING** | Expected but never seen | The active `pm-opctl-cli` profile runs it, and it has not sent a beacon since `pm-monitor` started (judged once `pm-monitor` has run for one silence period, 6 s by default) |
 | **DEAD** | Gone | No beacon for `silent_after_beacons` × its beacon interval (6 s by default), and its process no longer exists. For a process on another host, which cannot be checked, after twice that |
 | **SILENT** | Stuck, still there | No beacon for that long, but the process still exists: the whole interpreter is stuck, or beacons cannot reach `pm-monitor` |
-| **HUNG** | Main loop stuck | Beacons arrive, but the main loop has not completed an iteration for more than `hung_after_sec` (5 s). While a process is still starting up (its loop has not run once yet) it gets 120 s instead |
+| **HUNG** | Main loop stuck | Beacons arrive, but the main loop has not completed an iteration for more than `hung_after_sec` (5 s). While a process is still starting up (its loop has not run once yet) it gets 120 s instead. Time the whole process stood still — reported SILENT, after a `kill -STOP` or a suspended host — does not count |
 | **DEGRADED** | Working, but something is off | A threshold on this process is in breach, or its loop ran more than 1 s late since the previous beacon |
 | **HEALTHY** | — | None of the above |
 

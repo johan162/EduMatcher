@@ -124,11 +124,12 @@ markers = [
     "heavy: long-running tests, deselected by default (run with '-m heavy')",
     "real_log_discovery: opt out of the conftest guard that blocks pm-log-srv auto-detection",
     "real_health_reporter: opt out of the conftest guard that keeps processes from sending health beacons",
+    "e2e: end-to-end tests on a real exchange (fixed ports, serial); deselected by default, run with 'make test-e2e'",
 ]
 addopts = [
     "--strict-markers",
     "-m",
-    "not heavy and not probabilistic and not probabilistic_full and not perf",
+    "not heavy and not probabilistic and not probabilistic_full and not perf and not e2e",
     "--cov=edumatcher",
     "--cov-report=term-missing",
     "--cov-report=html",

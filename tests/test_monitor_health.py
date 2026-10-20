@@ -107,6 +107,72 @@ EVALUATE_CASES: list[tuple[str, dict[str, Any], float, Any, bool, str]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# I108: a process that stood still is not judged HUNG for it
+# ---------------------------------------------------------------------------
+
+
+def _then(state: ProcessState, at: float, **overrides: Any) -> str:
+    """Feed the next beacon of ``state`` at ``at`` and judge it there."""
+    fields = state.beacon.to_dict()
+    fields.update({"seq": state.beacon.seq + 1, **overrides})
+    beacon = HealthBeacon.from_dict(fields)
+    beacon.validate()
+    state.accept(beacon, at, RULES.silent_after_beacons)
+    return state.evaluate(at, RULES, alive=_alive)
+
+
+def test_sigstop_then_sigcont_is_silent_then_healthy() -> None:
+    """Found end to end: the first beacons after a SIGCONT carry the stopped
+    time in loop_age and then in loop_lag; neither is the loop's doing."""
+    state = _state(received_at=100.0, loop_age_ms=50.0)
+    assert state.evaluate(120.0, RULES, alive=_alive) == "SILENT"
+    # Resumed: the sampler beacons before the loop ticks.
+    assert _then(state, 120.0, loop_age_ms=19_050.0) == "HEALTHY"
+    # Below the 1 s loop-age warning too, or the threshold would degrade it.
+    assert state.loop_age_ms < 1_000.0
+    # The loop has ticked; this beacon's worst gap spans the stop.
+    assert _then(state, 122.0, loop_age_ms=30.0, loop_lag_ms=20_040.0) == "HEALTHY"
+    assert state.loop_lag_ms == pytest.approx(40.0)  # the loop's own share
+    assert state.loop_age_ms == 30.0
+    # From here on the figures are the beacon's own again.
+    assert _then(state, 124.0, loop_age_ms=30.0, loop_lag_ms=1_500.0) == "DEGRADED"
+    assert _then(state, 126.0, loop_age_ms=6_000.0, loop_lag_ms=0.0) == "HUNG"
+
+
+def test_a_loop_hung_before_the_stop_stays_hung() -> None:
+    """Hung 4 s at the stop: HUNG again within one interval of the resume."""
+    state = _state(received_at=100.0, loop_age_ms=4_000.0)
+    _then(state, 120.0, loop_age_ms=24_000.0)
+    assert _then(state, 122.0, loop_age_ms=26_000.0) == "HUNG"
+    assert _then(state, 124.0, loop_age_ms=28_000.0) == "HUNG"
+
+
+def test_a_gap_short_of_silent_is_not_credited() -> None:
+    """Never reported SILENT, so nothing is hidden: a 4.5 s gap stays in the figures."""
+    state = _state(received_at=100.0, loop_age_ms=50.0)
+    assert _then(state, 105.0, loop_age_ms=5_100.0) == "HUNG"
+    assert state.age_credit_sec == 0.0
+
+
+def test_a_restart_carries_no_credit() -> None:
+    state = _state(received_at=100.0, loop_age_ms=50.0)
+    _then(state, 120.0, loop_age_ms=20_050.0)
+    assert state.age_credit_sec > 0
+    _then(
+        state,
+        121.0,
+        boot_id="b" * 16,
+        seq=0,
+        started_at_ns=2_000_000_000_000,
+        loop_age_ms=6_000.0,
+    )
+    assert (
+        state.age_credit_sec == 0.0
+        and state.evaluate(121.0, RULES, alive=_alive) == "HUNG"
+    )
+
+
 @pytest.mark.parametrize(
     ("overrides", "silence", "alive", "breached", "expected"),
     [case[1:] for case in EVALUATE_CASES],

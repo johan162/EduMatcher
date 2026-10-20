@@ -877,6 +877,13 @@ As implemented in B2 (I52–I57, `monitor/state.py`):
 - HUNG judges `loop_age_ms` as sent. Adding the time since the beacon
   arrived would push the scheduler's ≈ 4 s engine round-trip (I40) over
   the 5 s default.
+- A process that stood still as a whole (SIGSTOP, a suspended host) is
+  SILENT, and only SILENT: when it runs again its first beacons carry the
+  stillness in `loop_age_ms` and then in `loop_lag_ms`, which read as HUNG
+  and DEGRADED (found by the end-to-end suite, I108). A silence past the
+  SILENT limit is therefore credited against both until the loop has ticked
+  again (`ProcessState.accept`); a loop hung before the stillness is HUNG
+  again at most one interval later than without it.
 - The same-host PID check also compares the process start time with
   `started_at_ns` (a reused PID is not the process) and counts a zombie as
   dead.
@@ -2840,6 +2847,24 @@ the failure states the design exists for.
 **Tests:** a scripted checklist in `deployment/docker/README.md` (manual),
 plus `tests/test_monitor_e2e.py` for E3.2/E3.4/E3.5 against locally spawned
 processes (skipped unless `-m e2e`).
+
+As built ahead of E3 (after C2, I109): `tests/test_monitor_e2e.py` runs the
+whole chain locally with `make test-e2e` (marker `e2e`, deselected by
+default, serial, skipped when an exchange port is taken). `pm-opctl-cli
+start mini` on the deployed `s10-basic` in a scratch data directory, a
+pm-monitor feed subscriber, the real dash bridge (tsx) and a `/ws` client:
+every profile process HEALTHY with its pid-file PID (A+B); a TRADER01
+session's 5 fills and 1 resting order in the trading, participant, gateway
+and book figures, its CONNECT/DISCONNECT events, `daily_totals` and the
+event rows (E3.1 in small); the same live on the tab and over `/api/daily`,
+`/api/series`, `/api/events` (C); SIGSTOP/SIGCONT of pm-stats as exactly
+HEALTHY → SILENT → HEALTHY and IMPAIRED → OPERATIONAL (E3.2); a pm-monitor
+SIGTERM shown as `monitor_state` DOWN/UP, with today's totals unchanged and
+event numbering continued after `pm-opctl-cli list --restart` (E3.5); and a
+SIGKILLed engine DEAD with the exchange DOWN, a CRIT event on the tab, then
+restarted with `restarted_recently` (E3.4). HUNG stays proven by
+`test_monitor_health.py::test_kill_stop_and_block_read_dead_silent_hung`.
+E3 still owes the container runs.
 
 **Done when:** all six scenarios pass on Podman/macOS and Docker/Linux.
 
