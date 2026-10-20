@@ -171,6 +171,8 @@ nav:
       - "Audit Replay (pm-audit-replay)": books/operator-guide/part-6-observe-and-recover/030-audit-replay.md
       - "Centralized Log Server": books/operator-guide/part-6-observe-and-recover/040-log-server.md
       - "Log Operator Console (`pm-log-ui`)": books/operator-guide/part-6-observe-and-recover/050-log-console.md
+      - "Health Monitoring (`pm-monitor`)": books/operator-guide/part-6-observe-and-recover/060-health-monitor.md
+      - "Operator Dashboard (`pm-dash`)": books/operator-guide/part-6-observe-and-recover/070-operator-dashboard.md
   - "Reference Manual":
     - "How to Use This Book": books/reference-manual/00-front/010-how-to-use-this-book.md
     - "Part I: Command line":

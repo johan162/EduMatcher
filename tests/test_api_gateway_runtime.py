@@ -366,7 +366,9 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
         config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
         monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
         monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
-        monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
+        monkeypatch.setattr(
+            main, "create_app", lambda cfg, instance=None: {"config": cfg}
+        )
         monkeypatch.setattr(
             uvicorn,
             "run",

@@ -1,5 +1,5 @@
 # Overlay: expose the raw ZeroMQ bus so tools running on your machine —
-# pm-calf-spy, pm-dc-spy, pm-index-cli, the log subscribers — can attach to the
+# pm-calf-spy, pm-dc-spy, pm-index-cli, the log subscribers, pm-monitor-cli — can attach to the
 # containerised exchange without going through a gateway.
 #
 # Enabled by setting EM_ZMQ=1 in .env; ./edumatcher.sh then adds this file to
@@ -8,8 +8,9 @@
 #
 # The engine and pm-index bind 127.0.0.1 inside the container by default, so
 # publishing their ports is not enough — they have to be told to bind the
-# container's interface as well. pm-log-srv already binds 0.0.0.0, so 5601/5602
-# need no override.
+# container's interface as well. pm-log-srv already binds 0.0.0.0, and
+# pm-monitor binds EDUMATCHER_GATEWAY_BIND_HOST (0.0.0.0 in compose.yaml), so
+# 5601/5602 and 5611 need no override.
 #
 # BIND_ADDR still governs how far this reaches: 127.0.0.1 keeps the bus on this
 # machine. These sockets have no authentication whatsoever — anything that can
@@ -27,3 +28,4 @@ services:
       - "${BIND_ADDR:-127.0.0.1}:5559:5559"   # pm-index   — index commands (PULL)
       - "${BIND_ADDR:-127.0.0.1}:5601:5601"   # pm-log-srv — LALF-PS broadcast (PUB)
       - "${BIND_ADDR:-127.0.0.1}:5602:5602"   # pm-log-srv — LALF-PS control (PULL)
+      - "${BIND_ADDR:-127.0.0.1}:5611:5611"   # pm-monitor — health snapshots + events (PUB)

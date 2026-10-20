@@ -34,6 +34,7 @@ The current parser recognizes these top-level keys:
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
 | `dc_gateway`               |                         No | `pm-dc-gwy`                     | Drop-copy TCP relay gateway settings                                      |
 | `log_server`               |                         No | `pm-log-srv`                    | Centralized LALF log-collector settings                                   |
+| `monitor`                  |                         No | `pm-monitor`, every beaconing process | Health beacons and the health collector                             |
 | `api_gateways`             |                         No | `pm-api-gwy`                | Named REST/WebSocket order-entry and market-data gateway process settings |
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
@@ -61,6 +62,7 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
 | `pm-dc-gwy` | `dc_gateway/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
 | `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector, plus the LALF-PS ZeroMQ log-distribution ports and subscription limits |
+| `pm-monitor` | `monitor/config.py` | `monitor`, `locale.session_timezone`, `log_server.db_path` | Bind address and ports, health-judgement timings, retention and thresholds; the session timezone that defines "today"; the log database whose size it reports. Every beaconing process also reads `monitor` (`enabled`, `host`, `pull_port`, `beacon_interval_sec`) to know where and how often to send |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
 | `pm-scheduler` | `scheduler/main.py` | `schedule`, `locale.country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
@@ -590,6 +592,61 @@ If you prefer to generate this block instead of writing it by hand,
 options" in
 [Generate Configs with pm-config-gen](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen)
 above.
+
+
+## Configuring `pm-monitor`
+
+`pm-monitor` and every process that sends a health beacon read an optional
+top-level `monitor` block. An absent block means every default below, with
+monitoring on. See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md) for the
+operational guide.
+
+```yaml
+monitor:
+  enabled: true
+  bind_address: 127.0.0.1
+  host: 127.0.0.1
+  pull_port: 5610
+  pub_port: 5611
+  beacon_interval_sec: 2
+  hung_after_sec: 5
+  silent_after_beacons: 3
+  book_metrics_interval_sec: 10
+  retention:
+    raw_hours: 6
+    minute_days: 7
+  thresholds:
+    host_cpu_pct:         {warn: 80,   crit: 95}
+    host_mem_pct:         {warn: 80,   crit: 92}
+    disk_free_pct:        {warn: 15,   crit: 5}
+    engine_handle_p99_us: {warn: 2000, crit: 10000}
+    reject_pct_5m:        {warn: 10,   crit: 30}
+    rss_growth_pct_1h:    {warn: 50,   crit: 100}
+    heap_garbage_pct:     {warn: 50,   crit: 80}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `true` | Master switch. When `false` no process sends beacons and `pm-monitor` idles until stopped |
+| `bind_address` | `127.0.0.1` | Interface `pm-monitor` binds. Stored as written; `EDUMATCHER_GATEWAY_BIND_HOST` overrides it where `pm-monitor` runs |
+| `host` | `127.0.0.1` | Where every process sends its beacons and where `pm-monitor-cli` and the dashboard connect; must reach `bind_address` |
+| `pull_port` | `5610` | Beacons in (PULL) |
+| `pub_port` | `5611` | `health.snapshot` and `health.event` out (PUB) |
+| `beacon_interval_sec` | `2` | How often each process reports |
+| `hung_after_sec` | `5` | Main-loop age above which a process is HUNG; must be greater than `beacon_interval_sec` |
+| `silent_after_beacons` | `3` | Missed beacons before a process is SILENT (process alive) or DEAD |
+| `book_metrics_interval_sec` | `10` | How often the engine recomputes its per-book figures and memory estimates |
+| `retention.raw_hours` | `6` | Hours of 10-second samples in `metrics.db` |
+| `retention.minute_days` | `7` | Days of 1-minute buckets, events and counter state; daily totals are kept for good |
+| `thresholds.<rule>.warn` / `.crit` | as above | Breach levels. `warn` must be below `crit`, except `disk_free_pct`, where a lower value is worse. A rule left out keeps its default |
+
+`pm-cverifier` checks the shape (`S124`–`S131`), the cross-field rules
+(`M029` band order, `M030` `hung_after_sec` above the interval, `M031` `host`
+reaching `bind_address`) and the two ports against every other listener
+(`M018`, counted even when the block is absent). `pm-config-gen` writes the
+block with `--monitor` and the `--monitor-*` options — see "Monitor options"
+in
+[Generate Configs with pm-config-gen](../../operator-guide/part-2-configure/010-the-configuration-workflow.md#generate-configs-with-pm-config-gen).
 
 
 ## Engine Behavior Flags

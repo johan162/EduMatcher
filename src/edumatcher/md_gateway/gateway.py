@@ -19,6 +19,9 @@ import time
 from collections import defaultdict
 from typing import Any
 
+from edumatcher.health import HealthReporter
+from edumatcher.health.samples import client_gateway_samples
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.md_gateway.client_session import ClientSession
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.md_gateway.fanout import SubscriptionRegistry
@@ -97,6 +100,13 @@ class MarketDataGateway:
         self._server: socket.socket | None = None
         self._clients: dict[int, ClientSession] = {}
 
+        # Health beacon (operator dashboard §8.5); attached by main(). This
+        # gateway never drops a message for a slow client -- it disconnects
+        # it -- so disconnects by reason are its back-pressure signal (F6).
+        self._reporter: HealthReporter | None = None
+        self._msgs_out = 0
+        self._disconnects: dict[str, int] = {}
+
         self._subs = SubscriptionRegistry()
         self._normaliser = EngineNormaliser(depth_levels=config.depth_levels)
         self._sequencer = SequenceAllocator()
@@ -165,8 +175,11 @@ class MarketDataGateway:
             self.config.index_pub_addr,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_engine_events()
@@ -181,7 +194,23 @@ class MarketDataGateway:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this gateway's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: clients, messages out, disconnects by reason."""
+        return client_gateway_samples(
+            "md",
+            clients=len(self._clients),
+            clients_max=self.config.max_connections,
+            msgs_out=self._msgs_out,
+            disconnects=self._disconnects,
+        )
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         self._flush_debug_summary(force=True)
         log.info("closing market data gateway")
         for session in list(self._clients.values()):
@@ -1015,6 +1044,7 @@ class MarketDataGateway:
                 session.closing = True
             return
         session.out_queue.append(payload)
+        self._msgs_out += 1
         if is_market_data:
             session.last_market_data_sent = time.monotonic()
 
@@ -1031,6 +1061,7 @@ class MarketDataGateway:
         return True
 
     def _disconnect(self, session: ClientSession, reason: str = "unspecified") -> None:
+        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fd = session.sock.fileno()
         client_id = session.client_id or "-"
         try:

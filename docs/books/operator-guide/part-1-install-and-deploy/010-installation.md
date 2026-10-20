@@ -26,14 +26,14 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 
 | Mode | Best for | Needs on your machine | What you get | Command style |
 |---|---|---|---|---|
-| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all five web GUIs | `./edumatcher.sh start` |
+| **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all six web GUIs | `./edumatcher.sh start` |
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
 | **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
 | **pipx** | Students running processes by hand, one per terminal | Python 3.13, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
 | **Poetry checkout** | Developing, running the test suite | Python 3.13, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
-the five browser applications — with one command. The pipx and Poetry modes
+the six browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare `pm-*` command. In Poetry mode, prefix
 those commands with `poetry run`.
@@ -75,7 +75,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 
 Then open <http://localhost:8090>.
 
-That starts a complete exchange plus five web applications, from images built
+That starts a complete exchange plus six web applications, from images built
 and published by the project. Nothing is compiled on your machine: no Python,
 no Node, no checkout. The only requirement is Podman or Docker.
 
@@ -86,6 +86,7 @@ no Node, no checkout. The only requirement is Podman or Docker.
 | Configuration GUI (`config-gui`) | <http://localhost:8092> | Author an `engine_config.yaml` in the browser |
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | Submit and manage orders as a trading participant |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | One symbol's full order book, session statistics and trade tape — the browser companion to `pm-viewer` |
+| Operator Dashboard (`pm-dash`) | <http://localhost:8095> | The health of every process, trading activity, participants, books and gateways, live and over time — see [Operator Dashboard](../part-6-observe-and-recover/070-operator-dashboard.md) |
 | REST API docs | <http://localhost:8080/docs> | Swagger UI for the `desk` API gateway |
 
 ### What the installer does
@@ -145,13 +146,15 @@ into this file.
 | `EM_PROFILE` | `mm-demo` | Which processes start: `mm-demo` (the full stack plus a slow, passive market-maker bot quoting as `MM01`), `ai-swarm` (`mm-demo` with its market maker quoting around the market model's values, plus the model and twenty AI traders), `default`, `mini` or `micro`. See [Processes, Environment and Ports](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md) |
 | `TZ` | `Europe/Stockholm` | Container timezone. Set it to match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See the warning below |
-| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
-| `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
+| `EM_ZMQ` | `0` | `1` also publishes the raw ZeroMQ bus (5555-5559, 5601/5602, and `pm-monitor`'s 5611) and tells the engine and `pm-index` to bind the container interface, so tools on your machine can attach. The equivalent of `make up ZMQ=1` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
 | `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
+| `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
+| `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 
 Two settings have their own commands, because editing them by hand is easy to
 get half-right — `EM_CONFIG` and `EM_CONFIG_FILE` must agree, and `EM_VERSION`
@@ -205,7 +208,7 @@ cd ~/.edumatcher
 !!! note "Picking up a new web application"
     `update` pulls new images for the files you already have; it does not
     re-download `compose.yaml`. When a release adds an application — the order
-    book viewer on port 8094 arrived this way — re-run the one-line installer
+    book viewer on port 8094 and the operator dashboard on 8095 arrived this way — re-run the one-line installer
     instead. It keeps your `.env` and `data/`, and fetches the release's
     `compose.yaml` and `edumatcher.sh`.
 
@@ -253,7 +256,7 @@ as a whole system. It builds the same six images from your working tree.
 git clone https://github.com/johan162/EduMatcher.git
 cd EduMatcher/deployment/docker
 make build          # builds a wheel from the checkout, then the image
-make up-all         # exchange + terminal-, log-, trader- and book-gui
+make up-all         # exchange + terminal-, log-, trader-, book- and dash-gui
 ```
 
 `make help` lists every target. The two that matter are `up` (the exchange
@@ -319,13 +322,15 @@ plain `make up-all` afterwards goes back to whatever `.env` says.
 | `EM_PROFILE` | `default` | Process profile to start |
 | `TZ` | `Europe/Stockholm` | Container timezone — match the trading calendar in your configuration |
 | `BIND_ADDR` | `127.0.0.1` | Which host interface the published ports listen on. See below |
-| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv` and `pm-api-gwy`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
+| `EDUMATCHER_GATEWAY_BIND_HOST` | `0.0.0.0` | Bind host for the service-layer listeners *inside* the container — the four protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor`. It is what makes them reachable from the GUI containers, and it wins over any `bind_address:` in the deployed configuration. Not a host-exposure setting; that is `BIND_ADDR` |
 | `SSH_PORT` | `2222` | Host port forwarded to `sshd` |
 | `TERMINAL_GUI_PORT` | `8090` | Host port for TapeDeck (`pm-terminal`) |
 | `LOG_GUI_PORT` | `8091` | Host port for the Log Operator Console (`pm-log-ui`) |
 | `CONFIG_GUI_PORT` | `8092` | Host port for the configuration builder |
 | `TRADER_GUI_PORT` | `8093` | Host port for the trader GUI |
 | `BOOK_GUI_PORT` | `8094` | Host port for the order book viewer |
+| `DASH_GUI_PORT` | `8095` | Host port for the operator dashboard (`pm-dash`) |
+| `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 
@@ -397,20 +402,23 @@ flowchart LR
         CFG["config-gui\n:8092"]
         TRD["trader-gui\n:8093"]
         BOOK["book-gui\n:8094"]
+        DASH["dash-gui\n:8095"]
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER -->|"published 8090-8094\nvia BIND_ADDR"| TERM
+    BROWSER -->|"published 8090-8095\nvia BIND_ADDR"| TERM
     BROWSER --> LOG
     BROWSER --> CFG
     BROWSER --> TRD
     BROWSER --> BOOK
+    BROWSER --> DASH
     CLIENT -->|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM -->|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG -->|"edumatcher:5601 / :5602 log stream"| BE
     TRD -->|"edumatcher:8080 REST + WebSocket"| BE
     BOOK -->|"edumatcher:8081 market-data WebSocket\n+ history"| BE
+    DASH -->|"edumatcher:5611 health snapshots"| BE
 ```
 
 Two things follow, and both are easy to get wrong:
@@ -614,8 +622,8 @@ disk, not inside a container: it survives stop, start, rebuild and update.
 | `deployment/docker/config/` | `make up-all CONFIG=<file>` | As above, for the source-built stack |
 | `deployment/docker/.wheel/` | `make build` | The locally built wheel the image installs from |
 | `deployment/docker/.ssh/` | `make keys` | `authorized_keys` assembled from your `~/.ssh/*.pub`, for `SSH=1` |
-| `/backend-data` (in log-gui) | the `./data:/backend-data:ro` mount | Where the Log Operator Console reads `log.db` — read-only by construction, so it can never write the log server's database |
-| `log-gui-acks`, `terminal-gui-logs`, `book-gui-logs` | Compose named volumes | Log acknowledgements; the terminal's and the order book viewer's failover logs |
+| `/backend-data` (in log-gui and dash-gui) | the `./data:/backend-data:ro` mount | Where the Log Operator Console reads `log.db`, and the operator dashboard `metrics.db` and the deployed configuration — read-only by construction, so neither can write the exchange's files |
+| `log-gui-acks`, `terminal-gui-logs`, `book-gui-logs`, `dash-gui-logs` | Compose named volumes | Log acknowledgements; the terminal's, the order book viewer's and the dashboard's failover logs |
 
 
 ## VM bootstrap — a ready-to-run Multipass VM

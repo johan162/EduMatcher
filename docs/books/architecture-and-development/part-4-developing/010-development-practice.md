@@ -478,7 +478,7 @@ different questions.
 Run these continuously while developing:
 
 ```bash
-poetry run pytest -n auto tests/ -m "not perf"
+poetry run pytest -n logical tests/ -m "not perf"
 ```
 
 or via the master Makefile

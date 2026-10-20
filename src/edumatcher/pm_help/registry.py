@@ -395,6 +395,38 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         ),
     ),
     CommandInfo(
+        name="pm-monitor",
+        category="Core Runtime",
+        title="Health Collector",
+        summary="Judges every pm-* process from its health beacon and publishes the exchange's health.",
+        synopsis=(
+            "pm-monitor [-v|-vv] [--log-level LEVEL] [--log-target server|stdout|file]",
+        ),
+        description=(
+            "Every long-running pm-* process pushes a health beacon every 2 s: memory, "
+            "CPU, how long ago its main loop last ran, and its counters. pm-monitor "
+            "judges each process (HEALTHY, DEGRADED, HUNG, SILENT, DEAD, MISSING, "
+            "STOPPED) and the exchange (OPERATIONAL, DEGRADED, IMPAIRED, DOWN), turns "
+            "counters into rates, evaluates thresholds, keeps history in metrics.db, "
+            "and publishes health.snapshot (1 Hz) and health.event.",
+            "All settings come from the monitor section of the deployed config; there "
+            "are no other flags. Started by every built-in pm-opctl-cli profile except "
+            "micro, between pm-log-srv and pm-engine.",
+        ),
+        has_common_log_options=True,
+        ports="Binds ZMQ 5610 (PULL, beacons in) and 5611 (PUB, snapshots/events); connects to 5556",
+        messages=("health.beacon", "health.snapshot", "health.event"),
+        related=("pm-monitor-cli", "pm-opctl-cli", "pm-log-srv"),
+        doc_anchor="pm-monitor-health-collector",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/060-health-monitor.md",
+        notes=(
+            "With monitor.enabled: false it idles until stopped (exit 0) instead of "
+            "exiting, so a profile's restart loop does not restart it every minute.",
+            "Exits 1 when another pm-monitor already writes metrics.db, or when "
+            "metrics.db was recorded under another session timezone.",
+        ),
+    ),
+    CommandInfo(
         name="pm-clearing",
         category="Core Runtime",
         title="Clearing & P&L",
@@ -1547,6 +1579,64 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
         ),
         notes=(
             "--after CURSOR pages through results using the cursor from a previous call's last row.",
+        ),
+    ),
+    CommandInfo(
+        name="pm-monitor-cli",
+        category="Query & Reporting CLIs",
+        title="Health Query CLI",
+        summary="Read-only health, exchange status and event log from pm-monitor.",
+        synopsis=(
+            "pm-monitor-cli [--host HOST] [--port 5611] [--db PATH] [--format table|json]",
+            "               [--timeout SEC] COMMAND [options]",
+        ),
+        description=(
+            "Subscribes to pm-monitor's snapshot port for the live view and reads "
+            "metrics.db for the event log; never writes either.",
+        ),
+        options=(
+            Option("--host HOST", "monitor.host", "Where pm-monitor publishes"),
+            Option("--port PORT", "monitor.pub_port (5611)", "pm-monitor's PUB port"),
+            Option(
+                "--db PATH",
+                "data/metrics.db",
+                "metrics.db for events and health --extended",
+            ),
+            Option("--format table|json", "table", "Output format"),
+            Option("--timeout SEC", "3", "Seconds to wait for a snapshot"),
+        ),
+        subcommands=(
+            Subcommand(
+                "health",
+                purpose=(
+                    "pm-monitor publishing snapshots; --extended checks metrics.db "
+                    "integrity, schema, timezone and write access; -q exits 0/255"
+                ),
+            ),
+            Subcommand(
+                "status",
+                purpose=(
+                    "Exchange status, every process, active breaches; exit 0 "
+                    "OPERATIONAL, 1 DEGRADED, 3 IMPAIRED, 4 DOWN, 5 unreachable"
+                ),
+            ),
+            Subcommand(
+                "events",
+                purpose="Event log from metrics.db; --follow adds live events",
+            ),
+        ),
+        related=("pm-monitor", "pm-opctl-cli", "pm-log-cli"),
+        doc_anchor="pm-monitor-cli-health-query-cli",
+        doc_page="../../../docs/books/operator-guide/part-6-observe-and-recover/060-health-monitor.md",
+        examples=(
+            "pm-monitor-cli status",
+            "pm-monitor-cli health --extended -v",
+            "pm-monitor-cli events --kind DISCONNECT --follow",
+            "pm-monitor-cli --format json status",
+        ),
+        notes=(
+            "The monitor entry of every built-in pm-opctl-cli profile uses "
+            "'pm-monitor-cli health -q' as its healthcheck.",
         ),
     ),
 )

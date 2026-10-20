@@ -69,3 +69,11 @@ def test_indices_shape_is_a_valid_list_of_index_entries() -> None:
         assert str(entry.get("id", "")).isalnum(), entry
         assert entry.get("description"), entry
         assert entry.get("constituents"), entry
+
+
+def test_the_monitor_shape_is_exactly_the_loader_defaults() -> None:
+    """The example documents the defaults, so it must resolve to them."""
+    from edumatcher.monitor.config import MonitorConfig, monitor_config_from_raw
+
+    raw = yaml.safe_load(_shape("monitor"))
+    assert monitor_config_from_raw(raw) == MonitorConfig()

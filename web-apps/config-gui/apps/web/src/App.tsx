@@ -13,6 +13,7 @@ import { IndicesTab } from "@/tabs/IndicesTab";
 import { CombosTab } from "@/tabs/CombosTab";
 import { GatewaysTab } from "@/tabs/GatewaysTab";
 import { EngineTuningTab } from "@/tabs/EngineTuningTab";
+import { MonitorTab } from "@/tabs/MonitorTab";
 import { ReviewTab } from "@/tabs/ReviewTab";
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/indices" element={<IndicesTab />} />
           <Route path="/combos" element={<CombosTab />} />
           <Route path="/gateways" element={<GatewaysTab />} />
+          <Route path="/monitor" element={<MonitorTab />} />
           <Route path="/engine-tuning" element={<EngineTuningTab />} />
           <Route path="/review" element={<ReviewTab />} />
           <Route path="*" element={<Navigate to="/basics" replace />} />

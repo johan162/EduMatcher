@@ -61,6 +61,27 @@ export type DuplicateSessionPolicy =
   (typeof DUPLICATE_SESSION_POLICIES)[number];
 
 export const API_LOG_LEVELS = ["debug", "info", "warning", "error"] as const;
+
+/**
+ * The `monitor.thresholds` rules, in the order pm-monitor documents them.
+ * MAINTENANCE: mirrors `MonitorThresholds` in src/edumatcher/monitor/config.py
+ * (pinned by tests/test_config_gui_mirrors.py).
+ */
+export const MONITOR_THRESHOLD_RULES = [
+  "host_cpu_pct",
+  "host_mem_pct",
+  "disk_free_pct",
+  "engine_handle_p99_us",
+  "reject_pct_5m",
+  "rss_growth_pct_1h",
+  "heap_garbage_pct",
+] as const;
+export type MonitorThresholdRule = (typeof MONITOR_THRESHOLD_RULES)[number];
+
+/** Rules where a *low* value is bad, so warn sits above crit. */
+export const INVERTED_THRESHOLD_RULES: ReadonlySet<MonitorThresholdRule> = new Set([
+  "disk_free_pct",
+]);
 export type ApiLogLevel = (typeof API_LOG_LEVELS)[number];
 
 export const POST_TRADE_ROLES = ["CLEARING", "DROP_COPY", "AUDIT"] as const;
@@ -433,6 +454,51 @@ export interface LogServerConfig {
   /** Per-subscription stream buffer cap before oldest rows are shed. */
   maxPendingRows: number;
   pubSndhwm: number;
+
+  /** `log_server.client`, read by every other process. */
+  client: LogClientDraft;
+}
+
+/**
+ * `log_server.client` — read by every pm-* process (not by pm-log-srv) to
+ * configure its connection to the log server. Written only when a field
+ * differs from its default.
+ */
+export interface LogClientDraft {
+  connectTimeoutSec: number;
+  /** Seconds a process keeps retrying before switching to a local log file. */
+  failoverTimeoutSec: number;
+  failoverDir: string;
+}
+
+/** One `monitor.thresholds` band. */
+export interface ThresholdBandDraft {
+  warn: number;
+  crit: number;
+}
+
+/**
+ * The `monitor` block: health beacons (every process) and pm-monitor. See
+ * docs/books/operator-guide/part-6-observe-and-recover/060-health-monitor.md.
+ */
+export interface MonitorConfigDraft {
+  /** Whether the section is written; when off every process uses the defaults. */
+  include: boolean;
+  /** The block's own `enabled` key: false = no beacons, pm-monitor idles. */
+  enabled: boolean;
+  /** Interface pm-monitor binds (EDUMATCHER_GATEWAY_BIND_HOST overrides it). */
+  bindAddress: string;
+  /** Where every process sends its beacons; must reach bindAddress. */
+  host: string;
+  pullPort: number;
+  pubPort: number;
+  beaconIntervalSec: number;
+  hungAfterSec: number;
+  silentAfterBeacons: number;
+  bookMetricsIntervalSec: number;
+  rawHours: number;
+  minuteDays: number;
+  thresholds: Record<MonitorThresholdRule, ThresholdBandDraft>;
 }
 
 export interface ApiCredential {
@@ -452,6 +518,15 @@ export interface ApiGatewayConfig {
   statsDb: string;
   /** Undefined = key omitted; pm-api-gwy resolves its default audit_index.db. */
   auditDb?: string;
+  /** Undefined = key omitted (default data/clearing.db, read by /history). */
+  clearingDb?: string;
+  /** Undefined = key omitted (default 60 s market-data cache). */
+  marketDataCacheSec?: number;
+  /** Bus addresses; undefined = key omitted (the local engine/index defaults). */
+  enginePullAddr?: string;
+  enginePubAddr?: string;
+  indexPullAddr?: string;
+  indexPubAddr?: string;
   credentials: ApiCredential[];
   rateLimitWritesPerSecond: number;
   rateLimitBurst: number;
@@ -479,6 +554,14 @@ export interface EngineConfigDraft {
    * "Sweden" -- see DEFAULT_COUNTRY in defaults.ts.
    */
   country: string;
+  /**
+   * `locale.session_timezone`: the IANA zone every process that buckets
+   * events into a trading day uses. Written only when it differs from
+   * DEFAULT_SESSION_TIMEZONE.
+   */
+  sessionTimezone: string;
+  /** Seconds between indicative-price broadcasts during auctions. */
+  auctionIndicativeIntervalSec: number;
   emitSchedule: boolean;
   snapshotIntervalSec: number;
   quoteHistoryMaxlen: number;
@@ -546,6 +629,8 @@ export interface EngineConfigDraft {
   dcGateway: DcGatewayConfig;
   logServer: LogServerConfig;
   apiGateways: ApiGatewayConfig[];
+  /** `monitor`: health beacons and pm-monitor. */
+  monitor: MonitorConfigDraft;
 
   output: {
     filename: string;

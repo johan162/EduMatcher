@@ -32,6 +32,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from edumatcher.health import HealthReporter, counter, gauge
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.log_srv.config import LogServerConfig
 from edumatcher.log_srv.schema import (
     DELETE_OLD_LOG_EVENTS,
@@ -76,6 +78,9 @@ class LogServer:
         self._running = False
         self._server: socket.socket | None = None
         self._clients: dict[int, LogSession] = {}
+        # Health beacon (operator dashboard §8.5); attached by main().
+        self._reporter: HealthReporter | None = None
+        self._events_in = 0
 
         self._conn = open_db(Path(config.db_path))
         self._conn.execute(UPSERT_SERVER_STATS_INIT, (iso_utc(time.time()),))
@@ -184,8 +189,11 @@ class LogServer:
             self.config.retention_days,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
                 self._send_heartbeats_if_due()
@@ -202,7 +210,28 @@ class LogServer:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: ingest, sessions, writer backlog, LALF-PS leases."""
+        return [
+            counter("log.events_in", self._events_in),
+            gauge(
+                "log.sessions",
+                sum(1 for s in self._clients.values() if s.authenticated),
+            ),
+            gauge("log.writer_queue", self._writer.pending),
+            gauge(
+                "log.ps_subscriptions",
+                self._pubsub.subscriber_count if self._pubsub is not None else 0,
+            ),
+        ]
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         self._flush_debug_summary(force=True)
         log.info("closing pm-log-srv")
         for session in list(self._clients.values()):
@@ -534,6 +563,7 @@ class LogServer:
             message=message,
         )
         self._writer.enqueue(row)
+        self._events_in += 1
         self._dbg_count("log_events_enqueued")
 
     def _register_process(self, session: LogSession) -> None:

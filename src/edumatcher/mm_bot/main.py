@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from edumatcher.health import HealthReporter
 from edumatcher.config_artifact import ArtifactError, load_compiled_config
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -587,6 +588,11 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as exc:
         log.error("failed to create mm_bot runtime: %s", exc)
         raise SystemExit(1)
+    # No --instance: the emo roster expects the program by name (B2), so a
+    # second bot on one host shows as the newer one (I48).
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        bot.attach_reporter(reporter)
     try:
         rc = bot.run()
         log.info("pm-mm-bot exiting with code %s", rc)
@@ -595,3 +601,6 @@ def main(argv: list[str] | None = None) -> None:
         log.info("keyboard interrupt received; shutting down mm_bot")
         bot.shutdown()
         raise SystemExit(0)
+    finally:
+        if reporter is not None:
+            reporter.stop()

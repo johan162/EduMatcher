@@ -204,7 +204,18 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "LEGAL": "a legal matter",
         "MANAGEMENT": "management",
         "MACRO": "the economy",
+        # health.event
+        "CONNECT": "a connect",
+        "AUTH_REJECT": "a rejected logon",
+        "DISCONNECT": "a disconnect",
+        "DIAGNOSTIC": "an engine diagnostic",
+        "SESSION": "a session transition",
+        "HALT": "a halt",
+        "RESUME": "a resume",
+        "PROCESS_STATUS": "a process health change",
+        "THRESHOLD": "a threshold breach or clear",
     },
+    "severity": {"INFO": "informational", "WARN": "a warning", "CRIT": "critical"},
     "scope": {"SYMBOL": "a symbol", "SECTOR": "a sector", "MARKET": "the whole market"},
     # Each gloss carries its own verb: "failed to restore" and "was restored"
     # cannot share one, and a template that tried would have to branch.

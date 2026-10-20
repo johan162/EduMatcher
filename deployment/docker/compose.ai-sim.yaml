@@ -1,5 +1,5 @@
 # EduMatcher AI-trader simulation: an exchange that trades itself, plus the
-# four web GUIs to watch it. Self-contained — no other compose file, no .env
+# five web GUIs to watch it. Self-contained — no other compose file, no .env
 # and no build needed: every image is pulled from GHCR.
 #
 #   docker compose -f compose.ai-sim.yaml up -d      # or: make up-sim
@@ -45,7 +45,8 @@ services:
       TZ: ${TZ:-Europe/Stockholm}
       EDUMATCHER_GATEWAY_BIND_HOST: 0.0.0.0
     volumes:
-      - ./data-sim:/data
+      # :z relabels it for SELinux (an enforcing host refuses every write otherwise).
+      - ./data-sim:/data:z
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
       - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
@@ -117,8 +118,39 @@ services:
       ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
     volumes:
       # The exchange's data directory, read-only: the viewer reads log.db.
-      - ./data-sim:/backend-data:ro
+      - ./data-sim:/backend-data:ro,z
       - log-gui-acks:/app/ack-data
+
+  dash-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-dash-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-sim-dash-gui
+    depends_on: [edumatcher]
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8095"
+      CORS_ORIGIN: "*"
+      # pm-monitor's snapshot feed, over the compose network (not published).
+      MONITOR_HOST: "edumatcher"
+      MONITOR_PUB_PORT: "5611"
+      METRICS_DB_PATH: "/backend-data/metrics.db"
+      # monitor.thresholds for the bands; without it the bridge shows
+      # pm-monitor's default bands.
+      CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
+      # The drawers' links, as the browser reaches log-gui and book-gui.
+      LOG_GUI_URL: "${LOG_GUI_URL:-http://localhost:${LOG_GUI_PORT:-8091}}"
+      BOOK_GUI_URL: "${BOOK_GUI_URL:-http://localhost:${BOOK_GUI_PORT:-8094}}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      # The exchange's data directory, read-only: metrics.db and the
+      # deployed configuration.
+      - ./data-sim:/backend-data:ro,z
+      - dash-gui-logs:/app/logs
 
   trader-gui:
     image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-trader-gui:${EM_VERSION:-latest}
@@ -137,3 +169,4 @@ volumes:
   log-gui-acks:
   terminal-gui-logs:
   book-gui-logs:
+  dash-gui-logs:

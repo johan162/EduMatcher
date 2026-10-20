@@ -1,4 +1,6 @@
 import type { MonitorEvent, MonitorEventKind, WsEnvelope } from "@/types/index.js";
+import { formatPrice } from "@/lib/formatters.js";
+import { useSymbolStore } from "@/store/useSymbolStore.js";
 
 /** Order statuses that mean the order is done (mirrors the gateway cache). */
 const TERMINAL = new Set(["FILLED", "CANCELLED", "EXPIRED", "REJECTED"]);
@@ -12,6 +14,12 @@ function str(v: unknown): string | null {
 }
 function numOrDash(v: unknown): string {
   return typeof v === "number" ? String(v) : "—";
+}
+/** A price at its symbol's decimals: a fill's VWAP is not on the tick grid. */
+function priceOrDash(v: unknown, symbol: string | null): string {
+  if (typeof v !== "number") return "—";
+  const decimals = (symbol ? useSymbolStore.getState().get(symbol)?.tick_decimals : undefined) ?? 2;
+  return formatPrice(v, decimals);
 }
 
 /** The classification of one admin-monitor envelope for the log/orders view. */
@@ -45,7 +53,7 @@ export function classifyMonitorEnvelope(env: WsEnvelope<unknown>): MonitorClassi
       const detail = accepted
         ? [str(d.side), numOrDash(d.qty ?? d.quantity), symbol]
             .filter((p) => p && p !== "—")
-            .join(" ") + (typeof d.price === "number" ? ` @ ${d.price}` : "")
+            .join(" ") + (typeof d.price === "number" ? ` @ ${priceOrDash(d.price, symbol)}` : "")
         : [rejectCode, reason].filter(Boolean).join(" — ") || "rejected";
       return {
         kind: accepted ? "ACK" : "REJECT",
@@ -58,7 +66,7 @@ export function classifyMonitorEnvelope(env: WsEnvelope<unknown>): MonitorClassi
     }
     case "order.fill": {
       const detail =
-        `${numOrDash(d.fill_qty)} @ ${numOrDash(d.fill_price)}` +
+        `${numOrDash(d.fill_qty)} @ ${priceOrDash(d.fill_price, str(d.symbol))}` +
         (typeof d.remaining_qty === "number" ? ` · ${d.remaining_qty} left` : "");
       return {
         kind: "FILL",
@@ -71,7 +79,7 @@ export function classifyMonitorEnvelope(env: WsEnvelope<unknown>): MonitorClassi
     }
     case "order.amended": {
       const parts: string[] = [];
-      if (typeof d.price === "number") parts.push(`price ${d.price}`);
+      if (typeof d.price === "number") parts.push(`price ${priceOrDash(d.price, str(d.symbol))}`);
       if (typeof d.qty === "number") parts.push(`qty ${d.qty}`);
       if (d.priority_reset) parts.push("priority reset");
       return {

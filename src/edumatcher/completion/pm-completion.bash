@@ -2995,7 +2995,7 @@ complete -F _shtab_pm_config_deploy pm-config-deploy
 
 
 
-_shtab_pm_config_gen_option_strings=(-h --help --version --symbols --participants --participant-smp --participant-default-smp --participant-default-disconnect --symbol-opts --symbol-static-band --symbol-dynamic-band --symbol-max-order-qty --symbol-max-order-value --symbol-risk-level --outstanding-shares --sessions-enabled --no-sessions-enabled --snapshot-interval --quote-history-maxlen --drop-copy-buffer-size --recent-trades-maxlen --depth-snapshot-tolerance-ticks --no-collars --no-circuit-breakers --static-band --dynamic-band --risk-level --cb-levels --cb-window-ns --no-ace --ace-initial-band --ace-expansions --ace-random-end-ns --ace-random-seed --mm-spread-ticks --mm-seed-spread-ticks --mm-min-qty --enforce-mm-obligations --no-enforce-mm-obligations --tick-decimals --seed-last-prices --seed --seed-mm-mid-range --seed-last-prices-from-mm --no-mm-seed-quotes --post-trade-gateway --post-trade-name --post-trade-bind-address --post-trade-port --post-trade-replay-retention-sec --post-trade-heartbeat-interval-sec --post-trade-idle-timeout-sec --post-trade-max-client-queue --post-trade-allowed-roles --market-data-gateway --market-data-enabled --market-data-disabled --market-data-name --market-data-bind-address --market-data-port --market-data-heartbeat-interval-sec --market-data-idle-timeout-sec --market-data-replay-window-sec --market-data-max-symbols-per-client --market-data-max-client-queue --market-data-depth-levels --api-gateway --api-gateway-name --api-gateway-instance --api-gateway-enabled --api-gateway-disabled --api-gateway-host --api-gateway-port --api-gateway-swagger-enabled --api-gateway-swagger-disabled --api-gateway-log-level --api-gateway-stats-db --api-key --api-gateway-generate-keys --no-api-gateway-generate-keys --api-gateway-readonly-key --api-gateway-rate-limit-writes-per-second --api-gateway-rate-limit-burst --api-gateway-engine-auth-sec --api-gateway-engine-reply-sec --api-gateway-wait-ack-sec --api-gateway-order-retention-sec --alf-gateway --alf-enabled --alf-disabled --alf-name --alf-bind-address --alf-port --alf-heartbeat-interval-sec --alf-handshake-timeout-sec --alf-idle-timeout-sec --alf-max-connections --alf-max-client-queue --alf-max-commands-per-second --alf-max-errors-before-disconnect --alf-error-window-sec --balf-gateway --balf-name --balf-bind-address --balf-port --balf-heartbeat-interval-sec --balf-heartbeat-timeout-sec --balf-idle-timeout-sec --balf-auth-timeout-sec --balf-max-connections --balf-max-client-queue --balf-max-messages-per-second --balf-max-errors-before-disconnect --balf-error-window-sec --balf-duplicate-session-policy --dc-gateway --dc-name --dc-bind-address --dc-port --dc-heartbeat-interval-sec --dc-idle-timeout-sec --dc-max-client-queue --log-server --log-server-enabled --log-server-disabled --log-server-name --log-server-bind-address --log-server-port --log-server-db-path --log-server-retention-days --log-server-max-message-bytes --log-server-max-client-queue --log-server-write-batch-size --log-server-write-batch-interval-ms --log-server-heartbeat-interval-sec --log-server-pubsub-enabled --log-server-pubsub-disabled --log-server-pub-port --log-server-pull-port --log-server-lease-sec --log-server-max-lease-sec --log-server-max-subscribers --log-server-notify-interval-ms --log-server-backfill-chunk-rows --log-server-max-backfill-minutes --log-server-max-backfill-rows --log-server-max-pending-rows --log-server-pub-sndhwm --schedule --no-schedule --pre-open --opening-auction --continuous --closing-auction --closing-end --weekend --weekend-pre-open --weekend-opening-auction --weekend-continuous --weekend-closing-auction --weekend-closing-end --holidays --no-holidays --holidays-pre-open --holidays-opening-auction --holidays-continuous --holidays-closing-auction --holidays-closing-end --country --session-timezone --index --index-constituents --index-base-value --index-interval --index-history-file --index-state-file --combo --output --force --dry-run --comment-default-config-fields)
+_shtab_pm_config_gen_option_strings=(-h --help --version --symbols --participants --participant-smp --participant-default-smp --participant-default-disconnect --symbol-opts --symbol-static-band --symbol-dynamic-band --symbol-max-order-qty --symbol-max-order-value --symbol-risk-level --outstanding-shares --sessions-enabled --no-sessions-enabled --snapshot-interval --quote-history-maxlen --drop-copy-buffer-size --recent-trades-maxlen --depth-snapshot-tolerance-ticks --no-collars --no-circuit-breakers --static-band --dynamic-band --risk-level --cb-levels --cb-window-ns --no-ace --ace-initial-band --ace-expansions --ace-random-end-ns --ace-random-seed --mm-spread-ticks --mm-seed-spread-ticks --mm-min-qty --enforce-mm-obligations --no-enforce-mm-obligations --tick-decimals --seed-last-prices --seed --seed-mm-mid-range --seed-last-prices-from-mm --no-mm-seed-quotes --post-trade-gateway --post-trade-name --post-trade-bind-address --post-trade-port --post-trade-replay-retention-sec --post-trade-heartbeat-interval-sec --post-trade-idle-timeout-sec --post-trade-max-client-queue --post-trade-allowed-roles --market-data-gateway --market-data-enabled --market-data-disabled --market-data-name --market-data-bind-address --market-data-port --market-data-heartbeat-interval-sec --market-data-idle-timeout-sec --market-data-replay-window-sec --market-data-max-symbols-per-client --market-data-max-client-queue --market-data-depth-levels --api-gateway --api-gateway-name --api-gateway-instance --api-gateway-enabled --api-gateway-disabled --api-gateway-host --api-gateway-port --api-gateway-swagger-enabled --api-gateway-swagger-disabled --api-gateway-log-level --api-gateway-stats-db --api-key --api-gateway-generate-keys --no-api-gateway-generate-keys --api-gateway-readonly-key --api-gateway-rate-limit-writes-per-second --api-gateway-rate-limit-burst --api-gateway-engine-auth-sec --api-gateway-engine-reply-sec --api-gateway-wait-ack-sec --api-gateway-order-retention-sec --alf-gateway --alf-enabled --alf-disabled --alf-name --alf-bind-address --alf-port --alf-heartbeat-interval-sec --alf-handshake-timeout-sec --alf-idle-timeout-sec --alf-max-connections --alf-max-client-queue --alf-max-commands-per-second --alf-max-errors-before-disconnect --alf-error-window-sec --balf-gateway --balf-name --balf-bind-address --balf-port --balf-heartbeat-interval-sec --balf-heartbeat-timeout-sec --balf-idle-timeout-sec --balf-auth-timeout-sec --balf-max-connections --balf-max-client-queue --balf-max-messages-per-second --balf-max-errors-before-disconnect --balf-error-window-sec --balf-duplicate-session-policy --dc-gateway --dc-name --dc-bind-address --dc-port --dc-heartbeat-interval-sec --dc-idle-timeout-sec --dc-max-client-queue --log-server --log-server-enabled --log-server-disabled --log-server-name --log-server-bind-address --log-server-port --log-server-db-path --log-server-retention-days --log-server-max-message-bytes --log-server-max-client-queue --log-server-write-batch-size --log-server-write-batch-interval-ms --log-server-heartbeat-interval-sec --log-server-pubsub-enabled --log-server-pubsub-disabled --log-server-pub-port --log-server-pull-port --log-server-lease-sec --log-server-max-lease-sec --log-server-max-subscribers --log-server-notify-interval-ms --log-server-backfill-chunk-rows --log-server-max-backfill-minutes --log-server-max-backfill-rows --log-server-max-pending-rows --log-server-pub-sndhwm --monitor --monitor-enabled --monitor-disabled --monitor-bind-address --monitor-host --monitor-pull-port --monitor-pub-port --monitor-beacon-interval-sec --monitor-hung-after-sec --monitor-silent-after-beacons --monitor-book-metrics-interval-sec --monitor-raw-hours --monitor-minute-days --monitor-threshold --schedule --no-schedule --pre-open --opening-auction --continuous --closing-auction --closing-end --weekend --weekend-pre-open --weekend-opening-auction --weekend-continuous --weekend-closing-auction --weekend-closing-end --holidays --no-holidays --holidays-pre-open --holidays-opening-auction --holidays-continuous --holidays-closing-auction --holidays-closing-end --country --session-timezone --index --index-constituents --index-base-value --index-interval --index-history-file --index-state-file --combo --output --force --dry-run --comment-default-config-fields)
 
 
 
@@ -3044,6 +3044,9 @@ _shtab_pm_config_gen___log_server_enabled_nargs=0
 _shtab_pm_config_gen___log_server_disabled_nargs=0
 _shtab_pm_config_gen___log_server_pubsub_enabled_nargs=0
 _shtab_pm_config_gen___log_server_pubsub_disabled_nargs=0
+_shtab_pm_config_gen___monitor_nargs=0
+_shtab_pm_config_gen___monitor_enabled_nargs=0
+_shtab_pm_config_gen___monitor_disabled_nargs=0
 _shtab_pm_config_gen___schedule_nargs=0
 _shtab_pm_config_gen___no_schedule_nargs=0
 _shtab_pm_config_gen___weekend_nargs=0
@@ -5972,6 +5975,359 @@ _shtab_pm_mm_bot() {
 }
 
 complete -F _shtab_pm_mm_bot pm-mm-bot
+# AUTOMATICALLY GENERATED by https://github.com/tqdm/shtab
+# Usage:
+# 1) Copy this to somewhere (e.g. ~/.local/share/bash_completion/pm-monitor).
+# 2) Add the following line to your .bashrc:
+#    source ~/.local/share/bash_completion/pm-monitor
+# See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
+
+
+
+_shtab_pm_monitor_option_strings=(-h --help --version --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+
+
+
+_shtab_pm_monitor___log_level_choices=(CRITICAL ERROR WARNING INFO DEBUG)
+_shtab_pm_monitor___log_target_choices=(server stdout file)
+
+_shtab_pm_monitor__h_nargs=0
+_shtab_pm_monitor___help_nargs=0
+_shtab_pm_monitor___version_nargs=0
+_shtab_pm_monitor__v_nargs=0
+_shtab_pm_monitor___verbose_nargs=0
+_shtab_pm_monitor__q_nargs=0
+_shtab_pm_monitor___quiet_nargs=0
+
+
+# $1=COMP_WORDS[1]
+_shtab_compgen_files() {
+  compgen -f -- $1  # files
+}
+
+# $1=COMP_WORDS[1]
+_shtab_compgen_dirs() {
+  compgen -d -- $1  # recurse into subdirs
+}
+
+# $1=COMP_WORDS[1]
+_shtab_replace_nonword() {
+  echo "${1//[^[:word:]]/_}"
+}
+
+# set default values (called for the initial parser & any subparsers)
+_set_parser_defaults() {
+  local subparsers_var="${prefix}_subparsers[@]"
+  sub_parsers=${!subparsers_var-}
+
+  local current_option_strings_var="${prefix}_option_strings[@]"
+  current_option_strings=${!current_option_strings_var}
+
+  completed_positional_actions=0
+
+  _set_new_action "pos_$completed_positional_actions" true
+}
+
+# $1=action identifier
+# $2=positional action (bool)
+# set all identifiers for an action's parameters
+_set_new_action() {
+  current_action="${prefix}_$(_shtab_replace_nonword $1)"
+
+  local current_action_compgen_var=${current_action}_COMPGEN
+  current_action_compgen="${!current_action_compgen_var-}"
+
+  local current_action_choices_var="${current_action}_choices[@]"
+  current_action_choices="${!current_action_choices_var-}"
+
+  local current_action_nargs_var="${current_action}_nargs"
+  if [ -n "${!current_action_nargs_var-}" ]; then
+    current_action_nargs="${!current_action_nargs_var}"
+  else
+    current_action_nargs=1
+  fi
+
+  current_action_args_start_index=$(( $word_index + 1 - $pos_only ))
+
+  current_action_is_positional=$2
+}
+
+# Notes:
+# `COMPREPLY`: what will be rendered after completion is triggered
+# `completing_word`: currently typed word to generate completions for
+# `${!var}`: evaluates the content of `var` and expand its content as a variable
+#     hello="world"
+#     x="hello"
+#     ${!x} -> ${hello} -> "world"
+_shtab_pm_monitor() {
+  local completing_word="${COMP_WORDS[COMP_CWORD]}"
+  local previous_word="${COMP_WORDS[COMP_CWORD-1]}"
+  local completed_positional_actions
+  local current_action
+  local current_action_args_start_index
+  local current_action_choices
+  local current_action_compgen
+  local current_action_is_positional
+  local current_action_nargs
+  local current_option_strings
+  local sub_parsers
+  COMPREPLY=()
+
+  local prefix=_shtab_pm_monitor
+  local word_index=0
+  local pos_only=0 # "--" delimiter not encountered yet
+  _set_parser_defaults
+  word_index=1
+
+  # determine what arguments are appropriate for the current state
+  # of the arg parser
+  while [ $word_index -ne $COMP_CWORD ]; do
+    local this_word="${COMP_WORDS[$word_index]}"
+
+    if [[ $pos_only = 1 || " $this_word " != " -- " ]]; then
+      if [[ -n $sub_parsers && " ${sub_parsers[@]} " == *" $this_word "* ]]; then
+        # valid subcommand: add it to the prefix & reset the current action
+        prefix="${prefix}_$(_shtab_replace_nonword $this_word)"
+        _set_parser_defaults
+      fi
+
+      if [[ " ${current_option_strings[@]} " == *" $this_word "* ]]; then
+        # a new action should be acquired (due to recognised option string or
+        # no more input expected from current action);
+        # the next positional action can fill in here
+        _set_new_action $this_word false
+      fi
+
+      if [[ "$current_action_nargs" != "*" ]] && \
+         [[ "$current_action_nargs" != "+" ]] && \
+         [[ "$current_action_nargs" != "?" ]] && \
+         [[ "$current_action_nargs" != *"..." ]] && \
+         (( $word_index + 1 - $current_action_args_start_index - $pos_only >= \
+            $current_action_nargs )); then
+        $current_action_is_positional && let "completed_positional_actions += 1"
+        _set_new_action "pos_$completed_positional_actions" true
+      fi
+    else
+      pos_only=1 # "--" delimiter encountered
+    fi
+
+    let "word_index+=1"
+  done
+
+  # Generate the completions
+
+  COMPREPLY=()
+  if [[ $pos_only = 0 && "$completing_word" == -* &&
+        ( -z "$current_action_compgen" || "$current_action_is_positional" = true ) ]]; then
+    # optional argument started: use option strings
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+      compgen -W "${current_option_strings[*]}" -- "$completing_word")
+  elif [[ "$previous_word" =~ ^[0-9\&]*[\<\>]\>?$ ]]; then
+    # handle redirection operators
+    compopt -o filenames 2>/dev/null || : # bash>=4
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$completing_word")
+  else
+    # use choices & compgen
+    local action_compgen_word="$completing_word"
+    # handle tab-completing in the middle of a line (#248 <- #116)
+    [[ -n "$current_action_compgen" && "$completing_word" == -* ]] && action_compgen_word=""
+    [ -n "$current_action_compgen" ] && {
+      [[ "$current_action_compgen" =~ _(file|dir|glob|FILE|DIR|GLOB)|File|Dir|Glob ]] &&
+        compopt -o filenames 2>/dev/null || : # bash>=4
+      while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+        "$current_action_compgen" "$action_compgen_word")
+    }
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+      compgen -W "${current_action_choices[*]}" -- "$completing_word")
+  fi
+
+  return 0
+}
+
+complete -F _shtab_pm_monitor pm-monitor
+# AUTOMATICALLY GENERATED by https://github.com/tqdm/shtab
+# Usage:
+# 1) Copy this to somewhere (e.g. ~/.local/share/bash_completion/pm-monitor-cli).
+# 2) Add the following line to your .bashrc:
+#    source ~/.local/share/bash_completion/pm-monitor-cli
+# See also: https://github.com/scop/bash-completion/blob/main/doc/configuration.md
+
+_shtab_pm_monitor_cli_subparsers=(health status events)
+
+_shtab_pm_monitor_cli_health_option_strings=(-h --help -q --quiet --extended -v --verbose)
+_shtab_pm_monitor_cli_status_option_strings=(-h --help)
+_shtab_pm_monitor_cli_events_option_strings=(-h --help --since --kind --subject --limit --follow --count)
+_shtab_pm_monitor_cli_option_strings=(-h --help --version --host --port --db --format --timeout)
+
+
+
+_shtab_pm_monitor_cli_events___kind_choices=(CONNECT AUTH_REJECT DISCONNECT DIAGNOSTIC SESSION HALT RESUME PROCESS_STATUS THRESHOLD)
+_shtab_pm_monitor_cli_pos_0_choices=(health status events)
+_shtab_pm_monitor_cli___format_choices=(table json)
+
+_shtab_pm_monitor_cli_health__h_nargs=0
+_shtab_pm_monitor_cli_health___help_nargs=0
+_shtab_pm_monitor_cli_health__q_nargs=0
+_shtab_pm_monitor_cli_health___quiet_nargs=0
+_shtab_pm_monitor_cli_health___extended_nargs=0
+_shtab_pm_monitor_cli_health__v_nargs=0
+_shtab_pm_monitor_cli_health___verbose_nargs=0
+_shtab_pm_monitor_cli_status__h_nargs=0
+_shtab_pm_monitor_cli_status___help_nargs=0
+_shtab_pm_monitor_cli_events__h_nargs=0
+_shtab_pm_monitor_cli_events___help_nargs=0
+_shtab_pm_monitor_cli_events___follow_nargs=0
+_shtab_pm_monitor_cli_pos_0_nargs=A...
+_shtab_pm_monitor_cli__h_nargs=0
+_shtab_pm_monitor_cli___help_nargs=0
+_shtab_pm_monitor_cli___version_nargs=0
+
+
+# $1=COMP_WORDS[1]
+_shtab_compgen_files() {
+  compgen -f -- $1  # files
+}
+
+# $1=COMP_WORDS[1]
+_shtab_compgen_dirs() {
+  compgen -d -- $1  # recurse into subdirs
+}
+
+# $1=COMP_WORDS[1]
+_shtab_replace_nonword() {
+  echo "${1//[^[:word:]]/_}"
+}
+
+# set default values (called for the initial parser & any subparsers)
+_set_parser_defaults() {
+  local subparsers_var="${prefix}_subparsers[@]"
+  sub_parsers=${!subparsers_var-}
+
+  local current_option_strings_var="${prefix}_option_strings[@]"
+  current_option_strings=${!current_option_strings_var}
+
+  completed_positional_actions=0
+
+  _set_new_action "pos_$completed_positional_actions" true
+}
+
+# $1=action identifier
+# $2=positional action (bool)
+# set all identifiers for an action's parameters
+_set_new_action() {
+  current_action="${prefix}_$(_shtab_replace_nonword $1)"
+
+  local current_action_compgen_var=${current_action}_COMPGEN
+  current_action_compgen="${!current_action_compgen_var-}"
+
+  local current_action_choices_var="${current_action}_choices[@]"
+  current_action_choices="${!current_action_choices_var-}"
+
+  local current_action_nargs_var="${current_action}_nargs"
+  if [ -n "${!current_action_nargs_var-}" ]; then
+    current_action_nargs="${!current_action_nargs_var}"
+  else
+    current_action_nargs=1
+  fi
+
+  current_action_args_start_index=$(( $word_index + 1 - $pos_only ))
+
+  current_action_is_positional=$2
+}
+
+# Notes:
+# `COMPREPLY`: what will be rendered after completion is triggered
+# `completing_word`: currently typed word to generate completions for
+# `${!var}`: evaluates the content of `var` and expand its content as a variable
+#     hello="world"
+#     x="hello"
+#     ${!x} -> ${hello} -> "world"
+_shtab_pm_monitor_cli() {
+  local completing_word="${COMP_WORDS[COMP_CWORD]}"
+  local previous_word="${COMP_WORDS[COMP_CWORD-1]}"
+  local completed_positional_actions
+  local current_action
+  local current_action_args_start_index
+  local current_action_choices
+  local current_action_compgen
+  local current_action_is_positional
+  local current_action_nargs
+  local current_option_strings
+  local sub_parsers
+  COMPREPLY=()
+
+  local prefix=_shtab_pm_monitor_cli
+  local word_index=0
+  local pos_only=0 # "--" delimiter not encountered yet
+  _set_parser_defaults
+  word_index=1
+
+  # determine what arguments are appropriate for the current state
+  # of the arg parser
+  while [ $word_index -ne $COMP_CWORD ]; do
+    local this_word="${COMP_WORDS[$word_index]}"
+
+    if [[ $pos_only = 1 || " $this_word " != " -- " ]]; then
+      if [[ -n $sub_parsers && " ${sub_parsers[@]} " == *" $this_word "* ]]; then
+        # valid subcommand: add it to the prefix & reset the current action
+        prefix="${prefix}_$(_shtab_replace_nonword $this_word)"
+        _set_parser_defaults
+      fi
+
+      if [[ " ${current_option_strings[@]} " == *" $this_word "* ]]; then
+        # a new action should be acquired (due to recognised option string or
+        # no more input expected from current action);
+        # the next positional action can fill in here
+        _set_new_action $this_word false
+      fi
+
+      if [[ "$current_action_nargs" != "*" ]] && \
+         [[ "$current_action_nargs" != "+" ]] && \
+         [[ "$current_action_nargs" != "?" ]] && \
+         [[ "$current_action_nargs" != *"..." ]] && \
+         (( $word_index + 1 - $current_action_args_start_index - $pos_only >= \
+            $current_action_nargs )); then
+        $current_action_is_positional && let "completed_positional_actions += 1"
+        _set_new_action "pos_$completed_positional_actions" true
+      fi
+    else
+      pos_only=1 # "--" delimiter encountered
+    fi
+
+    let "word_index+=1"
+  done
+
+  # Generate the completions
+
+  COMPREPLY=()
+  if [[ $pos_only = 0 && "$completing_word" == -* &&
+        ( -z "$current_action_compgen" || "$current_action_is_positional" = true ) ]]; then
+    # optional argument started: use option strings
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+      compgen -W "${current_option_strings[*]}" -- "$completing_word")
+  elif [[ "$previous_word" =~ ^[0-9\&]*[\<\>]\>?$ ]]; then
+    # handle redirection operators
+    compopt -o filenames 2>/dev/null || : # bash>=4
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(compgen -f -- "$completing_word")
+  else
+    # use choices & compgen
+    local action_compgen_word="$completing_word"
+    # handle tab-completing in the middle of a line (#248 <- #116)
+    [[ -n "$current_action_compgen" && "$completing_word" == -* ]] && action_compgen_word=""
+    [ -n "$current_action_compgen" ] && {
+      [[ "$current_action_compgen" =~ _(file|dir|glob|FILE|DIR|GLOB)|File|Dir|Glob ]] &&
+        compopt -o filenames 2>/dev/null || : # bash>=4
+      while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+        "$current_action_compgen" "$action_compgen_word")
+    }
+    while IFS= read -r line; do COMPREPLY+=("$line"); done < <(
+      compgen -W "${current_action_choices[*]}" -- "$completing_word")
+  fi
+
+  return 0
+}
+
+complete -F _shtab_pm_monitor_cli pm-monitor-cli
 # AUTOMATICALLY GENERATED by https://github.com/tqdm/shtab
 # Usage:
 # 1) Copy this to somewhere (e.g. ~/.local/share/bash_completion/pm-msgen).

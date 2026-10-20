@@ -411,6 +411,34 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # monitor
+    lines.extend(
+        [
+            "monitor:",
+            "  enabled: true",
+            "  bind_address: 127.0.0.1",
+            "  host: 127.0.0.1",
+            "  pull_port: 5610",
+            "  pub_port: 5611",
+            "  beacon_interval_sec: 2",
+            "  hung_after_sec: 5",
+            "  silent_after_beacons: 3",
+            "  book_metrics_interval_sec: 10",
+            "  retention:",
+            "    raw_hours: 6",
+            "    minute_days: 7",
+            "  thresholds:",
+            "    host_cpu_pct: {warn: 80, crit: 95}",
+            "    host_mem_pct: {warn: 80, crit: 92}",
+            "    disk_free_pct: {warn: 15, crit: 5}",
+            "    engine_handle_p99_us: {warn: 2000, crit: 10000}",
+            "    reject_pct_5m: {warn: 10, crit: 30}",
+            "    rss_growth_pct_1h: {warn: 50, crit: 100}",
+            "    heap_garbage_pct: {warn: 50, crit: 80}",
+            "",
+        ]
+    )
+
     # indices
     lines.extend(
         [
@@ -972,6 +1000,42 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  permanently for that process, to a local log file. Must be >= 0.",
             "client.failover_dir: data/logs",
             "  Directory for the local failover log files.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "monitor entries",
+            "" + "-" * 15,
+            "enabled: true",
+            "  Master switch for health monitoring. When false no process sends health",
+            "  beacons and pm-monitor idles until stopped. Absent block = defaults, enabled.",
+            "bind_address: 127.0.0.1",
+            "  Interface pm-monitor binds; EDUMATCHER_GATEWAY_BIND_HOST overrides it at start-up.",
+            "host: 127.0.0.1",
+            "  Where every process sends its beacons, and where the dashboard bridge connects.",
+            "  Must reach bind_address: the same address, or bind a wildcard (M031).",
+            "pull_port: 5610",
+            "  ZeroMQ PULL port receiving every process's health.beacon.",
+            "pub_port: 5611",
+            "  ZeroMQ PUB port carrying health.snapshot (1 Hz) and health.event.",
+            "beacon_interval_sec: 2",
+            "  How often each process reports its memory, CPU, loop age and counters.",
+            "hung_after_sec: 5",
+            "  A process whose main loop has not completed an iteration for this long is HUNG.",
+            "  Must be greater than beacon_interval_sec (M030).",
+            "silent_after_beacons: 3",
+            "  Missed beacons before a process is SILENT (PID alive) or DEAD (PID gone).",
+            "book_metrics_interval_sec: 10",
+            "  How often the engine recomputes per-book gauges and memory estimates.",
+            "retention:",
+            "  How long metrics.db keeps raw (10 s) samples (raw_hours) and 1-minute",
+            "  buckets and events (minute_days). Daily totals are kept indefinitely.",
+            "thresholds:",
+            "  warn/crit levels per rule; a breach is logged at WARNING/ERROR and shown on the",
+            "  dashboard. warn must be below crit, except disk_free_pct where it is above (M029).",
+            "  Any rule may be omitted to keep its default.",
             "",
         ]
     )

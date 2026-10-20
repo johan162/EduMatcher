@@ -17,6 +17,8 @@ export function TopBar() {
   const persona = useDraftStore((s) => s.persona);
   const setPersona = useDraftStore((s) => s.setPersona);
   const theme = useDraftStore((s) => s.theme);
+  const commentDefaults = useDraftStore((s) => s.draft.output.commentDefaultFields);
+  const update = useDraftStore((s) => s.update);
   const toggleTheme = useDraftStore((s) => s.toggleTheme);
   const replaceDraft = useDraftStore((s) => s.replaceDraft);
   const newDraft = useDraftStore((s) => s.newDraft);
@@ -68,6 +70,24 @@ export function TopBar() {
           onValueChange={(v) => setPersona(v as Persona)}
           options={PERSONAS.map((p) => ({ value: p, label: PERSONA_LABELS[p] }))}
         />
+
+        {/* Same field as the Review tab's switch, so the two always agree. */}
+        <label
+          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-sm hover:bg-muted"
+          title="Add a commented-out header listing every optional section and field at its default value, ready to uncomment (pm-config-gen --comment-default-config-fields)."
+        >
+          <input
+            type="checkbox"
+            aria-label="Comment defaults"
+            checked={commentDefaults}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              update((d) => (d.output.commentDefaultFields = checked));
+            }}
+            className="accent-accent"
+          />
+          Comment defaults
+        </label>
 
         <input
           ref={fileRef}

@@ -69,7 +69,7 @@ poetry install --with dev,docs
 poetry install --with dev,docs,mcp
 
 # full test suite (matches CI closely)
-poetry run pytest tests/ -n auto --cov=src/edumatcher --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=85
+poetry run pytest tests/ -n logical --cov=src/edumatcher --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=85
 
 # formatting, linting, and type-checking
 poetry run black --check src tests

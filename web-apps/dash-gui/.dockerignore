@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+data
+logs
+*.log
+.git
+.DS_Store
+backend-data
+.timestamps

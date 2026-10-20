@@ -381,7 +381,7 @@ print_sub_step "Detected version: ${VERSION}"
 run_command "sed -i.bak -E 's/^  version *= *\{.*\}/  version = {'\"$VERSION\"'}/' README.md" "Updating version in README.md"
 
 # Write the version shown in each GUI's top bar (src/version.json is committed so dev/CI work without a build)
-for app in trader terminal log config book; do
+for app in trader terminal log config book dash; do
     run_command "printf '{ \"version\": \"%s\" }\n' \"$VERSION\" > web-apps/${app}-gui/apps/web/src/version.json" "Writing version.json for ${app} GUI"
 done
 
@@ -469,7 +469,7 @@ fi
 
 print_sub_step "Running pytest with coverage"
 # Step 3.2: Run tests with coverage
-run_command "poetry run pytest -n auto tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
+run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
 
 # Step 3.3: Update coverage badge in README
 if [ "$CI_MODE" = false ] && [ "$DRY_RUN" = false ]; then

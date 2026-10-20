@@ -34,12 +34,12 @@ import {
   type Tif,
   type WeeklyScheduleDraft,
   DEFAULT_SCHEDULE,
+  MONITOR_THRESHOLD_RULES,
 } from "@edumatcher/schema";
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "sessions_enabled",
   "require_mm_seed_quotes",
-  "country",
   "enforce_collars",
   "enforce_circuit_breakers",
   "engine_tuning",
@@ -59,6 +59,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "market_maker_combos",
   "indices",
   "schedule",
+  "locale",
+  "monitor",
+  "auction_indicative_interval_sec",
 ]);
 
 type Dict = Record<string, unknown>;
@@ -121,7 +124,9 @@ export function parseYamlToDraft(text: string): ImportResult {
     mmMaxSpreadTicks: ENGINE_DEFAULT_MM_MAX_SPREAD_TICKS,
     mmMinQty: DEFAULT_MM_MIN_QTY,
   };
-  draft.country = asString(raw.country) ?? draft.country;
+  parseLocale(raw, draft);
+  draft.auctionIndicativeIntervalSec =
+    asNumber(raw.auction_indicative_interval_sec) ?? draft.auctionIndicativeIntervalSec;
   draft.enforceCollars = asBool(raw.enforce_collars, draft.enforceCollars);
   draft.enforceCircuitBreakers = asBool(
     raw.enforce_circuit_breakers,
@@ -153,6 +158,7 @@ export function parseYamlToDraft(text: string): ImportResult {
   parseIndices(raw.indices, draft);
   parseCombos(raw.market_maker_combos, draft);
   parseSchedule(raw.schedule, draft);
+  parseMonitor(raw.monitor, draft);
 
   for (const [key, value] of Object.entries(raw)) {
     if (!KNOWN_TOP_LEVEL_KEYS.has(key)) {
@@ -162,6 +168,42 @@ export function parseYamlToDraft(text: string): ImportResult {
   }
 
   return { draft, unmapped };
+}
+
+/** `locale.country` / `locale.session_timezone`. */
+function parseLocale(raw: Dict, draft: EngineConfigDraft): void {
+  const locale = isDict(raw.locale) ? raw.locale : {};
+  draft.country = asString(locale.country) ?? draft.country;
+  draft.sessionTimezone = asString(locale.session_timezone) ?? draft.sessionTimezone;
+}
+
+/** The `monitor` block over its defaults; absent keys keep MonitorConfig's. */
+function parseMonitor(node: unknown, draft: EngineConfigDraft): void {
+  if (!isDict(node)) return;
+  const m = draft.monitor;
+  m.include = true;
+  m.enabled = asBool(node.enabled, m.enabled);
+  m.bindAddress = asString(node.bind_address) ?? m.bindAddress;
+  m.host = asString(node.host) ?? m.host;
+  m.pullPort = asNumber(node.pull_port) ?? m.pullPort;
+  m.pubPort = asNumber(node.pub_port) ?? m.pubPort;
+  m.beaconIntervalSec = asNumber(node.beacon_interval_sec) ?? m.beaconIntervalSec;
+  m.hungAfterSec = asNumber(node.hung_after_sec) ?? m.hungAfterSec;
+  m.silentAfterBeacons = asNumber(node.silent_after_beacons) ?? m.silentAfterBeacons;
+  m.bookMetricsIntervalSec =
+    asNumber(node.book_metrics_interval_sec) ?? m.bookMetricsIntervalSec;
+  const retention = isDict(node.retention) ? node.retention : {};
+  m.rawHours = asNumber(retention.raw_hours) ?? m.rawHours;
+  m.minuteDays = asNumber(retention.minute_days) ?? m.minuteDays;
+  const thresholds = isDict(node.thresholds) ? node.thresholds : {};
+  for (const rule of MONITOR_THRESHOLD_RULES) {
+    const band = thresholds[rule];
+    if (!isDict(band)) continue;
+    m.thresholds[rule] = {
+      warn: asNumber(band.warn) ?? m.thresholds[rule].warn,
+      crit: asNumber(band.crit) ?? m.thresholds[rule].crit,
+    };
+  }
 }
 
 function parseGatewayDefault(node: unknown, draft: EngineConfigDraft): void {
@@ -622,6 +664,13 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.maxBackfillRows = asNumber(ls.max_backfill_rows) ?? g.maxBackfillRows;
     g.maxPendingRows = asNumber(ls.max_pending_rows) ?? g.maxPendingRows;
     g.pubSndhwm = asNumber(ls.pub_sndhwm) ?? g.pubSndhwm;
+
+    const client = isDict(ls.client) ? ls.client : {};
+    g.client = {
+      connectTimeoutSec: asNumber(client.connect_timeout_sec) ?? g.client.connectTimeoutSec,
+      failoverTimeoutSec: asNumber(client.failover_timeout_sec) ?? g.client.failoverTimeoutSec,
+      failoverDir: asString(client.failover_dir) ?? g.client.failoverDir,
+    };
   }
 }
 
@@ -640,6 +689,14 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
         }))
       : [];
     const auditDb = asString(value.audit_db);
+    const optional = {
+      clearingDb: asString(value.clearing_db),
+      marketDataCacheSec: asNumber(value.market_data_cache_sec),
+      enginePullAddr: asString(value.engine_pull_addr),
+      enginePubAddr: asString(value.engine_pub_addr),
+      indexPullAddr: asString(value.index_pull_addr),
+      indexPubAddr: asString(value.index_pub_addr),
+    };
     gateways.push({
       name,
       enabled: asBool(value.enabled, true),
@@ -650,6 +707,9 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
         (asString(value.log_level) as ApiGatewayConfig["logLevel"]) ?? "info",
       statsDb: asString(value.stats_db) ?? "data/stats.db",
       ...(auditDb !== undefined ? { auditDb } : {}),
+      ...Object.fromEntries(
+        Object.entries(optional).filter(([, v]) => v !== undefined),
+      ),
       // ?? not ||: an explicit 0 must survive, it means "never evict".
       orderRetentionSec: asNumber(value.order_retention_sec) ?? 3600,
       credentials,

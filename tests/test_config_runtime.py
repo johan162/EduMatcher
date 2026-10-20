@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import sys
 import types
+from contextlib import ExitStack
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+
+import edumatcher.config
 
 
 def _reload_config(
@@ -24,15 +28,16 @@ def _reload_config(
     the same worker process, including ones that deleted their tmp_path
     already. Under pytest-xdist that produced an intermittent failure in
     test_stats_and_orders.py depending on test interleaving. Restore the
-    original module object on teardown so this reload is local to the test.
+    original module object in both sys.modules and the parent package on
+    teardown so later imports and previously imported functions use the same
+    module.
     """
-    original = sys.modules.get("edumatcher.config")
+    original = sys.modules["edumatcher.config"]
+    original_package_config = edumatcher.config
 
     def _restore() -> None:
-        if original is not None:
-            sys.modules["edumatcher.config"] = original
-        else:
-            sys.modules.pop("edumatcher.config", None)
+        sys.modules["edumatcher.config"] = original
+        edumatcher.config = original_package_config
 
     request.addfinalizer(_restore)
 
@@ -45,6 +50,27 @@ def _reload_config(
     import edumatcher.config as cfg  # noqa: PLC0415
 
     return cfg
+
+
+@pytest.mark.parametrize("reload_count", [1, 2])
+def test_config_reload_restores_module_identity(
+    monkeypatch: pytest.MonkeyPatch, reload_count: int
+) -> None:
+    original = sys.modules["edumatcher.config"]
+    with monkeypatch.context() as patch, ExitStack() as finalizers:
+        request = Mock(spec=pytest.FixtureRequest)
+        request.addfinalizer.side_effect = finalizers.callback
+        for _ in range(reload_count):
+            reloaded = _reload_config(patch, {}, request)
+            assert reloaded is not original
+            assert edumatcher.config is reloaded
+            assert sys.modules["edumatcher.config"] is reloaded
+
+    assert sys.modules["edumatcher.config"] is original
+    assert edumatcher.config is original
+    import edumatcher.config as cfg
+
+    assert cfg is original
 
 
 class TestDataDirResolution:

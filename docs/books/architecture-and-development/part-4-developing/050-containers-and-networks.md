@@ -29,7 +29,8 @@ Compose project**:
 | `edumatcher-config-gui` | `web-apps/config-gui/` | Configuration GUI (`config-gui`), port 8092 |
 | `edumatcher-trader-gui` | `web-apps/trader-gui/` | Trading GUI (`pm-trading-ui`), port 8093 |
 | `edumatcher-book-gui` | `web-apps/book-gui/` | Order Book Viewer (`pm-book`), port 8094 |
-| `edumatcher-ai-sim` | `deployment/docker/`, stage `ai-sim` | The `edumatcher` image with the AI-trader simulation's defaults (`s300-sim`, profile `ai-sim`); run by `compose.ai-sim.yaml` with four of the GUIs, in a compose project of its own ([The Simulation Container](../../ai-traders/part-3-run-it/110-the-simulation-container.md)) |
+| `edumatcher-dash-gui` | `web-apps/dash-gui/` | Operator Dashboard (`pm-dash`), port 8095 |
+| `edumatcher-ai-sim` | `deployment/docker/`, stage `ai-sim` | The `edumatcher` image with the AI-trader simulation's defaults (`s300-sim`, profile `ai-sim`); run by `compose.ai-sim.yaml` with five of the GUIs, in a compose project of its own ([The Simulation Container](../../ai-traders/part-3-run-it/110-the-simulation-container.md)) |
 
 The backend is one container by design — the engine's ZeroMQ bus binds
 loopback by default, so every `pm-*` process must share a network namespace,
@@ -42,7 +43,7 @@ There are two deployments of that same set:
 flowchart LR
     subgraph repo["This repository"]
         BE["deployment/docker/\nDockerfile + entrypoint.sh"]
-        WA["web-apps/*/Dockerfile\nfour Node apps"]
+        WA["web-apps/*/Dockerfile\nsix Node apps"]
     end
 
     subgraph dev["deployment/docker/ — built from source"]
@@ -86,8 +87,9 @@ flowchart TD
     C3["web-apps/trader-gui/Makefile"]
     C4["web-apps/config-gui/Makefile"]
     C5["web-apps/book-gui/Makefile"]
+    C6["web-apps/dash-gui/Makefile"]
 
-    A -->|"compose build/up across\nall six contexts"| IMGS["six images"]
+    A -->|"compose build/up across\nall seven contexts"| IMGS["seven images"]
     B -->|"make -C, one per app"| C1
     B --> C2
     B --> C3
@@ -96,6 +98,7 @@ flowchart TD
     C3 --> IMGS
     C4 --> IMGS
     C5 --> IMGS
+    C6 --> IMGS
 
     A -.->|"never calls"| B
 ```
@@ -188,13 +191,13 @@ flowchart TB
         BR["Browser, curl,\nprotocol clients"]
     end
     subgraph L2["2. Published ports — controlled by BIND_ADDR"]
-        P["127.0.0.1:8090-8094\n127.0.0.1:5560-5600, 8080-8081"]
+        P["127.0.0.1:8090-8095\n127.0.0.1:5560-5600, 8080-8081"]
     end
     subgraph L3["3. The Compose network — one per project"]
-        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui"]
+        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui, dash-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
-        GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
+        GW["Service layer — gateways, pm-log-srv, pm-api-gwy, pm-monitor\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
         BUS["Core plane — engine 5555-5557, index 5558-5559\ndefault 127.0.0.1 · EDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
     end
 
@@ -218,7 +221,7 @@ port does not already expose.
 
 ### Why the GUIs need no host address at all
 
-All five services belong to one Compose project, so Compose puts them on one
+All the services belong to one Compose project, so Compose puts them on one
 network and registers the backend under the service name, the container name
 *and* the hostname — all three resolve to the same address:
 
@@ -242,12 +245,19 @@ asymmetry between them is deliberate rather than historical.
 
 | | Core plane | Service layer |
 |---|---|---|
-| Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy` |
-| Ports | 5555–5559 | 5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081 |
+| Processes | `pm-engine`, `pm-index` | `pm-alf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-ralf-gwy`, `pm-dc-gwy`, `pm-log-srv`, `pm-api-gwy`, `pm-monitor` |
+| Ports | 5555–5559 | 5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 5610/5611, 8080/8081 |
 | Who dials in | Other `pm-*` processes only | GUI containers, student clients, `curl`, Swagger |
 | Default bind host | `127.0.0.1` | `0.0.0.0` |
 | Constant | `EDUMATCHER_ENGINE_BIND_HOST`, `EDUMATCHER_INDEX_BIND_HOST` | `EDUMATCHER_GATEWAY_BIND_HOST` |
 | Opened by | `ZMQ=1` / `EM_ZMQ=1` | already open |
+
+`pm-monitor` is the one service-layer process whose own default is
+`127.0.0.1` (`monitor.bind_address`): every process that sends it a beacon
+runs in the same namespace. The compose file's
+`EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` still opens it to the Compose network,
+which is how the operator dashboard reaches its snapshot port 5611. Its ports
+are `EXPOSE`d by the image but published by no compose file.
 
 The core plane is an internal bus. Every peer shares the backend's namespace,
 so loopback is both sufficient and the safer default; `ZMQ=1` widens it when
@@ -491,7 +501,7 @@ Points a developer needs to know:
 
 **Each image is built twice, natively.** A single-runner build with
 `platforms: linux/amd64,linux/arm64` would emulate the foreign architecture
-under QEMU — four Node images each running `npm ci` and a Vite build, which
+under QEMU — six Node images each running `npm ci` and a Vite build, which
 turns a release into hours. Instead each `(image, arch)` pair builds on its own
 native runner and pushes **by digest only**; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
@@ -499,7 +509,7 @@ generally available and free for public repositories.
 
 **The merge job selects digests by exact image prefix.** Each build job uploads
 its digest as an artifact named `digests-<image>-<arch>`, and the merge job
-collects them with a glob. `edumatcher` is a prefix of all five
+collects them with a glob. `edumatcher` is a prefix of all six
 `edumatcher-*-gui` names, so that glob over-matches: the backend's merge job
 receives every image's digests. It therefore filters the downloaded files —
 each is named `<image>@<hex>` — by exact prefix, and asserts it ended up with
@@ -655,8 +665,8 @@ They still drive `make cdist` and per-app `cpush`. If that divergence starts
 causing confusion, the fix is to stop versioning the apps independently rather
 than to reintroduce per-app tags into the release.
 
-**Build minutes grow linearly with images.** Fourteen build jobs today; one
-more image makes it sixteen. The GitHub Actions cache is scoped per
+**Build minutes grow linearly with images.** Sixteen build jobs today; one
+more image makes it eighteen. The GitHub Actions cache is scoped per
 `(image, arch)`, so an unchanged app is cheap, but the matrix is not free.
 
 **The credential-lookup snippet is the fragile one.** It reads a specific shape
@@ -724,6 +734,7 @@ podman exec edumatcher pm-config-show --section ports
 curl -s localhost:8090/api/bridge/status   # calf, logging
 curl -s localhost:8091/api/bridge/status   # lalfPs, logDb
 curl -s localhost:8094/api/bridge/status   # upstream, logging
+curl -s localhost:8095/api/bridge/status   # pm-monitor, metricsDb, links
 
 # 6. Which ports are actually published
 podman port edumatcher
@@ -792,7 +803,8 @@ the variables by hand.
 **No cross-host health signalling.** `pm-opctl-cli health`'s built-in
 recorder entries — `stats`, `audit`, `clearing` and `index-srv` — run each
 process's own `*-cli health -q`, which pings a health socket on loopback
-(5561–5564). That proves the process's loop is alive on *this* host; it says
+(5561–5564); the `monitor` entry runs `pm-monitor-cli health -q`, which waits
+for one of `pm-monitor`'s snapshots on 5611. That proves the process's loop is alive on *this* host; it says
 nothing about whether another host can reach it, because those health sockets
 bind `127.0.0.1` by default and the image does not publish them. That is one
 more reason the image `HEALTHCHECK` TCP-probes the engine on 5555 instead: a

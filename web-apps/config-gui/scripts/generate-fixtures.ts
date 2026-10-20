@@ -10,6 +10,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  createApiGateway,
   createBlankDraft,
   createGateway,
   createIndex,
@@ -102,6 +103,45 @@ function expertFull(): EngineConfigDraft {
   return d;
 }
 
+/**
+ * Every section config-gui writes that the engine loader ignores but another
+ * process reads (monitor, log_server.client, API instance keys, locale), with
+ * non-default values -- checked by compiling, which runs every loader.
+ */
+function everyBlock(): EngineConfigDraft {
+  const d = expertFull();
+  d.country = "Norway";
+  d.sessionTimezone = "Europe/Oslo";
+  d.auctionIndicativeIntervalSec = 0.5;
+  d.logServer.include = true;
+  d.logServer.client.failoverTimeoutSec = 10;
+  d.logServer.client.failoverDir = "data/logs/failover";
+  const api = createApiGateway("main");
+  api.credentials = [{ apiKey: "k-trader-01", gatewayId: "TRADER01", description: "" }];
+  api.clearingDb = "data/clearing.db";
+  api.marketDataCacheSec = 120;
+  api.enginePullAddr = "tcp://127.0.0.1:5555";
+  api.enginePubAddr = "tcp://127.0.0.1:5556";
+  api.indexPullAddr = "tcp://127.0.0.1:5559";
+  api.indexPubAddr = "tcp://127.0.0.1:5558";
+  d.apiGateways = [api];
+  const m = d.monitor;
+  m.include = true;
+  m.bindAddress = "0.0.0.0";
+  m.host = "127.0.0.1";
+  m.pullPort = 6610;
+  m.pubPort = 6611;
+  m.beaconIntervalSec = 1.5;
+  m.hungAfterSec = 8;
+  m.silentAfterBeacons = 4;
+  m.bookMetricsIntervalSec = 30;
+  m.rawHours = 2;
+  m.minuteDays = 14;
+  m.thresholds.host_cpu_pct = { warn: 70, crit: 90 };
+  m.thresholds.disk_free_pct = { warn: 20, crit: 10 };
+  return d;
+}
+
 const outDir = process.argv[2] ?? join(process.cwd(), ".fixtures");
 mkdirSync(outDir, { recursive: true });
 
@@ -109,6 +149,7 @@ const fixtures: Record<string, EngineConfigDraft> = {
   "minimal-two-trader.yaml": minimalTwoTrader(),
   "classroom-schedule.yaml": classroomWithSchedule(),
   "expert-full.yaml": expertFull(),
+  "every-block.yaml": everyBlock(),
 };
 
 for (const [name, draft] of Object.entries(fixtures)) {

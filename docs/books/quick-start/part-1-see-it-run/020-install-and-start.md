@@ -18,7 +18,7 @@ There are two ways in. Both give you the same exchange.
 |---|---|---|
 | You need | Podman or Docker, with Compose | Python 3.13 and `pipx` |
 | Time to a running exchange | one command | a few commands |
-| Browser applications | five, ready to use | not included |
+| Browser applications | six, ready to use | not included |
 | Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | in your own terminal |
 | Your data lives in | `~/.edumatcher/data` | `~/.local/share/edumatcher` |
 | Best for | seeing the whole system; classes and demos | learning the processes one by one |
@@ -40,8 +40,8 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 cd ~/.edumatcher
 ```
 
-The installer downloads the latest release into `~/.edumatcher`, pulls six
-container images (the exchange plus five browser applications) and starts
+The installer downloads the latest release into `~/.edumatcher`, pulls seven
+container images (the exchange plus six browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
 finishes it prints the addresses of the browser applications.
 
@@ -68,6 +68,7 @@ Open these addresses on the same computer:
 | <http://localhost:8094> | **Order Book Viewer** | One symbol's full book; press `s` to switch symbol |
 | <http://localhost:8093> | **Trading GUI** | A login screen — you will use it in [The Browser Applications](040-the-browser-applications.md) |
 | <http://localhost:8091> | **Log Operator Console** | The operational log of every process |
+| <http://localhost:8095> | **Operator Dashboard** | Every process HEALTHY and the exchange OPERATIONAL |
 | <http://localhost:8092> | **Configuration GUI** | A form-based editor for exchange configurations |
 | <http://localhost:8080/docs> | **REST API documentation** | The interactive Swagger page of the API gateway |
 
@@ -90,7 +91,7 @@ Every process in the table should show `running`.
 
 One container runs the exchange: the engine and about fourteen supporting
 processes, started in the right order by the process manager `pm-opctl-cli`.
-Five more containers run the browser applications. They share a private
+Six more containers run the browser applications. They share a private
 network, which is why nothing asked you for an address. The bundled
 configuration is called `s10-basic`: ten symbols, four participants
 (`TRADER01`, `TRADER02`, `MM01` and the operator `OPS01`) and no trading-day

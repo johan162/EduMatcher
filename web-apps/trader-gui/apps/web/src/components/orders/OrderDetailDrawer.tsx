@@ -3,6 +3,8 @@ import { X } from "lucide-react";
 import { useWsEvent } from "@/hooks/useWsEvent.js";
 import { useOrderHistoryQuery } from "@/queries/index.js";
 import { useOrderStore } from "@/store/useOrderStore.js";
+import { useSymbolStore } from "@/store/useSymbolStore.js";
+import { formatPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { StatusPill } from "./StatusPill.js";
 import type { OrderHistoryEvent } from "@/types/index.js";
@@ -36,19 +38,24 @@ function timeLabel(iso: string): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
 }
 
-/** One human-readable detail line for a timeline entry. */
-function detailLine(e: TimelineEntry): string {
+/**
+ * One human-readable detail line for a timeline entry. Prices print at the
+ * symbol's decimals: a fill's VWAP is not on the tick grid.
+ */
+function detailLine(e: TimelineEntry, orderSymbol: string | undefined): string {
+  const symbol = e.symbol ?? orderSymbol;
+  const decimals = (symbol ? useSymbolStore.getState().get(symbol)?.tick_decimals : undefined) ?? 2;
   const parts: string[] = [];
   if (e.event_type === "FILL") {
-    if (e.fill_qty != null) parts.push(`${e.fill_qty} @ ${e.fill_price ?? "—"}`);
+    if (e.fill_qty != null) parts.push(`${e.fill_qty} @ ${formatPrice(e.fill_price, decimals)}`);
     if (e.remaining_qty != null) parts.push(`${e.remaining_qty} left`);
   } else if (e.event_type === "AMEND") {
-    if (e.price != null) parts.push(`price ${e.price}`);
+    if (e.price != null) parts.push(`price ${formatPrice(e.price, decimals)}`);
     if (e.quantity != null) parts.push(`qty ${e.quantity}`);
     if (e.remaining_qty != null) parts.push(`${e.remaining_qty} left`);
     if (e.priority_reset) parts.push("priority reset");
   } else {
-    if (e.price != null) parts.push(`price ${e.price}`);
+    if (e.price != null) parts.push(`price ${formatPrice(e.price, decimals)}`);
     if (e.quantity != null) parts.push(`qty ${e.quantity}`);
   }
   if (e.reason) parts.push(e.reason);
@@ -258,8 +265,8 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
                   {timeLabel(e.ts)}
                   {e.live && <span className="ml-1 text-[9px] text-link">live</span>}
                 </span>
-                {detailLine(e) && (
-                  <span className="text-[11px] text-fg-dim">{detailLine(e)}</span>
+                {detailLine(e, order?.symbol) && (
+                  <span className="text-[11px] text-fg-dim">{detailLine(e, order?.symbol)}</span>
                 )}
               </div>
             </li>

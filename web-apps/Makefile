@@ -1,4 +1,4 @@
-# web-apps/Makefile — orchestrate log-gui, terminal-gui, trader-gui and book-gui together.
+# web-apps/Makefile — orchestrate log-gui, terminal-gui, trader-gui, book-gui and dash-gui together.
 #
 # The key variable is VM_BACKEND_IP: set it to the IP of the VM (or host)
 # running the EduMatcher backend processes. Every GUI container is then
@@ -7,10 +7,10 @@
 #
 # Usage:
 #
-#   # All four GUIs, backend on Docker Desktop host (default):
+#   # All five GUIs, backend on Docker Desktop host (default):
 #   make up
 #
-#   # All four GUIs, backend in a separate VM:
+#   # All five GUIs, backend in a separate VM:
 #   make up VM_BACKEND_IP=192.168.64.10
 #
 #   # Or export once for the shell session:
@@ -25,6 +25,12 @@
 # on this host; for a backend in a VM pass it explicitly:
 #
 #   make up VM_BACKEND_IP=192.168.64.10 PM_BOOK_API_KEY=key-readonly-...
+#
+# dash-gui reads pm-monitor's snapshot feed (5611) at VM_BACKEND_IP, and its
+# history from metrics.db in EDUMATCHER_DATA_DIR, mounted read-only. With a
+# backend in a VM that directory is not on this host: the dashboard is live,
+# but its charts have no history unless the VM's data directory is mounted
+# here and EDUMATCHER_DATA_DIR points at it.
 #
 # Individual apps can still be driven from their own directories; this
 # Makefile is purely additive.
@@ -69,11 +75,15 @@ ifdef VM_BACKEND_IP
   # book-gui: pm-api-gwy (market-data WS + REST, dashboards instance), pm-log-srv
   BOOK_GUI_ENV := API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                   LOG_SRV_HOST=$(VM_BACKEND_IP)
+  # dash-gui: pm-monitor's PUB socket, pm-log-srv
+  DASH_GUI_ENV := MONITOR_HOST=$(VM_BACKEND_IP) \
+                  LOG_SRV_HOST=$(VM_BACKEND_IP)
 else
   LOG_GUI_ENV      :=
   TERMINAL_GUI_ENV :=
   TRADER_GUI_ENV   :=
   BOOK_GUI_ENV     :=
+  DASH_GUI_ENV     :=
 endif
 
 # Directories
@@ -81,6 +91,7 @@ LOG_GUI_DIR      := log-gui
 TERMINAL_GUI_DIR := terminal-gui
 TRADER_GUI_DIR   := trader-gui
 BOOK_GUI_DIR     := book-gui
+DASH_GUI_DIR     := dash-gui
 
 # Colours
 RED       := \033[0;31m
@@ -90,9 +101,9 @@ BLUE      := \033[0;34m
 CYAN      := \033[1;36m
 NC        := \033[0m
 
-.PHONY: help up down restart logs-log logs-terminal logs-trader logs-book ps \
-        up-log up-terminal up-trader up-book \
-        down-log down-terminal down-trader down-book
+.PHONY: help up down restart logs-log logs-terminal logs-trader logs-book logs-dash ps \
+        up-log up-terminal up-trader up-book up-dash \
+        down-log down-terminal down-trader down-book down-dash
 
 # --------------------------------------------------------------------------------------------
 # Help
@@ -115,13 +126,13 @@ help: ## Show this help
 # --------------------------------------------------------------------------------------------
 # All-at-once targets
 # --------------------------------------------------------------------------------------------
-up: up-log up-terminal up-trader up-book ## Start all four GUI containers (set VM_BACKEND_IP for a remote VM)
+up: up-log up-terminal up-trader up-book up-dash ## Start all five GUI containers (set VM_BACKEND_IP for a remote VM)
 
-down: down-log down-terminal down-trader down-book ## Stop and remove all four GUI containers
+down: down-log down-terminal down-trader down-book down-dash ## Stop and remove all five GUI containers
 
-restart: down up ## Restart all four GUI containers
+restart: down up ## Restart all five GUI containers
 
-ps: ## Show container status for all four apps
+ps: ## Show container status for all five apps
 	@echo -e "$(CYAN)--- log-gui ---$(NC)"
 	@$(MAKE) -C $(LOG_GUI_DIR) ps
 	@echo -e "$(CYAN)--- terminal-gui ---$(NC)"
@@ -130,6 +141,8 @@ ps: ## Show container status for all four apps
 	@$(MAKE) -C $(TRADER_GUI_DIR) ps
 	@echo -e "$(CYAN)--- book-gui ---$(NC)"
 	@$(MAKE) -C $(BOOK_GUI_DIR) ps
+	@echo -e "$(CYAN)--- dash-gui ---$(NC)"
+	@$(MAKE) -C $(DASH_GUI_DIR) ps
 
 # --------------------------------------------------------------------------------------------
 # Per-app targets
@@ -158,6 +171,12 @@ up-book: ## Start book-gui container (needs the read-only key — see the header
 	fi
 	@env $(BOOK_GUI_ENV) $(MAKE) -C $(BOOK_GUI_DIR) up
 
+up-dash: ## Start dash-gui container (needs pm-monitor; history from EDUMATCHER_DATA_DIR — see the header)
+	@if [[ -n "$(VM_BACKEND_IP)" ]]; then \
+		echo -e "$(YELLOW)- dash-gui backend: $(VM_BACKEND_IP)$(NC)"; \
+	fi
+	@env $(DASH_GUI_ENV) $(MAKE) -C $(DASH_GUI_DIR) up
+
 down-log: ## Stop log-gui container
 	@$(MAKE) -C $(LOG_GUI_DIR) down
 
@@ -169,6 +188,9 @@ down-trader: ## Stop trader-gui container
 
 down-book: ## Stop book-gui container
 	@$(MAKE) -C $(BOOK_GUI_DIR) down
+
+down-dash: ## Stop dash-gui container
+	@$(MAKE) -C $(DASH_GUI_DIR) down
 
 # --------------------------------------------------------------------------------------------
 # Log tailing (each in its own invocation — use separate terminals for live tailing)
@@ -184,3 +206,6 @@ logs-trader: ## Follow trader-gui container logs
 
 logs-book: ## Follow book-gui container logs
 	@$(MAKE) -C $(BOOK_GUI_DIR) logs
+
+logs-dash: ## Follow dash-gui container logs
+	@$(MAKE) -C $(DASH_GUI_DIR) logs

@@ -12,6 +12,8 @@
 import {
   effectiveDefaultCollar,
   engineConfigDraftSchema,
+  INVERTED_THRESHOLD_RULES,
+  MONITOR_THRESHOLD_RULES,
   writtenLastPrices,
   writtenMmQuotes,
   type Diagnostic,
@@ -325,6 +327,9 @@ const SECTION_TABS: Record<string, string> = {
   dcGateway: "gateways",
   logServer: "gateways",
   apiGateways: "gateways",
+  monitor: "monitor",
+  sessionTimezone: "basics",
+  auctionIndicativeIntervalSec: "engine-tuning",
   schedule: "sessions",
   output: "review",
 };
@@ -339,6 +344,7 @@ const schemaRule: Rule = (draft) => {
   if (!draft.balfGateway.include) omitted.add("balfGateway");
   if (!draft.dcGateway.include) omitted.add("dcGateway");
   if (!draft.logServer.include) omitted.add("logServer");
+  if (!draft.monitor.include) omitted.add("monitor");
   if (!draft.circuitBreakerDefaults.include) omitted.add("circuitBreakerDefaults");
   if (!draft.emitSchedule) omitted.add("schedule");
   const out: Diagnostic[] = [];
@@ -433,6 +439,22 @@ const portCollision: Rule = (draft) => {
       });
     }
   }
+  // Counted even when the block is not written: pm-monitor then binds its
+  // defaults (as pm-cverifier's M018). Not when monitoring is switched off.
+  if (!draft.monitor.include || draft.monitor.enabled) {
+    endpoints.push({
+      label: "monitor (pm-monitor beacons)",
+      address: draft.monitor.bindAddress,
+      port: draft.monitor.pullPort,
+      path: "monitor.pullPort",
+    });
+    endpoints.push({
+      label: "monitor (pm-monitor publish)",
+      address: draft.monitor.bindAddress,
+      port: draft.monitor.pubPort,
+      path: "monitor.pubPort",
+    });
+  }
   for (const gw of draft.apiGateways) {
     if (gw.enabled) {
       endpoints.push({
@@ -453,6 +475,10 @@ const portCollision: Rule = (draft) => {
       // merely suspect, and logServerPubsubPorts reports it as an error —
       // so skip the pair here instead of also warning about it.
       if (a.path.startsWith("logServer.") && b.path.startsWith("logServer.")) {
+        continue;
+      }
+      // Likewise pm-monitor's own two ports: monitorRules reports that.
+      if (a.path.startsWith("monitor.") && b.path.startsWith("monitor.")) {
         continue;
       }
       if (a.port === b.port && addressesCollide(a.address, b.address)) {
@@ -1072,6 +1098,91 @@ const priceTickGrid: Rule = (draft) => {
   return out;
 };
 
+const WILDCARD_BINDS = new Set(["0.0.0.0", "::", "*", ""]);
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
+
+/** layer3_semantic._reaches: whether beacons sent to host reach bind. */
+function beaconsReach(bind: string, host: string): boolean {
+  if (WILDCARD_BINDS.has(bind) || bind === host) return true;
+  return LOOPBACK_HOSTS.has(bind) && LOOPBACK_HOSTS.has(host);
+}
+
+/**
+ * The `monitor` block: pm-cverifier M029 (threshold order), M030 (hung vs
+ * beacon interval), M031 (host reaches bind) and the block's own two ports.
+ * Only when the block is written -- the defaults are consistent.
+ */
+const monitorRules: Rule = (draft) => {
+  const m = draft.monitor;
+  if (!m.include) return [];
+  const out: Diagnostic[] = [];
+  for (const rule of MONITOR_THRESHOLD_RULES) {
+    const { warn, crit } = m.thresholds[rule];
+    const inverted = INVERTED_THRESHOLD_RULES.has(rule);
+    if (inverted ? warn > crit : warn < crit) continue;
+    out.push({
+      id: "monitor-threshold-order",
+      severity: "error",
+      message: inverted
+        ? `monitor.thresholds.${rule}: warn (${warn}) must be strictly above crit (${crit}) -- a lower value is worse here (M029).`
+        : `monitor.thresholds.${rule}: warn (${warn}) must be strictly below crit (${crit}), so a warning fires before the critical level (M029).`,
+      fieldPaths: [`monitor.thresholds.${rule}`],
+      tab: "monitor",
+    });
+  }
+  if (m.hungAfterSec <= m.beaconIntervalSec) {
+    out.push({
+      id: "monitor-hung-vs-interval",
+      severity: "error",
+      message: `Hung after (${m.hungAfterSec} s) must be greater than the beacon interval (${m.beaconIntervalSec} s), or a process between two beacons reads as HUNG. Use at least twice the interval (M030).`,
+      fieldPaths: ["monitor.hungAfterSec", "monitor.beaconIntervalSec"],
+      tab: "monitor",
+    });
+  }
+  if (!beaconsReach(m.bindAddress, m.host)) {
+    out.push({
+      id: "monitor-host-unreachable",
+      severity: "warning",
+      message: `monitor bind address (${m.bindAddress}) is neither a wildcard nor the host (${m.host}): every process sends its beacons to ${m.host}, where pm-monitor may not be listening. Fine only if EDUMATCHER_GATEWAY_BIND_HOST overrides the bind at run time (M031).`,
+      fieldPaths: ["monitor.bindAddress", "monitor.host"],
+      tab: "monitor",
+    });
+  }
+  if (m.pullPort === m.pubPort) {
+    out.push({
+      id: "monitor-ports-equal",
+      severity: "error",
+      message: `pm-monitor's beacon and publish ports are both ${m.pullPort}; it binds both, so they must differ (M018).`,
+      fieldPaths: ["monitor.pullPort", "monitor.pubPort"],
+      tab: "monitor",
+    });
+  }
+  return out;
+};
+
+/**
+ * The engine loader refuses an unknown `locale.session_timezone`. Checked
+ * with the runtime's own IANA database, which can differ slightly from
+ * Python's zoneinfo -- an error here means neither will likely accept it.
+ */
+const sessionTimezoneUnknown: Rule = (draft) => {
+  const tz = draft.sessionTimezone.trim();
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return [];
+  } catch {
+    return [
+      {
+        id: "session-timezone-unknown",
+        severity: "error",
+        message: `Session time zone '${draft.sessionTimezone}' is not a known IANA time zone (e.g. Europe/Stockholm, America/New_York); the engine refuses the config.`,
+        fieldPaths: ["sessionTimezone"],
+        tab: "basics",
+      },
+    ];
+  }
+};
+
 const RULES: Rule[] = [
   schemaRule,
   gatewayIdRules,
@@ -1088,6 +1199,8 @@ const RULES: Rule[] = [
   sessionsDefaultSchedule,
   seedFromMmWithoutRange,
   portCollision,
+  monitorRules,
+  sessionTimezoneUnknown,
   logServerPubsubPorts,
   logServerLeaseBounds,
   logServerNotifyVsLease,

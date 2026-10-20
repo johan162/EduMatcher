@@ -737,6 +737,30 @@ def test_remove_path_handles_directory_file_and_absence(tmp_path: Path) -> None:
     assert emo_cli._remove_path(tmp_path / "missing") is False
 
 
+def test_remove_path_takes_a_databases_sqlite_companions(tmp_path: Path) -> None:
+    """A leftover -wal would be replayed into the next metrics.db."""
+    db = tmp_path / "metrics.db"
+    for name in (
+        "metrics.db",
+        "metrics.db-wal",
+        "metrics.db-shm",
+        "metrics.db-journal",
+    ):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    (tmp_path / "metrics.db.bak").write_text("x", encoding="utf-8")
+    assert emo_cli._remove_path(db) is True
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["metrics.db.bak"]
+    # A -wal left without its database is still removed.
+    (tmp_path / "metrics.db-wal").write_text("x", encoding="utf-8")
+    assert emo_cli._present(db)
+    assert emo_cli._remove_path(db) is True
+    assert not emo_cli._present(db)
+
+
+def test_non_state_paths_list_each_file_once() -> None:
+    assert len(set(emo_cli.NON_STATE_PATHS)) == len(emo_cli.NON_STATE_PATHS)
+
+
 def test_running_process_detection_is_best_effort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

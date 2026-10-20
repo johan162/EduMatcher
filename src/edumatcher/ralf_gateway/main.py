@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.health import HealthReporter
 from edumatcher.ralf_gateway.config import (
     RalfGatewayConfig,
     load_default_ralf_gateway_config,
@@ -165,6 +166,9 @@ def main() -> None:
     )
 
     gateway = RalfGateway(config)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        gateway.attach_reporter(reporter)
     try:
         gateway.run()
     except Exception as exc:

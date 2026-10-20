@@ -10,7 +10,11 @@
  */
 
 import {
+  DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC,
   DEFAULT_COUNTRY,
+  DEFAULT_LOG_CLIENT,
+  DEFAULT_SESSION_TIMEZONE,
+  MONITOR_THRESHOLD_RULES,
   DEFAULT_INDEX_DATA_DIR,
   effectiveDefaultCollar,
   writtenLastPrices,
@@ -440,6 +444,16 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       log_level: gw.logLevel,
       stats_db: gw.statsDb,
       ...(gw.auditDb !== undefined ? { audit_db: gw.auditDb } : {}),
+      // Optional: written only when set, so pm-api-gwy otherwise resolves
+      // its own defaults (the local engine/index buses, data/clearing.db).
+      ...(gw.clearingDb !== undefined ? { clearing_db: gw.clearingDb } : {}),
+      ...(gw.marketDataCacheSec !== undefined
+        ? { market_data_cache_sec: gw.marketDataCacheSec }
+        : {}),
+      ...(gw.enginePullAddr !== undefined ? { engine_pull_addr: gw.enginePullAddr } : {}),
+      ...(gw.enginePubAddr !== undefined ? { engine_pub_addr: gw.enginePubAddr } : {}),
+      ...(gw.indexPullAddr !== undefined ? { index_pull_addr: gw.indexPullAddr } : {}),
+      ...(gw.indexPubAddr !== undefined ? { index_pub_addr: gw.indexPubAddr } : {}),
       order_retention_sec: gw.orderRetentionSec,
       credentials: gw.credentials.map((c) => ({
         api_key: c.apiKey,
@@ -476,12 +490,20 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
     },
   };
 
-  // Mirrors builder.py: only emit country when it differs from the
-  // scheduler's own built-in default, so a config left at "Sweden" stays as
-  // minimal as pm-config-gen would produce it.
-  if (draft.country !== DEFAULT_COUNTRY) {
-    cfg.country = draft.country;
+  if (draft.auctionIndicativeIntervalSec !== DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC) {
+    cfg.auction_indicative_interval_sec = draft.auctionIndicativeIntervalSec;
   }
+
+  // Mirrors builder.py: `locale` holds country and session_timezone, each
+  // written only when it differs from its default, so a config left at
+  // Sweden / Europe/Stockholm stays as minimal as pm-config-gen makes it.
+  // (Earlier versions wrote a top-level `country`, which no loader reads.)
+  const locale: PlainConfig = {};
+  if (draft.country !== DEFAULT_COUNTRY) locale.country = draft.country;
+  if (draft.sessionTimezone !== DEFAULT_SESSION_TIMEZONE) {
+    locale.session_timezone = draft.sessionTimezone;
+  }
+  if (Object.keys(locale).length > 0) cfg.locale = locale;
 
   if (shouldEmitMmDefaults(draft)) {
     cfg.mm_obligation_defaults = buildMmDefaults(draft);
@@ -518,6 +540,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   }
   if (draft.logServer.include) {
     cfg.log_server = buildLogServer(draft);
+  }
+  if (draft.monitor.include) {
+    cfg.monitor = buildMonitor(draft);
   }
   const apiGateways = buildApiGateways(draft);
   if (Object.keys(apiGateways).length > 0) cfg.api_gateways = apiGateways;
@@ -661,5 +686,51 @@ function buildLogServer(draft: EngineConfigDraft): PlainConfig {
     max_backfill_rows: g.maxBackfillRows,
     max_pending_rows: g.maxPendingRows,
     pub_sndhwm: g.pubSndhwm,
+    // log_server.client is read by every other process; written only when a
+    // field differs from LogClientConfig's defaults.
+    ...(logClientChanged(g.client)
+      ? {
+          client: {
+            connect_timeout_sec: g.client.connectTimeoutSec,
+            failover_timeout_sec: g.client.failoverTimeoutSec,
+            failover_dir: g.client.failoverDir,
+          },
+        }
+      : {}),
+  };
+}
+
+function logClientChanged(c: EngineConfigDraft["logServer"]["client"]): boolean {
+  return (
+    c.connectTimeoutSec !== DEFAULT_LOG_CLIENT.connectTimeoutSec ||
+    c.failoverTimeoutSec !== DEFAULT_LOG_CLIENT.failoverTimeoutSec ||
+    c.failoverDir !== DEFAULT_LOG_CLIENT.failoverDir
+  );
+}
+
+/**
+ * Build the `monitor` block: every field, defaults included, as
+ * `pm-config-gen --monitor` writes it (MonitorConfig in
+ * src/edumatcher/monitor/config.py).
+ */
+function buildMonitor(draft: EngineConfigDraft): PlainConfig {
+  const m = draft.monitor;
+  return {
+    enabled: m.enabled,
+    bind_address: m.bindAddress,
+    host: m.host,
+    pull_port: m.pullPort,
+    pub_port: m.pubPort,
+    beacon_interval_sec: m.beaconIntervalSec,
+    hung_after_sec: m.hungAfterSec,
+    silent_after_beacons: m.silentAfterBeacons,
+    book_metrics_interval_sec: m.bookMetricsIntervalSec,
+    retention: { raw_hours: m.rawHours, minute_days: m.minuteDays },
+    thresholds: Object.fromEntries(
+      MONITOR_THRESHOLD_RULES.map((rule) => [
+        rule,
+        { warn: m.thresholds[rule].warn, crit: m.thresholds[rule].crit },
+      ]),
+    ),
   };
 }

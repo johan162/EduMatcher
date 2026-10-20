@@ -26,7 +26,10 @@ Not a test module (no test_ prefix) — pytest will not collect it.
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
+from typing import Any
+from unittest import mock
 
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.order import Order, OrderStatus, OrderType
@@ -181,3 +184,74 @@ def assert_qty_conservation(
             f"shows {expected} filled on the order but {executed.get(o.id, 0)} "
             f"in the trade stream"
         )
+
+
+# ---------------------------------------------------------------------------
+# Engine reject counting (operator dashboard WP-A4, finding F4)
+# ---------------------------------------------------------------------------
+# engine.metrics.rejects must equal the number of order-flow acks the engine
+# actually published with accepted=False. Engines have dozens of reject sites;
+# this tallies what goes over the wire, independently of how the engine
+# counted, so a site that bypasses the counting funnel shows up as a mismatch.
+# conftest.py installs it on every Engine built in any test.
+
+_REJECT_ACK_PREFIXES = (b"order.ack.", b"combo.ack.", b"oco.ack.", b"quote.ack.")
+
+
+class RejectTallyingSocket:
+    """Wraps an engine's publisher and counts published order-flow rejects.
+
+    Every attribute is forwarded, so tests that read ``engine.pub_sock.sent``
+    or call its other methods see the wrapped object unchanged. The tally is
+    taken as frames are sent, so a test clearing ``sent`` mid-way cannot
+    falsify it.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "published_rejects", 0)
+
+    def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
+        if frames and frames[0].startswith(_REJECT_ACK_PREFIXES):
+            try:
+                accepted = json.loads(frames[1]).get("accepted", True)
+            except (ValueError, IndexError, AttributeError):
+                accepted = True
+            if accepted is False:
+                object.__setattr__(
+                    self, "published_rejects", self.published_rejects + 1
+                )
+        return self._inner.send_multipart(frames, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._inner, name, value)
+
+
+def install_reject_tally(engine: Any) -> None:
+    """Wrap ``engine.pub_sock`` so its published rejects are tallied."""
+    sock = getattr(engine, "pub_sock", None)
+    # A Mock publisher is left alone: its tests assert on the mock's own
+    # call records (assert_not_called, call_args_list), which a wrapper hides.
+    if sock is None or isinstance(sock, (RejectTallyingSocket, mock.Mock)):
+        return
+    engine.pub_sock = RejectTallyingSocket(sock)
+
+
+def assert_reject_count_matches(engine: Any) -> None:
+    """Total ``engine.metrics.rejects`` == order-flow rejects published.
+
+    Skipped (returns) for an engine whose publisher a test replaced after
+    construction: what that publisher saw was never tallied.
+    """
+    sock = getattr(engine, "pub_sock", None)
+    if not isinstance(sock, RejectTallyingSocket):
+        return
+    counted = sum(engine.metrics.rejects.values())
+    assert counted == sock.published_rejects, (
+        f"engine.metrics.rejects counted {counted} but {sock.published_rejects} "
+        "order-flow acks with accepted=False were published -- a reject site "
+        "bypasses Engine._order_ack/_combo_ack/_oco_ack/_quote_ack"
+    )

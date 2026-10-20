@@ -1875,5 +1875,5 @@ Add parser and subscriber coverage:
 Run the existing canonical suite after implementing quote changes:
 
 ```bash
-poetry run pytest tests/ -n auto --cov=src/edumatcher --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=85
+poetry run pytest tests/ -n logical --cov=src/edumatcher --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=85
 ```

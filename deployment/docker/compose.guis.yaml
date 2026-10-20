@@ -1,4 +1,4 @@
-# Overlay: the four web GUIs that talk to the backend, in the same compose
+# Overlay: the five web GUIs that talk to the backend, in the same compose
 # project as the exchange itself.
 #
 # Sharing one project is the whole trick. Compose puts every service on the
@@ -121,6 +121,51 @@ services:
     volumes:
       - book-gui-logs:/app/logs
 
+  dash-gui:
+    build:
+      context: ../../web-apps/dash-gui
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-dash-gui:latest
+    container_name: ${CONTAINER_NAME:-edumatcher}-dash-gui
+    depends_on:
+      - edumatcher
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8095"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      MAX_WS_CLIENTS: "${MAX_WS_CLIENTS:-200}"
+      # pm-monitor's snapshot feed. Not published to the host: it binds
+      # 0.0.0.0 inside the backend (EDUMATCHER_GATEWAY_BIND_HOST) and is
+      # reached over the compose network.
+      MONITOR_HOST: "edumatcher"
+      MONITOR_PUB_PORT: "5611"
+      METRICS_DB_PATH: "/backend-data/metrics.db"
+      # monitor.thresholds for the bands. Without it the bridge finds no
+      # artifact and shows pm-monitor's default bands (I118).
+      CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
+      # The drawers' links, as the browser reaches the sibling GUIs: set
+      # LOG_GUI_URL / BOOK_GUI_URL in .env when that is not localhost.
+      LOG_GUI_URL: "${LOG_GUI_URL:-http://localhost:${LOG_GUI_PORT:-8091}}"
+      BOOK_GUI_URL: "${BOOK_GUI_URL:-http://localhost:${BOOK_GUI_PORT:-8094}}"
+      LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
+      LOG_SRV_HOST: "edumatcher"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      # The exchange's data directory, read-only: metrics.db and the deployed
+      # configuration. The bridge opens metrics.db read-only, and reads it
+      # immutable while pm-monitor is stopped and no -wal is left (I105).
+      - ./data:/backend-data:ro,z
+      - dash-gui-logs:/app/logs
+
   trader-gui:
     build:
       context: ../../web-apps/trader-gui
@@ -147,3 +192,4 @@ volumes:
   log-gui-acks:
   terminal-gui-logs:
   book-gui-logs:
+  dash-gui-logs:

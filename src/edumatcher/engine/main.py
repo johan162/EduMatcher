@@ -68,6 +68,15 @@ from edumatcher.engine.config_loader import (
 from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
+from edumatcher.engine.metrics import (
+    SAMPLE_MASK,
+    SESSION_STATE_ORDER,
+    EngineMetrics,
+    book_samples,
+    reject_label,
+)
+from edumatcher.health import HealthReporter, counter, gauge
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.engine.persistence import (
     load_gtc_orders,
     save_gtc_orders,
@@ -447,6 +456,14 @@ class Engine:
         # as every other process. This attribute currently has no effect.
         self.verbose = verbose
         self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
+        # Health-beacon counters (operator dashboard §8.2-§8.4). Created here,
+        # with no socket, so the unit-test harness can assert on them; the
+        # reporter that ships them is attached by main(), never here.
+        self.metrics = EngineMetrics()
+        self._reporter: HealthReporter | None = None
+        self._book_metrics_interval_sec = 10.0
+        self._next_book_metrics = 0.0
+        self._book_metric_samples: list[MetricSample] = []
         self._running = False
         self._error_count = 0
         self._unknown_topic_count = 0
@@ -571,6 +588,7 @@ class Engine:
                 self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
+                self.metrics.set_known_gateways(self._allowed_fix_gateways)
                 self._sessions_enabled = self._engine_config.sessions_enabled
                 self._enforce_collars = self._engine_config.enforce_collars
                 self._enforce_circuit_breakers = (
@@ -752,7 +770,7 @@ class Engine:
         request_tag: str | None,
     ) -> None:
         self.pub_sock.send_multipart(
-            make_ack_msg(
+            self._order_ack(
                 gateway_id,
                 order_id,
                 accepted=False,
@@ -761,6 +779,85 @@ class Engine:
                 client_tag=client_tag,
                 request_tag=request_tag,
             )
+        )
+
+    # -- the reject funnel --------------------------------------------------
+    # Every order-flow ack goes through one of these four, so an
+    # `accepted=False` is counted in engine.rejects exactly once, whichever of
+    # the dozens of reject sites produced it (design finding F4). Admin and
+    # gateway-auth acks are not order rejects and do not pass through here.
+    # tests/test_engine_metrics.py forbids calling the four builders directly.
+
+    def _order_ack(
+        self,
+        gateway_id: str,
+        order_id: str,
+        accepted: bool,
+        reason: str = "",
+        *,
+        reject_code: RejectCode | None = None,
+        client_tag: str | None = None,
+        request_tag: str | None = None,
+        order: dict[str, Any] | None = None,
+    ) -> list[bytes]:
+        # Explicit keywords, not **kwargs: this runs on every order ack, and
+        # repacking a kwargs dict cost ~200 ns there (perf gate, design A4.10).
+        if not accepted:
+            self.metrics.count_reject(gateway_id, reject_code or reject_label(reason))
+        return make_ack_msg(
+            gateway_id,
+            order_id,
+            accepted,
+            reason,
+            reject_code=reject_code,
+            client_tag=client_tag,
+            request_tag=request_tag,
+            order=order,
+        )
+
+    def _combo_ack(
+        self, gateway_id: str, combo_id: str, accepted: bool, reason: str = ""
+    ) -> list[bytes]:
+        if not accepted:
+            self.metrics.count_reject(gateway_id, reject_label(reason))
+        return make_combo_ack_msg(gateway_id, combo_id, accepted, reason)
+
+    def _oco_ack(
+        self,
+        gateway_id: str,
+        oco_id: str,
+        accepted: bool,
+        reason: str = "",
+        order_id_1: str = "",
+        order_id_2: str = "",
+    ) -> list[bytes]:
+        if not accepted:
+            self.metrics.count_reject(gateway_id, reject_label(reason))
+        return make_oco_ack_msg(
+            gateway_id, oco_id, accepted, reason, order_id_1, order_id_2
+        )
+
+    def _quote_ack(
+        self,
+        gateway_id: str,
+        quote_id: str,
+        accepted: bool,
+        reason: str = "",
+        bid_order_id: str = "",
+        ask_order_id: str = "",
+        *,
+        symbol: str = "",
+    ) -> list[bytes]:
+        if not accepted:
+            self.metrics.count_reject(gateway_id, reject_label(reason))
+        return make_quote_ack_msg(
+            gateway_id,
+            quote_id,
+            accepted,
+            reason,
+            bid_order_id,
+            ask_order_id,
+            symbol=symbol,
         )
 
     def _resolve_smp_action(
@@ -1029,7 +1126,7 @@ class Engine:
                 # any symbol regardless of tick_decimals.
                 for leg in (bid, ask):
                     self.pub_sock.send_multipart(
-                        make_ack_msg(
+                        self._order_ack(
                             gateway_id,
                             leg.id,
                             accepted=True,
@@ -1452,6 +1549,8 @@ class Engine:
         return None
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
+        # Counted before anything can reject it: this is what was submitted.
+        self.metrics.order_in(payload.get("gateway_id"))
         order = Order.from_dict(payload)
         self._dbg_count("new_order_requests")
 
@@ -2465,6 +2564,7 @@ class Engine:
             # A second live connection under the same ID would share one
             # session, so either one dropping would run the disconnect
             # behaviour (CANCEL_ALL) against the other's orders.
+            self.metrics.count(self.metrics.auth_rejects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(
                     gateway_id,
@@ -2479,12 +2579,14 @@ class Engine:
             # Backward-compat mode: no gateway restrictions
             self._connected_fix_gateways.add(gateway_id)
             session.connected = True
+            self.metrics.count(self.metrics.connects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(gateway_id, accepted=True)
             )
             return
 
         if gateway_id not in self._allowed_fix_gateways:
+            self.metrics.count(self.metrics.auth_rejects, gateway_id)
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(
                     gateway_id,
@@ -2506,6 +2608,7 @@ class Engine:
 
         self._connected_fix_gateways.add(gateway_id)
         session.connected = True
+        self.metrics.count(self.metrics.connects, gateway_id)
         self.pub_sock.send_multipart(
             make_gateway_auth_msg(
                 gateway_id,
@@ -3020,6 +3123,14 @@ class Engine:
         # by any flow (new order, quote, combo, OCO leg, auction uncross,
         # stop cascade, amend rematch) are reflected in system.position_request.
         # Callers must NOT also call _update_position or positions double-count.
+        # Raw ids, plain dict increments: this is the trade hot path, and
+        # both ids belong to orders that already passed the gateway checks,
+        # so they need no canonicalising here -- counter_samples() maps them
+        # to labels when the beacon is built (perf gate, design A4.10).
+        fills = self.metrics.fills
+        buy, sell = trade.buy_gateway_id, trade.sell_gateway_id
+        fills[buy] = fills.get(buy, 0) + 1
+        fills[sell] = fills.get(sell, 0) + 1
         _trade_px = from_ticks(trade.price, trade.symbol)
         self._update_position(
             trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, _trade_px
@@ -3066,14 +3177,20 @@ class Engine:
         at, not ``book.last_trade_price`` (the last level of the whole sweep).
         For an order that fills across multiple levels this is its VWAP; for a
         passive order filled at a single level it is exactly that level's price.
+        The notional is summed in integer ticks and divided once, by quantity
+        times the tick scale, so the result is the correctly rounded VWAP:
+        summed in display floats, 23 @ 108.67 came back as 108.66999999999999.
         """
-        agg: dict[str, tuple[int, float]] = {}  # order_id -> (qty, notional)
+        # order_id -> (qty, notional in ticks, symbol)
+        agg: dict[str, tuple[int, int, str]] = {}
         for t in trades:
-            px = from_ticks(t.price, t.symbol)
             for oid in (t.buy_order_id, t.sell_order_id):
-                qty, notional = agg.get(oid, (0, 0.0))
-                agg[oid] = (qty + t.quantity, notional + px * t.quantity)
-        return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+                qty, notional, _ = agg.get(oid, (0, 0, t.symbol))
+                agg[oid] = (qty + t.quantity, notional + t.price * t.quantity, t.symbol)
+        return {
+            oid: (n / (q * 10 ** get_tick_decimals(sym)) if q else 0.0)
+            for oid, (q, n, sym) in agg.items()
+        }
 
     @staticmethod
     def _order_matched_qty(trades: list[Any]) -> dict[str, int]:
@@ -3416,6 +3533,7 @@ class Engine:
         )
 
     def _handle_quote_new(self, payload: dict[str, Any]) -> None:
+        self.metrics.count(self.metrics.quotes_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
         quote_id = str(payload.get("quote_id", ""))
@@ -3425,7 +3543,7 @@ class Engine:
         if not ok:
             self._dbg_count("quote_reject_gateway")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, quote_id, False, reason, symbol=symbol)
+                self._quote_ack(gateway_id, quote_id, False, reason, symbol=symbol)
             )
             return
 
@@ -3433,7 +3551,7 @@ class Engine:
         if session.role != ParticipantRole.MARKET_MAKER:
             self._dbg_count("quote_reject_role")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3446,7 +3564,7 @@ class Engine:
         if not symbol:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3458,7 +3576,7 @@ class Engine:
         if self._allowed_symbols and symbol not in self._allowed_symbols:
             self._dbg_count("quote_reject_symbol")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3472,7 +3590,7 @@ class Engine:
         if self._halted_symbols.get(symbol):
             self._dbg_count("quote_reject_halt")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3487,7 +3605,7 @@ class Engine:
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self._dbg_count("quote_reject_session")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3521,7 +3639,7 @@ class Engine:
         except (KeyError, TypeError, ValueError):
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3534,7 +3652,7 @@ class Engine:
         if bid_qty <= 0 or ask_qty <= 0:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3546,7 +3664,7 @@ class Engine:
         if bid_price >= ask_price:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     quote_id,
                     False,
@@ -3594,7 +3712,7 @@ class Engine:
             if spread_ticks > mm_max_spread_ticks:
                 self._dbg_count("quote_reject_mm_obligation")
                 self.pub_sock.send_multipart(
-                    make_quote_ack_msg(
+                    self._quote_ack(
                         gateway_id,
                         quote_id,
                         False,
@@ -3609,7 +3727,7 @@ class Engine:
             if bid_qty < mm_min_qty or ask_qty < mm_min_qty:
                 self._dbg_count("quote_reject_mm_obligation")
                 self.pub_sock.send_multipart(
-                    make_quote_ack_msg(
+                    self._quote_ack(
                         gateway_id,
                         quote_id,
                         False,
@@ -3742,7 +3860,7 @@ class Engine:
 
         self._mark_dirty(symbol)
         self.pub_sock.send_multipart(
-            make_quote_ack_msg(
+            self._quote_ack(
                 gateway_id,
                 quote_id,
                 True,
@@ -3763,7 +3881,7 @@ class Engine:
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(gateway_id, "", False, reason, symbol=symbol)
+                self._quote_ack(gateway_id, "", False, reason, symbol=symbol)
             )
             return
 
@@ -3772,7 +3890,7 @@ class Engine:
         )
         if not entry:
             self.pub_sock.send_multipart(
-                make_quote_ack_msg(
+                self._quote_ack(
                     gateway_id,
                     "",
                     False,
@@ -3784,7 +3902,7 @@ class Engine:
 
         self._cancel_quote_entry(entry, reason="Cancelled by participant")
         self.pub_sock.send_multipart(
-            make_quote_ack_msg(gateway_id, entry.quote_id, True, symbol=symbol)
+            self._quote_ack(gateway_id, entry.quote_id, True, symbol=symbol)
         )
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
@@ -3792,6 +3910,7 @@ class Engine:
         if not gateway_id:
             return
 
+        self.metrics.count(self.metrics.disconnects, gateway_id)
         session = self._session_for_gateway(gateway_id)
         session.connected = False
         session.heartbeat_interval_sec = 0
@@ -3872,6 +3991,7 @@ class Engine:
                 _HEARTBEAT_MISSED_LIMIT,
                 session.heartbeat_interval_sec,
             )
+            self.metrics.count(self.metrics.heartbeat_timeouts, session.gateway_id)
             self._handle_gateway_disconnect(
                 {"gateway_id": session.gateway_id, "reason": "heartbeat_timeout"}
             )
@@ -4368,7 +4488,6 @@ class Engine:
             return
 
         now = now_ns()
-        self._halted_symbols[symbol] = True
 
         cb = self._circuit_breakers.get(symbol)
         if level_name is not None and cb is None:
@@ -4377,8 +4496,8 @@ class Engine:
 
         triggered_level = "ADMIN_SYMBOL"
         resume_at_ns: int | None = None
+        selected: CircuitBreakerLevel | None = None
         if cb is not None:
-            selected: CircuitBreakerLevel | None = None
             if level_name is not None:
                 selected = next(
                     (lvl for lvl in cb.config.levels if lvl.name == level_name),
@@ -4387,6 +4506,10 @@ class Engine:
                 if selected is None:
                     _reject(f"Unknown circuit-breaker level for {symbol}: {level_name}")
                     return
+        # Only once nothing can reject: a rejected trigger must not leave the
+        # symbol halted with no circuit_breaker.halt ever published.
+        self._halted_symbols[symbol] = True
+        if cb is not None:
             if selected is not None:
                 # Seed a reference price if none exists yet (mirrors the
                 # startup seeding in _load_config()) — activate() itself does
@@ -4818,7 +4941,7 @@ class Engine:
         if reason:
             if publish_ack:
                 self.pub_sock.send_multipart(
-                    make_combo_ack_msg(combo.gateway_id, combo.combo_id, False, reason)
+                    self._combo_ack(combo.gateway_id, combo.combo_id, False, reason)
                 )
             return False
 
@@ -4879,7 +5002,7 @@ class Engine:
             # shape every other order-creation path uses, before matching,
             # for every leg -- live or config-seeded.
             self.pub_sock.send_multipart(
-                make_ack_msg(
+                self._order_ack(
                     combo.gateway_id,
                     child.id,
                     accepted=True,
@@ -4971,7 +5094,7 @@ class Engine:
 
         if publish_ack:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(combo.gateway_id, combo.combo_id, True)
+                self._combo_ack(combo.gateway_id, combo.combo_id, True)
             )
 
         self._update_combo_status(combo)
@@ -4979,18 +5102,19 @@ class Engine:
 
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
         """Accept a combo, create child orders on respective books."""
+        self.metrics.count(self.metrics.orders_in, payload.get("gateway_id"))
         combo = ComboOrder.from_submission_dict(payload)
 
         # Gateway auth
         ok, reason = self._gateway_status(combo.gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(combo.gateway_id, combo.combo_id, False, reason)
+                self._combo_ack(combo.gateway_id, combo.combo_id, False, reason)
             )
             return
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(
+                self._combo_ack(
                     combo.gateway_id, combo.combo_id, False, "Market is closed"
                 )
             )
@@ -5005,7 +5129,7 @@ class Engine:
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(gateway_id, combo_id, False, reason)
+                self._combo_ack(gateway_id, combo_id, False, reason)
             )
             return
 
@@ -5017,7 +5141,7 @@ class Engine:
                 break
         if not combo:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(gateway_id, combo_id, False, "Combo not found")
+                self._combo_ack(gateway_id, combo_id, False, "Combo not found")
             )
             return
         if combo.status in (
@@ -5027,7 +5151,7 @@ class Engine:
             ComboStatus.REJECTED,
         ):
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(
+                self._combo_ack(
                     gateway_id, combo_id, False, f"Combo already {combo.status.value}"
                 )
             )
@@ -5264,6 +5388,7 @@ class Engine:
             # M14: reset per-symbol 'daily' counters at the start of a new
             # trading day so a multi-day run does not report cumulative volume.
             for book in self.books.values():
+                self.metrics.carry_daily(book)  # health counters stay monotonic
                 book.daily_qty = 0
                 book.daily_value_ticks = 0
                 book.daily_trades = 0
@@ -5511,13 +5636,14 @@ class Engine:
             "leg2": {"side": str, "order_type": str, "price_ticks": int|null, "stop_price_ticks": int|null, "trail_offset_ticks": int|null},
           }
         """
+        self.metrics.count(self.metrics.orders_in, payload.get("gateway_id"))
         gateway_id = str(payload.get("gateway_id", "")).upper()
         oco_id = payload.get("oco_id", "")
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(gateway_id, oco_id, False, reason)
+                self._oco_ack(gateway_id, oco_id, False, reason)
             )
             return
 
@@ -5527,7 +5653,7 @@ class Engine:
 
         if self._allowed_symbols and symbol not in self._allowed_symbols:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(
+                self._oco_ack(
                     gateway_id, oco_id, False, f"Symbol not configured: {symbol}"
                 )
             )
@@ -5535,7 +5661,7 @@ class Engine:
 
         if quantity <= 0:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(gateway_id, oco_id, False, "Quantity must be positive")
+                self._oco_ack(gateway_id, oco_id, False, "Quantity must be positive")
             )
             return
 
@@ -5584,7 +5710,7 @@ class Engine:
 
         if leg1 is None or leg2 is None:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(
+                self._oco_ack(
                     gateway_id,
                     oco_id,
                     False,
@@ -5600,7 +5726,7 @@ class Engine:
                 and leg.price_ticks is None
             ):
                 self.pub_sock.send_multipart(
-                    make_oco_ack_msg(
+                    self._oco_ack(
                         gateway_id,
                         oco_id,
                         False,
@@ -5613,7 +5739,7 @@ class Engine:
                 and leg.stop_price_ticks is None
             ):
                 self.pub_sock.send_multipart(
-                    make_oco_ack_msg(
+                    self._oco_ack(
                         gateway_id,
                         oco_id,
                         False,
@@ -5626,7 +5752,7 @@ class Engine:
                 and leg.trail_offset_ticks is None
             ):
                 self.pub_sock.send_multipart(
-                    make_oco_ack_msg(
+                    self._oco_ack(
                         gateway_id,
                         oco_id,
                         False,
@@ -5637,7 +5763,7 @@ class Engine:
 
         if self._sessions_enabled and not accepts_orders(self._session_state):
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(gateway_id, oco_id, False, "Market is closed")
+                self._oco_ack(gateway_id, oco_id, False, "Market is closed")
             )
             return
 
@@ -5654,7 +5780,7 @@ class Engine:
 
         # Acknowledge first, then post both orders
         self.pub_sock.send_multipart(
-            make_oco_ack_msg(
+            self._oco_ack(
                 gateway_id, oco_id, True, order_id_1=leg1.id, order_id_2=leg2.id
             )
         )
@@ -5682,7 +5808,7 @@ class Engine:
 
             # ACK each leg individually so the gateway can track them
             self.pub_sock.send_multipart(
-                make_ack_msg(
+                self._order_ack(
                     gateway_id,
                     leg.id,
                     accepted=True,
@@ -5783,14 +5909,14 @@ class Engine:
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(gateway_id, oco_id, False, reason)
+                self._oco_ack(gateway_id, oco_id, False, reason)
             )
             return
 
         order_ids = self._oco_groups.get(oco_id)
         if not order_ids:
             self.pub_sock.send_multipart(
-                make_oco_ack_msg(gateway_id, oco_id, False, "OCO not found")
+                self._oco_ack(gateway_id, oco_id, False, "OCO not found")
             )
             return
 
@@ -5852,6 +5978,7 @@ class Engine:
         )
 
     def _handle_cancel(self, payload: dict[str, Any]) -> None:
+        self.metrics.count(self.metrics.cancels_in, payload.get("gateway_id"))
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
         request_tag = payload.get("request_tag")
@@ -5925,6 +6052,7 @@ class Engine:
         self._dbg_count("cancel_reject_not_found")
 
     def _handle_amend(self, payload: dict[str, Any]) -> None:
+        self.metrics.count(self.metrics.amends_in, payload.get("gateway_id"))
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
         new_price = payload.get("price")
@@ -6314,10 +6442,12 @@ class Engine:
         if not force and now - self._last_persist < _PERSIST_INTERVAL_SEC:
             return
         self._last_persist = now
+        started = time.perf_counter()
         try:
             save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
             save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
             save_book_stats(self.books, BOOK_STATS_FILE)
+            self.metrics.gtc_flush_ms = (time.perf_counter() - started) * 1000.0
         except Exception as exc:
             # A failed checkpoint must not end the session — the previous
             # checkpoint is still intact on disk because the writes are
@@ -6381,6 +6511,8 @@ class Engine:
         self.pub_sock.close()
         if self._drop_copy is not None:
             self._drop_copy.close()
+        if self._reporter is not None:
+            self._reporter.stop()
 
     # ------------------------------------------------------------------
     # Main loop
@@ -6647,6 +6779,94 @@ class Engine:
         else:
             log.info("REJECTED %s — %s", str(order_id)[:8], reason)
 
+    def attach_reporter(
+        self, reporter: HealthReporter, book_metrics_interval_sec: float = 10.0
+    ) -> None:
+        """Ship this engine's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+        self._book_metrics_interval_sec = book_metrics_interval_sec
+
+    def _flush_metrics(self) -> None:
+        """Publish the beacon's application metrics when the reporter is due."""
+        reporter = self._reporter
+        if reporter is None or not reporter.due():
+            return
+        reporter.publish(self.metric_samples())
+
+    def metric_samples(self, *, now: float | None = None) -> list[MetricSample]:
+        """Every engine metric of design §8.2-§8.4, read from live state.
+
+        Book gauges are O(books) and refreshed only every
+        ``book_metrics_interval_sec``; in between the previous ones are reused.
+        Starts a new latency/busy interval.
+        """
+        now = time.monotonic() if now is None else now
+        m = self.metrics
+        out = m.counter_samples()
+        out.extend(m.timing_samples())
+
+        connected_by_role: dict[str, int] = {}
+        connected: set[str] = set()
+        for session in self._sessions.values():
+            if session.connected:
+                role = session.role.value
+                connected_by_role[role] = connected_by_role.get(role, 0) + 1
+                connected.add(m.label(session.gateway_id))
+        out.append(gauge("engine.participants_connected", len(connected)))
+        for role, n in sorted(connected_by_role.items()):
+            out.append(gauge("engine.participants_connected", n, role))
+        for label in sorted(m.known_gateways | connected):
+            out.append(gauge("engine.participant_connected", label in connected, label))
+
+        resting: dict[str, int] = {label: 0 for label in m.known_gateways}
+        for book in self.books.values():
+            for gateway_id, n in book.resting_count_by_gateway():
+                label = m.label(gateway_id)
+                resting[label] = resting.get(label, 0) + n
+        for label, n in sorted(resting.items()):
+            out.append(gauge("engine.resting_orders", n, label))
+
+        for symbol, book in sorted(self.books.items()):
+            trades, qty, value_ticks = m.trade_totals(book)
+            out.append(counter("engine.trades", trades, symbol))
+            out.append(counter("engine.traded_qty", qty, symbol))
+            out.append(
+                counter("engine.traded_value", from_ticks(value_ticks, symbol), symbol)
+            )
+            out.append(
+                gauge(
+                    "engine.book_halted",
+                    self._halted_symbols.get(symbol, False),
+                    symbol,
+                )
+            )
+
+        for component, n in (
+            ("DISPATCH_ERROR", self._error_count),
+            ("UNROUTED_TOPIC", self._unknown_topic_count),
+            ("UNDECODABLE_MESSAGE", self._undecodable_count),
+            ("MAINTENANCE_FLUSH", self._flush_error_count),
+        ):
+            out.append(counter("engine.diagnostics", n, component))
+
+        out.append(gauge("engine.books", len(self.books)))
+        out.append(
+            gauge(
+                "engine.session_state",
+                SESSION_STATE_ORDER.index(self._session_state),
+            )
+        )
+        out.append(gauge("engine.halted_symbols", sum(self._halted_symbols.values())))
+        out.append(gauge("engine.gtc_flush_ms", m.gtc_flush_ms))
+
+        if now >= self._next_book_metrics:
+            self._next_book_metrics = now + self._book_metrics_interval_sec
+            self._book_metric_samples = book_samples(
+                self.books[symbol] for symbol in sorted(self.books)
+            )
+        out.extend(self._book_metric_samples)
+        return out
+
     def _run_maintenance(self) -> None:
         """Run the per-tick maintenance flushes, each guarded separately.
 
@@ -6671,6 +6891,9 @@ class Engine:
             self._flush_auction_indicative,
             self._flush_debug_summary,
             self._expire_silent_gateways,
+            # Hand the health beacon its samples; guarded like the rest, so a
+            # bug in metrics code cannot stop the circuit-breaker timers.
+            self._flush_metrics,
         ):
             try:
                 flush()
@@ -6733,7 +6956,18 @@ class Engine:
         signal.signal(signal.SIGINT, lambda *_: setattr(self, "_running", False))
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "_running", False))
 
+        # Health instrumentation, bound once: the loop below runs per message.
+        # Message and pass counts are locals, and only 1 in SAMPLE_EVERY
+        # messages / maintenance passes is timed (design A4.10, I31).
+        metrics = self.metrics
+        clock_ns = time.perf_counter_ns
+        tick = self._reporter.tick if self._reporter is not None else None
+        msg_count = 0
+        pass_count = 0
+
         while self._running:
+            if tick is not None:
+                tick()
             try:
                 socks = dict(poller.poll(timeout=200))  # 200 ms tick
             except zmq.ZMQError:
@@ -6801,11 +7035,24 @@ class Engine:
                     # indistinguishable, to any reader, from one that was
                     # dropped. A read's answer starts its own chain instead.
                     self.pub_sock.set_cause(cause if recorded else None)
+                    msg_count += 1
+                    sampled = not msg_count & SAMPLE_MASK or metrics.sample_next
+                    started_ns = clock_ns() if sampled else 0
                     try:
                         self._dispatch_pull_message(topic, payload)
                     finally:
                         self.pub_sock.clear_cause()
-            self._run_maintenance()
+                        if sampled:
+                            metrics.record_dispatch(clock_ns() - started_ns, msg_count)
+            pass_count += 1
+            if pass_count & SAMPLE_MASK:
+                self._run_maintenance()
+            else:
+                started_ns = clock_ns()
+                self._run_maintenance()
+                metrics.record_maintenance(
+                    clock_ns() - started_ns, pass_count, msg_count
+                )
 
         self._flush_debug_summary(force=True)
         self._shutdown()
@@ -6907,7 +7154,16 @@ def main() -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
     report_deployment(log)
-    Engine().run()
+    engine = Engine()
+    reporter = HealthReporter.from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        from edumatcher.monitor.config import load_default_monitor_config
+
+        engine.attach_reporter(
+            reporter, load_default_monitor_config().book_metrics_interval_sec
+        )
+        reporter.start()
+    engine.run()
 
 
 if __name__ == "__main__":

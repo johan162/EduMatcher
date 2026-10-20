@@ -887,7 +887,7 @@ given; else the single symbol's name if there is exactly one; else
 **Do:** Full gate across the repo, then a manual end-to-end run.
 
 **Done when:**
-- [ ] `poetry run pytest tests/ -n auto --cov=src/edumatcher --cov-fail-under=85`
+- [ ] `poetry run pytest tests/ -n logical --cov=src/edumatcher --cov-fail-under=85`
       passes; no test outside `tests/test_mm_bot*.py` changed.
 - [ ] `black`, `flake8`, `mypy`, `pyright` all clean on `src tests`.
 - [ ] Manual run against a live `pm-engine`: a three-symbol config file with

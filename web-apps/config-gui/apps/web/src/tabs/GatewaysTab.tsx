@@ -3,6 +3,8 @@ import {
   API_LOG_LEVELS,
   DUPLICATE_SESSION_POLICIES,
   POST_TRADE_ROLES,
+  DEFAULT_API_BUS,
+  DEFAULT_LOG_CLIENT,
   createApiGateway,
   type ApiLogLevel,
   type DuplicateSessionPolicy,
@@ -338,6 +340,14 @@ function LogServerPanel() {
               <NumField label="PUB send HWM" value={g.pubSndhwm} onChange={(v) => set((gw) => (gw.pubSndhwm = v ?? gw.pubSndhwm))} help={{ text: "ZeroMQ send high-water mark on the PUB socket — a second, lower-level bound so a connected-but-wedged subscriber cannot make ZeroMQ's own queue grow indefinitely.", cliFlag: "--log-server-pub-sndhwm" }} />
             </>
           )}
+
+          <SubHeading
+            title="Log client -- every process"
+            description="log_server.client is read by every other pm-* process, not by pm-log-srv: how long each waits to connect, and where it writes its log when the server cannot be reached. Written only when a value differs from its default."
+          />
+          <NumField label="Connect timeout (sec)" path="logServer.client.connectTimeoutSec" value={g.client.connectTimeoutSec} onChange={(v) => set((gw) => (gw.client.connectTimeoutSec = v ?? DEFAULT_LOG_CLIENT.connectTimeoutSec))} help={{ text: `Seconds a process waits for the log server to accept its connection. Default ${DEFAULT_LOG_CLIENT.connectTimeoutSec}.` }} />
+          <NumField label="Failover timeout (sec)" path="logServer.client.failoverTimeoutSec" value={g.client.failoverTimeoutSec} onChange={(v) => set((gw) => (gw.client.failoverTimeoutSec = v ?? DEFAULT_LOG_CLIENT.failoverTimeoutSec))} help={{ text: `Seconds a process keeps trying to reach the log server before it writes its log to a local file instead. Default ${DEFAULT_LOG_CLIENT.failoverTimeoutSec}.` }} />
+          <TextField label="Failover directory" value={g.client.failoverDir} onChange={(v) => set((gw) => (gw.client.failoverDir = v || DEFAULT_LOG_CLIENT.failoverDir))} help={{ text: `Where those local log files go. Default ${DEFAULT_LOG_CLIENT.failoverDir}.` }} />
         </>
       )}
     </div>
@@ -408,6 +418,26 @@ function ApiPanel() {
           </FieldRow>
           <TextField label="Stats DB path" value={gw.statsDb} onChange={(v) => update((d) => (d.apiGateways[i]!.statsDb = v))} help={{ text: "SQLite database this instance reads for /history/* endpoints (the same file pm-stats writes).", cliFlag: "--api-gateway-stats-db" }} />
           <TextField label="Audit DB path" value={gw.auditDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.auditDb = v || undefined))} help={{ text: "Read-only audit index used by GET /admin/orders/{order_id}. Empty = key omitted; pm-api-gwy then uses its resolved audit_index.db." }} />
+          <TextField label="Clearing DB path" value={gw.clearingDb ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.clearingDb = v || undefined))} help={{ text: "Read-only clearing ledger, the source of realized P&L on position rows. A missing ledger only blanks that column. Empty = key omitted; pm-api-gwy then uses data/clearing.db." }} />
+          <FieldRow
+            label="Market-data cache (s)"
+            help={{ text: "Seconds of recent trades the gateway keeps per symbol, so a WebSocket client that reconnects can resume without a gap. Empty = key omitted (60)." }}
+          >
+            <NumberInput
+              aria-label="Market-data cache (s)"
+              value={gw.marketDataCacheSec}
+              min={0}
+              onChange={(v) => update((d) => (d.apiGateways[i]!.marketDataCacheSec = v))}
+            />
+          </FieldRow>
+          <SubHeading
+            title="Engine and index buses"
+            description="Where this instance reaches pm-engine and pm-index. Leave empty for the local defaults; set them only when the API gateway runs on another host than the engine."
+          />
+          <TextField label="Engine PULL address" value={gw.enginePullAddr ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.enginePullAddr = v || undefined))} help={{ text: `ZeroMQ address requests go to. Empty = key omitted (${DEFAULT_API_BUS.enginePullAddr}).` }} />
+          <TextField label="Engine PUB address" value={gw.enginePubAddr ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.enginePubAddr = v || undefined))} help={{ text: `ZeroMQ address replies and market data come from. Empty = key omitted (${DEFAULT_API_BUS.enginePubAddr}).` }} />
+          <TextField label="Index PULL address" value={gw.indexPullAddr ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.indexPullAddr = v || undefined))} help={{ text: `ZeroMQ address index requests go to. Empty = key omitted (${DEFAULT_API_BUS.indexPullAddr}).` }} />
+          <TextField label="Index PUB address" value={gw.indexPubAddr ?? ""} onChange={(v) => update((d) => (d.apiGateways[i]!.indexPubAddr = v || undefined))} help={{ text: `ZeroMQ address index values come from. Empty = key omitted (${DEFAULT_API_BUS.indexPubAddr}).` }} />
           <NumField
             label="Order cache retention (s)"
             value={gw.orderRetentionSec}

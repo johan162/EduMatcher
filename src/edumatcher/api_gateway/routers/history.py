@@ -411,7 +411,9 @@ async def history_price_snapshots(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
-    return _paginated_envelope("snapshots", rows, next_cursor)
+    return _paginated_envelope(
+        "snapshots", to_display_prices(rows, "snapshots"), next_cursor
+    )
 
 
 @router.get("/index-daily")

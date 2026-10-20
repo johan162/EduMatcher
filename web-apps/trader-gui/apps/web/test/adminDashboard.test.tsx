@@ -84,6 +84,14 @@ describe("AdminDashboardPage (§15.1)", () => {
     await waitFor(() => expect(screen.getByText("2")).toBeTruthy());
   });
 
+  it("draws the session phase on its badge colour, not bare badge text", () => {
+    wrap(<AdminDashboardPage />);
+    // text-black alone was invisible on the dark card.
+    const phase = screen.getByText("Continuous");
+    expect(phase.className).toContain("bg-emerald-500");
+    expect(phase.className).toContain("text-black");
+  });
+
   it("shows the per-symbol summary with a non-terminal order count", () => {
     wrap(<AdminDashboardPage />);
     // AAPL appears in both the per-symbol table and the events feed.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+from edumatcher.health import HealthReporter
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     INDEX_PUB_CONNECT_ADDR,
@@ -229,6 +230,9 @@ def main() -> None:
     gateway = MarketDataGateway(
         config=config, known_symbols=known_symbols, tick_decimals=tick_decimals
     )
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        gateway.attach_reporter(reporter)
     try:
         gateway.run()
     except Exception as exc:

@@ -74,11 +74,11 @@ PROJECT_VERSION := $(shell awk -F'"' '/^version =/ {print $$2; exit}' ../../pypr
 # Not VERSION: that already means "which PyPI release to install" for `make build`.
 TAG ?= dev
 GUI_IMAGES := edumatcher-config-gui edumatcher-log-gui edumatcher-terminal-gui edumatcher-trader-gui \
-              edumatcher-book-gui
+              edumatcher-book-gui edumatcher-dash-gui
 
-# The same five as compose *service* names, which is what `build` and
+# The same six as compose *service* names, which is what `build` and
 # `up -d <svc>` take. GUI= selects one for build-guis / up-all BUILD=1.
-GUI_SERVICES := log-gui terminal-gui trader-gui book-gui config-gui
+GUI_SERVICES := log-gui terminal-gui trader-gui book-gui dash-gui config-gui
 GUI ?=
 
 # Every container this stack owns, named as the compose files name them.
@@ -142,13 +142,13 @@ help:
 	@echo "  make up-all CONFIG_GUI=1              ... and the config builder too"
 	@echo "  make down-all           Stop and remove every container"
 	@echo ""
-	@echo "  make build-guis                    Rebuild all five web-app images"
+	@echo "  make build-guis                    Rebuild all six web-app images"
 	@echo "  make build-guis GUI=terminal-gui   ... just one"
 	@echo "  make up-all BUILD=1                Rebuild the web-app images, then start"
 	@echo "  make up-all BUILD=1 GUI=log-gui    ... rebuilding only that one"
 	@echo "  make dev-env GUI=terminal-gui      Env for running that app locally"
 	@echo "                                     against this backend container"
-	@echo "  make up-sim             Start the AI-trader simulation + four GUIs (GHCR images)"
+	@echo "  make up-sim             Start the AI-trader simulation + five GUIs (GHCR images)"
 	@echo "  make up-sim LOCAL=1     ... with the image from 'make build-sim'"
 	@echo "  make up-sim SPEED=24    ... with the calendar 24x faster than real time"
 	@echo "  make build-sim          Build the edumatcher-ai-sim image from this checkout"
@@ -168,7 +168,7 @@ help:
 	@echo "  make ports              List the published ports"
 	@echo "  make mounts             Which directory is behind each container path"
 	@echo ""
-	@echo "  make ghcr-push          Push all six images to GHCR as :dev (this arch only)"
+	@echo "  make ghcr-push          Push all seven images to GHCR as :dev (this arch only)"
 	@echo "  make ghcr-push TAG=x.y.z FORCE=1   ... as a release tag (see the warning)"
 	@echo "  make clean              Remove the container and the image"
 	@echo "  make clean-data         Delete ./data (the whole exchange state)"
@@ -243,11 +243,11 @@ build: check .env
 	$(DC) build
 
 # `up-all` deliberately does not pass --build. Compose would then re-evaluate
-# six build contexts on every start, and the backend image is `make build`'s
+# seven build contexts on every start, and the backend image is `make build`'s
 # job. The consequence is that a change in web-apps/ is invisible until its
 # image is rebuilt explicitly — which is what this target is for.
 #
-#   make build-guis                       all five
+#   make build-guis                       all six
 #   make build-guis GUI=terminal-gui      one
 #   make up-all BUILD=1 [GUI=...]         rebuild, then start
 #
@@ -358,6 +358,7 @@ endif
 	@echo "  log-gui       http://localhost:$${LOG_GUI_PORT:-8091}"
 	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
+	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
 ifeq ($(CONFIG_GUI),1)
 	@echo "  config-gui    http://localhost:$${CONFIG_GUI_PORT:-8092}"
 endif
@@ -416,6 +417,7 @@ up-sim: check
 	@echo "  log-gui       http://localhost:$${LOG_GUI_PORT:-8091}"
 	@echo "  trader-gui    http://localhost:$${TRADER_GUI_PORT:-8093}"
 	@echo "  book-gui      http://localhost:$${BOOK_GUI_PORT:-8094}"
+	@echo "  dash-gui      http://localhost:$${DASH_GUI_PORT:-8095}"
 	@echo "'make sim-status' shows the processes; 'make down-sim' stops it."
 
 down-sim: check
@@ -559,6 +561,18 @@ dev-env: check
 			echo "WARNING: no read-only credential (gateway_id: null) in the deployed config —" >&2; \
 			echo "         book-gui cannot read any data without one." >&2; \
 		fi;; \
+	dash-gui) \
+		echo "# dash-gui: web on 8195, bridge on 5195 (Vite proxies /api and /ws)"; \
+		echo "export MONITOR_HOST=127.0.0.1"; \
+		echo "export METRICS_DB_PATH=$$data/metrics.db"; \
+		echo "export CONFIG_ARTIFACT_PATH=$$data/ref_data/engine_config.json"; \
+		echo "export LOG_GUI_URL=http://localhost:$${LOG_GUI_PORT:-8091}"; \
+		echo "export BOOK_GUI_URL=http://localhost:$${BOOK_GUI_PORT:-8094}"; \
+		if ! published 5611; then \
+			echo "WARNING: 5611 is not published, so there will be no live data; history" >&2; \
+			echo "         still works from metrics.db. For pm-monitor's snapshot feed:" >&2; \
+			echo "           make down-all && make up-all ZMQ=1" >&2; \
+		fi;; \
 	trader-gui) \
 		echo "# trader-gui: web on 8193. No bridge and no environment needed — vite.config.ts"; \
 		echo "# proxies /api straight to pm-api-gwy on http://localhost:8080."; \
@@ -577,7 +591,7 @@ config-show: check
 	$(EXEC_TTY) $(CONTAINER_NAME) pm-config-show
 
 # --- Publishing ------------------------------------------------------------
-# Builds all six images from this checkout and pushes them to GHCR under one
+# Builds all seven images from this checkout and pushes them to GHCR under one
 # tag. Needs GITHUB_USER and GHCR_TOKEN.
 #
 #   make ghcr-push                       -> :dev
@@ -606,7 +620,7 @@ ghcr-push: check
 			fi; \
 			echo "==> WARNING: pushing single-arch ($$(uname -m)) images as '$(TAG)'";; \
 	esac; \
-	echo "==> building all six images from this checkout"; \
+	echo "==> building all seven images from this checkout"; \
 	$(call stage_wheel,.wheel $(LOG_GUI_WHEEL_DIR)); \
 	$(COMPOSE) $(PUBLISH_COMPOSE_FILES) build; \
 	echo "$$GHCR_TOKEN" | $(CONTAINER_ENGINE) login $(GHCR_REGISTRY) \

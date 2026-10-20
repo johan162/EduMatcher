@@ -153,6 +153,7 @@ from edumatcher.config import (
     GTC_ORDERS_FILE,
     BOOK_STATS_FILE,
     LOG_DB_FILE,
+    METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
     STATS_DB_FILE,
     resolve_data_path,
@@ -171,6 +172,15 @@ RESET = "\033[0m"
 # All default processes necessary for a full exchange setup
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
+    # pm-monitor (operator dashboard): after the log server, so it can log,
+    # and before the engine, so the engine's first beacons are received.
+    {
+        "name": "monitor",
+        "command": ["pm-monitor", "--verbose"],
+        # A snapshot proves the collector loop runs; a TCP connect only
+        # proved the socket was bound (WP-B6).
+        "healthcheck": ["pm-monitor-cli", "health", "-q"],
+    },
     {
         "name": "audit",
         "command": ["pm-audit", "--verbose"],
@@ -239,6 +249,15 @@ MICRO_PROCESSES: list[dict[str, Any]] = [
 # A minimal set of processes for a mini exchange setup that allows external clients to connect
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
+    # pm-monitor (operator dashboard): after the log server, so it can log,
+    # and before the engine, so the engine's first beacons are received.
+    {
+        "name": "monitor",
+        "command": ["pm-monitor", "--verbose"],
+        # A snapshot proves the collector loop runs; a TCP connect only
+        # proved the socket was bound (WP-B6).
+        "healthcheck": ["pm-monitor-cli", "health", "-q"],
+    },
     {
         "name": "stats",
         "command": ["pm-stats", "--verbose"],
@@ -976,28 +995,48 @@ STATE_PATHS: tuple[Path, ...] = (
     DATA_DIR / "indexes",
 )
 
-# Everything else `--all` additionally removes: logs, the audit trail, and
-# pm-opctl's own process-tracking dir (PIDs + per-process stdout/stderr).
+# Everything else `--all` additionally removes: logs, the audit trail,
+# pm-monitor's history (metrics.db, operational like the logs) and pm-opctl's
+# own process-tracking dir (PIDs + per-process stdout/stderr).
 # Anything already listed in STATE_PATHS is skipped here to avoid double
 # work; ref_data/ is excluded — see the module note above.
 NON_STATE_PATHS: tuple[Path, ...] = (
     AUDIT_LOG_FILE,
     AUDIT_INDEX_DB_FILE,
     LOG_DB_FILE,
+    METRICS_DB_FILE,
     LOG_FALLBACK_DIR,
     DATA_DIR / RUNTIME_DIR_NAME,
 )
 
 
+#: SQLite's companions of a database file. Deleting a database but leaving
+#: its ``-wal`` lets SQLite replay the old pages into the next database of
+#: that name, so they go with it.
+SQLITE_SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def _sidecars(path: Path) -> list[Path]:
+    return [path.with_name(path.name + suffix) for suffix in SQLITE_SIDECARS]
+
+
+def _present(path: Path) -> bool:
+    """*path* or any of its SQLite companions exists."""
+    return path.exists() or any(p.exists() for p in _sidecars(path))
+
+
 def _remove_path(path: Path) -> bool:
-    """Delete *path* if it exists. Returns True if anything was removed."""
+    """Delete *path* (and a file's SQLite companions) if it exists. Returns
+    True if anything was removed."""
     if path.is_dir():
         shutil.rmtree(path)
         return True
-    if path.exists():
-        path.unlink()
-        return True
-    return False
+    removed = False
+    for p in (path, *_sidecars(path)):
+        if p.exists():
+            p.unlink()
+            removed = True
+    return removed
 
 
 def _running_pm_pids() -> list[int]:
@@ -1020,7 +1059,7 @@ def clear_data(*, scope: str, assume_yes: bool) -> int:
     if scope == "all":
         paths.extend(NON_STATE_PATHS)
 
-    existing = [p for p in paths if p.exists()]
+    existing = [p for p in paths if _present(p)]
 
     label = "all data (including logs and audit files)" if scope == "all" else "state"
     print(f"This will permanently delete {label} under {DATA_DIR}:")

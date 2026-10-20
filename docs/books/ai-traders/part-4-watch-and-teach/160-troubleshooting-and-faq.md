@@ -5,7 +5,7 @@
 | You see | Likely cause | Do |
 |---|---|---|
 | `pull access denied` / `manifest unknown` on `up` | The release you asked for (`EM_VERSION`, or `latest`) has no `edumatcher-ai-sim` image | Pin a release that has one, or [build it yourself](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
-| `port is already allocated` | Another EduMatcher stack, or another program, holds 5560–5600, 8080/8081 or 8090–8094 | Stop the other stack (`make down-all`, `./edumatcher.sh stop`); only one can run |
+| `port is already allocated` | Another EduMatcher stack, or another program, holds 5560–5600, 8080/8081 or 8090–8095 | Stop the other stack (`make down-all`, `./edumatcher.sh stop`); only one can run |
 | Nothing trades | The market is closed: weekend, a Swedish holiday, or outside 09:00–16:05 Stockholm time | `docker exec edumatcher-sim date`; for trading now, [accelerated time](../part-3-run-it/120-accelerated-time.md) |
 | The market closed in the middle of the day and stays closed | The engine restarted (it starts `CLOSED`) and the running scheduler did not notice | `docker exec edumatcher-sim pkill -f pm-scheduler`: the container restarts it within a minute and it catches up to the current phase |
 | Trading starts at the wrong hour | The container's time zone is not the one you think | `TZ` in `.env` (default `Europe/Stockholm`) |

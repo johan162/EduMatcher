@@ -322,7 +322,14 @@ process's own `config.py`.
 | `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
 | `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
 | `pm-index` | `5558` PUB (bind) · `5559` PULL (bind) · `5564` REP (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL/REP) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests; `5564` only answers `pm-index-cli health` pings (`EDUMATCHER_INDEX_BIND_HOST`, `EDUMATCHER_INDEX_HEALTH_PORT`). No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+| `pm-monitor` | `5610` PULL (bind) · `5611` PUB (bind); connects out to `5556` | – | ZeroMQ (PULL/PUB/SUB) | Health collector. `5610` receives the `health.beacon` every long-running process pushes every 2 s; `5611` publishes `health.snapshot` (1 Hz) and `health.event` to `pm-monitor-cli` and the [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md). Loopback by default (`monitor.bind_address`, `EDUMATCHER_GATEWAY_BIND_HOST`). See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md). |
 | `pm-market-sim` | `5553` PUB (bind) · `5554` PULL (bind); connects out to `5555`, `5556` | – | ZeroMQ (PUB/PULL) | The market model: every symbol's true value, and news. `5553` publishes `sim.value`, the `sim.state` heartbeat and `news.event`; `5554` takes `sim.command` from ADMIN participants. Loopback only by default (`EDUMATCHER_SIM_BIND_HOST`). See [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md). |
+
+Besides the connections listed, every process in the table (and the bots
+`pm-mm-bot` and `pm-ai-swarm`) connects a ZeroMQ PUSH socket to `pm-monitor`
+on `5610` (`monitor.host`/`pull_port`) and sends its health beacon there
+every two seconds. The send never blocks: when `pm-monitor` is not running
+the beacons are dropped and counted.
 
 **Internal-only utilities** (ZeroMQ clients; no listening port of their own):
 
@@ -349,6 +356,20 @@ process's own `config.py`.
     [`pm-config-show`](#pm-config-show-config-viewer). It derives its port map
     from `edumatcher/gateway_ports.py`, the same table `pm-cverifier` uses for
     its `M018` collision check.
+
+**Web applications** (`web-apps/`; each a Node bridge serving a browser app,
+none part of `engine_config.yaml`). The container port is what the stacks
+publish (`deployment/docker` `make up-all`, `deployment/curl`); `make dev`
+uses the web and bridge ports. They follow one scheme: `809N`, `819N`, `519N`.
+
+| Application | Container port | Dev web / bridge | Talks to | Guide |
+|---|---|---|---|---|
+| TapeDeck (`pm-terminal`) | `8090` | `8190` / `5190` | `pm-md-gwy` `5570`, `pm-api-gwy` `8081` | [TapeDeck](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md) |
+| Log Operator Console (`pm-log-ui`) | `8091` | `8191` / `5191` | `pm-log-srv` `5601`/`5602`, `log.db` read-only | [Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md) |
+| Configuration GUI (`config-gui`) | `8092` | `8192` / `5192` | nothing | [Configuration GUI](../../operator-guide/part-2-configure/030-config-gui.md) |
+| Trading GUI (`pm-trading-ui`) | `8093` | `8193` / – | `pm-api-gwy` `8080` | [Trading Platform GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md) |
+| Order Book Viewer (`pm-book`) | `8094` | `8194` / `5194` | `pm-api-gwy` `8081` | [Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md) |
+| Operator Dashboard (`pm-dash`) | `8095` | `8195` / `5195` | `pm-monitor` `5611`, `metrics.db` read-only | [Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md) |
 
 **Setup and configuration tools:**
 
@@ -2699,7 +2720,7 @@ Each `--index-*` flag takes one value per index: give it at most once per `ID`, 
 | `--output FILE` | stdout | Output YAML file path |
 | `--force` | off | Overwrite existing output file |
 | `--dry-run` | off | Print generated YAML; do not write file |
-| `--comment-default-config-fields` | off | Annotate YAML output with comment markers for default-valued fields |
+| `--comment-default-config-fields` | off | Add a commented-out header with every optional section (engine settings, gateways, `api_gateways`, `log_server`, `monitor`, `indices`, `schedule`) at its default values, ready to uncomment |
 
 **Expected runtime input arguments:**
 
@@ -3159,6 +3180,63 @@ See [Centralized Log Server](../../operator-guide/part-6-observe-and-recover/040
 — starting the server, every `pm-log-cli` subcommand, and a workflow
 cookbook — and [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md) for the
 normative wire specification.
+
+## pm-monitor — Health Collector
+
+`pm-monitor` collects the health beacon every long-running `pm-*` process
+sends, judges each process (HEALTHY, DEGRADED, HUNG, SILENT, DEAD, MISSING,
+STOPPED) and the exchange as a whole (OPERATIONAL, DEGRADED, IMPAIRED,
+DOWN), turns counters into rates, evaluates thresholds, keeps history in
+`metrics.db`, and publishes `health.snapshot` once a second and
+`health.event` as things happen. Every built-in `pm-opctl-cli` profile except
+`micro` starts it.
+
+```
+pm-monitor [--log-level LEVEL] [-v|-vv] [-q]
+           [--log-target server|stdout|file] [--log-file PATH]
+           [--log-failover-timeout SEC] [--version]
+```
+
+All its settings come from the `monitor` section of the deployed
+configuration (see [Configuring `pm-monitor`](../part-3-configuration/010-schema-and-process-blocks.md#configuring-pm-monitor));
+the flags are the common logging options.
+
+| Port | Socket | Purpose |
+|---|---|---|
+| `5610` | PULL (bind) | `health.beacon` from every process |
+| `5611` | PUB (bind) | `health.snapshot` (1 Hz), `health.event` |
+| `5556` | SUB (connect) | Engine lifecycle events: connects, disconnects, diagnostics, session, halts |
+
+| File | Purpose |
+|---|---|
+| `<data dir>/metrics.db` | Samples, 1-minute roll-ups, daily totals, counter state, events (WAL) |
+| `<data dir>/metrics.db.lock` | Held while running: one `pm-monitor` per data directory |
+
+Exit codes: `0` stopped normally (also after idling with `monitor.enabled:
+false`); `1` cannot bind its ports or open `metrics.db` (held by another
+`pm-monitor`, or recorded with another session timezone); `2` usage error or
+an unknown session timezone.
+
+See [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md) for how health is judged,
+the thresholds, `metrics.db` and troubleshooting.
+
+## pm-monitor-cli — Health Query CLI
+
+`pm-monitor-cli` is read-only: it subscribes to `pm-monitor`'s PUB port for
+the live view and reads `metrics.db` for the event log, never writing either.
+
+```
+pm-monitor-cli [--host HOST] [--port PORT] [--db PATH]
+               [--format table|json] [--timeout SEC] COMMAND [options]
+```
+
+| Command | Purpose |
+|---|---|
+| `health [-q] [--extended] [-v]` | `pm-monitor` publishing snapshots (its loop runs); `--extended` also checks `metrics.db` integrity, schema, pinned timezone and write access. `-q`: exit 0 / 255. Used as the profile's `healthcheck` |
+| `status` | Exchange status, trading summary, every process, active breaches. Exit `0` OPERATIONAL, `1` DEGRADED, `3` IMPAIRED, `4` DOWN, `5` `pm-monitor` unreachable |
+| `events [--since TS] [--kind K] [--subject TEXT] [--limit N] [--follow [--count N]]` | The event log, then live events with `--follow` |
+
+See [`pm-monitor-cli`](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md#pm-monitor-cli) for every option and a cookbook.
 
 ## pm-msgen — Message Binding Generator
 

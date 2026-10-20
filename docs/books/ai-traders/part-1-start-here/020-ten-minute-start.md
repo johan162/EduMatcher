@@ -4,7 +4,7 @@
     After this chapter you will have:
 
     - A simulated exchange running, with its AI traders, market maker and news
-    - The four browser applications open on it
+    - The five browser applications open on it
     - Checked that it is healthy, and know how to stop and restart it
 
     **Prerequisites**: Docker (Docker Desktop on macOS and Windows) or Podman
@@ -18,7 +18,7 @@ The **hand-built** way runs the same processes straight on your machine with
 ## Install and start it
 
 One command downloads the installer, which fetches the compose file and the
-control script, pulls five images and starts everything:
+control script, pulls six images and starts everything:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim
@@ -29,12 +29,13 @@ Everything lands in `~/.edumatcher-sim` — a compose file, a `.env`, the
 control script `edumatcher.sh`, and `./data` where the exchange writes. There
 is nothing installed anywhere else; delete the directory and it is gone.
 
-The first start downloads five images. Then:
+The first start downloads six images. Then:
 
 ```text
  ✔ Container edumatcher-sim               Started
  ✔ Container edumatcher-sim-terminal-gui  Started
  ✔ Container edumatcher-sim-book-gui      Started
+ ✔ Container edumatcher-sim-dash-gui      Started
  ✔ Container edumatcher-sim-log-gui       Started
  ✔ Container edumatcher-sim-trader-gui    Started
 ```
@@ -76,6 +77,7 @@ simulation: `mm-bot`, `market-sim` and `ai-swarm`.
 | **book-gui** | <http://localhost:8094> | One symbol's order book, level by level, live |
 | **log-gui** | <http://localhost:8091> | The log of every process, searchable |
 | **trader-gui** | <http://localhost:8093> | A trading screen — log in as a student desk |
+| **dash-gui** | <http://localhost:8095> | The exchange's health: every process, trading activity, participants and events |
 
 The trader-gui asks for an API key. The simulation's desks and their keys:
 
@@ -177,6 +179,6 @@ it. If you only read one more chapter, read
 | You see | Do |
 |---|---|
 | `pull access denied` or `manifest unknown` | The image for that version is not published yet: pin one that is with `--version <version>`, or build it — [The Simulation Container](../part-3-run-it/110-the-simulation-container.md#building-the-image-yourself) |
-| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8094. Stop it first; only one stack can run at a time |
+| `port is already allocated` | Another EduMatcher stack (or anything else) holds 5560–5600, 8080/8081 or 8090–8095. Stop it first; only one stack can run at a time |
 | The process table shows `dead` | Wait a minute: the container restarts dead processes once a minute. If it stays dead, see [Troubleshooting](../part-4-watch-and-teach/160-troubleshooting-and-faq.md) |
 | No trading during the day | Check the time zone: the clock is Stockholm's. `./edumatcher.sh shell date` |

@@ -37,6 +37,7 @@ from typing import Any
 
 import zmq
 
+from edumatcher.health import HealthReporter
 from edumatcher.config import (
     DATA_DIR,
     ENGINE_PUB_ADDR,
@@ -407,6 +408,8 @@ class Runner:
         self.sim = sim
         self.state_path = state_path
         self._running = True
+        # Health beacon, attached by main(); vitals only (design A6.6).
+        self._reporter: HealthReporter | None = None
         self.pub = make_publisher(SIM_PUB_BIND_ADDR)
         self.pull = make_puller(SIM_PULL_BIND_ADDR)
         self.push = make_pusher(ENGINE_PULL_ADDR)
@@ -414,6 +417,11 @@ class Runner:
 
     def stop(self, *_args: object) -> None:
         self._running = False
+
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main()).
+        No application metrics in this plan (design A6.6): vitals only."""
+        self._reporter = reporter
 
     def _ask_session(self) -> None:
         try:
@@ -426,8 +434,11 @@ class Runner:
         poller.register(self.sub, zmq.POLLIN)
         poller.register(self.pull, zmq.POLLIN)
         next_beat = next_save = next_ask = 0.0
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick()
                 events = dict(poller.poll(50))
                 now = time.time()
                 if self.sim.session is None and now >= next_ask:
@@ -452,6 +463,8 @@ class Runner:
                     save_state(self.state_path, self.sim.saved())
                     next_save = now + SAVE_SEC
         finally:
+            if self._reporter is not None:
+                self._reporter.stop()
             save_state(self.state_path, self.sim.saved())
             for sock in (self.pub, self.pull, self.push, self.sub):
                 sock.close(linger=0)
@@ -755,6 +768,9 @@ def main() -> None:
         f"resuming at step {sim.seq}" if saved else "fresh start",
     )
     runner = Runner(sim, STATE_FILE)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        runner.attach_reporter(reporter)
     signal.signal(signal.SIGTERM, runner.stop)
     signal.signal(signal.SIGINT, runner.stop)
     runner.run()

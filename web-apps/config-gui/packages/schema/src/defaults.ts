@@ -9,6 +9,10 @@
 
 /** Country used for pm-scheduler's bank-holiday/weekend calendar when unset. */
 export const DEFAULT_COUNTRY = "Sweden";
+/** `locale.session_timezone` when unset (engine/config_loader.py). */
+export const DEFAULT_SESSION_TIMEZONE = "Europe/Stockholm";
+/** `auction_indicative_interval_sec` when unset (engine/config_loader.py). */
+export const DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC = 1.0;
 
 export const DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5;
 export const DEFAULT_QUOTE_HISTORY_MAXLEN = 30;
@@ -63,12 +67,13 @@ export const DEFAULT_ACE_EXPANSIONS: ReadonlyArray<{
 export const DEFAULT_MM_SPREAD_TICKS = 20;
 export const DEFAULT_MM_MIN_QTY = 100;
 /**
- * What the engine loader applies when `mm_max_spread_ticks` is omitted —
- * not the same as the value pm-config-gen writes for a new config (20).
- * An imported file must reflect the loader's value, or re-export would
- * silently change it.
+ * What the engine loader applies when `mm_max_spread_ticks` is omitted
+ * (`_DEFAULT_MM_MAX_SPREAD_TICKS` in engine/config_loader.py). An imported
+ * file must reflect the loader's value, or re-export would silently change
+ * it. Was 10 until the loader's default became 20 (commit 6bb80490); pinned
+ * by tests/test_config_gui_mirrors.py since.
  */
-export const ENGINE_DEFAULT_MM_MAX_SPREAD_TICKS = 10;
+export const ENGINE_DEFAULT_MM_MAX_SPREAD_TICKS = 20;
 export const DEFAULT_MM_STUB_QTY = 1000;
 
 /** Opening two-sided quote width (in ticks) used when seeding an IPO quote. */
@@ -167,6 +172,60 @@ export const DEFAULT_LOG_SERVER = {
   maxBackfillRows: 100_000,
   maxPendingRows: 20_000,
   pubSndhwm: 10_000,
+} as const;
+
+/** `log_server.client` defaults (LogClientConfig in log_srv/config.py). */
+export const DEFAULT_LOG_CLIENT = {
+  connectTimeoutSec: 0.5,
+  failoverTimeoutSec: 30.0,
+  failoverDir: "data/logs",
+} as const;
+
+/** `monitor` defaults (MonitorConfig in src/edumatcher/monitor/config.py). */
+export const DEFAULT_MONITOR = {
+  enabled: true,
+  bindAddress: "127.0.0.1",
+  host: "127.0.0.1",
+  pullPort: 5610,
+  pubPort: 5611,
+  beaconIntervalSec: 2.0,
+  hungAfterSec: 5.0,
+  silentAfterBeacons: 3,
+  bookMetricsIntervalSec: 10.0,
+  rawHours: 6,
+  minuteDays: 7,
+} as const;
+
+/** `monitor.thresholds` defaults (MonitorThresholds). */
+export const DEFAULT_MONITOR_THRESHOLDS: Readonly<
+  Record<
+    | "host_cpu_pct"
+    | "host_mem_pct"
+    | "disk_free_pct"
+    | "engine_handle_p99_us"
+    | "reject_pct_5m"
+    | "rss_growth_pct_1h"
+    | "heap_garbage_pct",
+    { readonly warn: number; readonly crit: number }
+  >
+> = {
+  host_cpu_pct: { warn: 80, crit: 95 },
+  host_mem_pct: { warn: 80, crit: 92 },
+  disk_free_pct: { warn: 15, crit: 5 },
+  engine_handle_p99_us: { warn: 2000, crit: 10000 },
+  reject_pct_5m: { warn: 10, crit: 30 },
+  rss_growth_pct_1h: { warn: 50, crit: 100 },
+  heap_garbage_pct: { warn: 50, crit: 80 },
+};
+
+/** API instance fields the GUI writes only when set (ApiGatewayConfig). */
+export const DEFAULT_API_BUS = {
+  clearingDb: "data/clearing.db",
+  marketDataCacheSec: 60,
+  enginePullAddr: "tcp://127.0.0.1:5555",
+  enginePubAddr: "tcp://127.0.0.1:5556",
+  indexPullAddr: "tcp://127.0.0.1:5559",
+  indexPubAddr: "tcp://127.0.0.1:5558",
 } as const;
 
 export const DEFAULT_API_GATEWAY = {

@@ -1,0 +1,372 @@
+# Canonical specification for the `health` message family.
+#
+# Health instrumentation for the operator dashboard
+# (docs-design/EduMatcher-Operator-Dashboard.md, sections 7, 9 and 11).
+#
+# The family is `health`, not `monitor`: the API gateway's /admin/monitor
+# WebSocket already sends frames typed "monitor.snapshot" (trader-gui's admin
+# monitor), an unrelated protocol. The transports keep the monitor_ names
+# because they are pm-monitor's endpoints.
+#
+# Three messages, two directions:
+#
+#   health.beacon    every long-running pm-* process -> pm-monitor (PUSH/PULL)
+#   health.snapshot  pm-monitor -> dashboard bridge, 1 Hz        (PUB/SUB)
+#   health.event     pm-monitor -> dashboard bridge, as they happen
+#
+# The beacon is sent by the shared HealthReporter (edumatcher.health), so its
+# publisher is that module's role, `health_reporter`, not a list of every
+# process that embeds it.
+#
+# NO MAPS ON THE WIRE. The dashboard design sketched the snapshot in
+# TypeScript with `files: Record<string, number>` and `load: [n, n, n]`. Both
+# are shapes this spec family excludes on purpose: a key that is a value
+# becomes a record with a name field (FileSize), and a positional tuple
+# becomes named fields (load1/load5/load15). The bridge maps the snake_case
+# wire onto the camelCase browser types; it does not re-derive any figure.
+#
+# Timestamps that a person reads (snapshot, events, connected_since, breach
+# since) are ISO-8601 UTC strings with milliseconds, the same text the
+# metrics.db `ts` columns hold, so a value can be pasted from the dashboard
+# into a SQL query unchanged. Ages and durations are numbers with a unit.
+
+family: health
+version: 1
+
+types:
+  MetricSample:
+    doc: >
+      One application metric of a process at the time of its beacon. A list
+      entry rather than a map value, so the dimension (`label`) is a field and
+      a metric with no dimension simply carries the empty label.
+    fields:
+      - { name: name, type: string, validate: { min_len: 1, max_len: 64 },
+          doc: "Dotted name, `<family>.<metric>`, e.g. `engine.orders_in`." }
+      - { name: kind, type: enum, values: [COUNTER, GAUGE],
+          doc: "A COUNTER is monotonic since process start; a GAUGE is a level." }
+      - { name: label, type: string, required: false, default: "",
+          validate: { max_len: 32 },
+          doc: "The single dimension: a gateway id, a symbol, a component, a reason. Bounded by configuration or by a closed set in code, never by what a client sends." }
+      - { name: value, type: float, unit: dimensionless }
+
+  FileSize:
+    doc: "The size of one data file pm-monitor watches under the data directory."
+    fields:
+      - { name: name, type: string, validate: { max_len: 32 },
+          doc: "Logical file name, e.g. `log.db`, `audit`, `metrics.db`." }
+      - { name: size_bytes, type: int, unit: bytes, validate: { ge: 0 },
+          doc: "0 when the file does not exist." }
+
+  ExchangeStatus:
+    doc: "The one-line answer to \"is the exchange OK?\" (design section 10)."
+    fields:
+      - { name: status, type: enum,
+          values: [OPERATIONAL, DEGRADED, IMPAIRED, DOWN],
+          doc: "DOWN when no pm-engine is running: it is DEAD, SILENT, HUNG, MISSING or STOPPED, or pm-monitor has never heard of one. IMPAIRED when any other expected exchange process is DEAD, SILENT, HUNG or MISSING (or STOPPED while the active emo profile expects it). DEGRADED when any exchange process is DEGRADED. Otherwise OPERATIONAL. Participant bots never count." }
+      - { name: session_state, type: string, validate: { max_len: 32 },
+          doc: "The engine's session state name; empty before the engine reports one." }
+      - { name: trading_date, type: string, validate: { max_len: 10 },
+          doc: "YYYY-MM-DD in the session timezone; what \"today\" means below." }
+      - { name: session_timezone, type: string, validate: { max_len: 64 },
+          doc: "IANA name from engine.locale.session_timezone." }
+
+  HostStats:
+    doc: "The host pm-monitor runs on (design section 8.1)."
+    fields:
+      - { name: cpu_pct, type: float, unit: percent, validate: { ge: 0 } }
+      - { name: cpu_per_core, type: list, item: float,
+          doc: "Percent per logical CPU, in psutil order." }
+      - { name: load1, type: float, unit: dimensionless }
+      - { name: load5, type: float, unit: dimensionless }
+      - { name: load15, type: float, unit: dimensionless }
+      - { name: mem_total_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: mem_used_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: mem_available_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: swap_used_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: disk_free_bytes, type: int, unit: bytes, validate: { ge: 0 },
+          doc: "On the filesystem holding the data directory." }
+      - { name: disk_total_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: files, type: list, ref: FileSize }
+
+  Sparkline:
+    doc: "The last samples of a process, oldest first, for inline sparklines."
+    fields:
+      - { name: rss, type: list, item: int, validate: { max_items: 60 },
+          doc: "RSS in bytes, one per beacon." }
+      - { name: cpu, type: list, item: float, validate: { max_items: 60 },
+          doc: "CPU percent of one core, one per beacon." }
+
+  ProcessHealth:
+    doc: >
+      One process as pm-monitor sees it: a process that beacons, or one the
+      active emo profile expects and that has never beaconed (MISSING, with
+      zero figures and an empty host).
+    fields:
+      - { name: key, type: string, validate: { min_len: 1, max_len: 200 },
+          doc: "`process/instance@host`, or `process@host` without an instance; a MISSING process has no host and no `@`. Stable identity for routes and history." }
+      - { name: process, type: string, validate: { max_len: 32 } }
+      - { name: instance, type: string, required: false, nullable: true,
+          validate: { max_len: 32 } }
+      - { name: host, type: string, validate: { max_len: 128 } }
+      - { name: group, type: enum, values: [EXCHANGE, BOT],
+          doc: "BOT for participant bots (pm-mm-bot, pm-ai-swarm), which never affect the exchange status." }
+      - { name: pid, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "0 when the process has never beaconed." }
+      - { name: state, type: enum,
+          values: [HEALTHY, DEGRADED, HUNG, SILENT, DEAD, MISSING, STOPPED],
+          doc: "Design section 10; first matching rule wins." }
+      - { name: restarted_recently, type: bool,
+          doc: "boot_id changed within the last 10 minutes." }
+      - { name: starting, type: bool, required: false, default: false,
+          doc: "The latest beacon said the main loop has not ticked yet. The state stays HEALTHY through a start-up grace, so this is what tells a process still starting from one that is running." }
+      - { name: uptime_sec, type: float, unit: duration_seconds, validate: { ge: 0 } }
+      - { name: rss_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: cpu_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Percent of one core; may exceed 100 for a multi-threaded process." }
+      - { name: threads, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: fds, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "null where the OS has no file-descriptor count." }
+      - { name: loop_age_ms, type: float, unit: duration_millis, validate: { ge: 0 } }
+      - { name: loop_lag_ms, type: float, unit: duration_millis, validate: { ge: 0 } }
+      - { name: last_beacon_age_ms, type: float, unit: duration_millis,
+          validate: { ge: 0 }, doc: "Measured with pm-monitor's receive clock." }
+      - { name: spark, type: nested, ref: Sparkline }
+      - { name: metrics, type: list, ref: MetricSample,
+          doc: "The application metrics of the latest beacon, as sent -- except pm-engine's labelled samples (one per participant or symbol, thousands at 300 symbols): the trading, participants and books blocks carry those derived, and metrics.db keeps them. Its unlabelled samples and engine.diagnostics are kept." }
+
+  RateStats:
+    doc: >
+      A counter turned into the figures of design section 9.4. Every
+      increment is reset-corrected, so a process restart neither loses nor
+      double-counts.
+    fields:
+      - { name: today, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Sum of increments since the start of the trading date." }
+      - { name: per_sec_now, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Increments over the last 60 s divided by 60." }
+      - { name: avg_per_min, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Increments over the last 60 min divided by 60." }
+      - { name: avg_per_hour, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "today divided by hours since the session opened (else midnight)." }
+      - { name: avg_per_day, type: float, unit: dimensionless, required: false,
+          nullable: true,
+          doc: "Mean daily total over the last 7 trading days with data; null before the first full day." }
+
+  TradingStats:
+    doc: "Exchange-wide trading activity, summed over gateways and symbols."
+    fields:
+      - { name: orders, type: nested, ref: RateStats,
+          doc: "engine.orders_in: inbound new orders, including those then rejected." }
+      - { name: trades, type: nested, ref: RateStats }
+      - { name: traded_value_today, type: float, unit: money, validate: { ge: 0 } }
+      - { name: reject_pct_5m, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none." }
+      - { name: handle_p50_us, type: float, unit: duration_micros, validate: { ge: 0 } }
+      - { name: handle_p99_us, type: float, unit: duration_micros, validate: { ge: 0 } }
+      - { name: busy_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Engine share of wall time spent handling; near 100 means saturated." }
+      - { name: rejects_by_code, type: list, ref: RejectCount,
+          doc: "Today's rejects (engine.rejects_by_code) by reason, most first: what makes reject_pct_5m actionable." }
+
+  RejectCount:
+    doc: "Rejects of one reason today: a RejectCode, or a label the engine gives a reject known only by its text (MM_MAX_SPREAD, MM_MIN_QTY, UNKNOWN)."
+    fields:
+      - { name: code, type: string, validate: { min_len: 1, max_len: 32 } }
+      - { name: count, type: int, unit: dimensionless, validate: { ge: 0 } }
+
+  ParticipantStats:
+    doc: "One configured participant (gateway id) as the engine counts it."
+    fields:
+      - { name: id, type: string, validate: { max_len: 32 } }
+      - { name: role, type: string, validate: { max_len: 32 } }
+      - { name: connected, type: bool }
+      - { name: connected_since, type: string, required: false, nullable: true,
+          validate: { max_len: 32 },
+          doc: "ISO-8601 UTC of the current session's connect; null when not connected or not seen." }
+      - { name: orders, type: nested, ref: RateStats }
+      - { name: reject_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Rejected acks over inbound requests today (as TradingStats.reject_pct_5m); 0 when none." }
+      - { name: fills_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: resting_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: connects_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: disconnects_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: heartbeat_timeouts_today, type: int, unit: dimensionless,
+          validate: { ge: 0 } }
+
+  BookStats:
+    doc: "One order book (design section 8.3); refreshed every book_metrics_interval_sec."
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: resting_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: stop_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: bid_levels, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: ask_levels, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: est_bytes, type: int, unit: bytes, validate: { ge: 0 },
+          doc: "An estimate from measured per-object constants, never an exact figure." }
+      - { name: heap_garbage_pct, type: float, unit: percent, validate: { ge: 0, le: 100 } }
+      - { name: trades_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: halted, type: bool }
+
+  GatewayStats:
+    doc: >
+      One process that holds client connections: the ALF, BALF, MD, RALF and
+      drop-copy gateways, the API gateway (WebSocket sessions) and pm-log-srv
+      (LALF sessions). One shape for all, so row 6 of the dashboard is a loop.
+    fields:
+      - { name: key, type: string, validate: { min_len: 1, max_len: 200 },
+          doc: "The ProcessHealth key of the same process." }
+      - { name: kind, type: enum, values: [ALF, BALF, MD, RALF, DC, API, LOG] }
+      - { name: clients, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: clients_max, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "The configured connection limit; null where none exists." }
+      - { name: msgs_per_sec, type: float, unit: dimensionless, validate: { ge: 0 },
+          doc: "Main traffic counter of the kind (commands in, messages out, log events in) over the last 60 s." }
+      - { name: disconnects_today, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: slow_disconnects_today, type: int, unit: dimensionless,
+          validate: { ge: 0 },
+          doc: "Clients cut off for not reading; the back-pressure signal." }
+
+  ActiveBreach:
+    doc: "One threshold currently in breach (design section 9.6)."
+    fields:
+      - { name: rule, type: string, validate: { max_len: 64 },
+          doc: "The configuration key, e.g. `engine_handle_p99_us`." }
+      - { name: subject, type: string, validate: { max_len: 200 },
+          doc: "What breached: a process key, `host`, a symbol or `exchange`." }
+      - { name: level, type: enum, values: [WARN, CRIT] }
+      - { name: value, type: float, unit: dimensionless }
+      - { name: threshold, type: float, unit: dimensionless }
+      - { name: since, type: string, validate: { max_len: 32 },
+          doc: "ISO-8601 UTC of the breach." }
+
+messages:
+  - name: health_beacon
+    topic: "health.beacon"
+    transport: [monitor_push]
+    doc:
+      motivation: >
+        Every long-running pm-* process to pm-monitor, every
+        beacon_interval_sec: the process's own memory, CPU, threads and file
+        descriptors, how long ago its main loop last completed an iteration,
+        and its application counters and gauges.
+
+        Sent from a daemon thread, not from the main loop. That is the point:
+        when the main loop hangs the thread keeps reporting, with a growing
+        loop_age_ms, so pm-monitor can tell HUNG (beacons arrive, loop stuck)
+        from SILENT (no beacons, PID alive) from DEAD (no beacons, no PID).
+        A beacon built on the main loop would simply stop, and silence cannot
+        make that distinction.
+      published_by: [health_reporter]
+      since: "1.2"
+      see_also: ["health.snapshot"]
+      example_note: >
+        PUSH with SNDHWM 10, LINGER 0 and a non-blocking send to pm-monitor's
+        PULL (monitor.pull_port, default 5610). When pm-monitor is down the
+        beacon is dropped and counted in health.beacons_dropped; an exchange
+        process never blocks on it.
+    fields:
+      - { name: process, type: string, validate: { min_len: 1, max_len: 32 },
+          doc: "The name the process uses in its LALF HELLO, e.g. `pm-engine`." }
+      - { name: instance, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 },
+          doc: "The --instance name where a process runs more than once, e.g. `desk`." }
+      - { name: pid, type: int, unit: dimensionless, validate: { gt: 0 } }
+      - { name: host, type: string, validate: { min_len: 1, max_len: 128 },
+          doc: "socket.gethostname()." }
+      - { name: boot_id, type: string, validate: { min_len: 1, max_len: 16 },
+          doc: "Random per process start; a change means a restart even when the PID is reused." }
+      - { name: seq, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Per boot_id; a gap means lost beacons." }
+      - { name: started_at_ns, type: int, unit: epoch_nanos, validate: { ge: 0 },
+          doc: "Process start, for uptime only; ages use pm-monitor's receive clock." }
+      - { name: interval_sec, type: float, unit: duration_seconds,
+          validate: { gt: 0 },
+          doc: "The sender's beacon interval; pm-monitor's silence timers scale with it." }
+      - { name: rss_bytes, type: int, unit: bytes, validate: { ge: 0 } }
+      - { name: cpu_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "Percent of one core since the previous beacon." }
+      - { name: threads, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: fds, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Open file descriptors; absent where the OS has no such count." }
+      - { name: loop_age_ms, type: float, unit: duration_millis,
+          validate: { ge: 0 },
+          doc: "Time since the main loop last called tick()." }
+      - { name: loop_lag_ms, type: float, unit: duration_millis,
+          validate: { ge: 0 },
+          doc: "Longest gap between two tick() calls since the previous beacon." }
+      - { name: final, type: bool, required: false, default: false,
+          doc: "True on the last beacon of a clean shutdown: STOPPED, not DEAD." }
+      - { name: starting, type: bool, required: false, default: false,
+          doc: "True until the main loop has ticked once. The reporter starts before a process's loop exists (restoring state, loading config), and that time is not a hung loop; loop_age_ms still grows, so a process stuck starting stays visible." }
+      - { name: metrics, type: list, ref: MetricSample,
+          doc: "Application metrics (design section 8); may be empty." }
+    encoding:
+      monitor_push: { frames: [topic, json_payload], include: all }
+
+  - name: health_snapshot
+    topic: "health.snapshot"
+    transport: [monitor_pub]
+    doc:
+      motivation: >
+        pm-monitor to the dashboard bridge, once a second: everything the
+        dashboard shows live, already derived. Rates, averages, health states
+        and thresholds are computed once here, so every browser shows the same
+        figures and none re-derives them.
+      published_by: [monitor]
+      since: "1.2"
+      see_also: ["health.beacon", "health.event"]
+      example_note: >
+        PUB on monitor.pub_port (default 5611). About 120 KB at 112
+        participants and 300 symbols (the AI-trader simulation), most of it
+        the participants and books blocks; pm-engine's own per-participant and
+        per-symbol samples are left out of its process record. A bridge that
+        has seen no snapshot for 3 s reports pm-monitor as down.
+    fields:
+      - { name: ts, type: string, validate: { max_len: 32 },
+          doc: "ISO-8601 UTC with milliseconds; pm-monitor's clock." }
+      - { name: seq, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Per pm-monitor start." }
+      - { name: exchange, type: nested, ref: ExchangeStatus }
+      - { name: host, type: nested, ref: HostStats }
+      - { name: processes, type: list, ref: ProcessHealth }
+      - { name: trading, type: nested, ref: TradingStats }
+      - { name: participants, type: list, ref: ParticipantStats }
+      - { name: books, type: list, ref: BookStats }
+      - { name: gateways, type: list, ref: GatewayStats }
+      - { name: thresholds, type: list, ref: ActiveBreach,
+          doc: "Breaches active now; empty when all is well." }
+    encoding:
+      monitor_pub: { frames: [topic, json_payload], include: all }
+
+  - name: health_event
+    topic: "health.event"
+    transport: [monitor_pub]
+    doc:
+      motivation: >
+        pm-monitor to the dashboard bridge, as it happens: an engine lifecycle
+        event (connect, disconnect, diagnostic, session transition, halt) or
+        one pm-monitor generated itself (a process changed health state, a
+        threshold was breached or cleared). These are the dashboard's
+        annotations and its event log, and the rows of metrics.db `events`.
+      published_by: [monitor]
+      since: "1.2"
+      see_also: ["health.snapshot", "system.gateway_auth.{gateway_id}",
+                 "system.gateway_bye.{gateway_id}", "system.diagnostic"]
+    fields:
+      - { name: seq, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "The metrics.db events.seq of this event." }
+      - { name: ts, type: string, validate: { max_len: 32 },
+          doc: "ISO-8601 UTC with milliseconds." }
+      - { name: kind, type: enum,
+          values: [CONNECT, AUTH_REJECT, DISCONNECT, DIAGNOSTIC, SESSION, HALT,
+                   RESUME, PROCESS_STATUS, THRESHOLD] }
+      - { name: severity, type: enum, values: [INFO, WARN, CRIT],
+          doc: "How the dashboard colours it; a heartbeat_timeout disconnect is WARN." }
+      - { name: subject, type: string, validate: { max_len: 200 },
+          doc: "A gateway id, a process key, a symbol, or a threshold rule." }
+      - { name: detail, type: string, required: false, default: "",
+          validate: { max_len: 512 },
+          doc: "e.g. `heartbeat_timeout`, `HEALTHY -> HUNG`, `CONTINUOUS -> CLOSING_AUCTION`." }
+    encoding:
+      monitor_pub: { frames: [topic, json_payload], include: all }

@@ -30,11 +30,11 @@ describe("absent keys take the loader's defaults", () => {
     expect(roundTrip(MINIMAL).sessions_enabled).toBe(true);
   });
 
-  it("keeps mm_max_spread_ticks at the loader default (10), not the GUI's 20", () => {
+  it("keeps mm_max_spread_ticks at the engine loader's default (20)", () => {
     const doc = roundTrip(
       MINIMAL + "mm_obligation_defaults:\n  enforce_mm_obligation: true\n",
     );
-    expect(doc.mm_obligation_defaults.mm_max_spread_ticks).toBe(10);
+    expect(doc.mm_obligation_defaults.mm_max_spread_ticks).toBe(20);
   });
 
   it("does not add circuit_breaker_defaults to a file that has none", () => {

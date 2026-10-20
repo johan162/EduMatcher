@@ -11,7 +11,7 @@
 
     **Prerequisites**: [Ten-Minute Start](../part-1-start-here/020-ten-minute-start.md).
 
-## The four windows
+## The five windows
 
 | Application | Address | Watch it for |
 |---|---|---|
@@ -19,6 +19,7 @@
 | **Order Book Viewer** (book-gui) | <http://localhost:8094> | One symbol's book, price level by price level, with its tape |
 | **Trading GUI** (trader-gui) | <http://localhost:8093> | Trading as a student desk; the instructor's screens with the `OPS01` key |
 | **Log Operator Console** (log-gui) | <http://localhost:8091> | What every process is doing; warnings and errors |
+| **Operator Dashboard** (dash-gui) | <http://localhost:8095> | Whether the simulation keeps up: every process's health, orders and trades per minute, and the AI traders as participants |
 
 Each has its own chapter in the Participant or Operator's Guide (see
 [See also](#see-also)); here is what to look at in a simulated market.
@@ -192,6 +193,7 @@ refused.
 - [TapeDeck](../../participant-guide/part-6-front-ends/010-trading-info-terminal.md),
   [the Trading GUI](../../participant-guide/part-6-front-ends/020-trading-platform-gui.md),
   [the Order Book Viewer](../../participant-guide/part-6-front-ends/030-order-book-gui.md),
-  [the Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md)
+  [the Log Operator Console](../../operator-guide/part-6-observe-and-recover/050-log-console.md),
+  [the Operator Dashboard](../../operator-guide/part-6-observe-and-recover/070-operator-dashboard.md)
 - [AI Traders & News](../../training-guide/140-ai-traders.md) — classroom exercises
 - [Running the AI-Trader Swarm](../../operator-guide/part-3-run/030-ai-trader-swarm.md#logs-and-daily-summaries) — the swarm's logs and summaries in full

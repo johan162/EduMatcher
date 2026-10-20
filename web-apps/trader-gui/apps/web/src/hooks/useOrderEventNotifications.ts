@@ -2,6 +2,8 @@ import { toast } from "sonner";
 import { useWsEvent } from "@/hooks/useWsEvent.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { useOrderStore } from "@/store/useOrderStore.js";
+import { useSymbolStore } from "@/store/useSymbolStore.js";
+import { formatPrice } from "@/lib/formatters.js";
 
 /**
  * Bridge live private order lifecycle events (`/events`) into the Event Center
@@ -69,7 +71,9 @@ export function useOrderEventNotifications(): void {
   useWsEvent("order.fill", (env) => {
     const d = env.data;
     const label = `${d.side ?? ""} ${d.symbol ?? ""}`.trim();
-    const detail = `${d.fill_qty} @ ${d.fill_price} · ${d.remaining_qty} left`;
+    const decimals =
+      (d.symbol ? useSymbolStore.getState().get(d.symbol)?.tick_decimals : undefined) ?? 2;
+    const detail = `${d.fill_qty} @ ${formatPrice(d.fill_price, decimals)} · ${d.remaining_qty} left`;
     toast.success(`${label || "Order"} filled: ${detail}`);
     push({
       ts: Date.now(),

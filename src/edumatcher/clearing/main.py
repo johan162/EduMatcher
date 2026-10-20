@@ -53,6 +53,8 @@ import zmq
 from rich.console import Console
 from rich.table import Table
 
+from edumatcher.health import HealthReporter, counter
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.clearing.ledger import Ledger, trade_date
 from edumatcher.clearing.store import (
     TradeEventRow,
@@ -233,6 +235,11 @@ class ClearingProcess:
         self._gap_count = 0
 
         self._running = False
+        # Health beacon (operator dashboard §8.5), attached by main(); ticked
+        # in the main receive loop. trades_settled is written under _lock by
+        # whichever thread flushes and read on the loop thread: an int.
+        self._reporter: HealthReporter | None = None
+        self._trades_settled = 0
         self._lock = threading.RLock()
         self._last_flush_mono = time.monotonic()
 
@@ -365,6 +372,8 @@ class ClearingProcess:
             log.debug("clearing health socket bound at %s", CLEARING_HEALTH_BIND_ADDR)
             self._receive_loop(sub, health_rep)
         finally:
+            if self._reporter is not None:
+                self._reporter.stop()
             sub.close()
             if health_rep is not None:
                 health_rep.close()
@@ -373,6 +382,14 @@ class ClearingProcess:
             self._conn.close()
             log.info("clearing DB connection closed")
             log.info("shutdown complete")
+
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: trades persisted to clearing.db since start."""
+        return [counter("clearing.trades_settled", self._trades_settled)]
 
     def stop(self) -> None:
         """Signal the receive loop to exit cleanly."""
@@ -401,7 +418,10 @@ class ClearingProcess:
         if health_rep is not None:
             poller.register(health_rep, zmq.POLLIN)
 
+        reporter = self._reporter
         while self._running:
+            if reporter is not None:
+                reporter.tick_and_publish(self.metric_samples)
             try:
                 socks = dict(poller.poll(timeout=300))
             except zmq.ZMQError as exc:
@@ -591,6 +611,7 @@ class ClearingProcess:
         flush_batch(self._conn, trade_rows, position_rows, daily_rows)
 
         count = len(self._buffer)
+        self._trades_settled += count
         self._buffer.clear()
         self._ledger.clear_batch()
         self._last_flush_mono = time.monotonic()
@@ -1131,6 +1152,9 @@ def main() -> None:
         log.error("fatal startup error: %s", exc)
         raise SystemExit(1) from exc
 
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        process.attach_reporter(reporter)
     process.run()
 
 
