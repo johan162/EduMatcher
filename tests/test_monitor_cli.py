@@ -415,7 +415,12 @@ class TestHealthExtended:
         import sqlite3
 
         other = tmp_path / "other.db"
-        sqlite3.connect(other).execute("CREATE TABLE t (x)").connection.commit()
+        conn = sqlite3.connect(other)
+        try:
+            conn.execute("CREATE TABLE t (x)")
+            conn.commit()
+        finally:
+            conn.close()
         result = cli.check_database(other, "UTC")
         assert not result["healthy"] and "missing tables" in result["detail"]
 
