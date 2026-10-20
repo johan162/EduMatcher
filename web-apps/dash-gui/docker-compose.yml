@@ -42,6 +42,8 @@ services:
       MONITOR_HOST: "${MONITOR_HOST:-host.docker.internal}"
       MONITOR_PUB_PORT: "${MONITOR_PUB_PORT:-5611}"
       METRICS_DB_PATH: "/backend-data/metrics.db"
+      # The deployed configuration: monitor.thresholds for /api/thresholds.
+      CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
 
       # Operational logging. An unreachable pm-log-srv is a normal condition:
       # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if

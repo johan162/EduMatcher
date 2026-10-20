@@ -18,9 +18,10 @@ import type { BridgeStatus, HelloFrame } from "@edumatcher/dash-types";
 import type { BridgeConfig } from "./config.js";
 import { registerHistoryRoutes } from "./history-routes.js";
 import type { Logger } from "./logging/logger.js";
-import { MetricsDb } from "./metrics-db.js";
+import { MetricsDb, QueryError } from "./metrics-db.js";
 import { MonitorUplink } from "./monitor-uplink.js";
 import { knownTimeZone } from "./session-time.js";
+import { ThresholdSource } from "./thresholds.js";
 import { WsHub } from "./ws-fanout.js";
 
 export interface Bridge {
@@ -143,6 +144,17 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
   );
 
   registerHistoryRoutes(app, db, sessionTz, opts.now);
+
+  // The rules pm-monitor judges by: the widgets' bands while nothing is in breach (I113).
+  const thresholds = new ThresholdSource(config.configArtifactPath);
+  app.get("/api/thresholds", (_request, reply) => {
+    try {
+      return thresholds.read();
+    } catch (err) {
+      if (err instanceof QueryError) return reply.status(err.status).send({ error: err.code, message: err.message });
+      throw err;
+    }
+  });
 
   if (config.staticDir) {
     const root = isAbsolute(config.staticDir) ? config.staticDir : resolve(process.cwd(), config.staticDir);

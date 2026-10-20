@@ -70,6 +70,32 @@ export interface EventsResponse {
   events: HealthEvent[];
 }
 
+/**
+ * One threshold rule as pm-monitor judges it (monitor/thresholds.py): WARN
+ * strictly above `warn`, CRIT strictly above `crit` -- or below both when
+ * `invert` (low is bad). `crit` null: the rule has no critical level.
+ */
+export interface ThresholdRule {
+  warn: number;
+  crit: number | null;
+  invert: boolean;
+  /** Set in `monitor.thresholds` (else fixed in pm-monitor's code). */
+  configurable: boolean;
+}
+
+/**
+ * `GET /api/thresholds`: every rule `ActiveBreach.rule` can name, keyed by
+ * that name. From the deployed artifact's `monitor.thresholds` -- what
+ * pm-monitor read when it started -- or pm-monitor's built-in defaults
+ * when no artifact is deployed (as pm-monitor itself then runs).
+ */
+export interface ThresholdsResponse {
+  source: "artifact" | "defaults";
+  /** The artifact read, or looked for. */
+  path: string;
+  rules: Record<string, ThresholdRule>;
+}
+
 /** Body of every 4xx/5xx. */
 export interface ApiError {
   error: string;

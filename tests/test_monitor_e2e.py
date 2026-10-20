@@ -416,6 +416,9 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
         "LOG_SRV_ENABLED": "false",
         "LOG_FAILOVER_DIR": str(exchange.data_dir / "logs"),
         "STATIC_DIR": str(DASH / "apps" / "web" / "dist"),
+        "CONFIG_ARTIFACT_PATH": str(
+            exchange.data_dir / "ref_data" / "engine_config.json"
+        ),
     }
     proc = subprocess.Popen(
         [str(tsx), "--disable-warning=ExperimentalWarning", "src/main.ts"],
@@ -726,6 +729,21 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     snap = until(lambda: latest_snapshot(tab), "a snapshot frame")
     assert {(p["process"], p["instance"]) for p in snap["processes"]} >= EXPECTED
 
+    # The threshold rules pm-monitor judges by, from the deployed artifact (I113).
+    thresholds = bridge.get("/api/thresholds")
+    assert thresholds["source"] == "artifact"
+    deployed = json.loads(
+        (exchange.data_dir / "ref_data" / "engine_config.json").read_text()
+    )
+    for rule, band in deployed["monitor"]["thresholds"].items():
+        assert thresholds["rules"][rule] == {
+            "warn": band["warn"],
+            "crit": band["crit"],
+            "invert": rule == "disk_free_pct",
+            "configurable": True,
+        }, rule
+    assert thresholds["rules"]["loop_age_ms"]["configurable"] is False
+
     status = bridge.get("/api/bridge/status")
     assert status["monitor"] == "UP" and status["monitorConnected"]
     assert status["metricsDb"]["ok"] and status["sessionTz"] == exchange.session_tz
@@ -974,7 +992,13 @@ def test_a_pm_monitor_restart_keeps_todays_totals_and_its_event_numbers(
         "monitor_state UP on the tab",
         30,
     )
-    feed.wait(lambda s: s["seq"] >= 3, "a few snapshots from the new pm-monitor")
+    # Counted from the restart: the old pm-monitor's last snapshot would pass
+    # any test on its own seq, and the feed may reconnect after the bridge.
+    until(
+        lambda: len(feed.snapshots) >= restarted_at + 3,
+        "a few snapshots from the new pm-monitor",
+        30,
+    )
     if page is not None:
         page.wait(f"{BANNER} === null && {MAIN_STALE} === 'false'", "the banner gone")
     after = feed.snapshots[restarted_at:]

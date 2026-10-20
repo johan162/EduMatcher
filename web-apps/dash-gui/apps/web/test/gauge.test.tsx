@@ -147,3 +147,12 @@ describe("edge cases (review)", () => {
     expect(texts.filter((t) => t.endsWith("…"))).toHaveLength(3);
   });
 });
+
+describe("rules from /api/thresholds", () => {
+  it("become a widget's thresholds, crit absent when the rule has none", async () => {
+    const { fromRule } = await import("../src/lib/thresholds.js");
+    expect(fromRule({ warn: 15, crit: 5, invert: true, configurable: true })).toEqual({ warn: 15, crit: 5, invert: true });
+    expect(fromRule({ warn: 1000, crit: null, invert: false, configurable: false })).toEqual({ warn: 1000, invert: false });
+    expect(levelOf(4, fromRule({ warn: 15, crit: 5, invert: true, configurable: true }))).toBe("CRIT");
+  });
+});

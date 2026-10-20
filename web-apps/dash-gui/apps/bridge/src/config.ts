@@ -34,6 +34,8 @@ export interface BridgeConfig {
 
   /** pm-monitor's history, opened read-only. */
   metricsDbPath: string;
+  /** The deployed configuration artifact: `monitor.thresholds` (/api/thresholds). */
+  configArtifactPath: string;
 
   logServer: {
     enabled: boolean;
@@ -102,6 +104,7 @@ export function loadBridgeConfig(): BridgeConfig {
     },
 
     metricsDbPath: process.env["METRICS_DB_PATH"] ?? join(dataDir, "metrics.db"),
+    configArtifactPath: process.env["CONFIG_ARTIFACT_PATH"] ?? join(dataDir, "ref_data", "engine_config.json"),
 
     logServer: {
       enabled: boolFromEnv("LOG_SRV_ENABLED", true),

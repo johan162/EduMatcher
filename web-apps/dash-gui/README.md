@@ -81,6 +81,7 @@ REST (history from `metrics.db`, read-only; ranges at most 7 days):
 | `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` | Counter increments per bucket, summed over sources (and labels when none is given) |
 | `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
 | `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |
+| `GET /api/thresholds` | Every threshold rule pm-monitor judges by (`{warn, crit, invert, configurable}` by rule name): from the deployed artifact's `monitor.thresholds`, or pm-monitor's built-in defaults when none is deployed; a 503 when the artifact cannot be used |
 | `GET /api/bridge/status` | Uplink state (and whether pm-monitor is reachable at all), counts, session timezone, `metrics.db` health, tabs, logging |
 
 A bad parameter (or one given twice) is a 400 `{error, message}`; an unknown
@@ -109,6 +110,7 @@ SQLite cannot recreate them. It returns as soon as pm-monitor runs.
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long → pm-monitor shown DOWN |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | pm-monitor's history, opened read-only |
+| `CONFIG_ARTIFACT_PATH` | `<data dir>/ref_data/engine_config.json` | The deployed configuration, for `/api/thresholds` |
 | `EDUMATCHER_DATA_DIR` | `src/data` in a checkout | The data directory, as the Python processes resolve it |
 | `CORS_ORIGIN` | `*` | Restrict when exposed beyond localhost |
 | `STATIC_DIR` | unset | Built web app to serve (set in the container) |

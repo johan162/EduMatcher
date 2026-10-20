@@ -950,6 +950,7 @@ at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 | `GET /api/rate?name=&label=&from=&to=&bucket=1m\|1h` | Counter increments per bucket (from `delta`) — the "orders per minute" chart |
 | `GET /api/daily?name=&label=&days=30` | `daily_totals` rows |
 | `GET /api/events?from=&to=&kind=` | Event log / annotations |
+| `GET /api/thresholds` | Every threshold rule pm-monitor judges by, from the deployed artifact or its defaults (I113, I115) |
 | `GET /api/bridge/status` | Bridge's own state: monitor uplink, DB path, version |
 
 Ranges: `5m`, `15m`, `1h`, `6h`, `24h`, `7d` — the Grafana time picker set.
@@ -2673,12 +2674,16 @@ Data contracts the rows must keep (from the D2 review, I114):
   constants file (`lib/metrics.ts`) so a rename is one edit.
 - Q2 excludes bots — the "Participant bots" group disappears.
 
-**Open point (from D2, I113), to decide first:** the widgets draw thresholds
-as `{warn, crit, invert}` and explain them on hover, but the snapshot carries
-only active breaches, not the configured `monitor.thresholds`.
-Recommendation: the bridge reads them from the deployed artifact (read-only,
-in the data directory it already mounts) and serves `/api/thresholds`.
-Alternative: a spec change putting them in every 1 Hz snapshot.
+**Threshold definitions (from D2, I113; resolved, I115):** the snapshot
+carries only active breaches, so the rows take the rules from
+`GET /api/thresholds` and turn each into a widget's `thresholds` prop with
+`lib/thresholds.ts` `fromRule()`. The endpoint returns every rule
+`ActiveBreach.rule` can name, each `{warn, crit, invert, configurable}`:
+- **The seven configurable rules:** from the deployed artifact's `monitor.thresholds`, which is what pm-monitor read when it started. With no artifact deployed they are pm-monitor's built-in defaults, which is what it then runs on.
+- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `stats_feed_gaps` and `slow_client_disconnects` (any increase over 5 min).
+- **The bridge's own copy:** of the defaults, inverted rules and fixed rules, pinned to the Python by `tests/test_dash_thresholds_mirror.py`.
+- **A broken artifact:** an artifact that is there but cannot be used is a 503 `thresholds_unavailable`, never a quiet fallback to defaults.
+- **A redeployed artifact:** shows at once, but pm-monitor uses the new values only after its restart, as for every process.
 
 **Tasks:**
 - **D3.1** `lib/metrics.ts`: all metric names used by the UI in one place.
