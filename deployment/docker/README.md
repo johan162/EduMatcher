@@ -539,12 +539,17 @@ from this directory, with an empty `data/`:
 | 1 | `make up-all`, open <http://localhost:8095> | LIVE, OPERATIONAL, every process HEALTHY. `podman exec edumatcher-dash-gui node -e "fetch('http://127.0.0.1:8095/api/bridge/status').then(r=>r.json()).then(console.log)"` shows `monitor: 'UP'` and `source: 'edumatcher:5611'` — from *inside* the GUI container |
 | 2 | `podman exec -d edumatcher pm-mm-bot --gateway-id MM01 --all-symbols`, then `podman exec -d edumatcher pm-ai-trader --id TRADER01 --preset market-taker --duration 0` | Orders and trades per minute rise on the trading row. Leave it 30 minutes: no process is ever HUNG |
 | 3 | `podman exec edumatcher pkill -f pm-ai-trader; podman exec edumatcher pkill -f pm-mm-bot`, wait a minute | "Trades today" equals the row count of `podman exec edumatcher pm-stats-cli --format json trades --date <trading date> --limit 1000000` |
-| 4 | `podman exec edumatcher pkill -STOP -f 'bin/pm-clearing( \|$)'` | Within about 7 s pm-clearing is SILENT, the exchange IMPAIRED, and the event log shows `HEALTHY -> SILENT`. `pkill -CONT` the same way: HEALTHY, OPERATIONAL |
+| 4 | `podman exec edumatcher pkill -STOP -f 'bin/pm-clearing( \|$)'` | Within about 7 s pm-clearing is SILENT, the exchange IMPAIRED, and the event log shows `HEALTHY -> SILENT`. `pkill -CONT` the same way: HEALTHY, and the exchange back to OPERATIONAL (or DEGRADED by its reject ratio, see below) |
 | 5 | `podman exec edumatcher pkill -TERM -f 'bin/pm-monitor( \|$)'` | The red banner "pm-monitor down — data frozen at …". `podman exec edumatcher pm-opctl-cli list --restart`: the banner goes, and today's order and trade counts are unchanged |
-| 6 | `podman exec edumatcher pkill -KILL -f 'bin/pm-engine( \|$)'` | pm-engine DEAD, the status pill DOWN. `pm-opctl-cli list --restart`: HEALTHY with the RESTARTED badge, OPERATIONAL |
+| 6 | `podman exec edumatcher pkill -KILL -f 'bin/pm-engine( \|$)'` | pm-engine DEAD, the status pill DOWN. `pm-opctl-cli list --restart`: HEALTHY with the RESTARTED badge |
 
 `docker` works the same in place of `podman`. Then `make down-all`, and
 empty `data/`.
+
+While the market maker trades, the exchange may show DEGRADED by its reject
+ratio with every process HEALTHY: the market maker's cancels of quotes that
+have just traded are refused as `ORDER_NOT_FOUND`, and "Rejects today by
+reason" on the trading row shows it.
 
 ## Publishing images by hand
 

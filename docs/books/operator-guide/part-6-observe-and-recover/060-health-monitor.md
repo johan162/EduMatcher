@@ -101,7 +101,8 @@ At start-up it logs, at INFO, the session timezone it judges "today" by —
 the engine's `locale.session_timezone`, exactly as `pm-stats` does, so
 "orders today" here and the statistics' daily rollup always agree.
 
-It exits with code 1 when it cannot bind its ports or open `metrics.db`:
+It exits with code 1 when it cannot bind its ports, or in two cases when it
+cannot use `metrics.db`:
 
 - **Another `pm-monitor` already writes this `metrics.db`** — one
   `pm-monitor` per data directory; two would each add their own counts to the
@@ -110,6 +111,12 @@ It exits with code 1 when it cannot bind its ports or open `metrics.db`:
   totals would mean two different things. Put
   `locale.session_timezone` back, or move `metrics.db` aside to start a new
   history.
+
+Any other failure to open `metrics.db` — a read-only or full data directory —
+costs history, not monitoring: `pm-monitor` logs the error and runs on
+without history, and the `metrics_store_errors` rule (below) shows it
+DEGRADED until it is restarted with a usable data directory. A write that
+fails later is counted the same way.
 
 With `monitor.enabled: false` it prints that monitoring is disabled and then
 **idles** until stopped (exit 0), binding nothing and writing nothing. It does
@@ -174,6 +181,7 @@ and nothing is MISSING.
 | `heap_garbage_pct` — judged from 100 heap entries | a symbol | > 50 % | > 80 % |
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
 | `slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
+| `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 
 The configurable rules take their levels from `monitor.thresholds`. A breach
 is reported at once; it clears (or eases from critical to warning) only after
@@ -221,8 +229,8 @@ happened while `pm-monitor` was down. Only the very first start of a new
 | Table | Content | Kept |
 |---|---|---|
 | `series` | One row per (source, metric, label); the sample tables refer to it | — |
-| `samples_raw` | The latest value of every series, every 10 s | `retention.raw_hours` (6 h) |
-| `samples_1m` | Per series and minute: min, average, max, last, samples, and for counters the increment | `retention.minute_days` (7 days) |
+| `samples_raw` | The latest value of every unlabelled series, every 10 s | `retention.raw_hours` (6 h) |
+| `samples_1m` | Per series and minute: min, average, max, last, samples, and for counters the increment (a counter only in the minutes it moved) | `retention.minute_days` (7 days) |
 | `daily_totals` | Per trading date and series, the day's increments | For good |
 | `counter_last` | The last value of every counter, for an exact restart | `minute_days` |
 | `events` | Every event; its `seq` is the event's sequence number | `minute_days` |
@@ -237,16 +245,25 @@ WHERE source LIKE 'pm-engine@%' AND name = 'proc.rss_bytes'
 ORDER BY ts DESC LIMIT 10;
 ```
 
-Sources are process keys (`pm-api-gwy/desk@host`) or `host`. Besides each
-process's own metrics, `pm-monitor` stores every process's vitals as
+Sources are process keys (`pm-api-gwy/desk@host`) or `host`. A labelled
+series — one per participant, symbol, channel or core — is kept by the minute
+only. Of the engine's, only those the dashboard reads are kept (orders,
+rejects and the other request counters, fills, trades and traded value,
+resting orders, and the books' resting orders, memory and heap garbage, plus
+`engine.rejects_by_code` and `engine.diagnostics`); `daily_totals` keeps
+every counter. Besides each process's own metrics, `pm-monitor` stores every process's vitals as
 `proc.rss_bytes`, `proc.cpu_pct`, `proc.threads`, `proc.fds`,
 `proc.loop_age_ms` and `proc.loop_lag_ms`, and the host as `host.*` and
 `files.size_bytes` (labelled `metrics.db`, `log.db`, `stats.db`, `audit`,
 `clearing.db`, `gtc`).
 
 Retention runs hourly and returns freed pages, so the file stops growing once
-it holds its window: about 480 MB for an exchange like the `s30-complex`
-example (30 symbols), about 650 MB with 30 participants. `pm-opctl-cli clear
+it holds its window. Measured on the AI-trader simulation (300 symbols, 112
+participants, some 3 000 orders a minute) it grows about 0.2 MB a minute while
+trading, which comes to about 0.75 GB at the default retention with its seven
+trading hours a day; a 30-symbol exchange holds a fraction of that. Most of it
+is the minute rows of the per-symbol and per-participant series; a shorter
+`retention.minute_days` shrinks it in proportion. `pm-opctl-cli clear
 --all` deletes it (it is history, like `log.db`), together with its
 `metrics.db-wal` and `-shm`; `clear --state` keeps it.
 
@@ -414,6 +431,8 @@ pm-monitor-cli --format json status | jq '.processes[] | {key, state}'
 | `pm-monitor` exits: another `pm-monitor` writes `metrics.db` | Two started on one data directory | Stop the other one |
 | `pm-monitor` exits: recorded with another timezone | `locale.session_timezone` changed | Restore it, or move `metrics.db` aside |
 | Today's counts start from zero after a `pm-monitor` restart | First start with this `metrics.db` (or it was cleared) | Expected once; later restarts resume exactly |
+| `pm-monitor` DEGRADED by `metrics_store_errors` | It cannot write `metrics.db`: a read-only or full data directory, or a broken file | Its log names the error; free space or fix the permissions, then restart `pm-monitor` |
+| The exchange DEGRADED by `reject_pct_5m` | Many rejected requests | The dashboard's "Rejects today by reason" says why; `ORDER_NOT_FOUND` is mostly cancels of orders that had just filled, an ordinary race for an active trader |
 
 ## See also
 

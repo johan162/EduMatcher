@@ -117,6 +117,16 @@ export function useBreachLevel(rule: string, subject?: string): Level | undefine
   return useDashStore((s) => (s.snapshot ? breachLevel(s.snapshot.thresholds, rule, subject) : undefined));
 }
 
+/**
+ * The snapshot's active breaches, as the same array until they change: the
+ * snapshot is new every second, and a table's columns built on a new array
+ * every second would redraw every row (I123).
+ */
+export function useBreaches(): readonly ActiveBreach[] {
+  const key = useDashStore((s) => JSON.stringify(s.snapshot?.thresholds ?? []));
+  return useMemo(() => JSON.parse(key) as ActiveBreach[], [key]);
+}
+
 export function breachLevel(breaches: readonly ActiveBreach[], rule: string, subject?: string): Level {
   const levels = breaches.filter((b) => b.rule === rule && (subject === undefined || b.subject === subject)).map((b) => b.level);
   return levels.includes("CRIT") ? "CRIT" : levels.includes("WARN") ? "WARN" : "OK";

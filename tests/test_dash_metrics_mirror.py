@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 from edumatcher.monitor.activity import REQUEST_COUNTERS
-from edumatcher.monitor.collector import VITALS
+from edumatcher.monitor.collector import STORED_ENGINE_LABELLED, VITALS
 from edumatcher.monitor.thresholds import MIN_REQUESTS_5M
 from tests.test_health_contract import COUNTER, GAUGE, _emitted
 
@@ -67,3 +67,14 @@ def test_the_vitals_are_stored_ones() -> None:
 
 def test_the_minimum_requests_are_pm_monitors() -> None:
     assert int(_block("MIN_REQUESTS")) == MIN_REQUESTS_5M
+
+
+def test_every_series_the_dashboard_queries_is_stored() -> None:
+    """The history API reads metrics.db, which keeps only some of the
+    engine's per-participant and per-symbol series (I123): every counter and
+    gauge the dashboard asks it for must be one of them."""
+    queried = set(re.findall(r'"(engine\.\w+)"', _block("COUNTER")))
+    queried |= set(re.findall(r'"(engine\.\w+)"', _block("GAUGE")))
+    queried |= set(re.findall(r'"([\w.]+)"', _block("REQUEST_COUNTERS")))
+    assert len(queried) >= 10
+    assert queried <= STORED_ENGINE_LABELLED, sorted(queried - STORED_ENGINE_LABELLED)

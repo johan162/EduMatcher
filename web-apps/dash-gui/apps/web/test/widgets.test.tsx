@@ -24,6 +24,24 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+describe("HealthTable rows (I123)", () => {
+  it("a row is drawn again only when its data changes", () => {
+    type R = { id: string; n: number };
+    const drawn: string[] = [];
+    const columns: Column<R>[] = [{ id: "n", header: "N", render: (r) => (drawn.push(r.id), String(r.n)) }];
+    const rows = (changed: number): R[] => Array.from({ length: 300 }, (_, i) => ({ id: `S${i}`, n: i === 7 ? changed : i }));
+    const table = (data: R[]) => <HealthTable label="Books" columns={columns} rows={data} rowKey={(r) => r.id} />;
+    const { rerender } = render(table(rows(0)));
+    expect(drawn).toHaveLength(300);
+    drawn.length = 0;
+    rerender(table(rows(0))); // a new snapshot, the same figures: new objects, nothing changed
+    expect(drawn).toEqual([]);
+    rerender(table(rows(99)));
+    expect(drawn).toEqual(["S7"]);
+    expect(screen.getByRole("table", { name: "Books" }).querySelector('[data-row="S7"]')!.textContent).toBe("99");
+  });
+});
+
 describe("StateTimeline", () => {
   it("maps time linearly onto x, clamped to the plot", () => {
     expect(xOf(T0, RANGE, 600)).toBe(0);

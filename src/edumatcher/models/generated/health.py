@@ -560,6 +560,54 @@ class RateStats:
 
 
 @dataclass(frozen=True, slots=True)
+class RejectCount:
+    """Rejects of one reason today: a RejectCode, or a label the engine gives a
+    reject known only by its text (MM_MAX_SPREAD, MM_MIN_QTY, UNKNOWN).
+    """
+
+    code: str
+    count: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.code) < 1:
+            raise MessageValidationError(
+                f"code: length {len(self.code)} is below min_len 1"
+            )
+        if len(self.code) > 32:
+            raise MessageValidationError(
+                f"code: length {len(self.code)} exceeds max_len 32"
+            )
+        if self.count < 0:
+            raise MessageValidationError(f"count: {self.count!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "RejectCount":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            code=str(p["code"]),
+            count=int(p["count"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "code": self.code,
+            "count": self.count,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TradingStats:
     """Exchange-wide trading activity, summed over gateways and symbols."""
 
@@ -570,6 +618,7 @@ class TradingStats:
     handle_p50_us: float  # unit: duration_micros
     handle_p99_us: float  # unit: duration_micros
     busy_pct: float  # unit: percent
+    rejects_by_code: list[RejectCount]
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -598,6 +647,8 @@ class TradingStats:
             )
         if self.busy_pct < 0:
             raise MessageValidationError(f"busy_pct: {self.busy_pct!r} must be >= 0")
+        for rejects_by_code_item in self.rejects_by_code:
+            rejects_by_code_item.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "TradingStats":
@@ -615,6 +666,9 @@ class TradingStats:
             handle_p50_us=float(p["handle_p50_us"]),
             handle_p99_us=float(p["handle_p99_us"]),
             busy_pct=float(p["busy_pct"]),
+            rejects_by_code=(
+                [RejectCount.from_dict(item) for item in p["rejects_by_code"]]
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -627,6 +681,7 @@ class TradingStats:
             "handle_p50_us": self.handle_p50_us,
             "handle_p99_us": self.handle_p99_us,
             "busy_pct": self.busy_pct,
+            "rejects_by_code": [item.to_dict() for item in self.rejects_by_code],
         }
 
 
@@ -1399,8 +1454,10 @@ class HealthSnapshot:
     computed once here, so every browser shows the same figures and none re-
     derives them.
 
-    PUB on monitor.pub_port (default 5611). About 20-60 KB at 30 participants and 20
-    symbols. A bridge that has seen no snapshot for 3 s reports pm-monitor as down.
+    PUB on monitor.pub_port (default 5611). About 120 KB at 112 participants and 300
+    symbols (the AI-trader simulation), most of it the participants and books blocks;
+    pm-engine's own per-participant and per-symbol samples are left out of its process
+    record. A bridge that has seen no snapshot for 3 s reports pm-monitor as down.
     """
 
     ts: str

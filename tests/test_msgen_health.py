@@ -136,6 +136,7 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
             "handle_p50_us": 80.0,
             "handle_p99_us": 640.0,
             "busy_pct": 12.5,
+            "rejects_by_code": [{"code": "MARKET_CLOSED", "count": 3}],
         },
         "participants": [
             {

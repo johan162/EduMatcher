@@ -105,6 +105,13 @@ export interface TradingStats {
   handle_p50_us: number;
   handle_p99_us: number;
   busy_pct: number;
+  /** Today's rejects by reason, most first. */
+  rejects_by_code: RejectCount[];
+}
+
+export interface RejectCount {
+  code: string;
+  count: number;
 }
 
 export interface ParticipantStats {

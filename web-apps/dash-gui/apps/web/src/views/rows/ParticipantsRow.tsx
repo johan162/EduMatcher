@@ -10,7 +10,7 @@
  * connection state.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { EventsResponse, HealthEvent, ParticipantStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
@@ -60,6 +60,8 @@ export function ParticipantsRow() {
   const live = useDashStore((s) => s.events);
   const now = useNow();
   const open = useOpenDrawer();
+  const cols = useMemo(() => columns(tz), [tz]);
+  const onRowClick = useCallback((p: ParticipantStats) => open("participant", p.id), [open]);
   const range = useChartRange(60_000);
   const history = useHistory<EventsResponse>("connections", (r, signal) =>
     getJson(`/api/events?${query({ range: r, kind: "CONNECT,DISCONNECT", limit: 1000 })}`, signal),
@@ -84,7 +86,11 @@ export function ParticipantsRow() {
         tz={tz}
       />
       <div className="mt-4">
-        <HealthTable label="Participants" columns={columns(tz)} rows={participants ?? []} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={(p) => open("participant", p.id)} />
+        <HealthTable label="Participants" columns={cols} rows={participants ?? []} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={onRowClick} />
+        {/* Four windows side by side: say which is which. */}
+        <p className="mb-0 mt-2 text-[11px] text-fg-faint">
+          Orders: /min now over the last 60 s · avg/min over the last 60 min · avg/h today per hour open · avg/day over the last 7 trading days. Rej % and C/D/HB are today.
+        </p>
       </div>
     </Row>
   );

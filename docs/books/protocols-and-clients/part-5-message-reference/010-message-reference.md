@@ -1153,7 +1153,7 @@ One process as pm-monitor sees it: a process that beacons, or one the active emo
 | `loop_lag_ms` | `float` | required | ge 0, unit `duration_millis` |  |
 | `last_beacon_age_ms` | `float` | required | ge 0, unit `duration_millis` | Measured with pm-monitor's receive clock. |
 | `spark` | [`Sparkline`](#sparkline) | required | — |  |
-| `metrics` | list of [`MetricSample`](#metricsample) | required | — | The application metrics of the latest beacon, as sent. |
+| `metrics` | list of [`MetricSample`](#metricsample) | required | — | The application metrics of the latest beacon, as sent -- except pm-engine's labelled samples (one per participant or symbol, thousands at 300 symbols): the trading, participants and books blocks carry those derived, and metrics.db keeps them. Its unlabelled samples and engine.diagnostics are kept. |
 
 #### `RateStats`
 
@@ -1166,6 +1166,15 @@ A counter turned into the figures of design section 9.4. Every increment is rese
 | `avg_per_min` | `float` | required | ge 0, unit `dimensionless` | Increments over the last 60 min divided by 60. |
 | `avg_per_hour` | `float` | required | ge 0, unit `dimensionless` | today divided by hours since the session opened (else midnight). |
 | `avg_per_day` | `float` | `null` when unset | unit `dimensionless` | Mean daily total over the last 7 trading days with data; null before the first full day. |
+
+#### `RejectCount`
+
+Rejects of one reason today: a RejectCode, or a label the engine gives a reject known only by its text (MM_MAX_SPREAD, MM_MIN_QTY, UNKNOWN).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `code` | `string` | required | max_len 32, min_len 1 |  |
+| `count` | `int` | required | ge 0, unit `dimensionless` |  |
 
 #### `TradingStats`
 
@@ -1180,6 +1189,7 @@ Exchange-wide trading activity, summed over gateways and symbols.
 | `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` |  |
 | `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` |  |
 | `busy_pct` | `float` | required | ge 0, unit `percent` | Engine share of wall time spent handling; near 100 means saturated. |
+| `rejects_by_code` | list of [`RejectCount`](#rejectcount) | required | — | Today's rejects (engine.rejects_by_code) by reason, most first: what makes reject_pct_5m actionable. |
 
 #### `ParticipantStats`
 
@@ -1307,7 +1317,7 @@ pm-monitor to the dashboard bridge, once a second: everything the dashboard show
 
     PUB on monitor.pub_port (default 5611).
 
-    About 20-60 KB at 30 participants and 20 symbols.
+    About 120 KB at 112 participants and 300 symbols (the AI-trader simulation), most of it the participants and books blocks; pm-engine's own per-participant and per-symbol samples are left out of its process record.
 
     A bridge that has seen no snapshot for 3 s reports pm-monitor as down.
 

@@ -13,6 +13,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerFrame } from "@edumatcher/dash-types";
 
 const renders = { bars: 0, lines: 0 };
+/** Every HealthTable render's label, columns and click handler. */
+const tableProps: { label: string; columns: unknown; onRowClick: unknown }[] = [];
+vi.mock("../src/components/widgets/HealthTable.js", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/components/widgets/HealthTable.js")>();
+  function Recorded(props: { label: string; columns: unknown; onRowClick?: unknown }) {
+    tableProps.push({ label: props.label, columns: props.columns, onRowClick: props.onRowClick });
+    return createElement(real.HealthTable as ComponentType<object>, props);
+  }
+  return { ...real, HealthTable: Recorded };
+});
 vi.mock("recharts", async (importOriginal) => {
   const real = await importOriginal<typeof import("recharts")>();
   const counted = (Chart: ComponentType<object>, kind: keyof typeof renders) =>
@@ -70,4 +80,27 @@ describe("live snapshots and the history charts", () => {
       expect(renders).toEqual(before);
     },
   );
+
+  it("each table keeps its columns and click handler across snapshots, so unchanged rows are not drawn again (I123)", async () => {
+    const bridge = fakeBridge();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const socket = FakeSocket.latest();
+    socket.open();
+    socket.deliver({ type: "hello", version: "1", monitor: "UP", sessionTz: "Europe/Stockholm" }, at(T, 1));
+    await waitFor(() => expect(bridge.count("/api/thresholds")).toBe(1));
+    await new Promise((r) => setTimeout(r, 50));
+    tableProps.length = 0;
+    for (let i = 1; i <= 5; i++) socket.deliver(at(T + i * 1000, 1 + i));
+    await new Promise((r) => setTimeout(r, 50));
+    for (const name of ["Processes", "Participants", "Order books"]) {
+      const seen = tableProps.filter((p) => p.label === name);
+      expect(seen.length, name).toBeGreaterThanOrEqual(5);
+      expect(new Set(seen.map((p) => p.columns)).size, `${name} columns`).toBe(1);
+      expect(new Set(seen.map((p) => p.onRowClick)).size, `${name} onRowClick`).toBe(1);
+    }
+  });
 });

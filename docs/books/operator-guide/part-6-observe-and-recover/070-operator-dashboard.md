@@ -162,6 +162,15 @@ value `pm-monitor` does not consider a breach — yet. See
 Every state is also shown in words and a glyph (● HEALTHY, ◐ DEGRADED,
 ◆ HUNG, ✕ DEAD …), never by colour alone.
 
+### Rates and their windows
+
+An order or trade rate is always one of four, and each tile or column says
+which: *now* (the last 60 seconds), *avg / min* (the last 60 minutes),
+*avg / hour* (today's total over the hours the session has been open) and
+*avg / day* (the last 7 trading days). They answer different questions, so
+"0.70 /min" beside "3.78 /h" is not a contradiction: the last hour was
+quieter than the day.
+
 ### The seven rows
 
 Each row folds away with its title; the browser remembers which are folded.
@@ -170,7 +179,7 @@ Each row folds away with its title; the browser remembers which are folded.
 |---|---|
 | **Overview** | Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range |
 | **Processes** | Every process: state, uptime, memory and CPU with their recent trend, loop age and lag. Participant bots are listed after the exchange's own and never affect its status. Memory per process, and CPU per process over the range |
-| **Trading activity** | Orders per minute by participant (the top eight and "other"), trades and traded value per minute, the order averages, and the reject ratio as `pm-monitor` judges it |
+| **Trading activity** | Orders per minute by participant (the top eight and "other"), trades and traded value per minute, the order averages, the reject ratio as `pm-monitor` judges it, and today's rejects by reason — what the engine said no to (`ORDER_NOT_FOUND`, `MARKET_CLOSED`, `MM_MAX_SPREAD` …) |
 | **Participants** | A lane per participant: when it was connected, with heartbeat timeouts marked. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today. "avg/day" shows "—" until there is a full day of history |
 | **Order books** | The number of books and their estimated memory; per symbol: resting and stop orders, price levels, memory, heap garbage, trades today, and whether it is halted |
 | **Gateways & infrastructure** | Clients per gateway against its limit, API WebSocket sessions and dropped events, slow-client disconnects, log server intake, feed gaps, the data files' sizes, and the engine's internal diagnostics |
@@ -188,8 +197,9 @@ it and press Enter) to open its **drawer** on the right:
 
 - **A process**: its state and figures, its memory, CPU, threads, file
   descriptors, loop age and loop lag over the range, every application
-  metric it reports, its events, and **Logs in log-gui** — its log records
-  in the [Log Operator Console](050-log-console.md).
+  metric it reports (for the engine, those not per participant or symbol —
+  those are in the participant and book drawers), its events, and **Logs in
+  log-gui** — its log records in the [Log Operator Console](050-log-console.md).
 - **A participant**: its connection and figures, its orders, rejects and
   fills per minute, its resting orders, and its connects and disconnects.
 - **An order book**: its figures, trades and traded value per minute,
@@ -259,6 +269,7 @@ needed when you open the GUIs from another machine.
 | Changed `monitor.thresholds`, colours did not follow | `pm-monitor` reads its thresholds at start | Restart `pm-monitor`. The bands show the new values within one refresh interval |
 | No "Logs in log-gui" / "Book in book-gui" link | `LOG_GUI_URL` / `BOOK_GUI_URL` unset or not `http(s)://…` | Set them as your browser reaches those GUIs |
 | A pasted link shows "No process … in the latest snapshot" | That process, participant or book is not in this exchange (another host name, a stopped bot) | Open the dashboard and pick it from its table |
+| `pm-monitor` DEGRADED, a `metrics_store_errors` breach | `pm-monitor` cannot write its history (read-only or full data directory) | See [Health Monitoring](060-health-monitor.md#troubleshooting); the live figures are unaffected |
 | Container cannot read `metrics.db` on Linux | An SELinux-enforcing host and a mount without `:z` | The supplied compose files carry `:ro,z`; keep it in your own |
 
 ## Where to go next

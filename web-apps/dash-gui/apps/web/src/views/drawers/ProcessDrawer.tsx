@@ -75,6 +75,11 @@ export function ProcessDrawer() {
         <>
           <Vitals p={p} />
           <Section title="Application metrics">
+            {p.process === "pm-engine" && (
+              <p className="mb-2 mt-0 text-xs text-fg-subtle">
+                Per-participant and per-symbol figures are in the participant and order book drawers.
+              </p>
+            )}
             {p.metrics.length === 0 ? (
               <p className="m-0 text-xs text-fg-faint">None sent</p>
             ) : (

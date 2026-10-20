@@ -258,9 +258,11 @@ def _beacons(
 # ---------------------------------------------------------------------------
 
 
-def test_60_s_of_2_s_beacons_are_6_raw_rows_per_series(
+def test_60_s_of_2_s_beacons_are_6_raw_rows_per_unlabelled_series(
     mon: Monitor, clocks: _Clocks, db: Path
 ) -> None:
+    """Unlabelled series and vitals keep their 10 s rows; a labelled series
+    (one per participant or symbol) is kept at minute resolution only (I123)."""
     _beacons(mon, clocks, [float(i) for i in range(30)])
     counts = dict(
         _rows(
@@ -270,7 +272,81 @@ def test_60_s_of_2_s_beacons_are_6_raw_rows_per_series(
             "GROUP BY name",
         )
     )
-    assert counts == {"engine.orders_in": 6, "engine.busy_pct": 6, "proc.rss_bytes": 6}
+    assert counts == {"engine.busy_pct": 6, "proc.rss_bytes": 6}
+    clocks.advance(60.0)  # the minute closes
+    mon.store_tick()
+    minutes = _rows(
+        db,
+        "SELECT COUNT(*) FROM v_samples_1m WHERE source = 'pm-engine@box' "
+        "AND name = 'engine.orders_in' AND label = 'GW1'",
+    )
+    assert minutes[0][0] >= 1
+
+
+def test_only_the_engines_listed_labelled_series_are_stored(
+    mon: Monitor, clocks: _Clocks, db: Path
+) -> None:
+    """Of pm-engine's per-participant and per-symbol series, metrics.db keeps
+    what the dashboard reads; daily totals keep every counter (I123)."""
+    metrics = [
+        {"name": "engine.orders_in", "kind": "COUNTER", "label": "GW1", "value": 5.0},
+        {"name": "engine.traded_qty", "kind": "COUNTER", "label": "AAA", "value": 7.0},
+        {
+            "name": "engine.book_bid_levels",
+            "kind": "GAUGE",
+            "label": "AAA",
+            "value": 3.0,
+        },
+        {
+            "name": "engine.book_est_bytes",
+            "kind": "GAUGE",
+            "label": "AAA",
+            "value": 9.0,
+        },
+    ]
+    for i in range(32):
+        mon.receive(
+            _beacon_frames(
+                seq=i, boot_id="a" * 16, started_at_ns=STARTED, metrics=metrics
+            ),
+            clocks.mono,
+        )
+        mon.store_tick()
+        clocks.advance(2.0)
+    stored = {
+        r[0]
+        for r in _rows(
+            db, "SELECT DISTINCT name FROM v_samples_1m WHERE source = 'pm-engine@box'"
+        )
+    }
+    assert {"engine.orders_in", "engine.book_est_bytes"} <= stored
+    assert not stored & {"engine.traded_qty", "engine.book_bid_levels"}
+
+
+def test_the_snapshot_leaves_out_the_engines_labelled_samples(
+    mon: Monitor, clocks: _Clocks
+) -> None:
+    """The trading, participants and books blocks carry them derived; at 300
+    symbols they were 83 % of every snapshot (I123)."""
+    metrics = [
+        {"name": "engine.orders_in", "kind": "COUNTER", "label": "GW1", "value": 5.0},
+        {"name": "engine.busy_pct", "kind": "GAUGE", "value": 1.0},
+        {
+            "name": "engine.diagnostics",
+            "kind": "COUNTER",
+            "label": "DISPATCH_ERROR",
+            "value": 0.0,
+        },
+    ]
+    mon.receive(
+        _beacon_frames(seq=0, boot_id="a" * 16, started_at_ns=STARTED, metrics=metrics),
+        clocks.mono,
+    )
+    (engine,) = [p for p in mon.snapshot()["processes"] if p["process"] == "pm-engine"]
+    assert {(m["name"], m.get("label", "")) for m in engine["metrics"]} == {
+        ("engine.busy_pct", ""),
+        ("engine.diagnostics", "DISPATCH_ERROR"),
+    }
 
 
 def test_host_series_are_stored(mon: Monitor, db: Path) -> None:
@@ -526,3 +602,90 @@ def test_a_failing_disk_costs_history_not_the_snapshot(
 def test_clear_all_removes_metrics_db() -> None:
     assert METRICS_DB_FILE in emo_cli.NON_STATE_PATHS
     assert METRICS_DB_FILE not in emo_cli.STATE_PATHS  # history, like the logs
+
+
+# ---------------------------------------------------------------------------
+# opening metrics.db at start (I123)
+# ---------------------------------------------------------------------------
+
+
+def test_another_writer_or_another_timezone_stops_pm_monitor(tmp_path: Path) -> None:
+    from edumatcher.monitor.main import open_store
+
+    path = tmp_path / "metrics.db"
+    config = MonitorConfig()
+    first = open_store(path, TZ, config)
+    assert first is not None
+    try:
+        with pytest.raises(SystemExit):
+            open_store(path, TZ, config)  # another pm-monitor holds it
+    finally:
+        first.close(OPEN)
+    with pytest.raises(SystemExit):
+        open_store(path, "America/New_York", config)
+
+
+def test_a_metrics_db_that_cannot_be_opened_costs_history_not_monitoring(
+    tmp_path: Path,
+) -> None:
+    from edumatcher.monitor.main import open_store
+
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("")
+    assert open_store(blocker / "metrics.db", TZ, MonitorConfig()) is None
+
+
+def test_a_counter_that_did_not_move_has_no_minute_row(
+    mon: Monitor, clocks: _Clocks, db: Path
+) -> None:
+    """A rate needs only the minutes it moved in -- a missing minute is 0 --
+    so a quiet counter writes nothing; a gauge writes every minute, or its
+    chart's line would break (I123)."""
+    _beacons(mon, clocks, [5.0] * 35)  # orders_in never moves; busy_pct does
+    clocks.advance(60.0)
+    mon.store_tick()
+    counts = dict(
+        _rows(
+            db,
+            "SELECT name, COUNT(*) FROM v_samples_1m WHERE source = 'pm-engine@box' "
+            "GROUP BY name",
+        )
+    )
+    # Its first minute holds today's first value (the process started
+    # today); the minutes after that, when it did not move, hold nothing.
+    assert counts["engine.orders_in"] == 1
+    assert counts["engine.busy_pct"] >= 2
+
+
+def test_every_series_is_known_within_one_raw_write(
+    mon: Monitor, clocks: _Clocks, db: Path
+) -> None:
+    """A labelled series writes no raw rows and a quiet counter no minute
+    rows, but the history API knows a metric by its series row: every series
+    is registered at the next raw write, or a never-amended exchange would
+    answer its reject-ratio query "unknown metric" (I123)."""
+    metrics = [
+        {"name": "engine.amends_in", "kind": "COUNTER", "label": "GW1", "value": 0.0},
+        {
+            "name": "engine.book_est_bytes",
+            "kind": "GAUGE",
+            "label": "AAA",
+            "value": 9.0,
+        },
+    ]
+    for i in range(6):  # 12 s: one raw write, no closed minute
+        mon.receive(
+            _beacon_frames(
+                seq=i, boot_id="a" * 16, started_at_ns=STARTED, metrics=metrics
+            ),
+            clocks.mono,
+        )
+        mon.store_tick()
+        clocks.advance(2.0)
+    known = {
+        (r[0], r[1])
+        for r in _rows(
+            db, "SELECT name, label FROM series WHERE source = 'pm-engine@box'"
+        )
+    }
+    assert {("engine.amends_in", "GW1"), ("engine.book_est_bytes", "AAA")} <= known

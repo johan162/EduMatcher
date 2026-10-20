@@ -127,7 +127,10 @@ describe("drawer content (D4.2)", () => {
     expect(f["State"]).toContain("HEALTHY");
     expect(f["Host"]).toBe("kappa1");
     const metrics = within(drawer()).getByRole("table", { name: "Application metrics" });
-    expect(metrics.querySelector('[data-row="engine.orders_in|TRADER01"]')).toBeTruthy();
+    expect(metrics.querySelector('[data-row="engine.busy_pct|"]')).toBeTruthy();
+    // Its per-participant and per-symbol samples are not in the snapshot (I123); the drawer says where they are.
+    expect(metrics.querySelector('[data-row="engine.orders_in|TRADER01"]')).toBeNull();
+    expect(drawer().textContent).toContain("Per-participant and per-symbol figures are in the participant and order book drawers.");
     expect(within(drawer()).getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(expect.arrayContaining(["Vitals", "Application metrics", "Events"]));
     await waitFor(() => expect(bridge.calls).toContain(`/api/events?range=1h&subject=${encodeURIComponent("pm-engine@kappa1")}&limit=500`));
   });

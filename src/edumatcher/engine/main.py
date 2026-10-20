@@ -73,6 +73,7 @@ from edumatcher.engine.metrics import (
     SESSION_STATE_ORDER,
     EngineMetrics,
     book_samples,
+    reject_label,
 )
 from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
@@ -802,7 +803,7 @@ class Engine:
         # Explicit keywords, not **kwargs: this runs on every order ack, and
         # repacking a kwargs dict cost ~200 ns there (perf gate, design A4.10).
         if not accepted:
-            self.metrics.count(self.metrics.rejects, gateway_id)
+            self.metrics.count_reject(gateway_id, reject_code or reject_label(reason))
         return make_ack_msg(
             gateway_id,
             order_id,
@@ -818,7 +819,7 @@ class Engine:
         self, gateway_id: str, combo_id: str, accepted: bool, reason: str = ""
     ) -> list[bytes]:
         if not accepted:
-            self.metrics.count(self.metrics.rejects, gateway_id)
+            self.metrics.count_reject(gateway_id, reject_label(reason))
         return make_combo_ack_msg(gateway_id, combo_id, accepted, reason)
 
     def _oco_ack(
@@ -831,7 +832,7 @@ class Engine:
         order_id_2: str = "",
     ) -> list[bytes]:
         if not accepted:
-            self.metrics.count(self.metrics.rejects, gateway_id)
+            self.metrics.count_reject(gateway_id, reject_label(reason))
         return make_oco_ack_msg(
             gateway_id, oco_id, accepted, reason, order_id_1, order_id_2
         )
@@ -848,7 +849,7 @@ class Engine:
         symbol: str = "",
     ) -> list[bytes]:
         if not accepted:
-            self.metrics.count(self.metrics.rejects, gateway_id)
+            self.metrics.count_reject(gateway_id, reject_label(reason))
         return make_quote_ack_msg(
             gateway_id,
             quote_id,

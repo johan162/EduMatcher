@@ -260,6 +260,67 @@ def test_a_slow_client_disconnect_is_a_threshold(mon: Monitor, clocks: _Clocks) 
     assert [p.state for p in snap.processes] == ["DEGRADED"]
 
 
+def test_history_that_cannot_be_written_makes_pm_monitor_degraded(
+    clocks: _Clocks,
+) -> None:
+    """metrics.db wanted but not open: every store tick is lost history,
+    counted in pm-monitor's own beacon, and the metrics_store_errors rule
+    shows it on the dashboard as pm-monitor DEGRADED (I123)."""
+    pull, pub = free_ports(2)
+    mon = Monitor(
+        MonitorConfig(pull_port=pull, pub_port=pub),
+        STOCKHOLM,
+        clock=lambda: clocks.mono,
+        wall_clock=lambda: clocks.wall,
+        host_sampler=QuietHost(),
+        local_host="box",
+        history_unavailable=True,
+    )
+    try:
+        started = int((OPEN - 3600) * 1e9)
+        for i in range(3):
+            mon.store_tick()
+            mon.receive(
+                _beacon_frames(
+                    process="pm-monitor",
+                    seq=i,
+                    metrics=[_c("monitor.store_errors", mon.store_errors)],
+                    started_at_ns=started,
+                ),
+                clocks.mono,
+            )
+            clocks.advance(2.0)
+        snap = _snapshot(mon)
+        assert [(b.rule, b.subject, b.level) for b in snap.thresholds] == [
+            ("metrics_store_errors", "pm-monitor@box", "WARN")
+        ]
+        assert [p.state for p in snap.processes] == ["DEGRADED"]
+    finally:
+        mon.close()
+
+
+def test_todays_rejects_by_reason_most_first(mon: Monitor, clocks: _Clocks) -> None:
+    """engine.rejects_by_code becomes trading.rejects_by_code: what makes the
+    reject ratio actionable (I123)."""
+    started = int((OPEN - 3600) * 1e9)
+    for i, (spread, closed) in enumerate([(0, 0), (4, 1), (9, 1)]):
+        mon.receive(
+            _beacon_frames(
+                process="pm-engine",
+                seq=i,
+                metrics=[
+                    _c("engine.rejects_by_code", spread, "MM_MAX_SPREAD"),
+                    _c("engine.rejects_by_code", closed, "MARKET_CLOSED"),
+                ],
+                started_at_ns=started,
+            ),
+            clocks.mono,
+        )
+        clocks.advance(2.0)
+    reasons = [(r.code, r.count) for r in _snapshot(mon).trading.rejects_by_code]
+    assert reasons == [("MM_MAX_SPREAD", 9), ("MARKET_CLOSED", 1)]
+
+
 def _mm_stream(mon: Monitor, clocks: _Clocks, beacons: int, per_beacon: int) -> None:
     """A market maker whose quotes are refused half the time, no orders."""
     started = int((OPEN - 3600) * 1e9)

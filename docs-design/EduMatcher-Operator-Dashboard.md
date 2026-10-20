@@ -512,6 +512,7 @@ existing handler funnels.
 |---|---|---|---|
 | `engine.orders_in` | C | gateway | Every inbound new-order request **before** validation — what the participant *submitted* (R3, R6) |
 | `engine.rejects` | C | gateway | Every ack with `accepted=False` on `order.ack.`, `combo.ack.`, `oco.ack.`, `quote.ack.` — there is no single reject funnel today (28 `self._reject(...)` calls, 14 inline `accepted=False` sites, several local `_reject` closures), so WP-A4 adds one helper (F4) |
+| `engine.rejects_by_code` | C | reason | The same rejects by reason (I123): the ack's `RejectCode`, or for quotes, combos and OCOs (text only) a label from the reason (`MM_MAX_SPREAD`, `MM_MIN_QTY`, … `UNKNOWN`); every reason published, zeros included |
 | `engine.cancels_in` | C | gateway | Inbound cancel requests |
 | `engine.amends_in` | C | gateway | Inbound amend requests |
 | `engine.quotes_in` | C | gateway | Inbound quote messages (market makers) |
@@ -940,6 +941,13 @@ roughly 25 KB per snapshot for the engine's labelled series — B1 measures it.
 The snapshot is ~20–60 KB at 30 participants and 20 symbols; 1 Hz is fine
 on a LAN. Sparkline arrays are only included for processes. Measured in A1
 at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
+*As built (final review, I123):* at the AI-trader simulation's 300 symbols
+and 112 participants the snapshot was 474 KB, 394 KB of it the engine's
+labelled samples. pm-monitor now leaves those out of the engine's process
+record (the trading, participants and books blocks carry them derived):
+about 120 KB there. metrics.db keeps labelled series by the minute only, of
+the engine's only those the dashboard reads, and a counter only in minutes it
+moved: 1.29 → 0.19 MB a minute while trading.
 
 ### 11.2 REST (history)
 

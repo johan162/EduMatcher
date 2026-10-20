@@ -28,10 +28,12 @@ from __future__ import annotations
 import sys
 import time
 from collections.abc import Iterable
+from typing import get_args
 
 from edumatcher.engine.order_book import BookStats, OrderBook
 from edumatcher.health.samples import counter, gauge
 from edumatcher.models.generated.health import MetricSample
+from edumatcher.models.reject import RejectCode
 from edumatcher.models.session import SessionState
 
 # --- Memory estimate constants (design §8.3) ---------------------------------
@@ -100,6 +102,9 @@ class EngineMetrics:
         self.auth_rejects: dict[str, int] = {}
         self.disconnects: dict[str, int] = {}
         self.heartbeat_timeouts: dict[str, int] = {}
+        #: Every reject by reason (``RejectCode``, or a label from
+        #: :func:`reject_label`); a bounded set, so the label is the reason.
+        self.rejects_by_code: dict[str, int] = {}
 
         self.msgs_in = 0
         self.gtc_flush_ms = 0.0
@@ -185,6 +190,11 @@ class EngineMetrics:
         if len(self._labels) < _LABEL_CACHE_MAX:
             self._labels[gateway] = result
         return result
+
+    def count_reject(self, gateway: object, code: str) -> None:
+        """One rejected acknowledgement: per gateway and by reason."""
+        self.count(self.rejects, gateway)
+        self.rejects_by_code[code] = self.rejects_by_code.get(code, 0) + 1
 
     def count(self, counter_: dict[str, int], gateway: object) -> None:
         """Increment one per-gateway counter -- the hot-path entry point.
@@ -300,7 +310,57 @@ class EngineMetrics:
                 values[label] = values.get(label, 0) + n
             for label in sorted(known | values.keys()):
                 out.append(counter(f"engine.{name}", values.get(label, 0), label))
+        # Every reason, zeros included (G17): a counter first seen with a
+        # value counts as a baseline in pm-monitor when the engine started on
+        # an earlier day, so the first rejects of a new reason would be lost.
+        for code in sorted(REJECT_LABELS | self.rejects_by_code.keys()):
+            out.append(
+                counter(
+                    "engine.rejects_by_code", self.rejects_by_code.get(code, 0), code
+                )
+            )
         return out
+
+
+#: How a reject without a ``RejectCode`` -- quotes, combos and OCOs carry
+#: only a reason text -- is labelled in ``engine.rejects_by_code``: the first
+#: entry whose text the reason contains (lower case). Two are not RejectCodes:
+#: the market-maker obligations a quote can fail (``mm_max_spread_ticks``,
+#: ``mm_min_qty``), the commonest reject of a quoting bot.
+REASON_LABELS: tuple[tuple[str, str], ...] = (
+    ("gateway not configured", "GATEWAY_NOT_CONFIGURED"),
+    ("gateway not connected", "AUTH_REQUIRED"),
+    ("only allowed for market_maker", "ROLE_DENIED"),
+    ("circuit breaker", "CIRCUIT_BREAKER_ACTIVE"),
+    ("halted", "INSTRUMENT_HALTED"),
+    ("market is closed", "MARKET_CLOSED"),
+    ("symbol not configured", "UNKNOWN_SYMBOL"),
+    ("missing", "MISSING_FIELD"),
+    ("invalid", "MALFORMED_MESSAGE"),
+    ("exceeds max", "MM_MAX_SPREAD"),
+    ("quote size must be", "MM_MIN_QTY"),
+    ("not found", "ORDER_NOT_FOUND"),
+    ("no active quote", "ORDER_NOT_FOUND"),
+    ("quantit", "QTY_OUT_OF_RANGE"),
+    ("price", "PRICE_OUT_OF_RANGE"),
+)
+
+
+#: Every label ``engine.rejects_by_code`` can carry.
+REJECT_LABELS: frozenset[str] = (
+    frozenset(get_args(RejectCode))
+    | {label for _needle, label in REASON_LABELS}
+    | {"UNKNOWN"}
+)
+
+
+def reject_label(reason: str) -> str:
+    """The ``engine.rejects_by_code`` label of a reject known only by its text."""
+    text = reason.lower()
+    for needle, label in REASON_LABELS:
+        if needle in text:
+            return label
+    return "UNKNOWN"
 
 
 def percentile(sorted_values: list[int], pct: float) -> float:

@@ -149,6 +149,19 @@ describe("row 2, processes (D3.3)", () => {
 });
 
 describe("rows 3-7 (D3.4)", () => {
+  it("trading: why orders were rejected, and which window each average covers (I123)", () => {
+    const socket = renderAt();
+    const trading = { ...CAPTURED.trading, rejects_by_code: [{ code: "MM_MAX_SPREAD", count: 12 }, { code: "MARKET_CLOSED", count: 2 }] };
+    socket.deliver(hello, frame(fixtureSnapshot({ trading })));
+    const reasons = screen.getByRole("region", { name: "Rejects today by reason" });
+    expect([...reasons.querySelectorAll("[data-label]")].map((li) => li.getAttribute("data-label"))).toEqual(["MM_MAX_SPREAD", "MARKET_CLOSED"]);
+    expect(reasons.textContent).toContain("12");
+    expect(screen.getByRole("region", { name: "Orders avg / min" }).textContent).toContain("last 60 min");
+    expect(screen.getByRole("region", { name: "Orders avg / hour" }).textContent).toContain("today, per hour open");
+    expect(screen.getByRole("region", { name: "Orders today" }).textContent).toContain("last hour");
+    expect(row("Participants").textContent).toContain("avg/min over the last 60 min");
+  });
+
   it("participants: the averages show — before a full day of data", () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));

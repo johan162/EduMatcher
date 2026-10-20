@@ -28,6 +28,7 @@ from edumatcher.engine.metrics import (
     MAX_DYNAMIC_LABELS,
     SAMPLE_EVERY,
     ORDER_BYTES,
+    REJECT_LABELS,
     SESSION_STATE_ORDER,
     UNKNOWN_LABEL,
     EngineMetrics,
@@ -87,6 +88,16 @@ class TestAFreshEngine:
             for gw in GWS:
                 assert _value(samples, f"engine.{name}", gw) == 0
         assert _value(samples, "engine.msgs_in") == 0
+
+    def test_every_reject_reason_is_published_even_when_zero(self, engine: Any) -> None:
+        """G17 again (I123): a reason first seen with a value would be a
+        baseline to pm-monitor on an engine started on an earlier day."""
+        samples = engine.metric_samples()
+        assert _labels(samples, "engine.rejects_by_code") == set(REJECT_LABELS)
+        assert {"MM_MAX_SPREAD", "MM_MIN_QTY", "UNKNOWN", "MARKET_CLOSED"} <= set(
+            REJECT_LABELS
+        )
+        assert all(s.value == 0 for s in samples if s.name == "engine.rejects_by_code")
 
     def test_diagnostics_are_published_even_when_zero(self, engine: Any) -> None:
         samples = engine.metric_samples()
@@ -179,6 +190,53 @@ class TestTheRejectFunnel:
         )
         assert engine.metrics.rejects["GW01"] >= 2
         assert_reject_count_matches(engine)
+
+    def test_rejects_are_counted_by_reason_too(self, engine: Any) -> None:
+        """engine.rejects_by_code (I123): every reject once, by its RejectCode,
+        or by a label from its text when it has none (quotes); the totals agree."""
+        connect(engine, "GW01")
+        engine._dispatch_pull_message(  # unknown symbol
+            em.TOPIC_ORDER_NEW,
+            order_payload(Side.BUY, OrderType.LIMIT, 1, "GW01", 1.0, symbol="ZZZZ"),
+        )
+        engine._dispatch_pull_message(  # FOK with no liquidity
+            em.TOPIC_ORDER_NEW,
+            order_payload(Side.BUY, OrderType.FOK, 5, "GW01", 100.0),
+        )
+        engine._dispatch_pull_message(  # a quote from a trader: text only
+            em.TOPIC_QUOTE_NEW, {"gateway_id": "GW01", "symbol": "AAPL"}
+        )
+        by_code = engine.metrics.rejects_by_code
+        assert sum(by_code.values()) == sum(engine.metrics.rejects.values()) == 3
+        assert "UNKNOWN" not in by_code, by_code
+        assert by_code.get("ROLE_DENIED") == 1, by_code
+        samples = engine.metric_samples()
+        for code, n in by_code.items():
+            assert _value(samples, "engine.rejects_by_code", code) == n
+
+    @pytest.mark.parametrize(
+        ("reason", "label"),
+        [
+            ("Spread 40 ticks exceeds max 20", "MM_MAX_SPREAD"),
+            ("Quote size must be >= 100", "MM_MIN_QTY"),
+            ("Quotes are only allowed for MARKET_MAKER participants", "ROLE_DENIED"),
+            (
+                "AAPL is halted — quotes rejected during circuit breaker halt",
+                "CIRCUIT_BREAKER_ACTIVE",
+            ),
+            ("Market is closed", "MARKET_CLOSED"),
+            ("Symbol not configured: ZZZZ", "UNKNOWN_SYMBOL"),
+            ("Gateway not connected: GW09", "AUTH_REQUIRED"),
+            ("OCO not found", "ORDER_NOT_FOUND"),
+            ("No active quote for symbol", "ORDER_NOT_FOUND"),
+            ("Quote requires bid_price < ask_price", "PRICE_OUT_OF_RANGE"),
+            ("something new", "UNKNOWN"),
+        ],
+    )
+    def test_a_reject_known_by_its_text_gets_a_bounded_label(
+        self, reason: str, label: str
+    ) -> None:
+        assert em.reject_label(reason) == label
 
     def test_the_invariant_catches_a_bypass(self, engine: Any) -> None:
         """Guards the guard: a reject sent around the funnel is noticed."""
@@ -659,6 +717,7 @@ def test_the_beacon_carries_every_metric_of_the_design(engine: Any) -> None:
         "engine.traded_qty",
         "engine.traded_value",
         "engine.diagnostics",
+        "engine.rejects_by_code",
         "engine.books",
         "engine.session_state",
         "engine.halted_symbols",

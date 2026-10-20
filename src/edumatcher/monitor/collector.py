@@ -132,6 +132,36 @@ HOST_SERIES = (
 FINAL_GRACE_SEC = 1.5
 #: States in which a process is gone: its last gauges describe the past.
 GONE_STATES = frozenset({"STOPPED", "DEAD", "MISSING"})
+#: pm-engine's labelled samples -- one per participant or symbol, thousands
+#: at 300 symbols -- are left out of its snapshot record: the trading,
+#: participants and books blocks carry them derived, and metrics.db keeps
+#: them. Kept: its unlabelled samples, and these (I123).
+SNAPSHOT_ENGINE_LABELLED = frozenset({"engine.diagnostics"})
+#: Of pm-engine's labelled series (one per participant or symbol), the ones
+#: metrics.db keeps: what the dashboard charts and its rates and reject ratio
+#: count (web-apps/dash-gui lib/metrics.ts, pinned by
+#: tests/test_dash_metrics_mirror.py), plus diagnostics and reject reasons.
+#: At 300 symbols and 112 participants every labelled series came to some
+#: 2.5 GB at the default retention (I123). Daily totals and counter state
+#: keep every series, so restarts and averages are unaffected.
+STORED_ENGINE_LABELLED = frozenset(
+    {
+        "engine.orders_in",
+        "engine.rejects",
+        "engine.fills",
+        "engine.cancels_in",
+        "engine.amends_in",
+        "engine.quotes_in",
+        "engine.trades",
+        "engine.traded_value",
+        "engine.rejects_by_code",
+        "engine.diagnostics",
+        "engine.resting_orders",
+        "engine.book_resting_orders",
+        "engine.book_est_bytes",
+        "engine.book_heap_garbage_pct",
+    }
+)
 #: How a state change is coloured in the event log.
 STATE_SEVERITY = {
     "HEALTHY": "INFO",
@@ -142,6 +172,19 @@ STATE_SEVERITY = {
     "DEAD": "CRIT",
     "MISSING": "CRIT",
 }
+
+
+def slim(record: dict[str, Any]) -> dict[str, Any]:
+    """A ``ProcessHealth`` record as the snapshot carries it: pm-engine's
+    per-participant and per-symbol samples left out (see
+    :data:`SNAPSHOT_ENGINE_LABELLED`)."""
+    if record["process"] == "pm-engine":
+        record["metrics"] = [
+            m
+            for m in record["metrics"]
+            if not m.get("label") or m["name"] in SNAPSHOT_ENGINE_LABELLED
+        ]
+    return record
 
 
 class Monitor:
@@ -161,12 +204,16 @@ class Monitor:
         roles: dict[str, str] | None = None,
         host_sampler: HostSource | None = None,
         store: MetricsStore | None = None,
+        history_unavailable: bool = False,
     ) -> None:
         """``engine_pub_addr`` is the engine bus to subscribe to (``main()``
         passes ``ENGINE_PUB_ADDR``; ``None`` runs without it, so a test never
         joins a developer's live engine). ``roles`` maps each configured
         gateway id to its participant role. ``store`` is ``metrics.db``
-        (``None`` keeps no history: tests, or a read-only data directory)."""
+        (``None`` keeps no history: tests, or a read-only data directory).
+        ``history_unavailable``: metrics.db was wanted but could not be
+        opened; every store tick then counts a store error, so the
+        ``metrics_store_errors`` rule keeps pm-monitor DEGRADED (I123)."""
         self.config = config
         self.session_tz = session_tz
         self._clock = clock
@@ -240,6 +287,7 @@ class Monitor:
         self.loop_errors = 0
 
         self.store = store
+        self.history_unavailable = history_unavailable
         self._next_averages = 0.0
         if store is not None:
             self._resume_from(store)
@@ -469,12 +517,17 @@ class Monitor:
         now_wall = self._wall_clock()
         states = self.table.states()
         records = [
-            state.health(
-                now,
-                now_wall,
-                state.evaluate(
-                    now, self.rules, breached=state.key in breached, alive=self._alive
-                ),
+            slim(
+                state.health(
+                    now,
+                    now_wall,
+                    state.evaluate(
+                        now,
+                        self.rules,
+                        breached=state.key in breached,
+                        alive=self._alive,
+                    ),
+                )
             )
             for state in states
         ]
@@ -733,8 +786,12 @@ class Monitor:
         store: MetricsStore, key: str, state: ProcessState, now_wall: float
     ) -> None:
         """Vitals as judged -- loop figures less credited silence (I108) --
-        and the beacon's application metrics as sent."""
+        and the beacon's application metrics as sent. A labelled series is
+        kept at minute resolution only, and of pm-engine's only those in
+        :data:`STORED_ENGINE_LABELLED` (I123): its 10 s rows and its
+        unused series were most of metrics.db."""
         beacon = state.beacon
+        engine = beacon.process == "pm-engine"
         for name in VITALS:
             value = getattr(state if name.startswith("loop_") else beacon, name)
             if value is not None:
@@ -742,11 +799,15 @@ class Monitor:
                     (key, f"proc.{name}", ""), float(value), now_wall, counter=False
                 )
         for sample in beacon.metrics:
+            labelled = sample.label != ""
+            if labelled and engine and sample.name not in STORED_ENGINE_LABELLED:
+                continue
             store.record(
                 (key, sample.name, sample.label),
                 sample.value,
                 now_wall,
                 counter=sample.kind == "COUNTER",
+                raw=not labelled,
             )
 
     @staticmethod
@@ -754,7 +815,13 @@ class Monitor:
         store: MetricsStore, host: dict[str, Any], now_wall: float
     ) -> None:
         def put(name: str, value: float, label: str = "") -> None:
-            store.record(("host", name, label), float(value), now_wall, counter=False)
+            store.record(
+                ("host", name, label),
+                float(value),
+                now_wall,
+                counter=False,
+                raw=label == "",
+            )
 
         put("host.cpu_pct", host["cpu_pct"])
         for i, pct in enumerate(host["cpu_per_core"]):
@@ -788,9 +855,13 @@ class Monitor:
     def store_tick(self) -> None:
         """Write what is due: raw rows every 10 s, closed minutes, retention.
 
-        A failing disk costs history, never the live snapshot."""
+        A failing disk costs history, never the live snapshot. Without the
+        metrics.db that was wanted, every tick's history is lost, and counted
+        as such (``history_unavailable``)."""
         store = self.store
         if store is None:
+            if self.history_unavailable:
+                self.store_errors += 1
             return
         now_wall = self._wall_clock()
         try:

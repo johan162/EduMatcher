@@ -102,6 +102,10 @@ GATEWAYS: dict[str, GatewayMetrics] = {
 WATCHED_INCREASES = {
     "api.dropped_events": "api_dropped_events",
     "stats.feed_gaps": "stats_feed_gaps",
+    # pm-monitor's own: history that was not written. It makes pm-monitor
+    # DEGRADED, so a failing or missing metrics.db shows on the dashboard
+    # rather than only in a log line (I123).
+    "monitor.store_errors": "metrics_store_errors",
 }
 SLOW_RULE = "slow_client_disconnects"
 
@@ -171,6 +175,8 @@ class Activity:
         self.rejects = Rate()
         self.requests = Rate()
         self.traded_value = 0.0
+        #: Today's rejects by reason (``engine.rejects_by_code``).
+        self.reject_codes: dict[str, float] = {}
         self.engine_gauges: dict[str, float] = {}
         self.session_state = ""
         #: Wall time the session opened today (first move out of CLOSED).
@@ -204,6 +210,7 @@ class Activity:
             self.rejects.new_day()
             self.requests.new_day()
             self.traded_value = 0.0
+            self.reject_codes = {}
             self.session_opened_at = None
             for p in self.participants.values():
                 p.new_day()
@@ -317,6 +324,8 @@ class Activity:
         elif name == "engine.rejects":
             self.rejects.add(now, delta, windowed=windowed)
             self._participant(label).rejects += delta
+        elif name == "engine.rejects_by_code":
+            self.reject_codes[label] = self.reject_codes.get(label, 0.0) + delta
         elif name == "engine.fills":
             self._participant(label).fills += delta
         elif name == "engine.connects":
@@ -428,6 +437,13 @@ class Activity:
             "handle_p50_us": max(0.0, g.get("engine.handle_us_p50", 0.0)),
             "handle_p99_us": max(0.0, g.get("engine.handle_us_p99", 0.0)),
             "busy_pct": max(0.0, g.get("engine.busy_pct", 0.0)),
+            "rejects_by_code": [
+                {"code": code[:32], "count": int(round(n))}
+                for code, n in sorted(
+                    self.reject_codes.items(), key=lambda kv: (-kv[1], kv[0])
+                )
+                if n > 0
+            ],
         }
 
     def participant_records(

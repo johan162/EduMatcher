@@ -5,6 +5,7 @@
  * and CPU per process over the range.
  */
 
+import { useCallback, useMemo } from "react";
 import type { ActiveBreach, ProcessHealth } from "@edumatcher/dash-types";
 import { BarGauge } from "../../components/widgets/BarGauge.js";
 import { HealthTable, ProcessStateBadge, type Column } from "../../components/widgets/HealthTable.js";
@@ -16,9 +17,7 @@ import { LEVEL, PROCESS_STATE } from "../../lib/status.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { ProcessSeriesChart } from "./ProcessSeriesChart.js";
-import { beaconing, breachLevel, liveExchangeProcesses, shortKey, stateSummary } from "./common.js";
-
-const NO_BREACHES: readonly ActiveBreach[] = [];
+import { beaconing, breachLevel, liveExchangeProcesses, shortKey, stateSummary, useBreaches } from "./common.js";
 
 /** Worst first when sorted by state. */
 const SEVERITY_ORDER = ["DEAD", "SILENT", "MISSING", "HUNG", "STOPPED", "DEGRADED", "HEALTHY"];
@@ -84,21 +83,23 @@ function columns(breaches: readonly ActiveBreach[]): Column<ProcessHealth>[] {
 
 export function ProcessesRow() {
   const processes = useDashStore((s) => s.snapshot?.processes ?? null);
-  const breaches = useDashStore((s) => s.snapshot?.thresholds ?? NO_BREACHES);
+  const breaches = useBreaches();
   const open = useOpenDrawer();
+  const cols = useMemo(() => columns(breaches), [breaches]);
+  const onRowClick = useCallback((p: ProcessHealth) => open("process", p.key), [open]);
   const summary = processes ? stateSummary(processes) : "";
 
   return (
     <Row id="processes" title="Processes" badge={summary || undefined} badgeTone="text-warning">
       <HealthTable
         label="Processes"
-        columns={columns(breaches)}
+        columns={cols}
         // Groups are shown in the order they first appear: the exchange's own first.
         rows={[...(processes ?? [])].sort((a, b) => Number(a.group === "BOT") - Number(b.group === "BOT"))}
         rowKey={(p) => p.key}
         group={(p) => (p.group === "BOT" ? "Participant bots" : "Exchange")}
         initialSort={{ id: "state", dir: "asc" }}
-        onRowClick={(p) => open("process", p.key)}
+        onRowClick={onRowClick}
       />
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BarGauge

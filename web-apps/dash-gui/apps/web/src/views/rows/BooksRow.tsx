@@ -5,6 +5,7 @@
  * threshold, trades today, and whether it is halted -- in words.
  */
 
+import { useCallback, useMemo } from "react";
 import type { ActiveBreach, BookStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
@@ -13,9 +14,7 @@ import { formatBytes, formatCount, formatPercent } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
-import { breachLevel } from "./common.js";
-
-const NO_BREACHES: readonly ActiveBreach[] = [];
+import { breachLevel, useBreaches } from "./common.js";
 
 const HALTED = { glyph: "■", label: "HALTED", ...TONE.warning };
 const TRADING = { glyph: "●", label: "trading", ...TONE.ok };
@@ -52,8 +51,10 @@ function columns(breaches: readonly ActiveBreach[]): Column<BookStats>[] {
 export function BooksRow() {
   const books = useDashStore((s) => s.snapshot?.books ?? null);
   const engineRss = useDashStore((s) => s.snapshot?.processes.find((p) => p.process === "pm-engine" && p.host !== "")?.rss_bytes ?? null);
-  const breaches = useDashStore((s) => s.snapshot?.thresholds ?? NO_BREACHES);
+  const breaches = useBreaches();
   const open = useOpenDrawer();
+  const cols = useMemo(() => columns(breaches), [breaches]);
+  const onRowClick = useCallback((b: BookStats) => open("book", b.symbol), [open]);
   const memory = books?.reduce((sum, b) => sum + b.est_bytes, 0) ?? null;
   const halted = books?.filter((b) => b.halted).length ?? 0;
 
@@ -69,7 +70,7 @@ export function BooksRow() {
             sub={memory !== null && engineRss ? `${formatPercent((100 * memory) / engineRss)} of the engine` : undefined}
           />
         </div>
-        <HealthTable label="Order books" columns={columns(breaches)} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={(b) => open("book", b.symbol)} />
+        <HealthTable label="Order books" columns={cols} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={onRowClick} />
       </div>
     </Row>
   );

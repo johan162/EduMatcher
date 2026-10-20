@@ -13,7 +13,9 @@ What is written, and when
   arrival instead, one process's rows could fall either side of a 10 s
   bucket boundary while another's did not, and a chart of several series
   would miss one in some buckets (a stacked chart then dips to zero).
-* ``samples_1m`` -- one row per series per closed minute, from every sample
+* ``samples_1m`` -- one row per series per closed minute (a counter's only
+  when it moved; a labelled series is kept here only, not in
+  ``samples_raw``), from every sample
   pm-monitor received (2 s resolution), not from the 10 s raw rows: min, avg,
   max, last, the number of samples, and for a counter the reset-corrected
   increment (``delta``). A minute written partly before a restart is merged
@@ -218,6 +220,11 @@ class MetricsStore:
                 self._release_lock()
             raise
         self._raw: dict[SeriesKey, float] = {}  # -> the latest value
+        #: Series recorded but not yet in the ``series`` table. Registered at
+        #: the next raw write, so every series is known (to the history API)
+        #: within one raw interval of its first sample, although a labelled
+        #: one writes no raw rows and a quiet counter no minute rows (I123).
+        self._unregistered: set[SeriesKey] = set()
         self._minutes: dict[SeriesKey, _Minute] = {}
         self._closed: list[tuple[SeriesKey, _Minute]] = []
         self._daily: dict[tuple[str, str, str, str], float] = {}
@@ -288,10 +295,20 @@ class MetricsStore:
     # ------------------------------------------------------------------
 
     def record(
-        self, key: SeriesKey, value: float, now_wall: float, *, counter: bool
+        self,
+        key: SeriesKey,
+        value: float,
+        now_wall: float,
+        *,
+        counter: bool,
+        raw: bool = True,
     ) -> None:
-        """One sample of one series, as received."""
-        self._raw[key] = value
+        """One sample of one series, as received. ``raw=False`` keeps it in
+        the minute table only (I123)."""
+        if raw:
+            self._raw[key] = value
+        elif key not in self._series:
+            self._unregistered.add(key)
         start = now_wall - now_wall % MINUTE
         minute = self._minutes.get(key)
         if minute is not None and minute.start != start:
@@ -347,6 +364,8 @@ class MetricsStore:
         last = [(*k, boot, v, ts) for k, (boot, v) in (counters or {}).items()]
         conn = self.conn
         with self._transaction():
+            for key in self._unregistered:
+                self._series_id(key)
             raw = [(self._series_id(key), ts, v) for key, v in self._raw.items()]
             conn.executemany(
                 "INSERT OR REPLACE INTO samples_raw(series, ts, value) VALUES (?, ?, ?)",
@@ -365,6 +384,7 @@ class MetricsStore:
             )
         self._raw.clear()
         self._daily.clear()
+        self._unregistered.clear()
         return len(raw)
 
     def flush_minutes(self, now_wall: float, *, force: bool = False) -> int:
@@ -399,6 +419,11 @@ class MetricsStore:
                 m.delta,
             )
             for key, m in self._closed
+            # A counter that did not move in its minute says nothing a rate
+            # needs (a missing minute is 0): on a busy 300-symbol exchange
+            # that was a quarter of every minute's rows (I123). Gauges are
+            # always written: a missing minute would break a chart's line.
+            if m.delta != 0
         ]
         self.conn.executemany(
             "INSERT INTO samples_1m"

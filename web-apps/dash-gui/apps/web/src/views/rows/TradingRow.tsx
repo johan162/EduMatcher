@@ -12,6 +12,7 @@
  */
 
 import type { RateByLabelResponse, RateResponse } from "@edumatcher/dash-types";
+import { BarGauge } from "../../components/widgets/BarGauge.js";
 import { RateBars } from "../../components/widgets/RateBars.js";
 import { Row } from "../../components/widgets/Row.js";
 import { StatTile } from "../../components/widgets/StatTile.js";
@@ -74,6 +75,7 @@ function RejectRatio() {
 export function TradingRow() {
   const orders = useDashStore((s) => s.snapshot?.trading.orders ?? null);
   const traded = useDashStore((s) => s.snapshot?.trading.traded_value_today ?? null);
+  const rejectReasons = useDashStore((s) => s.snapshot?.trading.rejects_by_code ?? null);
   return (
     <Row id="trading" title="Trading activity">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -84,11 +86,19 @@ export function TradingRow() {
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatTile label="Orders avg / min" value={orders?.avg_per_min ?? null} format={(v) => formatRate(v, "min")} />
-          <StatTile label="Orders avg / hour" value={orders?.avg_per_hour ?? null} format={(v) => formatRate(v, "h")} />
-          <StatTile label="Orders avg / day" value={orders?.avg_per_day ?? null} format={formatCompact} sub={orders && orders.avg_per_day === null ? "under a day of data" : "last 7 days"} />
-          <StatTile label="Traded value today" value={traded} format={formatCompact} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatTile label="Orders avg / min" value={orders?.avg_per_min ?? null} format={(v) => formatRate(v, "min")} sub="last 60 min" />
+            <StatTile label="Orders avg / hour" value={orders?.avg_per_hour ?? null} format={(v) => formatRate(v, "h")} sub="today, per hour open" />
+            <StatTile label="Orders avg / day" value={orders?.avg_per_day ?? null} format={formatCompact} sub={orders && orders.avg_per_day === null ? "under a day of data" : "last 7 days"} />
+            <StatTile label="Traded value today" value={traded} format={formatCompact} />
+          </div>
+          {/* What makes the reject ratio actionable: why the engine said no (I123). */}
+          <BarGauge
+            label="Rejects today by reason"
+            items={(rejectReasons ?? []).map((r) => ({ label: r.code, value: r.count }))}
+            format={formatCount}
+          />
         </div>
         <RejectRatio />
       </div>

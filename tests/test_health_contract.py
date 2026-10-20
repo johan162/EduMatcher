@@ -165,7 +165,11 @@ def test_gateway_stats_read_what_the_gateway_emits(process: str) -> None:
 
 
 def test_watched_increases_are_counters_their_process_emits() -> None:
-    owners = {"api.dropped_events": "pm-api-gwy", "stats.feed_gaps": "pm-stats"}
+    owners = {
+        "api.dropped_events": "pm-api-gwy",
+        "stats.feed_gaps": "pm-stats",
+        "monitor.store_errors": "pm-monitor",
+    }
     assert set(WATCHED_INCREASES) == set(owners)
     for name, process in owners.items():
         assert _emitted(process).get(name) == COUNTER, name

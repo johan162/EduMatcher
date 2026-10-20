@@ -351,12 +351,19 @@ class Trader:
                 self.fills += 1
         self.conn.tick(time.time())
 
-    def buy(self, symbol: str, price_ticks: int, qty: int = 10, tag: str = "") -> None:
+    def buy(
+        self,
+        symbol: str,
+        price_ticks: int,
+        qty: int = 10,
+        tag: str = "",
+        order_type: str = "LIMIT",
+    ) -> None:
         line = alf.new_order(
             tag=tag or f"E2E{self.acks}",
             symbol=symbol,
             side="BUY",
-            order_type="LIMIT",
+            order_type=order_type,
             tif="DAY",
             qty=qty,
             tick_decimals=2,
@@ -728,6 +735,40 @@ def test_a_traders_activity_reaches_every_figure(
     assert live == stored and {k for _, k in live} == {"CONNECT", "DISCONNECT"}
 
 
+def test_metrics_db_keeps_labelled_series_by_the_minute_and_only_those_read(
+    exchange: Exchange,
+) -> None:
+    """Per participant or symbol: no 10 s rows, and of the engine's only the
+    series the dashboard reads (I123); vitals and unlabelled series keep
+    their 10 s rows."""
+    from edumatcher.monitor.collector import STORED_ENGINE_LABELLED
+
+    assert exchange.metrics_db(
+        "SELECT COUNT(*) FROM v_samples_raw WHERE label != ''"
+    ) == [(0,)]
+    assert (
+        exchange.metrics_db(
+            "SELECT COUNT(*) FROM v_samples_raw WHERE name = 'proc.rss_bytes'"
+        )[0][0]
+        > 0
+    )
+
+    def stored() -> set[str] | None:
+        names = {
+            r[0]
+            for r in exchange.metrics_db(
+                "SELECT DISTINCT name FROM v_samples_1m "
+                "WHERE source LIKE 'pm-engine@%' AND label != ''"
+            )
+        }
+        # The minute the traders' orders fell in has closed (a quiet
+        # counter writes no minute row, so earlier minutes lack them).
+        return names if "engine.orders_in" in names else None
+
+    names = until(stored, "the minute of the traders' orders, closed", 75)
+    assert names <= STORED_ENGINE_LABELLED, sorted(names - STORED_ENGINE_LABELLED)
+
+
 def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     exchange: Exchange, feed: Feed, bridge: Bridge, tab: Tab
 ) -> None:
@@ -793,11 +834,11 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     series = f"/api/series?name=engine.orders_in&label=TRADER01&source={engine['key']}&range=15m"
     counter = until(
         lambda: [pt for pt in bridge.get(series)["points"] if pt[1] == 6],
-        "TRADER01's counter at 6 in /api/series (raw, every 10 s)",
+        "TRADER01's counter at 6 in /api/series (by the minute: labelled, I123)",
         seen=lambda: {k: v for k, v in bridge.get(series).items() if k != "points"}
         | {"last": bridge.get(series)["points"][-3:]},
     )
-    assert counter
+    assert counter and bridge.get(series)["resolution"] == "1m"
     rss = bridge.get(f"/api/series?name=proc.rss_bytes&source={engine['key']}&range=5m")
     assert rss["resolution"] == "raw" and rss["points"]
     assert rss["points"][-1][1] == pytest.approx(engine["rss_bytes"], rel=0.5)
@@ -1091,6 +1132,46 @@ def test_drawers_open_from_a_pasted_link_and_from_the_rows(
         "an unknown book's drawer",
     )
     page.goto(f"{base}/")
+
+
+def test_a_reject_reaches_the_dashboard_by_its_reason(
+    feed: Feed, bridge: Bridge, page: Page | None
+) -> None:
+    """One order the engine refuses: today's rejects by reason say why
+    (engine.rejects_by_code, I123), and the snapshot's engine record carries
+    no per-participant or per-symbol samples but its diagnostics."""
+    base = feed.latest
+    assert base is not None
+    before = {r["code"]: r["count"] for r in base["trading"]["rejects_by_code"]}
+    trader = Trader("TRADER02")  # after every scenario that counts its orders
+    try:
+        # Fill-or-kill far beyond the book: refused by the engine itself
+        # (an unknown symbol would be refused by the gateway, never counted).
+        trader.buy("AAPL", ASK, qty=1_000_000, tag="FOK", order_type="FOK")
+        s = feed.wait(
+            lambda s: (
+                s
+                if sum(r["count"] for r in s["trading"]["rejects_by_code"])
+                == sum(before.values()) + 1
+                else None
+            ),
+            "one more reject, by its reason",
+        )
+    finally:
+        trader.close()
+    after = {r["code"]: r["count"] for r in s["trading"]["rejects_by_code"]}
+    (code,) = [c for c in after if after[c] != before.get(c, 0)]
+    assert code not in ("UNKNOWN", ""), after
+    engine = process(s, "pm-engine")
+    labelled = {m["name"] for m in engine["metrics"] if m.get("label")}
+    assert labelled == {"engine.diagnostics"}, labelled
+    if page is not None:
+        page.goto(f"http://127.0.0.1:{bridge.port}/")
+        page.wait(
+            "[...document.querySelectorAll('[aria-label=\"Rejects today by reason\"] [data-label]')]"
+            f".map(li => li.dataset.label).includes({json.dumps(code)})",
+            "the reject's reason on the trading row",
+        )
 
 
 def test_a_stopped_process_goes_silent_and_comes_back(

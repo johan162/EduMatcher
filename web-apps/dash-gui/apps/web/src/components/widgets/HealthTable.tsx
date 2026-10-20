@@ -10,7 +10,7 @@
  */
 
 import clsx from "clsx";
-import { useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { PROCESS_STATE, type StatusLook } from "../../lib/status.js";
 import type { ProcessState } from "@edumatcher/dash-types";
 
@@ -100,29 +100,7 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
             </tr>
           )}
           {sorted(groupRows).map((row) => (
-            <tr
-              key={rowKey(row)}
-              data-row={rowKey(row)}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onRowClick(row);
-                      }
-                    }
-                  : undefined
-              }
-              tabIndex={onRowClick ? 0 : undefined}
-              className={clsx("border-b border-border-subtle", onRowClick && "cursor-pointer hover:bg-bg-inset focus:bg-bg-inset focus:outline-none")}
-            >
-              {columns.map((c) => (
-                <td key={c.id} className={clsx("whitespace-nowrap px-2 py-1 tabular", c.align === "right" && "text-right")}>
-                  {c.render(row)}
-                </td>
-              ))}
-            </tr>
+            <TableRow key={rowKey(row)} id={rowKey(row)} row={row} signature={JSON.stringify(row)} columns={columns} onRowClick={onRowClick} />
           ))}
         </tbody>
       ))}
@@ -130,6 +108,52 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
     </div>
   );
 }
+
+interface TableRowProps<T> {
+  id: string;
+  row: T;
+  /** The row's data as text: the row is drawn again only when it changes. */
+  signature: string;
+  columns: readonly Column<T>[];
+  onRowClick?: (row: T) => void;
+}
+
+function TableRowImpl<T>({ id, row, columns, onRowClick }: TableRowProps<T>) {
+  return (
+    <tr
+      data-row={id}
+      onClick={onRowClick ? () => onRowClick(row) : undefined}
+      onKeyDown={
+        onRowClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onRowClick(row);
+              }
+            }
+          : undefined
+      }
+      tabIndex={onRowClick ? 0 : undefined}
+      className={clsx("border-b border-border-subtle", onRowClick && "cursor-pointer hover:bg-bg-inset focus:bg-bg-inset focus:outline-none")}
+    >
+      {columns.map((c) => (
+        <td key={c.id} className={clsx("whitespace-nowrap px-2 py-1 tabular", c.align === "right" && "text-right")}>
+          {c.render(row)}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+/**
+ * A row redrawn only when its data, its columns or its click handler
+ * change: the snapshot is new every second, but at 300 books most rows are
+ * not (I123). Callers pass stable ``columns`` and ``onRowClick``.
+ */
+const TableRow = memo(
+  TableRowImpl,
+  (a, b) => a.signature === b.signature && a.columns === b.columns && a.onRowClick === b.onRowClick && a.id === b.id,
+) as typeof TableRowImpl;
 
 /** A state as glyph and word in its colour. */
 export function StateBadge({ look }: { look: StatusLook }) {

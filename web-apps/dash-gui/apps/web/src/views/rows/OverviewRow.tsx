@@ -74,13 +74,13 @@ export function OverviewRow() {
           label="Orders today"
           value={trading?.orders.today ?? null}
           format={formatCount}
-          sub={trading ? `~${formatRate(trading.orders.avg_per_min, "min")}` : undefined}
+          sub={trading ? `~${formatRate(trading.orders.avg_per_min, "min")} last hour` : undefined}
         />
         <StatTile
           label="Trades today"
           value={trading?.trades.today ?? null}
           format={formatCount}
-          sub={trading ? `~${formatRate(trading.trades.avg_per_min, "min")}` : undefined}
+          sub={trading ? `~${formatRate(trading.trades.avg_per_min, "min")} last hour` : undefined}
         />
         <StatTile label="Orders / s" value={trading?.orders.per_sec_now ?? null} format={(v) => formatRate(v, "s")} spark={recent.map((r) => r.ordersPerSec)} />
         <StatTile label="Engine p99" value={trading?.handle_p99_us ?? null} format={formatMicros} thresholds={p99Rule} level={p99Level} spark={recent.map((r) => r.p99Us)} sub={trading ? `p50 ${formatMicros(trading.handle_p50_us)}` : undefined} />

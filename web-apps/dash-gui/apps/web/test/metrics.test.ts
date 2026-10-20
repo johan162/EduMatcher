@@ -16,15 +16,17 @@ describe("metric names", () => {
     expect(emitted(m.process).has(m.name), `${m.process} ${m.name}`).toBe(true);
   });
 
-  it.each([...Object.values(COUNTER), ...REQUEST_COUNTERS])("%s is an engine counter", (name) => {
-    const found = CAPTURED.processes.find((p) => p.process === "pm-engine")!.metrics.find((m) => m.name === name);
-    expect(found?.kind).toBe("COUNTER");
-  });
-
-  it.each(Object.values(GAUGE))("%s is an engine gauge, per participant or symbol", (name) => {
-    const found = CAPTURED.processes.find((p) => p.process === "pm-engine")!.metrics.filter((m) => m.name === name);
-    expect(found.length).toBeGreaterThan(0);
-    expect(found.every((m) => m.kind === "GAUGE" && m.label !== "")).toBe(true);
+  it("the engine's record carries no per-participant or per-symbol samples but diagnostics", () => {
+    // pm-monitor leaves them out of the snapshot (I123): the trading,
+    // participants and books blocks carry them derived, and the history API
+    // serves COUNTER and GAUGE from metrics.db. tests/test_dash_metrics_mirror.py
+    // pins those names to the engine and to what pm-monitor stores.
+    const engine = CAPTURED.processes.find((p) => p.process === "pm-engine")!;
+    const labelled = new Set(engine.metrics.filter((m) => m.label !== "").map((m) => m.name));
+    expect([...labelled]).toEqual([METRIC.engineDiagnostics.name]);
+    for (const name of [...Object.values(COUNTER), ...REQUEST_COUNTERS, ...Object.values(GAUGE)]) {
+      expect(engine.metrics.some((m) => m.name === name && m.label !== ""), name).toBe(false);
+    }
   });
 
   it("a lazy metric that is absent counts 0; any other absent one is no value", () => {

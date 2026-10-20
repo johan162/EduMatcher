@@ -35,6 +35,7 @@ import sqlite3
 import sys
 import threading
 import time
+from pathlib import Path
 
 import zmq
 
@@ -155,6 +156,33 @@ def _idle_until_stopped() -> None:
         pass
 
 
+def open_store(
+    path: Path, session_tz_name: str, config: MonitorConfig
+) -> MetricsStore | None:
+    """``metrics.db``, or ``None`` to run without history.
+
+    Two failures stop pm-monitor, as they must: another pm-monitor writes the
+    file (two writers would double every total), or it was recorded on
+    another session timezone (its days would be the wrong days). Any other
+    -- a read-only or full data directory -- costs history, not monitoring:
+    the live snapshot goes on, and pm-monitor shows DEGRADED by the
+    ``metrics_store_errors`` rule (I123).
+    """
+    try:
+        return MetricsStore(
+            path,
+            session_tz_name,
+            raw_hours=config.retention.raw_hours,
+            minute_days=config.retention.minute_days,
+        )
+    except (StoreLockedError, IncompatibleStoreError) as exc:
+        log.error("cannot open %s: %s", path, exc)
+        sys.exit(1)
+    except (sqlite3.Error, OSError) as exc:
+        log.error("cannot open %s: %s -- running without history", path, exc)
+        return None
+
+
 def main() -> None:
     from edumatcher.config_artifact import load_compiled_config, report_deployment
     from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
@@ -195,16 +223,7 @@ def main() -> None:
         else {gw: cfg.role.value for gw, cfg in compiled.engine.fix_gateways.items()}
     )
     log_db = None if compiled is None else compiled.log_server.db_path
-    try:
-        store = MetricsStore(
-            METRICS_DB_FILE,
-            session_tz_name,
-            raw_hours=config.retention.raw_hours,
-            minute_days=config.retention.minute_days,
-        )
-    except (StoreLockedError, IncompatibleStoreError, sqlite3.Error, OSError) as exc:
-        log.error("cannot open %s: %s", METRICS_DB_FILE, exc)
-        sys.exit(1)
+    store = open_store(METRICS_DB_FILE, session_tz_name, config)
     try:
         monitor = Monitor(
             config,
@@ -213,9 +232,11 @@ def main() -> None:
             roles=roles,
             host_sampler=HostSampler(default_files(log_db)),
             store=store,
+            history_unavailable=store is None,
         )
     except zmq.ZMQError as exc:
-        store.close(time.time())
+        if store is not None:
+            store.close(time.time())
         log.error(
             "cannot bind pm-monitor sockets (pull_port %d, pub_port %d): %s",
             config.pull_port,
