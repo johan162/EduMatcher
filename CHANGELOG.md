@@ -1,3 +1,28 @@
+## [v0.51.0] - 2026-10-21
+
+Release Type: major
+
+### 📋 Summary
+This release adds integrated exchange health monitoring and a new operator dashboard. It also brings both features into the standard deployment stacks and expands the operational documentation.
+
+### ✨ Additions
+- Added `pm-monitor` and `pm-monitor-cli` for process health, host metrics, threshold evaluation, event reporting, and persistent monitoring history
+- Added non-blocking health beacons from long-running exchange processes
+- Added `pm-dash`, a live operator dashboard for exchange health, activity, and process details
+- Integrated the monitor and dashboard into the Docker, Podman, and curl-based deployment stacks
+
+### 📚 Documentation
+- Added health-monitoring and operator-dashboard guides, and screenshots across the web-application documentation
+- Added a presentation on discrete option pricing
+
+### 🐛 Bug Fixes
+- A number of minor edge-case bugs that was found during stress- and pm-monitor testing have been fixed
+
+### 🛠 Internal
+- Added health-monitoring unit, integration, end-to-end, and deployment test coverage
+- Added `psutil` as a runtime dependency for host metrics
+
+
 ## [v0.50.7] - 2026-10-18
 
 Release Type: patch
