@@ -150,26 +150,27 @@ def _seed_index_db(path: Path) -> None:
             ),
         )
 
-        # Intraday mid/bid/ask ticks for two symbols on 2026-06-14, used to
+        # Intraday mid/bid/ask, in ticks as pm-stats stores them (tick_decimals
+        # defaults to 2), for two symbols on 2026-06-14, used to
         # exercise /history/price-snapshots (time window, symbol isolation,
         # chronological order).
         conn.execute(
             "INSERT INTO price_snapshots "
             "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            ("2026-06-14T09:00:00.000+00:00", "AAPL", 150.5, 150.0, 151.0, None),
+            ("2026-06-14T09:00:00.000+00:00", "AAPL", 15050.0, 15000, 15100, None),
         )
         conn.execute(
             "INSERT INTO price_snapshots "
             "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            ("2026-06-14T16:00:00.000+00:00", "AAPL", 152.0, 151.5, 152.5, 1.0),
+            ("2026-06-14T16:00:00.000+00:00", "AAPL", 15200.0, 15150, 15250, 1.0),
         )
         conn.execute(
             "INSERT INTO price_snapshots "
             "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            ("2026-06-14T09:30:00.000+00:00", "MSFT", 414.5, 414.0, 415.0, None),
+            ("2026-06-14T09:30:00.000+00:00", "MSFT", 41450.0, 41400, 41500, None),
         )
         conn.commit()
     finally:
@@ -574,6 +575,30 @@ async def test_price_snapshots_time_window_filters(seeded_db: Path) -> None:
     )
     assert result["count"] == 1
     assert result["snapshots"][0]["mid_price"] == 152.0
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_are_display_prices(seeded_db: Path) -> None:
+    """pm-stats stores snapshots in ticks with the row's tick_decimals; the
+    endpoint must return money like /history/trades and /history/daily do,
+    or a chart that splices it with live prices is off by 10**decimals."""
+    conn = sqlite3.connect(seeded_db)
+    conn.execute(
+        "INSERT INTO price_snapshots "
+        "(ts, symbol, mid_price, best_bid, best_ask, pct_change, tick_decimals) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("2026-06-14T10:00:00.000+00:00", "NVDA", 19304.5, 19304, 19305, None, 2),
+    )
+    conn.commit()
+    conn.close()
+    request = _request_for(seeded_db)
+    result = await _call_price_snapshots(request, _readonly_session(), symbol="NVDA")
+    (row,) = result["snapshots"]
+    assert (row["mid_price"], row["best_bid"], row["best_ask"]) == (
+        193.045,
+        193.04,
+        193.05,
+    )
 
 
 @pytest.mark.anyio

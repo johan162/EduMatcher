@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { classifyMonitorEnvelope, isTerminalStatus, monitorEventsToCsv } from "@/lib/monitorEvents";
 import type { MonitorEvent, WsEnvelope } from "@/types/index";
+import { useSymbolStore } from "@/store/useSymbolStore";
 
 function env(patch: Partial<WsEnvelope<unknown>> & { type: string }): WsEnvelope<unknown> {
   return {
@@ -55,7 +56,24 @@ describe("classifyMonitorEnvelope (§6.9 — uniform envelopes, no monitor.event
       }),
     );
     expect(c).toMatchObject({ kind: "FILL", order_id: "o3", symbol: "MSFT", orderStatus: "PARTIAL" });
-    expect(c!.detail).toBe("40 @ 150.5 · 60 left");
+    expect(c!.detail).toBe("40 @ 150.50 · 60 left");
+  });
+
+  it("prints a fill price at its symbol's decimals, not as a raw float", () => {
+    useSymbolStore.setState({
+      symbols: [
+        { symbol: "ANET", tick_decimals: 2, prev_close: null, collar_reference_price: null, level: null },
+        { symbol: "FX3", tick_decimals: 3, prev_close: null, collar_reference_price: null, level: null },
+      ],
+    });
+    const fill = (symbol: string, fill_price: number) =>
+      classifyMonitorEnvelope(
+        env({ type: "order.fill", data: { order_id: "o9", fill_qty: 23, fill_price, remaining_qty: 0, symbol } }),
+      )!.detail;
+    // A VWAP is not on the tick grid; 108.67 * 23 / 23 in floats was the screenshot's case.
+    expect(fill("ANET", 108.66999999999999)).toBe("23 @ 108.67 · 0 left");
+    expect(fill("FX3", 1.2345678)).toBe("23 @ 1.235 · 0 left");
+    useSymbolStore.setState({ symbols: [] });
   });
 
   it("splits circuit_breaker into halt vs resume by topic", () => {

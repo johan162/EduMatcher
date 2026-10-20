@@ -500,3 +500,71 @@ class TestHaltRejectCodeNamesTheCause:
         eng._handle_new_order(_order_dict(order_type=OrderType.MARKET, price=None))
         _, msg = decode(pub.sent[-1])
         assert msg["reject_code"] == "INSTRUMENT_HALTED"
+
+
+class TestARejectedAdminHaltLeavesTheSymbolTrading:
+    """``_handle_symbol_halt`` set the halted flag before validating the
+    level, so a trigger the engine rejected ("no circuit breaker
+    configured", "unknown level") still halted the symbol -- silently: no
+    ``circuit_breaker.halt`` went out and the caller was told it failed."""
+
+    def _admin(self, eng: Engine) -> None:
+        from edumatcher.models.participant import ParticipantRole
+
+        assert eng._engine_config is not None
+        eng._engine_config.fix_gateways["OPS01"] = FixGatewayConfig(
+            id="OPS01", role=ParticipantRole.ADMIN
+        )
+        assert eng._allowed_fix_gateways is not None
+        eng._allowed_fix_gateways = eng._allowed_fix_gateways | {"OPS01"}
+        eng._handle_gateway_connect({"gateway_id": "OPS01"})
+        assert eng._session_for_gateway("OPS01").role == ParticipantRole.ADMIN
+
+    def _ack(self, pub: _DummySocket) -> dict:
+        from edumatcher.models.generated.risk import topic_symbol_halt_ack
+
+        for frames in reversed(pub.sent):
+            topic, msg = decode(frames)
+            if topic == topic_symbol_halt_ack("OPS01"):
+                return msg
+        raise AssertionError("no symbol halt ack")
+
+    def test_a_level_on_a_symbol_without_a_breaker(self, engine) -> None:
+        eng, pub = engine
+        self._admin(eng)
+        eng._circuit_breakers.pop("AAPL", None)
+        pub.sent.clear()
+
+        eng._handle_symbol_halt(
+            {"gateway_id": "OPS01", "symbol": "AAPL", "level": "L1"}
+        )
+
+        assert self._ack(pub)["accepted"] is False
+        assert not eng._halted_symbols.get("AAPL")
+        assert not any(
+            decode(f)[0].startswith("circuit_breaker.halt") for f in pub.sent
+        )
+
+    def test_an_unknown_level(self, engine) -> None:
+        eng, pub = engine
+        self._admin(eng)
+        TestCircuitBreakerEngineIntegration()._wire_cb(eng)
+        pub.sent.clear()
+
+        eng._handle_symbol_halt(
+            {"gateway_id": "OPS01", "symbol": "AAPL", "level": "L9"}
+        )
+
+        assert self._ack(pub)["accepted"] is False
+        assert not eng._halted_symbols.get("AAPL")
+        assert not eng._circuit_breakers["AAPL"].halted
+
+    def test_an_accepted_halt_still_halts(self, engine) -> None:
+        eng, pub = engine
+        self._admin(eng)
+        eng._circuit_breakers.pop("AAPL", None)
+
+        eng._handle_symbol_halt({"gateway_id": "OPS01", "symbol": "AAPL"})
+
+        assert self._ack(pub)["accepted"] is True
+        assert eng._halted_symbols.get("AAPL")

@@ -72,7 +72,12 @@ export function AdminDashboardPage() {
 
       {/* KPI cards (§15.1.1) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard label="Session" value={phaseMeta.label} tone={phaseMeta.textClass} />
+        {/* The phase's own badge: textClass is only legible on bgClass. */}
+        <KpiCard
+          label="Session"
+          value={phaseMeta.label}
+          tone={`self-start rounded px-2 ${phaseMeta.bgClass} ${phaseMeta.textClass}`}
+        />
         <KpiCard label="Active Orders (all gateways)" value={formatQty(activeOrders)} />
         <KpiCard label="Connected Gateways" value={formatQty(connectedGateways)} />
         <KpiCard

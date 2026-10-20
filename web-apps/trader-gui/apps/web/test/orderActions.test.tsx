@@ -262,6 +262,29 @@ describe("OrderDetailDrawer (§13.4)", () => {
     expect(screen.getByText(/40 @ 150/)).toBeTruthy();
   });
 
+  it("prints a fill's VWAP at the symbol's decimals", async () => {
+    useOrderStore.getState().seed([{ ...ORDER, status: "FILLED" }]);
+    vi.mocked(apiFetchMock).mockImplementationOnce(async () => ({
+      count: 1,
+      events: [
+        {
+          seq: 1,
+          ts: "2026-07-27T10:00:00.000Z",
+          event_type: "FILL",
+          order_id: "o1",
+          gateway_id: "GW1",
+          symbol: "AAPL",
+          fill_qty: 30,
+          fill_price: 150.33333333333334,
+          remaining_qty: 0,
+        },
+      ],
+    }));
+
+    wrap(<OrderDetailDrawer orderId="o1" onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/30 @ 150\.33 · 0 left/)).toBeTruthy());
+  });
+
   it("renders a cancellation reason from history", async () => {
     useOrderStore.getState().seed([{ ...ORDER, status: "CANCELLED" }]);
     vi.mocked(apiFetchMock).mockImplementationOnce(async () => ({

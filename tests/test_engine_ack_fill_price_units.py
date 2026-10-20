@@ -90,3 +90,40 @@ class TestOrderFillPriceUnit:
         fill = msgs(pub, "order.fill.GW01")[0]
         assert fill["fill_price"] == fill["price"] == _LIMIT
         assert fill["symbol"] == SYMBOL
+
+    def test_a_single_level_fill_reports_the_exact_level_price(
+        self, engine_and_sock: Any
+    ) -> None:
+        """The per-order VWAP was summed in display floats, so 23 @ 108.67
+        came back as 108.66999999999999 (108.67 * 23 / 23). Summed in ticks,
+        a fill at one level is exactly that level's price."""
+        engine, pub = engine_and_sock
+        engine._handle_new_order(
+            order_payload(Side.SELL, OrderType.LIMIT, 23, "GW02", price=108.67)
+        )
+        engine._handle_new_order(
+            order_payload(Side.BUY, OrderType.LIMIT, 23, "GW01", price=108.67)
+        )
+
+        fills = msgs(pub, "order.fill.GW01") + msgs(pub, "order.fill.GW02")
+        assert [f["fill_price"] for f in fills] == [108.67, 108.67]
+
+    def test_a_sweep_reports_its_vwap_correctly_rounded(
+        self, engine_and_sock: Any
+    ) -> None:
+        """1 @ 108.60 + 4 @ 108.61 is 108.608 exactly. Dividing by the
+        quantity and then by the tick scale rounds twice and gave
+        108.60799999999999; one division of the two integers does not."""
+        engine, pub = engine_and_sock
+        engine._handle_new_order(
+            order_payload(Side.SELL, OrderType.LIMIT, 1, "GW02", price=108.60)
+        )
+        engine._handle_new_order(
+            order_payload(Side.SELL, OrderType.LIMIT, 4, "GW02", price=108.61)
+        )
+        engine._handle_new_order(
+            order_payload(Side.BUY, OrderType.LIMIT, 5, "GW01", price=108.61)
+        )
+
+        (taker,) = msgs(pub, "order.fill.GW01")
+        assert taker["fill_price"] == 108.608

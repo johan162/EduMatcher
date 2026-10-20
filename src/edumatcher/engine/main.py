@@ -3177,14 +3177,20 @@ class Engine:
         at, not ``book.last_trade_price`` (the last level of the whole sweep).
         For an order that fills across multiple levels this is its VWAP; for a
         passive order filled at a single level it is exactly that level's price.
+        The notional is summed in integer ticks and divided once, by quantity
+        times the tick scale, so the result is the correctly rounded VWAP:
+        summed in display floats, 23 @ 108.67 came back as 108.66999999999999.
         """
-        agg: dict[str, tuple[int, float]] = {}  # order_id -> (qty, notional)
+        # order_id -> (qty, notional in ticks, symbol)
+        agg: dict[str, tuple[int, int, str]] = {}
         for t in trades:
-            px = from_ticks(t.price, t.symbol)
             for oid in (t.buy_order_id, t.sell_order_id):
-                qty, notional = agg.get(oid, (0, 0.0))
-                agg[oid] = (qty + t.quantity, notional + px * t.quantity)
-        return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+                qty, notional, _ = agg.get(oid, (0, 0, t.symbol))
+                agg[oid] = (qty + t.quantity, notional + t.price * t.quantity, t.symbol)
+        return {
+            oid: (n / (q * 10 ** get_tick_decimals(sym)) if q else 0.0)
+            for oid, (q, n, sym) in agg.items()
+        }
 
     @staticmethod
     def _order_matched_qty(trades: list[Any]) -> dict[str, int]:
@@ -4482,7 +4488,6 @@ class Engine:
             return
 
         now = now_ns()
-        self._halted_symbols[symbol] = True
 
         cb = self._circuit_breakers.get(symbol)
         if level_name is not None and cb is None:
@@ -4491,8 +4496,8 @@ class Engine:
 
         triggered_level = "ADMIN_SYMBOL"
         resume_at_ns: int | None = None
+        selected: CircuitBreakerLevel | None = None
         if cb is not None:
-            selected: CircuitBreakerLevel | None = None
             if level_name is not None:
                 selected = next(
                     (lvl for lvl in cb.config.levels if lvl.name == level_name),
@@ -4501,6 +4506,10 @@ class Engine:
                 if selected is None:
                     _reject(f"Unknown circuit-breaker level for {symbol}: {level_name}")
                     return
+        # Only once nothing can reject: a rejected trigger must not leave the
+        # symbol halted with no circuit_breaker.halt ever published.
+        self._halted_symbols[symbol] = True
+        if cb is not None:
             if selected is not None:
                 # Seed a reference price if none exists yet (mirrors the
                 # startup seeding in _load_config()) — activate() itself does
