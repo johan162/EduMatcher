@@ -186,7 +186,7 @@ $(TYPECHECK_STAMP): $(SRC_FILES) $(TEST_FILES)
 
 $(TEST_STAMP): $(SRC_FILES) $(TEST_FILES)
 	@echo -e "$(DARKYELLOW)- Running tests with coverage check (≥$(COVERAGE)%)...$(NC)"
-	@if poetry run pytest -n auto tests \
+	@if poetry run pytest -n logical tests \
 		--cov=$(SRC_DIR)/$(PROJECT) \
 		--cov-report=term-missing \
 		--cov-report=xml \
@@ -301,7 +301,7 @@ test-html: ## Run tests, generate HTML + XML coverage reports
 
 test-malloc: ## Run tests with memory allocation tracking (requires pytest-malloc)
 	@echo -e "$(DARKYELLOW)- Running tests with PYTHONTRACEMALLOC ...$(NC)"
-	@PYTHONTRACEMALLOC=1 poetry run pytest -n auto -W error::ResourceWarning -x
+	@PYTHONTRACEMALLOC=1 poetry run pytest -n logical -W error::ResourceWarning -x
 
 verify: ## Run end-to-end deterministic matching verification suite
 	@if [ ! -f tools/verify_matching.sh ]; then \
@@ -313,7 +313,7 @@ stress-test: ## Run stress tests for the system
 	@echo -e "$(DARKYELLOW)- Running stress tests, this may take a while...$(NC)"
 	@for i in 1 2 3 4 5; do \
 		echo -e "$(DARKYELLOW)  - Stress test iteration $$i...$(NC)"; \
-		poetry run pytest -n auto tests \
+		poetry run pytest -n logical tests \
 	    -q --no-cov -p no:randomly -rf 2>&1 | grep -E "^FAILED|passed|failed" | tail -3; \
 		if [ $$? -ne 0 ]; then \
 			echo -e "$(RED)✗ Stress tests failed$(NC)"; exit 1; \

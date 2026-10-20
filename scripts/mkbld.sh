@@ -469,7 +469,7 @@ fi
 
 print_sub_step "Running pytest with coverage"
 # Step 3.2: Run tests with coverage
-run_command "poetry run pytest -n auto tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
+run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
 
 # Step 3.3: Update coverage badge in README
 if [ "$CI_MODE" = false ] && [ "$DRY_RUN" = false ]; then
