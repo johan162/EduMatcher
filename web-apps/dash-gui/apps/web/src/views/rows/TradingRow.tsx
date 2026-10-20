@@ -21,7 +21,8 @@ import { getJson, query, rateBucket } from "../../lib/api.js";
 import { formatCompact, formatCount, formatPercent, formatRate } from "../../lib/format.js";
 import { COUNTER, REQUEST_COUNTERS } from "../../lib/metrics.js";
 import { useDashStore } from "../../store/useDashStore.js";
-import { CounterBars } from "../charts.js";
+import { useMemo } from "react";
+import { CounterBars, NO_SERIES } from "../charts.js";
 import { rejectRatio, useAnnotations, useRule } from "./common.js";
 
 function useBucket() {
@@ -35,7 +36,7 @@ function OrdersByParticipant() {
     getJson(`/api/rate/by-label?${query({ name: COUNTER.ordersIn, range, bucket: rateBucket(range).bucket })}`, signal),
   );
   const range = useChartRange(bucketMs);
-  return <RateBars label="Orders per minute by participant" series={history.data?.series ?? []} range={range} bucketMs={bucketMs} tz={tz} format={formatCount} />;
+  return <RateBars label="Orders per minute by participant" series={history.data?.series ?? NO_SERIES} range={range} bucketMs={bucketMs} tz={tz} format={formatCount} />;
 }
 
 function RejectRatio() {
@@ -52,11 +53,15 @@ function RejectRatio() {
     return { rejects, requests };
   });
   const range = useChartRange(bucketMs);
-  const points = history.data ? rejectRatio(history.data.rejects.points, history.data.requests.points, bucketMs) : [];
+  // Once per fetch, not per snapshot: a new series each render would redraw the chart every second (I118).
+  const series = useMemo(() => {
+    const points = history.data ? rejectRatio(history.data.rejects.points, history.data.requests.points, bucketMs) : [];
+    return points.length > 0 ? [{ label: "reject ratio", points }] : NO_SERIES;
+  }, [history.data, bucketMs]);
   return (
     <TimeSeries
       label={bucketMs === 60_000 ? "Reject ratio, 5-minute window" : "Reject ratio per hour"}
-      series={points.length > 0 ? [{ label: "reject ratio", points }] : []}
+      series={series}
       range={range}
       tz={tz}
       format={formatPercent}

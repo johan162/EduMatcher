@@ -13,7 +13,8 @@ import { useChartRange, useHistory, useLiveSeries } from "../../hooks/history.js
 import { getJson, query } from "../../lib/api.js";
 import type { Thresholds } from "../../lib/thresholds.js";
 import { useDashStore } from "../../store/useDashStore.js";
-import { liveExchangeProcesses, shortKey, useAnnotations } from "./common.js";
+import { NO_SERIES } from "../charts.js";
+import { beaconing, liveExchangeProcesses, shortKey, useAnnotations } from "./common.js";
 
 export interface ProcessSeriesChartProps {
   label: string;
@@ -25,6 +26,18 @@ export interface ProcessSeriesChartProps {
   stacked?: boolean;
   thresholds?: Thresholds;
   height?: number;
+}
+
+/**
+ * Each charted process's live figure from a snapshot, in `keys` order: null
+ * for one gone from it, and for one whose beacons stopped -- its record
+ * keeps the last figures, which are not current (I118).
+ */
+export function liveValues(snap: HealthSnapshot, keys: readonly string[], live: (p: ProcessHealth) => number): (number | null)[] {
+  return keys.map((key) => {
+    const p = snap.processes.find((x) => x.key === key);
+    return p && beaconing(p) ? live(p) : null;
+  });
 }
 
 export function ProcessSeriesChart({ label, name, live, format, stacked, thresholds, height }: ProcessSeriesChartProps) {
@@ -40,19 +53,14 @@ export function ProcessSeriesChart({ label, name, live, format, stacked, thresho
     [history.data],
   );
   const keys = useMemo(() => history.data?.series.map((s) => s.source) ?? [], [history.data]);
-  const series = useLiveSeries(base, bucketMs, (snap: HealthSnapshot) =>
-    keys.map((key) => {
-      const p = snap.processes.find((x) => x.key === key);
-      return p ? live(p) : null;
-    }),
-  );
+  const series = useLiveSeries(base, bucketMs, (snap: HealthSnapshot) => liveValues(snap, keys, live));
   const range = useChartRange(bucketMs);
   const annotations = useAnnotations();
 
   return (
     <TimeSeries
       label={label}
-      series={series ?? []}
+      series={series ?? NO_SERIES}
       range={range}
       tz={tz}
       format={format}

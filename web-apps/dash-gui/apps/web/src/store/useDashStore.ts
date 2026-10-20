@@ -19,7 +19,7 @@
 import { create } from "zustand";
 import type { CrossAppLinks, HealthEvent, HealthSnapshot, MonitorState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
 import { liveSample, pushRecent, type LiveSample } from "../lib/live.js";
-import { DEFAULT_RANGE, DEFAULT_REFRESH, type RangeName, type RefreshName } from "../lib/range.js";
+import { DEFAULT_RANGE, DEFAULT_REFRESH, rangeFromParam, type RangeName, type RefreshName } from "../lib/range.js";
 
 /** The tab's own socket to the bridge. */
 export type SocketState = "CONNECTING" | "OPEN" | "CLOSED";
@@ -29,6 +29,19 @@ export type ConnectionState = "LIVE" | "NO_MONITOR" | "OFFLINE";
 
 /** Events kept for the event log, newest last. */
 export const MAX_EVENTS = 500;
+
+/**
+ * The page's `?from=` when the store is created, so the first render
+ * already asks for the linked range rather than the default and then again
+ * (AppShell keeps the two in step from then on).
+ */
+function rangeAtLoad(): RangeName {
+  try {
+    return rangeFromParam(new URLSearchParams(globalThis.location?.search ?? "").get("from")) ?? DEFAULT_RANGE;
+  } catch {
+    return DEFAULT_RANGE;
+  }
+}
 
 interface DashStore {
   socket: SocketState;
@@ -64,7 +77,7 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   sessionTz: "UTC",
   snapshot: null,
   events: [],
-  range: DEFAULT_RANGE,
+  range: rangeAtLoad(),
   refresh: DEFAULT_REFRESH,
   recent: [],
   thresholds: null,
@@ -87,10 +100,15 @@ export const useDashStore = create<DashStore>()((set, get) => ({
       case "event": {
         const events = get().events;
         const last = events.at(-1);
+        const seq = frame.data.seq;
+        // pm-monitor stores an event before it publishes it, so a catch-up
+        // from /api/events can bring an event before its live frame does:
+        // one already held is a duplicate (I118).
+        if (events.some((e) => e.seq === seq)) break;
         // The bridge sends each event once, live, in seq order. An older seq
-        // means the numbering began again (a new metrics.db): what this tab
-        // holds belongs to the old one.
-        if (last && frame.data.seq <= last.seq) set({ events: [frame.data] });
+        // not held means the numbering began again (a new metrics.db): what
+        // this tab holds belongs to the old one.
+        if (last && seq < last.seq) set({ events: [frame.data] });
         else set({ events: [...events, frame.data].slice(-MAX_EVENTS) });
         break;
       }

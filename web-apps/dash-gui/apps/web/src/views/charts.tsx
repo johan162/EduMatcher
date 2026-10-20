@@ -19,6 +19,9 @@ import type { Thresholds } from "../lib/thresholds.js";
 import { useDashStore } from "../store/useDashStore.js";
 import { useAnnotations } from "./rows/common.js";
 
+/** No series yet: one array for every render, so a memoised chart is not redrawn (I118). */
+export const NO_SERIES: readonly never[] = [];
+
 export interface CounterBarsProps {
   label: string;
   /** The counter in metrics.db. */
@@ -37,7 +40,7 @@ export function CounterBars({ label, name, seriesLabel, legend, format }: Counte
     getJson(`/api/rate?${query({ name, label: seriesLabel, range, bucket: rateBucket(range).bucket })}`, signal),
   );
   const range = useChartRange(bucketMs);
-  const data = history.data ? [{ label: legend, points: history.data.points }] : [];
+  const data = useMemo(() => (history.data ? [{ label: legend, points: history.data.points }] : NO_SERIES), [history.data, legend]);
   return <RateBars label={label} series={data} range={range} bucketMs={bucketMs} tz={tz} format={format} />;
 }
 
@@ -69,7 +72,7 @@ export function SeriesChart({ label, name, seriesLabel = "", source, legend, liv
   return (
     <TimeSeries
       label={label}
-      series={series ?? []}
+      series={series ?? NO_SERIES}
       range={range}
       tz={tz}
       format={format}

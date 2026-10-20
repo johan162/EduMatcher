@@ -80,6 +80,17 @@ describe("routes (D4.1)", () => {
     }
   });
 
+  it("a key typed in with a raw / works too; a path that is no view keeps the range (I118)", () => {
+    renderAt(`/process/${API}?from=now-6h`);
+    expect(within(drawer()).getByRole("heading", { level: 2 }).textContent).toBe(API);
+    for (const path of ["/nowhere?from=now-6h", "/process/?from=now-6h", "/participant?from=now-6h"]) {
+      cleanup();
+      renderAt(path);
+      expect(where, path).toBe("/?from=now-6h");
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
+  });
+
   it("closing restores / with the same query string, by button or Escape", () => {
     renderAt(`${drawerPath("participant", "TRADER01")}?from=now-6h`);
     fireEvent.click(within(drawer()).getByRole("button", { name: "Close" }));

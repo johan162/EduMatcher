@@ -14,8 +14,8 @@ import { logGuiUrl } from "../../lib/links.js";
 import { VITAL } from "../../lib/metrics.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { SeriesChart } from "../charts.js";
-import { useRule } from "../rows/common.js";
-import { CrossLink, Facts, Section, SubjectEvents, Unavailable } from "./common.js";
+import { beaconing, useRule } from "../rows/common.js";
+import { CrossLink, Facts, Section, SubjectEvents, ToDashboard, Unavailable } from "./common.js";
 
 const METRIC_COLUMNS: Column<MetricSample>[] = [
   { id: "name", header: "Metric", render: (m) => <span className="font-mono">{m.name}</span>, sortKey: (m) => m.name },
@@ -24,10 +24,10 @@ const METRIC_COLUMNS: Column<MetricSample>[] = [
   { id: "value", header: "Value", render: (m) => formatCount(m.value), sortKey: (m) => m.value, align: "right" },
 ];
 
-/** The same figure from a later snapshot, for a chart's live points; none without a beacon. */
+/** The same figure from a later snapshot, for a chart's live points; none while no beacons arrive (I118). */
 const liveOf = (key: string, figure: (p: ProcessHealth) => number | null) => (snap: HealthSnapshot) => {
   const p = snap.processes.find((x) => x.key === key);
-  return p && p.host !== "" ? figure(p) : null;
+  return p && beaconing(p) ? figure(p) : null;
 };
 
 function Vitals({ p }: { p: ProcessHealth }) {
@@ -48,9 +48,10 @@ function Vitals({ p }: { p: ProcessHealth }) {
 }
 
 export function ProcessDrawer() {
-  const key = useParams()["key"] ?? "";
+  const key = useParams()["*"] ?? "";
   const p = useDashStore((s) => s.snapshot?.processes.find((x) => x.key === key) ?? null);
   const logGui = useDashStore((s) => s.links?.logGui ?? null);
+  if (key === "") return <ToDashboard />;
   if (!p) return <Unavailable kind="Process" title={key} what="process" />;
 
   const beaconing = p.host !== "";

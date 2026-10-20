@@ -5,21 +5,27 @@
  * threshold, trades today, and whether it is halted -- in words.
  */
 
-import type { BookStats } from "@edumatcher/dash-types";
+import type { ActiveBreach, BookStats } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
 import { StatTile } from "../../components/widgets/StatTile.js";
 import { formatBytes, formatCount, formatPercent } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
-import { levelOf, type Thresholds } from "../../lib/thresholds.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
-import { useRule } from "./common.js";
+import { breachLevel } from "./common.js";
+
+const NO_BREACHES: readonly ActiveBreach[] = [];
 
 const HALTED = { glyph: "■", label: "HALTED", ...TONE.warning };
 const TRADING = { glyph: "●", label: "trading", ...TONE.ok };
 
-function columns(garbageRule: Thresholds | undefined): Column<BookStats>[] {
+/**
+ * `breaches`: the snapshot's active ones. Heap garbage is coloured as
+ * pm-monitor judges it, which ignores a book with too few heap entries for
+ * the share to mean anything (I118).
+ */
+function columns(breaches: readonly ActiveBreach[]): Column<BookStats>[] {
   return [
     { id: "symbol", header: "Symbol", render: (b) => <span className="font-mono">{b.symbol}</span>, sortKey: (b) => b.symbol },
     { id: "resting", header: "Resting", render: (b) => formatCount(b.resting_orders), sortKey: (b) => b.resting_orders, align: "right" },
@@ -31,7 +37,7 @@ function columns(garbageRule: Thresholds | undefined): Column<BookStats>[] {
       id: "garbage",
       header: "Heap garbage",
       render: (b) => {
-        const level = garbageRule ? levelOf(b.heap_garbage_pct, garbageRule) : null;
+        const level = breachLevel(breaches, "heap_garbage_pct", b.symbol);
         const alarm = level && level !== "OK" ? LEVEL[level] : null;
         return <span className={alarm?.text}>{formatPercent(b.heap_garbage_pct)}{alarm && ` ${alarm.glyph}`}</span>;
       },
@@ -46,7 +52,7 @@ function columns(garbageRule: Thresholds | undefined): Column<BookStats>[] {
 export function BooksRow() {
   const books = useDashStore((s) => s.snapshot?.books ?? null);
   const engineRss = useDashStore((s) => s.snapshot?.processes.find((p) => p.process === "pm-engine" && p.host !== "")?.rss_bytes ?? null);
-  const garbageRule = useRule("heap_garbage_pct");
+  const breaches = useDashStore((s) => s.snapshot?.thresholds ?? NO_BREACHES);
   const open = useOpenDrawer();
   const memory = books?.reduce((sum, b) => sum + b.est_bytes, 0) ?? null;
   const halted = books?.filter((b) => b.halted).length ?? 0;
@@ -63,7 +69,7 @@ export function BooksRow() {
             sub={memory !== null && engineRss ? `${formatPercent((100 * memory) / engineRss)} of the engine` : undefined}
           />
         </div>
-        <HealthTable label="Order books" columns={columns(garbageRule)} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={(b) => open("book", b.symbol)} />
+        <HealthTable label="Order books" columns={columns(breaches)} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={(b) => open("book", b.symbol)} />
       </div>
     </Row>
   );

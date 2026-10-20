@@ -6,12 +6,19 @@
 
 import { ExternalLink } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import type { EventsResponse, HealthEvent } from "@edumatcher/dash-types";
 import { Drawer } from "../../components/layout/Drawer.js";
 import { EventLog } from "../../components/widgets/EventLog.js";
 import { useHistory } from "../../hooks/history.js";
 import { getJson, query } from "../../lib/api.js";
 import { useDashStore } from "../../store/useDashStore.js";
+
+/** Anything that is not a view: the dashboard, keeping the query string (the time range). */
+export function ToDashboard() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/", search }} replace />;
+}
 
 /** Label and value pairs, in a grid that wraps on narrow drawers. */
 export function Facts({ label, items }: { label: string; items: readonly (readonly [string, ReactNode])[] }) {

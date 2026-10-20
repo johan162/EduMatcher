@@ -5,7 +5,7 @@
  * and CPU per process over the range.
  */
 
-import type { ProcessHealth } from "@edumatcher/dash-types";
+import type { ActiveBreach, ProcessHealth } from "@edumatcher/dash-types";
 import { BarGauge } from "../../components/widgets/BarGauge.js";
 import { HealthTable, ProcessStateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
@@ -13,11 +13,12 @@ import { Sparkline } from "../../components/widgets/Sparkline.js";
 import { formatBytes, formatDuration, formatMillis, formatPercent, NO_VALUE } from "../../lib/format.js";
 import { VITAL } from "../../lib/metrics.js";
 import { LEVEL, PROCESS_STATE } from "../../lib/status.js";
-import { levelOf, type Thresholds } from "../../lib/thresholds.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { ProcessSeriesChart } from "./ProcessSeriesChart.js";
-import { liveExchangeProcesses, shortKey, stateSummary, useRule } from "./common.js";
+import { beaconing, breachLevel, liveExchangeProcesses, shortKey, stateSummary } from "./common.js";
+
+const NO_BREACHES: readonly ActiveBreach[] = [];
 
 /** Worst first when sorted by state. */
 const SEVERITY_ORDER = ["DEAD", "SILENT", "MISSING", "HUNG", "STOPPED", "DEGRADED", "HEALTHY"];
@@ -27,7 +28,8 @@ function vital(p: ProcessHealth, show: () => string): string {
   return p.host === "" ? NO_VALUE : show();
 }
 
-function columns(loopRule: Thresholds | undefined): Column<ProcessHealth>[] {
+/** `breaches`: the snapshot's active ones; loop age is coloured as pm-monitor judges it (I118). */
+function columns(breaches: readonly ActiveBreach[]): Column<ProcessHealth>[] {
   return [
     { id: "state", header: "State", render: (p) => <ProcessStateBadge state={p.state} />, sortKey: (p) => SEVERITY_ORDER.indexOf(p.state) },
     {
@@ -70,7 +72,7 @@ function columns(loopRule: Thresholds | undefined): Column<ProcessHealth>[] {
       id: "loop",
       header: "Loop age",
       render: (p) => {
-        const level = loopRule && p.host ? levelOf(p.loop_age_ms, loopRule) : null;
+        const level = p.host ? breachLevel(breaches, "loop_age_ms", p.key) : null;
         return <span className={level && level !== "OK" ? LEVEL[level].text : undefined}>{vital(p, () => formatMillis(p.loop_age_ms))}</span>;
       },
       sortKey: (p) => (p.host ? p.loop_age_ms : null),
@@ -82,7 +84,7 @@ function columns(loopRule: Thresholds | undefined): Column<ProcessHealth>[] {
 
 export function ProcessesRow() {
   const processes = useDashStore((s) => s.snapshot?.processes ?? null);
-  const loopRule = useRule("loop_age_ms");
+  const breaches = useDashStore((s) => s.snapshot?.thresholds ?? NO_BREACHES);
   const open = useOpenDrawer();
   const summary = processes ? stateSummary(processes) : "";
 
@@ -90,7 +92,7 @@ export function ProcessesRow() {
     <Row id="processes" title="Processes" badge={summary || undefined} badgeTone="text-warning">
       <HealthTable
         label="Processes"
-        columns={columns(loopRule)}
+        columns={columns(breaches)}
         // Groups are shown in the order they first appear: the exchange's own first.
         rows={[...(processes ?? [])].sort((a, b) => Number(a.group === "BOT") - Number(b.group === "BOT"))}
         rowKey={(p) => p.key}
@@ -101,7 +103,10 @@ export function ProcessesRow() {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BarGauge
           label="Memory per process"
-          items={liveExchangeProcesses(processes ?? []).map((p) => ({ label: shortKey(p.key), value: p.rss_bytes }))}
+          // Current memory: a process whose beacons stopped has none (I118).
+          items={liveExchangeProcesses(processes ?? [])
+            .filter(beaconing)
+            .map((p) => ({ label: shortKey(p.key), value: p.rss_bytes }))}
           format={formatBytes}
         />
         <ProcessSeriesChart label="CPU per process" name={VITAL.cpu} live={(p) => p.cpu_pct} format={formatPercent} />

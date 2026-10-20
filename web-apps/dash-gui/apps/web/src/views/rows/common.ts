@@ -7,11 +7,12 @@
  */
 
 import { useEffect, useMemo } from "react";
-import type { BridgeStatus, EventsResponse, HealthEvent, ParticipantStats, Point, ProcessHealth, ThresholdsResponse } from "@edumatcher/dash-types";
+import type { ActiveBreach, BridgeStatus, EventsResponse, HealthEvent, ParticipantStats, Point, ProcessHealth, ThresholdsResponse } from "@edumatcher/dash-types";
 import type { Annotation } from "../../components/widgets/TimeSeries.js";
 import type { Lane, Segment, Mark, TimeRangeMs } from "../../components/widgets/StateTimeline.js";
 import { getJson, query } from "../../lib/api.js";
 import { MIN_REQUESTS } from "../../lib/metrics.js";
+import { REFRESH_MS } from "../../lib/range.js";
 import { SEVERITY } from "../../lib/status.js";
 import { fromRule, type Level, type Thresholds } from "../../lib/thresholds.js";
 import { useDashStore } from "../../store/useDashStore.js";
@@ -25,6 +26,18 @@ export function shortKey(key: string): string {
 /** Processes with a beacon (not MISSING), the exchange's own, by key. */
 export function liveExchangeProcesses(processes: readonly ProcessHealth[]): ProcessHealth[] {
   return processes.filter((p) => p.group === "EXCHANGE" && p.host !== "").sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** States in which beacons still arrive (HUNG: the loop is stuck, the reporter is not). */
+const BEACONING = new Set(["HEALTHY", "DEGRADED", "HUNG"]);
+
+/**
+ * Whether a process's figures are current. pm-monitor keeps the last
+ * beacon's figures in a SILENT, DEAD or STOPPED process's record, so they
+ * must not be drawn as live (I118).
+ */
+export function beaconing(p: ProcessHealth): boolean {
+  return p.host !== "" && BEACONING.has(p.state);
 }
 
 /** "1 DEGRADED, 2 HUNG" for the processes not HEALTHY, worst first; "" when all are. */
@@ -41,22 +54,17 @@ export function stateSummary(processes: readonly ProcessHealth[]): string {
 /**
  * Each time the bridge connection opens: the threshold rules, the
  * cross-app links, and the events the log is missing -- the picker's range
- * at first, after the last seq held once there are some (a reconnect).
+ * at first, after the last seq held once there are some (a reconnect). The
+ * rules and links are asked again every refresh interval, so a redeployed
+ * artifact shows without a reload (I118).
  */
 export function useDashboardLoads(): void {
   const socket = useDashStore((s) => s.socket);
+  const refresh = useDashStore((s) => s.refresh);
   useEffect(() => {
     if (socket !== "OPEN") return;
     const ctl = new AbortController();
-    const { setThresholds, setLinks, addEvents, events, range } = useDashStore.getState();
-    getJson<ThresholdsResponse>("/api/thresholds", ctl.signal).then(
-      (r) => setThresholds(r.rules),
-      () => undefined, // without rules the widgets draw no bands; the bridge logs why
-    );
-    getJson<BridgeStatus>("/api/bridge/status", ctl.signal).then(
-      (r) => setLinks(r.links),
-      () => undefined, // no cross-links
-    );
+    const { addEvents, events, range } = useDashStore.getState();
     const last = events.at(-1)?.seq;
     const q = last === undefined ? query({ range, limit: 500 }) : query({ after_seq: last, limit: 1000 });
     getJson<EventsResponse>(`/api/events?${q}`, ctl.signal).then(
@@ -65,6 +73,28 @@ export function useDashboardLoads(): void {
     );
     return () => ctl.abort();
   }, [socket]);
+  useEffect(() => {
+    if (socket !== "OPEN") return;
+    const ctl = new AbortController();
+    const { setThresholds, setLinks } = useDashStore.getState();
+    const load = () => {
+      getJson<ThresholdsResponse>("/api/thresholds", ctl.signal).then(
+        (r) => setThresholds(r.rules),
+        () => undefined, // without rules the widgets draw no bands; the bridge logs why
+      );
+      getJson<BridgeStatus>("/api/bridge/status", ctl.signal).then(
+        (r) => setLinks(r.links),
+        () => undefined, // no cross-links
+      );
+    };
+    load();
+    const every = REFRESH_MS[refresh];
+    const timer = every === null ? undefined : setInterval(load, every);
+    return () => {
+      ctl.abort();
+      clearInterval(timer);
+    };
+  }, [socket, refresh]);
 }
 
 /** The widget thresholds of rule `name`, once the rules are loaded. */
@@ -74,17 +104,22 @@ export function useRule(name: string): Thresholds | undefined {
 }
 
 /**
- * The level pm-monitor gives `rule` right now, from the snapshot's active
- * breaches (any subject); OK when none, undefined before a snapshot. For
- * rules judged on a window ("any increase over 5 min"), which a tile's
- * since-start or today figure cannot be compared against.
+ * The level pm-monitor gives `rule` right now -- on `subject`, or the worst
+ * over every subject when none is named -- from the snapshot's active
+ * breaches: OK when none, undefined before a snapshot. Every coloured figure
+ * takes its level from here rather than judging the value itself, since
+ * pm-monitor also applies hysteresis, minimum samples and which subjects
+ * it judges at all (a book with too few heap entries, a process that is not
+ * live), and the dashboard must not disagree with it (I118). The rule's
+ * thresholds still draw the bands and the hover text.
  */
-export function useBreachLevel(rule: string): Level | undefined {
-  return useDashStore((s) => {
-    if (!s.snapshot) return undefined;
-    const levels = s.snapshot.thresholds.filter((b) => b.rule === rule).map((b) => b.level);
-    return levels.includes("CRIT") ? "CRIT" : levels.includes("WARN") ? "WARN" : "OK";
-  });
+export function useBreachLevel(rule: string, subject?: string): Level | undefined {
+  return useDashStore((s) => (s.snapshot ? breachLevel(s.snapshot.thresholds, rule, subject) : undefined));
+}
+
+export function breachLevel(breaches: readonly ActiveBreach[], rule: string, subject?: string): Level {
+  const levels = breaches.filter((b) => b.rule === rule && (subject === undefined || b.subject === subject)).map((b) => b.level);
+  return levels.includes("CRIT") ? "CRIT" : levels.includes("WARN") ? "WARN" : "OK";
 }
 
 /** The kinds that mark the charts (§12.1): state changes, not the connect/disconnect stream. */

@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import type { HealthEvent, ParticipantStats, Point, ProcessHealth } from "@edumatcher/dash-types";
 import { appendLive } from "../src/hooks/history.js";
-import { CONNECTED, connectionLanes, HEARTBEAT, rejectRatio, shortKey, stateSummary } from "../src/views/rows/common.js";
+import { beaconing, breachLevel, CONNECTED, connectionLanes, HEARTBEAT, rejectRatio, shortKey, stateSummary } from "../src/views/rows/common.js";
+import { liveValues } from "../src/views/rows/ProcessSeriesChart.js";
 import { CAPTURED } from "./fixtures/snapshots.js";
 
 const T0 = Date.parse("2026-10-20T08:00:00Z");
@@ -102,5 +103,32 @@ describe("process labels", () => {
   it("drops the host from a key", () => {
     expect(shortKey("pm-api-gwy/desk@kappa1")).toBe("pm-api-gwy/desk");
     expect(shortKey("pm-index")).toBe("pm-index");
+  });
+});
+
+describe("live figures only while beacons arrive (I118)", () => {
+  const p = (state: ProcessHealth["state"], host = "kappa1") => ({ ...CAPTURED.processes[0]!, state, host });
+
+  it("HEALTHY, DEGRADED and HUNG beacon; SILENT, DEAD, STOPPED and MISSING do not", () => {
+    expect((["HEALTHY", "DEGRADED", "HUNG"] as const).map((s) => beaconing(p(s)))).toEqual([true, true, true]);
+    expect((["SILENT", "DEAD", "STOPPED", "MISSING"] as const).map((s) => beaconing(p(s)))).toEqual([false, false, false, false]);
+    expect(beaconing(p("HEALTHY", ""))).toBe(false);
+  });
+
+  it("a chart's live values: none for a process whose beacons stopped, or that is gone", () => {
+    const [a, b] = CAPTURED.processes;
+    const snap = { ...CAPTURED, processes: [a!, { ...b!, state: "DEAD" as const }] };
+    expect(liveValues(snap, [a!.key, b!.key, "pm-gone@x"], (x) => x.rss_bytes)).toEqual([a!.rss_bytes, null, null]);
+  });
+});
+
+describe("breach levels", () => {
+  const breach = (rule: string, subject: string, level: "WARN" | "CRIT") => ({ rule, subject, level, value: 0, threshold: 0, since: "" });
+  it("the worst for the rule, on the subject when one is named; OK without", () => {
+    const all = [breach("heap_garbage_pct", "AAPL", "WARN"), breach("heap_garbage_pct", "MSFT", "CRIT"), breach("host_cpu_pct", "host", "WARN")];
+    expect(breachLevel(all, "heap_garbage_pct")).toBe("CRIT");
+    expect(breachLevel(all, "heap_garbage_pct", "AAPL")).toBe("WARN");
+    expect(breachLevel(all, "heap_garbage_pct", "GOOGL")).toBe("OK");
+    expect(breachLevel([], "host_cpu_pct", "host")).toBe("OK");
   });
 });

@@ -89,14 +89,16 @@ export interface GaugeProps {
   sub?: string;
   mode?: "arc" | "needle";
   size?: number;
+  /** The level when it is judged elsewhere (pm-monitor's breach); it wins over `thresholds`, which still draw the bands. */
+  level?: Level;
 }
 
-export function Gauge({ value, min = 0, max = 100, thresholds, format, label, sub, mode = "arc", size = 160 }: GaugeProps) {
+export function Gauge({ value, min = 0, max = 100, thresholds, format, label, sub, mode = "arc", size = 160, level: given }: GaugeProps) {
   const titleId = useId();
   const c = size / 2;
   const r = size * 0.4;
   const known = value !== null && Number.isFinite(value);
-  const level = known && thresholds ? levelOf(value, thresholds) : null;
+  const level = known ? (given ?? (thresholds ? levelOf(value, thresholds) : null)) : null;
   const look = LEVEL[level ?? "OK"];
   const sweep = valueFraction(value, min, max) * SWEEP_DEG;
   const span = max - min;

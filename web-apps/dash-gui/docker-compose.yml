@@ -44,6 +44,10 @@ services:
       METRICS_DB_PATH: "/backend-data/metrics.db"
       # The deployed configuration: monitor.thresholds for /api/thresholds.
       CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
+      # The drawers' links into log-gui and book-gui, as the browser reaches
+      # them (e.g. http://127.0.0.1:8091); empty: no links.
+      LOG_GUI_URL: "${LOG_GUI_URL:-}"
+      BOOK_GUI_URL: "${BOOK_GUI_URL:-}"
 
       # Operational logging. An unreachable pm-log-srv is a normal condition:
       # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if

@@ -9,6 +9,7 @@
  * at 0: a quiet stretch shows as a gap in time, not as bars pushed together.
  */
 
+import { memo } from "react";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { AXIS_TICK, ChartBox, oneLine, TOOLTIP_STYLE } from "./ChartBox.js";
 import { mergeSeries, MARGIN, seriesStyle, Y_AXIS_WIDTH } from "./TimeSeries.js";
@@ -69,7 +70,13 @@ export function rateRows(series: readonly Series[], range: TimeRangeMs, bucketMs
   return rows;
 }
 
-export function RateBars({ label, series, range, bucketMs, tz, format, n = 8, height = 180, width }: RateBarsProps) {
+/**
+ * Memoised: its parent re-renders with every snapshot (the chart's window
+ * follows pm-monitor's clock), and the bars need redrawing only when their
+ * data or window does -- so callers pass a stable `series` and `format`
+ * (I118).
+ */
+export const RateBars = memo(function RateBars({ label, series, range, bucketMs, tz, format, n = 8, height = 180, width }: RateBarsProps) {
   const shown = topNSeries(series, Math.min(n, 8));
   const rows = rateRows(shown, range, bucketMs);
   const span = range.toMs - range.fromMs;
@@ -115,4 +122,4 @@ export function RateBars({ label, series, range, bucketMs, tz, format, n = 8, he
       )}
     </figure>
   );
-}
+});

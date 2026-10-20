@@ -58,13 +58,36 @@ describe("row 1, overview (D3.2)", () => {
     await waitFor(() => expect(screen.getByRole("meter", { name: "CPU" }).querySelector("title")?.textContent).toBe("WARN above 80.0%, CRIT above 95.0%"));
   });
 
-  it("colours the processes tile by the worst state", () => {
+  it("colours the processes tile by pm-monitor's verdict on the exchange (I118)", () => {
     const socket = renderAt();
-    const processes = CAPTURED.processes.map((p, i) => (i === 0 ? { ...p, state: "DEAD" as ProcessState } : p));
-    socket.deliver(hello, frame(fixtureSnapshot({ processes })));
+    const tileLevel = () => screen.getByRole("region", { name: "Processes" }).getAttribute("data-level");
+    const dead = CAPTURED.processes.map((p, i) => (i === 0 ? { ...p, state: "DEAD" as ProcessState } : p));
+    socket.deliver(hello, frame(fixtureSnapshot({ processes: dead, exchange: { status: "IMPAIRED" } })));
     expect(tile("Processes")).toBe("9 / 10");
-    expect(screen.getByRole("region", { name: "Processes" }).getAttribute("data-level")).toBe("CRIT");
+    expect(tileLevel()).toBe("CRIT");
     expect(screen.getByRole("region", { name: "Processes" }).textContent).toContain("1 DEAD");
+    // Stopped on purpose (no profile roster): pm-monitor says OPERATIONAL, and so does the tile.
+    const stopped = CAPTURED.processes.map((p, i) => (i === 0 ? { ...p, state: "STOPPED" as ProcessState } : p));
+    socket.deliver(frame(fixtureSnapshot({ processes: stopped, exchange: { status: "OPERATIONAL" } })));
+    expect(tile("Processes")).toBe("9 / 10");
+    expect(tileLevel()).toBe("OK");
+    socket.deliver(frame(fixtureSnapshot({ exchange: { status: "DEGRADED" } })));
+    expect(tileLevel()).toBe("WARN");
+  });
+
+  it("gauges and the p99 tile take pm-monitor's level, not their own reading of the value (I118)", async () => {
+    const socket = renderAt();
+    const host = { ...CAPTURED.host, cpu_pct: 90 };
+    socket.deliver(hello, frame(fixtureSnapshot({ host, thresholds: [] })));
+    // Above the 80 % band, but pm-monitor has not judged it a breach (hysteresis, minimum samples).
+    await waitFor(() => expect(screen.getByRole("meter", { name: "CPU" }).querySelector("title")?.textContent).toContain("80.0%"));
+    expect(screen.getByRole("meter", { name: "CPU" }).getAttribute("aria-valuetext")).toBe("90.0%");
+    const breach = { rule: "host_cpu_pct", subject: "host", level: "CRIT" as const, value: 96, threshold: 95, since: CAPTURED.ts };
+    socket.deliver(frame(fixtureSnapshot({ host, thresholds: [breach] })));
+    expect(screen.getByRole("meter", { name: "CPU" }).getAttribute("aria-valuetext")).toBe("90.0%, CRIT");
+    const p99 = { rule: "engine_handle_p99_us", subject: "pm-engine@kappa1", level: "WARN" as const, value: 3000, threshold: 2000, since: CAPTURED.ts };
+    socket.deliver(frame(fixtureSnapshot({ thresholds: [p99] })));
+    expect(screen.getByRole("region", { name: "Engine p99" }).getAttribute("data-level")).toBe("WARN");
   });
 });
 
@@ -96,6 +119,24 @@ describe("row 2, processes (D3.3)", () => {
     expect(row("Processes").textContent).toContain("1 DEAD, 1 SILENT, 1 MISSING, 1 HUNG, 1 STOPPED, 1 DEGRADED");
   });
 
+  it("loop age is coloured per process as pm-monitor judges it; a stopped process has no current memory (I118)", () => {
+    const engine = CAPTURED.processes.find((p) => p.process === "pm-engine")!;
+    const processes = CAPTURED.processes.map((p) =>
+      p.process === "pm-stats" ? { ...p, state: "DEAD" as ProcessState } : p.key === engine.key ? { ...p, loop_age_ms: 5000 } : p,
+    );
+    const breach = { rule: "loop_age_ms", subject: engine.key, level: "WARN" as const, value: 5000, threshold: 1000, since: CAPTURED.ts };
+    const socket = renderAt();
+    socket.deliver(hello, frame(fixtureSnapshot({ processes, thresholds: [breach] })));
+    const table = screen.getByRole("table", { name: "Processes" });
+    const loopCell = (key: string) => table.querySelector(`[data-row="${key}"]`)!.querySelectorAll("td")[5]!.firstElementChild!;
+    expect(loopCell(engine.key).className).toContain("text-warning");
+    const other = CAPTURED.processes.find((p) => p.process === "pm-md-gwy")!.key;
+    expect(loopCell(other).className).not.toContain("text-warning");
+    const bars = [...screen.getByRole("region", { name: "Memory per process" }).querySelectorAll("[data-label]")].map((li) => li.getAttribute("data-label"));
+    expect(bars).toContain("pm-engine");
+    expect(bars).not.toContain("pm-stats");
+  });
+
   it("puts the participant bots after the exchange's own", () => {
     const bot = { ...CAPTURED.processes[0]!, key: "pm-mm-bot@kappa1", process: "pm-mm-bot", group: "BOT" as const };
     const socket = renderAt();
@@ -121,6 +162,16 @@ describe("rows 3-7 (D3.4)", () => {
     expect(tile("Orders avg / day")).toBe("—");
   });
 
+  it("books: heap garbage is coloured only where pm-monitor judges it (I118)", () => {
+    const socket = renderAt();
+    const books = CAPTURED.books.map((b) => ({ ...b, heap_garbage_pct: 60 }));
+    const breach = { rule: "heap_garbage_pct", subject: "MSFT", level: "WARN" as const, value: 60, threshold: 50, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ books, thresholds: [breach] })));
+    const garbage = (symbol: string) => [...screen.getByRole("table", { name: "Order books" }).querySelector(`[data-row="${symbol}"]`)!.querySelectorAll("td")][6]!.textContent;
+    expect(garbage("MSFT")).toBe("60.0% ◐");
+    expect(garbage("AAPL")).toBe("60.0%"); // above the band, too few entries for pm-monitor to judge
+  });
+
   it("books, gateways and the event log", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
@@ -133,6 +184,24 @@ describe("rows 3-7 (D3.4)", () => {
     expect(within(row("Gateways & infrastructure")).getByText("DISPATCH_ERROR")).toBeTruthy();
     // The log's history comes from /api/events on connect.
     await waitFor(() => expect(within(screen.getByRole("log")).getByText("TRADER01")).toBeTruthy());
+  });
+});
+
+describe("rules and links (I118)", () => {
+  it("are asked again every refresh interval, so a redeployed artifact shows without a reload", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      useDashStore.setState({ refresh: "10s" });
+      const socket = renderAt();
+      socket.deliver(hello, frame(CAPTURED));
+      await waitFor(() => expect(bridge.count("/api/thresholds")).toBe(1));
+      expect(bridge.count("/api/bridge/status")).toBe(1);
+      act(() => vi.advanceTimersByTime(10_000));
+      await waitFor(() => expect(bridge.count("/api/thresholds")).toBe(2));
+      expect(bridge.count("/api/bridge/status")).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

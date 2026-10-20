@@ -2774,6 +2774,20 @@ As built (WP-D4, I117):
 - **Bridge:** `LOG_GUI_URL` and `BOOK_GUI_URL` are read as http(s) base URLs; anything else means no link. They are served as `links` in `/api/bridge/status`. `/api/events` takes `subject=`.
 - **Widgets:** every chart and gauge now shows its label as a visible title (`PanelTitle`), as §12.3's mockups do. D2 and D3 had drawn them untitled.
 
+WP-D review (I118):
+- **Colours are pm-monitor's verdict.** Every coloured figure takes its level from the snapshot (`useBreachLevel(rule, subject)`, `breachLevel`):
+  - the processes tile from `exchange.status`;
+  - the gauges, the p99 tile, loop age per process and heap garbage per book from active breaches.
+
+  pm-monitor applies hysteresis and minimum samples, and judges only some subjects (books with enough heap entries, live processes), so the dashboard's own reading of a value against its band could disagree with it. The thresholds still draw the bands and the hover text, and the rules and links are reloaded every refresh interval.
+- **Live values only while beacons arrive.** A SILENT, DEAD or STOPPED process's record keeps its last figures, so a chart appends a live point only for HEALTHY, DEGRADED or HUNG processes (`beaconing`). "Memory per process" lists only those.
+- **Events:** one already held is a duplicate, because pm-monitor stores an event before publishing it. Only an older seq that the tab does not hold means a new numbering.
+- **No 1 Hz redraws:** `RateBars` is memoised and its callers pass stable series; `test/redraws.test.tsx` counts recharts renders across live snapshots.
+- **URLs:**
+  - the range is read from the URL when the store is created;
+  - `process/*` takes a key typed in with a raw `/`;
+  - a path that is no view goes to `/` keeping `?from=`.
+
 ---
 
 ### WP-E1 — Compose, Makefiles, READMEs
@@ -2791,8 +2805,13 @@ published to GHCR, and is documented where the other apps are.
 **Tasks:**
 - **E1.1** `deployment/docker/compose.guis.yaml`: `dash-gui` service
   (`MONITOR_HOST: edumatcher`, `MONITOR_PUB_PORT: "5611"`,
-  `METRICS_DB_PATH: /backend-data/metrics.db`, `./data:/backend-data:ro,z`,
-  port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`), plus
+  `METRICS_DB_PATH: /backend-data/metrics.db`,
+  `CONFIG_ARTIFACT_PATH: /backend-data/ref_data/engine_config.json`,
+  `./data:/backend-data:ro,z`,
+  port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`). Without
+  `CONFIG_ARTIFACT_PATH` the bridge looks in its own data directory, finds
+  no artifact, and serves pm-monitor's default bands without a word while
+  pm-monitor judges by the artifact's (I118). Plus
   the drawers' cross-links (I117) as URLs the operator's browser reaches,
   not container names: `LOG_GUI_URL: http://${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}`
   and `BOOK_GUI_URL: http://${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}`.
@@ -2869,7 +2888,12 @@ documents the `monitor` block and the new messages.
   `docs/books/operator-guide/part-6-observe-and-recover/070-operator-dashboard.md`
   (`060-health-monitor.md` is B7's): starting it and reading each row; link
   to `060-health-monitor.md` for the health states, thresholds and
-  `metrics.db` rather than repeating them. *Verify with tests that* the operator-guide
+  `metrics.db` rather than repeating them. Say that every colour on the
+  dashboard is pm-monitor's verdict (its active breaches and the exchange
+  status), while the bands drawn are the rule; that a redeployed
+  artifact's bands show within one refresh interval but pm-monitor judges
+  by them only after its restart; and that a drawer's URL is the view to
+  paste in an incident (I117, I118). *Verify with tests that* the operator-guide
   book builds and the chapter is in its `SUMMARY`/index.
 - **E2.2** *Done in B7* (the `monitor` block in both reference pages, with
   the doc test). Add `pm-dash` to the reference manual's process and port

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HealthEvent, HealthSnapshot } from "@edumatcher/dash-types";
 import { MAX_EVENTS, useDashStore } from "../src/store/useDashStore.js";
 import { fixtureSnapshot } from "./fixtures/snapshots.js";
@@ -54,6 +54,31 @@ describe("useDashStore", () => {
     apply({ type: "event", data: event(5) }); // live, while 2-4 were missed
     addEvents([event(2), event(3), event(4), event(5)]);
     expect(useDashStore.getState().events.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("a live event a catch-up already brought is a duplicate, not a new numbering (I118)", () => {
+    // pm-monitor stores an event before publishing it: /api/events can answer with it first.
+    const { apply, addEvents } = useDashStore.getState();
+    apply({ type: "event", data: event(40) });
+    addEvents([event(41), event(42)]);
+    apply({ type: "event", data: event(42) });
+    apply({ type: "event", data: event(41) });
+    expect(useDashStore.getState().events.map((e) => e.seq)).toEqual([40, 41, 42]);
+    apply({ type: "event", data: event(43) });
+    expect(useDashStore.getState().events.map((e) => e.seq)).toEqual([40, 41, 42, 43]);
+  });
+});
+
+describe("the range at load", () => {
+  it("is the page's ?from=, so the first fetch asks for it (I118)", async () => {
+    vi.stubGlobal("location", { search: "?from=now-6h" });
+    vi.resetModules();
+    const fresh = await import("../src/store/useDashStore.js");
+    expect(fresh.useDashStore.getState().range).toBe("6h");
+    vi.stubGlobal("location", { search: "?from=now-3w" });
+    vi.resetModules();
+    expect((await import("../src/store/useDashStore.js")).useDashStore.getState().range).toBe("1h");
+    vi.unstubAllGlobals();
   });
 });
 
