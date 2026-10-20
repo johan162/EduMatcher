@@ -108,3 +108,42 @@ describe("rendering", () => {
     expect(Number(needle.getAttribute("y2"))).toBeLessThan(80);
   });
 });
+
+describe("edge cases (review)", () => {
+  it("no value: a dash, an empty arc, no level", () => {
+    render(<Gauge label="CPU" value={null} format={formatPercent} thresholds={{ warn: 80 }} />);
+    const meter = screen.getByRole("meter");
+    expect(meter.textContent).toContain("—");
+    expect(screen.queryByTestId("gauge-value")).toBeNull();
+    expect(meter.getAttribute("aria-valuetext")).toBe("no value");
+    expect(meter.hasAttribute("aria-valuenow")).toBe(false);
+  });
+
+  it("a value that is not a number is no value, never NaN in a path", () => {
+    render(<Gauge label="CPU" value={Number.NaN} format={formatPercent} thresholds={{ warn: 80 }} />);
+    expect(screen.getByRole("meter").innerHTML).not.toContain("NaN");
+    expect(screen.getByRole("meter").textContent).toContain("—");
+  });
+
+  it("an empty scale (min = max) draws no bands and no arc", () => {
+    render(<Gauge label="Odd" value={5} min={10} max={10} format={formatPercent} thresholds={{ warn: 80 }} />);
+    expect(document.querySelectorAll("[data-band]")).toHaveLength(0);
+    expect(screen.getByRole("meter").innerHTML).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("a long value is set smaller to fit inside the arc", () => {
+    const { rerender } = render(<Gauge label="A" value={5} format={() => "62.0%"} />);
+    const short = Number(screen.getByRole("meter").querySelector("text")!.getAttribute("font-size"));
+    rerender(<Gauge label="A" value={5} format={() => "1 234 567 890 µs"} />);
+    const long = Number(screen.getByRole("meter").querySelector("text")!.getAttribute("font-size"));
+    expect(short).toBe(24); // 0.15 x 160, fits as it is
+    expect(long).toBeLessThan(short);
+    expect(long * 0.6 * "1 234 567 890 µs".length).toBeLessThanOrEqual(64 * 1.5 + 0.01);
+  });
+
+  it("long min/max and sub-texts are cut to their space", () => {
+    render(<Gauge label="A" value={1} max={1e12} format={() => "a very long scale label"} sub={"x".repeat(80)} />);
+    const texts = [...screen.getByRole("meter").querySelectorAll("text")].map((t) => t.textContent!);
+    expect(texts.filter((t) => t.endsWith("…"))).toHaveLength(3);
+  });
+});

@@ -4,8 +4,25 @@
  * there; tests pass `width` (design D2, "Watch out for").
  */
 
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement, type RefObject } from "react";
 import { ResponsiveContainer } from "recharts";
+
+/**
+ * The element's content width, followed as it resizes; `fixed` when given
+ * (tests: jsdom has neither layout nor ResizeObserver). 0 until measured.
+ */
+export function useElementWidth(ref: RefObject<HTMLElement | null>, fixed?: number): number {
+  const [width, setWidth] = useState(fixed ?? 0);
+  useEffect(() => {
+    if (fixed !== undefined || !ref.current || typeof ResizeObserver === "undefined") return;
+    const el = ref.current;
+    const observer = new ResizeObserver(() => setWidth(Math.floor(el.clientWidth)));
+    observer.observe(el);
+    setWidth(Math.floor(el.clientWidth));
+    return () => observer.disconnect();
+  }, [ref, fixed]);
+  return fixed ?? width;
+}
 
 export function ChartBox({ width, height, children }: { width?: number; height: number; children: (size: { width?: number; height: number }) => ReactElement }) {
   if (width !== undefined) return children({ width, height });

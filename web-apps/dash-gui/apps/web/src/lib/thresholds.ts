@@ -15,7 +15,9 @@ export interface Thresholds {
   invert?: boolean;
 }
 
-export function levelOf(value: number, t: Thresholds): Level {
+/** The level of `value`; null without a finite value (nothing to judge). */
+export function levelOf(value: number | null, t: Thresholds): Level | null {
+  if (value === null || !Number.isFinite(value)) return null;
   if (t.invert) {
     if (t.crit !== undefined && value < t.crit) return "CRIT";
     return value < t.warn ? "WARN" : "OK";

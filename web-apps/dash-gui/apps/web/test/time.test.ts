@@ -52,3 +52,15 @@ describe("no other file formats time on its own", () => {
     expect(text).not.toMatch(forbidden);
   });
 });
+
+describe("an instant that is not one (review)", () => {
+  it("shows a dash instead of throwing (Intl throws RangeError on an invalid date)", async () => {
+    const { formatAxisTime, NO_TIME } = await import("../src/lib/time.js");
+    for (const bad of ["not a date", Number.NaN, Number.POSITIVE_INFINITY, ""]) {
+      expect(formatTime(bad, "UTC")).toBe(NO_TIME);
+      expect(formatDate(bad, "UTC")).toBe(NO_TIME);
+      expect(formatDateTime(bad, "UTC")).toBe(NO_TIME);
+      expect(formatAxisTime(bad, "UTC", 3600_000)).toBe(NO_TIME);
+    }
+  });
+});

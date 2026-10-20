@@ -145,6 +145,48 @@ describe("/api/series", () => {
     expect(r.series[1]!.points.at(-1)![1]).toBe(2 * r.series[0]!.points.at(-1)![1]);
     const all = await get<MultiSeriesResponse>(`/api/series/multi?name=engine.orders_in&range=15m`);
     expect(all.series.map((s) => s.label)).toEqual(["GW01", "GW02"]);
+    expect(all.series.map((s) => s.source)).toEqual(["pm-engine@h1", "pm-engine@h1"]);
+  });
+
+  it("one label from several processes, on the same bucket starts (TimeSeries' contract)", async () => {
+    const r = await get<MultiSeriesResponse>(`/api/series/multi?name=proc.rss_bytes&sources=pm-engine@h1,pm-engine@h2&range=1h`);
+    expect(r.series.map((s) => [s.source, s.points[0]![1]])).toEqual([
+      ["pm-engine@h1", 1_000_000],
+      ["pm-engine@h2", 2_000_000],
+    ]);
+    const ts = r.series.map((s) => s.points.map(([t]) => t));
+    expect(ts[0]).toEqual(ts[1]);
+    expect(r).toMatchObject({ resolution: "raw", bucketSec: 10 });
+  });
+
+  it("if one process needs the minute table, every series of the chart is read from it", () => {
+    // h2's raw rows thinned by retention: h1 alone could be raw, h2 cannot.
+    const file = variant((w) =>
+      w.prepare("DELETE FROM samples_raw WHERE ts < ? AND series IN (SELECT id FROM series WHERE source = 'pm-engine@h2')").run(iso(T0 + HOUR)),
+    );
+    const db = new MetricsDb(file);
+    expect(db.series("proc.rss_bytes", "", "pm-engine@h1", { fromMs: T0, toMs: T0 + 2 * HOUR }, 0).resolution).toBe("raw");
+    expect(db.series("proc.rss_bytes", "", "pm-engine@h2", { fromMs: T0, toMs: T0 + 2 * HOUR }, 0).resolution).toBe("1m");
+    db.close();
+  });
+
+  it("...and the route answers both from the minute table, on the same bucket starts", async () => {
+    const file = variant((w) =>
+      w.prepare("DELETE FROM samples_raw WHERE ts < ? AND series IN (SELECT id FROM series WHERE source = 'pm-engine@h2')").run(iso(T0 + HOUR)),
+    );
+    const other = await startRig({ metricsDbPath: file }, { connect: false, now: () => T0 + 2 * HOUR });
+    try {
+      const r = await get<MultiSeriesResponse>(
+        `/api/series/multi?name=proc.rss_bytes&sources=pm-engine@h1,pm-engine@h2&from=${iso(T0)}&to=${iso(T0 + 2 * HOUR)}`,
+        200,
+        other,
+      );
+      expect(r).toMatchObject({ resolution: "1m", bucketSec: 60 });
+      expect(r.series[0]!.points.map(([t]) => t)).toEqual(r.series[1]!.points.map(([t]) => t));
+      expect(r.series[0]!.points).toHaveLength(120);
+    } finally {
+      await other.stop();
+    }
   });
 });
 
@@ -257,7 +299,11 @@ describe("validation", () => {
     ["/api/series?name=host.cpu_pct&range=2h", "bad_range"],
     ["/api/series?name=host.cpu_pct&range=1h&from=1", "bad_range"],
     [`/api/series?name=${"x".repeat(65)}&range=1h`, "bad_name"],
-    ["/api/series/multi?name=engine.orders_in&range=1h&labels=" + Array.from({ length: 51 }, (_, i) => `L${i}`).join(","), "too_many_labels"],
+    ["/api/series/multi?name=engine.orders_in&range=1h&labels=" + Array.from({ length: 51 }, (_, i) => `L${i}`).join(","), "too_many_series"],
+    ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=" + Array.from({ length: 51 }, (_, i) => `p${i}`).join(","), "too_many_series"],
+    ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=a&labels=b", "bad_param"],
+    ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=a&source=b", "bad_param"],
+    ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=,", "missing_param"],
     ["/api/rate?name=engine.orders_in&range=1h&bucket=5m", "bad_bucket"],
     ["/api/rate?name=engine.orders_in&range=7d&bucket=1m", "too_many_points"],
     ["/api/daily?name=engine.orders_in&days=0", "bad_param"],

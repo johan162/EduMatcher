@@ -86,3 +86,40 @@ describe("rates, percent, durations", () => {
     expect(formatDuration(-5)).toBe("00:00");
   });
 });
+
+describe("edge cases (review)", () => {
+  it("rounds before choosing the decimals: never 4 significant figures at a boundary", () => {
+    expect(formatRate(99.99, "s")).toBe("100 /s");
+    expect(formatRate(9.999, "s")).toBe("10.0 /s");
+    expect(formatRate(999.6, "min")).toBe(`1${T}000 /min`);
+    expect(formatMicros(999_600)).toBe("1.00 s");
+    expect(formatMicros(999_400)).toBe("999 ms");
+    expect(formatBytes(1023.6 * 1024)).toBe("1.00 MiB");
+    expect(formatBytes(1023.4)).toBe("1023 B");
+    expect(formatBytes(1023.6)).toBe("1.00 KiB");
+    expect(formatCompact(999_999.6)).toBe("1.00 M");
+    expect(formatCompact(999_600_000)).toBe("1.00 G");
+    expect(formatPercent(99.96)).toBe("100%");
+    expect(formatPercent(99.94)).toBe("99.9%");
+  });
+
+  it("never a negative zero", () => {
+    expect(formatCount(-0.3)).toBe("0");
+    expect(formatPercent(-0.04)).toBe("0%");
+    expect(formatRate(-0.0001, "s")).toBe("0 /s");
+    expect(formatMicros(-0.4)).toBe("0 µs");
+    expect(formatBytes(-0.2)).toBe("0 B");
+    expect(formatPercent(-3.26)).toBe("-3.3%");
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])("%d is shown as a dash everywhere", (x) => {
+    for (const f of [formatCount, formatCompact, formatBytes, formatMicros, formatMillis, formatPercent, formatDuration, (v: number) => formatRate(v, "s")]) {
+      expect(f(x)).toBe("—");
+    }
+  });
+
+  it("huge values stay readable", () => {
+    expect(formatBytes(5 * 1024 ** 5)).toBe(`5${T}120 TiB`);
+    expect(formatCount(1e15)).toBe(`1${T}000${T}000${T}000${T}000${T}000`);
+  });
+});

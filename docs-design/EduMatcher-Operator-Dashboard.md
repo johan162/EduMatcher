@@ -946,7 +946,7 @@ at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 | Endpoint | Returns |
 |---|---|
 | `GET /api/series?name=&label=&source=&from=&to=` | `{ points: [ts, v][] }` — picks `samples_raw` or `samples_1m` by range (≤ `raw_hours` → raw), at most 1 000 points (server-side bucketing) |
-| `GET /api/series/multi?name=&labels=a,b,c&from=&to=` | Several labels of one metric, for stacked charts |
+| `GET /api/series/multi?name=&labels=a,b,c&from=&to=` (or `sources=a,b&label=`) | Several labels of one metric, or one label across processes; one resolution and the same bucket starts for all (I114) |
 | `GET /api/rate?name=&label=&from=&to=&bucket=1m\|1h` | Counter increments per bucket (from `delta`) — the "orders per minute" chart |
 | `GET /api/daily?name=&label=&days=30` | `daily_totals` rows |
 | `GET /api/events?from=&to=&kind=` | Event log / annotations |
@@ -2642,6 +2642,18 @@ As built (WP-D2, I112):
 - **Stat-tile background mode:** writes `--bg` on the status colour; every status token is ≥ 4.5:1 against `--bg`, so the pair is readable both ways.
 - **Formatting:** percent has one decimal below 100.
 - **Gallery:** the test page is `/widgets`, unlinked and outside the live shell, with deterministic data. `make test-e2e` checks it in Chrome in both themes: real chart sizes, and the theme's colours computed on the SVG.
+
+Data contracts the rows must keep (from the D2 review, I114):
+- **One chart, one `/api/series/multi` call:** a metric's labels (`labels=`), or one label across processes (`sources=`, e.g. CPU per process). This puts every series at one resolution and on the same bucket starts. TimeSeries then treats a missing bucket as a real gap (a line breaks; a stacked layer counts 0).
+- **RateBars:** gets `/api/rate` buckets plus `bucketMs` (60 000 for `bucket=1m`). It lays the whole grid itself, so empty buckets need not be sent.
+- **No value:**
+  - widgets take `null` and non-finite numbers as "no value" and show "—";
+  - `levelOf` gives null for them;
+  - nothing needs to be filtered first.
+- **Count axes:** pass `integer` to TimeSeries, so a small range does not tick 0, 0.25, 0.5…
+- **Times:** each time is an instant (ISO or epoch ms) with `useDashStore.sessionTz`. An invalid one shows "—" and never throws.
+- **Thresholds:** `{warn, crit, invert}` with pm-monitor's strict rule; their source is D3's open point (I113).
+- **Widget roots:** every widget root carries `data-widget`, so the e2e overflow check covers each one a row adds.
 
 **Watch out for:**
 - Recharts in jsdom: `ResponsiveContainer` has zero size; give tests a fixed

@@ -6,23 +6,30 @@
  * (lower right), so min, mid and max sit at 150°, 270° and 30°. Threshold
  * bands are drawn as a thin outer ring; the value is a filled arc (or a
  * needle) in its level's colour, the level also in words below the value.
- * A value outside min..max is shown as it is and drawn at the end it passed.
+ * A value outside min..max is shown as it is and drawn at the end it passed;
+ * no value (null, or not a finite number) shows "—" and an empty arc.
+ * Every text is sized or cut to its space: the value and sub-text to the
+ * inside of the arc, the min/max labels to their half of the base, the
+ * caption to the gauge's width.
  */
 
 import { useId } from "react";
+import { clipText, fitFontSize } from "./svgText.js";
+import { NO_VALUE } from "../../lib/format.js";
 import { describeThresholds, levelOf, type Level, type Thresholds } from "../../lib/thresholds.js";
 import { LEVEL } from "../../lib/status.js";
 
 export const START_DEG = 150;
 export const SWEEP_DEG = 240;
 
-/** How far along the arc `value` is, 0..1, clamped. */
-export function valueFraction(value: number, min: number, max: number): number {
-  return max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) : 0;
+/** How far along the arc `value` is, 0..1, clamped; 0 for no value or an empty scale. */
+export function valueFraction(value: number | null, min: number, max: number): number {
+  if (value === null || !Number.isFinite(value) || !(max > min)) return 0;
+  return Math.min(1, Math.max(0, (value - min) / (max - min)));
 }
 
 /** The angle of `value` on the arc, in [0, 360). */
-export function valueAngle(value: number, min: number, max: number): number {
+export function valueAngle(value: number | null, min: number, max: number): number {
   return (START_DEG + valueFraction(value, min, max) * SWEEP_DEG) % 360;
 }
 
@@ -41,6 +48,7 @@ export function arcPath(cx: number, cy: number, r: number, fromDeg: number, swee
 
 /** The threshold bands as [from, to, level] over min..max, in order. */
 export function bands(min: number, max: number, t: Thresholds): [number, number, Level][] {
+  if (!(max > min)) return [];
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
   const warn = clamp(t.warn);
   const crit = t.crit === undefined ? undefined : clamp(t.crit);
@@ -69,7 +77,8 @@ export function bands(min: number, max: number, t: Thresholds): [number, number,
 }
 
 export interface GaugeProps {
-  value: number;
+  /** null: no figure yet. */
+  value: number | null;
   min?: number;
   max?: number;
   thresholds?: Thresholds;
@@ -86,10 +95,17 @@ export function Gauge({ value, min = 0, max = 100, thresholds, format, label, su
   const titleId = useId();
   const c = size / 2;
   const r = size * 0.4;
-  const level = thresholds ? levelOf(value, thresholds) : "OK";
-  const look = LEVEL[level];
+  const known = value !== null && Number.isFinite(value);
+  const level = known && thresholds ? levelOf(value, thresholds) : null;
+  const look = LEVEL[level ?? "OK"];
   const sweep = valueFraction(value, min, max) * SWEEP_DEG;
   const span = max - min;
+  const text = known ? format(value) : NO_VALUE;
+  const inner = r * 1.5; // the width inside the arc at the value's height
+  const valueSize = fitFontSize(text, inner, size * 0.15);
+  const subSize = size * 0.075;
+  const edgeSize = size * 0.065;
+  const half = size / 2 - 2; // each end label owns half the base
   const angleOf = (v: number) => START_DEG + ((v - min) / span) * SWEEP_DEG;
   // The needle is the outer part of a radius, clear of the value in the centre.
   const [nx0, ny0] = point(c, c, r * 0.6, START_DEG + sweep);
@@ -100,14 +116,17 @@ export function Gauge({ value, min = 0, max = 100, thresholds, format, label, su
     <figure
       role="meter"
       aria-label={label}
-      aria-valuenow={value}
+      aria-valuenow={known ? value : undefined}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-valuetext={`${format(value)}${level === "OK" ? "" : `, ${level}`}`}
+      aria-valuetext={known ? `${text}${level && level !== "OK" ? `, ${level}` : ""}` : "no value"}
       aria-describedby={definition ? titleId : undefined}
+      data-widget="gauge"
       className="m-0 flex flex-col items-center"
+      style={{ width: size, maxWidth: "100%" }}
     >
-      <svg width={size} height={size * 0.86} viewBox={`0 0 ${size} ${size * 0.86}`}>
+      {/* Drawn at `size`, scaled down by its viewBox in a narrower panel. */}
+      <svg viewBox={`0 0 ${size} ${size * 0.86}`} style={{ width: "100%", height: "auto" }} className="block">
         {definition && <title id={titleId}>{definition}</title>}
         <path d={arcPath(c, c, r, START_DEG, SWEEP_DEG)} fill="none" stroke="var(--bg-inset)" strokeWidth={size * 0.09} />
         {thresholds &&
@@ -121,7 +140,7 @@ export function Gauge({ value, min = 0, max = 100, thresholds, format, label, su
               strokeWidth={size * 0.02}
             />
           ))}
-        {mode === "arc" ? (
+        {!known ? null : mode === "arc" ? (
           <path
             data-testid="gauge-value"
             d={arcPath(c, c, r, START_DEG, sweep)}
@@ -141,23 +160,26 @@ export function Gauge({ value, min = 0, max = 100, thresholds, format, label, su
             strokeLinecap="round"
           />
         )}
-        <text x={c} y={c} textAnchor="middle" dominantBaseline="middle" className="tabular" fill="var(--fg)" fontSize={size * 0.15} fontWeight={600}>
-          {format(value)}
+        <text x={c} y={c} textAnchor="middle" dominantBaseline="middle" className="tabular" fill={known ? "var(--fg)" : "var(--stopped)"} fontSize={valueSize} fontWeight={600}>
+          {text}
         </text>
-        <text x={c} y={c + size * 0.15} textAnchor="middle" fill="var(--fg-subtle)" fontSize={size * 0.075}>
-          {sub ?? ""}
+        <text x={c} y={c + size * 0.15} textAnchor="middle" fill="var(--fg-subtle)" fontSize={subSize}>
+          {clipText(sub ?? "", inner, subSize)}
         </text>
-        <text x={point(c, c, r, START_DEG)[0]} y={size * 0.8} textAnchor="middle" fill="var(--fg-faint)" fontSize={size * 0.065}>
-          {format(min)}
+        {/* Anchored inward from the arc's ends, so a wide label stays inside the gauge. */}
+        <text x={2} y={size * 0.84} textAnchor="start" fill="var(--fg-faint)" fontSize={edgeSize} className="tabular">
+          {clipText(format(min), half, edgeSize)}
         </text>
-        <text x={point(c, c, r, START_DEG + SWEEP_DEG)[0]} y={size * 0.8} textAnchor="middle" fill="var(--fg-faint)" fontSize={size * 0.065}>
-          {format(max)}
+        <text x={size - 2} y={size * 0.84} textAnchor="end" fill="var(--fg-faint)" fontSize={edgeSize} className="tabular">
+          {clipText(format(max), half, edgeSize)}
         </text>
       </svg>
-      <figcaption className="mt-1 flex items-center gap-1.5 text-xs text-fg-subtle">
-        <span className="font-semibold uppercase tracking-wide">{label}</span>
-        {level !== "OK" && (
-          <span className={`font-semibold ${look.text}`}>
+      <figcaption className="mt-1 flex w-full min-w-0 items-center justify-center gap-1.5 text-xs text-fg-subtle">
+        <span className="truncate font-semibold uppercase tracking-wide" title={label}>
+          {label}
+        </span>
+        {level && level !== "OK" && (
+          <span className={`shrink-0 font-semibold ${look.text}`}>
             {look.glyph} {look.label}
           </span>
         )}

@@ -77,7 +77,7 @@ REST (history from `metrics.db`, read-only; ranges at most 7 days):
 | Endpoint | Returns |
 |---|---|
 | `GET /api/series?name=&label=&source=&from=&to=` (or `range=5m\|15m\|1h\|6h\|24h\|7d`) | One series, at most 1000 points; from the 10 s samples, or from the minute roll-up when that holds older data in the range than the 10 s samples still have. `source=` is required when several processes record the name |
-| `GET /api/series/multi?name=&labels=a,b&source=&range=` | Several labels of one metric (all of them when `labels=` is left out, at most 50) |
+| `GET /api/series/multi?name=&labels=a,b&source=&range=` or `?name=&sources=a,b&label=&range=` | Several labels of one metric (all of them when `labels=` is left out), or one label across processes; at most 50, all at one resolution on the same bucket starts, so they line up in one chart |
 | `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` | Counter increments per bucket, summed over sources (and labels when none is given) |
 | `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
 | `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |

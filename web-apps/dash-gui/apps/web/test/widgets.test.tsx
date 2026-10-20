@@ -4,11 +4,11 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HealthEvent } from "@edumatcher/dash-types";
-import { BarGauge } from "../src/components/widgets/BarGauge.js";
+import { barPercent, BarGauge } from "../src/components/widgets/BarGauge.js";
 import { EventLog, windowOf } from "../src/components/widgets/EventLog.js";
-import { HealthTable, ProcessStateBadge, type Column } from "../src/components/widgets/HealthTable.js";
+import { HealthTable, ProcessStateBadge, sortRows, type Column } from "../src/components/widgets/HealthTable.js";
 import { Row } from "../src/components/widgets/Row.js";
-import { MARK_WIDTH, markX, segmentBox, StateTimeline, xOf } from "../src/components/widgets/StateTimeline.js";
+import { MARK_WIDTH, markX, MIN_SEGMENT, segmentBox, StateTimeline, xOf } from "../src/components/widgets/StateTimeline.js";
 import { formatBytes } from "../src/lib/format.js";
 import { useRowStore } from "../src/store/useRowStore.js";
 
@@ -235,5 +235,137 @@ describe("Row", () => {
     );
     expect(screen.queryByText("books")).toBeNull();
     expect(screen.getByText("gateways")).toBeTruthy();
+  });
+});
+
+describe("edge cases (review)", () => {
+  it("StateTimeline: a short segment is still 1 px, a backwards one is not drawn", () => {
+    const week = { fromMs: T0, toMs: T0 + 7 * 24 * 60 * MIN };
+    expect(segmentBox({ from: T0 + MIN, to: T0 + MIN + 500, state: "UP" }, week, 600)!.width).toBe(MIN_SEGMENT);
+    expect(segmentBox({ from: week.toMs - 100, to: week.toMs, state: "UP" }, week, 600)).toEqual({ x: 600 - MIN_SEGMENT, width: MIN_SEGMENT });
+    expect(segmentBox({ from: T0 + 10 * MIN, to: T0 + 5 * MIN, state: "UP" }, RANGE, 600)).toBeNull();
+  });
+
+  it("StateTimeline: long lane ids are cut, the full id kept; tooltips carry the date past a day", () => {
+    const id = "pm-api-gwy/dashboards@a-rather-long-host-name";
+    render(
+      <StateTimeline
+        label="Long"
+        lanes={[{ id, segments: [{ from: T0, to: T0 + 30 * MIN, state: "UP" }] }]}
+        range={{ fromMs: T0, toMs: T0 + 2 * 24 * 60 * MIN }}
+        states={{ UP: { label: "up", color: "var(--ok)" } }}
+        tz="UTC"
+        width={600}
+      />,
+    );
+    const text = document.querySelector("[data-lane] text")!;
+    expect(text.textContent!.length).toBeLessThan(id.length + id.length);
+    expect(text.textContent).toContain("…");
+    expect(text.querySelector("title")!.textContent).toBe(id);
+    expect(document.querySelector("[data-segment] title")!.textContent).toContain("2026-10-19 08:00:00");
+  });
+
+  it("StateTimeline: no lanes says so", () => {
+    render(<StateTimeline label="None" lanes={[]} range={RANGE} states={{}} tz="UTC" width={600} />);
+    expect(screen.getByRole("figure", { name: "None" }).textContent).toContain("No data");
+  });
+
+  it("BarGauge: no NaN or negative bar, empty list says so", () => {
+    expect(barPercent(Number.NaN, 10)).toBe(0);
+    expect(barPercent(-5, 10)).toBe(0);
+    expect(barPercent(5, 0)).toBe(0);
+    expect(barPercent(20, 10)).toBe(100);
+    render(<BarGauge label="Odd" items={[{ label: "nan", value: Number.NaN }, { label: "neg", value: -1 }, { label: "ok", value: 4 }]} format={formatBytes} thresholds={{ warn: 1 }} />);
+    expect(document.querySelector("[data-label=nan]")!.textContent).toContain("—");
+    expect(document.querySelector("[data-label=nan]")!.getAttribute("data-level")).toBe("NONE");
+    expect(document.querySelector("[data-label=ok]")!.getAttribute("data-level")).toBe("WARN");
+    cleanup();
+    render(<BarGauge label="Empty" items={[]} format={formatBytes} />);
+    expect(screen.getByRole("region", { name: "Empty" }).textContent).toBe("No data");
+  });
+
+  it("BarGauge: two items with the same label are two bars", () => {
+    render(<BarGauge label="Dup" items={[{ label: "pm-engine", value: 2 }, { label: "pm-engine", value: 1 }]} format={String} />);
+    expect(document.querySelectorAll("[data-label=pm-engine]")).toHaveLength(2);
+  });
+
+  it("HealthTable: rows without a value sort last in both directions", () => {
+    const rows = [{ k: 2 }, { k: null }, { k: 1 }, { k: Number.NaN }, { k: 3 }];
+    expect(sortRows(rows, (r) => r.k, "asc").map((r) => r.k)).toEqual([1, 2, 3, null, Number.NaN]);
+    expect(sortRows(rows, (r) => r.k, "desc").map((r) => r.k)).toEqual([3, 2, 1, null, Number.NaN]);
+  });
+
+  it("HealthTable: a clickable row works from the keyboard", () => {
+    const clicked: string[] = [];
+    render(
+      <HealthTable label="T" columns={[{ id: "k", header: "K", render: (r: { k: string }) => r.k }]} rows={[{ k: "a" }]} rowKey={(r) => r.k} onRowClick={(r) => clicked.push(r.k)} />,
+    );
+    const row = document.querySelector("[data-row=a]") as HTMLElement;
+    expect(row.tabIndex).toBe(0);
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: " " });
+    expect(clicked).toEqual(["a", "a"]);
+  });
+
+  it("EventLog: a filter starts again at the top", () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({
+      seq: i + 1,
+      ts: new Date(T0 + i * MIN).toISOString(),
+      kind: (i % 2 ? "CONNECT" : "SESSION") as HealthEvent["kind"],
+      severity: "INFO" as const,
+      subject: "s",
+      detail: "",
+    }));
+    render(<EventLog label="Events" events={many} tz="UTC" height={220} rowHeight={22} />);
+    const log = screen.getByRole("log");
+    act(() => {
+      log.scrollTop = 22 * 150;
+      fireEvent.scroll(log);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "SESSION" }));
+    expect(log.scrollTop).toBe(0);
+    expect(Number(document.querySelector("[data-seq]")!.getAttribute("data-seq"))).toBe(200);
+  });
+
+  it("EventLog: the window never runs past the end of a shorter list", () => {
+    // A stale scroll offset far beyond the list still shows its last rows.
+    const [first, last] = windowOf(10_000, 220, 22, 20);
+    expect(last).toBe(20);
+    expect(first).toBeLessThan(20);
+  });
+
+  it("EventLog: scrolled down, new events above do not move the rows being read", () => {
+    const ev = (seq: number) => ({ seq, ts: new Date(T0 + seq * MIN).toISOString(), kind: "CONNECT" as const, severity: "INFO" as const, subject: `S${seq}`, detail: "" });
+    const first = Array.from({ length: 100 }, (_, i) => ev(i + 1));
+    const { rerender } = render(<EventLog label="Events" events={first} tz="UTC" height={220} rowHeight={22} />);
+    const log = screen.getByRole("log");
+    act(() => {
+      log.scrollTop = 22 * 50;
+      fireEvent.scroll(log);
+    });
+    rerender(<EventLog label="Events" events={[...first, ev(101), ev(102), ev(103)]} tz="UTC" height={220} rowHeight={22} />);
+    expect(log.scrollTop).toBe(22 * 53);
+    // At the top, they simply appear above.
+    act(() => {
+      log.scrollTop = 0;
+      fireEvent.scroll(log);
+    });
+    rerender(<EventLog label="Events" events={[...first, ev(101), ev(102), ev(103), ev(104)]} tz="UTC" height={220} rowHeight={22} />);
+    expect(log.scrollTop).toBe(0);
+  });
+
+  it("EventLog: dates appear when the log spans more than one session day; empty says so", () => {
+    const two = [
+      { seq: 1, ts: "2026-10-18T23:30:00Z", kind: "CONNECT" as const, severity: "INFO" as const, subject: "a", detail: "" },
+      { seq: 2, ts: "2026-10-19T00:30:00Z", kind: "CONNECT" as const, severity: "INFO" as const, subject: "b", detail: "" },
+    ];
+    render(<EventLog label="Days" events={two} tz="UTC" />);
+    expect(document.querySelector("[data-seq='2']")!.textContent).toContain("10-19 00:30:00");
+    cleanup();
+    render(<EventLog label="Days" events={two} tz="Europe/Stockholm" />); // both on the 19th there
+    expect(document.querySelector("[data-seq='2']")!.textContent).not.toContain("10-19");
+    cleanup();
+    render(<EventLog label="None" events={[]} tz="UTC" />);
+    expect(screen.getByRole("log").textContent).toBe("No events");
   });
 });

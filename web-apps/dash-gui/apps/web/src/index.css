@@ -20,6 +20,8 @@
  */
 :root,
 html.dark {
+  /* Native controls and scrollbars follow the theme. */
+  color-scheme: dark;
   --bg: #0a0c10;
   --bg-subtle: #12151c;
   --bg-inset: #05070a;
@@ -59,6 +61,7 @@ html.dark {
 }
 
 html:not(.dark) {
+  color-scheme: light;
   --bg: #ffffff;
   --bg-subtle: #f5f7fa;
   --bg-inset: #eaeef3;

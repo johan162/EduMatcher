@@ -28,7 +28,7 @@ describe.each(["dark", "light"] as const)("the widget gallery, %s theme", (theme
     applyThemeToDocument(theme);
     render(<WidgetGallery />);
     expect(document.documentElement.classList.contains("dark")).toBe(theme === "dark");
-    expect(screen.getAllByRole("meter")).toHaveLength(4);
+    expect(screen.getAllByRole("meter")).toHaveLength(7); // 4, and 3 edge cases
     for (const tile of ["Processes", "Orders today", "Engine p99", "Reject ratio", "Disk free", "Participants"]) {
       expect(screen.getAllByRole("region", { name: tile }).length).toBeGreaterThan(0);
     }
@@ -37,7 +37,9 @@ describe.each(["dark", "light"] as const)("the widget gallery, %s theme", (theme
     }
     expect(screen.getByRole("region", { name: "Memory per process" })).toBeTruthy();
     expect(screen.getByRole("table", { name: "Processes" })).toBeTruthy();
-    expect(screen.getByRole("log")).toBeTruthy();
-    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(3);
+    expect(screen.getAllByRole("log")).toHaveLength(3); // the log, a narrow one, an empty one
+    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(4);
+    // The edge cases render without a NaN or Infinity reaching the page.
+    expect(document.body.innerHTML).not.toMatch(/NaN|Infinity/);
   });
 });

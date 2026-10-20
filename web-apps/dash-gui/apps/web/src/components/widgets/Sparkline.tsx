@@ -12,18 +12,22 @@ export interface SparklineProps {
   color?: string;
 }
 
-/** Polyline points for `values` in a width x height box (1 px inset). */
+/**
+ * Polyline points for `values` in a width x height box (1 px inset). A
+ * value that is not a finite number is left out (its neighbours join up);
+ * a flat series is a line through the middle, not along the bottom.
+ */
 export function sparkPoints(values: readonly number[], width: number, height: number): string {
-  if (values.length === 0) return "";
-  const lo = Math.min(...values);
-  const span = Math.max(...values) - lo || 1;
-  const step = values.length > 1 ? (width - 2) / (values.length - 1) : 0;
+  const n = values.length;
+  const finite = values.filter(Number.isFinite);
+  if (finite.length === 0) return "";
+  const lo = finite.reduce((a, b) => Math.min(a, b));
+  const hi = finite.reduce((a, b) => Math.max(a, b));
+  const step = n > 1 ? (width - 2) / (n - 1) : 0;
+  const yOf = (v: number) => (hi > lo ? height - 1 - ((v - lo) / (hi - lo)) * (height - 2) : height / 2);
   return values
-    .map((v, i) => {
-      const x = values.length > 1 ? 1 + i * step : width / 2;
-      const y = height - 1 - ((v - lo) / span) * (height - 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+    .map((v, i) => (Number.isFinite(v) ? `${(n > 1 ? 1 + i * step : width / 2).toFixed(1)},${yOf(v).toFixed(1)}` : null))
+    .filter((p): p is string => p !== null)
     .join(" ");
 }
 

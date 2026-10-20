@@ -836,32 +836,61 @@ def test_the_dashboard_page_shows_the_live_exchange_in_a_browser(
     )
 
 
+#: Every widget whose content reaches past its own box or its container,
+#: and a page that scrolls sideways. HealthTable alone may scroll inside
+#: itself: that is how a wide table stays in a narrow panel.
+OVERFLOW = """JSON.stringify([...document.querySelectorAll('[data-widget]')].flatMap(el => {
+  const r = el.getBoundingClientRect(), host = el.parentElement.getBoundingClientRect(), bad = [];
+  const name = el.dataset.widget + ' ' + (el.getAttribute('aria-label') || '');
+  if (el.dataset.widget !== 'health-table' && el.scrollWidth > el.clientWidth + 1) bad.push('spills: ' + name);
+  if (r.right > host.right + 1 || r.left < host.left - 1) bad.push('outside its panel: ' + name);
+  return bad;
+}).concat(document.documentElement.scrollWidth > innerWidth ? ['the page scrolls sideways'] : []))"""
+
+
 def test_every_widget_renders_in_both_themes_in_a_browser(
     bridge: Bridge, page: Page | None
 ) -> None:
     """WP-D2's done-when, in a real browser: the /widgets gallery (synthetic
-    data) draws every widget at its real size, and each theme's own colours
-    reach the SVG -- which jsdom cannot show."""
+    data, and a row of edge cases: long labels, no values, NaN, negatives,
+    empty data, twelve series, narrow columns) draws every widget at its
+    real size, in each theme's own colours, and nothing overflows -- at a
+    desktop width and a narrow one. jsdom can show none of this."""
     if page is None:
         pytest.skip("no Chrome to drive")
-    page.goto(f"http://127.0.0.1:{bridge.port}/widgets")
-    page.wait("document.querySelectorAll('[role=meter]').length === 4", "the gauges")
-    # The responsive charts measured their panels: none is zero-sized.
-    widths = page.js(
-        "[...document.querySelectorAll('.recharts-surface')]"
-        ".map(s => s.getBoundingClientRect().width)"
-    )
-    assert len(widths) == 3 and min(widths) > 200, widths
-    ok_band = "getComputedStyle(document.querySelector('[data-band=OK]')).stroke"
-    for theme, ok in (("dark", "rgb(38, 208, 124)"), ("light", "rgb(6, 118, 71)")):
-        page.js(
-            f"document.documentElement.classList.toggle('dark', {str(theme == 'dark').lower()})"
+    for width in (1600, 900):
+        page._call(
+            "Emulation.setDeviceMetricsOverride",
+            {"width": width, "height": 1200, "deviceScaleFactor": 1, "mobile": False},
+            page.session,
         )
-        assert page.js(ok_band) == ok, theme
-        line = page.js(
-            "getComputedStyle(document.querySelector('.recharts-line-curve')).stroke"
+        page.goto(f"http://127.0.0.1:{bridge.port}/widgets")
+        page.wait(
+            "document.querySelectorAll('[role=meter]').length === 7", "the gauges"
         )
-        assert line.startswith("rgb("), (theme, line)  # var(--series-1) resolved
+        page.wait(
+            "document.querySelectorAll('.recharts-surface').length === 7",
+            "all seven charts",
+        )
+        # The responsive charts measured their panels: none is zero-sized.
+        widths = page.js(
+            "[...document.querySelectorAll('.recharts-surface')]"
+            ".map(s => s.getBoundingClientRect().width)"
+        )
+        assert min(widths) > 150, (width, widths)
+        assert page.js("document.body.innerHTML.includes('NaN')") is False
+        ok_band = "getComputedStyle(document.querySelector('[data-band=OK]')).stroke"
+        for theme, ok in (("dark", "rgb(38, 208, 124)"), ("light", "rgb(6, 118, 71)")):
+            page.js(
+                f"document.documentElement.classList.toggle('dark', {str(theme == 'dark').lower()})"
+            )
+            assert page.js(ok_band) == ok, theme
+            line = page.js(
+                "getComputedStyle(document.querySelector('.recharts-line-curve')).stroke"
+            )
+            assert line.startswith("rgb("), (theme, line)  # var(--series-1) resolved
+            assert json.loads(page.js(OVERFLOW)) == [], (width, theme)
+    page._call("Emulation.clearDeviceMetricsOverride", {}, page.session)
     page.js("document.documentElement.classList.add('dark')")
     # Back to the dashboard: the scenarios after this one watch it.
     page.goto(f"http://127.0.0.1:{bridge.port}/")

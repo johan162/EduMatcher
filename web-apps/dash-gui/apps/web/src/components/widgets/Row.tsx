@@ -25,7 +25,7 @@ export function Row({ id, title, badge, badgeTone = "text-fg-subtle", children }
   const Chevron = collapsed ? ChevronRight : ChevronDown;
 
   return (
-    <section aria-labelledby={`${bodyId}-title`} className="rounded border border-border bg-bg-subtle">
+    <section aria-labelledby={`${bodyId}-title`} data-widget="row" className="min-w-0 rounded border border-border bg-bg-subtle">
       <h2 className="m-0">
         <button
           id={`${bodyId}-title`}
@@ -33,11 +33,15 @@ export function Row({ id, title, badge, badgeTone = "text-fg-subtle", children }
           aria-expanded={!collapsed}
           aria-controls={bodyId}
           onClick={() => toggle(id)}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-fg"
+          className="flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-fg"
         >
-          <Chevron size={14} aria-hidden="true" />
-          {title}
-          {badge && <span className={clsx("font-normal normal-case", badgeTone)}>· {badge}</span>}
+          <Chevron size={14} aria-hidden="true" className="shrink-0" />
+          <span className="shrink-0">{title}</span>
+          {badge && (
+            <span className={clsx("min-w-0 truncate font-normal normal-case", badgeTone)} title={badge}>
+              · {badge}
+            </span>
+          )}
         </button>
       </h2>
       {!collapsed && (

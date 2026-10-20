@@ -27,7 +27,7 @@ import { utcOffsetSec } from "./session-time.js";
 
 /** The longest range any history request may span: the minute table's window. */
 export const MAX_RANGE_MS = 7 * 24 * 3600 * 1000;
-/** Labels one `/api/series/multi` request may ask for. */
+/** Series (labels or sources) one `/api/series/multi` request may ask for. */
 export const MAX_LABELS = 50;
 export const MAX_EVENTS = 1000;
 export const DEFAULT_EVENTS = 500;
@@ -165,32 +165,49 @@ export function registerHistoryRoutes(
     }),
   );
 
+  // Several series for one chart: a metric's labels (labels=, all of them by
+  // default) from one source, or one label from several processes
+  // (sources=: CPU per process). One resolution for the whole chart: if any
+  // series had to fall back to the minute table, every one is read from it,
+  // so they share bucket starts and line up (TimeSeries' data contract).
   app.get("/api/series/multi", (request, reply) =>
     send(reply, (): MultiSeriesResponse => {
       const q = query(request.query);
       const name = requireName(q);
-      const source = optionalText(q, "source", 200);
       const range = parseRange(q, now())!;
       const offsetSec = offsetFor(range);
-      knownMetric(db, name);
-      const labels =
-        q.labels !== undefined && q.labels !== ""
-          ? [...new Set(q.labels.split(","))]
-          : db.labels(name, MAX_LABELS + 1);
-      if (labels.length > MAX_LABELS) throw bad("too_many_labels", `at most ${MAX_LABELS} labels per request`);
-      if (labels.some((l) => l.length > 32)) throw bad("bad_label", "a label is at most 32 characters");
-      let results = labels.map((label) => ({ label, ...db.series(name, label, source, range, offsetSec) }));
-      // One resolution for the whole chart: if any label had to fall back to
-      // the minute table, every label is read from it.
+      const list = (raw: string) => [...new Set(raw.split(","))].filter((x) => x !== "");
+      let wanted: { label: string; source: string | undefined }[];
+      if (q.sources !== undefined) {
+        if (q.labels !== undefined || q.source !== undefined) {
+          throw bad("bad_param", "sources= takes the place of labels= and source=");
+        }
+        const label = optionalText(q, "label", 32) ?? "";
+        const sources = list(q.sources);
+        if (sources.length === 0) throw bad("missing_param", "sources= names no source");
+        if (sources.length > MAX_LABELS) throw bad("too_many_series", `at most ${MAX_LABELS} series per request`);
+        if (sources.some((s) => s.length > 200)) throw bad("bad_source", "a source is at most 200 characters");
+        knownMetric(db, name);
+        wanted = sources.map((source) => ({ label, source }));
+      } else {
+        const source = optionalText(q, "source", 200);
+        knownMetric(db, name);
+        const labels = q.labels !== undefined && q.labels !== "" ? list(q.labels) : db.labels(name, MAX_LABELS + 1);
+        if (labels.length > MAX_LABELS) throw bad("too_many_series", `at most ${MAX_LABELS} series per request`);
+        if (labels.some((l) => l.length > 32)) throw bad("bad_label", "a label is at most 32 characters");
+        wanted = labels.map((label) => ({ label, source }));
+      }
+      const read = (only?: "1m") =>
+        wanted.map(({ label, source }) => ({ label, ...db.series(name, label, source, range, offsetSec, only) }));
+      let results = read();
       if (results.some((r) => r.resolution === "1m") && results.some((r) => r.resolution === "raw")) {
-        results = labels.map((label) => ({ label, ...db.series(name, label, source, range, offsetSec, "1m") }));
+        results = read("1m");
       }
       return {
         name,
-        source: source ?? [...new Set(results.map((r) => r.source))].join(","),
         resolution: results[0]?.resolution ?? "raw",
-        bucketSec: Math.max(...results.map((r) => r.bucketSec), 0),
-        series: results.map((r) => ({ label: r.label, points: r.points })),
+        bucketSec: results[0]?.bucketSec ?? 0,
+        series: results.map((r) => ({ label: r.label, source: r.source, points: r.points })),
       };
     }),
   );

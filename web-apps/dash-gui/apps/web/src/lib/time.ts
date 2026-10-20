@@ -43,10 +43,15 @@ function formatter(tz: string): Intl.DateTimeFormat {
   return f;
 }
 
-function parts(t: Instant, tz: string): Record<string, string> {
+/** What an instant that is not one shows (Intl throws on an invalid date). */
+export const NO_TIME = "—";
+
+function parts(t: Instant, tz: string): Record<string, string> | null {
+  const ms = toMs(t);
+  if (!Number.isFinite(ms)) return null;
   return Object.fromEntries(
     formatter(tz)
-      .formatToParts(toMs(t))
+      .formatToParts(ms)
       .map((p) => [p.type, p.value]),
   );
 }
@@ -54,18 +59,20 @@ function parts(t: Instant, tz: string): Record<string, string> {
 /** `HH:MM:SS` (or `HH:MM`) on the session clock. */
 export function formatTime(t: Instant, tz: string, seconds = true): string {
   const p = parts(t, tz);
+  if (!p) return NO_TIME;
   return seconds ? `${p.hour}:${p.minute}:${p.second}` : `${p.hour}:${p.minute}`;
 }
 
 /** `YYYY-MM-DD`: the session date the instant falls on. */
 export function formatDate(t: Instant, tz: string): string {
   const p = parts(t, tz);
+  if (!p) return NO_TIME;
   return `${p.year}-${p.month}-${p.day}`;
 }
 
 /** `YYYY-MM-DD HH:MM:SS` on the session clock. */
 export function formatDateTime(t: Instant, tz: string): string {
-  return `${formatDate(t, tz)} ${formatTime(t, tz)}`;
+  return Number.isFinite(toMs(t)) ? `${formatDate(t, tz)} ${formatTime(t, tz)}` : NO_TIME;
 }
 
 /**
@@ -73,6 +80,7 @@ export function formatDateTime(t: Instant, tz: string): string {
  * date as well beyond it ("10-19 14:00"), both on the session clock.
  */
 export function formatAxisTime(t: Instant, tz: string, spanMs: number): string {
+  if (!Number.isFinite(toMs(t))) return NO_TIME;
   if (spanMs <= 24 * 3600_000) return formatTime(t, tz, spanMs <= 15 * 60_000);
   return `${formatDate(t, tz).slice(5)} ${formatTime(t, tz, false)}`;
 }

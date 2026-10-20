@@ -38,12 +38,16 @@ export interface SeriesResponse {
 }
 
 /** `GET /api/series/multi` */
+/**
+ * `GET /api/series/multi`: several series of one metric -- its labels
+ * (`labels=`), or one label across processes (`sources=`) -- all at one
+ * resolution and on the same bucket starts, so they line up in one chart.
+ */
 export interface MultiSeriesResponse {
   name: string;
-  source: string;
   resolution: Resolution;
   bucketSec: number;
-  series: { label: string; points: Point[] }[];
+  series: { label: string; source: string; points: Point[] }[];
 }
 
 /** `GET /api/rate`: counter increments per bucket, summed over sources (and labels when none is given). */

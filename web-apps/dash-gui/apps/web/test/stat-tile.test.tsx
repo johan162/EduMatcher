@@ -64,3 +64,20 @@ describe("content", () => {
     expect(screen.getByTestId("stat-value").className).toContain("text-fg");
   });
 });
+
+describe("edge cases (review)", () => {
+  it("a value that is not a number shows a dash, uncoloured, even in background mode", () => {
+    render(<StatTile label="Reject ratio" value={Number.NaN} format={formatMicros} thresholds={{ warn: 5 }} colorMode="background" />);
+    expect(screen.getByTestId("stat-value").textContent).toBe("—");
+    expect(screen.getByRole("region", { name: "Reject ratio" }).className).toContain("bg-bg-subtle");
+  });
+
+  it("a long value can be cut (it may shrink) and keeps its full text on hover; the level word cannot", () => {
+    render(<StatTile label="Big" value={1} format={() => "123 456 789 012 345"} thresholds={{ warn: 0 }} />);
+    const v = screen.getByTestId("stat-value");
+    expect(v.className).toContain("truncate");
+    expect(v.className).toContain("min-w-0");
+    expect(v.getAttribute("title")).toBe("123 456 789 012 345");
+    expect(screen.getByText(/WARN/).className).toContain("shrink-0");
+  });
+});

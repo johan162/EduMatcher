@@ -3,6 +3,10 @@
  * rows with state glyphs and inline sparklines, sortable by any column with
  * a sort key, optionally in groups (the processes' "Participant bots" come
  * after the exchange's own), each group sorted on its own.
+ *
+ * A row without a sort value (null, or not a finite number) sorts last in
+ * either direction. The table scrolls sideways inside its panel rather than
+ * spilling out of it. Clickable rows are reachable and work by keyboard.
  */
 
 import clsx from "clsx";
@@ -14,8 +18,8 @@ export interface Column<T> {
   id: string;
   header: string;
   render: (row: T) => ReactNode;
-  /** Present: the column sorts by it. */
-  sortKey?: (row: T) => number | string;
+  /** Present: the column sorts by it; null (or NaN) for "no value". */
+  sortKey?: (row: T) => number | string | null;
   align?: "left" | "right";
 }
 
@@ -32,11 +36,18 @@ export interface HealthTableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-export function sortRows<T>(rows: readonly T[], key: (row: T) => number | string, dir: SortDir): T[] {
+/** No sort value: sorted last whatever the direction. */
+function missing(k: number | string | null): boolean {
+  return k === null || (typeof k === "number" && !Number.isFinite(k));
+}
+
+/** Rows by `key`, stably; rows without a value last in either direction. */
+export function sortRows<T>(rows: readonly T[], key: (row: T) => number | string | null, dir: SortDir): T[] {
   const sign = dir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
     const ka = key(a);
     const kb = key(b);
+    if (missing(ka) || missing(kb)) return Number(missing(ka)) - Number(missing(kb));
     return sign * (typeof ka === "number" && typeof kb === "number" ? ka - kb : String(ka).localeCompare(String(kb)));
   });
 }
@@ -56,6 +67,7 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
     setSort((s) => (s?.id === id ? { id, dir: s.dir === "asc" ? "desc" : "asc" } : { id, dir: "asc" }));
 
   return (
+    <div data-widget="health-table" className="min-w-0 overflow-x-auto">
     <table aria-label={label} className="w-full border-collapse text-xs">
       <thead>
         <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-fg-faint">
@@ -92,10 +104,21 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
               key={rowKey(row)}
               data-row={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={clsx("border-b border-border-subtle", onRowClick && "cursor-pointer hover:bg-bg-inset")}
+              onKeyDown={
+                onRowClick
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
+              tabIndex={onRowClick ? 0 : undefined}
+              className={clsx("border-b border-border-subtle", onRowClick && "cursor-pointer hover:bg-bg-inset focus:bg-bg-inset focus:outline-none")}
             >
               {columns.map((c) => (
-                <td key={c.id} className={clsx("px-2 py-1 tabular", c.align === "right" && "text-right")}>
+                <td key={c.id} className={clsx("whitespace-nowrap px-2 py-1 tabular", c.align === "right" && "text-right")}>
                   {c.render(row)}
                 </td>
               ))}
@@ -104,6 +127,7 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
         </tbody>
       ))}
     </table>
+    </div>
   );
 }
 
