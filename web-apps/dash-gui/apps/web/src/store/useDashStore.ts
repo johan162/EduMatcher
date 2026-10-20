@@ -17,7 +17,7 @@
  */
 
 import { create } from "zustand";
-import type { HealthEvent, HealthSnapshot, MonitorState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
+import type { CrossAppLinks, HealthEvent, HealthSnapshot, MonitorState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
 import { liveSample, pushRecent, type LiveSample } from "../lib/live.js";
 import { DEFAULT_RANGE, DEFAULT_REFRESH, type RangeName, type RefreshName } from "../lib/range.js";
 
@@ -43,6 +43,8 @@ interface DashStore {
   recent: LiveSample[];
   /** The rules pm-monitor judges by, from /api/thresholds; null until loaded. */
   thresholds: Record<string, ThresholdRule> | null;
+  /** log-gui's and book-gui's base URLs, from /api/bridge/status; null until loaded. */
+  links: CrossAppLinks | null;
 
   setSocket: (socket: SocketState) => void;
   apply: (frame: ServerFrame) => void;
@@ -52,6 +54,7 @@ interface DashStore {
   setRange: (range: RangeName) => void;
   setRefresh: (refresh: RefreshName) => void;
   setThresholds: (rules: Record<string, ThresholdRule>) => void;
+  setLinks: (links: CrossAppLinks) => void;
 }
 
 export const useDashStore = create<DashStore>()((set, get) => ({
@@ -65,6 +68,7 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   refresh: DEFAULT_REFRESH,
   recent: [],
   thresholds: null,
+  links: null,
 
   // A dropped socket leaves pm-monitor's state unknown; the snapshot stays, frozen.
   setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null } : { socket }),
@@ -110,4 +114,5 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   setRange: (range) => set({ range }),
   setRefresh: (refresh) => set({ refresh }),
   setThresholds: (thresholds) => set({ thresholds }),
+  setLinks: (links) => set({ links }),
 }));

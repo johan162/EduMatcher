@@ -14,8 +14,10 @@ The design, and the reasons behind it, are in
 > exchange status, session, time range (`?from=now-1h`), history refresh,
 > theme and settings, and the banner while data is not live. The
 > widget library is in (WP-D2): `/widgets` shows every widget with
-> synthetic data, in either theme. All seven dashboard rows are in (WP-D3);
-> drawers and deep links arrive in WP-D4.
+> synthetic data, in either theme. All seven dashboard rows are in (WP-D3).
+> A process, participant or book row opens its drawer, a URL of its own:
+> `/process/<key>`, `/participant/<id>` and `/book/<symbol>`, keeping
+> `?from=` (WP-D4).
 > `make test-e2e` (repo root) checks the built page in headless Chrome
 > against a real exchange.
 
@@ -82,9 +84,9 @@ REST (history from `metrics.db`, read-only; ranges at most 7 days):
 | `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` (or `names=a,b`) | Counter increments per bucket, summed over sources (and labels when none is given; and over several counters with `names=`, at most 10) |
 | `GET /api/rate/by-label?name=&source=&range=&bucket=` | One counter's increments per bucket, one series per label (orders per minute by participant) |
 | `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
-| `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |
+| `GET /api/events?range=&kind=&subject=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up, `subject=` one drawer's events |
 | `GET /api/thresholds` | Every threshold rule pm-monitor judges by (`{warn, crit, invert, configurable}` by rule name): from the deployed artifact's `monitor.thresholds`, or pm-monitor's built-in defaults when none is deployed; a 503 when the artifact cannot be used |
-| `GET /api/bridge/status` | Uplink state (and whether pm-monitor is reachable at all), counts, session timezone, `metrics.db` health, tabs, logging |
+| `GET /api/bridge/status` | Uplink state (and whether pm-monitor is reachable at all), counts, session timezone, `metrics.db` health, tabs, logging, cross-app `links` |
 
 A bad parameter (or one given twice) is a 400 `{error, message}`; an unknown
 label or source a 404; a `metrics.db` that is missing or cannot be read a 503.
@@ -113,6 +115,7 @@ SQLite cannot recreate them. It returns as soon as pm-monitor runs.
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long → pm-monitor shown DOWN |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | pm-monitor's history, opened read-only |
 | `CONFIG_ARTIFACT_PATH` | `<data dir>/ref_data/engine_config.json` | The deployed configuration, for `/api/thresholds` |
+| `LOG_GUI_URL` / `BOOK_GUI_URL` | unset | log-gui's and book-gui's base URLs (http or https); set, the drawers link there |
 | `EDUMATCHER_DATA_DIR` | `src/data` in a checkout | The data directory, as the Python processes resolve it |
 | `CORS_ORIGIN` | `*` | Restrict when exposed beyond localhost |
 | `STATIC_DIR` | unset | Built web app to serve (set in the container) |

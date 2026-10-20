@@ -7,8 +7,10 @@ import type { HealthEvent } from "@edumatcher/dash-types";
 import { barPercent, BarGauge } from "../src/components/widgets/BarGauge.js";
 import { EventLog, windowOf } from "../src/components/widgets/EventLog.js";
 import { HealthTable, ProcessStateBadge, sortRows, type Column } from "../src/components/widgets/HealthTable.js";
+import { RateBars } from "../src/components/widgets/RateBars.js";
 import { Row } from "../src/components/widgets/Row.js";
 import { MARK_WIDTH, markX, MIN_SEGMENT, segmentBox, StateTimeline, xOf } from "../src/components/widgets/StateTimeline.js";
+import { TimeSeries } from "../src/components/widgets/TimeSeries.js";
 import { formatBytes } from "../src/lib/format.js";
 import { useRowStore } from "../src/store/useRowStore.js";
 
@@ -281,7 +283,24 @@ describe("edge cases (review)", () => {
     expect(document.querySelector("[data-label=ok]")!.getAttribute("data-level")).toBe("WARN");
     cleanup();
     render(<BarGauge label="Empty" items={[]} format={formatBytes} />);
-    expect(screen.getByRole("region", { name: "Empty" }).textContent).toBe("No data");
+    // Its title, then that it has nothing to show.
+    expect(screen.getByRole("region", { name: "Empty" }).textContent).toBe("EmptyNo data");
+  });
+
+  it("every chart and gauge shows its label as a visible title, read once", () => {
+    const range = { fromMs: 0, toMs: 60_000 };
+    render(
+      <>
+        <BarGauge label="Memory per process" items={[]} format={formatBytes} />
+        <TimeSeries label="CPU per process" series={[]} range={range} tz="UTC" format={formatBytes} width={400} />
+        <RateBars label="Orders per minute" series={[]} range={range} bucketMs={60_000} tz="UTC" format={formatBytes} width={400} />
+      </>,
+    );
+    for (const name of ["Memory per process", "CPU per process", "Orders per minute"]) {
+      const title = screen.getByText(name);
+      expect(title.getAttribute("aria-hidden")).toBe("true");
+      expect(title.closest("[data-widget]")!.getAttribute("aria-label")).toBe(name);
+    }
   });
 
   it("BarGauge: two items with the same label are two bars", () => {

@@ -8,59 +8,13 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { HealthSnapshot, ProcessHealth, ProcessState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
+import type { HealthSnapshot, ProcessHealth, ProcessState, ServerFrame } from "@edumatcher/dash-types";
 import App from "../src/App.js";
 import { useLiveSeries } from "../src/hooks/history.js";
 import { useDashStore } from "../src/store/useDashStore.js";
+import { fakeBridge, NOW } from "./fake-bridge.js";
 import { FakeSocket } from "./fake-socket.js";
 import { CAPTURED, fixtureSnapshot } from "./fixtures/snapshots.js";
-
-const NOW = Date.parse(CAPTURED.ts);
-const rule = (warn: number, crit: number | null, invert = false): ThresholdRule => ({ warn, crit, invert, configurable: crit !== null });
-
-/** The REST answers, by path; every request is recorded. */
-function fakeBridge() {
-  const calls: string[] = [];
-  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-    const url = new URL(String(input), "http://bridge");
-    calls.push(`${url.pathname}?${url.searchParams.toString()}`);
-    const q = url.searchParams;
-    switch (url.pathname) {
-      case "/api/thresholds":
-        return json({
-          source: "defaults",
-          path: "",
-          rules: {
-            host_cpu_pct: rule(80, 95),
-            host_mem_pct: rule(80, 92),
-            disk_free_pct: rule(15, 5, true),
-            engine_handle_p99_us: rule(2000, 10000),
-            reject_pct_5m: rule(10, 30),
-            heap_garbage_pct: rule(50, 80),
-            loop_age_ms: rule(1000, null),
-          },
-        });
-      case "/api/events":
-        return json({ events: [{ seq: 1, ts: new Date(NOW - 60_000).toISOString(), kind: "CONNECT", severity: "INFO", subject: "TRADER01", detail: "" }] });
-      case "/api/series/multi":
-        return json({
-          name: q.get("name"),
-          resolution: "raw",
-          bucketSec: 10,
-          series: (q.get("sources") ?? "").split(",").map((source) => ({ label: "", source, points: [[NOW - 20_000, 1], [NOW - 10_000, 2]] })),
-        });
-      case "/api/rate/by-label":
-        return json({ name: q.get("name"), bucket: "1m", series: [{ label: "TRADER01", points: [[NOW - 60_000, 8]] }, { label: "TRADER02", points: [[NOW - 60_000, 3]] }] });
-      case "/api/rate":
-        return json({ name: q.get("name") ?? q.get("names"), label: null, bucket: "1m", points: [[NOW - 60_000, 30]] });
-      default:
-        return new Response(JSON.stringify({ error: "not_found", message: url.pathname }), { status: 404 });
-    }
-  });
-  vi.stubGlobal("fetch", fetcher);
-  return { calls, count: (path: string) => calls.filter((c) => c.startsWith(path)).length };
-}
 
 function renderAt(path = "/") {
   render(
@@ -85,7 +39,7 @@ beforeEach(() => {
   FakeSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeSocket);
   bridge = fakeBridge();
-  useDashStore.setState({ socket: "CONNECTING", monitor: null, snapshot: null, events: [], recent: [], thresholds: null, range: "1h", refresh: "off" });
+  useDashStore.setState({ socket: "CONNECTING", monitor: null, snapshot: null, events: [], recent: [], thresholds: null, links: null, range: "1h", refresh: "off" });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -189,6 +143,7 @@ describe("history wiring (D3.5)", () => {
     await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2)); // memory and CPU
     expect(bridge.count("/api/rate/by-label")).toBe(1);
     expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
+    expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
     expect(bridge.calls.find((c) => c.startsWith("/api/series/multi") && c.includes("proc.cpu_pct"))).toContain("range=1h");
 
     fireEvent.click(screen.getByRole("button", { name: /^Time range:/ }));

@@ -297,6 +297,9 @@ describe("/api/events", () => {
     expect(seqs(await get<EventsResponse>(`/api/events?range=24h&kind=THRESHOLD,SESSION`))).toEqual([4, 5]);
     expect(seqs(await get<EventsResponse>(`/api/events?range=24h&limit=2`))).toEqual([4, 5]);
     expect(seqs(await get<EventsResponse>(`/api/events?after_seq=2`))).toEqual([3, 4, 5]);
+    expect(seqs(await get<EventsResponse>(`/api/events?range=24h&subject=GW02`))).toEqual([2]);
+    expect(seqs(await get<EventsResponse>(`/api/events?range=24h&subject=${encodeURIComponent("pm-engine@h1")}`))).toEqual([3]);
+    expect(seqs(await get<EventsResponse>(`/api/events?range=24h&subject=GW99`))).toEqual([]);
     const e = (await get<EventsResponse>(`/api/events?after_seq=2&limit=1`)).events[0]!;
     expect(e).toEqual({
       seq: 3,
@@ -343,6 +346,7 @@ describe("validation", () => {
     ["/api/events?range=1h&limit=1001", "bad_param"],
     ["/api/events?after_seq=-1", "bad_param"],
     ["/api/events", "missing_param"],
+    [`/api/events?range=1h&subject=${"x".repeat(201)}`, "bad_subject"],
   ])("%s -> 400 %s", async (query, code) => {
     expect((await get<ApiError>(query, 400)).error).toBe(code);
   });

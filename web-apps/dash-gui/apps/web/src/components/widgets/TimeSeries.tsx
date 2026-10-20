@@ -42,6 +42,7 @@ import { LEVEL } from "../../lib/status.js";
 import type { Thresholds } from "../../lib/thresholds.js";
 import { formatAxisTime, formatDateTime } from "../../lib/time.js";
 import { useCrosshair } from "../../store/useCrosshair.js";
+import { PanelTitle } from "./PanelTitle.js";
 
 export interface TimeSeriesLine {
   label: string;
@@ -266,6 +267,7 @@ export function TimeSeries({
 
   return (
     <figure aria-label={label} data-widget="time-series" className="m-0 min-w-0">
+      <PanelTitle>{label}</PanelTitle>
       {/* Clips Recharts' hidden tooltip, parked past the right edge, which would widen the page. */}
       <div className="relative overflow-hidden">
         <ChartBox width={width} height={height}>

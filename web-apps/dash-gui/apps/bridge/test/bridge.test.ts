@@ -32,8 +32,15 @@ describe("bridge", () => {
       metricsDb: { path: "/nonexistent/metrics.db", ok: false },
       wsClients: 0,
       logging: "test",
+      links: { logGui: null, bookGui: null },
     });
     expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it("serves the cross-app base URLs it is configured with", async () => {
+    rig = await startRig({ links: { logGui: "http://logs.example:8091", bookGui: null } });
+    const body = (await (await fetch(`http://127.0.0.1:${rig.port}/api/bridge/status`)).json()) as BridgeStatus;
+    expect(body.links).toEqual({ logGui: "http://logs.example:8091", bookGui: null });
   });
 
   it("greets every tab on /ws with hello, and counts it", async () => {

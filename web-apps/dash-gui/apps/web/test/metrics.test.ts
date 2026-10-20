@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { byLabel, COUNTER, METRIC, REQUEST_COUNTERS, samples, total, type BeaconMetric } from "../src/lib/metrics.js";
+import { byLabel, COUNTER, GAUGE, METRIC, REQUEST_COUNTERS, samples, total, type BeaconMetric } from "../src/lib/metrics.js";
 import { CAPTURED, fixtureSnapshot } from "./fixtures/snapshots.js";
 
 const emitted = (process: string) => new Set(CAPTURED.processes.filter((p) => p.process === process).flatMap((p) => p.metrics.map((m) => m.name)));
@@ -19,6 +19,12 @@ describe("metric names", () => {
   it.each([...Object.values(COUNTER), ...REQUEST_COUNTERS])("%s is an engine counter", (name) => {
     const found = CAPTURED.processes.find((p) => p.process === "pm-engine")!.metrics.find((m) => m.name === name);
     expect(found?.kind).toBe("COUNTER");
+  });
+
+  it.each(Object.values(GAUGE))("%s is an engine gauge, per participant or symbol", (name) => {
+    const found = CAPTURED.processes.find((p) => p.process === "pm-engine")!.metrics.filter((m) => m.name === name);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.every((m) => m.kind === "GAUGE" && m.label !== "")).toBe(true);
   });
 
   it("a lazy metric that is absent counts 0; any other absent one is no value", () => {

@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import type { CrossAppLinks } from "@edumatcher/dash-types";
 
 export interface BridgeConfig {
   host: string;
@@ -36,6 +37,8 @@ export interface BridgeConfig {
   metricsDbPath: string;
   /** The deployed configuration artifact: `monitor.thresholds` (/api/thresholds). */
   configArtifactPath: string;
+  /** log-gui's and book-gui's base URLs for the drawers' cross-links; null: no link. */
+  links: CrossAppLinks;
 
   logServer: {
     enabled: boolean;
@@ -84,6 +87,18 @@ function boolFromEnv(name: string, fallback: boolean): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
+/** An http(s) base URL without its trailing slash; null when unset or not one. */
+function urlFromEnv(name: string): string | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "http:" || url.protocol === "https:" ? raw.replace(/\/+$/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
 export function loadBridgeConfig(): BridgeConfig {
   const dataDir = resolveDataDir();
   return {
@@ -105,6 +120,7 @@ export function loadBridgeConfig(): BridgeConfig {
 
     metricsDbPath: process.env["METRICS_DB_PATH"] ?? join(dataDir, "metrics.db"),
     configArtifactPath: process.env["CONFIG_ARTIFACT_PATH"] ?? join(dataDir, "ref_data", "engine_config.json"),
+    links: { logGui: urlFromEnv("LOG_GUI_URL"), bookGui: urlFromEnv("BOOK_GUI_URL") },
 
     logServer: {
       enabled: boolFromEnv("LOG_SRV_ENABLED", true),

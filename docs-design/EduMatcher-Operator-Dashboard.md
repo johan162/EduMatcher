@@ -950,9 +950,9 @@ at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 | `GET /api/rate?name=&label=&from=&to=&bucket=1m\|1h` (or `names=a,b`) | Counter increments per bucket (from `delta`), summed over several counters with `names=` (I116) |
 | `GET /api/rate/by-label?name=&range=&bucket=` | One counter's increments per bucket, one series per label — orders/min by participant (I116) |
 | `GET /api/daily?name=&label=&days=30` | `daily_totals` rows |
-| `GET /api/events?from=&to=&kind=` | Event log / annotations |
+| `GET /api/events?from=&to=&kind=&subject=` | Event log / annotations; `subject=` gives one process's, participant's or symbol's events, for its drawer (I117) |
 | `GET /api/thresholds` | Every threshold rule pm-monitor judges by, from the deployed artifact or its defaults (I113, I115) |
-| `GET /api/bridge/status` | Bridge's own state: monitor uplink, DB path, version |
+| `GET /api/bridge/status` | Bridge's own state: monitor uplink, DB path, version, and the cross-app base URLs (`links`, I117) |
 
 Ranges: `5m`, `15m`, `1h`, `6h`, `24h`, `7d` — the Grafana time picker set.
 
@@ -2758,6 +2758,22 @@ with routes (§12.4).
 **Watch out for:**
 - Process keys contain `/` and `@` (`pm-api-gwy/desk@host`); URL-encode them.
 
+As built (WP-D4, I117):
+- **Routes:** the drawers are child routes of the dashboard's own route. Opening or closing one keeps the rows mounted, so their history is not fetched again. Every id is one encoded path segment, and every URL the app makes is in `lib/links.ts`:
+  - `drawerPath`;
+  - log-gui's `/logs?processes=<process>`;
+  - book-gui's `/book/<symbol>`.
+- **Navigation:** opening and closing a drawer keeps the query string (`hooks/drawer.ts`).
+- **Drawer:** a non-modal panel over the right of `main`. It is positioned there, not fixed to the viewport, so it stays under the top bar at every font size and dims with the panels when data is frozen. Focus moves to its title; Escape or the close button closes it.
+- **Content:**
+  - **Process:** its six stored vitals (`/api/series?source=<key>`), its application metrics as last sent, its events, and the log-gui link.
+  - **Participant:** orders, rejects and fills per minute (`/api/rate?label=<id>`), its resting orders, and its events.
+  - **Book:** trades and traded value per minute, resting orders, estimated memory, heap garbage against its rule, its events, and the book-gui link.
+- **Shared charts:** `views/charts.tsx` holds `CounterBars` and `SeriesChart`, one request per chart.
+- **States:** before the first snapshot the drawer waits. A subject the snapshot does not hold is "not found". A process that has never beaconed shows no charts.
+- **Bridge:** `LOG_GUI_URL` and `BOOK_GUI_URL` are read as http(s) base URLs; anything else means no link. They are served as `links` in `/api/bridge/status`. `/api/events` takes `subject=`.
+- **Widgets:** every chart and gauge now shows its label as a visible title (`PanelTitle`), as §12.3's mockups do. D2 and D3 had drawn them untitled.
+
 ---
 
 ### WP-E1 — Compose, Makefiles, READMEs
@@ -2776,7 +2792,10 @@ published to GHCR, and is documented where the other apps are.
 - **E1.1** `deployment/docker/compose.guis.yaml`: `dash-gui` service
   (`MONITOR_HOST: edumatcher`, `MONITOR_PUB_PORT: "5611"`,
   `METRICS_DB_PATH: /backend-data/metrics.db`, `./data:/backend-data:ro,z`,
-  port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`).
+  port `${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095`), plus
+  the drawers' cross-links (I117) as URLs the operator's browser reaches,
+  not container names: `LOG_GUI_URL: http://${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}`
+  and `BOOK_GUI_URL: http://${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}`.
   *Verify with tests that* `make up-all` starts it and `make down-all`
   removes it.
 - **E1.2** `web-apps/Makefile`: `up-dash`, `down-dash`, `logs-dash`; include

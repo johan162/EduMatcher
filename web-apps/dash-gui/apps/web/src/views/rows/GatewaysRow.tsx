@@ -49,10 +49,7 @@ export function GatewaysRow() {
         <StatTile label="Feed gaps" value={snapshot ? total(snapshot, METRIC.statsFeedGaps) : null} format={formatCount} level={gaps} sub="since start; WARN: any in 5 min" />
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section aria-label="Data files">
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Data files</h3>
-          <BarGauge label="Data file sizes" items={(snapshot?.host.files ?? []).map((f) => ({ label: f.name, value: f.size_bytes }))} format={formatBytes} />
-        </section>
+        <BarGauge label="Data files" items={(snapshot?.host.files ?? []).map((f) => ({ label: f.name, value: f.size_bytes }))} format={formatBytes} />
         <section aria-label="Engine diagnostics">
           <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Engine diagnostics</h3>
           {diagnostics.length === 0 ? (

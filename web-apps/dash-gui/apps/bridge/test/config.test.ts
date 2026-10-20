@@ -31,4 +31,16 @@ describe("loadBridgeConfig", () => {
     expect(cfg.metricsDbPath).toBe("/backend-data/metrics.db");
     expect(cfg.logServer.enabled).toBe(false);
   });
+
+  it("cross-app links: an http(s) base URL without trailing slashes; unset or anything else is no link", () => {
+    delete process.env["LOG_GUI_URL"];
+    process.env["BOOK_GUI_URL"] = "http://127.0.0.1:8094/";
+    expect(loadBridgeConfig().links).toEqual({ logGui: null, bookGui: "http://127.0.0.1:8094" });
+    for (const garbage of ["", "  ", "127.0.0.1:8091", "javascript:alert(1)", "ftp://x/"]) {
+      process.env["LOG_GUI_URL"] = garbage;
+      expect(loadBridgeConfig().links.logGui, garbage).toBeNull();
+    }
+    process.env["LOG_GUI_URL"] = "https://ops.example/logs";
+    expect(loadBridgeConfig().links.logGui).toBe("https://ops.example/logs");
+  });
 });

@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo } from "react";
-import type { EventsResponse, HealthEvent, ParticipantStats, Point, ProcessHealth, ThresholdsResponse } from "@edumatcher/dash-types";
+import type { BridgeStatus, EventsResponse, HealthEvent, ParticipantStats, Point, ProcessHealth, ThresholdsResponse } from "@edumatcher/dash-types";
 import type { Annotation } from "../../components/widgets/TimeSeries.js";
 import type { Lane, Segment, Mark, TimeRangeMs } from "../../components/widgets/StateTimeline.js";
 import { getJson, query } from "../../lib/api.js";
@@ -39,19 +39,23 @@ export function stateSummary(processes: readonly ProcessHealth[]): string {
 }
 
 /**
- * Each time the bridge connection opens: the threshold rules, and the
- * events the log is missing -- the picker's range at first, after the last
- * seq held once there are some (a reconnect).
+ * Each time the bridge connection opens: the threshold rules, the
+ * cross-app links, and the events the log is missing -- the picker's range
+ * at first, after the last seq held once there are some (a reconnect).
  */
 export function useDashboardLoads(): void {
   const socket = useDashStore((s) => s.socket);
   useEffect(() => {
     if (socket !== "OPEN") return;
     const ctl = new AbortController();
-    const { setThresholds, addEvents, events, range } = useDashStore.getState();
+    const { setThresholds, setLinks, addEvents, events, range } = useDashStore.getState();
     getJson<ThresholdsResponse>("/api/thresholds", ctl.signal).then(
       (r) => setThresholds(r.rules),
       () => undefined, // without rules the widgets draw no bands; the bridge logs why
+    );
+    getJson<BridgeStatus>("/api/bridge/status", ctl.signal).then(
+      (r) => setLinks(r.links),
+      () => undefined, // no cross-links
     );
     const last = events.at(-1)?.seq;
     const q = last === undefined ? query({ range, limit: 500 }) : query({ after_seq: last, limit: 1000 });

@@ -278,7 +278,7 @@ export class MetricsDb {
    * catching up) the oldest `limit` after it; otherwise the newest `limit`
    * in the range.
    */
-  events(opts: { range?: TimeRange; afterSeq?: number; kinds?: string[]; limit: number }): HealthEvent[] {
+  events(opts: { range?: TimeRange; afterSeq?: number; kinds?: string[]; subject?: string; limit: number }): HealthEvent[] {
     const where: string[] = [];
     const params: (string | number)[] = [];
     if (opts.afterSeq !== undefined) {
@@ -292,6 +292,10 @@ export class MetricsDb {
     if (opts.kinds && opts.kinds.length > 0) {
       where.push(`kind IN (${opts.kinds.map(() => "?").join(",")})`);
       params.push(...opts.kinds);
+    }
+    if (opts.subject !== undefined) {
+      where.push("subject = ?");
+      params.push(opts.subject);
     }
     const order = opts.afterSeq !== undefined ? "ASC" : "DESC";
     const rows = this.run((db) =>

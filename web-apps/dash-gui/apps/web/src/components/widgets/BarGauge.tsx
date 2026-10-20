@@ -14,6 +14,7 @@ import { LEVEL } from "../../lib/status.js";
 import { NO_VALUE } from "../../lib/format.js";
 import { describeThresholds, levelOf, type Thresholds } from "../../lib/thresholds.js";
 import { OTHER, topN } from "../../lib/topn.js";
+import { PanelTitle } from "./PanelTitle.js";
 
 export interface BarItem {
   label: string;
@@ -44,6 +45,7 @@ export function BarGauge({ label, items, format, max, thresholds, limit = 10 }: 
 
   return (
     <section aria-label={label} data-widget="bar-gauge" title={thresholds ? describeThresholds(thresholds, format) : undefined} className="min-w-0">
+      <PanelTitle>{label}</PanelTitle>
       {rows.length === 0 ? (
         <p className="text-xs text-fg-faint">No data</p>
       ) : (

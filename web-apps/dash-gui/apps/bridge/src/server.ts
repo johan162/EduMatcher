@@ -140,6 +140,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
       metricsDb: { path: config.metricsDbPath, ...db.health },
       wsClients: hub.clientCount,
       logging: log.destination(),
+      links: config.links,
     }),
   );
 

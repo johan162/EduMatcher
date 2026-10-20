@@ -16,7 +16,7 @@ from pathlib import Path
 from edumatcher.monitor.activity import REQUEST_COUNTERS
 from edumatcher.monitor.collector import VITALS
 from edumatcher.monitor.thresholds import MIN_REQUESTS_5M
-from tests.test_health_contract import COUNTER, _emitted
+from tests.test_health_contract import COUNTER, GAUGE, _emitted
 
 REPO = Path(__file__).resolve().parents[1]
 TS = (REPO / "web-apps/dash-gui/apps/web/src/lib/metrics.ts").read_text(
@@ -41,9 +41,17 @@ def test_every_beacon_metric_is_emitted_by_its_process() -> None:
 def test_every_counter_is_an_engine_counter() -> None:
     names = re.findall(r'"(engine\.\w+)"', _block("COUNTER"))
     emitted = _emitted("pm-engine")
-    assert len(names) == 4
+    assert len(names) == 5
     for name in names:
         assert emitted.get(name) == COUNTER, name
+
+
+def test_every_gauge_is_an_engine_gauge() -> None:
+    names = re.findall(r'"(engine\.\w+)"', _block("GAUGE"))
+    emitted = _emitted("pm-engine")
+    assert len(names) == 4
+    for name in names:
+        assert emitted.get(name) == GAUGE, name
 
 
 def test_the_requests_are_pm_monitors() -> None:
@@ -53,8 +61,8 @@ def test_the_requests_are_pm_monitors() -> None:
 
 
 def test_the_vitals_are_stored_ones() -> None:
-    for name in re.findall(r'"proc\.(\w+)"', _block("VITAL")):
-        assert name in VITALS, name
+    names = re.findall(r'"proc\.(\w+)"', _block("VITAL"))
+    assert sorted(names) == sorted(VITALS)
 
 
 def test_the_minimum_requests_are_pm_monitors() -> None:

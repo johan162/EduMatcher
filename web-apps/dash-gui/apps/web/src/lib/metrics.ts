@@ -34,6 +34,15 @@ export const COUNTER = {
   trades: "engine.trades",
   tradedValue: "engine.traded_value",
   rejects: "engine.rejects",
+  fills: "engine.fills",
+} as const;
+
+/** Engine gauges in metrics.db, read through /api/series (label: participant or symbol). */
+export const GAUGE = {
+  participantResting: "engine.resting_orders",
+  bookResting: "engine.book_resting_orders",
+  bookEstBytes: "engine.book_est_bytes",
+  bookHeapGarbage: "engine.book_heap_garbage_pct",
 } as const;
 
 /**
@@ -49,6 +58,10 @@ export const MIN_REQUESTS = 20;
 export const VITAL = {
   rss: "proc.rss_bytes",
   cpu: "proc.cpu_pct",
+  threads: "proc.threads",
+  fds: "proc.fds",
+  loopAge: "proc.loop_age_ms",
+  loopLag: "proc.loop_lag_ms",
 } as const;
 
 /** Every sample of `metric` from the processes it names (all instances). */

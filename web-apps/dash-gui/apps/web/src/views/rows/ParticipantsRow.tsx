@@ -15,6 +15,7 @@ import type { EventsResponse, HealthEvent, ParticipantStats } from "@edumatcher/
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
 import { StateTimeline } from "../../components/widgets/StateTimeline.js";
+import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useChartRange, useHistory, useNow } from "../../hooks/history.js";
 import { getJson, query } from "../../lib/api.js";
 import { formatCount, formatPercent, formatRate, NO_VALUE } from "../../lib/format.js";
@@ -58,6 +59,7 @@ export function ParticipantsRow() {
   const participants = useDashStore((s) => s.snapshot?.participants ?? null);
   const live = useDashStore((s) => s.events);
   const now = useNow();
+  const open = useOpenDrawer();
   const range = useChartRange(60_000);
   const history = useHistory<EventsResponse>("connections", (r, signal) =>
     getJson(`/api/events?${query({ range: r, kind: "CONNECT,DISCONNECT", limit: 1000 })}`, signal),
@@ -82,7 +84,7 @@ export function ParticipantsRow() {
         tz={tz}
       />
       <div className="mt-4">
-        <HealthTable label="Participants" columns={columns(tz)} rows={participants ?? []} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} />
+        <HealthTable label="Participants" columns={columns(tz)} rows={participants ?? []} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={(p) => open("participant", p.id)} />
       </div>
     </Row>
   );

@@ -31,6 +31,7 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     monitor: { host: "127.0.0.1", pubPort: 5611, downAfterSec: 3 },
     metricsDbPath: "/nonexistent/metrics.db",
     configArtifactPath: "/nonexistent/engine_config.json",
+    links: { logGui: null, bookGui: null },
     logServer: {
       enabled: false,
       host: "127.0.0.1",

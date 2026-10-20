@@ -12,6 +12,7 @@ import { StatTile } from "../../components/widgets/StatTile.js";
 import { formatBytes, formatCount, formatPercent } from "../../lib/format.js";
 import { LEVEL, TONE } from "../../lib/status.js";
 import { levelOf, type Thresholds } from "../../lib/thresholds.js";
+import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { useRule } from "./common.js";
 
@@ -46,6 +47,7 @@ export function BooksRow() {
   const books = useDashStore((s) => s.snapshot?.books ?? null);
   const engineRss = useDashStore((s) => s.snapshot?.processes.find((p) => p.process === "pm-engine" && p.host !== "")?.rss_bytes ?? null);
   const garbageRule = useRule("heap_garbage_pct");
+  const open = useOpenDrawer();
   const memory = books?.reduce((sum, b) => sum + b.est_bytes, 0) ?? null;
   const halted = books?.filter((b) => b.halted).length ?? 0;
 
@@ -61,7 +63,7 @@ export function BooksRow() {
             sub={memory !== null && engineRss ? `${formatPercent((100 * memory) / engineRss)} of the engine` : undefined}
           />
         </div>
-        <HealthTable label="Order books" columns={columns(garbageRule)} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} />
+        <HealthTable label="Order books" columns={columns(garbageRule)} rows={books ?? []} rowKey={(b) => b.symbol} initialSort={{ id: "symbol", dir: "asc" }} onRowClick={(b) => open("book", b.symbol)} />
       </div>
     </Row>
   );

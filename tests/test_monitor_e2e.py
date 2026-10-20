@@ -34,6 +34,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
@@ -392,6 +393,10 @@ class Bridge:
             return json.load(r)
 
 
+LOG_GUI = "http://127.0.0.1:8091"
+BOOK_GUI = "http://127.0.0.1:8094"
+
+
 @pytest.fixture(scope="module")
 def bridge(exchange: Exchange) -> Iterator[Bridge]:
     tsx = DASH / "node_modules" / ".bin" / "tsx"
@@ -419,6 +424,9 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
         "CONFIG_ARTIFACT_PATH": str(
             exchange.data_dir / "ref_data" / "engine_config.json"
         ),
+        # The drawers' cross-links (D4.3); nothing needs to answer there.
+        "LOG_GUI_URL": LOG_GUI,
+        "BOOK_GUI_URL": BOOK_GUI + "/",
     }
     proc = subprocess.Popen(
         [str(tsx), "--disable-warning=ExperimentalWarning", "src/main.ts"],
@@ -1000,6 +1008,89 @@ def test_all_seven_rows_show_the_live_exchange(
     assert page.js(
         "document.querySelector('[aria-label=Dashboard]').scrollWidth <= document.querySelector('[aria-label=Dashboard]').clientWidth"
     )
+
+
+DIALOG = "document.querySelector('[role=dialog]')"
+HERE = "location.pathname + location.search"
+
+
+def test_drawers_open_from_a_pasted_link_and_from_the_rows(
+    exchange: Exchange, feed: Feed, bridge: Bridge, page: Page | None
+) -> None:
+    """WP-D4's done-when: an incident URL pasted into a new browser opens
+    the same view -- a process drawer, its key's ``/`` and ``@`` encoded,
+    with its vitals drawn over the link's range and the link into log-gui;
+    closing it keeps the range; a row click opens a book's and a
+    participant's; an unknown subject says so; nothing overflows."""
+    if page is None:
+        pytest.skip("no Chrome to drive")
+    s = feed.latest
+    assert s is not None
+    api = process(s, "pm-api-gwy")["key"]
+    assert "/" in api and "@" in api
+    base = f"http://127.0.0.1:{bridge.port}"
+    page.goto(f"{base}/process/{urllib.parse.quote(api, safe='')}?from=now-6h")
+    page.wait(
+        f"{DIALOG}?.querySelector('h2')?.textContent === {json.dumps(api)}",
+        "the API gateway's drawer",
+    )
+    page.wait(
+        f"{DIALOG}.querySelectorAll('figure .recharts-line-curve').length === 6",
+        "its six vitals drawn",
+        30,
+    )
+    assert page.js(f"{DIALOG}.querySelector('a').href") == (
+        f"{LOG_GUI}/logs?processes=pm-api-gwy"
+    )
+    for width in (1600, 900):
+        page._call(
+            "Emulation.setDeviceMetricsOverride",
+            {"width": width, "height": 1000, "deviceScaleFactor": 1, "mobile": False},
+            page.session,
+        )
+        page.wait(
+            f"{DIALOG}.getBoundingClientRect().width > 0 && "
+            f"{DIALOG}.getBoundingClientRect().right <= innerWidth",
+            f"the drawer inside a {width} px window",
+        )
+        assert json.loads(page.js(OVERFLOW)) == [], width
+    page._call("Emulation.clearDeviceMetricsOverride", {}, page.session)
+
+    # Closing keeps the range; a row opens the next drawer, keeping it too.
+    page.js(f"{DIALOG}.querySelector('button[aria-label=Close]').click()")
+    page.wait(f"!{DIALOG} && {HERE} === '/?from=now-6h'", "the dashboard again")
+    page.js(
+        "document.querySelector('table[aria-label=\"Order books\"] [data-row=AAPL]').click()"
+    )
+    page.wait(f"{HERE} === '/book/AAPL?from=now-6h'", "the AAPL drawer's URL")
+    trades = page.wait(
+        f"[...({DIALOG}?.querySelectorAll('dl div') ?? [])]"
+        ".find(d => d.querySelector('dt').textContent === 'Trades today')?.querySelector('dd').textContent",
+        "AAPL's figures",
+    )
+    assert trades == _count(book(s, "AAPL")["trades_today"])
+    assert page.js(f"{DIALOG}.querySelector('a').href") == f"{BOOK_GUI}/book/AAPL"
+    page.js(
+        f"{DIALOG}.dispatchEvent(new KeyboardEvent('keydown', {{key: 'Escape', bubbles: true}}))"
+    )
+    page.wait(f"!{DIALOG} && {HERE} === '/?from=now-6h'", "Escape to close it")
+
+    # A participant's drawer pasted fresh: its events come from history.
+    page.goto(f"{base}/participant/TRADER01")
+    page.wait(
+        f"[...({DIALOG}?.querySelectorAll('[role=log] [data-seq]') ?? [])]"
+        ".some(r => r.textContent.includes('CONNECT'))",
+        "TRADER01's CONNECT in its drawer",
+    )
+    assert page.js(f"{DIALOG}.querySelector('a')") is None
+
+    page.goto(f"{base}/book/NOPE")
+    page.wait(
+        f"{DIALOG}?.querySelector('[role=status]')?.textContent === "
+        "'No order book “NOPE” in the latest snapshot.'",
+        "an unknown book's drawer",
+    )
+    page.goto(f"{base}/")
 
 
 def test_a_stopped_process_goes_silent_and_comes_back(

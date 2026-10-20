@@ -15,6 +15,7 @@ import { mergeSeries, MARGIN, seriesStyle, Y_AXIS_WIDTH } from "./TimeSeries.js"
 import type { TimeRangeMs } from "./StateTimeline.js";
 import { formatAxisTime, formatDateTime } from "../../lib/time.js";
 import { OTHER, topNSeries, type Series } from "../../lib/topn.js";
+import { PanelTitle } from "./PanelTitle.js";
 
 export interface RateBarsProps {
   label: string;
@@ -77,6 +78,7 @@ export function RateBars({ label, series, range, bucketMs, tz, format, n = 8, he
 
   return (
     <figure aria-label={label} data-widget="rate-bars" className="m-0 min-w-0">
+      <PanelTitle>{label}</PanelTitle>
       {/* Clips Recharts' hidden tooltip, parked past the right edge, which would widen the page. */}
       <div className="relative overflow-hidden">
         <ChartBox width={width} height={height}>

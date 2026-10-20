@@ -288,7 +288,9 @@ export function registerHistoryRoutes(
       if (unknown.length > 0) {
         throw bad("bad_kind", `unknown kind ${unknown.join(", ")}; use ${Object.keys(EVENT_KINDS).join(", ")}`);
       }
-      return { events: db.events({ range, afterSeq, kinds, limit }) };
+      // One participant's, process's or symbol's events (a drawer).
+      const subject = optionalText(q, "subject", 200);
+      return { events: db.events({ range, afterSeq, kinds, subject, limit }) };
     }),
   );
 }

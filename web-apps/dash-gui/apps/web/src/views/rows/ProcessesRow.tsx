@@ -14,6 +14,7 @@ import { formatBytes, formatDuration, formatMillis, formatPercent, NO_VALUE } fr
 import { VITAL } from "../../lib/metrics.js";
 import { LEVEL, PROCESS_STATE } from "../../lib/status.js";
 import { levelOf, type Thresholds } from "../../lib/thresholds.js";
+import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { ProcessSeriesChart } from "./ProcessSeriesChart.js";
 import { liveExchangeProcesses, shortKey, stateSummary, useRule } from "./common.js";
@@ -82,6 +83,7 @@ function columns(loopRule: Thresholds | undefined): Column<ProcessHealth>[] {
 export function ProcessesRow() {
   const processes = useDashStore((s) => s.snapshot?.processes ?? null);
   const loopRule = useRule("loop_age_ms");
+  const open = useOpenDrawer();
   const summary = processes ? stateSummary(processes) : "";
 
   return (
@@ -94,6 +96,7 @@ export function ProcessesRow() {
         rowKey={(p) => p.key}
         group={(p) => (p.group === "BOT" ? "Participant bots" : "Exchange")}
         initialSort={{ id: "state", dir: "asc" }}
+        onRowClick={(p) => open("process", p.key)}
       />
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BarGauge

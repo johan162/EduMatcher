@@ -27,7 +27,7 @@ export function AppShell() {
       <TopBar />
       <DisconnectedBanner />
       {/* Not live: the last figures stay, dimmed, under the banner that says how old they are. */}
-      <main data-stale={!live} className={clsx("flex min-h-0 flex-1 flex-col p-4", !live && "stale")}>
+      <main data-stale={!live} className={clsx("relative flex min-h-0 flex-1 flex-col p-4", !live && "stale")}>
         <Outlet />
       </main>
       <StatusStrip />

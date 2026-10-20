@@ -123,6 +123,12 @@ export interface ApiError {
   message: string;
 }
 
+/** Base URLs of the sibling GUIs (`LOG_GUI_URL`, `BOOK_GUI_URL`); null: not configured, no link. */
+export interface CrossAppLinks {
+  logGui: string | null;
+  bookGui: string | null;
+}
+
 /** `GET /api/bridge/status` */
 export interface BridgeStatus {
   version: string;
@@ -147,4 +153,5 @@ export interface BridgeStatus {
   wsClients: number;
   /** Where the bridge's own log records go: `lalf`, `stdout`, … */
   logging: string;
+  links: CrossAppLinks;
 }

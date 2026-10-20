@@ -21,6 +21,7 @@ import { getJson, query, rateBucket } from "../../lib/api.js";
 import { formatCompact, formatCount, formatPercent, formatRate } from "../../lib/format.js";
 import { COUNTER, REQUEST_COUNTERS } from "../../lib/metrics.js";
 import { useDashStore } from "../../store/useDashStore.js";
+import { CounterBars } from "../charts.js";
 import { rejectRatio, useAnnotations, useRule } from "./common.js";
 
 function useBucket() {
@@ -35,17 +36,6 @@ function OrdersByParticipant() {
   );
   const range = useChartRange(bucketMs);
   return <RateBars label="Orders per minute by participant" series={history.data?.series ?? []} range={range} bucketMs={bucketMs} tz={tz} format={formatCount} />;
-}
-
-function CounterBars({ label, name, series, format }: { label: string; name: string; series: string; format: (v: number) => string }) {
-  const tz = useDashStore((s) => s.sessionTz);
-  const { bucketMs } = useBucket();
-  const history = useHistory<RateResponse>(`rate|${name}`, (range, signal) =>
-    getJson(`/api/rate?${query({ name, range, bucket: rateBucket(range).bucket })}`, signal),
-  );
-  const range = useChartRange(bucketMs);
-  const data = history.data ? [{ label: series, points: history.data.points }] : [];
-  return <RateBars label={label} series={data} range={range} bucketMs={bucketMs} tz={tz} format={format} />;
 }
 
 function RejectRatio() {
@@ -84,8 +74,8 @@ export function TradingRow() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <OrdersByParticipant />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <CounterBars label="Trades per minute" name={COUNTER.trades} series="trades" format={formatCount} />
-          <CounterBars label="Traded value per minute" name={COUNTER.tradedValue} series="traded value" format={formatCompact} />
+          <CounterBars label="Trades per minute" name={COUNTER.trades} legend="trades" format={formatCount} />
+          <CounterBars label="Traded value per minute" name={COUNTER.tradedValue} legend="traded value" format={formatCompact} />
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
