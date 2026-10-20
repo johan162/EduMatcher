@@ -437,16 +437,28 @@ def test_pm_monitor_lists_itself(monitor: Monitor) -> None:
     )
     reporter.start()
     monitor.attach_reporter(reporter)
+    own = {"monitor.beacons_in", "monitor.snapshot_bytes", "monitor.sources"}
     running = _Running(monitor)
+    # The reporter's sampler thread also beacons on its own, without the
+    # monitor.* metrics the run loop adds; under load the first snapshot that
+    # lists pm-monitor can be built from one of those, so wait for one that
+    # carries them.
+    deadline = time.monotonic() + 3
+    me = None
     try:
-        snap = running.wait_for("pm-monitor", within_sec=3)
+        while me is None and time.monotonic() < deadline:
+            snap = running.wait_for(
+                "pm-monitor", within_sec=deadline - time.monotonic()
+            )
+            if snap is None:
+                break
+            (entry,) = [p for p in snap.processes if p.process == "pm-monitor"]
+            if own <= {m.name for m in entry.metrics}:
+                me = entry
     finally:
         running.close()
-    assert snap is not None
-    (me,) = [p for p in snap.processes if p.process == "pm-monitor"]
+    assert me is not None, "pm-monitor never listed itself with its own metrics"
     assert me.state == "HEALTHY"
-    names = {m.name for m in me.metrics}
-    assert {"monitor.beacons_in", "monitor.snapshot_bytes", "monitor.sources"} <= names
 
 
 @pytest.mark.real_health_reporter
