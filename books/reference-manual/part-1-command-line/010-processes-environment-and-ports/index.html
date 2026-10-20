@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4145,6 +4201,28 @@
     <span class="md-ellipsis">
       
         pm-log-cli — Log Server Query/Troubleshooting CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-monitor-health-collector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-monitor — Health Collector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-monitor-cli-health-query-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-monitor-cli — Health Query CLI
       
     </span>
   </a>
@@ -8655,6 +8733,13 @@ process's own <code>config.py</code>.</p>
 <td>Real-time cap-weighted index calculation. <code>5558</code> broadcasts <code>index.update</code>; <code>5559</code> receives operator commands and history requests; <code>5564</code> only answers <code>pm-index-cli health</code> pings (<code>EDUMATCHER_INDEX_BIND_HOST</code>, <code>EDUMATCHER_INDEX_HEALTH_PORT</code>). No external protocol of its own — external consumers reach index data via <code>pm-md-gwy</code>/CALF.</td>
 </tr>
 <tr>
+<td><code>pm-monitor</code></td>
+<td><code>5610</code> PULL (bind) · <code>5611</code> PUB (bind); connects out to <code>5556</code></td>
+<td>–</td>
+<td>ZeroMQ (PULL/PUB/SUB)</td>
+<td>Health collector. <code>5610</code> receives the <code>health.beacon</code> every long-running process pushes every 2 s; <code>5611</code> publishes <code>health.snapshot</code> (1 Hz) and <code>health.event</code> to <code>pm-monitor-cli</code> and the <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>. Loopback by default (<code>monitor.bind_address</code>, <code>EDUMATCHER_GATEWAY_BIND_HOST</code>). See <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a>.</td>
+</tr>
+<tr>
 <td><code>pm-market-sim</code></td>
 <td><code>5553</code> PUB (bind) · <code>5554</code> PULL (bind); connects out to <code>5555</code>, <code>5556</code></td>
 <td>–</td>
@@ -8663,6 +8748,11 @@ process's own <code>config.py</code>.</p>
 </tr>
 </tbody>
 </table>
+<p>Besides the connections listed, every process in the table (and the bots
+<code>pm-mm-bot</code> and <code>pm-ai-swarm</code>) connects a ZeroMQ PUSH socket to <code>pm-monitor</code>
+on <code>5610</code> (<code>monitor.host</code>/<code>pull_port</code>) and sends its health beacon there
+every two seconds. The send never blocks: when <code>pm-monitor</code> is not running
+the beacons are dropped and counted.</p>
 <p><strong>Internal-only utilities</strong> (ZeroMQ clients; no listening port of their own):</p>
 <table>
 <thead>
@@ -8719,6 +8809,65 @@ fell back to a default — run
 from <code>edumatcher/gateway_ports.py</code>, the same table <code>pm-cverifier</code> uses for
 its <code>M018</code> collision check.</p>
 </div>
+<p><strong>Web applications</strong> (<code>web-apps/</code>; each a Node bridge serving a browser app,
+none part of <code>engine_config.yaml</code>). The container port is what the stacks
+publish (<code>deployment/docker</code> <code>make up-all</code>, <code>deployment/curl</code>); <code>make dev</code>
+uses the web and bridge ports. They follow one scheme: <code>809N</code>, <code>819N</code>, <code>519N</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Application</th>
+<th>Container port</th>
+<th>Dev web / bridge</th>
+<th>Talks to</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TapeDeck (<code>pm-terminal</code>)</td>
+<td><code>8090</code></td>
+<td><code>8190</code> / <code>5190</code></td>
+<td><code>pm-md-gwy</code> <code>5570</code>, <code>pm-api-gwy</code> <code>8081</code></td>
+<td><a href="../../../participant-guide/part-6-front-ends/010-trading-info-terminal/">TapeDeck</a></td>
+</tr>
+<tr>
+<td>Log Operator Console (<code>pm-log-ui</code>)</td>
+<td><code>8091</code></td>
+<td><code>8191</code> / <code>5191</code></td>
+<td><code>pm-log-srv</code> <code>5601</code>/<code>5602</code>, <code>log.db</code> read-only</td>
+<td><a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">Log Operator Console</a></td>
+</tr>
+<tr>
+<td>Configuration GUI (<code>config-gui</code>)</td>
+<td><code>8092</code></td>
+<td><code>8192</code> / <code>5192</code></td>
+<td>nothing</td>
+<td><a href="../../../operator-guide/part-2-configure/030-config-gui/">Configuration GUI</a></td>
+</tr>
+<tr>
+<td>Trading GUI (<code>pm-trading-ui</code>)</td>
+<td><code>8093</code></td>
+<td><code>8193</code> / –</td>
+<td><code>pm-api-gwy</code> <code>8080</code></td>
+<td><a href="../../../participant-guide/part-6-front-ends/020-trading-platform-gui/">Trading Platform GUI</a></td>
+</tr>
+<tr>
+<td>Order Book Viewer (<code>pm-book</code>)</td>
+<td><code>8094</code></td>
+<td><code>8194</code> / <code>5194</code></td>
+<td><code>pm-api-gwy</code> <code>8081</code></td>
+<td><a href="../../../participant-guide/part-6-front-ends/030-order-book-gui/">Order Book Viewer</a></td>
+</tr>
+<tr>
+<td>Operator Dashboard (<code>pm-dash</code>)</td>
+<td><code>8095</code></td>
+<td><code>8195</code> / <code>5195</code></td>
+<td><code>pm-monitor</code> <code>5611</code>, <code>metrics.db</code> read-only</td>
+<td><a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a></td>
+</tr>
+</tbody>
+</table>
 <p><strong>Setup and configuration tools:</strong></p>
 <table>
 <thead>
@@ -14209,7 +14358,7 @@ can be recreated without manual YAML editing.</p>
 <tr>
 <td><code>--comment-default-config-fields</code></td>
 <td>off</td>
-<td>Annotate YAML output with comment markers for default-valued fields</td>
+<td>Add a commented-out header with every optional section (engine settings, gateways, <code>api_gateways</code>, <code>log_server</code>, <code>monitor</code>, <code>indices</code>, <code>schedule</code>) at its default values, ready to uncomment</td>
 </tr>
 </tbody>
 </table>
@@ -15045,6 +15194,100 @@ troubleshooting heuristics with concrete recommendations), and <code>prune</code
 — starting the server, every <code>pm-log-cli</code> subcommand, and a workflow
 cookbook — and <a href="../../../protocols-and-clients/part-2-specifications/050-lalf/">LALF Protocol Reference</a> for the
 normative wire specification.</p>
+<h2 id="pm-monitor-health-collector">pm-monitor — Health Collector<a class="headerlink" href="#pm-monitor-health-collector" title="Permanent link">&para;</a></h2>
+<p><code>pm-monitor</code> collects the health beacon every long-running <code>pm-*</code> process
+sends, judges each process (HEALTHY, DEGRADED, HUNG, SILENT, DEAD, MISSING,
+STOPPED) and the exchange as a whole (OPERATIONAL, DEGRADED, IMPAIRED,
+DOWN), turns counters into rates, evaluates thresholds, keeps history in
+<code>metrics.db</code>, and publishes <code>health.snapshot</code> once a second and
+<code>health.event</code> as things happen. Every built-in <code>pm-opctl-cli</code> profile except
+<code>micro</code> starts it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>pm-monitor [--log-level LEVEL] [-v|-vv] [-q]
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>           [--log-target server|stdout|file] [--log-file PATH]
+<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a>           [--log-failover-timeout SEC] [--version]
+</code></pre></div>
+<p>All its settings come from the <code>monitor</code> section of the deployed
+configuration (see <a href="../../part-3-configuration/010-schema-and-process-blocks/#configuring-pm-monitor">Configuring <code>pm-monitor</code></a>);
+the flags are the common logging options.</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Socket</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>5610</code></td>
+<td>PULL (bind)</td>
+<td><code>health.beacon</code> from every process</td>
+</tr>
+<tr>
+<td><code>5611</code></td>
+<td>PUB (bind)</td>
+<td><code>health.snapshot</code> (1 Hz), <code>health.event</code></td>
+</tr>
+<tr>
+<td><code>5556</code></td>
+<td>SUB (connect)</td>
+<td>Engine lifecycle events: connects, disconnects, diagnostics, session, halts</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;data dir&gt;/metrics.db</code></td>
+<td>Samples, 1-minute roll-ups, daily totals, counter state, events (WAL)</td>
+</tr>
+<tr>
+<td><code>&lt;data dir&gt;/metrics.db.lock</code></td>
+<td>Held while running: one <code>pm-monitor</code> per data directory</td>
+</tr>
+</tbody>
+</table>
+<p>Exit codes: <code>0</code> stopped normally (also after idling with <code>monitor.enabled:
+false</code>); <code>1</code> cannot bind its ports or open <code>metrics.db</code> (held by another
+<code>pm-monitor</code>, or recorded with another session timezone); <code>2</code> usage error or
+an unknown session timezone.</p>
+<p>See <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a> for how health is judged,
+the thresholds, <code>metrics.db</code> and troubleshooting.</p>
+<h2 id="pm-monitor-cli-health-query-cli">pm-monitor-cli — Health Query CLI<a class="headerlink" href="#pm-monitor-cli-health-query-cli" title="Permanent link">&para;</a></h2>
+<p><code>pm-monitor-cli</code> is read-only: it subscribes to <code>pm-monitor</code>'s PUB port for
+the live view and reads <code>metrics.db</code> for the event log, never writing either.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>pm-monitor-cli [--host HOST] [--port PORT] [--db PATH]
+<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a>               [--format table|json] [--timeout SEC] COMMAND [options]
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>health [-q] [--extended] [-v]</code></td>
+<td><code>pm-monitor</code> publishing snapshots (its loop runs); <code>--extended</code> also checks <code>metrics.db</code> integrity, schema, pinned timezone and write access. <code>-q</code>: exit 0 / 255. Used as the profile's <code>healthcheck</code></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>Exchange status, trading summary, every process, active breaches. Exit <code>0</code> OPERATIONAL, <code>1</code> DEGRADED, <code>3</code> IMPAIRED, <code>4</code> DOWN, <code>5</code> <code>pm-monitor</code> unreachable</td>
+</tr>
+<tr>
+<td><code>events [--since TS] [--kind K] [--subject TEXT] [--limit N] [--follow [--count N]]</code></td>
+<td>The event log, then live events with <code>--follow</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/#pm-monitor-cli"><code>pm-monitor-cli</code></a> for every option and a cookbook.</p>
 <h2 id="pm-msgen-message-binding-generator">pm-msgen — Message Binding Generator<a class="headerlink" href="#pm-msgen-message-binding-generator" title="Permanent link">&para;</a></h2>
 <p>Developer/build tool that generates the Python message-binding modules
 (<code>src/edumatcher/models/generated/</code>), C header artifacts, and the
@@ -15055,10 +15298,10 @@ process imports or invokes it — it exists so that the spec is the single
 source of truth for every topic name and payload shape, and so a spec change
 without regeneration (or a hand-edit to a generated file) cannot silently
 drift from what the engine and gateways actually send.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>pm-msgen<span class="w"> </span>generate<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>pm-msgen<span class="w"> </span>check<span class="w">    </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a>pm-msgen<span class="w"> </span>lint<span class="w">     </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span>
-<a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a>pm-msgen<span class="w"> </span>grep-literals<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--src<span class="w"> </span>DIR<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>pm-msgen<span class="w"> </span>generate<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>pm-msgen<span class="w"> </span>check<span class="w">    </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-python<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--out-c<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-59-3" name="__codelineno-59-3" href="#__codelineno-59-3"></a>pm-msgen<span class="w"> </span>lint<span class="w">     </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span>
+<a id="__codelineno-59-4" name="__codelineno-59-4" href="#__codelineno-59-4"></a>pm-msgen<span class="w"> </span>grep-literals<span class="w"> </span><span class="o">[</span>--spec<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--src<span class="w"> </span>DIR<span class="o">]</span>
 </code></pre></div>
 <p><strong>Subcommands:</strong></p>
 <table>

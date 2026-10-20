@@ -18,7 +18,7 @@
         <link rel="prev" href="../040-log-server/">
       
       
-        <link rel="next" href="../../../reference-manual/00-front/010-how-to-use-this-book/">
+        <link rel="next" href="../060-health-monitor/">
       
       
         
@@ -3425,10 +3425,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#processes" class="md-nav__link">
+  <a href="#connections" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Processes
+        Connections
       
     </span>
   </a>
@@ -3604,6 +3604,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -7617,14 +7673,6 @@
 <li>How to configure, secure, and troubleshoot a deployment</li>
 </ul>
 </div>
-<div class="admonition info">
-<p class="admonition-title">About the figures on this page</p>
-<p>Blocks marked <strong>📷 Figure N</strong> are placeholders indicating where a UI
-screenshot should be added, together with a short description of what to
-capture and a suggested asset path under
-<code>docs/user-guide/images/log-gui/</code>. Replace each block with the image and
-an italic caption once the screenshots are taken.</p>
-</div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The <strong>Log Operator Console</strong> (<code>pm-log-ui</code>) is a browser-based console over the
 logging collected by <a href="../040-log-server/"><code>pm-log-srv</code></a>. Where <code>pm-log-cli</code>
@@ -8065,7 +8113,7 @@ navigation rail</strong> on the left, and the active view filling the rest.</p>
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>│ ▣ Dash│                                                             │
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>│ ▤ Logs│                                                             │
 <a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>│ ⚠ Ale.│                     active view                             │
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>│ ◈ Proc│                                                             │
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>│ ◈ Conn│                                                             │
 <a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>│ ⚕ Diag│                                                             │
 <a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>│ ♥ Heal│                                                             │
 <a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>└──────┴─────────────────────────────────────────────────────────────┘
@@ -8081,13 +8129,12 @@ navigation rail</strong> on the left, and the active view filling the rest.</p>
 <li><strong>Theme toggle</strong> — light/dark. The icon shows the theme a click switches
   <em>to</em>, not the one currently active.</li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 1 — The main window</p>
-<p><em>Screenshot placeholder.</em> Capture the console in dark theme on the
-<strong>Dashboard</strong> with at least one unacknowledged issue, so the red banner,
-the top-bar unacked link and the Alerts rail badge are all visible
-together. Suggested file: <code>images/log-gui/fig-01-main-window.png</code>.</p>
-</div>
+<p><img alt="The Log Operator Console on the Dashboard, with four unacknowledged issues." src="../../../../assets/log-gui/log-dashboard.png" /></p>
+<p><em>The AI-trader simulation after a <code>stats.db</code> lock made pm-stats drop records. The top bar
+shows the source state (<code>log-srv01 log-srv up</code>) and the red <code>⚠ 4 unacked</code> link; the Alerts
+rail item carries the same count. On the Dashboard: the banner naming the most recent
+affected process, the five meter tiles, events over time, top processes by error count,
+and the five most recent errors.</em></p>
 <h3 id="the-six-views-at-a-glance">The six views at a glance<a class="headerlink" href="#the-six-views-at-a-glance" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8114,7 +8161,7 @@ together. Suggested file: <code>images/log-gui/fig-01-main-window.png</code>.</p
 <td>10 s</td>
 </tr>
 <tr>
-<td><a href="#processes">Processes</a></td>
+<td><a href="#connections">Connections</a></td>
 <td>Is everything still reporting in?</td>
 <td>10 s</td>
 </tr>
@@ -8149,13 +8196,6 @@ WebSocket stream and update every second. Everything else is polled from
 <code>log.db</code>. This is why the tiles can briefly disagree during a burst: the live
 counters have already seen rows the aggregate query has not yet been re-run
 for.</p>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 2 — Dashboard with an active alert</p>
-<p><em>Screenshot placeholder.</em> Capture the full Dashboard during a period with
-errors, so the pulsing banner, all five meter tiles with real numbers,
-both charts populated, and the recent-errors list are visible.
-Suggested file: <code>images/log-gui/fig-02-dashboard.png</code>.</p>
-</div>
 <h3 id="logs-the-explorer">Logs (the Explorer)<a class="headerlink" href="#logs-the-explorer" title="Permanent link">&para;</a></h3>
 <p>The workhorse view: a virtualised log table that runs in one of two modes,
 toggled by the <strong>▶ LIVE / history</strong> button.</p>
@@ -8217,14 +8257,11 @@ number — plus the untruncated message. Two actions there:</p>
 <li><strong>Filter to this process</strong> — rewrites the URL filter, which is usually the
   next thing you want after spotting one bad row.</li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 3 — The Explorer in live mode with a row selected</p>
-<p><em>Screenshot placeholder.</em> Capture the Logs view in LIVE mode with a level
-filter applied, several severity-coloured rows visible (at least one
-ERROR with the ⚠ exception marker), and the right-hand detail pane open
-on a row with a traceback. Suggested file:
-<code>images/log-gui/fig-03-explorer.png</code>.</p>
-</div>
+<p><img alt="The Explorer in LIVE mode, filtered to INFO+, with an error selected." src="../../../../assets/log-gui/log-explorer.png" /></p>
+<p><em>Rows are coloured by level — <code>INF</code>, <code>WRN</code>, <code>ERR</code> — with a matching left edge on warnings
+and errors. The filter (<code>minLevel=INFO</code>) is in the URL. The detail pane shows the selected
+row's logger, module and line, pid and host, session and sequence number, the full
+message, and the <strong>Copy</strong> and <strong>Filter to this process</strong> actions.</em></p>
 <h3 id="alerts">Alerts<a class="headerlink" href="#alerts" title="Permanent link">&para;</a></h3>
 <p>Where the console earns its keep. <code>WARNING</code>-and-above rows are <strong>fingerprinted</strong>
 — normalised so that the same fault recurring a thousand times collapses into
@@ -8254,16 +8291,14 @@ a post-mortem.</p>
 <p>Issues with no activity beyond the retention window (7 days by default) are
 pruned hourly. The index is rebuilt from <code>log.db</code> at startup, so restarting the
 bridge loses nothing except issues that had already aged out.</p>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 4 — Alerts with a recurred-since-ack issue</p>
-<p><em>Screenshot placeholder.</em> Capture the Alerts view on the <strong>all</strong> tab
-showing a mix: one unacknowledged CRITICAL, one acknowledged issue with
-its "✓ acked … by … — note" line, and ideally one carrying the
-<code>recurred since ack</code> chip. Suggested file:
-<code>images/log-gui/fig-04-alerts.png</code>.</p>
-</div>
-<h3 id="processes">Processes<a class="headerlink" href="#processes" title="Permanent link">&para;</a></h3>
-<p>A registry of every process that has ever connected, with a status glyph:</p>
+<p><img alt="Alerts on the all tab, with an issue that recurred after it was acknowledged." src="../../../../assets/log-gui/log-alerts.png" /></p>
+<p><em>Each card is one fingerprint: level, process and logger, the occurrence count, a sample
+message and first/last seen. The second card was acknowledged by <code>instructor</code> with a note,
+then fired again — hence <code>recurred since ack</code> and <strong>Un-ack</strong> instead of <strong>Acknowledge</strong>.
+The operator name is set once, top right.</em></p>
+<h3 id="connections">Connections<a class="headerlink" href="#connections" title="Permanent link">&para;</a></h3>
+<p>A registry of every connection a process has made to <code>pm-log-srv</code>, one row per
+connection, with a status glyph:</p>
 <table>
 <thead>
 <tr>
@@ -8292,14 +8327,17 @@ see, which is precisely the problem. Alongside each row: pid, host, connect
 time, idle time, total log count and error count.</p>
 <p>The threshold is <code>PROCESS_SILENCE_SEC</code> (30 s by default) and is stated in the
 legend above the table, so the glyph is never ambiguous.</p>
+<p><strong>Hide probes</strong> (on by default) hides each process's start-up probe: before it
+starts logging, a process opens a short connection only to find out whether
+<code>pm-log-srv</code> is reachable, then closes it and opens the one it logs over. That
+probe would otherwise appear as a second row for the same PID — connected and
+disconnected in the same second, having logged nothing — which looks
+alarmingly like a process flapping. The checkbox shows how many it hides.</p>
 <p>Clicking any row navigates to the Explorer pre-filtered to that process.</p>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 5 — The Processes board</p>
-<p><em>Screenshot placeholder.</em> Capture the table with a mix of all three status
-glyphs — at least one live process, one silent (<code>⚠</code>), and one
-disconnected (<code>○</code>) — with non-zero error counts on at least one row.
-Suggested file: <code>images/log-gui/fig-05-processes.png</code>.</p>
-</div>
+<p><img alt="The Connections board." src="../../../../assets/log-gui/log-connections.png" /></p>
+<p><em>All three glyphs: <code>●</code> logging (the gateways and the AI traders), <code>⚠</code> silent for 30 s or more,
+and <code>○</code> for the two earlier <code>pm-market-sim</code> connections, which ended when it was restarted.
+pm-stats shows its 10 errors. <strong>Hide probes</strong> is on, so the two start-up probes are hidden.</em></p>
 <h3 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h3>
 <p>Surfaces <code>pm-log-cli</code>'s rule-based heuristics on a 60-second schedule, with a
 manual <strong>Re-run</strong> button.</p>
@@ -8312,20 +8350,19 @@ it was fine" is information too.</p>
 <p><code>GET /api/diagnostics</code> shells out to <code>pm-log-cli --format json diagnose</code>
 so there is exactly one implementation of the heuristics to keep correct.
 The consequence: <code>pm-log-cli</code> must be installed and on <code>PATH</code> wherever
-<strong>the bridge</strong> runs — which, in the container deployment, it is not by
-default. If it is missing, this one view reports it and every other view
+<strong>the bridge</strong> runs. The container image installs the <code>edumatcher</code>
+package for exactly this reason; a bridge run some other way needs it
+too. If it is missing, this one view reports it and every other view
 keeps working. Override the command with <code>LOG_CLI_COMMAND</code>, e.g.
 <code>LOG_CLI_COMMAND="poetry run pm-log-cli"</code>.</p>
 </div>
 <p>See <a href="../040-log-server/#diagnose-rule-based-troubleshooting-report"><code>diagnose</code></a> for
 what each heuristic actually checks.</p>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 6 — Diagnostics with findings</p>
-<p><em>Screenshot placeholder.</em> Capture the view with at least two findings of
-differing severity (one error-bordered, one warning-bordered), each
-showing its recommendation and repro command, plus the "✓ No findings
-for:" line. Suggested file: <code>images/log-gui/fig-06-diagnostics.png</code>.</p>
-</div>
+<p><img alt="Diagnostics with three findings." src="../../../../assets/log-gui/log-diagnostics.png" /></p>
+<p><em>An error-bordered <code>error_rate_spike</code> (pm-stats), a warning-bordered <code>repeated_warning</code> (the
+AI traders' <code>SESSION_LOST</code> after an engine restart) and an informational <code>process_silence</code>,
+each with its recommendation and the <code>pm-log-cli</code> command that reproduces it; the
+heuristics that found nothing are listed at the bottom.</em></p>
 <h3 id="health">Health<a class="headerlink" href="#health" title="Permanent link">&para;</a></h3>
 <p>Four panels for four components that <strong>fail independently</strong>, kept separate
 rather than merged into a single status light:</p>
@@ -8362,12 +8399,10 @@ misconfiguration — a bridge reading a different database than the one
 <p><code>inbox dropped</code> is worth a periodic glance: a rising count means <code>pm-log-srv</code>
 is shedding inbound LALF-PS messages, which is a capacity signal rather than a
 console problem.</p>
-<div class="admonition note">
-<p class="admonition-title">📷 Figure 7 — The Health view</p>
-<p><em>Screenshot placeholder.</em> Capture all four panels populated against a
-running server, with the resolved <code>log.db</code> path and the bridge <code>sub_id</code>
-legible. Suggested file: <code>images/log-gui/fig-07-health.png</code>.</p>
-</div>
+<p><img alt="The Health view." src="../../../../assets/log-gui/log-health.png" /></p>
+<p><em>The four independently failing components side by side. The resolved <code>log.db</code> path is
+<code>/backend-data/log.db</code> — the container's read-only mount of the exchange's data directory —
+and the bridge's LALF-PS subscription is <code>pm-log-bridge-26</code>.</em></p>
 <h2 id="exporting">Exporting<a class="headerlink" href="#exporting" title="Permanent link">&para;</a></h2>
 <p><code>GET /api/logs/export</code> returns the current filter's matches as CSV (default)
 or JSON:</p>
@@ -8528,7 +8563,7 @@ tracking floor exists to be counted.</p>
 <tr>
 <td><code>PROCESS_SILENCE_SEC</code></td>
 <td><code>30</code></td>
-<td>Seconds of silence after which a connected process is flagged <code>⚠</code> on the Processes board</td>
+<td>Seconds of silence after which a connected process is flagged <code>⚠</code> on the Connections board</td>
 </tr>
 <tr>
 <td><code>ERROR_RATE_NORMAL_PER_MIN</code></td>
@@ -8617,7 +8652,7 @@ once and holds it for the session — it has <strong>no local defaults</strong>,
 because a fallback constant in the UI is exactly how these settings came to be
 ignored in the first place. Views render a neutral placeholder until the
 config arrives rather than guessing.</p>
-<p>One visible consequence: for the first moment after a page load the Processes
+<p>One visible consequence: for the first moment after a page load the Connections
 board shows no <code>⚠</code> glyphs, because flagging every healthy process as silent
 would be worse than a fraction of a second's delay.</p>
 <h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>

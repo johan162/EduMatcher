@@ -4219,6 +4219,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8398,7 +8454,7 @@ doing. If you are not sure, use the first.</p>
 <tbody>
 <tr>
 <td><strong>The whole stack</strong></td>
-<td>The exchange and the four web applications started by default (<code>terminal-gui</code>, <code>log-gui</code>, <code>trader-gui</code>, <code>book-gui</code>) — a fifth, <code>config-gui</code>, is opt-in (<code>CONFIG_GUI=1</code>) since it talks to no exchange — together as containers</td>
+<td>The exchange and the five web applications started by default (<code>terminal-gui</code>, <code>log-gui</code>, <code>trader-gui</code>, <code>book-gui</code>, <code>dash-gui</code>) — a sixth, <code>config-gui</code>, is opt-in (<code>CONFIG_GUI=1</code>) since it talks to no exchange — together as containers</td>
 <td><a href="http://localhost:8093">http://localhost:8093</a></td>
 <td>You want a working system. This is almost always the right answer</td>
 </tr>
@@ -8432,7 +8488,8 @@ network, with no addresses to configure:</p>
 — there is nothing to point anywhere.</p>
 <p>The other applications come up at the same time: the trader terminal on
 <a href="../010-trading-info-terminal/">8090</a>, the log console on
-<a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">8091</a> and the order book viewer on 8094.</p>
+<a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">8091</a>, the order book viewer on 8094 and the
+<a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">operator dashboard</a> on 8095.</p>
 <p>Everyday commands, from <code>deployment/docker</code> (or with <code>./edumatcher.sh</code> in a
 released install):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>status<span class="w">      </span><span class="c1"># is every exchange process up?</span>
@@ -8626,9 +8683,6 @@ written to <code>localStorage</code> or <code>sessionStorage</code>. Reloading t
 you to the login screen — expected for a classroom system running on
 localhost, not a bug.</p>
 </div>
-<p>📷 <strong>Figure 1 — Login screen.</strong> Capture the centered login card (API key
-field, Connect button, the "held in memory" notice) against the dark shell
-background. Suggested file: <code>images/trader-gui/fig-01-login.png</code>.</p>
 <h2 id="roles-and-access-rights">Roles and access rights<a class="headerlink" href="#roles-and-access-rights" title="Permanent link">&para;</a></h2>
 <p>Your role is a property of the <strong>gateway identity your API key is bound to</strong>,
 not of the app. It decides which sidebar entries you see and which routes you
@@ -8771,11 +8825,6 @@ action or a quote, even though the gateway itself does not distinguish
 TRADER from MARKET_MAKER on the order and quote endpoints.</p>
 </div>
 <h2 id="the-application-shell">The application shell<a class="headerlink" href="#the-application-shell" title="Permanent link">&para;</a></h2>
-<p>📷 <strong>Figure 2 — App shell, TRADER role.</strong> Capture the Trading Workspace with
-the full shell visible: top bar (wordmark, session badge + clock, connection
-health, notification bell, settings, help, gateway id/role, logout) and the
-left sidebar navigation for the TRADER role. Suggested file:
-<code>images/trader-gui/fig-02-app-shell-trader.png</code>.</p>
 <p>Every authenticated screen shares the same chrome.</p>
 <h3 id="top-bar">Top bar<a class="headerlink" href="#top-bar" title="Permanent link">&para;</a></h3>
 <p>Left to right:</p>
@@ -8882,9 +8931,6 @@ event bridge covers the <em>later</em> outcomes — fills, cancels, expiries, an
 </ul>
 <p><code>↑</code>/<code>↓</code> move, <code>Enter</code> runs, <code>Escape</code> closes. This is the backbone of
 mouse-free navigation.</p>
-<p>📷 <strong>Figure 14 — Command palette open.</strong> Capture <code>Ctrl+K</code> pressed with a
-partial query typed, showing filtered navigation and action results.
-Suggested file: <code>images/trader-gui/fig-14-command-palette.png</code>.</p>
 <h3 id="help-drawer">Help drawer<a class="headerlink" href="#help-drawer" title="Permanent link">&para;</a></h3>
 <p><code>Ctrl+/</code> (or the <code>?</code> icon) opens a right-edge sheet with a topic list:
 Getting Started, Trading Workspace, Order Types, Amend vs Cancel-Replace,
@@ -8897,10 +8943,6 @@ screen throws, it degrades to an inline message while the top bar, sidebar and
 overlays stay usable — and navigating away clears it.</p>
 <h2 id="screens-available-to-every-role">Screens available to every role<a class="headerlink" href="#screens-available-to-every-role" title="Permanent link">&para;</a></h2>
 <h3 id="market-overview">Market Overview<a class="headerlink" href="#market-overview" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 3 — Market Overview.</strong> Capture the symbol table mid-session with
-live bid/ask/last, change %, and volume columns populated, the symbol filter
-box, and at least one row starred into the watchlist. Suggested file:
-<code>images/trader-gui/fig-03-market-overview.png</code>.</p>
 <p>The reference board, available regardless of role. Columns:</p>
 <table>
 <thead>
@@ -9032,10 +9074,13 @@ writes straight into the order ticket (switching it to <code>LIMIT</code>, filli
 price, and ring-highlighting the suggested side button).</p>
 <h2 id="the-trader-role">The TRADER role<a class="headerlink" href="#the-trader-role" title="Permanent link">&para;</a></h2>
 <h3 id="trading-workspace">Trading Workspace<a class="headerlink" href="#trading-workspace" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 4 — Trading Workspace.</strong> Capture all four quadrants live for one
-symbol: chart (top-left), depth ladder (right), order ticket (bottom-left),
-and the compact blotter strip along the bottom. Suggested file:
-<code>images/trader-gui/fig-04-trading-workspace.png</code>.</p>
+<p><img alt="The Trading Workspace for AAPL, logged in as TRADER01." src="../../../../assets/trader-gui/trader-workspace.png" /></p>
+<p><em>The shell: the top bar (session badge and clocks, connection health,
+notifications, settings, theme, help, gateway id and role, logout) and the
+TRADER sidebar. The four panels follow the active symbol: the chart in
+one-minute candles, the depth ladder (click a price to pre-fill the ticket),
+the compact ticket with the symbol locked, and the working AAPL orders, where
+the iceberg is <code>PARTIAL</code> with 157 of 400 left.</em></p>
 <p>The default TRADER landing screen and cockpit. Four panels, all bound to one
 active symbol chosen with the symbol picker in the header — a dropdown, or a
 type-to-filter search box on an exchange with many symbols (see
@@ -9061,9 +9106,6 @@ a first classroom session stays simple.</p>
 <p>The eight single-leg order type tabs are always shown flat above the ticket
 fields — every single-leg type is one click away. Only OCO and Combo sit
 behind the Advanced disclosure.</p>
-<p>📷 <strong>Figure 5 — Order Entry with OCO panel expanded.</strong> Capture the ticket
-plus the OCO sub-panel open beneath it. Suggested file:
-<code>images/trader-gui/fig-05-order-entry-oco.png</code>.</p>
 <h4 id="ticket-fields">Ticket fields<a class="headerlink" href="#ticket-fields" title="Permanent link">&para;</a></h4>
 <p>Every field carries a small ⓘ button with an inline explanation, so the ticket
 is self-documenting in a classroom.</p>
@@ -9348,10 +9390,11 @@ watch the blotter to find out:</p>
 you can immediately submit the other side of a two-sided view — only the
 client order ID field clears.</p>
 <h3 id="active-orders">Active Orders<a class="headerlink" href="#active-orders" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 6 — Active Orders blotter.</strong> Capture several working orders of
-different types/statuses, with one row's checkbox selected to show the
-bulk-cancel affordance. Suggested file:
-<code>images/trader-gui/fig-06-active-orders.png</code>.</p>
+<p><img alt="Active Orders with one order selected." src="../../../../assets/trader-gui/trader-active-orders.png" /></p>
+<p><em>TRADER01's seven working orders: limits, an iceberg, a stop and a
+stop-limit, DAY and GTC. The iceberg is <code>PARTIAL</code>; the stop shows <code>—</code> for its
+price, since a stop carries none. One row is ticked, so the bar below offers
+<strong>Cancel all selected</strong>; each row has Amend, Cancel-Replace and Cancel.</em></p>
 <p>The full live blotter, driven by the order store — seeded from the
 <code>orders.snapshot</code> frame and folded forward from live <code>order.*</code> events, so it
 never polls. The header shows the order count and a "reconciled HH:MM:SS"
@@ -9649,9 +9692,12 @@ current phase.</p>
 </ul>
 <h2 id="the-market_maker-role">The MARKET_MAKER role<a class="headerlink" href="#the-market_maker-role" title="Permanent link">&para;</a></h2>
 <h3 id="quote-management">Quote Management<a class="headerlink" href="#quote-management" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 7 — Quote Management.</strong> Capture the card grid with two-sided
-quotes on several symbols, including at least one card showing partial-fill
-progress on a leg. Suggested file: <code>images/trader-gui/fig-07-quote-mgmt.png</code>.</p>
+<p><img alt="Quote Management for the market maker MM01." src="../../../../assets/trader-gui/trader-quote-management.png" /></p>
+<p><em>One card per symbol, in alphabetical order. Six carry an <code>ACTIVE</code> two-sided
+quote: price × quantity per leg, the fill counter and progress bar, the leg
+status and the quote id. ADBE is halted, and the quotes on ADI and ADSK were
+hit and taken off, so those cards read <em>No active quote.</em> The header counts
+the active quotes and shows <code>syncing…</code> while the bootstrap refetches.</em></p>
 <p>The MARKET_MAKER landing screen: <strong>one card per configured symbol</strong>, whether
 or not you currently quote it. A symbol carries at most one active quote per
 gateway, so each card shows at most one.</p>
@@ -9739,9 +9785,6 @@ resting orders at once, so it is treated as a high-impact action.</p>
 <p>A cancel that times out waiting for its ack shows <em>"Cancel submitted for
 <code>{symbol}</code> — awaiting confirmation"</em> — again, not a rejection.</p>
 <h3 id="quote-bootstrap-legs">Quote Bootstrap &amp; Legs<a class="headerlink" href="#quote-bootstrap-legs" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 8 — Quote Bootstrap and Legs view.</strong> Capture both tables with
-several rows of data. Suggested file:
-<code>images/trader-gui/fig-08-quote-bootstrap.png</code>.</p>
 <p>A diagnostic screen with two complementary read sources and a <strong>Resync</strong>
 button that refetches both, plus a "Reconciled at" stamp.</p>
 <p><strong>Active Quotes</strong> (<code>GET /quotes/bootstrap</code>) is the <strong>reliable per-side
@@ -9761,10 +9804,6 @@ bug and not lost data.</p>
 <p>The same Position Summary Panel as TRADER, with the same Flatten / Flatten All
 behaviour — see <a href="#positions-and-flatten">Positions and Flatten</a> above.</p>
 <h2 id="the-admin-role">The ADMIN role<a class="headerlink" href="#the-admin-role" title="Permanent link">&para;</a></h2>
-<p>📷 <strong>Figure 9 — System Dashboard.</strong> Capture the KPI card row (session phase,
-active orders across gateways, connected gateways, active CB halts), the
-per-symbol summary table, and the recent cross-gateway events feed.
-Suggested file: <code>images/trader-gui/fig-09-admin-dashboard.png</code>.</p>
 <h3 id="system-dashboard">System Dashboard<a class="headerlink" href="#system-dashboard" title="Permanent link">&para;</a></h3>
 <p>The ADMIN landing screen — a read-only overview fed by the
 <code>/api/v1/admin/monitor</code> WebSocket (cross-gateway orders and events) plus the
@@ -9803,9 +9842,6 @@ corporate-action rebalance UI is out of scope. Use
 <p>Without the stats database the history table shows <em>"Index history
 unavailable — the stats database is not running."</em></p>
 <h3 id="session-control">Session Control<a class="headerlink" href="#session-control" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 10 — Session Control.</strong> Capture the current-phase badge and
-the available transition buttons. Suggested file:
-<code>images/trader-gui/fig-10-session-control.png</code>.</p>
 <p>The current phase as a badge, and a button for <strong>each transition that is
 currently legal</strong> — illegal ones are never offered:</p>
 <table>
@@ -9860,9 +9896,11 @@ still reject — most commonly <em>"Sessions are not enabled on this engine"</em
 <code>engine_config.yaml</code>. Note the standing rule printed on the page: every halt
 reopens via a call auction — there is no per-level resumption mode.</p>
 <h3 id="circuit-breakers">Circuit Breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 11 — Circuit Breakers, with an active halt.</strong> Capture the
-manual-trigger form and the active-halts table with at least one row.
-Suggested file: <code>images/trader-gui/fig-11-circuit-breakers.png</code>.</p>
+<p><img alt="Circuit Breakers: the manual-halt form and two active halts." src="../../../../assets/trader-gui/trader-circuit-breakers.png" /></p>
+<p><em>Both halts were set by the operator without a level, so Est. Resume reads
+<code>indefinite</code> and the trigger and reference prices are blank; <strong>Clear</strong>
+resumes trading. The Level selector offers only <em>Indefinite (no level)</em>:
+this exchange configures no breaker ladder for the symbol.</em></p>
 <p>The live operational counterpart to Risk Controls, bootstrapped from
 <code>GET /admin/halts</code> and kept current by the <code>circuit_breaker</code> market-data
 channel.</p>
@@ -9887,10 +9925,6 @@ for instance a halt that fired before you logged in — leave them blank
 until the symbol halts again. The halt itself is real regardless.</p>
 </div>
 <h3 id="gateway-management-and-the-kill-switch">Gateway Management and the Kill Switch<a class="headerlink" href="#gateway-management-and-the-kill-switch" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 12 — Gateway Management with Kill Switch panel.</strong> Capture the
-gateway roster table and the Kill Switch panel beneath it, including the
-Global "Kill all" control. Suggested file:
-<code>images/trader-gui/fig-12-gateway-mgmt-killswitch.png</code>.</p>
 <p>The roster from <code>GET /admin/gateways</code> shows Gateway ID, Role, Description and
 a live connection dot (<code>Connected</code> / <code>Offline</code>), with an <code>N / M connected</code>
 count and a <strong>Refresh</strong> button in the header.</p>
@@ -9932,10 +9966,6 @@ participants can immediately submit new orders. To stop trading, use a
 circuit-breaker halt or a session transition.</p>
 </div>
 <h3 id="monitor-log">Monitor Log<a class="headerlink" href="#monitor-log" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 13 — Monitor Log.</strong> Capture the filter bar and a scrolled list
-of mixed event types (ACK, FILL, CANCEL, CB, ADMIN), ideally with one row's
-Order/Gateway cell showing the clickable order-id link. Suggested
-file: <code>images/trader-gui/fig-13-monitor-log.png</code>.</p>
 <p>The live, filterable tail of cross-gateway activity from the admin monitor
 feed. Columns: Time (<code>HH:MM:SS.mmm</code>), Seq, Type, Order / Gateway, Symbol,
 Details. The header reports <code>shown / total</code> events and a reconciled timestamp,
@@ -10863,7 +10893,7 @@ outside that network, and it has to be told how to get back in.</p>
 <tr>
 <td>Login fails with "<code>ENGINE_AUTH</code>: …"</td>
 <td>The key is valid but <code>pm-engine</code> refused its gateway id</td>
-<td>Confirm the <code>gateway_id</code> exists under <code>participants</code> in <code>engine_config.yaml</code></td>
+<td>Confirm the <code>gateway_id</code> exists under <code>participants</code> in <code>engine_config.yaml</code>. "Gateway already connected" means another client holds that id — a bot, a console, or <code>pm-api-gwy</code> itself, which keeps every id it has authenticated for as long as it runs. An ADMIN can free it with <strong>Kick</strong> on <a href="#gateway-management-and-the-kill-switch">Gateway Management</a> (this cancels the gateway's orders and quotes)</td>
 </tr>
 <tr>
 <td>Login fails with "Gateway reached, but the engine did not answer. Is pm-engine running?"</td>

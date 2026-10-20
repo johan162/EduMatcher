@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7460,7 +7516,7 @@ start: it gives up if it starts before the engine is ready.
 <code>docker ps</code> shows <code>healthy</code> once the exchange is up — whether or not the
 market is open.</p>
 <h2 id="composeai-simyaml"><code>compose.ai-sim.yaml</code><a class="headerlink" href="#composeai-simyaml" title="Permanent link">&para;</a></h2>
-<p>The compose file runs five containers in one compose project,
+<p>The compose file runs six containers in one compose project,
 <code>edumatcher-sim</code>:</p>
 <table>
 <thead>
@@ -7502,13 +7558,19 @@ market is open.</p>
 <td>8094</td>
 <td>order-book viewer</td>
 </tr>
+<tr>
+<td><code>edumatcher-sim-dash-gui</code></td>
+<td><code>edumatcher-dash-gui</code></td>
+<td>8095</td>
+<td>operator dashboard</td>
+</tr>
 </tbody>
 </table>
 <p>The GUIs reach the exchange over the compose network, at the host name
 <code>edumatcher</code>; the host ports are for you and your students' browsers and
 programs. The GUIs that read market history use the example's read-only API
 key, which the compose file already knows.</p>
-<p>There are two copies of this file, and they describe the same five
+<p>There are two copies of this file, and they describe the same six
 containers:</p>
 <table>
 <thead>
@@ -7565,7 +7627,7 @@ compose file (the installer writes one) or on the command line, as in
 <tr>
 <td><code>EM_VERSION</code></td>
 <td><code>latest</code></td>
-<td>Which release of all five images to run, e.g. <code>0.51.0</code></td>
+<td>Which release of all six images to run, e.g. <code>0.51.0</code></td>
 </tr>
 <tr>
 <td><code>GHCR_OWNER</code></td>
@@ -7578,8 +7640,8 @@ compose file (the installer writes one) or on the command line, as in
 <td>Which host interface the ports are published on</td>
 </tr>
 <tr>
-<td><code>TERMINAL_GUI_PORT</code>, <code>LOG_GUI_PORT</code>, <code>TRADER_GUI_PORT</code>, <code>BOOK_GUI_PORT</code></td>
-<td>8090, 8091, 8093, 8094</td>
+<td><code>TERMINAL_GUI_PORT</code>, <code>LOG_GUI_PORT</code>, <code>TRADER_GUI_PORT</code>, <code>BOOK_GUI_PORT</code>, <code>DASH_GUI_PORT</code></td>
+<td>8090, 8091, 8093, 8094, 8095</td>
 <td>Host ports of the GUIs</td>
 </tr>
 <tr>

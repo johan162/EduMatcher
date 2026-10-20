@@ -3692,6 +3692,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8037,7 +8093,13 @@ Store the <code>SEQ</code> — it is your baseline sequence number for that chan
 <h3 id="step-5-handle-heartbeats">Step 5 — Handle heartbeats<a class="headerlink" href="#step-5-handle-heartbeats" title="Permanent link">&para;</a></h3>
 <p>When the stream is idle the gateway sends periodic <code>HB|TS=...</code> lines.  You can
 probe with <code>PING</code>; the gateway replies <code>PONG</code>.  If no inbound traffic is
-received for <code>idle_timeout_sec</code> seconds the gateway closes the connection.</p>
+received for <code>idle_timeout_sec</code> seconds the gateway sends
+<code>EXIT|REASON=idle_timeout</code> and closes the connection.</p>
+<p>A client that stops reading is dropped too. When its outbound queue exceeds
+<code>max_client_queue</code> the gateway discards the backlog (a reconnect with
+<code>LASTSEQ</code> replays it), sends <code>ERR|CODE=SLOW_CLIENT</code>, and closes the
+connection. Either final line is delivered if the client is still reading;
+the connection is closed after at most 5 seconds whether or not it was.</p>
 <h3 id="step-6-disconnect">Step 6 — Disconnect<a class="headerlink" href="#step-6-disconnect" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>EXIT
 </code></pre></div>

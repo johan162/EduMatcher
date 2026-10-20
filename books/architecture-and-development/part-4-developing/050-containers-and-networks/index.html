@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7693,9 +7749,14 @@ Compose project</strong>:</p>
 <td>Order Book Viewer (<code>pm-book</code>), port 8094</td>
 </tr>
 <tr>
+<td><code>edumatcher-dash-gui</code></td>
+<td><code>web-apps/dash-gui/</code></td>
+<td>Operator Dashboard (<code>pm-dash</code>), port 8095</td>
+</tr>
+<tr>
 <td><code>edumatcher-ai-sim</code></td>
 <td><code>deployment/docker/</code>, stage <code>ai-sim</code></td>
-<td>The <code>edumatcher</code> image with the AI-trader simulation's defaults (<code>s300-sim</code>, profile <code>ai-sim</code>); run by <code>compose.ai-sim.yaml</code> with four of the GUIs, in a compose project of its own (<a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">The Simulation Container</a>)</td>
+<td>The <code>edumatcher</code> image with the AI-trader simulation's defaults (<code>s300-sim</code>, profile <code>ai-sim</code>); run by <code>compose.ai-sim.yaml</code> with five of the GUIs, in a compose project of its own (<a href="../../../ai-traders/part-3-run-it/110-the-simulation-container/">The Simulation Container</a>)</td>
 </tr>
 </tbody>
 </table>
@@ -7707,7 +7768,7 @@ containers that reach it over the Compose network.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph repo["This repository"]
         BE["deployment/docker/\nDockerfile + entrypoint.sh"]
-        WA["web-apps/*/Dockerfile\nfour Node apps"]
+        WA["web-apps/*/Dockerfile\nsix Node apps"]
     end
 
     subgraph dev["deployment/docker/ — built from source"]
@@ -7744,8 +7805,9 @@ is the main standing maintenance cost of this design — see
     C3["web-apps/trader-gui/Makefile"]
     C4["web-apps/config-gui/Makefile"]
     C5["web-apps/book-gui/Makefile"]
+    C6["web-apps/dash-gui/Makefile"]
 
-    A --&gt;|"compose build/up across\nall six contexts"| IMGS["six images"]
+    A --&gt;|"compose build/up across\nall seven contexts"| IMGS["seven images"]
     B --&gt;|"make -C, one per app"| C1
     B --&gt; C2
     B --&gt; C3
@@ -7754,6 +7816,7 @@ is the main standing maintenance cost of this design — see
     C3 --&gt; IMGS
     C4 --&gt; IMGS
     C5 --&gt; IMGS
+    C6 --&gt; IMGS
 
     A -.-&gt;|"never calls"| B</code></pre>
 <table>
@@ -7895,13 +7958,13 @@ does not open any listener. Cross-host work needs both.</p>
         BR["Browser, curl,\nprotocol clients"]
     end
     subgraph L2["2. Published ports — controlled by BIND_ADDR"]
-        P["127.0.0.1:8090-8094\n127.0.0.1:5560-5600, 8080-8081"]
+        P["127.0.0.1:8090-8095\n127.0.0.1:5560-5600, 8080-8081"]
     end
     subgraph L3["3. The Compose network — one per project"]
-        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui"]
+        G["terminal-gui, log-gui,\nconfig-gui, trader-gui,\nbook-gui, dash-gui"]
     end
     subgraph L4["4. Inside the backend namespace"]
-        GW["Service layer — gateways, pm-log-srv, pm-api-gwy\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
+        GW["Service layer — gateways, pm-log-srv, pm-api-gwy, pm-monitor\ndefault 0.0.0.0 · EDUMATCHER_GATEWAY_BIND_HOST"]
         BUS["Core plane — engine 5555-5557, index 5558-5559\ndefault 127.0.0.1 · EDUMATCHER_ENGINE_BIND_HOST / _INDEX_"]
     end
 
@@ -7955,7 +8018,7 @@ does not open any listener. Cross-host work needs both.</p>
 already isolates the container; widening them exposes nothing that a published
 port does not already expose.</p>
 <h3 id="why-the-guis-need-no-host-address-at-all">Why the GUIs need no host address at all<a class="headerlink" href="#why-the-guis-need-no-host-address-at-all" title="Permanent link">&para;</a></h3>
-<p>All five services belong to one Compose project, so Compose puts them on one
+<p>All the services belong to one Compose project, so Compose puts them on one
 network and registers the backend under the service name, the container name
 <em>and</em> the hostname — all three resolve to the same address:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-trader-gui<span class="w"> </span>getent<span class="w"> </span>hosts<span class="w"> </span>edumatcher
@@ -7983,12 +8046,12 @@ asymmetry between them is deliberate rather than historical.</p>
 <tr>
 <td>Processes</td>
 <td><code>pm-engine</code>, <code>pm-index</code></td>
-<td><code>pm-alf-gwy</code>, <code>pm-md-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>, <code>pm-log-srv</code>, <code>pm-api-gwy</code></td>
+<td><code>pm-alf-gwy</code>, <code>pm-md-gwy</code>, <code>pm-balf-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code>, <code>pm-log-srv</code>, <code>pm-api-gwy</code>, <code>pm-monitor</code></td>
 </tr>
 <tr>
 <td>Ports</td>
 <td>5555–5559</td>
-<td>5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 8080/8081</td>
+<td>5560, 5565, 5570, 5580, 5590, 5600, 5601/5602, 5610/5611, 8080/8081</td>
 </tr>
 <tr>
 <td>Who dials in</td>
@@ -8012,6 +8075,12 @@ asymmetry between them is deliberate rather than historical.</p>
 </tr>
 </tbody>
 </table>
+<p><code>pm-monitor</code> is the one service-layer process whose own default is
+<code>127.0.0.1</code> (<code>monitor.bind_address</code>): every process that sends it a beacon
+runs in the same namespace. The compose file's
+<code>EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0</code> still opens it to the Compose network,
+which is how the operator dashboard reaches its snapshot port 5611. Its ports
+are <code>EXPOSE</code>d by the image but published by no compose file.</p>
 <p>The core plane is an internal bus. Every peer shares the backend's namespace,
 so loopback is both sufficient and the safer default; <code>ZMQ=1</code> widens it when
 you want <code>pm-calf-spy</code> or <code>pm-index-cli</code> attaching from the host. The service
@@ -8248,7 +8317,7 @@ same extraction snippet — that logic lives in <code>edumatcher.sh</code> rathe
 continues and warns. The live CALF feed needs no key; only history does.</p>
 <h2 id="part-5-the-release-process">Part 5 — The release process<a class="headerlink" href="#part-5-the-release-process" title="Permanent link">&para;</a></h2>
 <p>One git tag produces a wheel and seven multi-architecture images, all carrying
-the same version. That coupling is what lets <code>install.sh --version 0.50.7</code>
+the same version. That coupling is what lets <code>install.sh --version 0.51.0</code>
 pin an entire system with one number.</p>
 <pre class="mermaid"><code>flowchart TD
     MK["scripts/mkrelease.sh\nbump, build docs, commit, tag"]
@@ -8271,14 +8340,14 @@ pin an entire system with one number.</p>
 <p>Points a developer needs to know:</p>
 <p><strong>Each image is built twice, natively.</strong> A single-runner build with
 <code>platforms: linux/amd64,linux/arm64</code> would emulate the foreign architecture
-under QEMU — four Node images each running <code>npm ci</code> and a Vite build, which
+under QEMU — six Node images each running <code>npm ci</code> and a Vite build, which
 turns a release into hours. Instead each <code>(image, arch)</code> pair builds on its own
 native runner and pushes <strong>by digest only</strong>; a merge job then joins the two
 digests into a manifest list and applies the tags. arm64 hosted runners are
 generally available and free for public repositories.</p>
 <p><strong>The merge job selects digests by exact image prefix.</strong> Each build job uploads
 its digest as an artifact named <code>digests-&lt;image&gt;-&lt;arch&gt;</code>, and the merge job
-collects them with a glob. <code>edumatcher</code> is a prefix of all five
+collects them with a glob. <code>edumatcher</code> is a prefix of all six
 <code>edumatcher-*-gui</code> names, so that glob over-matches: the backend's merge job
 receives every image's digests. It therefore filters the downloaded files —
 each is named <code>&lt;image&gt;@&lt;hex&gt;</code> — by exact prefix, and asserts it ended up with
@@ -8453,8 +8522,8 @@ trade — but it means a GUI-only fix still needs a full release.</p>
 They still drive <code>make cdist</code> and per-app <code>cpush</code>. If that divergence starts
 causing confusion, the fix is to stop versioning the apps independently rather
 than to reintroduce per-app tags into the release.</p>
-<p><strong>Build minutes grow linearly with images.</strong> Fourteen build jobs today; one
-more image makes it sixteen. The GitHub Actions cache is scoped per
+<p><strong>Build minutes grow linearly with images.</strong> Sixteen build jobs today; one
+more image makes it eighteen. The GitHub Actions cache is scoped per
 <code>(image, arch)</code>, so an unchanged app is cheap, but the matrix is not free.</p>
 <p><strong>The credential-lookup snippet is the fragile one.</strong> It reads a specific shape
 out of the compiled configuration — <code>api_gateways.&lt;name&gt;.credentials[].gateway_id</code>.
@@ -8509,16 +8578,17 @@ anything outside that container can connect.</p>
 <a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8090/api/bridge/status<span class="w">   </span><span class="c1"># calf, logging</span>
 <a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8091/api/bridge/status<span class="w">   </span><span class="c1"># lalfPs, logDb</span>
 <a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8094/api/bridge/status<span class="w">   </span><span class="c1"># upstream, logging</span>
-<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>
-<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="c1"># 6. Which ports are actually published</span>
-<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
-<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
-<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
-<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
-<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
-<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
-<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
+<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a>curl<span class="w"> </span>-s<span class="w"> </span>localhost:8095/api/bridge/status<span class="w">   </span><span class="c1"># pm-monitor, metricsDb, links</span>
+<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>
+<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a><span class="c1"># 6. Which ports are actually published</span>
+<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>podman<span class="w"> </span>port<span class="w"> </span>edumatcher
+<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a>
+<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="c1"># 7. Which directory on disk is behind each container path, and where each</span>
+<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a><span class="c1">#    container came from.  make mounts  in deployment/docker, or</span>
+<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="c1">#    ./edumatcher.sh mounts  in a released install. The raw forms:</span>
+<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a>podman<span class="w"> </span>inspect<span class="w"> </span>edumatcher-log-gui<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{range .Mounts}}{{.Source}} -&gt; {{.Destination}}{{"\n"}}{{end}}'</span>
+<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a>podman<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>edumatcher<span class="w"> </span>--format<span class="w"> </span><span class="s1">'{{.Names}}\t{{.Image}}\t{{.CreatedAt}}'</span>
 </code></pre></div>
 <p>Step 3 is the one that settles arguments. The deployed YAML in <code>ref_data/</code> is
 the <em>source</em> copy; the compiled JSON beside it is what every process reads,
@@ -8594,7 +8664,8 @@ the variables by hand.</p>
 <p><strong>No cross-host health signalling.</strong> <code>pm-opctl-cli health</code>'s built-in
 recorder entries — <code>stats</code>, <code>audit</code>, <code>clearing</code> and <code>index-srv</code> — run each
 process's own <code>*-cli health -q</code>, which pings a health socket on loopback
-(5561–5564). That proves the process's loop is alive on <em>this</em> host; it says
+(5561–5564); the <code>monitor</code> entry runs <code>pm-monitor-cli health -q</code>, which waits
+for one of <code>pm-monitor</code>'s snapshots on 5611. That proves the process's loop is alive on <em>this</em> host; it says
 nothing about whether another host can reach it, because those health sockets
 bind <code>127.0.0.1</code> by default and the image does not publish them. That is one
 more reason the image <code>HEALTHCHECK</code> TCP-probes the engine on 5555 instead: a

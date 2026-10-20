@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7499,7 +7555,7 @@ lets the installer pin a whole system with a single number.</p>
     MERGE["merge digests into\none manifest list\ntags X.Y.Z and latest"]
 
     OUTP["PyPI\nedumatcher X.Y.Z"]
-    OUTC["GHCR\n7 multi-arch images X.Y.Z"]
+    OUTC["GHCR\n8 multi-arch images X.Y.Z"]
 
     USER1["pipx install edumatcher"]
     USER2["curl .../install.sh | bash"]
@@ -7514,7 +7570,7 @@ lets the installer pin a whole system with a single number.</p>
 <p>Each image is built <strong>natively</strong> on both architectures rather than emulated,
 then the two are joined into one manifest list. A user on Intel and a user on
 Apple Silicon pull the same tag and each gets the right binary.</p>
-<p>The seven published images are:</p>
+<p>The eight published images are:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ghcr.io/johan162/edumatcher                 the exchange, all pm-* processes
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ghcr.io/johan162/edumatcher-ai-sim          the AI-trader simulation runner
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>ghcr.io/johan162/edumatcher-terminal-gui    TapeDeck (pm-terminal)
@@ -7522,12 +7578,13 @@ Apple Silicon pull the same tag and each gets the right binary.</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>ghcr.io/johan162/edumatcher-config-gui      the Configuration GUI
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>ghcr.io/johan162/edumatcher-trader-gui      the Trading GUI
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>ghcr.io/johan162/edumatcher-book-gui        the order-book viewer
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>ghcr.io/johan162/edumatcher-dash-gui        the Operator Dashboard
 </code></pre></div>
 <p><code>latest</code> is only moved for an exact <code>vMAJOR.MINOR.PATCH</code> tag, so a pre-release
 never becomes what a new user gets by default — the same rule the PyPI workflow
 uses to choose between PyPI and TestPyPI.</p>
 <h3 id="publishing-by-hand">Publishing by hand<a class="headerlink" href="#publishing-by-hand" title="Permanent link">&para;</a></h3>
-<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all six images from your
+<p><code>make ghcr-push</code> in <code>deployment/docker/</code> builds all seven images from your
 checkout and pushes them, for when the workflow cannot run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;you&gt;<span class="w"> </span><span class="nv">GHCR_TOKEN</span><span class="o">=</span>&lt;token<span class="w"> </span>with<span class="w"> </span>write:packages&gt;
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>ghcr-push<span class="w">                              </span><span class="c1"># all six, tagged :dev</span>

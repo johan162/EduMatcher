@@ -3337,6 +3337,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7366,7 +7422,7 @@
 </tr>
 <tr>
 <td>Browser applications</td>
-<td>five, ready to use</td>
+<td>six, ready to use</td>
 <td>not included</td>
 </tr>
 <tr>
@@ -7397,8 +7453,8 @@ containers from source, and a developer checkout) in full detail.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher
 </code></pre></div>
-<p>The installer downloads the latest release into <code>~/.edumatcher</code>, pulls six
-container images (the exchange plus five browser applications) and starts
+<p>The installer downloads the latest release into <code>~/.edumatcher</code>, pulls seven
+container images (the exchange plus six browser applications) and starts
 them. The first start takes a few minutes; later starts take seconds. When it
 finishes it prints the addresses of the browser applications.</p>
 <p><code>./edumatcher.sh</code> is your control panel for this installation. You only need
@@ -7473,6 +7529,11 @@ a handful of its commands:</p>
 <td>The operational log of every process</td>
 </tr>
 <tr>
+<td><a href="http://localhost:8095">http://localhost:8095</a></td>
+<td><strong>Operator Dashboard</strong></td>
+<td>Every process HEALTHY and the exchange OPERATIONAL</td>
+</tr>
+<tr>
 <td><a href="http://localhost:8092">http://localhost:8092</a></td>
 <td><strong>Configuration GUI</strong></td>
 <td>A form-based editor for exchange configurations</td>
@@ -7499,7 +7560,7 @@ will make the first trade in the next chapter.</p>
 <h3 id="what-you-just-started">What you just started<a class="headerlink" href="#what-you-just-started" title="Permanent link">&para;</a></h3>
 <p>One container runs the exchange: the engine and about fourteen supporting
 processes, started in the right order by the process manager <code>pm-opctl-cli</code>.
-Five more containers run the browser applications. They share a private
+Six more containers run the browser applications. They share a private
 network, which is why nothing asked you for an address. The bundled
 configuration is called <code>s10-basic</code>: ten symbols, four participants
 (<code>TRADER01</code>, <code>TRADER02</code>, <code>MM01</code> and the operator <code>OPS01</code>) and no trading-day

@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4954,6 +5010,17 @@
     <span class="md-ellipsis">
       
         config-gui
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dash-gui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dash-gui
       
     </span>
   </a>
@@ -7415,7 +7482,7 @@
 <li>How to run a web application on your own machine, with hot reload, against
   the exchange running in containers — and why that works without any
   configuration</li>
-<li>Exactly what each of the four applications needs from a running backend:
+<li>Exactly what each of the six applications needs from a running backend:
   which ports, which files, which credentials</li>
 <li>Which of the three loops to reach for, given the change you are making</li>
 <li>The handful of things that will waste an afternoon if you do not know them</li>
@@ -7469,7 +7536,7 @@ builds an image that does not exist yet, so an image tagged
 <code>edumatcher-terminal-gui:latest</code> from an hour ago is reused as-is. Your change
 is in the working tree, not in the image, and nothing warns you.</p>
 <p>The reason it is not simply <code>--build</code> by default: that re-evaluates six build
-contexts on every start (the five GUIs plus the backend), which turns a
+contexts on every start (the six GUIs plus the backend), which turns a
 three-second start into a multi-minute one. Building is a separate decision
 from starting.</p>
 <p>So the loop is <em>build, then start</em>:</p>
@@ -7478,9 +7545,9 @@ from starting.</p>
 </code></pre></div>
 <p>or, in one step:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>terminal-gui
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all five</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">BUILD</span><span class="o">=</span><span class="m">1</span><span class="w">                  </span><span class="c1"># all six</span>
 </code></pre></div>
-<p><code>make build-guis</code> with no <code>GUI=</code> rebuilds all five. It builds through
+<p><code>make build-guis</code> with no <code>GUI=</code> rebuilds all six. It builds through
 <code>compose.yaml -f compose.guis.yaml -f compose.config-gui.yaml</code>, so config-gui
 is always buildable here whether or not you start it with <code>CONFIG_GUI=1</code>.</p>
 <p>For a <strong>backend</strong> change the equivalent is <code>make build</code>, which rebuilds the
@@ -7531,7 +7598,7 @@ restarting the bridge on save, against a real exchange with real market data.</p
 <li><strong>The stack publishes to <code>127.0.0.1</code></strong> by default (<code>BIND_ADDR</code>). The two
    halves meet without either being told about the other.</li>
 </ol>
-<p>The containerised GUI keeps running on 8090–8094 the whole time. That is
+<p>The containerised GUI keeps running on 8090–8095 the whole time. That is
 useful rather than confusing: it is your reference. Compare <code>localhost:8190</code>
 with <code>localhost:8090</code> and you are comparing your change against what is
 currently shipped.</p>
@@ -7601,6 +7668,13 @@ empty history panels and a 401 in the bridge log.</p>
 <td>8094</td>
 <td>8081 market data, history + read-only key, 5600 log ingest</td>
 </tr>
+<tr>
+<td>dash-gui</td>
+<td>8195</td>
+<td>5195</td>
+<td>8095</td>
+<td>5611 <code>pm-monitor</code> (needs <code>ZMQ=1</code>), <code>data/metrics.db</code>, the deployed configuration, 5600 log ingest</td>
+</tr>
 </tbody>
 </table>
 <p>The dev ports are deliberately <code>81xx</code>/<code>51xx</code> against the containers' <code>80xx</code>, so
@@ -7652,7 +7726,7 @@ sent to the browser.</p>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/log-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
 </code></pre></div>
 <p>Open <a href="http://localhost:8191">http://localhost:8191</a>.</p>
-<p><strong><code>ZMQ=1</code> is required here, unlike every other app.</strong> The log bridge subscribes
+<p><strong><code>ZMQ=1</code> is required here, as for dash-gui.</strong> The log bridge subscribes
 to <code>pm-log-srv</code>'s LALF-PS sockets on 5601/5602, and those are ZeroMQ sockets
 published only by the ZMQ overlay. Without it you get the history views —
 which read <code>log.db</code> directly — and no live stream. <code>dev-env</code> checks for this
@@ -7687,6 +7761,24 @@ no exchange. That is also why it is opt-in (<code>CONFIG_GUI=1</code>) in the co
 stack.</p>
 <p>Its dev server needs the Python side available on your <code>PATH</code> — <code>npm run
 verify:python</code> checks that.</p>
+<h3 id="dash-gui">dash-gui<a class="headerlink" href="#dash-gui" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w"> </span><span class="nv">ZMQ</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>make<span class="w"> </span>-s<span class="w"> </span>dev-env<span class="w"> </span><span class="nv">GUI</span><span class="o">=</span>dash-gui<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nb">cd</span><span class="w"> </span>../../web-apps/dash-gui<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>dev
+</code></pre></div>
+<p>Open <a href="http://localhost:8195">http://localhost:8195</a>.</p>
+<p><strong><code>ZMQ=1</code> is required</strong>, as for log-gui: the bridge subscribes to
+<code>pm-monitor</code>'s snapshot feed on 5611, which only the ZMQ overlay publishes on
+the host. Without it you get the history, read from <code>metrics.db</code>, but no live
+figures, and the banner says pm-monitor is down. <code>dev-env</code> checks for this and
+says so.</p>
+<p><code>dev-env</code> exports <code>METRICS_DB_PATH</code> and <code>CONFIG_ARTIFACT_PATH</code> (the stack's
+<code>data/metrics.db</code> and <code>data/ref_data/engine_config.json</code>, both opened
+read-only), <code>MONITOR_HOST</code>, and the log-gui and book-gui addresses for the
+drawers' links. <code>make test-e2e</code> at the repository root runs the built page in
+headless Chrome against a real exchange — see
+<a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>
+for what each part shows.</p>
 <h2 id="part-4-choosing-a-loop">Part 4 — Choosing a loop<a class="headerlink" href="#part-4-choosing-a-loop" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

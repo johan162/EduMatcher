@@ -3510,6 +3510,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7928,6 +7984,10 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 </tr>
 </tbody>
 </table>
+<p><code>SLOW_CLIENT</code> and the idle timeout end the connection even for a client that
+has stopped reading: the gateway tries to deliver the final line, then closes
+the connection after at most 5 seconds. On idle timeout the final line is
+<code>EXIT|REASON=idle_timeout</code>.</p>
 <h2 id="minimal-zero-dependency-client-python">Minimal zero-dependency client (Python)<a class="headerlink" href="#minimal-zero-dependency-client-python" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>

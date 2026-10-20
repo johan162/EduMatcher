@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3945,6 +4001,17 @@
     <span class="md-ellipsis">
       
         6.7 log_server — pm-log-srv (centralized LALF log collector) — LogSrvProcSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#68-monitor-pm-monitor-and-every-beaconing-process-monitorspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.8 monitor — pm-monitor and every beaconing process — MonitorSpec
       
     </span>
   </a>
@@ -7958,167 +8025,198 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>api_gateways:               ? Map&lt;Str, ApiGwyProcSpec&gt;   # pm-api-gwy (named instances)
 <a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>SymbolSpec:
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>  level:                    ? Str          ∈ key of risk_controls.levels
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  last_buy_price:           ? Price
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  last_sell_price:          ? Price
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  collar:                   ? CollarSpec
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>LocaleSpec:                                  # top-level locale
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>  country:                  ? Country = "Sweden"         # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  session_timezone:         ? Str = "Europe/Stockholm"   ∈ IANA timezone name
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>ParticipantSpec:                             # one entry of participants
-<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>  id:                       ! GatewayId
-<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  description:              ? Str = ""
-<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
-<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = &lt;participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY&gt;
-<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
-<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
-<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 20&gt;
-<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
-<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
-<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = &lt;participant_defaults.smp_action | NONE&gt;
-<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>
-<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>ParticipantDefaultsSpec:                     # top-level participant_defaults
-<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt;
-<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>  smp_action:              ? Enum&lt;SmpAction&gt;
-<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>
-<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a># ── PROCESS SPECS (field law in §6) ─────────────────────────────────────────
-<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a># bind_address / host: the EDUMATCHER_GATEWAY_BIND_HOST environment variable,
-<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a># when set, overrides both the YAML value and the "0.0.0.0" default (§6).
-<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>
-<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
-<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>  name:                         ? Str = "alf-gwy01"
-<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>  port:                         ? Port = 5565                 ∈ 1..65535
-<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
-<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>  handshake_timeout_sec:        ? Int = 10                    ∈ &gt; 0
-<a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>  idle_timeout_sec:             ? Int = 30                    ∈ &gt; 0
-<a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a>  max_connections:              ? Int = 1024                  ∈ &gt; 0
-<a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>  max_commands_per_second:      ? Int = 100                   ∈ &gt; 0
-<a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>  max_errors_before_disconnect: ? Int = 50                    ∈ &gt; 0
-<a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>  error_window_sec:             ? Int = 60                    ∈ &gt; 0
-<a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a>
-<a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>BalfGwyProcSpec:                             # balf_gateway       (pm-balf-gwy)
-<a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>  name:                         ? Str = "balf-gwy01"
-<a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>  port:                         ? Port = 5560                 ∈ 1..65535
-<a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a>  heartbeat_interval_sec:       ? Secs = 1.0
-<a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a>  heartbeat_timeout_sec:        ? Secs = 5.0
-<a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a>  idle_timeout_sec:             ? Secs = 30.0
-<a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a>  auth_timeout_sec:             ? Secs = 10.0
-<a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
-<a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>  max_messages_per_second:      ? Int = 100                   ∈ &gt; 0
-<a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>  max_errors_before_disconnect: ? Int = 10                    ∈ &gt; 0
-<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>  error_window_sec:             ? Secs = 60.0
-<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>  duplicate_session_policy:     ? Enum&lt;DuplicateSessionPolicy&gt; = REJECT_NEW
-<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>
-<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a>MdGwyProcSpec:                               # market_data_gateway (pm-md-gwy, CALF)
-<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>  name:                         ? Str = "md-gwy01"
-<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>  port:                         ? Port = 5570                 ∈ 1..65535
-<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
-<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
-<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a>  replay_window_sec:            ? Int = 30                    ∈ &gt; 0
-<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
-<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>  max_messages_per_second:      ? Int = 200                   ∈ &gt; 0
-<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>  max_symbols_per_client:       ? Int = 200                   ∈ &gt; 0
-<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>  depth_levels:                 ? Int = 10                    ∈ &gt; 0
-<a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>
-<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, RALF); no `enabled`
-<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a>  name:                         ? Str = "ralf-gwy01"
-<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>  port:                         ? Port = 5580                 ∈ 1..65535
-<a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>  replay_retention_sec:         ? Int = 86400                 ∈ &gt; 0
-<a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
-<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
-<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-115" name="__codelineno-0-115" href="#__codelineno-0-115"></a>  allowed_roles:                ? List&lt;Str&gt; = [CLEARING, DROP_COPY, AUDIT]
-<a id="__codelineno-0-116" name="__codelineno-0-116" href="#__codelineno-0-116"></a>
-<a id="__codelineno-0-117" name="__codelineno-0-117" href="#__codelineno-0-117"></a>DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); no `enabled`
-<a id="__codelineno-0-118" name="__codelineno-0-118" href="#__codelineno-0-118"></a>  name:                         ? Str = "dc-gwy01"
-<a id="__codelineno-0-119" name="__codelineno-0-119" href="#__codelineno-0-119"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-120" name="__codelineno-0-120" href="#__codelineno-0-120"></a>  port:                         ? Port = 5590                 ∈ 1..65535
-<a id="__codelineno-0-121" name="__codelineno-0-121" href="#__codelineno-0-121"></a>  heartbeat_interval_sec:       ? Secs = 5
-<a id="__codelineno-0-122" name="__codelineno-0-122" href="#__codelineno-0-122"></a>  idle_timeout_sec:             ? Secs = 30
-<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>
-<a id="__codelineno-0-125" name="__codelineno-0-125" href="#__codelineno-0-125"></a>ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
-<a id="__codelineno-0-126" name="__codelineno-0-126" href="#__codelineno-0-126"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-127" name="__codelineno-0-127" href="#__codelineno-0-127"></a>  host:                         ? Str = "0.0.0.0"
-<a id="__codelineno-0-128" name="__codelineno-0-128" href="#__codelineno-0-128"></a>  port:                         ? Port = 8080
-<a id="__codelineno-0-129" name="__codelineno-0-129" href="#__codelineno-0-129"></a>  log_level:                    ? Str = "info"
-<a id="__codelineno-0-130" name="__codelineno-0-130" href="#__codelineno-0-130"></a>  swagger_enabled:              ? Bool = true
-<a id="__codelineno-0-131" name="__codelineno-0-131" href="#__codelineno-0-131"></a>  stats_db:                     ? Path = &lt;data dir&gt;/stats.db
-<a id="__codelineno-0-132" name="__codelineno-0-132" href="#__codelineno-0-132"></a>  audit_db:                     ? Path = &lt;data dir&gt;/audit_index.db
-<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>  clearing_db:                  ? Path = &lt;data dir&gt;/clearing.db
-<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>  order_retention_sec:          ? Int = 3600                  ∈ &gt;= 0
-<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>  market_data_cache_sec:        ? Int = 60                    ∈ &gt;= 0
-<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>  engine_pull_addr:             ? Str = tcp://&lt;engine host&gt;:5555
-<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>  engine_pub_addr:              ? Str = tcp://&lt;engine host&gt;:5556
-<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>  index_pull_addr:              ? Str = tcp://&lt;index bind host&gt;:5559
-<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>  index_pub_addr:               ? Str = tcp://&lt;index bind host&gt;:5558
-<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>  credentials:                  ? List&lt;ApiCredentialSpec&gt; = []
-<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>  rate_limit:                   ? RateLimitSpec
-<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>  timeouts:                     ? TimeoutSpec
-<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>
-<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>ApiCredentialSpec:
-<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>  api_key:                      ! Str                         # non-empty, unique within the instance
-<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>  gateway_id:                   ? GatewayId | null = null     # null = read-only key
-<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>  description:                  ? Str = ""
-<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>
-<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>RateLimitSpec:
-<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>  writes_per_second:            ? Int = 10                    ∈ &gt; 0
-<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a>  burst:                        ? Int = 20                    ∈ &gt; 0
-<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>
-<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>TimeoutSpec:
-<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>  engine_auth_sec:              ? Secs = 3.0
-<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>  engine_reply_sec:             ? Secs = 3.0
-<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>  wait_ack_sec:                 ? Secs = 3.0
-<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>
-<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
-<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>  enabled:                      ? Bool = true
-<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>  name:                         ? Str = "log-srv01"
-<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>  bind_address:                 ? Str = "0.0.0.0"
-<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>  port:                         ? Port = 5600
-<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>  db_path:                      ? Path = &lt;data dir&gt;/log.db
-<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>  retention_days:               ? Int | null = 30            ∈ &gt;= 0; 0 ≡ null ≡ unbounded
-<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>  max_message_bytes:            ? Int = 65536                 ∈ &gt; 0
-<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>  write_batch_size:             ? Int = 50                    ∈ &gt; 0
-<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>  write_batch_interval_ms:      ? Int = 100                   ∈ &gt; 0
-<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
-<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>  pubsub_enabled:               ? Bool = true
-<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
-<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>  pull_port:                    ? Port = 5602
-<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>  lease_sec:                    ? Int = 30                    ∈ &gt; 0
-<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a>  max_lease_sec:                ? Int = 300                   ∈ &gt;= lease_sec
-<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>  max_subscribers:              ? Int = 32                    ∈ &gt; 0
-<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>  notify_interval_ms:           ? Int = 250                   ∈ &gt; 0
-<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  backfill_chunk_rows:          ? Int = 500                   ∈ &gt; 0
-<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>  max_backfill_minutes:         ? Int = 1440                  ∈ &gt; 0
-<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>  max_backfill_rows:            ? Int = 100000                ∈ &gt; 0
-<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>  max_pending_rows:             ? Int = 20000                 ∈ &gt; 0
-<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  pub_sndhwm:                   ? Int = 10000                 ∈ &gt; 0
-<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>  client:                       ? LogClientSpec
-<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>
-<a id="__codelineno-0-184" name="__codelineno-0-184" href="#__codelineno-0-184"></a>LogClientSpec:                               # log_server.client; read by every pm-* process
-<a id="__codelineno-0-185" name="__codelineno-0-185" href="#__codelineno-0-185"></a>  connect_timeout_sec:          ? Secs = 0.5
-<a id="__codelineno-0-186" name="__codelineno-0-186" href="#__codelineno-0-186"></a>  failover_timeout_sec:         ? Float = 30.0                ∈ &gt;= 0
-<a id="__codelineno-0-187" name="__codelineno-0-187" href="#__codelineno-0-187"></a>  failover_dir:                 ? Path = &lt;data dir&gt;/logs
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>monitor:                    ? MonitorSpec           # pm-monitor + every beaconing process (health)
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>SymbolSpec:
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>  level:                    ? Str          ∈ key of risk_controls.levels
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>  tick_decimals:            ? Int = 2      ∈ 0..8
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>  outstanding_shares:       ? Int          ∈ &gt; 0        # REQUIRED for index constituents
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  last_buy_price:           ? Price
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>  last_sell_price:          ? Price
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>  market_maker_quotes:      ? List&lt;MMQuoteSeedSpec&gt;
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>  collar:                   ? CollarSpec
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>  order_limits:             ? OrderLimitsSpec            # per-symbol override
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>  circuit_breaker:          ? CircuitBreakerSpec         # per-symbol override
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>LocaleSpec:                                  # top-level locale
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>  country:                  ? Country = "Sweden"         # read by pm-scheduler for holiday gating; pm-engine reads it only for an outbound wire field
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>  session_timezone:         ? Str = "Europe/Stockholm"   ∈ IANA timezone name
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>ParticipantSpec:                             # one entry of participants
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>  id:                       ! GatewayId
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>  description:              ? Str = ""
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>  role:                    ? Enum&lt;Role&gt; = TRADER
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt; = &lt;participant_defaults.disconnect_behaviour | CANCEL_QUOTES_ONLY&gt;
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>  quote_refresh_policy:    ? Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>  enforce_mm_obligation:   ? Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>  mm_max_spread_ticks:     ? Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 20&gt;
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>  mm_min_qty:              ? Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>  mm_obligations:          ? Map&lt;Symbol, MMObligationSpec&gt;
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>  smp_action:              ? Enum&lt;SmpAction&gt; = &lt;participant_defaults.smp_action | NONE&gt;
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>ParticipantDefaultsSpec:                     # top-level participant_defaults
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>  disconnect_behaviour:    ? Enum&lt;DisconnectBehaviour&gt;
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>  smp_action:              ? Enum&lt;SmpAction&gt;
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a># ── PROCESS SPECS (field law in §6) ─────────────────────────────────────────
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a># bind_address / host: the EDUMATCHER_GATEWAY_BIND_HOST environment variable,
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a># when set, overrides both the YAML value and the "0.0.0.0" default (§6).
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a>AlfGwyProcSpec:                              # alf_gateway        (pm-alf-gwy)
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>  name:                         ? Str = "alf-gwy01"
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>  port:                         ? Port = 5565                 ∈ 1..65535
+<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>  handshake_timeout_sec:        ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a>  idle_timeout_sec:             ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>  max_connections:              ? Int = 1024                  ∈ &gt; 0
+<a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>  max_commands_per_second:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>  max_errors_before_disconnect: ? Int = 50                    ∈ &gt; 0
+<a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a>  error_window_sec:             ? Int = 60                    ∈ &gt; 0
+<a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>
+<a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>BalfGwyProcSpec:                             # balf_gateway       (pm-balf-gwy)
+<a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>  name:                         ? Str = "balf-gwy01"
+<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a>  port:                         ? Port = 5560                 ∈ 1..65535
+<a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a>  heartbeat_interval_sec:       ? Secs = 1.0
+<a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a>  heartbeat_timeout_sec:        ? Secs = 5.0
+<a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a>  idle_timeout_sec:             ? Secs = 30.0
+<a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a>  auth_timeout_sec:             ? Secs = 10.0
+<a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
+<a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>  max_messages_per_second:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>  max_errors_before_disconnect: ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>  error_window_sec:             ? Secs = 60.0
+<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>  duplicate_session_policy:     ? Enum&lt;DuplicateSessionPolicy&gt; = REJECT_NEW
+<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a>
+<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>MdGwyProcSpec:                               # market_data_gateway (pm-md-gwy, CALF)
+<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>  name:                         ? Str = "md-gwy01"
+<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>  port:                         ? Port = 5570                 ∈ 1..65535
+<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
+<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>  replay_window_sec:            ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>  max_connections:              ? Int = 64                    ∈ &gt; 0
+<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>  max_messages_per_second:      ? Int = 200                   ∈ &gt; 0
+<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>  max_symbols_per_client:       ? Int = 200                   ∈ &gt; 0
+<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>  depth_levels:                 ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>
+<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a>RalfGwyProcSpec:                             # post_trade_gateway (pm-ralf-gwy, RALF); no `enabled`
+<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>  name:                         ? Str = "ralf-gwy01"
+<a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>  port:                         ? Port = 5580                 ∈ 1..65535
+<a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>  replay_retention_sec:         ? Int = 86400                 ∈ &gt; 0
+<a id="__codelineno-0-113" name="__codelineno-0-113" href="#__codelineno-0-113"></a>  heartbeat_interval_sec:       ? Int = 1                     ∈ &gt; 0
+<a id="__codelineno-0-114" name="__codelineno-0-114" href="#__codelineno-0-114"></a>  idle_timeout_sec:             ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-115" name="__codelineno-0-115" href="#__codelineno-0-115"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-116" name="__codelineno-0-116" href="#__codelineno-0-116"></a>  allowed_roles:                ? List&lt;Str&gt; = [CLEARING, DROP_COPY, AUDIT]
+<a id="__codelineno-0-117" name="__codelineno-0-117" href="#__codelineno-0-117"></a>
+<a id="__codelineno-0-118" name="__codelineno-0-118" href="#__codelineno-0-118"></a>DcGwyProcSpec:                               # dc_gateway         (pm-dc-gwy); no `enabled`
+<a id="__codelineno-0-119" name="__codelineno-0-119" href="#__codelineno-0-119"></a>  name:                         ? Str = "dc-gwy01"
+<a id="__codelineno-0-120" name="__codelineno-0-120" href="#__codelineno-0-120"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-121" name="__codelineno-0-121" href="#__codelineno-0-121"></a>  port:                         ? Port = 5590                 ∈ 1..65535
+<a id="__codelineno-0-122" name="__codelineno-0-122" href="#__codelineno-0-122"></a>  heartbeat_interval_sec:       ? Secs = 5
+<a id="__codelineno-0-123" name="__codelineno-0-123" href="#__codelineno-0-123"></a>  idle_timeout_sec:             ? Secs = 30
+<a id="__codelineno-0-124" name="__codelineno-0-124" href="#__codelineno-0-124"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-125" name="__codelineno-0-125" href="#__codelineno-0-125"></a>
+<a id="__codelineno-0-126" name="__codelineno-0-126" href="#__codelineno-0-126"></a>ApiGwyProcSpec:                              # one value of api_gateways (pm-api-gwy)
+<a id="__codelineno-0-127" name="__codelineno-0-127" href="#__codelineno-0-127"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-128" name="__codelineno-0-128" href="#__codelineno-0-128"></a>  host:                         ? Str = "0.0.0.0"
+<a id="__codelineno-0-129" name="__codelineno-0-129" href="#__codelineno-0-129"></a>  port:                         ? Port = 8080
+<a id="__codelineno-0-130" name="__codelineno-0-130" href="#__codelineno-0-130"></a>  log_level:                    ? Str = "info"
+<a id="__codelineno-0-131" name="__codelineno-0-131" href="#__codelineno-0-131"></a>  swagger_enabled:              ? Bool = true
+<a id="__codelineno-0-132" name="__codelineno-0-132" href="#__codelineno-0-132"></a>  stats_db:                     ? Path = &lt;data dir&gt;/stats.db
+<a id="__codelineno-0-133" name="__codelineno-0-133" href="#__codelineno-0-133"></a>  audit_db:                     ? Path = &lt;data dir&gt;/audit_index.db
+<a id="__codelineno-0-134" name="__codelineno-0-134" href="#__codelineno-0-134"></a>  clearing_db:                  ? Path = &lt;data dir&gt;/clearing.db
+<a id="__codelineno-0-135" name="__codelineno-0-135" href="#__codelineno-0-135"></a>  order_retention_sec:          ? Int = 3600                  ∈ &gt;= 0
+<a id="__codelineno-0-136" name="__codelineno-0-136" href="#__codelineno-0-136"></a>  market_data_cache_sec:        ? Int = 60                    ∈ &gt;= 0
+<a id="__codelineno-0-137" name="__codelineno-0-137" href="#__codelineno-0-137"></a>  engine_pull_addr:             ? Str = tcp://&lt;engine host&gt;:5555
+<a id="__codelineno-0-138" name="__codelineno-0-138" href="#__codelineno-0-138"></a>  engine_pub_addr:              ? Str = tcp://&lt;engine host&gt;:5556
+<a id="__codelineno-0-139" name="__codelineno-0-139" href="#__codelineno-0-139"></a>  index_pull_addr:              ? Str = tcp://&lt;index bind host&gt;:5559
+<a id="__codelineno-0-140" name="__codelineno-0-140" href="#__codelineno-0-140"></a>  index_pub_addr:               ? Str = tcp://&lt;index bind host&gt;:5558
+<a id="__codelineno-0-141" name="__codelineno-0-141" href="#__codelineno-0-141"></a>  credentials:                  ? List&lt;ApiCredentialSpec&gt; = []
+<a id="__codelineno-0-142" name="__codelineno-0-142" href="#__codelineno-0-142"></a>  rate_limit:                   ? RateLimitSpec
+<a id="__codelineno-0-143" name="__codelineno-0-143" href="#__codelineno-0-143"></a>  timeouts:                     ? TimeoutSpec
+<a id="__codelineno-0-144" name="__codelineno-0-144" href="#__codelineno-0-144"></a>
+<a id="__codelineno-0-145" name="__codelineno-0-145" href="#__codelineno-0-145"></a>ApiCredentialSpec:
+<a id="__codelineno-0-146" name="__codelineno-0-146" href="#__codelineno-0-146"></a>  api_key:                      ! Str                         # non-empty, unique within the instance
+<a id="__codelineno-0-147" name="__codelineno-0-147" href="#__codelineno-0-147"></a>  gateway_id:                   ? GatewayId | null = null     # null = read-only key
+<a id="__codelineno-0-148" name="__codelineno-0-148" href="#__codelineno-0-148"></a>  description:                  ? Str = ""
+<a id="__codelineno-0-149" name="__codelineno-0-149" href="#__codelineno-0-149"></a>
+<a id="__codelineno-0-150" name="__codelineno-0-150" href="#__codelineno-0-150"></a>RateLimitSpec:
+<a id="__codelineno-0-151" name="__codelineno-0-151" href="#__codelineno-0-151"></a>  writes_per_second:            ? Int = 10                    ∈ &gt; 0
+<a id="__codelineno-0-152" name="__codelineno-0-152" href="#__codelineno-0-152"></a>  burst:                        ? Int = 20                    ∈ &gt; 0
+<a id="__codelineno-0-153" name="__codelineno-0-153" href="#__codelineno-0-153"></a>
+<a id="__codelineno-0-154" name="__codelineno-0-154" href="#__codelineno-0-154"></a>TimeoutSpec:
+<a id="__codelineno-0-155" name="__codelineno-0-155" href="#__codelineno-0-155"></a>  engine_auth_sec:              ? Secs = 3.0
+<a id="__codelineno-0-156" name="__codelineno-0-156" href="#__codelineno-0-156"></a>  engine_reply_sec:             ? Secs = 3.0
+<a id="__codelineno-0-157" name="__codelineno-0-157" href="#__codelineno-0-157"></a>  wait_ack_sec:                 ? Secs = 3.0
+<a id="__codelineno-0-158" name="__codelineno-0-158" href="#__codelineno-0-158"></a>
+<a id="__codelineno-0-159" name="__codelineno-0-159" href="#__codelineno-0-159"></a>LogSrvProcSpec:                              # log_server         (pm-log-srv, LALF / LALF-PS)
+<a id="__codelineno-0-160" name="__codelineno-0-160" href="#__codelineno-0-160"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-161" name="__codelineno-0-161" href="#__codelineno-0-161"></a>  name:                         ? Str = "log-srv01"
+<a id="__codelineno-0-162" name="__codelineno-0-162" href="#__codelineno-0-162"></a>  bind_address:                 ? Str = "0.0.0.0"
+<a id="__codelineno-0-163" name="__codelineno-0-163" href="#__codelineno-0-163"></a>  port:                         ? Port = 5600
+<a id="__codelineno-0-164" name="__codelineno-0-164" href="#__codelineno-0-164"></a>  db_path:                      ? Path = &lt;data dir&gt;/log.db
+<a id="__codelineno-0-165" name="__codelineno-0-165" href="#__codelineno-0-165"></a>  retention_days:               ? Int | null = 30            ∈ &gt;= 0; 0 ≡ null ≡ unbounded
+<a id="__codelineno-0-166" name="__codelineno-0-166" href="#__codelineno-0-166"></a>  max_message_bytes:            ? Int = 65536                 ∈ &gt; 0
+<a id="__codelineno-0-167" name="__codelineno-0-167" href="#__codelineno-0-167"></a>  max_client_queue:             ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-168" name="__codelineno-0-168" href="#__codelineno-0-168"></a>  write_batch_size:             ? Int = 50                    ∈ &gt; 0
+<a id="__codelineno-0-169" name="__codelineno-0-169" href="#__codelineno-0-169"></a>  write_batch_interval_ms:      ? Int = 100                   ∈ &gt; 0
+<a id="__codelineno-0-170" name="__codelineno-0-170" href="#__codelineno-0-170"></a>  heartbeat_interval_sec:       ? Int = 5                     ∈ &gt; 0
+<a id="__codelineno-0-171" name="__codelineno-0-171" href="#__codelineno-0-171"></a>  pubsub_enabled:               ? Bool = true
+<a id="__codelineno-0-172" name="__codelineno-0-172" href="#__codelineno-0-172"></a>  pub_port:                     ? Port = 5601                 # port, pub_port, pull_port pairwise distinct
+<a id="__codelineno-0-173" name="__codelineno-0-173" href="#__codelineno-0-173"></a>  pull_port:                    ? Port = 5602
+<a id="__codelineno-0-174" name="__codelineno-0-174" href="#__codelineno-0-174"></a>  lease_sec:                    ? Int = 30                    ∈ &gt; 0
+<a id="__codelineno-0-175" name="__codelineno-0-175" href="#__codelineno-0-175"></a>  max_lease_sec:                ? Int = 300                   ∈ &gt;= lease_sec
+<a id="__codelineno-0-176" name="__codelineno-0-176" href="#__codelineno-0-176"></a>  max_subscribers:              ? Int = 32                    ∈ &gt; 0
+<a id="__codelineno-0-177" name="__codelineno-0-177" href="#__codelineno-0-177"></a>  notify_interval_ms:           ? Int = 250                   ∈ &gt; 0
+<a id="__codelineno-0-178" name="__codelineno-0-178" href="#__codelineno-0-178"></a>  backfill_chunk_rows:          ? Int = 500                   ∈ &gt; 0
+<a id="__codelineno-0-179" name="__codelineno-0-179" href="#__codelineno-0-179"></a>  max_backfill_minutes:         ? Int = 1440                  ∈ &gt; 0
+<a id="__codelineno-0-180" name="__codelineno-0-180" href="#__codelineno-0-180"></a>  max_backfill_rows:            ? Int = 100000                ∈ &gt; 0
+<a id="__codelineno-0-181" name="__codelineno-0-181" href="#__codelineno-0-181"></a>  max_pending_rows:             ? Int = 20000                 ∈ &gt; 0
+<a id="__codelineno-0-182" name="__codelineno-0-182" href="#__codelineno-0-182"></a>  pub_sndhwm:                   ? Int = 10000                 ∈ &gt; 0
+<a id="__codelineno-0-183" name="__codelineno-0-183" href="#__codelineno-0-183"></a>  client:                       ? LogClientSpec
+<a id="__codelineno-0-184" name="__codelineno-0-184" href="#__codelineno-0-184"></a>
+<a id="__codelineno-0-185" name="__codelineno-0-185" href="#__codelineno-0-185"></a>LogClientSpec:                               # log_server.client; read by every pm-* process
+<a id="__codelineno-0-186" name="__codelineno-0-186" href="#__codelineno-0-186"></a>  connect_timeout_sec:          ? Secs = 0.5
+<a id="__codelineno-0-187" name="__codelineno-0-187" href="#__codelineno-0-187"></a>  failover_timeout_sec:         ? Float = 30.0                ∈ &gt;= 0
+<a id="__codelineno-0-188" name="__codelineno-0-188" href="#__codelineno-0-188"></a>  failover_dir:                 ? Path = &lt;data dir&gt;/logs
+<a id="__codelineno-0-189" name="__codelineno-0-189" href="#__codelineno-0-189"></a>
+<a id="__codelineno-0-190" name="__codelineno-0-190" href="#__codelineno-0-190"></a>MonitorSpec:                                 # monitor (pm-monitor; enabled/host/pull_port/beacon_interval_sec by every process)
+<a id="__codelineno-0-191" name="__codelineno-0-191" href="#__codelineno-0-191"></a>  enabled:                      ? Bool = true
+<a id="__codelineno-0-192" name="__codelineno-0-192" href="#__codelineno-0-192"></a>  bind_address:                 ? Str = "127.0.0.1"           # non-empty
+<a id="__codelineno-0-193" name="__codelineno-0-193" href="#__codelineno-0-193"></a>  host:                         ? Str = "127.0.0.1"           # non-empty
+<a id="__codelineno-0-194" name="__codelineno-0-194" href="#__codelineno-0-194"></a>  pull_port:                    ? Port = 5610                 # pull_port ≠ pub_port
+<a id="__codelineno-0-195" name="__codelineno-0-195" href="#__codelineno-0-195"></a>  pub_port:                     ? Port = 5611
+<a id="__codelineno-0-196" name="__codelineno-0-196" href="#__codelineno-0-196"></a>  beacon_interval_sec:          ? Float = 2.0                 ∈ &gt; 0
+<a id="__codelineno-0-197" name="__codelineno-0-197" href="#__codelineno-0-197"></a>  hung_after_sec:               ? Float = 5.0                 ∈ &gt; beacon_interval_sec
+<a id="__codelineno-0-198" name="__codelineno-0-198" href="#__codelineno-0-198"></a>  silent_after_beacons:         ? Int = 3                     ∈ &gt; 0
+<a id="__codelineno-0-199" name="__codelineno-0-199" href="#__codelineno-0-199"></a>  book_metrics_interval_sec:    ? Float = 10.0                ∈ &gt; 0
+<a id="__codelineno-0-200" name="__codelineno-0-200" href="#__codelineno-0-200"></a>  retention:                    ? MonitorRetentionSpec
+<a id="__codelineno-0-201" name="__codelineno-0-201" href="#__codelineno-0-201"></a>  thresholds:                   ? MonitorThresholdsSpec
+<a id="__codelineno-0-202" name="__codelineno-0-202" href="#__codelineno-0-202"></a>
+<a id="__codelineno-0-203" name="__codelineno-0-203" href="#__codelineno-0-203"></a>MonitorRetentionSpec:                        # monitor.retention
+<a id="__codelineno-0-204" name="__codelineno-0-204" href="#__codelineno-0-204"></a>  raw_hours:                    ? Int = 6                     ∈ &gt; 0
+<a id="__codelineno-0-205" name="__codelineno-0-205" href="#__codelineno-0-205"></a>  minute_days:                  ? Int = 7                     ∈ &gt; 0
+<a id="__codelineno-0-206" name="__codelineno-0-206" href="#__codelineno-0-206"></a>
+<a id="__codelineno-0-207" name="__codelineno-0-207" href="#__codelineno-0-207"></a>MonitorThresholdsSpec:                       # monitor.thresholds; each ? ThresholdBandSpec
+<a id="__codelineno-0-208" name="__codelineno-0-208" href="#__codelineno-0-208"></a>  host_cpu_pct:                 ? ThresholdBandSpec = {warn: 80,   crit: 95}
+<a id="__codelineno-0-209" name="__codelineno-0-209" href="#__codelineno-0-209"></a>  host_mem_pct:                 ? ThresholdBandSpec = {warn: 80,   crit: 92}
+<a id="__codelineno-0-210" name="__codelineno-0-210" href="#__codelineno-0-210"></a>  disk_free_pct:                ? ThresholdBandSpec = {warn: 15,   crit: 5}      # inverted: warn &gt; crit
+<a id="__codelineno-0-211" name="__codelineno-0-211" href="#__codelineno-0-211"></a>  engine_handle_p99_us:         ? ThresholdBandSpec = {warn: 2000, crit: 10000}
+<a id="__codelineno-0-212" name="__codelineno-0-212" href="#__codelineno-0-212"></a>  reject_pct_5m:                ? ThresholdBandSpec = {warn: 10,   crit: 30}
+<a id="__codelineno-0-213" name="__codelineno-0-213" href="#__codelineno-0-213"></a>  rss_growth_pct_1h:            ? ThresholdBandSpec = {warn: 50,   crit: 100}
+<a id="__codelineno-0-214" name="__codelineno-0-214" href="#__codelineno-0-214"></a>  heap_garbage_pct:             ? ThresholdBandSpec = {warn: 50,   crit: 80}
+<a id="__codelineno-0-215" name="__codelineno-0-215" href="#__codelineno-0-215"></a>
+<a id="__codelineno-0-216" name="__codelineno-0-216" href="#__codelineno-0-216"></a>ThresholdBandSpec:
+<a id="__codelineno-0-217" name="__codelineno-0-217" href="#__codelineno-0-217"></a>  warn:                         ! Float                       ∈ &gt;= 0
+<a id="__codelineno-0-218" name="__codelineno-0-218" href="#__codelineno-0-218"></a>  crit:                         ! Float                       ∈ &gt;= 0; warn &lt; crit (disk_free_pct: warn &gt; crit)
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -9898,6 +9996,115 @@ read by other processes. See <a href="../../../operator-guide/part-2-configure/0
 for worked examples and <a href="../../../operator-guide/part-6-observe-and-recover/040-log-server/">Centralized Log Server</a> for the operational
 guide; the wire protocol it serves is normatively specified in the
 <a href="../../../protocols-and-clients/part-2-specifications/050-lalf/">LALF Protocol Reference</a>.</p>
+<h3 id="68-monitor-pm-monitor-and-every-beaconing-process-monitorspec">6.8 <code>monitor</code> — <code>pm-monitor</code> and every beaconing process — <code>MonitorSpec</code><a class="headerlink" href="#68-monitor-pm-monitor-and-every-beaconing-process-monitorspec" title="Permanent link">&para;</a></h3>
+<p>Unlike the blocks above, <code>monitor</code> is read by every long-running process
+(<code>enabled</code>, <code>host</code>, <code>pull_port</code> and <code>beacon_interval_sec</code> say whether, where
+and how often to send a health beacon) as well as by <code>pm-monitor</code>, which reads
+all of it. Its <code>bind_address</code> defaults to <code>"127.0.0.1"</code>, not <code>"0.0.0.0"</code>;
+<code>EDUMATCHER_GATEWAY_BIND_HOST</code> overrides it as for the other blocks, applied
+where <code>pm-monitor</code> runs (the stored value is the authored one). An absent
+block means every default below.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>Bool</code></td>
+<td style="text-align: center;">–</td>
+<td><code>true</code></td>
+<td>when <code>false</code> no process sends beacons and <code>pm-monitor</code> idles until stopped</td>
+</tr>
+<tr>
+<td><code>bind_address</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"127.0.0.1"</code></td>
+<td>non-empty; interface <code>pm-monitor</code> binds</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"127.0.0.1"</code></td>
+<td>non-empty; where every process sends its beacons and clients connect</td>
+</tr>
+<tr>
+<td><code>pull_port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5610</code></td>
+<td>ZeroMQ <code>PULL</code>, beacons in; MUST differ from <code>pub_port</code> and every other listener</td>
+</tr>
+<tr>
+<td><code>pub_port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5611</code></td>
+<td>ZeroMQ <code>PUB</code>, <code>health.snapshot</code> and <code>health.event</code> out</td>
+</tr>
+<tr>
+<td><code>beacon_interval_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>2.0</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>hung_after_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5.0</code></td>
+<td><code>&gt; beacon_interval_sec</code></td>
+</tr>
+<tr>
+<td><code>silent_after_beacons</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>3</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>book_metrics_interval_sec</code></td>
+<td><code>Float</code></td>
+<td style="text-align: center;">–</td>
+<td><code>10.0</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>retention.raw_hours</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>6</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>retention.minute_days</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>7</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>thresholds.&lt;rule&gt;</code></td>
+<td><code>ThresholdBandSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>see §3</td>
+<td>rule ∈ the seven of <code>MonitorThresholdsSpec</code>; <code>warn</code>/<code>crit</code> <code>&gt;= 0</code>, <code>warn &lt; crit</code> except <code>disk_free_pct</code> (<code>warn &gt; crit</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The semantics — how health is judged, what each threshold watches, what is
+stored — are in <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a>; the
+messages are <code>health.beacon</code>, <code>health.snapshot</code> and <code>health.event</code> in the
+<a href="../../../protocols-and-clients/part-5-message-reference/010-message-reference/">Message Reference</a>.</p>
 <hr />
 <h2 id="7-cross-field-and-semantic-constraints">7. Cross-field and semantic constraints<a class="headerlink" href="#7-cross-field-and-semantic-constraints" title="Permanent link">&para;</a></h2>
 <p>A conforming document MUST satisfy all of the following. Violations MUST be
@@ -9997,6 +10204,10 @@ rejected at load.</p>
 <tr>
 <td>CV22</td>
 <td><code>participant_defaults</code>, when present, is a mapping whose only keys are <code>smp_action</code> and <code>disconnect_behaviour</code>, each a valid member of its enumeration.</td>
+</tr>
+<tr>
+<td>CV23</td>
+<td>(<code>monitor</code>) Every <code>thresholds</code> band is ordered (<code>warn &lt; crit</code>, except <code>disk_free_pct</code> where <code>warn &gt; crit</code>); <code>hung_after_sec &gt; beacon_interval_sec</code>; <code>pull_port ≠ pub_port</code>, and neither collides with another listener (counted even when the block is absent). A <code>host</code> that cannot reach <code>bind_address</code> (neither equal, nor a wildcard bind, nor both loopback) is reported as a warning, not rejected, because <code>EDUMATCHER_GATEWAY_BIND_HOST</code> may change the bind at run time.</td>
 </tr>
 </tbody>
 </table>

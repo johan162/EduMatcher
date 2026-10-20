@@ -3615,6 +3615,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7865,7 +7921,7 @@ logs <code>refused PM_BOOK_API_KEY</code> and the top bar stays on <code>RECONNE
 Keep the port when you change the host.</p>
 </div>
 <p>If port 8094 is taken, move the <em>host</em> side of it. Pick something outside
-8090–8094, which the other applications use:</p>
+8090–8095, which the other applications use:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">BOOK_GUI_PORT</span><span class="o">=</span><span class="m">8100</span><span class="w"> </span>make<span class="w"> </span>up
 </code></pre></div>
 <h4 id="all-the-web-applications-against-one-backend">All the web applications against one backend<a class="headerlink" href="#all-the-web-applications-against-one-backend" title="Permanent link">&para;</a></h4>
@@ -8179,9 +8235,11 @@ source-checkout service looks like this:</p>
   for the other web applications.</li>
 </ul>
 <h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
-<p>📷 <strong>Figure 1 — The order book viewer.</strong> Capture a liquid symbol mid-session in
-dark theme, with several levels on both sides, a populated trade tape, and the
-footer visible. Suggested file: <code>images/book-gui/fig-01-book.png</code>.</p>
+<p><img alt="The order book viewer on MSFT, mid-session." src="../../../../assets/book-gui/book-viewer.png" /></p>
+<p><em>The top bar, the statistics header, the BIDS and ASKS ladders with depth
+bars scaled to the largest level on screen, the trade tape coloured by tick,
+and the footer: <code>upstream ACTIVE</code>, how many levels of each side are shown, and
+the age of the last book update.</em></p>
 <p>The page has four parts, top to bottom: the top bar, the statistics header, the
 three panels <strong>BIDS</strong>, <strong>ASKS</strong> and <strong>TRADES</strong>, and the footer.</p>
 <h3 id="top-bar">Top bar<a class="headerlink" href="#top-bar" title="Permanent link">&para;</a></h3>
@@ -8209,8 +8267,10 @@ viewed last in this browser, or the first listed symbol. A URL naming a symbol
 that is not listed shows <code>&lt;SYMBOL&gt; is not a listed symbol</code> instead of an empty
 book.</p>
 <h3 id="the-statistics-header">The statistics header<a class="headerlink" href="#the-statistics-header" title="Permanent link">&para;</a></h3>
-<p>📷 <strong>Figure 2 — The statistics header.</strong> Capture both rows with a positive change
-and the <code>prev-close</code> basis. Suggested file: <code>images/book-gui/fig-02-header.png</code>.</p>
+<p><img alt="The statistics header." src="../../../../assets/book-gui/book-header.png" /></p>
+<p><em>MSFT up 1.62%. This exchange has no previous close on record yet, so <code>Prev</code>
+is <code>n/a</code> and change is measured from the session open (<code>Basis session-open</code>).
+The green line under the header: the close is above that reference.</em></p>
 <p>Two rows, the same fields as <code>pm-viewer</code>'s header. The <strong>reference</strong> price that
 change and colour are measured against is the previous close when one is known,
 otherwise the session open.</p>

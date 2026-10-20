@@ -3549,6 +3549,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7667,7 +7723,8 @@ configuration, and points the terminal at the backend by service name.</p>
 </code></pre></div>
 <p>Then open <strong><a href="http://localhost:8090">http://localhost:8090</a></strong>. The log console comes up on
 <a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">8091</a>, the trading GUI on <a href="../020-trading-platform-gui/">8093</a> and
-the order book viewer on 8094 at the same time.</p>
+the order book viewer on 8094 and the
+<a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">operator dashboard</a> on 8095 at the same time.</p>
 <p>There are no addresses to configure because every container shares one
 Compose network, on which the exchange answers to the hostname <code>edumatcher</code>.
 The API key is the one part that cannot be a fixed default — it is generated
@@ -7711,7 +7768,7 @@ it, and the symptom is a live book with empty charts. The compose file
 already defaults to <code>:8081</code> — keep the port when you change the host.</p>
 </div>
 <p>If port 8090 is taken, move the <em>host</em> side of it. Pick something outside
-8090–8094, which the other applications use:</p>
+8090–8095, which the other applications use:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">TERMINAL_GUI_PORT</span><span class="o">=</span><span class="m">8100</span><span class="w"> </span>make<span class="w"> </span>up
 </code></pre></div>
 <p>The container serves the built React frontend, the WebSocket endpoint, and the
@@ -7913,10 +7970,13 @@ automatic look-up avoids this; a key you exported yourself, or one left
 in your shell by <code>make dev-env</code>, does not.</p>
 </div>
 <h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
-<p>📷 <strong>Figure 1 — The app shell.</strong> Capture the Overview screen in dark theme,
-showing the full shell: the top bar (app name and version, the seven view tabs,
-the density, theme and settings controls, the connection indicator) and the footer status strip.
-Suggested file: <code>images/terminal-gui/fig-01-app-shell.png</code>.</p>
+<p><img alt="The Market Overview: the top bar, the first page of the symbol grid and the status strip." src="../../../../assets/terminal-gui/terminal-overview.png" /></p>
+<p><em>Page 1 of 20 on a 300-symbol exchange, advancing every 8 seconds. AAPL and ADBE
+are starred into the watchlist (the toggle counts five pinned symbols), ADBE
+carries a <code>HALT</code> badge, and the status strip reports <code>2 symbols halted</code> and
+the age of the last tick beside the CALF state. Every <code>%CHG</code> has its <code>*</code>: this
+exchange has no previous close on record yet, so change is measured from
+today's open.</em></p>
 <h3 id="top-bar">Top bar<a class="headerlink" href="#top-bar" title="Permanent link">&para;</a></h3>
 <p>A single row (not a collapsible sidebar — seven destinations is small enough
 for one row, and a data-dense terminal wants its horizontal space for
@@ -7965,9 +8025,6 @@ exchange still reads "CALF connected" but its tick age keeps climbing.</p>
 <p>The default landing view: every tradable symbol, paginated, meant to run
 unattended on a classroom or lobby display just as well as be actively
 browsed.</p>
-<p>📷 <strong>Figure 2 — Market Overview.</strong> Capture a multi-page symbol list mid-session
-with a mix of up/down movers and at least one halted symbol, the Watchlist
-toggle visible. Suggested file: <code>images/terminal-gui/fig-02-overview.png</code>.</p>
 <p>Key behaviors:</p>
 <ul>
 <li><strong>Auto-paging.</strong> Rows are split into pages sized to fit the viewport
@@ -8011,12 +8068,13 @@ toggle visible. Suggested file: <code>images/terminal-gui/fig-02-overview.png</c
 <p>The deep-dive view for one instrument: a candlestick + midpoint chart, a
 values table, and an optional depth ladder. Large-screen only, by design —
 there is no responsive mobile layout.</p>
-<p>📷 <strong>Figure 3 — Symbol Detail.</strong> Capture a symbol with a visible price history
-(1D or 5D preset), both the OHLC and Midpoint series toggled on, and the
-Values panel. A second capture with the Depth toggle on instead of Values
-would usefully show the two-panel swap described below. Suggested files:
-<code>images/terminal-gui/fig-03-symbol-detail.png</code> and
-<code>images/terminal-gui/fig-03b-symbol-detail-depth.png</code>.</p>
+<p><img alt="Symbol Detail for MSFT on the 1D preset, with the Depth toggle on." src="../../../../assets/terminal-gui/terminal-symbol-detail.png" /></p>
+<p><em>One-minute OHLC candles with their volume, the VWAP line and the last price
+(Midpoint is toggled off). Below, the Values panel and, beside it, the
+Depth-of-Book ladder: the best prices meet in the middle, the <code>#</code> column
+counts the orders at each level, and the percentage beside each price is its
+distance from the touch, which shows at a glance that the levels around
+192.9 and 204–207 are about 3% away.</em></p>
 <ul>
 <li><strong>Header.</strong> Symbol, session badge, last price, change and %change (always
   quoted against the <em>previous close</em>, footnoted when no previous close is
@@ -8042,13 +8100,13 @@ would usefully show the two-panel swap described below. Suggested files:
   may reopen inside, with the last indicative price marked against it. This
   is the visual explanation of <em>why</em> a halt is still running: if the marker
   sits outside the band, the call phase was extended rather than printing.</li>
-<li><strong>Values panel ↔ Depth ladder.</strong> The <code>☐ Depth</code> toggle <em>replaces</em> the
-  Values panel with the <a href="#depth-of-book">Depth-of-Book ladder</a> rather than
-  showing both side by side. This is deliberate, not a space-saving
-  afterthought: unlike <code>OHLC</code>/<code>Midpoint</code>, which reuse subscriptions the
-  bridge already holds for every symbol, turning Depth on causes the bridge
-  to open a brand-new per-symbol CALF subscription — so it is opt-in per
-  viewer, and the panel swap is a visible reminder that this is a heavier,
+<li><strong>Values panel and Depth ladder.</strong> The Values panel is always shown; the
+  <code>☐ Depth</code> toggle fills the panel beside it with the
+  <a href="#depth-of-book">Depth-of-Book ladder</a>, which otherwise only says to turn
+  the toggle on. It is off by default on purpose: unlike <code>OHLC</code>/<code>Midpoint</code>,
+  which reuse subscriptions the bridge already holds for every symbol,
+  turning Depth on causes the bridge to open a brand-new per-symbol CALF
+  subscription — so it is opt-in per viewer, a heavier,
   deliberately-requested data stream.</li>
 </ul>
 <h3 id="depth-of-book">Depth-of-Book<a class="headerlink" href="#depth-of-book" title="Permanent link">&para;</a></h3>
@@ -8056,9 +8114,6 @@ would usefully show the two-panel swap described below. Suggested files:
 identity, which CALF does not carry at any version) for whichever symbol
 currently has the Depth toggle on in Symbol Detail. It is not its own
 navigation tab.</p>
-<p>📷 <strong>Figure 4 — Depth ladder.</strong> Capture a symbol with resting orders on both
-sides, ideally with at least one row whose distance-from-touch marker is
-visible. Suggested file: <code>images/terminal-gui/fig-04-depth-ladder.png</code>.</p>
 <p>Columns run outward from the touch in both directions —
 <code>Cum | Qty | # | Bid ‖ Ask | # | Qty | Cum</code> — so the two best prices meet in
 the middle and the cumulative totals sit at the outer edges, where the eye
@@ -8084,9 +8139,6 @@ mirrored) while a percentage reads the same distance from 50% either way.</p>
 <h3 id="index-view">Index View<a class="headerlink" href="#index-view" title="Permanent link">&para;</a></h3>
 <p>Headline level and a historical chart for a configured exchange index (see
 <a href="../../../operator-guide/part-4-run-a-market/070-market-index/">Market Index</a>).</p>
-<p>📷 <strong>Figure 5 — Index View.</strong> Capture the chart on a <code>1M</code>+ preset (to show the
-daily-bar rendering) alongside the Open/High/Low panel and, if any exist,
-the Recent changes strip. Suggested file: <code>images/terminal-gui/fig-05-index-view.png</code>.</p>
 <p>The headline level, change, and session badge always come from the <strong>live</strong>
 CALF <code>INDEX</code> stream, never from a historical REST row for the current date —
 <code>/history/index-daily</code>'s <code>close_level</code> is only guaranteed final once the
@@ -8102,11 +8154,6 @@ being hidden, so the tab row never shifts between differently-configured
 classroom exchanges.</p>
 <h3 id="trade-tape-time-sales">Trade Tape / Time &amp; Sales<a class="headerlink" href="#trade-tape-time-sales" title="Permanent link">&para;</a></h3>
 <p>Every print on the exchange, newest first, filterable by symbol.</p>
-<p>📷 <strong>Figure 6 — Trade Tape.</strong> Capture the unfiltered tape with several
-symbols' prints visible. If reproducible, a second capture showing a gap
-marker row would be a good addition — see the callout below for how to
-trigger one deliberately in a test environment.
-Suggested file: <code>images/terminal-gui/fig-06-trade-tape.png</code>.</p>
 <p>The symbol filter narrows what is <em>displayed</em>; the bridge's underlying
 <code>SYM=*</code> wildcard subscription means every symbol's prints are already
 arriving regardless of the filter, so switching it is instant and free.
@@ -8128,8 +8175,6 @@ result of a real CALF protocol fix made while building TapeDeck.</p>
 <h3 id="movers">Movers<a class="headerlink" href="#movers" title="Permanent link">&para;</a></h3>
 <p>A different ranking over the same data the Overview grid already computes —
 no new subscriptions.</p>
-<p>📷 <strong>Figure 7 — Movers.</strong> Capture the Gainers tab with several bars of
-different lengths visible. Suggested file: <code>images/terminal-gui/fig-07-movers.png</code>.</p>
 <p>Three tabs: <strong>Gainers</strong> and <strong>Losers</strong> rank by percentage change from the
 previous close (falling back to today's open, and labelled as such, when no
 previous close is available); <strong>Active</strong> ranks by session turnover (value
@@ -8140,9 +8185,12 @@ scaled relative to the largest value currently shown on that tab.</p>
 <p>Three panels in one view: the exchange-wide session phase, every symbol
 currently halted with its full circuit-breaker detail, and the auctions that
 have uncrossed since the tab was opened.</p>
-<p>📷 <strong>Figure 8 — Session &amp; Halt Status Board.</strong> Capture a state with at least
-one active halt and one completed auction result, so both tables have
-content. Suggested file: <code>images/terminal-gui/fig-08-session-board.png</code>.</p>
+<p><img alt="The Session &amp; Halt Status Board just after an opening auction." src="../../../../assets/terminal-gui/terminal-session-board.png" /></p>
+<p><em>Two operator halts (ADBE, AMZN): level <code>ADMIN_SYMBOL</code>, no trigger or
+reference price, resuming only when the operator clears them. Below, the
+opening auction's results, newest first: the equilibrium price, the matched
+quantity, the number of trades and the residual imbalance per symbol, and
+<code>(no cross)</code> where nothing could match.</em></p>
 <ul>
 <li><strong>Active halts</strong> shows, per halted symbol: circuit-breaker level, trigger
   and reference price (blank for an operator-initiated halt, which carries

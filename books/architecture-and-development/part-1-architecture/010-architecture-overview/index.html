@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -8806,8 +8862,21 @@ publishes the market model: true values for the AI traders, ADMIN and
 <td>Connects</td>
 <td>Translates trade events to RALF TCP for external post-trade / clearing parties</td>
 </tr>
+<tr>
+<td>pm-monitor</td>
+<td>PULL :5610, PUB :5611, SUB→:5556</td>
+<td><strong>Binds</strong> :5610 and :5611; connects→:5556</td>
+<td>Health collector: judges every process from its beacon, computes rates and thresholds, keeps <code>metrics.db</code>, publishes <code>health.snapshot</code>/<code>health.event</code></td>
+</tr>
 </tbody>
 </table>
+<p>Every long-running process above (not the interactive viewers and consoles)
+also has a <code>HealthReporter</code>: a background thread with a PUSH→:5610 socket
+that sends a <code>health.beacon</code> to <code>pm-monitor</code> every two seconds — memory, CPU,
+how long ago its main loop last completed an iteration, and its counters.
+Sent from a thread rather than the loop, so a hung loop still reports (with a
+growing loop age), and sent without blocking, so a missing <code>pm-monitor</code> costs
+nothing. See <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a>.</p>
 <h2 id="data-flows">Data Flows<a class="headerlink" href="#data-flows" title="Permanent link">&para;</a></h2>
 <p>Four principal flows move through the system. All of them converge on the
 single-writer engine and fan back out over PUB topics.</p>

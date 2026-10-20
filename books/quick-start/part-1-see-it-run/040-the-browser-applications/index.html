@@ -839,10 +839,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#five-windows-on-one-exchange" class="md-nav__link">
+  <a href="#six-windows-on-one-exchange" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Five windows on one exchange
+        Six windows on one exchange
       
     </span>
   </a>
@@ -3274,6 +3274,62 @@
     
   
     Log Operator Console (`pm-log-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
   
 
     
@@ -7286,7 +7342,7 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After this chapter you will know:</p>
 <ul>
-<li>what each of the five browser applications is for</li>
+<li>what each of the six browser applications is for</li>
 <li>how to log in to the Trading GUI with an API key, and where to find one</li>
 <li>how to place the same kind of order from the browser that you typed in
   the trader console</li>
@@ -7295,8 +7351,8 @@
 <p><strong>Time:</strong> about 15 minutes. <strong>You need:</strong> the container installation from
 <a href="../020-install-and-start/">Install and Start</a>. The browser applications are
 not part of the Python package.</p>
-<h2 id="five-windows-on-one-exchange">Five windows on one exchange<a class="headerlink" href="#five-windows-on-one-exchange" title="Permanent link">&para;</a></h2>
-<p>All five applications talk to the same running exchange, so anything you do
+<h2 id="six-windows-on-one-exchange">Six windows on one exchange<a class="headerlink" href="#six-windows-on-one-exchange" title="Permanent link">&para;</a></h2>
+<p>All six applications talk to the same running exchange, so anything you do
 in one — or in a <code>pm-alf-console</code> — shows up in the others within a second.</p>
 <table>
 <thead>
@@ -7337,6 +7393,12 @@ in one — or in a <code>pm-alf-console</code> — shows up in the others within
 <td><strong>Configuration GUI</strong> (<code>config-gui</code>)</td>
 <td>—</td>
 <td>build an exchange configuration with forms instead of YAML</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8095">http://localhost:8095</a></td>
+<td><strong>Operator Dashboard</strong> (<code>pm-dash</code>)</td>
+<td>yes</td>
+<td>see at a glance whether every part of the exchange is healthy, and how busy it is</td>
 </tr>
 </tbody>
 </table>
@@ -7402,7 +7464,8 @@ switch. Log in as <code>MM01</code> for the market maker's quote management.</p>
 the <a href="../../../participant-guide/part-6-front-ends/020-trading-platform-gui/">Trading GUI</a>
 and the <a href="../../../participant-guide/part-6-front-ends/030-order-book-gui/">Order Book Viewer</a>
 — and the Operator's Guide covers the
-<a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">Log Operator Console</a>
+<a href="../../../operator-guide/part-6-observe-and-recover/050-log-console/">Log Operator Console</a>,
+the <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>
 and the <a href="../../../operator-guide/part-2-configure/030-config-gui/">Configuration GUI</a>.
 Part II of this guide continues with
 <a href="../../part-2-next-steps/010-run-a-trading-session/">Run a Trading Session</a>.</p>

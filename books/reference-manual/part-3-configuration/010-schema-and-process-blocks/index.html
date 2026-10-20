@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3660,6 +3716,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-pm-monitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring pm-monitor
+      
+    </span>
+  </a>
   
 </li>
       
@@ -8152,6 +8219,12 @@ for the formal grammar and validation rules, see
 <td>Centralized LALF log-collector settings</td>
 </tr>
 <tr>
+<td><code>monitor</code></td>
+<td style="text-align: right;">No</td>
+<td><code>pm-monitor</code>, every beaconing process</td>
+<td>Health beacons and the health collector</td>
+</tr>
+<tr>
 <td><code>api_gateways</code></td>
 <td style="text-align: right;">No</td>
 <td><code>pm-api-gwy</code></td>
@@ -8228,6 +8301,12 @@ of the file — the gateway-specific blocks (<code>market_data_gateway</code>,
 <td><code>log_srv/config.py</code></td>
 <td><code>log_server</code></td>
 <td>Own bind address/port/retention/throughput knobs for the centralized LALF log collector, plus the LALF-PS ZeroMQ log-distribution ports and subscription limits</td>
+</tr>
+<tr>
+<td><code>pm-monitor</code></td>
+<td><code>monitor/config.py</code></td>
+<td><code>monitor</code>, <code>locale.session_timezone</code>, <code>log_server.db_path</code></td>
+<td>Bind address and ports, health-judgement timings, retention and thresholds; the session timezone that defines "today"; the log database whose size it reports. Every beaconing process also reads <code>monitor</code> (<code>enabled</code>, <code>host</code>, <code>pull_port</code>, <code>beacon_interval_sec</code>) to know where and how often to send</td>
 </tr>
 <tr>
 <td><code>pm-api-gwy</code></td>
@@ -8981,9 +9060,114 @@ that invocation only — the same CLI-flag-over-config precedence every other
 options" in
 <a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/#generate-configs-with-pm-config-gen">Generate Configs with pm-config-gen</a>
 above.</p>
+<h2 id="configuring-pm-monitor">Configuring <code>pm-monitor</code><a class="headerlink" href="#configuring-pm-monitor" title="Permanent link">&para;</a></h2>
+<p><code>pm-monitor</code> and every process that sends a health beacon read an optional
+top-level <code>monitor</code> block. An absent block means every default below, with
+monitoring on. See <a href="../../../operator-guide/part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a> for the
+operational guide.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">monitor</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">pull_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5610</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">pub_port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5611</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nt">beacon_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nt">hung_after_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="nt">silent_after_beacons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="nt">book_metrics_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">retention</span><span class="p">:</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">    </span><span class="nt">raw_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="nt">minute_days</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="nt">thresholds</span><span class="p">:</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">    </span><span class="nt">host_cpu_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">95</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="nt">host_mem_pct</span><span class="p">:</span><span class="w">         </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">92</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="nt">disk_free_pct</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">    </span><span class="nt">engine_handle_p99_us</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">2000</span><span class="p p-Indicator">,</span><span class="nt"> crit</span><span class="p">:</span><span class="w"> </span><span class="nv">10000</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">    </span><span class="nt">reject_pct_5m</span><span class="p">:</span><span class="w">        </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="nt">rss_growth_pct_1h</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">}</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="nt">heap_garbage_pct</span><span class="p">:</span><span class="w">     </span><span class="p p-Indicator">{</span><span class="nt">warn</span><span class="p">:</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="nt">   crit</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>true</code></td>
+<td>Master switch. When <code>false</code> no process sends beacons and <code>pm-monitor</code> idles until stopped</td>
+</tr>
+<tr>
+<td><code>bind_address</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Interface <code>pm-monitor</code> binds. Stored as written; <code>EDUMATCHER_GATEWAY_BIND_HOST</code> overrides it where <code>pm-monitor</code> runs</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Where every process sends its beacons and where <code>pm-monitor-cli</code> and the dashboard connect; must reach <code>bind_address</code></td>
+</tr>
+<tr>
+<td><code>pull_port</code></td>
+<td><code>5610</code></td>
+<td>Beacons in (PULL)</td>
+</tr>
+<tr>
+<td><code>pub_port</code></td>
+<td><code>5611</code></td>
+<td><code>health.snapshot</code> and <code>health.event</code> out (PUB)</td>
+</tr>
+<tr>
+<td><code>beacon_interval_sec</code></td>
+<td><code>2</code></td>
+<td>How often each process reports</td>
+</tr>
+<tr>
+<td><code>hung_after_sec</code></td>
+<td><code>5</code></td>
+<td>Main-loop age above which a process is HUNG; must be greater than <code>beacon_interval_sec</code></td>
+</tr>
+<tr>
+<td><code>silent_after_beacons</code></td>
+<td><code>3</code></td>
+<td>Missed beacons before a process is SILENT (process alive) or DEAD</td>
+</tr>
+<tr>
+<td><code>book_metrics_interval_sec</code></td>
+<td><code>10</code></td>
+<td>How often the engine recomputes its per-book figures and memory estimates</td>
+</tr>
+<tr>
+<td><code>retention.raw_hours</code></td>
+<td><code>6</code></td>
+<td>Hours of 10-second samples in <code>metrics.db</code></td>
+</tr>
+<tr>
+<td><code>retention.minute_days</code></td>
+<td><code>7</code></td>
+<td>Days of 1-minute buckets, events and counter state; daily totals are kept for good</td>
+</tr>
+<tr>
+<td><code>thresholds.&lt;rule&gt;.warn</code> / <code>.crit</code></td>
+<td>as above</td>
+<td>Breach levels. <code>warn</code> must be below <code>crit</code>, except <code>disk_free_pct</code>, where a lower value is worse. A rule left out keeps its default</td>
+</tr>
+</tbody>
+</table>
+<p><code>pm-cverifier</code> checks the shape (<code>S124</code>–<code>S131</code>), the cross-field rules
+(<code>M029</code> band order, <code>M030</code> <code>hung_after_sec</code> above the interval, <code>M031</code> <code>host</code>
+reaching <code>bind_address</code>) and the two ports against every other listener
+(<code>M018</code>, counted even when the block is absent). <code>pm-config-gen</code> writes the
+block with <code>--monitor</code> and the <code>--monitor-*</code> options — see "Monitor options"
+in
+<a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/#generate-configs-with-pm-config-gen">Generate Configs with pm-config-gen</a>.</p>
 <h2 id="engine-behavior-flags">Engine Behavior Flags<a class="headerlink" href="#engine-behavior-flags" title="Permanent link">&para;</a></h2>
 <h3 id="sessions_enabled"><code>sessions_enabled</code><a class="headerlink" href="#sessions_enabled" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <p>When <code>true</code>, the engine starts in <code>CLOSED</code> and accepts scheduler transitions.
 When <code>false</code>, the engine starts in <code>CONTINUOUS</code> and ignores scheduler
@@ -9007,36 +9191,36 @@ transitions.</p>
 </tbody>
 </table>
 <h3 id="enforce_collars"><code>enforce_collars</code><a class="headerlink" href="#enforce_collars" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">enforce_collars</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">enforce_collars</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <p>Controls whether configured price collars reject incoming orders. This defaults
 to <code>true</code> and should normally remain enabled outside tests.</p>
 <h3 id="enforce_circuit_breakers"><code>enforce_circuit_breakers</code><a class="headerlink" href="#enforce_circuit_breakers" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">enforce_circuit_breakers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">enforce_circuit_breakers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <p>Controls whether configured circuit breakers can halt symbols. This defaults to
 <code>true</code> and should normally remain enabled outside tests.</p>
 <h3 id="auction_indicative_interval_sec"><code>auction_indicative_interval_sec</code><a class="headerlink" href="#auction_indicative_interval_sec" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">auction_indicative_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">auction_indicative_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
 </code></pre></div>
 <p>Throttle, in seconds, between republications of the indicative uncross price
 and quantity while a symbol is in an auction call phase (<code>PRE_OPEN</code> or
 <code>PRE_CLOSE</code>). Must be numeric and greater than zero; defaults to <code>1.0</code> when
 omitted.</p>
 <h3 id="engine_tuning"><code>engine_tuning</code><a class="headerlink" href="#engine_tuning" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">snapshot_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">quote_history_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">drop_copy_buffer_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">recent_trades_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nt">depth_snapshot_tolerance_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">snapshot_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">quote_history_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">drop_copy_buffer_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">recent_trades_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">depth_snapshot_tolerance_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <p><code>engine_tuning</code> groups low-level runtime retention and throttling knobs that
 affect memory usage, snapshot cost, and replay depth. All of them are optional;
 omitted fields fall back to built-in defaults.</p>
 <h3 id="engine_tuningsnapshot_interval_sec"><code>engine_tuning.snapshot_interval_sec</code><a class="headerlink" href="#engine_tuningsnapshot_interval_sec" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">snapshot_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">snapshot_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
 </code></pre></div>
 <p>Controls the per-symbol throttle window for <code>book.&lt;SYMBOL&gt;</code> publications from
 dirty books.</p>
@@ -9047,8 +9231,8 @@ dirty books.</p>
 <li>defaults to <code>0.5</code> seconds when omitted</li>
 </ul>
 <h3 id="engine_tuningquote_history_maxlen"><code>engine_tuning.quote_history_maxlen</code><a class="headerlink" href="#engine_tuningquote_history_maxlen" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">quote_history_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">quote_history_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 </code></pre></div>
 <p>Controls how many recently inactivated quotes per gateway are retained in
 memory for <code>QLEGS SHOW=RECENT</code> / <code>SHOW=ALL</code>.</p>
@@ -9059,8 +9243,8 @@ memory for <code>QLEGS SHOW=RECENT</code> / <code>SHOW=ALL</code>.</p>
 <li>defaults to <code>30</code> when omitted</li>
 </ul>
 <h3 id="engine_tuningdrop_copy_buffer_size"><code>engine_tuning.drop_copy_buffer_size</code><a class="headerlink" href="#engine_tuningdrop_copy_buffer_size" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">drop_copy_buffer_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">drop_copy_buffer_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
 </code></pre></div>
 <p>Controls how many drop-copy events are retained in memory for replay after a
 subscriber reconnects.</p>
@@ -9071,8 +9255,8 @@ subscriber reconnects.</p>
 <li>defaults to <code>10000</code> when omitted</li>
 </ul>
 <h3 id="engine_tuningrecent_trades_maxlen"><code>engine_tuning.recent_trades_maxlen</code><a class="headerlink" href="#engine_tuningrecent_trades_maxlen" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">recent_trades_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">recent_trades_maxlen</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
 </code></pre></div>
 <p>Controls how many recent trade rows each order book keeps for snapshots and
 diagnostics.</p>
@@ -9083,8 +9267,8 @@ diagnostics.</p>
 <li>defaults to <code>20</code> when omitted</li>
 </ul>
 <h3 id="engine_tuningdepth_snapshot_tolerance_ticks"><code>engine_tuning.depth_snapshot_tolerance_ticks</code><a class="headerlink" href="#engine_tuningdepth_snapshot_tolerance_ticks" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">depth_snapshot_tolerance_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">engine_tuning</span><span class="p">:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">depth_snapshot_tolerance_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <p>Controls the depth window around the last trade, measured in ticks, when the
 engine publishes aggregated depth snapshots.</p>
@@ -9098,17 +9282,17 @@ engine publishes aggregated depth snapshots.</p>
 <p>The optional top-level <code>participant_defaults</code> block holds values that every
 <code>participants</code> entry <strong>inherits when it omits the key</strong>. Use it to state a
 uniform policy once instead of repeating it on each gateway.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">participant_defaults</span><span class="p">:</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_AGGRESSOR</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span><span class="w">             </span><span class="c1"># inherits both defaults</span>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span><span class="w">         </span><span class="c1"># explicit: allows self-trades on this gateway</span>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OPS01</span>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LEAVE_ALL</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">participant_defaults</span><span class="p">:</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_AGGRESSOR</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span><span class="w">             </span><span class="c1"># inherits both defaults</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">    </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span><span class="w">         </span><span class="c1"># explicit: allows self-trades on this gateway</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OPS01</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LEAVE_ALL</span>
 </code></pre></div>
 <table>
 <thead>
@@ -9154,11 +9338,11 @@ config GUI edits it under <strong>Basics → Participants</strong>.</p>
 <h2 id="participants">Participants<a class="headerlink" href="#participants" title="Permanent link">&para;</a></h2>
 <p>Only gateway IDs listed under <code>participants</code> may connect and submit orders when
 a config file exists.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Student workstation 1</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Student workstation 1</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
 </code></pre></div>
 <h3 id="participant-fields">Participant Fields<a class="headerlink" href="#participant-fields" title="Permanent link">&para;</a></h3>
 <table>
@@ -9287,14 +9471,14 @@ only fills the gap when the client didn't say anything.</p>
 </tbody>
 </table>
 <p>Inside <code>mm_obligations</code>, use this shape:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">participants</span><span class="p">:</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">mm_obligations</span><span class="p">:</span>
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">      </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">        </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">        </span><span class="nt">max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">        </span><span class="nt">min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">participants</span><span class="p">:</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="nt">mm_obligations</span><span class="p">:</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">      </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">        </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">        </span><span class="nt">max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">        </span><span class="nt">min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
 </code></pre></div>
 <p>Use <code>max_spread_ticks</code> and <code>min_qty</code> inside <code>mm_obligations</code>; do not use the
 flat-field names <code>mm_max_spread_ticks</code> and <code>mm_min_qty</code> there.</p>
@@ -9338,15 +9522,15 @@ gateways can send exchange-wide circuit-breaker halt/resume commands.</p>
 <h2 id="market-maker-obligation-defaults">Market-Maker Obligation Defaults<a class="headerlink" href="#market-maker-obligation-defaults" title="Permanent link">&para;</a></h2>
 <p><code>mm_obligation_defaults</code> defines quote-quality policy inherited by market-maker
 gateways.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">mm_obligation_defaults</span><span class="p">:</span>
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
-<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nt">mm_obligation_defaults</span><span class="p">:</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">    </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
 </code></pre></div>
 <table>
 <thead>
@@ -9441,11 +9625,11 @@ references. The symbol universe is fixed at startup — the engine does
 <a href="../../../operator-guide/part-2-configure/010-the-configuration-workflow/#adding-or-removing-symbols">Adding or Removing Symbols</a> and
 <a href="../../../operator-guide/part-4-run-a-market/040-risk-controls/#day-one-ipo-behaviour">Risk Controls - Day one (IPO) behaviour</a>.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
 </code></pre></div>
 <p>Symbol keys are uppercased. The value for a symbol may be a mapping, <code>{}</code>, or
 null.</p>
@@ -9551,56 +9735,56 @@ config value that may go stale as the session progresses. This uses the same
 resolved last-buy/last-sell prices that seed the order book itself, so the
 collar reference and the book's displayed last prices never disagree.</p>
 <p>Orders for unknown symbols are rejected with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Symbol not configured: UNKNOWN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>Symbol not configured: UNKNOWN
 </code></pre></div>
 <h2 id="risk-controls-and-collars">Risk Controls and Collars<a class="headerlink" href="#risk-controls-and-collars" title="Permanent link">&para;</a></h2>
 <p><code>risk_controls</code> defines reusable collar levels.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L2</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">L2</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.30</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
 </code></pre></div>
 <h3 id="per-symbol-risk-level-assignment">Per-symbol risk-level assignment<a class="headerlink" href="#per-symbol-risk-level-assignment" title="Permanent link">&para;</a></h3>
 <p>Use per-symbol risk levels when different symbols should inherit different
 named collar profiles from <code>risk_controls.levels</code>.</p>
 <p>You can assign the symbol level directly in YAML:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEFAULT</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">DEFAULT</span><span class="p">:</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">    </span><span class="nt">CORE</span><span class="p">:</span>
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.18</span>
-<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
-<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a><span class="w">    </span><span class="nt">HIGH_BETA</span><span class="p">:</span>
-<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
-<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.12</span>
-<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.04</span>
-<a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>
-<a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CORE</span>
-<a id="__codelineno-26-20" name="__codelineno-26-20" href="#__codelineno-26-20"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-26-21" name="__codelineno-26-21" href="#__codelineno-26-21"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HIGH_BETA</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">default_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DEFAULT</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="nt">DEFAULT</span><span class="p">:</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">    </span><span class="nt">CORE</span><span class="p">:</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.18</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.02</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="w">    </span><span class="nt">HIGH_BETA</span><span class="p">:</span>
+<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="w">      </span><span class="nt">collar</span><span class="p">:</span>
+<a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a><span class="w">        </span><span class="nt">static_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.12</span>
+<a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="w">        </span><span class="nt">dynamic_band_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.04</span>
+<a id="__codelineno-27-16" name="__codelineno-27-16" href="#__codelineno-27-16"></a>
+<a id="__codelineno-27-17" name="__codelineno-27-17" href="#__codelineno-27-17"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-27-18" name="__codelineno-27-18" href="#__codelineno-27-18"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-27-19" name="__codelineno-27-19" href="#__codelineno-27-19"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CORE</span>
+<a id="__codelineno-27-20" name="__codelineno-27-20" href="#__codelineno-27-20"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-27-21" name="__codelineno-27-21" href="#__codelineno-27-21"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HIGH_BETA</span>
 </code></pre></div>
 <p>Or generate the same structure from CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>--risk-level<span class="w"> </span>CORE:0.18:0.02<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">  </span>--risk-level<span class="w"> </span>HIGH_BETA:0.12:0.04<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">  </span>--symbol-risk-level<span class="w"> </span>AAPL:CORE<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">  </span>--symbol-risk-level<span class="w"> </span>TSLA:HIGH_BETA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span>--participants<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span>--risk-level<span class="w"> </span>CORE:0.18:0.02<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>--risk-level<span class="w"> </span>HIGH_BETA:0.12:0.04<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--symbol-risk-level<span class="w"> </span>AAPL:CORE<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>--symbol-risk-level<span class="w"> </span>TSLA:HIGH_BETA
 </code></pre></div>
 <p>Semantics:</p>
 <ul>
@@ -9713,25 +9897,25 @@ set; they never create a collar on their own.</p>
 <code>circuit_breaker</code> sections merge over it field by field.</p>
 <p>For an operational comparison of symbol-level circuit breakers versus symbol
 price collars, see <a href="../../../operator-guide/part-4-run-a-market/040-risk-controls/#price-collars-vs-circuit-breakers">Risk Controls - Price collars vs circuit breakers</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.07</span>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.13</span>
-<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900000000000</span>
-<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">    </span><span class="nt">L3</span><span class="p">:</span>
-<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
-<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span>
-<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>
-<a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a><span class="w">    </span><span class="nt">circuit_breaker</span><span class="p">:</span>
-<a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a><span class="w">      </span><span class="nt">levels</span><span class="p">:</span>
-<a id="__codelineno-28-18" name="__codelineno-28-18" href="#__codelineno-28-18"></a><span class="w">        </span><span class="nt">L1</span><span class="p">:</span>
-<a id="__codelineno-28-19" name="__codelineno-28-19" href="#__codelineno-28-19"></a><span class="w">          </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600000000000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nt">circuit_breaker_defaults</span><span class="p">:</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">reference_window_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">    </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.07</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300000000000</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">    </span><span class="nt">L2</span><span class="p">:</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.13</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">900000000000</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="w">    </span><span class="nt">L3</span><span class="p">:</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="w">      </span><span class="nt">price_shift_pct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.20</span>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="w">      </span><span class="nt">halt_duration_ns</span><span class="p">:</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a><span class="w">    </span><span class="nt">circuit_breaker</span><span class="p">:</span>
+<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="w">      </span><span class="nt">levels</span><span class="p">:</span>
+<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a><span class="w">        </span><span class="nt">L1</span><span class="p">:</span>
+<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="w">          </span><span class="nt">halt_duration_ns</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600000000000</span>
 </code></pre></div>
 <p>Validation rules:</p>
 <ul>
@@ -9800,17 +9984,17 @@ symbol has <strong>no circuit breaker at all</strong>, even when
 </table>
 <h2 id="market-maker-quote-seeds">Market-Maker Quote Seeds<a class="headerlink" href="#market-maker-quote-seeds" title="Permanent link">&para;</a></h2>
 <p><code>market_maker_quotes</code> create linked bid/ask quote legs at engine startup.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-MM01-AAPL</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">209.00</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">211.00</span>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="w">        </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-MM01-AAPL</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">209.00</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">211.00</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">        </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <table>
 <thead>
@@ -9895,23 +10079,23 @@ for the symbol. <code>seed_once: false</code> injects on every startup.</p>
 <h2 id="startup-market-maker-combo-seeds">Startup Market-Maker Combo Seeds<a class="headerlink" href="#startup-market-maker-combo-seeds" title="Permanent link">&para;</a></h2>
 <p><code>market_maker_combos</code> inject startup combo orders through the same combo path used
 by live combo entry.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nt">market_maker_combos</span><span class="p">:</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">combo_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-PAIR-AAPL-MSFT</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">    </span><span class="nt">combo_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AON</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">    </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">    </span><span class="nt">legs</span><span class="p">:</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUY</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20950</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SELL</span>
-<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
-<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">41550</span>
-<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nt">market_maker_combos</span><span class="p">:</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">combo_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-PAIR-AAPL-MSFT</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">    </span><span class="nt">combo_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AON</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">    </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">    </span><span class="nt">legs</span><span class="p">:</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUY</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20950</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">        </span><span class="nt">side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SELL</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="w">        </span><span class="nt">order_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIMIT</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="w">        </span><span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="w">        </span><span class="nt">price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">41550</span>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
 </code></pre></div>
 <p>Combo fields:</p>
 <table>
@@ -10008,13 +10192,13 @@ across Monday-Friday or Saturday+Sunday, and <code>holidays:</code> gives bank h
 their own schedule instead of defaulting to CLOSED. See
 <a href="../../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling/#configuring-the-schedule">Session Scheduling → Configuring the schedule</a>
 for the full set of keys, precedence rules, and worked examples.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="nt">weekdays</span><span class="p">:</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="nt">weekdays</span><span class="p">:</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">    </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">    </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="w">    </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="w">    </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <table>
 <thead>
@@ -10062,12 +10246,12 @@ fallback for a partial block. A day with nothing resolved for it (not
 With <code>pm-scheduler --now</code>, the wall-clock values are ignored and transitions
 are sent immediately with short delays.</p>
 <p>The default session path is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>PRE_OPEN -&gt; OPENING_AUCTION -&gt; CONTINUOUS -&gt; CLOSING_AUCTION -&gt; CLOSED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>PRE_OPEN -&gt; OPENING_AUCTION -&gt; CONTINUOUS -&gt; CLOSING_AUCTION -&gt; CLOSED
 </code></pre></div>
 <h3 id="locale"><code>locale</code><a class="headerlink" href="#locale" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="nt">locale</span><span class="p">:</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sweden</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span><span class="nt">session_timezone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Europe/Stockholm</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">locale</span><span class="p">:</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sweden</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span><span class="nt">session_timezone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Europe/Stockholm</span>
 </code></pre></div>
 <p><code>locale</code> is a top-level key, a sibling of <code>schedule</code>, grouping the two facts
 about where this exchange is: its country and its session timezone. Both

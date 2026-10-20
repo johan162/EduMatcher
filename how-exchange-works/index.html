@@ -7195,6 +7195,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../books/operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../books/operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -12844,7 +12900,7 @@ stateDiagram-v2
 - <strong>Bid:</strong> Buy 500 shares at $150.30
 - <strong>Ask:</strong> Sell 500 shares at $150.35</p>
 <p>An aggressive sell order arrives and hits the bid. The market maker has just bought 500 shares at $150.30. But their ask, "sell 500 shares at $150.35", is still live. The problem: this situation is no longer neutral. The seller was aggressive , they had a reason to sell urgently. If that reason is information (the price is about to fall), the market maker has been adversely selected.</p>
-<p>The arithmetic: if the true price falls to $150.10 after the fill, the market maker now holds 500 shares worth $150.10 that they paid $150.30 for. Loss: <span class="arithmatex">\(0.20 × 500 = **\)</span>100**. Their entire spread revenue for this fill was <span class="arithmatex">\(0.05 × 500 = **\)</span>25** (the half-spread). A single adverse selection event of $100 wipes out the spread revenue from four previous trades. If the informed seller keeps hitting the bid repeatedly before the market maker can react, the losses compound rapidly.</p>
+<p>The arithmetic: if the true price falls to $150.10 after the fill, the market maker now holds 500 shares worth $150.10 that they paid $150.30 for. Loss: <span class="arithmatex">\(0.20 × 500 = **\)</span>100<strong>. Their entire spread revenue for this fill was <span class="arithmatex">\(0.05 × 500 = **\)</span>25</strong> (the half-spread). A single adverse selection event of $100 wipes out the spread revenue from four previous trades. If the informed seller keeps hitting the bid repeatedly before the market maker can react, the losses compound rapidly.</p>
 <p>The exchange system must have a defined policy about what to do with the surviving side, because these events occur in microseconds with no time for manual decisions.</p>
 <h3 id="quote-refresh-policies">Quote Refresh Policies<a class="headerlink" href="#quote-refresh-policies" title="Permanent link">&para;</a></h3>
 <p>The <strong>quote refresh policy</strong> is the rule governing what happens to the surviving leg of a two-sided quote when the other leg fills.</p>

@@ -3593,6 +3593,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7625,7 +7681,7 @@ in the Architecture and Developer Guide's
 <td><strong>Containers, one command</strong></td>
 <td>Running a venue: classroom, demo, self-study</td>
 <td>Podman or Docker</td>
-<td>The exchange <strong>and</strong> all five web GUIs</td>
+<td>The exchange <strong>and</strong> all six web GUIs</td>
 <td><code>./edumatcher.sh start</code></td>
 </tr>
 <tr>
@@ -7659,7 +7715,7 @@ in the Architecture and Developer Guide's
 </tbody>
 </table>
 <p>The container modes give you the whole system — engine, gateways, REST API and
-the five browser applications — with one command. The pipx and Poetry modes
+the six browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare <code>pm-*</code> command. In Poetry mode, prefix
 those commands with <code>poetry run</code>.</p>
@@ -7710,7 +7766,7 @@ each path inside each container if you are ever unsure.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </code></pre></div>
 <p>Then open <a href="http://localhost:8090">http://localhost:8090</a>.</p>
-<p>That starts a complete exchange plus five web applications, from images built
+<p>That starts a complete exchange plus six web applications, from images built
 and published by the project. Nothing is compiled on your machine: no Python,
 no Node, no checkout. The only requirement is Podman or Docker.</p>
 <table>
@@ -7746,6 +7802,11 @@ no Node, no checkout. The only requirement is Podman or Docker.</p>
 <td>Order Book Viewer (<code>pm-book</code>)</td>
 <td><a href="http://localhost:8094">http://localhost:8094</a></td>
 <td>One symbol's full order book, session statistics and trade tape — the browser companion to <code>pm-viewer</code></td>
+</tr>
+<tr>
+<td>Operator Dashboard (<code>pm-dash</code>)</td>
+<td><a href="http://localhost:8095">http://localhost:8095</a></td>
+<td>The health of every process, trading activity, participants, books and gateways, live and over time — see <a href="../../part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a></td>
 </tr>
 <tr>
 <td>REST API docs</td>
@@ -7811,7 +7872,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.7
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.51.0
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -7872,12 +7933,12 @@ into this file.</p>
 <tr>
 <td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
 <td><code>0.0.0.0</code></td>
-<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code> and <code>pm-api-gwy</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
+<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code>, <code>pm-api-gwy</code> and <code>pm-monitor</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
 </tr>
 <tr>
 <td><code>EM_ZMQ</code></td>
 <td><code>0</code></td>
-<td><code>1</code> also publishes the raw ZeroMQ bus (5555-5559, 5601/5602) and tells the engine and <code>pm-index</code> to bind the container interface, so tools on your machine can attach. The equivalent of <code>make up ZMQ=1</code></td>
+<td><code>1</code> also publishes the raw ZeroMQ bus (5555-5559, 5601/5602, and <code>pm-monitor</code>'s 5611) and tells the engine and <code>pm-index</code> to bind the container interface, so tools on your machine can attach. The equivalent of <code>make up ZMQ=1</code></td>
 </tr>
 <tr>
 <td><code>TERMINAL_GUI_PORT</code></td>
@@ -7903,6 +7964,16 @@ into this file.</p>
 <td><code>BOOK_GUI_PORT</code></td>
 <td><code>8094</code></td>
 <td>Host port for the order book viewer</td>
+</tr>
+<tr>
+<td><code>DASH_GUI_PORT</code></td>
+<td><code>8095</code></td>
+<td>Host port for the operator dashboard (<code>pm-dash</code>)</td>
+</tr>
+<tr>
+<td><code>LOG_GUI_URL</code> / <code>BOOK_GUI_URL</code></td>
+<td><code>http://localhost:&lt;port&gt;</code></td>
+<td>Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine</td>
 </tr>
 </tbody>
 </table>
@@ -7950,7 +8021,7 @@ next time you switched configuration.</p>
 <p class="admonition-title">Picking up a new web application</p>
 <p><code>update</code> pulls new images for the files you already have; it does not
 re-download <code>compose.yaml</code>. When a release adds an application — the order
-book viewer on port 8094 arrived this way — re-run the one-line installer
+book viewer on port 8094 and the operator dashboard on 8095 arrived this way — re-run the one-line installer
 instead. It keeps your <code>.env</code> and <code>data/</code>, and fetches the release's
 <code>compose.yaml</code> and <code>edumatcher.sh</code>.</p>
 </div>
@@ -7985,7 +8056,7 @@ as a whole system. It builds the same six images from your working tree.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher/deployment/docker
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>build<span class="w">          </span><span class="c1"># builds a wheel from the checkout, then the image</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log-, trader- and book-gui</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>up-all<span class="w">         </span><span class="c1"># exchange + terminal-, log-, trader-, book- and dash-gui</span>
 </code></pre></div>
 <p><code>make help</code> lists every target. The two that matter are <code>up</code> (the exchange
 alone) and <code>up-all</code> (the exchange plus the GUIs).</p>
@@ -8136,7 +8207,7 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 <tr>
 <td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
 <td><code>0.0.0.0</code></td>
-<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code> and <code>pm-api-gwy</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
+<td>Bind host for the service-layer listeners <em>inside</em> the container — the four protocol gateways, <code>pm-log-srv</code>, <code>pm-api-gwy</code> and <code>pm-monitor</code>. It is what makes them reachable from the GUI containers, and it wins over any <code>bind_address:</code> in the deployed configuration. Not a host-exposure setting; that is <code>BIND_ADDR</code></td>
 </tr>
 <tr>
 <td><code>SSH_PORT</code></td>
@@ -8167,6 +8238,16 @@ plain <code>make up-all</code> afterwards goes back to whatever <code>.env</code
 <td><code>BOOK_GUI_PORT</code></td>
 <td><code>8094</code></td>
 <td>Host port for the order book viewer</td>
+</tr>
+<tr>
+<td><code>DASH_GUI_PORT</code></td>
+<td><code>8095</code></td>
+<td>Host port for the operator dashboard (<code>pm-dash</code>)</td>
+</tr>
+<tr>
+<td><code>LOG_GUI_URL</code> / <code>BOOK_GUI_URL</code></td>
+<td><code>http://localhost:&lt;port&gt;</code></td>
+<td>Where the dashboard's drawers link to the log console and the order book viewer, as your browser reaches them — set when you open the GUIs from another machine</td>
 </tr>
 <tr>
 <td><code>IMAGE_NAME</code> / <code>IMAGE_TAG</code></td>
@@ -8291,20 +8372,23 @@ hostname <code>edumatcher</code>.</p>
         CFG["config-gui\n:8092"]
         TRD["trader-gui\n:8093"]
         BOOK["book-gui\n:8094"]
+        DASH["dash-gui\n:8095"]
         BE["edumatcher\nengine + all gateways"]
     end
 
-    BROWSER --&gt;|"published 8090-8094\nvia BIND_ADDR"| TERM
+    BROWSER --&gt;|"published 8090-8095\nvia BIND_ADDR"| TERM
     BROWSER --&gt; LOG
     BROWSER --&gt; CFG
     BROWSER --&gt; TRD
     BROWSER --&gt; BOOK
+    BROWSER --&gt; DASH
     CLIENT --&gt;|"published 5560, 5565, 5570,\n5580, 5590, 5600, 8080-8081\nvia BIND_ADDR"| BE
 
     TERM --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history"| BE
     LOG --&gt;|"edumatcher:5601 / :5602 log stream"| BE
     TRD --&gt;|"edumatcher:8080 REST + WebSocket"| BE
-    BOOK --&gt;|"edumatcher:8081 market-data WebSocket\n+ history"| BE</code></pre>
+    BOOK --&gt;|"edumatcher:8081 market-data WebSocket\n+ history"| BE
+    DASH --&gt;|"edumatcher:5611 health snapshots"| BE</code></pre>
 <p>Two things follow, and both are easy to get wrong:</p>
 <ul>
 <li><strong>The GUIs do not use the published ports.</strong> Their traffic never leaves the
@@ -8627,14 +8711,14 @@ disk, not inside a container: it survives stop, start, rebuild and update.</p>
 <td><code>authorized_keys</code> assembled from your <code>~/.ssh/*.pub</code>, for <code>SSH=1</code></td>
 </tr>
 <tr>
-<td><code>/backend-data</code> (in log-gui)</td>
+<td><code>/backend-data</code> (in log-gui and dash-gui)</td>
 <td>the <code>./data:/backend-data:ro</code> mount</td>
-<td>Where the Log Operator Console reads <code>log.db</code> — read-only by construction, so it can never write the log server's database</td>
+<td>Where the Log Operator Console reads <code>log.db</code>, and the operator dashboard <code>metrics.db</code> and the deployed configuration — read-only by construction, so neither can write the exchange's files</td>
 </tr>
 <tr>
-<td><code>log-gui-acks</code>, <code>terminal-gui-logs</code>, <code>book-gui-logs</code></td>
+<td><code>log-gui-acks</code>, <code>terminal-gui-logs</code>, <code>book-gui-logs</code>, <code>dash-gui-logs</code></td>
 <td>Compose named volumes</td>
-<td>Log acknowledgements; the terminal's and the order book viewer's failover logs</td>
+<td>Log acknowledgements; the terminal's, the order book viewer's and the dashboard's failover logs</td>
 </tr>
 </tbody>
 </table>
@@ -8645,7 +8729,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.7<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.51.0<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -8705,7 +8789,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.7<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.51.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which

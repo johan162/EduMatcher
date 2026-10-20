@@ -2418,10 +2418,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s121" class="md-nav__link">
+  <a href="#layer-2-schema-s001s131" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S121)
+        Layer 2 — Schema (S001–S131)
       
     </span>
   </a>
@@ -2429,10 +2429,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-3-semantic-m001m028" class="md-nav__link">
+  <a href="#layer-3-semantic-m001m031" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 3 — Semantic (M001–M028)
+        Layer 3 — Semantic (M001–M031)
       
     </span>
   </a>
@@ -3408,6 +3408,62 @@
     
   
     Log Operator Console (`pm-log-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
   
 
     
@@ -7645,7 +7701,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s121">Layer 2 — Schema (<code>S001</code>–<code>S121</code>)<a class="headerlink" href="#layer-2-schema-s001s121" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s131">Layer 2 — Schema (<code>S001</code>–<code>S131</code>)<a class="headerlink" href="#layer-2-schema-s001s131" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -7861,7 +7917,7 @@ the key if it appears on a risk level.</p>
 </tr>
 <tr>
 <td><code>S121</code></td>
-<td>A key in <code>alf_gateway</code>, <code>balf_gateway</code>, <code>market_data_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code> (or <code>log_server.client</code>), or an <code>api_gateways.&lt;name&gt;</code> instance (or its <code>rate_limit</code>, <code>timeouts</code> or <code>credentials[]</code>) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name</td>
+<td>A key in <code>alf_gateway</code>, <code>balf_gateway</code>, <code>market_data_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>log_server</code> (or <code>log_server.client</code>), <code>monitor</code> (or <code>monitor.retention</code>, <code>monitor.thresholds</code>, or one of its <code>{warn, crit}</code> bands), or an <code>api_gateways.&lt;name&gt;</code> instance (or its <code>rate_limit</code>, <code>timeouts</code> or <code>credentials[]</code>) that no loader reads. The loaders ignore such a key, so the setting silently has no effect; the verifier reports the closest accepted name</td>
 </tr>
 </tbody>
 </table>
@@ -8341,9 +8397,57 @@ field, and both are conditions <code>pm-log-srv</code> refuses to start on:</p>
   would make that default unreachable, which is incoherent rather than
   merely unusual.</li>
 </ul>
-<p>See <a href="../../part-6-observe-and-recover/040-log-server/#lalf-ps-the-zeromq-log-distribution-interface">LALF-PS</a>
+<p><strong>Monitoring (<code>monitor</code> section)</strong></p>
+<p>The optional <code>monitor</code> block configures health beacons and <code>pm-monitor</code>
+(operator dashboard). An absent block means defaults with monitoring on.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S124</code></td>
+<td><code>monitor</code> present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S125</code></td>
+<td><code>monitor.enabled</code> not a boolean (a quoted <code>"false"</code> is a string and would otherwise leave monitoring on)</td>
+</tr>
+<tr>
+<td><code>S126</code></td>
+<td><code>monitor.pull_port</code> or <code>monitor.pub_port</code> not an integer in 1–65535</td>
+</tr>
+<tr>
+<td><code>S127</code></td>
+<td><code>monitor.bind_address</code> or <code>monitor.host</code> not a non-empty string</td>
+</tr>
+<tr>
+<td><code>S128</code></td>
+<td><code>monitor.beacon_interval_sec</code>, <code>hung_after_sec</code> or <code>book_metrics_interval_sec</code> not a positive number, or <code>silent_after_beacons</code> not a positive integer</td>
+</tr>
+<tr>
+<td><code>S129</code></td>
+<td><code>monitor.retention</code> not a mapping, or <code>raw_hours</code>/<code>minute_days</code> not a positive integer</td>
+</tr>
+<tr>
+<td><code>S130</code></td>
+<td><code>monitor.thresholds</code> not a mapping, a rule not a <code>{warn, crit}</code> mapping, or <code>warn</code>/<code>crit</code> missing or not a non-negative number</td>
+</tr>
+<tr>
+<td><code>S131</code></td>
+<td><code>monitor</code> fails runtime-loader validation for a reason not covered by <code>S124</code>–<code>S130</code> (drift safety net; only fires when none of those already reported)</td>
+</tr>
+</tbody>
+</table>
+<p>The rules that relate two <code>monitor</code> fields are semantic checks (<code>M029</code>,
+<code>M030</code>, <code>M031</code>); a <code>monitor</code> port that collides with another listener, or
+<code>pull_port</code> equal to <code>pub_port</code>, is <code>M018</code>.</p>
+<p>See <a href="../../part-6-observe-and-recover/060-health-monitor/#configuration">Health Monitoring</a>
 for what these fields do.</p>
-<h3 id="layer-3-semantic-m001m028">Layer 3 — Semantic (<code>M001</code>–<code>M028</code>)<a class="headerlink" href="#layer-3-semantic-m001m028" title="Permanent link">&para;</a></h3>
+<h3 id="layer-3-semantic-m001m031">Layer 3 — Semantic (<code>M001</code>–<code>M031</code>)<a class="headerlink" href="#layer-3-semantic-m001m031" title="Permanent link">&para;</a></h3>
 <p><code>M014</code> is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <table>
@@ -8443,7 +8547,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M018</code></td>
 <td>ERROR</td>
-<td>Two configured listeners are bound to the same port. Covers <code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, every <code>api_gateways.&lt;name&gt;</code>, and all three of <code>log_server</code>'s own ports — <code>port</code> (LALF/TCP) plus <code>pub_port</code>/<code>pull_port</code> (LALF-PS), the latter two skipped when <code>pubsub_enabled: false</code> since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in <code>engine_config.yaml</code> — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any <code>EDUMATCHER_*_PORT</code> override in the verifier's environment</td>
+<td>Two configured listeners are bound to the same port. Covers <code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, every <code>api_gateways.&lt;name&gt;</code>, <code>monitor.pull_port</code>/<code>pub_port</code> (counted even when the <code>monitor</code> block is absent, since <code>pm-monitor</code> then binds 5610/5611; skipped only for <code>enabled: false</code>), and all three of <code>log_server</code>'s own ports — <code>port</code> (LALF/TCP) plus <code>pub_port</code>/<code>pull_port</code> (LALF-PS), the latter two skipped when <code>pubsub_enabled: false</code> since a disabled interface binds nothing. Each of these is also checked against the fixed listeners that are not configured in <code>engine_config.yaml</code> — the engine's 5555–5557, pm-market-sim's 5553/5554, pm-index's 5558/5559 and the health ping ports 5561–5564 — using any <code>EDUMATCHER_*_PORT</code> override in the verifier's environment</td>
 </tr>
 <tr>
 <td><code>M019</code></td>
@@ -8494,6 +8598,21 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <td><code>M028</code></td>
 <td>ERROR</td>
 <td><code>schedule</code> specifies both <code>weekend</code> and an individual <code>sat</code>/<code>sun</code> block — use one or the other</td>
+</tr>
+<tr>
+<td><code>M029</code></td>
+<td>ERROR</td>
+<td>A <code>monitor.thresholds</code> band is in the wrong order: <code>warn</code> must be strictly below <code>crit</code>, except <code>disk_free_pct</code>, where a lower value is worse and <code>warn</code> must be strictly above <code>crit</code></td>
+</tr>
+<tr>
+<td><code>M030</code></td>
+<td>ERROR</td>
+<td><code>monitor.hung_after_sec</code> is not greater than <code>monitor.beacon_interval_sec</code></td>
+</tr>
+<tr>
+<td><code>M031</code></td>
+<td>WARN</td>
+<td><code>monitor.bind_address</code> is neither a wildcard nor <code>monitor.host</code> (loopback on both sides counts as a match): every process sends its beacons to <code>host</code>, where pm-monitor may not be listening. A warning because <code>EDUMATCHER_GATEWAY_BIND_HOST</code> overrides the bind address at run time</td>
 </tr>
 </tbody>
 </table>

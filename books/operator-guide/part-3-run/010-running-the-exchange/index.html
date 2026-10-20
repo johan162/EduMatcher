@@ -2774,6 +2774,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#operator-dashboard-pm-dash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator dashboard (pm-dash)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3945,6 +3956,62 @@
     
   
     Log Operator Console (`pm-log-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
   
 
     
@@ -8032,10 +8099,10 @@ where they live.</p>
 </tr>
 </tbody>
 </table>
-<p>¹ The curl installer's <code>./edumatcher.sh start</code> brings up all five web
+<p>¹ The curl installer's <code>./edumatcher.sh start</code> brings up all six web
 applications unconditionally. From a source checkout, <code>make up-all</code> starts
-the four GUIs that talk to a running exchange (<code>terminal-gui</code>, <code>log-gui</code>,
-<code>trader-gui</code>, <code>book-gui</code>); <code>config-gui</code> — which needs no running exchange —
+the five GUIs that talk to a running exchange (<code>terminal-gui</code>, <code>log-gui</code>,
+<code>trader-gui</code>, <code>book-gui</code>, <code>dash-gui</code>); <code>config-gui</code> — which needs no running exchange —
 is opt-in via <code>make up-all CONFIG_GUI=1</code>. See
 <a href="../../part-1-install-and-deploy/010-installation/">Installation</a>.</p>
 <p><strong>If you want a running exchange</strong>, use the containers. That is
@@ -8189,6 +8256,11 @@ once per shell, service unit, tmux session, container, or launcher.</p>
 <td>centralized operational logs</td>
 </tr>
 <tr>
+<td><code>metrics.db</code></td>
+<td><code>pm-monitor</code>, <code>pm-monitor-cli</code>, the operator dashboard</td>
+<td>health history: samples, daily totals, events</td>
+</tr>
+<tr>
 <td><code>gtc_orders.json</code>, <code>gtc_combos.json</code></td>
 <td><code>pm-engine</code></td>
 <td>clean-shutdown persistence for GTC state</td>
@@ -8313,7 +8385,7 @@ directory. What is left is shorter:</p>
 </tr>
 <tr>
 <td>The applications answer</td>
-<td>open 8090, 8091, 8093, 8094</td>
+<td>open 8090, 8091, 8093, 8094, 8095</td>
 <td>The two-phase start can succeed for the backend and still leave a GUI unhealthy</td>
 </tr>
 <tr>
@@ -8389,7 +8461,7 @@ reported as such, so it is safe to re-run after adding one by hand.</p>
 </tr>
 <tr>
 <td><code>mini</code></td>
-<td><code>micro</code> plus <code>pm-stats</code>, <code>pm-scheduler</code>, <code>pm-md-gwy</code>, <code>pm-api-gwy</code> (desk), <code>pm-alf-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code></td>
+<td><code>micro</code> plus <code>pm-monitor</code>, <code>pm-stats</code>, <code>pm-scheduler</code>, <code>pm-md-gwy</code>, <code>pm-api-gwy</code> (desk), <code>pm-alf-gwy</code>, <code>pm-ralf-gwy</code>, <code>pm-dc-gwy</code></td>
 <td>A trading-capable venue with external access, without clearing or audit</td>
 </tr>
 <tr>
@@ -8465,15 +8537,16 @@ up, or when you are debugging one of them.</p>
 <pre class="mermaid"><code>flowchart TD
     PRE["1. Preflight\nset data dir, deploy config"]
         LOG["2. pm-log-srv\noperational logs"]
-        REC["3. recorders\npm-audit, pm-stats, pm-clearing"]
-        ENG["4. pm-engine\nbinds :5555 :5556 :5557"]
-        SCHED["5. pm-scheduler\nif sessions enabled"]
-        FEEDS["6. external feeds\npm-md-gwy, pm-ralf-gwy, pm-dc-gwy, pm-api-gwy"]
-        ENTRY["7. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
-        IDX["8. pm-index\nif indices configured"]
-        UI["9. browser UIs\nTapeDeck, log console"]
+        MON["3. pm-monitor\nhealth collector"]
+        REC["4. recorders\npm-audit, pm-stats, pm-clearing"]
+        ENG["5. pm-engine\nbinds :5555 :5556 :5557"]
+        SCHED["6. pm-scheduler\nif sessions enabled"]
+        FEEDS["7. external feeds\npm-md-gwy, pm-ralf-gwy, pm-dc-gwy, pm-api-gwy"]
+        ENTRY["8. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
+        IDX["9. pm-index\nif indices configured"]
+        UI["10. browser UIs\nTapeDeck, log console"]
 
-        PRE --&gt; LOG --&gt; REC --&gt; ENG --&gt; SCHED --&gt; FEEDS --&gt; ENTRY --&gt; IDX --&gt; UI</code></pre>
+        PRE --&gt; LOG --&gt; MON --&gt; REC --&gt; ENG --&gt; SCHED --&gt; FEEDS --&gt; ENTRY --&gt; IDX --&gt; UI</code></pre>
 <table>
 <thead>
 <tr>
@@ -8501,94 +8574,101 @@ up, or when you are debugging one of them.</p>
 </tr>
 <tr>
 <td style="text-align: right;">2</td>
+<td><code>pm-monitor</code></td>
+<td><code>pm-monitor</code></td>
+<td>None; everything comes from the deployed config's <code>monitor</code> section</td>
+<td>Health collector. After the log server so it can log, before the engine so the engine's first beacons are received. Nothing depends on it: every process sends its beacon without waiting, and without <code>pm-monitor</code> the beacons are simply dropped. Check it with <code>pm-monitor-cli health</code>, and the whole exchange with <code>pm-monitor-cli status</code> — see <a href="../../part-6-observe-and-recover/060-health-monitor/">Health Monitoring</a>.</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
 <td><code>pm-audit</code></td>
 <td><code>pm-audit --terminal</code></td>
 <td>Optional <code>--audit-log-file</code>; use <code>--terminal</code> when watching live</td>
 <td>Audit is the durable event trail. Start it before the engine so initial session, seed and trade events are not missed.</td>
 </tr>
 <tr>
-<td style="text-align: right;">3</td>
+<td style="text-align: right;">4</td>
 <td><code>pm-stats</code></td>
 <td><code>pm-stats</code></td>
 <td>Optional <code>--snapshot-interval</code>; the session timezone comes from the deployed config's <code>locale.session_timezone</code></td>
 <td>Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete.</td>
 </tr>
 <tr>
-<td style="text-align: right;">4</td>
+<td style="text-align: right;">5</td>
 <td><code>pm-clearing</code></td>
 <td><code>pm-clearing</code></td>
 <td>Reads the same <code>locale.session_timezone</code> as <code>pm-stats</code> from the deployed config, so the two always agree</td>
 <td>Clearing records trades, positions and P&amp;L. Start it before trading; daily reconciliation depends on timezone consistency.</td>
 </tr>
 <tr>
-<td style="text-align: right;">5</td>
+<td style="text-align: right;">6</td>
 <td><code>pm-engine</code></td>
 <td><code>pm-engine --verbose</code></td>
 <td>Usually none; all config comes from the deployed artifact</td>
 <td>The engine owns the books and binds <code>:5555</code>, <code>:5556</code>, <code>:5557</code>. Start it after subscribers that must not miss early events.</td>
 </tr>
 <tr>
-<td style="text-align: right;">6</td>
+<td style="text-align: right;">7</td>
 <td><code>pm-scheduler</code></td>
 <td><code>pm-scheduler</code> or <code>pm-scheduler --now --delay 5</code></td>
 <td>Only needed when scheduled sessions are enabled</td>
 <td>The scheduler drives phase transitions. Start it after the engine so transitions have a live target and before participants are invited to trade.</td>
 </tr>
 <tr>
-<td style="text-align: right;">7</td>
+<td style="text-align: right;">8</td>
 <td><code>pm-md-gwy</code></td>
 <td><code>pm-md-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-pub</code></td>
 <td>CALF market data is the live feed used by external clients and TapeDeck. Start after the engine is alive.</td>
 </tr>
 <tr>
-<td style="text-align: right;">8</td>
+<td style="text-align: right;">9</td>
 <td><code>pm-ralf-gwy</code></td>
 <td><code>pm-ralf-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-pub</code></td>
 <td>Post-trade dissemination (RALF). Start after the engine is alive.</td>
 </tr>
 <tr>
-<td style="text-align: right;">9</td>
+<td style="text-align: right;">10</td>
 <td><code>pm-dc-gwy</code></td>
 <td><code>pm-dc-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-dc-pub</code></td>
 <td>Drop-copy feed (DC1). Start after the engine is alive.</td>
 </tr>
 <tr>
-<td style="text-align: right;">10</td>
+<td style="text-align: right;">11</td>
 <td><code>pm-api-gwy</code></td>
 <td><code>pm-api-gwy</code></td>
 <td>Optional <code>--instance NAME</code>, <code>--host</code>, <code>--port</code>, <code>--engine-host</code>; API keys come from config</td>
 <td>The API gateway has no <code>--id</code>. Use <code>--instance</code> only when multiple <code>api_gateways</code> entries are configured. Start after engine and stats history are available.</td>
 </tr>
 <tr>
-<td style="text-align: right;">11</td>
+<td style="text-align: right;">12</td>
 <td><code>pm-alf-gwy</code></td>
 <td><code>pm-alf-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-host</code>; gateway IDs come from client <code>HELLO</code> and config</td>
 <td>The ALF TCP gateway has no process-level <code>--id</code>. Start after the engine is healthy, then external text clients can connect.</td>
 </tr>
 <tr>
-<td style="text-align: right;">12</td>
+<td style="text-align: right;">13</td>
 <td><code>pm-balf-gwy</code></td>
 <td><code>pm-balf-gwy</code></td>
 <td>Optional <code>--bind</code>, <code>--port</code>, <code>--engine-host</code>; identity is configured/client-provided</td>
 <td>Optional binary order-entry gateway. Start only for BALF client exercises or integrations.</td>
 </tr>
 <tr>
-<td style="text-align: right;">13</td>
+<td style="text-align: right;">14</td>
 <td><code>pm-index</code></td>
 <td><code>pm-index</code></td>
 <td>Index definitions in deployed config</td>
 <td>Started last in the <code>default</code> profile; index publications depend on the engine and its own configured indices, not on any other process here.</td>
 </tr>
 <tr>
-<td style="text-align: right;">14</td>
+<td style="text-align: right;">15</td>
 <td>Web applications</td>
 <td><code>cd deployment/docker &amp;&amp; make up-all</code></td>
 <td>None — <code>up-all</code> resolves the read-only API key and the backend hostname itself</td>
-<td>TapeDeck needs <code>pm-md-gwy</code> for live data and <code>pm-api-gwy</code> for history; the order book viewer needs <code>pm-api-gwy</code> for everything; the log console needs <code>pm-log-srv</code>. Starting them last is why <code>up-all</code> runs in two phases.</td>
+<td>TapeDeck needs <code>pm-md-gwy</code> for live data and <code>pm-api-gwy</code> for history; the order book viewer needs <code>pm-api-gwy</code> for everything; the log console needs <code>pm-log-srv</code>; the operator dashboard needs <code>pm-monitor</code>. Starting them last is why <code>up-all</code> runs in two phases.</td>
 </tr>
 </tbody>
 </table>
@@ -8609,7 +8689,7 @@ is exactly this case.</p>
 <div class="admonition note">
 <p class="admonition-title">Where are participant terminals?</p>
 <div class="highlight"><pre><span></span><code>Local interactive participant terminals (`pm-alf-console --id TRADER01`) are
-not part of the baseline service stack. Start them after step 6, once the
+not part of the baseline service stack. Start them after step 7, once the
 engine, scheduler policy and operator checks are ready. For supervised
 sessions, start `pm-admin --id OPS01` before inviting traders in.
 </code></pre></div>
@@ -8704,7 +8784,8 @@ the exchange for you:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>deployment/docker<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>up-all<span class="w">      </span><span class="c1"># or: ./edumatcher.sh start</span>
 </code></pre></div>
 <p>Then open <a href="http://localhost:8090">http://localhost:8090</a>. The same applies to the log console (8091),
-the Trading GUI (8093) and the order book viewer (8094).</p>
+the Trading GUI (8093), the order book viewer (8094) and the operator
+dashboard (8095).</p>
 <p>To run it against an exchange you started by hand instead, start it from
 <code>web-apps/terminal-gui/</code> with the key and the gateway URL in its environment:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'key-readonly-...'</span><span class="w">   </span><span class="c1"># the credential with gateway_id: null</span>
@@ -8736,6 +8817,20 @@ it from <code>web-apps/book-gui/</code> with <code>PM_BOOK_API_KEY</code> and <c
 exactly as for TapeDeck above — unlike TapeDeck it shows nothing without the
 key, so its <code>make up</code> refuses to start without one. See
 <a href="../../../participant-guide/part-6-front-ends/030-order-book-gui/">Order Book Viewer</a> for the details.</p>
+<h3 id="operator-dashboard-pm-dash">Operator dashboard (<code>pm-dash</code>)<a class="headerlink" href="#operator-dashboard-pm-dash" title="Permanent link">&para;</a></h3>
+<p><code>pm-dash</code> is the browser view of <code>pm-monitor</code>: every process's health,
+trading activity, participants, books and gateways, live and over time, in
+<code>web-apps/dash-gui/</code>. It depends on:</p>
+<ul>
+<li><code>pm-monitor</code>, for its live snapshot (port <code>5611</code>) and the history in
+  <code>metrics.db</code>, which it reads read-only</li>
+<li>the deployed configuration, for the threshold bands it draws</li>
+<li>optionally <code>pm-log-srv</code> for bridge logs</li>
+</ul>
+<p>The container stack starts it with the other applications; open
+<a href="http://localhost:8095">http://localhost:8095</a>. See
+<a href="../../part-6-observe-and-recover/070-operator-dashboard/">Operator Dashboard</a>
+for running it against an exchange you started by hand, and for reading it.</p>
 <h2 id="process-groups-by-scenario">Process groups by scenario<a class="headerlink" href="#process-groups-by-scenario" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8770,8 +8865,12 @@ key, so its <code>make up</code> refuses to start without one. See
 <td>core engine/recorders plus <code>pm-api-gwy</code> (<code>dashboards</code>), <code>pm-book</code></td>
 </tr>
 <tr>
+<td>Exchange health at a glance</td>
+<td>running system (with <code>pm-monitor</code>) plus the operator dashboard <code>pm-dash</code></td>
+</tr>
+<tr>
 <td>Operational investigation</td>
-<td>running system plus <code>pm-audit-cli</code>, <code>pm-stats-cli</code>, <code>pm-clearing-cli</code>, <code>pm-log-cli</code>, <code>pm-admin-cli</code></td>
+<td>running system plus <code>pm-monitor-cli</code>, <code>pm-audit-cli</code>, <code>pm-stats-cli</code>, <code>pm-clearing-cli</code>, <code>pm-log-cli</code>, <code>pm-admin-cli</code></td>
 </tr>
 <tr>
 <td>Everything, with the web applications</td>
@@ -8904,6 +9003,10 @@ responding</code> row means the same thing there as on the host.</p>
 <tr>
 <td>TapeDeck</td>
 <td>Browser display for live prices, trades, movers, index, auctions and halts</td>
+</tr>
+<tr>
+<td><code>pm-dash</code> (dash-gui, port 8095)</td>
+<td>Every process's health, trading activity and events in a browser, live and over time</td>
 </tr>
 <tr>
 <td><code>pm-audit --terminal</code></td>

@@ -2244,10 +2244,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#seven-images-one-backend-dockerfile" class="md-nav__link">
+  <a href="#eight-images-one-backend-dockerfile" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Seven images, one backend Dockerfile
+        Eight images, one backend Dockerfile
       
     </span>
   </a>
@@ -3808,6 +3808,62 @@
     
   
     Log Operator Console (`pm-log-ui`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
   
 
     
@@ -7862,7 +7918,7 @@ each one means in an EduMatcher deployment.</p>
 <tr>
 <td><strong>Container</strong></td>
 <td>A running instance of an image, with its own processes, network interface and writable layer</td>
-<td>Up to six run at once: the exchange container and five GUI containers</td>
+<td>Up to seven run at once: the exchange container and six GUI containers</td>
 </tr>
 <tr>
 <td><strong>Compose file</strong></td>
@@ -7947,9 +8003,9 @@ one builds it from source, the other runs the released images.</p>
 </tbody>
 </table>
 <p>Because they describe one system, the compose files in <code>deployment/curl/</code> are
-<strong>twins</strong> of those in <code>deployment/docker/</code>. They differ in only three ways:
-they name images on GHCR instead of having <code>build:</code> sections, they put all
-five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option.</p>
+<strong>twins</strong> of those in <code>deployment/docker/</code>. They differ in only two ways:
+they name images on GHCR instead of having <code>build:</code> sections, and they put all
+six GUIs in one file.</p>
 <h3 id="what-is-in-each-directory">What is in each directory<a class="headerlink" href="#what-is-in-each-directory" title="Permanent link">&para;</a></h3>
 <p><code>deployment/docker/</code>:</p>
 <table>
@@ -7982,7 +8038,7 @@ five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option
 </tr>
 <tr>
 <td><code>compose.guis.yaml</code></td>
-<td>Overlay: the four web GUIs that talk to the exchange</td>
+<td>Overlay: the five web GUIs that talk to the exchange</td>
 </tr>
 <tr>
 <td><code>compose.config-gui.yaml</code></td>
@@ -7990,7 +8046,7 @@ five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option
 </tr>
 <tr>
 <td><code>compose.ai-sim.yaml</code></td>
-<td>A separate, self-contained stack: the AI-trader simulation and four GUIs</td>
+<td>A separate, self-contained stack: the AI-trader simulation and five GUIs</td>
 </tr>
 <tr>
 <td><code>Makefile</code></td>
@@ -8033,7 +8089,7 @@ five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option
 </tr>
 <tr>
 <td><code>compose.yaml</code></td>
-<td>The exchange and all five GUIs, from GHCR images</td>
+<td>The exchange and all six GUIs, from GHCR images</td>
 </tr>
 <tr>
 <td><code>compose.zmq.yaml</code></td>
@@ -8054,7 +8110,7 @@ five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option
 </tbody>
 </table>
 <h2 id="the-images">The images<a class="headerlink" href="#the-images" title="Permanent link">&para;</a></h2>
-<h3 id="seven-images-one-backend-dockerfile">Seven images, one backend Dockerfile<a class="headerlink" href="#seven-images-one-backend-dockerfile" title="Permanent link">&para;</a></h3>
+<h3 id="eight-images-one-backend-dockerfile">Eight images, one backend Dockerfile<a class="headerlink" href="#eight-images-one-backend-dockerfile" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -8106,6 +8162,12 @@ five GUIs in one file, and their mounts carry the SELinux <code>:z</code> option
 <td><code>web-apps/book-gui/Dockerfile</code></td>
 <td>8094</td>
 <td>The order book viewer</td>
+</tr>
+<tr>
+<td><code>edumatcher-dash-gui</code></td>
+<td><code>web-apps/dash-gui/Dockerfile</code></td>
+<td>8095</td>
+<td>The operator dashboard</td>
 </tr>
 </tbody>
 </table>
@@ -8269,7 +8331,7 @@ affect what goes into the image, not how it runs.</p>
 <p><code>compose.yaml</code> passes the last three from the variables of the same name in
 your <code>.env</code> or shell.</p>
 <h3 id="the-web-gui-images">The web GUI images<a class="headerlink" href="#the-web-gui-images" title="Permanent link">&para;</a></h3>
-<p>All five GUI Dockerfiles follow one pattern, also in two stages:</p>
+<p>All six GUI Dockerfiles follow one pattern, also in two stages:</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph b["build stage: node:22-slim"]
         N1["npm ci\n(all dependencies)"] --&gt; N2["npm run build\n(React bundle)"] --&gt; N3["npm prune --omit=dev"]
@@ -8301,7 +8363,7 @@ to the build as <code>EDUMATCHER_VERSION</code>).</p>
 <h3 id="how-released-images-are-built">How released images are built<a class="headerlink" href="#how-released-images-are-built" title="Permanent link">&para;</a></h3>
 <p>You never need to do this yourself, but it explains what you pull. Publishing a
 GitHub release runs <code>.github/workflows/publish-images.yml</code>. It builds all
-seven images (<code>edumatcher</code>, <code>edumatcher-ai-sim</code> and the five GUIs) natively on
+eight images (<code>edumatcher</code>, <code>edumatcher-ai-sim</code> and the six GUIs) natively on
 an <code>amd64</code> and an <code>arm64</code> runner, and joins each pair into one multi-arch
 manifest. Both backend images and the log console get the release's own wheel
 in their <code>.wheel/</code> drop box, so their Python code is exactly the release. The
@@ -8389,7 +8451,7 @@ optional feature is a separate <em>overlay</em> you add only when you want it.</
     BASE["compose.yaml\nthe exchange container"] --&gt; M(("merged\nconfiguration"))
     ZMQ["compose.zmq.yaml\n+ bus ports, + 2 env vars"] -.-&gt;|"ZMQ=1"| M
     SSH["compose.ssh.yaml\n+ sshd, + key mount, + port 22"] -.-&gt;|"SSH=1"| M
-    GUIS["compose.guis.yaml\n+ 4 GUI services"] -.-&gt;|"make up-all"| M
+    GUIS["compose.guis.yaml\n+ 5 GUI services"] -.-&gt;|"make up-all"| M
     CFG["compose.config-gui.yaml\n+ config-gui service"] -.-&gt;|"CONFIG_GUI=1"| M
     M --&gt; RUN["podman-compose / docker compose\nup -d"]</code></pre>
 <p>The <code>make</code> flags only choose which <code>-f</code> arguments are passed:</p>
@@ -8641,17 +8703,21 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
         L["log-gui\n:8091"]
         TR["trader-gui\n:8093"]
         B["book-gui\n:8094"]
+        D["dash-gui\n:8095"]
         E["edumatcher"]
     end
     BR --&gt;|"8090"| T
     BR --&gt;|"8091"| L
     BR --&gt;|"8093"| TR
     BR --&gt;|"8094"| B
+    BR --&gt;|"8095"| D
     T --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
     L --&gt;|"edumatcher:5601 / 5602\nlive log stream"| E
     TR --&gt;|"edumatcher:8080\nREST + WebSocket"| E
     B --&gt;|"edumatcher:8081\nmarket data + history\nedumatcher:5600 own logs"| E
-    L -.-&gt;|"reads log.db from\n./data, read-only"| DATA[("./data")]</code></pre>
+    D --&gt;|"edumatcher:5611\nhealth snapshots\nedumatcher:5600 own logs"| E
+    L -.-&gt;|"reads log.db from\n./data, read-only"| DATA[("./data")]
+    D -.-&gt;|"reads metrics.db and the\nconfiguration, read-only"| DATA</code></pre>
 <table>
 <thead>
 <tr>
@@ -8686,6 +8752,12 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
 <td><code>API_GATEWAY_URL</code>, <code>PM_BOOK_API_KEY</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
 <td>named volume <code>book-gui-logs</code></td>
 </tr>
+<tr>
+<td><code>dash-gui</code></td>
+<td><code>pm-monitor</code> (5611 PUB), <code>pm-log-srv</code> (5600)</td>
+<td><code>MONITOR_HOST</code>/<code>MONITOR_PUB_PORT</code>, <code>METRICS_DB_PATH</code>, <code>CONFIG_ARTIFACT_PATH</code>, <code>LOG_GUI_URL</code>/<code>BOOK_GUI_URL</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
+<td><code>./data</code> read-only at <code>/backend-data</code>; named volume <code>dash-gui-logs</code></td>
+</tr>
 </tbody>
 </table>
 <p>Every GUI also gets <code>HOST=0.0.0.0</code> (listen on the container's interface),
@@ -8696,7 +8768,9 @@ one reason <code>make up-all</code> starts in two phases (see below).</p>
 published port. The exchange's published ports are there for you; the GUIs
 reach it across the private network. The log console's live stream on
 5601/5602 therefore works without <code>ZMQ=1</code>. <code>pm-log-srv</code> binds those sockets
-on <code>0.0.0.0</code> inside the container, and the network carries the traffic.</p>
+on <code>0.0.0.0</code> inside the container, and the network carries the traffic. The
+same holds for the dashboard and <code>pm-monitor</code>'s 5611, which
+<code>EDUMATCHER_GATEWAY_BIND_HOST</code> opens inside the container.</p>
 <h3 id="composeconfig-guiyaml-the-configuration-builder"><code>compose.config-gui.yaml</code> — the configuration builder<a class="headerlink" href="#composeconfig-guiyaml-the-configuration-builder" title="Permanent link">&para;</a></h3>
 <p>One service, <code>config-gui</code>, on port 8092. It writes configuration files in the
 browser and talks to nothing else, so it is kept out of <code>compose.guis.yaml</code>
@@ -8711,11 +8785,14 @@ default. It needs no <code>.env</code> and no build.</p>
         E["edumatcher-sim\n(image edumatcher-ai-sim)\ns300-sim, profile ai-sim"]
         T["edumatcher-sim-terminal-gui"]
         B["edumatcher-sim-book-gui"]
+        DG["edumatcher-sim-dash-gui"]
         L["edumatcher-sim-log-gui"]
         TR["edumatcher-sim-trader-gui"]
     end
     D[("./data-sim")] --- E
     D -. "read-only" .- L
+    D -. "read-only" .- DG
+    DG --&gt; E
     T --&gt; E
     B --&gt; E
     L --&gt; E
@@ -8818,12 +8895,12 @@ and finally the directory name.</p>
 </tr>
 <tr>
 <td>Containers</td>
-<td><code>edumatcher</code>, <code>edumatcher-terminal-gui</code>, <code>edumatcher-log-gui</code>, <code>edumatcher-trader-gui</code>, <code>edumatcher-book-gui</code>, <code>edumatcher-config-gui</code></td>
+<td><code>edumatcher</code>, <code>edumatcher-terminal-gui</code>, <code>edumatcher-log-gui</code>, <code>edumatcher-trader-gui</code>, <code>edumatcher-book-gui</code>, <code>edumatcher-dash-gui</code>, <code>edumatcher-config-gui</code></td>
 <td><code>container_name:</code> in the files</td>
 </tr>
 <tr>
 <td>Named volumes</td>
-<td><code>edumatcher_log-gui-acks</code>, <code>edumatcher_terminal-gui-logs</code>, <code>edumatcher_book-gui-logs</code></td>
+<td><code>edumatcher_log-gui-acks</code>, <code>edumatcher_terminal-gui-logs</code>, <code>edumatcher_book-gui-logs</code>, <code>edumatcher_dash-gui-logs</code></td>
 <td><code>volumes:</code> at the bottom of the GUI files</td>
 </tr>
 <tr>
@@ -8851,7 +8928,7 @@ exchange's service is called <code>edumatcher</code>, so <code>edumatcher:8081</
 <code>terminal-gui</code> reaches the exchange's REST API.</p>
 <pre class="mermaid"><code>flowchart TB
     subgraph host["Your machine (host network)"]
-        LO["127.0.0.1:8090-8094\n127.0.0.1:5560 … 8081\n(published ports)"]
+        LO["127.0.0.1:8090-8095\n127.0.0.1:5560 … 8081\n(published ports)"]
     end
     subgraph net["Private network edumatcher_default"]
         direction LR
@@ -8860,13 +8937,15 @@ exchange's service is called <code>edumatcher</code>, so <code>edumatcher:8081</
         L["log-gui"]
         TR["trader-gui"]
         B["book-gui"]
+        DG["dash-gui"]
         C["config-gui"]
     end
     LO --&gt;|"port forwarding"| net
     T --- E
     L --- E
     TR --- E
-    B --- E</code></pre>
+    B --- E
+    DG --- E</code></pre>
 <p>Each container has its own network namespace and its own <code>127.0.0.1</code>. A
 process listening on <code>127.0.0.1</code> inside <code>edumatcher</code> is invisible to the GUI
 containers. That is why the client-facing listeners bind <code>0.0.0.0</code>: <em>every
@@ -8970,6 +9049,22 @@ when it is installed. <code>make info</code> shows which one was picked.</p>
 <td>Same, for the order book viewer</td>
 </tr>
 <tr>
+<td><code>dash-gui</code></td>
+<td><code>/backend-data</code></td>
+<td><code>./data</code></td>
+<td>bind mount</td>
+<td><strong>read-only</strong></td>
+<td>The dashboard reads <code>metrics.db</code> (history) and <code>ref_data/engine_config.json</code> (the threshold bands), and must never write either</td>
+</tr>
+<tr>
+<td><code>dash-gui</code></td>
+<td><code>/app/logs</code></td>
+<td><code>&lt;project&gt;_dash-gui-logs</code></td>
+<td>named volume</td>
+<td>read-write</td>
+<td>Failover log, for the operator dashboard</td>
+</tr>
+<tr>
 <td>AI-sim <code>edumatcher-sim</code></td>
 <td><code>/data</code></td>
 <td><code>./data-sim</code> (curl <code>--sim</code>: <code>~/.edumatcher-sim/data</code>)</td>
@@ -8989,6 +9084,7 @@ when it is installed. <code>make info</code> shows which one was picked.</p>
         V1["log-gui-acks"]
         V2["terminal-gui-logs"]
         V3["book-gui-logs"]
+        V4["dash-gui-logs"]
     end
     D --&gt;|"rw  /data"| E["edumatcher"]
     CF --&gt;|"ro  /config"| E
@@ -8996,18 +9092,21 @@ when it is installed. <code>make info</code> shows which one was picked.</p>
     D --&gt;|"ro  /backend-data"| L["log-gui"]
     V1 --&gt;|"rw"| L
     V2 --&gt;|"rw"| T["terminal-gui"]
-    V3 --&gt;|"rw"| B["book-gui"]</code></pre>
+    V3 --&gt;|"rw"| B["book-gui"]
+    D --&gt;|"ro  /backend-data"| DG["dash-gui"]
+    V4 --&gt;|"rw"| DG</code></pre>
 <p>The split is deliberate. <strong>Exchange data is in a bind mount</strong> because it is
 yours: you back it up, inspect it with <code>sqlite3</code>, delete it to start over. The
 GUI volumes hold <strong>disposable private state</strong> that nothing else needs, so they
 live where the container engine keeps such things. They are removed by
 <code>./edumatcher.sh uninstall</code> or <code>compose down --volumes</code>; <code>./data</code> is not.</p>
 <div class="admonition note">
-<p class="admonition-title">The <code>:z</code> on curl-install mounts</p>
-<p>The curl compose files add <code>:z</code> to their bind mounts (<code>./data:/data:z</code>).
-On SELinux systems such as Fedora and RHEL, <code>:z</code> asks the container engine
-to relabel the directory so containers may use it. Elsewhere it has no
-effect.</p>
+<p class="admonition-title">The <code>:z</code> on every bind mount</p>
+<p>Every compose file adds <code>:z</code> to its bind mounts (<code>./data:/data:z</code>,
+<code>./data:/backend-data:ro,z</code>). On SELinux systems such as Fedora and RHEL,
+<code>:z</code> asks the container engine to relabel the directory so containers may
+use it; without it the exchange cannot write <code>./data</code> at all. Elsewhere it
+has no effect. Keep it in a compose file of your own.</p>
 </div>
 <p>What lives in <code>./data</code> is listed in
 <a href="../010-installation/#directories-and-paths">Directories and paths</a>.</p>
@@ -9140,6 +9239,20 @@ the container, or across the compose network if the process binds <code>0.0.0.0<
 <td>Log console control channel</td>
 </tr>
 <tr>
+<td style="text-align: right;">5611</td>
+<td><code>pm-monitor</code></td>
+<td>ZeroMQ PUB</td>
+<td><code>ZMQ=1</code></td>
+<td>Health snapshots and events. <code>dash-gui</code> reads it across the network either way; published for <code>pm-monitor-cli</code> or a dashboard run from source</td>
+</tr>
+<tr>
+<td style="text-align: right;">5610</td>
+<td><code>pm-monitor</code></td>
+<td>ZeroMQ PULL</td>
+<td>never</td>
+<td>Health beacons from every process inside the container. Never published: anything that reached it could report fake health</td>
+</tr>
+<tr>
 <td style="text-align: right;">22</td>
 <td><code>sshd</code></td>
 <td>TCP</td>
@@ -9207,6 +9320,12 @@ tools to the bus.</p>
 <td>8094</td>
 <td><code>book-gui</code></td>
 <td>Order book viewer</td>
+</tr>
+<tr>
+<td><code>DASH_GUI_PORT</code> (8095)</td>
+<td>8095</td>
+<td><code>dash-gui</code></td>
+<td>Operator dashboard</td>
 </tr>
 </tbody>
 </table>
@@ -9291,7 +9410,7 @@ order-entry gateways have no password.</p>
 <tr>
 <td><code>EDUMATCHER_GATEWAY_BIND_HOST</code></td>
 <td><code>0.0.0.0</code></td>
-<td>gateways, <code>pm-log-srv</code>, <code>pm-api-gwy</code></td>
+<td>gateways, <code>pm-log-srv</code>, <code>pm-api-gwy</code>, <code>pm-monitor</code></td>
 <td>yes</td>
 </tr>
 <tr>
@@ -9301,10 +9420,16 @@ order-entry gateways have no password.</p>
 <td>no</td>
 </tr>
 <tr>
-<td><code>TERMINAL_GUI_PORT</code> … <code>BOOK_GUI_PORT</code></td>
-<td><code>8090</code> … <code>8094</code></td>
+<td><code>TERMINAL_GUI_PORT</code> … <code>DASH_GUI_PORT</code></td>
+<td><code>8090</code> … <code>8095</code></td>
 <td>GUI <code>ports:</code></td>
 <td>no</td>
+</tr>
+<tr>
+<td><code>LOG_GUI_URL</code> / <code>BOOK_GUI_URL</code></td>
+<td><code>http://localhost:&lt;port&gt;</code></td>
+<td><code>dash-gui</code></td>
+<td>yes: the drawers' links to log-gui and book-gui</td>
 </tr>
 <tr>
 <td><code>IMAGE_NAME</code> / <code>IMAGE_TAG</code></td>
@@ -9416,7 +9541,7 @@ right files.</p>
 <tr>
 <td></td>
 <td><code>make build-guis [GUI=&lt;name&gt;]</code></td>
-<td>Rebuild all five GUI images, or one. <code>log-gui</code> gets a wheel from your checkout (or PyPI with <code>PYPI=1</code> / <code>VERSION=</code>)</td>
+<td>Rebuild all six GUI images, or one. <code>log-gui</code> gets a wheel from your checkout (or PyPI with <code>PYPI=1</code> / <code>VERSION=</code>)</td>
 </tr>
 <tr>
 <td></td>
@@ -9680,8 +9805,8 @@ code change only redoes the <code>pip install</code> and what follows.</p>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">NPM_STRICT_SSL</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span>.
 </code></pre></div>
 <p>The names compose expects are <code>edumatcher-terminal-gui</code>,
-<code>edumatcher-log-gui</code>, <code>edumatcher-config-gui</code>, <code>edumatcher-trader-gui</code> and
-<code>edumatcher-book-gui</code>, each with the tag <code>latest</code>. From
+<code>edumatcher-log-gui</code>, <code>edumatcher-config-gui</code>, <code>edumatcher-trader-gui</code>,
+<code>edumatcher-book-gui</code> and <code>edumatcher-dash-gui</code>, each with the tag <code>latest</code>. From
 <code>deployment/docker</code>, <code>podman-compose -f compose.yaml -f compose.guis.yaml -f
 compose.config-gui.yaml build terminal-gui</code> does the same. This is what
 <code>make build-guis GUI=terminal-gui</code> runs.</p>

@@ -3172,6 +3172,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-6-observe-and-recover/060-health-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Monitoring (`pm-monitor`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operator-guide/part-6-observe-and-recover/070-operator-dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operator Dashboard (`pm-dash`)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -7511,7 +7567,7 @@
 <p>Get a working EduMatcher, understand <strong>where its files live</strong>, and know <strong>how to
 change them</strong>. There are four ways to install; you need exactly one, and
 <strong>Containers is the recommended default</strong> — it needs no Python setup, gives
-you the exchange plus five web applications in a single command, and is what
+you the exchange plus six web applications in a single command, and is what
 the rest of this chapter assumes unless you have a specific reason to choose
 otherwise. By the end of this chapter you will have an exchange you can start
 and stop, a deployed configuration, and a clear picture of which directory
@@ -7544,7 +7600,7 @@ in action.</p>
 <tr>
 <td><strong>A — Containers (recommended)</strong></td>
 <td>Podman or Docker</td>
-<td>The exchange <strong>and five web applications</strong>, in one command</td>
+<td>The exchange <strong>and six web applications</strong>, in one command</td>
 <td>Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows</td>
 </tr>
 <tr>
@@ -7638,7 +7694,7 @@ directory removes the installation.</p>
 downloads four small support files (<code>compose.yaml</code>, <code>compose.zmq.yaml</code>,
 <code>edumatcher.sh</code>, <code>.env.example</code>), pulls six images and starts them. Nothing
 is compiled on your machine.</p>
-<p>When it finishes you have a complete exchange <strong>and</strong> five web applications:</p>
+<p>When it finishes you have a complete exchange <strong>and</strong> six web applications:</p>
 <table>
 <thead>
 <tr>
@@ -7674,6 +7730,11 @@ is compiled on your machine.</p>
 <td>One symbol's full order book, statistics and trade tape — <code>pm-viewer</code> in the browser</td>
 </tr>
 <tr>
+<td>Operator Dashboard (<code>pm-dash</code>)</td>
+<td><a href="http://localhost:8095">http://localhost:8095</a></td>
+<td>Whether every part of the exchange is healthy, and how busy it is, live and over time</td>
+</tr>
+<tr>
 <td>REST API docs</td>
 <td><a href="http://localhost:8080/docs">http://localhost:8080/docs</a></td>
 <td>Swagger UI for the <code>desk</code> API gateway</td>
@@ -7686,7 +7747,7 @@ market-maker bid and ask the moment <code>pm-engine</code> starts, so there is a
 book before anyone has traded.</p>
 <div class="admonition note">
 <p class="admonition-title">If a port is already taken</p>
-<p>The published ports (<code>8080</code>, <code>8090</code>–<code>8094</code>) are fixed. If another program
+<p>The published ports (<code>8080</code>, <code>8090</code>–<code>8095</code>) are fixed. If another program
 on your machine already uses one of them, <code>./edumatcher.sh start</code> fails
 with a bind error naming that port. Free it, or move the conflicting
 service, then run <code>./edumatcher.sh start</code> again — nothing was left
@@ -7847,7 +7908,7 @@ host. Install Multipass from <a href="https://multipass.run/install">multipass.r
 verify it, then bootstrap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>multipass<span class="w"> </span>version
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.50.7
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.51.0
 </code></pre></div>
 <p>If <code>multipass version</code> fails with <code>command not found</code>, the install did not
 complete or your shell has not picked up its PATH change yet — open a new
@@ -8090,6 +8151,11 @@ so updating does not discard your edits.</p>
 <td><code>8094</code></td>
 <td>Host port for the Order Book Viewer (<code>pm-book</code>)</td>
 </tr>
+<tr>
+<td><code>DASH_GUI_PORT</code></td>
+<td><code>8095</code></td>
+<td>Host port for the Operator Dashboard (<code>pm-dash</code>)</td>
+</tr>
 </tbody>
 </table>
 <p>Change any of them and run <code>./edumatcher.sh restart</code>. Two have their own
@@ -8155,7 +8221,7 @@ handled in full:</p>
 </tr>
 <tr>
 <td><code>./edumatcher.sh start</code> fails with a bind error naming a port</td>
-<td>Something else on your machine already uses <code>8080</code> or <code>8090</code>–<code>8094</code></td>
+<td>Something else on your machine already uses <code>8080</code> or <code>8090</code>–<code>8095</code></td>
 <td>Free the port or stop the other service, then <code>./edumatcher.sh start</code> again</td>
 </tr>
 <tr>
