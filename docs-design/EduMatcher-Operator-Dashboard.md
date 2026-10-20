@@ -947,7 +947,8 @@ at ≈ 65 KB with the engine's full per-gateway and per-symbol metric list.
 |---|---|
 | `GET /api/series?name=&label=&source=&from=&to=` | `{ points: [ts, v][] }` — picks `samples_raw` or `samples_1m` by range (≤ `raw_hours` → raw), at most 1 000 points (server-side bucketing) |
 | `GET /api/series/multi?name=&labels=a,b,c&from=&to=` (or `sources=a,b&label=`) | Several labels of one metric, or one label across processes; one resolution and the same bucket starts for all (I114) |
-| `GET /api/rate?name=&label=&from=&to=&bucket=1m\|1h` | Counter increments per bucket (from `delta`) — the "orders per minute" chart |
+| `GET /api/rate?name=&label=&from=&to=&bucket=1m\|1h` (or `names=a,b`) | Counter increments per bucket (from `delta`), summed over several counters with `names=` (I116) |
+| `GET /api/rate/by-label?name=&range=&bucket=` | One counter's increments per bucket, one series per label — orders/min by participant (I116) |
 | `GET /api/daily?name=&label=&days=30` | `daily_totals` rows |
 | `GET /api/events?from=&to=&kind=` | Event log / annotations |
 | `GET /api/thresholds` | Every threshold rule pm-monitor judges by, from the deployed artifact or its defaults (I113, I115) |
@@ -2707,6 +2708,20 @@ carries only active breaches, so the rows take the rules from
 REST.
 
 **Done when:** against a running stack all seven rows show live data.
+
+As built (WP-D3, I116):
+- **Code:** rows in `views/rows/`, each subscribed to its own slice of the store.
+- **Data sources:**
+  - live figures from the snapshot;
+  - sparklines from a ring of the last 60 snapshots;
+  - vitals history via one `/api/series/multi?sources=` per chart (`ProcessSeriesChart`), live points appended once per bucket (`hooks/history.ts`);
+  - rates from `/api/rate` (`names=` sums counters) and `/api/rate/by-label`, refetched each refresh interval;
+  - the connection timeline from CONNECT/DISCONNECT events plus the snapshot's state;
+  - the reject ratio computed exactly as `reject_pct_5m`.
+- **Tile colours:** for the "any increase" rules (dropped events, slow disconnects, feed gaps) they come from pm-monitor's active breaches.
+- **Metric names:** in `lib/metrics.ts`, pinned to the producers (`tests/test_dash_metrics_mirror.py`) and to a captured snapshot (`test/fixtures/snapshot.json`).
+- **Deviation:** trades/min and traded value are two charts, not one dual-axis chart.
+- **E2E:** `make test-e2e` checks every row against pm-monitor's own snapshot in Chrome, and that the live page does not overflow.
 
 **Watch out for:**
 - 1 Hz re-render of the whole tree: memoise rows on their slice of the

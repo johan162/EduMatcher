@@ -6,21 +6,10 @@
  */
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { WidgetGallery } from "../src/views/WidgetGallery.js";
 import { applyThemeToDocument } from "../src/store/usePrefsStore.js";
 
-beforeAll(() => {
-  // ResponsiveContainer observes its size; jsdom has no ResizeObserver.
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
-});
 afterEach(cleanup);
 
 describe.each(["dark", "light"] as const)("the widget gallery, %s theme", (theme) => {

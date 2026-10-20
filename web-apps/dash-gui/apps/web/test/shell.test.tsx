@@ -14,6 +14,7 @@ import { useDashStore } from "../src/store/useDashStore.js";
 import { useFontSizeStore } from "../src/store/useFontSizeStore.js";
 import { usePrefsStore } from "../src/store/usePrefsStore.js";
 import { FakeSocket } from "./fake-socket.js";
+import { fixtureSnapshot } from "./fixtures/snapshots.js";
 
 function Location() {
   const { search } = useLocation();
@@ -42,16 +43,7 @@ const hello = (monitor: "UP" | "DOWN", sessionTz = "Europe/Stockholm"): ServerFr
 function snapshot(status: ExchangeStatusName, ts = "2026-10-19T09:42:05.000Z", tz = "Europe/Stockholm"): ServerFrame {
   return {
     type: "snapshot",
-    data: {
-      ts,
-      seq: 1,
-      exchange: {
-        status,
-        session_state: "CONTINUOUS",
-        trading_date: "2026-10-19",
-        session_timezone: tz,
-      },
-    } as unknown as HealthSnapshot,
+    data: fixtureSnapshot({ ts, seq: 1, exchange: { status, session_state: "CONTINUOUS", trading_date: "2026-10-19", session_timezone: tz } }),
   };
 }
 

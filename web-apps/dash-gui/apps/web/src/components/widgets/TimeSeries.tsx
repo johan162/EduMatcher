@@ -266,7 +266,8 @@ export function TimeSeries({
 
   return (
     <figure aria-label={label} data-widget="time-series" className="m-0 min-w-0">
-      <div className="relative">
+      {/* Clips Recharts' hidden tooltip, parked past the right edge, which would widen the page. */}
+      <div className="relative overflow-hidden">
         <ChartBox width={width} height={height}>
           {(size) => (
             // ResponsiveContainer sizes its direct child through width/height props.

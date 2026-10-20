@@ -20,6 +20,16 @@ import type { MonitorState } from "./ws.js";
 export const RANGE_NAMES = ["5m", "15m", "1h", "6h", "24h", "7d"] as const;
 export type RangeName = (typeof RANGE_NAMES)[number];
 
+/** Each range's span in milliseconds. */
+export const RANGE_MS: Record<RangeName, number> = {
+  "5m": 5 * 60_000,
+  "15m": 15 * 60_000,
+  "1h": 3600_000,
+  "6h": 6 * 3600_000,
+  "24h": 24 * 3600_000,
+  "7d": 7 * 24 * 3600_000,
+};
+
 /** `[epoch ms, value]`, oldest first. */
 export type Point = [number, number];
 
@@ -50,12 +60,23 @@ export interface MultiSeriesResponse {
   series: { label: string; source: string; points: Point[] }[];
 }
 
-/** `GET /api/rate`: counter increments per bucket, summed over sources (and labels when none is given). */
+/**
+ * `GET /api/rate`: counter increments per bucket, summed over sources, over
+ * labels when none is given, and over every name of `names=` (then `name`
+ * is them joined by ",").
+ */
 export interface RateResponse {
   name: string;
   label: string | null;
   bucket: "1m" | "1h";
   points: Point[];
+}
+
+/** `GET /api/rate/by-label`: one counter's increments per bucket, one series per label (orders/min by participant). */
+export interface RateByLabelResponse {
+  name: string;
+  bucket: "1m" | "1h";
+  series: { label: string; points: Point[] }[];
 }
 
 /** `GET /api/daily` */

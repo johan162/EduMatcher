@@ -14,6 +14,8 @@ hours, as pm-monitor records beacons:
   every sample of minute m is 10 + m % 10.
 * ``engine.orders_in`` (source ``pm-engine@h1``, counter), label ``GW01``: one
   per sample (30 a minute); label ``GW02``: two per sample (60 a minute).
+* ``engine.rejects`` (``pm-engine@h1``, counter), label ``GW01``: one every
+  fifth sample (6 a minute).
 * ``proc.rss_bytes`` from ``pm-engine@h1`` and ``pm-engine@h2`` (gauges):
   the same name from two sources, for the ambiguity rule.
 
@@ -40,6 +42,7 @@ STEP = 2.0
 SAMPLES = 3600  # two hours
 GW01 = ("pm-engine@h1", "engine.orders_in", "GW01")
 GW02 = ("pm-engine@h1", "engine.orders_in", "GW02")
+REJ = ("pm-engine@h1", "engine.rejects", "GW01")
 CPU = ("host", "host.cpu_pct", "")
 RSS1 = ("pm-engine@h1", "proc.rss_bytes", "")
 RSS2 = ("pm-engine@h2", "proc.rss_bytes", "")
@@ -55,7 +58,7 @@ EVENTS = [
 def main(out: Path) -> None:
     out.unlink(missing_ok=True)
     store = MetricsStore(out, "Europe/Stockholm", raw_hours=6, minute_days=7)
-    gw01 = gw02 = 0.0
+    gw01 = gw02 = rej = 0.0
     now = T0
     for i in range(SAMPLES):
         now = T0 + i * STEP
@@ -69,6 +72,10 @@ def main(out: Path) -> None:
         store.record_increment("2026-10-19", GW01, 1.0, now)
         store.record(GW02, gw02, now, counter=True)
         store.record_increment("2026-10-19", GW02, 2.0, now)
+        rej += 1 if i % 5 == 0 else 0
+        store.record(REJ, rej, now, counter=True)
+        if i % 5 == 0:
+            store.record_increment("2026-10-19", REJ, 1.0, now)
         if store.due_raw(now):
             store.flush_raw(now)
         store.flush_minutes(now)

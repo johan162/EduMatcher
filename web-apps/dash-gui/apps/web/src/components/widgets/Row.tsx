@@ -25,7 +25,8 @@ export function Row({ id, title, badge, badgeTone = "text-fg-subtle", children }
   const Chevron = collapsed ? ChevronRight : ChevronDown;
 
   return (
-    <section aria-labelledby={`${bodyId}-title`} data-widget="row" className="min-w-0 rounded border border-border bg-bg-subtle">
+    // Named "<title> row": a tile or table inside may well carry the title itself.
+    <section aria-label={`${title} row`} data-widget="row" className="min-w-0 rounded border border-border bg-bg-subtle">
       <h2 className="m-0">
         <button
           id={`${bodyId}-title`}

@@ -19,9 +19,11 @@ import type {
   EventsResponse,
   MultiSeriesResponse,
   RangeName,
+  RateByLabelResponse,
   RateResponse,
   SeriesResponse,
 } from "@edumatcher/dash-types";
+import { RANGE_MS } from "@edumatcher/dash-types";
 import { MAX_POINTS, MetricsDb, QueryError, type TimeRange } from "./metrics-db.js";
 import { utcOffsetSec } from "./session-time.js";
 
@@ -29,6 +31,8 @@ import { utcOffsetSec } from "./session-time.js";
 export const MAX_RANGE_MS = 7 * 24 * 3600 * 1000;
 /** Series (labels or sources) one `/api/series/multi` request may ask for. */
 export const MAX_LABELS = 50;
+/** Counters one `/api/rate?names=` request may sum. */
+export const MAX_RATE_NAMES = 10;
 export const MAX_EVENTS = 1000;
 export const DEFAULT_EVENTS = 500;
 export const MAX_DAYS = 366;
@@ -46,15 +50,8 @@ const EVENT_KINDS: Record<EventKind, true> = {
   THRESHOLD: true,
 };
 
-/** The time-picker set (§11.2); `range=` is an alternative to `from=`. */
-const RANGES: Record<RangeName, number> = {
-  "5m": 5 * 60_000,
-  "15m": 15 * 60_000,
-  "1h": 3600_000,
-  "6h": 6 * 3600_000,
-  "24h": 24 * 3600_000,
-  "7d": 7 * 24 * 3600_000,
-};
+/** The time-picker set (§11.2, shared with the web); `range=` is an alternative to `from=`. */
+const RANGES = RANGE_MS;
 
 type Query = Record<string, string | undefined>;
 
@@ -212,21 +209,55 @@ export function registerHistoryRoutes(
     }),
   );
 
+  /** bucket= and the range it must fit in at most MAX_POINTS buckets. */
+  const rateBucket = (q: Query, range: TimeRange): { bucket: "1m" | "1h"; bucketSec: number } => {
+    const bucket = q.bucket ?? "1m";
+    if (bucket !== "1m" && bucket !== "1h") throw bad("bad_bucket", "bucket= is 1m or 1h");
+    const bucketSec = bucket === "1m" ? 60 : 3600;
+    if ((range.toMs - range.fromMs) / 1000 / bucketSec > MAX_POINTS) {
+      throw bad("too_many_points", `this range has more than ${MAX_POINTS} ${bucket} buckets; use bucket=1h`);
+    }
+    return { bucket, bucketSec };
+  };
+
+  // One counter (name=), or several summed (names=a,b: requests = orders +
+  // cancels + amends + quotes, for a reject ratio).
   app.get("/api/rate", (request, reply) =>
     send(reply, (): RateResponse => {
       const q = query(request.query);
-      const name = requireName(q);
+      let names: string[];
+      if (q.names !== undefined) {
+        if (q.name !== undefined) throw bad("bad_param", "give either name= or names=, not both");
+        names = [...new Set(q.names.split(","))].filter((n) => n !== "");
+        if (names.length === 0) throw bad("missing_param", "names= names no metric");
+        if (names.length > MAX_RATE_NAMES) throw bad("too_many_series", `at most ${MAX_RATE_NAMES} names per request`);
+        if (names.some((n) => n.length > 64)) throw bad("bad_name", "a name is at most 64 characters");
+      } else {
+        names = [requireName(q)];
+      }
       const label = optionalText(q, "label", 32);
       const source = optionalText(q, "source", 200);
       const range = parseRange(q, now())!;
-      const bucket = q.bucket ?? "1m";
-      if (bucket !== "1m" && bucket !== "1h") throw bad("bad_bucket", "bucket= is 1m or 1h");
-      const bucketSec = bucket === "1m" ? 60 : 3600;
-      if ((range.toMs - range.fromMs) / 1000 / bucketSec > MAX_POINTS) {
-        throw bad("too_many_points", `this range has more than ${MAX_POINTS} ${bucket} buckets; use bucket=1h`);
-      }
+      const { bucket, bucketSec } = rateBucket(q, range);
+      for (const name of names) knownMetric(db, name);
+      return {
+        name: names.join(","),
+        label: label ?? null,
+        bucket,
+        points: db.rate(names, label, source, range, bucketSec, offsetFor(range)),
+      };
+    }),
+  );
+
+  app.get("/api/rate/by-label", (request, reply) =>
+    send(reply, (): RateByLabelResponse => {
+      const q = query(request.query);
+      const name = requireName(q);
+      const source = optionalText(q, "source", 200);
+      const range = parseRange(q, now())!;
+      const { bucket, bucketSec } = rateBucket(q, range);
       knownMetric(db, name);
-      return { name, label: label ?? null, bucket, points: db.rate(name, label, source, range, bucketSec, offsetFor(range)) };
+      return { name, bucket, series: db.rateByLabel(name, source, range, bucketSec, offsetFor(range)) };
     }),
   );
 

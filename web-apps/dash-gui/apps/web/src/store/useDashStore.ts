@@ -17,7 +17,8 @@
  */
 
 import { create } from "zustand";
-import type { HealthEvent, HealthSnapshot, MonitorState, ServerFrame } from "@edumatcher/dash-types";
+import type { HealthEvent, HealthSnapshot, MonitorState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
+import { liveSample, pushRecent, type LiveSample } from "../lib/live.js";
 import { DEFAULT_RANGE, DEFAULT_REFRESH, type RangeName, type RefreshName } from "../lib/range.js";
 
 /** The tab's own socket to the bridge. */
@@ -38,6 +39,10 @@ interface DashStore {
   events: HealthEvent[];
   range: RangeName;
   refresh: RefreshName;
+  /** The last minute of sparkline figures, one per snapshot (lib/live.ts). */
+  recent: LiveSample[];
+  /** The rules pm-monitor judges by, from /api/thresholds; null until loaded. */
+  thresholds: Record<string, ThresholdRule> | null;
 
   setSocket: (socket: SocketState) => void;
   apply: (frame: ServerFrame) => void;
@@ -46,6 +51,7 @@ interface DashStore {
   connection: () => ConnectionState;
   setRange: (range: RangeName) => void;
   setRefresh: (refresh: RefreshName) => void;
+  setThresholds: (rules: Record<string, ThresholdRule>) => void;
 }
 
 export const useDashStore = create<DashStore>()((set, get) => ({
@@ -57,6 +63,8 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   events: [],
   range: DEFAULT_RANGE,
   refresh: DEFAULT_REFRESH,
+  recent: [],
+  thresholds: null,
 
   // A dropped socket leaves pm-monitor's state unknown; the snapshot stays, frozen.
   setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null } : { socket }),
@@ -66,7 +74,11 @@ export const useDashStore = create<DashStore>()((set, get) => ({
         set({ monitor: frame.monitor, bridgeVersion: frame.version, sessionTz: frame.sessionTz });
         break;
       case "snapshot":
-        set({ snapshot: frame.data, sessionTz: frame.data.exchange.session_timezone || get().sessionTz });
+        set({
+          snapshot: frame.data,
+          sessionTz: frame.data.exchange.session_timezone || get().sessionTz,
+          recent: pushRecent(get().recent, liveSample(frame.data)),
+        });
         break;
       case "event": {
         const events = get().events;
@@ -97,4 +109,5 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   },
   setRange: (range) => set({ range }),
   setRefresh: (refresh) => set({ refresh }),
+  setThresholds: (thresholds) => set({ thresholds }),
 }));

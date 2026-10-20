@@ -14,7 +14,8 @@ The design, and the reasons behind it, are in
 > exchange status, session, time range (`?from=now-1h`), history refresh,
 > theme and settings, and the banner while data is not live. The
 > widget library is in (WP-D2): `/widgets` shows every widget with
-> synthetic data, in either theme. The dashboard rows arrive in WP-D3–D4.
+> synthetic data, in either theme. All seven dashboard rows are in (WP-D3);
+> drawers and deep links arrive in WP-D4.
 > `make test-e2e` (repo root) checks the built page in headless Chrome
 > against a real exchange.
 
@@ -78,7 +79,8 @@ REST (history from `metrics.db`, read-only; ranges at most 7 days):
 |---|---|
 | `GET /api/series?name=&label=&source=&from=&to=` (or `range=5m\|15m\|1h\|6h\|24h\|7d`) | One series, at most 1000 points; from the 10 s samples, or from the minute roll-up when that holds older data in the range than the 10 s samples still have. `source=` is required when several processes record the name |
 | `GET /api/series/multi?name=&labels=a,b&source=&range=` or `?name=&sources=a,b&label=&range=` | Several labels of one metric (all of them when `labels=` is left out), or one label across processes; at most 50, all at one resolution on the same bucket starts, so they line up in one chart |
-| `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` | Counter increments per bucket, summed over sources (and labels when none is given) |
+| `GET /api/rate?name=&label=&source=&range=&bucket=1m\|1h` (or `names=a,b`) | Counter increments per bucket, summed over sources (and labels when none is given; and over several counters with `names=`, at most 10) |
+| `GET /api/rate/by-label?name=&source=&range=&bucket=` | One counter's increments per bucket, one series per label (orders per minute by participant) |
 | `GET /api/daily?name=&label=&source=&days=30` | Daily totals for the latest trading dates |
 | `GET /api/events?range=&kind=&limit=` or `?after_seq=` | The event log; `after_seq` is how a reconnecting tab catches up |
 | `GET /api/thresholds` | Every threshold rule pm-monitor judges by (`{warn, crit, invert, configurable}` by rule name): from the deployed artifact's `monitor.thresholds`, or pm-monitor's built-in defaults when none is deployed; a 503 when the artifact cannot be used |

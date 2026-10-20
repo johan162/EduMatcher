@@ -49,4 +49,14 @@ if (typeof window !== "undefined") {
   // Keep the two views of the same global in step — application code reads
   // the bare `localStorage`, test helpers sometimes reach through `window`.
   Object.defineProperty(window, "localStorage", descriptor);
+
+  // jsdom has no layout and no ResizeObserver, which recharts'
+  // ResponsiveContainer (and useElementWidth) need: an observer that never
+  // reports leaves them at zero size, which is all jsdom can offer anyway.
+  // Widget tests that measure pass a fixed width instead.
+  globalThis.ResizeObserver ??= class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
 }

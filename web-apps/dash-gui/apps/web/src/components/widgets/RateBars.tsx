@@ -77,7 +77,8 @@ export function RateBars({ label, series, range, bucketMs, tz, format, n = 8, he
 
   return (
     <figure aria-label={label} data-widget="rate-bars" className="m-0 min-w-0">
-      <div className="relative">
+      {/* Clips Recharts' hidden tooltip, parked past the right edge, which would widen the page. */}
+      <div className="relative overflow-hidden">
         <ChartBox width={width} height={height}>
           {(size) => (
             <BarChart {...size} data={rows} margin={MARGIN} barCategoryGap={1}>

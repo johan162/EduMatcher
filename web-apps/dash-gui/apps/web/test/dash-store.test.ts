@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { HealthEvent, HealthSnapshot } from "@edumatcher/dash-types";
 import { MAX_EVENTS, useDashStore } from "../src/store/useDashStore.js";
+import { fixtureSnapshot } from "./fixtures/snapshots.js";
 
-const snap = (seq: number, tz = "Europe/Stockholm") =>
-  ({ seq, ts: "t", exchange: { status: "OPERATIONAL", session_state: "", trading_date: "", session_timezone: tz } }) as unknown as HealthSnapshot;
+const snap = (seq: number, tz = "Europe/Stockholm"): HealthSnapshot =>
+  fixtureSnapshot({ seq, ts: new Date(Date.parse("2026-10-20T08:00:00Z") + seq * 1000).toISOString(), exchange: { session_timezone: tz } });
 const event = (seq: number): HealthEvent => ({ seq, ts: "t", kind: "CONNECT", severity: "INFO", subject: "GW01", detail: "" });
 
 beforeEach(() => {
-  useDashStore.setState({ socket: "OPEN", monitor: null, bridgeVersion: null, sessionTz: "UTC", snapshot: null, events: [] });
+  useDashStore.setState({ socket: "OPEN", monitor: null, bridgeVersion: null, sessionTz: "UTC", snapshot: null, events: [], recent: [] });
 });
 
 describe("useDashStore", () => {
@@ -55,3 +56,23 @@ describe("useDashStore", () => {
     expect(useDashStore.getState().events.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5]);
   });
 });
+
+describe("the sparklines' last minute", () => {
+  it("keeps one sample per snapshot, the last 60", () => {
+    const { apply } = useDashStore.getState();
+    for (let seq = 1; seq <= 70; seq++) apply({ type: "snapshot", data: snap(seq) });
+    const recent = useDashStore.getState().recent;
+    expect(recent).toHaveLength(60);
+    expect(recent.at(-1)).toMatchObject({ ordersPerSec: CAPTURED_ORDERS, participantsConnected: 2 });
+    expect(recent[0]!.ts).toBe(Date.parse("2026-10-20T08:00:11Z"));
+  });
+
+  it("a snapshot repeated (same ts) replaces its sample", () => {
+    const { apply } = useDashStore.getState();
+    apply({ type: "snapshot", data: snap(1) });
+    apply({ type: "snapshot", data: snap(1) });
+    expect(useDashStore.getState().recent).toHaveLength(1);
+  });
+});
+
+const CAPTURED_ORDERS = fixtureSnapshot().trading.orders.per_sec_now;

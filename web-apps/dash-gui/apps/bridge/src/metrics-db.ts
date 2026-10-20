@@ -37,11 +37,13 @@ export const RAW_SEC = 10;
 export const MINUTE_SEC = 60;
 
 /**
- * Bucket start in epoch seconds, aligned to the session clock. Parameters:
- * offset, width, width, offset.
+ * Bucket start in epoch seconds of the timestamp column `col`, aligned to
+ * the session clock. Parameters: offset, width, width, offset.
  */
-const BUCKET =
-  "((unixepoch(ts) + CAST(? AS INTEGER)) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) - CAST(? AS INTEGER)";
+function bucketOf(col: string): string {
+  return `((unixepoch(${col}) + CAST(? AS INTEGER)) / CAST(? AS INTEGER)) * CAST(? AS INTEGER) - CAST(? AS INTEGER)`;
+}
+const BUCKET = bucketOf("ts");
 
 /** A request the database cannot answer as asked: becomes a 4xx or 503. */
 export class QueryError extends Error {
@@ -177,11 +179,12 @@ export class MetricsDb {
 
   /**
    * Counter increments per bucket from the minute table's reset-corrected
-   * `delta`, summed over every matching series: all sources, and all labels
-   * unless one is given. Rates add up, so the sum is meaningful.
+   * `delta`, summed over every matching series: all sources, all labels
+   * unless one is given, and every name given (requests = orders + cancels
+   * + amends + quotes). Rates add up, so the sum is meaningful.
    */
   rate(
-    name: string,
+    names: readonly string[],
     label: string | undefined,
     source: string | undefined,
     range: TimeRange,
@@ -189,7 +192,7 @@ export class MetricsDb {
     offsetSec: number,
   ): Point[] {
     return this.run((db) => {
-      const ids = this.matchingIds(db, name, label, source);
+      const ids = this.matchingIds(db, names, label, source);
       if (ids.length === 0) return [];
       const marks = ids.map(() => "?").join(",");
       const rows = db
@@ -204,6 +207,46 @@ export class MetricsDb {
         total: number;
       }[];
       return rows.map((r): Point => [r.bucket * 1000, r.total]);
+    });
+  }
+
+  /**
+   * Like {@link rate} for one counter, but one series per label (orders per
+   * minute by participant), each summed over sources; labels sorted.
+   */
+  rateByLabel(
+    name: string,
+    source: string | undefined,
+    range: TimeRange,
+    bucketSec: number,
+    offsetSec: number,
+  ): { label: string; points: Point[] }[] {
+    return this.run((db) => {
+      const where = ["s.name = ?"];
+      const params: string[] = [name];
+      if (source !== undefined) {
+        where.push("s.source = ?");
+        params.push(source);
+      }
+      const rows = db
+        .prepare(
+          `SELECT ${bucketOf("m.ts")} AS bucket, s.label AS label, sum(m.delta) AS total
+           FROM samples_1m m JOIN series s ON s.id = m.series
+           WHERE ${where.join(" AND ")} AND m.ts >= ? AND m.ts < ? AND m.delta IS NOT NULL
+           GROUP BY s.label, bucket ORDER BY s.label, bucket`,
+        )
+        .all(offsetSec, bucketSec, bucketSec, offsetSec, ...params, isoUtc(range.fromMs), isoUtc(range.toMs)) as {
+        bucket: number;
+        label: string;
+        total: number;
+      }[];
+      const out = new Map<string, Point[]>();
+      for (const r of rows) {
+        const points = out.get(r.label) ?? [];
+        points.push([r.bucket * 1000, r.total]);
+        out.set(r.label, points);
+      }
+      return [...out.entries()].map(([label, points]) => ({ label, points }));
     });
   }
 
@@ -358,9 +401,9 @@ export class MetricsDb {
     return older === undefined;
   }
 
-  private matchingIds(db: DatabaseSync, name: string, label: string | undefined, source: string | undefined): number[] {
-    const where = ["name = ?"];
-    const params: string[] = [name];
+  private matchingIds(db: DatabaseSync, names: readonly string[], label: string | undefined, source: string | undefined): number[] {
+    const where = [`name IN (${names.map(() => "?").join(",")})`];
+    const params: string[] = [...names];
     if (label !== undefined) {
       where.push("label = ?");
       params.push(label);

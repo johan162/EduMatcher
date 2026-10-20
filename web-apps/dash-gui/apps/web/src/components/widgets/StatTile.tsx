@@ -18,7 +18,7 @@ import clsx from "clsx";
 import { Sparkline } from "./Sparkline.js";
 import { NO_VALUE } from "../../lib/format.js";
 import { LEVEL } from "../../lib/status.js";
-import { describeThresholds, levelOf, type Thresholds } from "../../lib/thresholds.js";
+import { describeThresholds, levelOf, type Level, type Thresholds } from "../../lib/thresholds.js";
 import { usePrefsStore, type StatColorMode } from "../../store/usePrefsStore.js";
 
 export interface StatTileProps {
@@ -31,14 +31,19 @@ export interface StatTileProps {
   thresholds?: Thresholds;
   /** The settings choice unless given. */
   colorMode?: StatColorMode;
+  /**
+   * The level when it is not one value against thresholds (the processes
+   * tile: the worst of many states); it wins over `thresholds`.
+   */
+  level?: Level;
 }
 
-export function StatTile({ label, value, format, spark, sub, thresholds, colorMode }: StatTileProps) {
+export function StatTile({ label, value, format, spark, sub, thresholds, colorMode, level: given }: StatTileProps) {
   const preferred = usePrefsStore((s) => s.statColorMode);
   const mode = colorMode ?? preferred;
   const known = value !== null && Number.isFinite(value);
   const text = known ? format(value) : NO_VALUE;
-  const level = known && thresholds ? levelOf(value, thresholds) : null;
+  const level = given ?? (known && thresholds ? levelOf(value, thresholds) : null);
   const look = level ? LEVEL[level] : null;
   const filled = mode === "background" && look !== null;
 

@@ -14,6 +14,7 @@ import type {
   DailyResponse,
   EventsResponse,
   MultiSeriesResponse,
+  RateByLabelResponse,
   RateResponse,
   SeriesResponse,
 } from "@edumatcher/dash-types";
@@ -249,6 +250,30 @@ describe("buckets on the session clock", () => {
   });
 });
 
+describe("/api/rate, several counters and by label", () => {
+  it("names= sums several counters (requests = orders + ...), for a ratio", async () => {
+    const window = `from=${iso(T0)}&to=${iso(T0 + 10 * MIN)}`;
+    const both = await get<RateResponse>(`/api/rate?names=engine.orders_in,engine.rejects&${window}`);
+    expect(both.name).toBe("engine.orders_in,engine.rejects");
+    expect(both.points.every(([, v]) => v === 96)).toBe(true); // 90 orders + 6 rejects
+    const rejects = await get<RateResponse>(`/api/rate?name=engine.rejects&${window}`);
+    expect(rejects.points.every(([, v]) => v === 6)).toBe(true);
+  });
+
+  it("by-label: one series per label, summed per bucket", async () => {
+    const r = await get<RateByLabelResponse>(`/api/rate/by-label?name=engine.orders_in&from=${iso(T0)}&to=${iso(T0 + 10 * MIN)}`);
+    expect(r.series.map((s) => s.label)).toEqual(["GW01", "GW02"]);
+    expect(r.series[0]!.points.every(([, v]) => v === 30)).toBe(true);
+    expect(r.series[1]!.points.every(([, v]) => v === 60)).toBe(true);
+    expect(r.series[0]!.points[0]![0]).toBe(T0);
+    const hourly = await get<RateByLabelResponse>(`/api/rate/by-label?name=engine.orders_in&bucket=1h&from=${iso(T0)}&to=${iso(T0 + 2 * HOUR)}`);
+    expect(hourly.series[1]!.points).toEqual([
+      [T0, 3600],
+      [T0 + HOUR, 3600],
+    ]);
+  });
+});
+
 describe("/api/daily", () => {
   it("the latest trading dates' totals, oldest first", async () => {
     const r = await get<DailyResponse>(`/api/daily?name=engine.orders_in`);
@@ -306,6 +331,12 @@ describe("validation", () => {
     ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=,", "missing_param"],
     ["/api/rate?name=engine.orders_in&range=1h&bucket=5m", "bad_bucket"],
     ["/api/rate?name=engine.orders_in&range=7d&bucket=1m", "too_many_points"],
+    ["/api/rate?name=engine.orders_in&names=engine.rejects&range=1h", "bad_param"],
+    ["/api/rate?names=,&range=1h", "missing_param"],
+    ["/api/rate?names=engine.orders_in,no.such&range=1h", "unknown_metric"],
+    ["/api/rate?names=" + Array.from({ length: 11 }, (_, i) => `n${i}`).join(",") + "&range=1h", "too_many_series"],
+    ["/api/rate/by-label?range=1h", "missing_param"],
+    ["/api/rate/by-label?name=engine.orders_in&range=7d", "too_many_points"],
     ["/api/daily?name=engine.orders_in&days=0", "bad_param"],
     ["/api/daily?name=engine.orders_in&days=367", "bad_param"],
     ["/api/events?range=1h&kind=NOPE", "bad_kind"],

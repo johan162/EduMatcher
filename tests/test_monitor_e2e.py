@@ -915,6 +915,93 @@ def test_every_widget_renders_in_both_themes_in_a_browser(
     page.wait(f"{PILL}?.textContent === '●OPERATIONAL'", "the dashboard again")
 
 
+def _count(n: int) -> str:
+    """lib/format.ts formatCount: thin-space grouping."""
+    return f"{n:,}".replace(",", "\u2009")
+
+
+def test_all_seven_rows_show_the_live_exchange(
+    exchange: Exchange, feed: Feed, bridge: Bridge, page: Page | None
+) -> None:
+    """WP-D3's done-when: against the running stack every row shows live
+    data, each checked against pm-monitor's own snapshot -- and nothing on
+    the page overflows."""
+    if page is None:
+        pytest.skip("no Chrome to drive")
+    page.goto(f"http://127.0.0.1:{bridge.port}/")
+    rows = page.wait(
+        "document.querySelectorAll('[data-widget=row]').length === 7 && "
+        "[...document.querySelectorAll('[data-widget=row]')].map(r => r.getAttribute('aria-label'))",
+        "the seven rows",
+    )
+    assert rows == [
+        "Overview row",
+        "Processes row",
+        "Trading activity row",
+        "Participants row",
+        "Order books row",
+        "Gateways & infrastructure row",
+        "Event log row",
+    ]
+    s = feed.latest
+    assert s is not None
+    tile = "document.querySelector('[aria-label=\"{0}\"] [data-testid=stat-value]')?.textContent"
+    # Row 1: today's figures (no trading is going on now, so they hold still).
+    page.wait(
+        f"{tile.format('Orders today')} === '{_count(s['trading']['orders']['today'])}'",
+        "today's orders in the overview",
+    )
+    assert page.js(tile.format("Trades today")) == _count(
+        s["trading"]["trades"]["today"]
+    )
+    live = [p for p in s["processes"] if p["group"] == "EXCHANGE" and p["host"]]
+    assert page.js(tile.format("Processes")) == f"{len(live)} / {len(live)}"
+    # Row 2: a row per process, each in its state.
+    table = "document.querySelector('table[aria-label=Processes]')"
+    assert page.js(f"{table}.querySelectorAll('[data-row]').length") == len(
+        s["processes"]
+    )
+    engine = process(s, "pm-engine")["key"]
+    assert "● HEALTHY" in page.js(
+        f"{table}.querySelector('[data-row=\"{engine}\"]').textContent"
+    )
+    # Rows 4 and 5: the trader and the book it traded on.
+    trader = page.js(
+        "document.querySelector('table[aria-label=Participants] [data-row=TRADER01]').textContent"
+    )
+    assert "TRADER01" in trader and "TRADER" in trader
+    aapl = page.js(
+        "[...document.querySelector('table[aria-label=\"Order books\"] [data-row=AAPL]').querySelectorAll('td')]"
+        ".map(td => td.textContent)"
+    )
+    assert aapl[7] == _count(book(s, "AAPL")["trades_today"])
+    # Row 6: the ALF gateway's clients against its limit.
+    alf = gateway(s, "ALF")
+    assert page.js(tile.format("ALF clients")) == (
+        f"{_count(alf['clients'])} / {_count(alf['clients_max'])}"
+    )
+    # Row 7: history from /api/events and the live stream.
+    page.wait(
+        "[...document.querySelectorAll('[role=log] [data-seq]')].some(r => r.textContent.includes('CONNECT') && r.textContent.includes('TRADER01'))",
+        "TRADER01's CONNECT in the event log",
+    )
+    # History: the memory and CPU charts drew their processes' lines.
+    page.wait(
+        "[...document.querySelectorAll('figure[aria-label=\"Exchange memory by process\"] .recharts-area-area')].length >= 5"
+        " && [...document.querySelectorAll('figure[aria-label=\"CPU per process\"] .recharts-line-curve')].length >= 5",
+        "the memory and CPU history drawn",
+        30,
+    )
+    # The participants' timeline has a lane each.
+    assert page.js(
+        "document.querySelectorAll('[data-widget=state-timeline] [data-lane]').length"
+    ) == len(s["participants"])
+    assert json.loads(page.js(OVERFLOW)) == []
+    assert page.js(
+        "document.querySelector('[aria-label=Dashboard]').scrollWidth <= document.querySelector('[aria-label=Dashboard]').clientWidth"
+    )
+
+
 def test_a_stopped_process_goes_silent_and_comes_back(
     exchange: Exchange, feed: Feed, tab: Tab
 ) -> None:
