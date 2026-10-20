@@ -7,6 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
+from edumatcher.health import HealthReporter
 from edumatcher.log_srv.config import (
     LogServerConfig,
     load_default_log_server_config,
@@ -242,6 +243,9 @@ def main() -> None:
     )
 
     server = LogServer(config=config)
+    reporter = HealthReporter.start_from_compiled_config("pm-log-srv")
+    if reporter is not None:
+        server.attach_reporter(reporter)
     try:
         server.run()
     except Exception as exc:

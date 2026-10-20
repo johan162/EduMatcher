@@ -54,6 +54,19 @@ transports:
     subscriber_pattern: PULL
     address_config_key: SIM_PULL_ADDR
 
+  # Health beacons from every long-running process to pm-monitor, and
+  # pm-monitor's live feed to the dashboard bridge (operator dashboard design,
+  # section 7.5). Both addresses come from the compiled `monitor` section.
+  monitor_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: MONITOR_PULL_ADDR
+
+  monitor_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: MONITOR_PUB_ADDR
+
   ralf:
     pattern: TCP
     address_config_key: POST_TRADE_GATEWAY_PORT

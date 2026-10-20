@@ -89,7 +89,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Documentation only; the compose files decide what is actually published.
-EXPOSE 5555 5556 5557 5558 5559 5560 5561 5562 5563 5564 5565 5570 5580 5590 5600 5601 5602 8080 8081 22
+EXPOSE 5555 5556 5557 5558 5559 5560 5561 5562 5563 5564 5565 5570 5580 5590 5600 5601 5602 5610 5611 8080 8081 22
 
 # A cheap liveness probe of the core: the engine's order-intake socket. The
 # per-process view (every process's own check, whatever the profile) is

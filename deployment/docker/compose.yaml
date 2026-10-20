@@ -3,8 +3,12 @@
 # the process manager inside that namespace, exactly as it is inside the
 # Multipass runtime VM.
 #
-# This file publishes the client-facing gateways only. The two overlays add
-# the optional surfaces:
+# This file publishes the client-facing gateways only. pm-monitor's beacon
+# intake (5610) and snapshot feed (5611) are not published on purpose: every
+# beaconing process runs in this namespace, and the operator dashboard
+# reaches 5611 over the compose network (EDUMATCHER_GATEWAY_BIND_HOST below
+# binds it to 0.0.0.0 inside the container). The two overlays add the
+# optional surfaces:
 #   compose.zmq.yaml  — raw ZeroMQ bus ports (make up ZMQ=1)
 #   compose.ssh.yaml  — sshd on the host port (make up SSH=1)
 
@@ -46,10 +50,12 @@ services:
       # The canonical data directory: ref_data/, audit.log, the SQLite
       # databases, emo/ logs and PID files. Survives down/up; wiped by
       # `make clean-data`.
-      - ./data:/data
+      # :z relabels it for SELinux: without it an enforcing host refuses the
+      # container every write, and pm-setup cannot deploy (I119).
+      - ./data:/data:z
       # Where `make up-all CONFIG=<file>` puts an engine configuration of your
       # own. Empty otherwise, and then EM_CONFIG_FILE is unset and ignored.
-      - ./config:/config:ro
+      - ./config:/config:ro,z
     ports:
       - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
       - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry

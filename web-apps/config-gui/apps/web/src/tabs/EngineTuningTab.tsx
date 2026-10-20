@@ -1,4 +1,5 @@
 import {
+  DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC,
   DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
   DEFAULT_DROP_COPY_BUFFER_SIZE,
   DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -146,6 +147,35 @@ export function EngineTuningTab() {
             }
           />
           <span className="text-sm text-fg-subtle">trades</span>
+        </FieldRow>
+      </Section>
+
+      <Section title="Auctions">
+        <FieldRow
+          label="Indicative price interval"
+          path="auctionIndicativeIntervalSec"
+          help={{
+            text: "How often, during an auction call phase, the engine broadcasts the indicative (equilibrium) price and volume for each symbol in auction. Shorter is more responsive for participants and costs more market-data traffic. Written as auction_indicative_interval_sec only when it differs from the default.",
+          }}
+          defaultHint={`Default: ${DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC}`}
+          isSet={draft.auctionIndicativeIntervalSec !== DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC}
+          onReset={() =>
+            update((d) => (d.auctionIndicativeIntervalSec = DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC))
+          }
+        >
+          <NumberInput
+            aria-label="Indicative price interval seconds"
+            value={draft.auctionIndicativeIntervalSec}
+            min={0.01}
+            step={0.5}
+            onChange={(v) =>
+              update(
+                (d) =>
+                  (d.auctionIndicativeIntervalSec = v ?? DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC),
+              )
+            }
+          />
+          <span className="text-sm text-fg-subtle">sec</span>
         </FieldRow>
       </Section>
     </Panel>

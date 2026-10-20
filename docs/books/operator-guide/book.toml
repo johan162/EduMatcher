@@ -68,4 +68,6 @@ files = [
   "030-audit-replay.md",
   "040-log-server.md",
   "050-log-console.md",
+  "060-health-monitor.md",
+  "070-operator-dashboard.md",
 ]

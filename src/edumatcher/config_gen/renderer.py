@@ -247,6 +247,7 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     "api_gateways": ["REST/WebSocket API gateway process settings"],
     "market_data_gateway": ["CALF market-data gateway settings"],
     "dc_gateway": ["drop-copy TCP gateway settings (pm-dc-gwy)"],
+    "monitor": ["health beacons and pm-monitor (operator dashboard)"],
     "symbols": ["symbol universe"],
     "market_maker_combos": ["startup market-maker combo seeds"],
     "schedule": ["session schedule"],

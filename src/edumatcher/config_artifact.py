@@ -39,6 +39,7 @@ from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.log_srv.config import LogClientConfig, LogServerConfig
 from edumatcher.md_gateway.config import MarketDataGatewayConfig
+from edumatcher.monitor.config import MonitorConfig
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 
 # Bumped whenever the artifact's shape changes in a way an older reader would
@@ -50,7 +51,13 @@ from edumatcher.ralf_gateway.config import RalfGatewayConfig
 # bid_price_ticks/ask_price_ticks. A version-3 artifact decoded by this build
 # raises a bare TypeError from the codec instead of the refusal above, which
 # is the whole reason this constant exists.
-SCHEMA_VERSION = 4
+#
+# 5: added monitor. CompiledConfig gained the `monitor` section (health
+# beacons and pm-monitor, docs-design/EduMatcher-Operator-Dashboard.md §14).
+# A version-4 artifact has no such key and would fail the codec with a bare
+# TypeError on the missing field; the version check refuses it first, with the
+# "redeploy with pm-config-deploy" message.
+SCHEMA_VERSION = 5
 
 T = TypeVar("T")
 
@@ -105,6 +112,7 @@ class CompiledConfig:
     dc_gateway: DcGatewayConfig
     log_server: LogServerConfig
     log_client: LogClientConfig
+    monitor: MonitorConfig
     api_gateways: dict[str, ApiGatewayConfig]
 
 

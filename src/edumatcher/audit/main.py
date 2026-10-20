@@ -45,6 +45,8 @@ from typing import List
 
 import zmq
 
+from edumatcher.health import HealthReporter, counter
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import AUDIT_HEALTH_BIND_ADDR, AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -256,6 +258,12 @@ class AuditProcess:
         self._log_path = log_path
         self._to_terminal = to_terminal
         self._running = True
+        # Health beacon (operator dashboard §8.5), attached by main(); ticked
+        # on the receive thread, which does the work (finding F7).
+        self._reporter: HealthReporter | None = None
+        self._records = 0
+        self._bytes = 0
+        self._decode_errors = 0
         # Subscribe to everything, with a deep receive buffer. Past the
         # high-water mark a SUB socket drops *silently*, and this is the one
         # process in the system whose whole job is to miss nothing: a hole in
@@ -365,7 +373,10 @@ class AuditProcess:
         poller.register(self.sub, zmq.POLLIN)
         poller.register(self.health_rep, zmq.POLLIN)
         log.debug("audit receive loop enabled")
+        reporter = self._reporter
         while self._running:
+            if reporter is not None:
+                reporter.tick_and_publish(self.metric_samples)
             try:
                 socks = dict(poller.poll(timeout=_POLL_TIMEOUT_MS))
             except zmq.ZMQError as exc:
@@ -388,9 +399,12 @@ class AuditProcess:
                     else:
                         line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
                     self._add_to_buffer(line)
+                    self._records += 1
+                    self._bytes += len(line) + 1  # the newline written with it
                 except Exception as exc:
                     # Never let a single bad message kill the receive loop
                     self._dbg_count("decode_errors")
+                    self._decode_errors += 1
                     log.warning("failed to decode/log message: %s", exc)
 
     def run(self) -> None:
@@ -419,6 +433,8 @@ class AuditProcess:
             self._flush_buffer()
             self._flush_debug_summary(force=True)
             t.join(timeout=1.0)
+            if self._reporter is not None:
+                self._reporter.stop()
             self.sub.close()
             self.health_rep.close()
             log.info("audit process shutdown complete")
@@ -426,6 +442,18 @@ class AuditProcess:
     def _stop(self) -> None:
         self._running = False
         log.info("stop requested")
+
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: records and bytes accepted for the audit file."""
+        return [
+            counter("audit.records", self._records),
+            counter("audit.bytes", self._bytes),
+            counter("audit.decode_errors", self._decode_errors),
+        ]
 
 
 def main() -> None:
@@ -457,6 +485,9 @@ def main() -> None:
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        process.attach_reporter(reporter)
     process.run()
 
 

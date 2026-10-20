@@ -63,6 +63,7 @@ from edumatcher.cverifier.models import CheckResult, Severity
 from edumatcher.dc_gateway.config import load_dc_gateway_config
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.log_srv.config import load_log_client_config, load_log_server_config
+from edumatcher.monitor.config import load_monitor_config
 from edumatcher.market_sim.config import (
     FILE_NAME as SIM_FILE_NAME,
     SimConfigError,
@@ -207,6 +208,7 @@ def compile_config(source: Path) -> CompiledConfig:
             dc_gateway=load_dc_gateway_config(source),
             log_server=load_log_server_config(source),
             log_client=load_log_client_config(source),
+            monitor=load_monitor_config(source),
             api_gateways=load_named_api_gateway_configs(source),
         )
     except CompileError:

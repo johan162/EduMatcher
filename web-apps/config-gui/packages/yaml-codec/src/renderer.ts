@@ -22,7 +22,7 @@ export interface RenderOptions {
 
 const SECTION_ORDER: Array<[string, string[]]> = [
   ["Session control", ["sessions_enabled"]],
-  ["Scheduler country", ["country"]],
+  ["Locale", ["locale"]],
   ["Engine behavior", ["enforce_collars", "enforce_circuit_breakers"]],
   ["Engine tuning", ["engine_tuning"]],
   ["Market-maker obligation defaults", ["mm_obligation_defaults"]],
@@ -32,6 +32,7 @@ const SECTION_ORDER: Array<[string, string[]]> = [
   ["Participants", ["participants"]],
   ["RALF post-trade gateway", ["post_trade_gateway"]],
   ["CALF market-data gateway", ["market_data_gateway"]],
+  ["Drop-copy gateway", ["dc_gateway"]],
   ["REST API gateways", ["api_gateways"]],
   ["Symbol universe", ["symbols"]],
   ["Startup market-maker combo seeds", ["market_maker_combos"]],
@@ -43,10 +44,10 @@ const TOP_LEVEL_HINTS: Record<string, string[]> = {
     "true lets pm-scheduler drive session transitions;",
     "false keeps the engine in continuous mode",
   ],
-  country: [
-    "country pm-scheduler uses for bank holidays and local wall-clock time;",
-    'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE")',
-    'defaults to "Sweden" when omitted',
+  locale: [
+    "where this exchange is: the country pm-scheduler uses for bank",
+    "holidays, and the IANA timezone pm-stats/pm-clearing use to bucket",
+    "events into a trading day",
   ],
   enforce_collars: ["enables per-symbol collar checks on incoming orders"],
   enforce_circuit_breakers: ["enables per-symbol circuit-breaker enforcement"],
@@ -61,6 +62,8 @@ const TOP_LEVEL_HINTS: Record<string, string[]> = {
   post_trade_gateway: ["RALF post-trade gateway settings"],
   api_gateways: ["REST/WebSocket API gateway process settings"],
   market_data_gateway: ["CALF market-data gateway settings"],
+  dc_gateway: ["drop-copy TCP gateway settings (pm-dc-gwy)"],
+  monitor: ["health beacons and pm-monitor (operator dashboard)"],
   symbols: ["symbol universe"],
   market_maker_combos: ["startup market-maker combo seeds"],
   schedule: ["session schedule"],
@@ -72,6 +75,17 @@ const INLINE_HINTS: Record<string, string[]> = {
   "last_buy_price: null": ["REQUIRED: set last buy reference price"],
   "last_sell_price: null": ["REQUIRED: set last sell reference price"],
   "halt_duration_ns: null": ["null = rest-of-day halt"],
+};
+
+const LOCALE_HINTS: Record<string, string[]> = {
+  country: [
+    'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE");',
+    'defaults to "Sweden" when omitted',
+  ],
+  session_timezone: [
+    "an unrecognised IANA name is rejected;",
+    'defaults to "Europe/Stockholm" when omitted',
+  ],
 };
 
 const ENGINE_TUNING_HINTS: Record<string, string[]> = {
@@ -113,6 +127,7 @@ function annotate(dumped: string): string[] {
   const out: string[] = [];
   let idx = 0;
   let inEngineTuning = false;
+  let inLocale = false;
   while (idx < source.length) {
     const line = source[idx]!;
     const stripped = line.trim();
@@ -120,11 +135,22 @@ function annotate(dumped: string): string[] {
 
     if (indent === 0 && stripped) {
       inEngineTuning = stripped === "engine_tuning:";
+      inLocale = stripped === "locale:";
     }
 
     if (indent === 0) {
       const key = stripped.split(":", 1)[0]!;
       const hint = TOP_LEVEL_HINTS[key];
+      if (hint !== undefined) {
+        out.push(...commentLines(indent, hint));
+        out.push(line);
+        idx += 1;
+        continue;
+      }
+    }
+
+    if (inLocale && indent === 2) {
+      const hint = LOCALE_HINTS[stripped.split(":", 1)[0]!];
       if (hint !== undefined) {
         out.push(...commentLines(indent, hint));
         out.push(line);

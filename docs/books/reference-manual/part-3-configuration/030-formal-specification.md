@@ -136,6 +136,7 @@ post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
 dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
 api_gateways:               ? Map<Str, ApiGwyProcSpec>   # pm-api-gwy (named instances)
 log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
+monitor:                    ? MonitorSpec           # pm-monitor + every beaconing process (health)
 
 SymbolSpec:
   level:                    ? Str          ∈ key of risk_controls.levels
@@ -297,6 +298,36 @@ LogClientSpec:                               # log_server.client; read by every 
   connect_timeout_sec:          ? Secs = 0.5
   failover_timeout_sec:         ? Float = 30.0                ∈ >= 0
   failover_dir:                 ? Path = <data dir>/logs
+
+MonitorSpec:                                 # monitor (pm-monitor; enabled/host/pull_port/beacon_interval_sec by every process)
+  enabled:                      ? Bool = true
+  bind_address:                 ? Str = "127.0.0.1"           # non-empty
+  host:                         ? Str = "127.0.0.1"           # non-empty
+  pull_port:                    ? Port = 5610                 # pull_port ≠ pub_port
+  pub_port:                     ? Port = 5611
+  beacon_interval_sec:          ? Float = 2.0                 ∈ > 0
+  hung_after_sec:               ? Float = 5.0                 ∈ > beacon_interval_sec
+  silent_after_beacons:         ? Int = 3                     ∈ > 0
+  book_metrics_interval_sec:    ? Float = 10.0                ∈ > 0
+  retention:                    ? MonitorRetentionSpec
+  thresholds:                   ? MonitorThresholdsSpec
+
+MonitorRetentionSpec:                        # monitor.retention
+  raw_hours:                    ? Int = 6                     ∈ > 0
+  minute_days:                  ? Int = 7                     ∈ > 0
+
+MonitorThresholdsSpec:                       # monitor.thresholds; each ? ThresholdBandSpec
+  host_cpu_pct:                 ? ThresholdBandSpec = {warn: 80,   crit: 95}
+  host_mem_pct:                 ? ThresholdBandSpec = {warn: 80,   crit: 92}
+  disk_free_pct:                ? ThresholdBandSpec = {warn: 15,   crit: 5}      # inverted: warn > crit
+  engine_handle_p99_us:         ? ThresholdBandSpec = {warn: 2000, crit: 10000}
+  reject_pct_5m:                ? ThresholdBandSpec = {warn: 10,   crit: 30}
+  rss_growth_pct_1h:            ? ThresholdBandSpec = {warn: 50,   crit: 100}
+  heap_garbage_pct:             ? ThresholdBandSpec = {warn: 50,   crit: 80}
+
+ThresholdBandSpec:
+  warn:                         ! Float                       ∈ >= 0
+  crit:                         ! Float                       ∈ >= 0; warn < crit (disk_free_pct: warn > crit)
 ```
 
 ---
@@ -833,6 +864,36 @@ for worked examples and [Centralized Log Server](../../operator-guide/part-6-obs
 guide; the wire protocol it serves is normatively specified in the
 [LALF Protocol Reference](../../protocols-and-clients/part-2-specifications/050-lalf.md).
 
+### 6.8 `monitor` — `pm-monitor` and every beaconing process — `MonitorSpec`
+
+Unlike the blocks above, `monitor` is read by every long-running process
+(`enabled`, `host`, `pull_port` and `beacon_interval_sec` say whether, where
+and how often to send a health beacon) as well as by `pm-monitor`, which reads
+all of it. Its `bind_address` defaults to `"127.0.0.1"`, not `"0.0.0.0"`;
+`EDUMATCHER_GATEWAY_BIND_HOST` overrides it as for the other blocks, applied
+where `pm-monitor` runs (the stored value is the authored one). An absent
+block means every default below.
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | when `false` no process sends beacons and `pm-monitor` idles until stopped |
+| `bind_address` | `Str` | – | `"127.0.0.1"` | non-empty; interface `pm-monitor` binds |
+| `host` | `Str` | – | `"127.0.0.1"` | non-empty; where every process sends its beacons and clients connect |
+| `pull_port` | `Port` | – | `5610` | ZeroMQ `PULL`, beacons in; MUST differ from `pub_port` and every other listener |
+| `pub_port` | `Port` | – | `5611` | ZeroMQ `PUB`, `health.snapshot` and `health.event` out |
+| `beacon_interval_sec` | `Float` | – | `2.0` | `> 0` |
+| `hung_after_sec` | `Float` | – | `5.0` | `> beacon_interval_sec` |
+| `silent_after_beacons` | `Int` | – | `3` | `> 0` |
+| `book_metrics_interval_sec` | `Float` | – | `10.0` | `> 0` |
+| `retention.raw_hours` | `Int` | – | `6` | `> 0` |
+| `retention.minute_days` | `Int` | – | `7` | `> 0` |
+| `thresholds.<rule>` | `ThresholdBandSpec` | – | see §3 | rule ∈ the seven of `MonitorThresholdsSpec`; `warn`/`crit` `>= 0`, `warn < crit` except `disk_free_pct` (`warn > crit`) |
+
+The semantics — how health is judged, what each threshold watches, what is
+stored — are in [Health Monitoring](../../operator-guide/part-6-observe-and-recover/060-health-monitor.md); the
+messages are `health.beacon`, `health.snapshot` and `health.event` in the
+[Message Reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md).
+
 ---
 
 ## 7. Cross-field and semantic constraints
@@ -864,6 +925,7 @@ rejected at load.
 | CV20 | `schedule.weekend` and an individual `schedule.sat`/`schedule.sun` key MUST NOT both be present. |
 | CV21 | Every `DayScheduleSpec` present anywhere under `schedule` (`weekdays`, `weekend`, `holidays`, or an individual `mon`..`sun` key) MUST define all five of `pre_open`, `opening_auction_start`, `continuous_start`, `closing_auction_start`, `closing_auction_end`; a partial block is rejected, not filled from a default. |
 | CV22 | `participant_defaults`, when present, is a mapping whose only keys are `smp_action` and `disconnect_behaviour`, each a valid member of its enumeration. |
+| CV23 | (`monitor`) Every `thresholds` band is ordered (`warn < crit`, except `disk_free_pct` where `warn > crit`); `hung_after_sec > beacon_interval_sec`; `pull_port ≠ pub_port`, and neither collides with another listener (counted even when the block is absent). A `host` that cannot reach `bind_address` (neither equal, nor a wildcard bind, nor both loopback) is reported as a warning, not rejected, because `EDUMATCHER_GATEWAY_BIND_HOST` may change the bind at run time. |
 
 ---
 

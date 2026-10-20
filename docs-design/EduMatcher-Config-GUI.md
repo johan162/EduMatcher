@@ -230,6 +230,10 @@ described above — never silently dropped.
 | 9 | **Auxiliary Gateways** (Post-Trade / Market-Data / BALF / API) | I for Post-Trade & Market-Data; E for BALF & API | Sub-tabbed within this tab |
 | 10 | **Review & Export** | B | Always last; diagnostics summary + YAML preview + download |
 
+*Added later:* **Health Monitoring** (`monitor` block, I) and **Engine
+Tuning** (E), between Auxiliary Gateways and Review & Export — see
+[`EduMatcher-Config-GUI-Monitor-Extension.md`](EduMatcher-Config-GUI-Monitor-Extension.md).
+
 ### 5.3 Master–detail pattern (Symbols tab example)
 
 ```
@@ -477,7 +481,7 @@ sub-tab, each with its own default constants):
 
 | Field | CLI source | Default | Persona | Widget |
 |---|---|---|---|---|
-| Comment default fields in output | `--comment-default-config-fields` | `false` | E | Switch |
+| Comment default fields in output | `--comment-default-config-fields` | `false` | B | Switch here, and a **Comment defaults** checkbox in the top bar bound to the same field ([extension §5](EduMatcher-Config-GUI-Monitor-Extension.md#5-top-level-comment-defaults-checkbox-g8)) |
 | Download filename | `--output` | `engine_config.yaml` | B | Text |
 | Overwrite confirmation | `--force` | n/a (GUI always confirms before replacing an in-progress import) | B | Dialog, not a persistent field |
 | Dry-run / preview | `--dry-run` | n/a — GUI always previews before download | B | The YAML preview pane *is* the dry-run view |

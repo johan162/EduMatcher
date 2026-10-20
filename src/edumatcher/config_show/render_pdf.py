@@ -646,6 +646,28 @@ def _page_appendix(view: ConfigView, reveal: bool) -> list[Any]:
     else:
         flow.append(Paragraph("Not configured; engine defaults apply.", NOTE))
 
+    flow.append(Paragraph("Monitoring", H2))
+    mon = view.monitoring
+    if mon.error is not None:
+        flow.append(Paragraph(f"Invalid monitor section: {mon.error}", NOTE))
+    else:
+        if not mon.configured:
+            flow.append(Paragraph("Not configured; pm-monitor defaults apply.", NOTE))
+        rows = [
+            ["SETTING", "VALUE"],
+            ["enabled", "yes" if mon.enabled else "no"],
+            ["endpoint (pull / pub)", mon.endpoint],
+            ["beacon interval", f"{mon.beacon_interval_sec:g} s"],
+            ["hung after", f"{mon.hung_after_sec:g} s"],
+            ["silent after", f"{mon.silent_after_beacons} missed beacons"],
+            ["retention", f"raw {mon.raw_hours} h, 1-minute {mon.minute_days} d"],
+        ]
+        rows += [
+            [f"threshold {rule}", f"warn {warn:g}, crit {crit:g}"]
+            for rule, warn, crit in mon.thresholds
+        ]
+        flow.append(_table(rows, [70 * mm, 70 * mm]))
+
     if view.indices:
         flow.append(Paragraph("Indices", H2))
         rows = [["INDEX", "BASE", "INTERVAL", "CONSTITUENTS", "DESCRIPTION"]]

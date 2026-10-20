@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/
+*.log
+.DS_Store
+apps/web/dist/
+*.tsbuildinfo
+backend-data/
+logs/
+.timestamps/

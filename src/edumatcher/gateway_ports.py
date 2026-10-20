@@ -77,6 +77,36 @@ LOG_SERVER_EXTRA_PORTS: tuple[ExtraPortSpec, ...] = (
     ExtraPortSpec("pull_port", 5602, "ZMQ PULL", "Log control (LALF-PS)"),
 )
 
+# pm-monitor binds two ZeroMQ listeners from the `monitor` section. It is not a
+# SINGLETON_GATEWAYS entry because it differs in two ways that matter to every
+# consumer: it has no `port` key, and it binds by default. Like log_server it
+# defaults to `enabled: true`, but unlike a gateway section an *absent* block
+# still starts pm-monitor in every built-in emo profile, so its ports must be
+# counted unless the block says `enabled: false` -- otherwise a gateway moved
+# onto 5610 would pass verification and fail at start-up.
+MONITOR_SECTION = "monitor"
+MONITOR_PROCESS = "pm-monitor"
+MONITOR_PORTS: tuple[ExtraPortSpec, ...] = (
+    ExtraPortSpec("pull_port", 5610, "ZMQ PULL", "Health beacons (in)"),
+    ExtraPortSpec("pub_port", 5611, "ZMQ PUB", "Health snapshot feed"),
+)
+
+
+def monitor_section(raw: dict[str, Any]) -> dict[str, Any] | None:
+    """The ``monitor`` block as pm-monitor will bind it, or ``None`` if it won't.
+
+    An absent block means defaults (enabled); an explicit ``enabled: false``
+    means nothing binds. A malformed block (not a mapping) is reported by the
+    verifier's own checks and treated here as binding nothing.
+    """
+    section = raw.get(MONITOR_SECTION, {})
+    if section is None:
+        section = {}
+    if not isinstance(section, dict) or section.get("enabled", True) is False:
+        return None
+    return section
+
+
 # api_gateways is a named mapping of possibly-many instances, each with a port.
 DEFAULT_API_GATEWAY_PORT = 8080
 

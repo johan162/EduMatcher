@@ -34,6 +34,9 @@ from dataclasses import dataclass, field
 
 import zmq
 
+from edumatcher.health import HealthReporter
+from edumatcher.health.samples import client_gateway_samples
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.dc_gateway.protocol import DcFrame, build_line, iso_utc, parse_line
 from edumatcher.messaging.bus import make_subscriber
@@ -41,6 +44,12 @@ from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
 from edumatcher.models.message import decode
 
 log = logging.getLogger(__name__)
+
+#: Longest a closing session may take to drain its final line (SLOW_CLIENT
+#: error, idle EXIT, a refused HELLO) before it is disconnected regardless --
+#: as pm-md-gwy drops a slow client. A client that has stopped reading never
+#: drains, so without this it was never dropped at all.
+CLOSE_GRACE_SEC = 5.0
 
 _MAX_LINE_BYTES = 4096
 _MAX_DC_EVENTS_PER_LOOP = 1000
@@ -60,6 +69,10 @@ class ClientSession:
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
     closing: bool = False
+    #: When ``closing`` was set, and why: the session is disconnected with
+    #: this reason once its queue drains or CLOSE_GRACE_SEC passes.
+    closing_since: float = 0.0
+    close_reason: str = "close_after_flush"
     last_activity: float = field(default_factory=time.monotonic)
 
     def close(self) -> None:
@@ -83,6 +96,13 @@ class DcGateway:
         self._running = False
         self._server: socket.socket | None = None
         self._clients: dict[int, ClientSession] = {}
+        # Health beacon (operator dashboard §8.5); attached by main().
+        # slow_clients counts sessions flagged slow, once each; closing_clients
+        # is how many are draining their final line (at most CLOSE_GRACE_SEC).
+        self._reporter: HealthReporter | None = None
+        self._msgs_out = 0
+        self._slow_clients = 0
+        self._disconnects: dict[str, int] = {}
         # gateway_id -> set of client fds subscribed to that ID. More than
         # one client may request the same gateway_id (unlike ALF/RALF
         # sessions, DC has no "single active session per ID" constraint --
@@ -113,8 +133,11 @@ class DcGateway:
             self.config.drop_copy_pub_addr,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_dc_events()
@@ -129,7 +152,25 @@ class DcGateway:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this gateway's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: clients, lines out, disconnects by reason, plus the
+        two signals for clients stuck in close-after-flush."""
+        return client_gateway_samples(
+            "gwy",
+            clients=len(self._clients),
+            msgs_out=self._msgs_out,
+            disconnects=self._disconnects,
+            slow_clients=self._slow_clients,
+            closing_clients=sum(1 for s in self._clients.values() if s.closing),
+        )
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         log.info("closing DC gateway")
         for sess in list(self._clients.values()):
             try:
@@ -213,6 +254,7 @@ class DcGateway:
             self._handle_client_line(sess, line)
 
     def _flush_client_writes(self) -> None:
+        now = time.monotonic()
         for sess in list(self._clients.values()):
             while sess.out_queue:
                 payload = sess.out_queue[0]
@@ -228,21 +270,23 @@ class DcGateway:
                 if sess.out_offset >= len(payload):
                     sess.out_queue.popleft()
                     sess.out_offset = 0
-            if len(sess.out_queue) > self.config.max_client_queue:
+            if not sess.closing and len(sess.out_queue) > self.config.max_client_queue:
+                self._slow_clients += 1
                 log.warning(
                     "disconnecting slow client fd=%d queue=%d max=%d",
                     sess.sock.fileno(),
                     len(sess.out_queue),
                     self.config.max_client_queue,
                 )
-                sess.out_queue.clear()
-                sess.out_offset = 0
+                self._drop_backlog(sess)
                 self._queue_line(
                     sess, "ERR", {"CODE": "SLOW_CLIENT", "DETAIL": "queue overflow"}
                 )
-                self._close_after_flush(sess)
-            if sess.closing and not sess.out_queue:
-                self._disconnect(sess, reason="close_after_flush")
+                self._close_after_flush(sess, reason="slow_client")
+            if sess.closing and (
+                not sess.out_queue or now - sess.closing_since >= CLOSE_GRACE_SEC
+            ):
+                self._disconnect(sess, reason=sess.close_reason)
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -406,13 +450,15 @@ class DcGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for sess in list(self._clients.values()):
+            if sess.closing:
+                continue  # already on its way out; do not queue another EXIT
             if now - sess.last_activity > self.config.idle_timeout_sec:
                 self._queue_line(
                     sess,
                     "EXIT",
                     {"REASON": "idle_timeout", "TS": iso_utc(time.time())},
                 )
-                self._close_after_flush(sess)
+                self._close_after_flush(sess, reason="idle_timeout")
 
     # ------------------------------------------------------------------
     # Send/disconnect helpers
@@ -424,9 +470,15 @@ class DcGateway:
         self._queue_raw(sess, build_line(msg_type, fields))
 
     def _queue_raw(self, sess: ClientSession, payload: bytes) -> None:
+        if sess.closing:
+            # Its final line (ERR / EXIT) is already queued; anything more
+            # only grows the backlog of a client that is being dropped.
+            return
         sess.out_queue.append(payload)
+        self._msgs_out += 1
 
     def _disconnect(self, sess: ClientSession, reason: str = "unspecified") -> None:
+        self._disconnects[reason] = self._disconnects.get(reason, 0) + 1
         fileno = sess.sock.fileno()
         if sess.gateway_id:
             self._dc_unsubscribe(sess.gateway_id, fileno)
@@ -443,6 +495,29 @@ class DcGateway:
             reason,
         )
 
-    def _close_after_flush(self, sess: ClientSession) -> None:
+    def _close_after_flush(
+        self, sess: ClientSession, reason: str = "close_after_flush"
+    ) -> None:
+        """Send what is queued, then disconnect -- within CLOSE_GRACE_SEC.
+
+        The grace is what makes this a disconnect for a client that has
+        stopped reading: its queue never drains, so without a deadline the
+        session (and its queue) lived for ever.
+        """
+        if sess.closing:
+            return
         sess.closing = True
-        log.debug("session fd=%d marked closing-after-flush", sess.sock.fileno())
+        sess.closing_since = time.monotonic()
+        sess.close_reason = reason
+        log.debug("session fd=%d closing after flush (%s)", sess.sock.fileno(), reason)
+
+    @staticmethod
+    def _drop_backlog(sess: ClientSession) -> None:
+        """Discard queued lines, keeping one already partly sent: cutting it
+        would leave a torn line on the wire ahead of the final ERR."""
+        head = sess.out_queue[0] if sess.out_queue and sess.out_offset else None
+        sess.out_queue.clear()
+        if head is None:
+            sess.out_offset = 0
+        else:
+            sess.out_queue.append(head)

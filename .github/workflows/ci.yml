@@ -82,7 +82,7 @@ jobs:
           poetry run pytest \
             tests/ \
             -m "not heavy and not perf" \
-            -n auto \
+            -n logical \
             --cov=src/edumatcher \
             --cov-report=term-missing \
             --cov-report=html \

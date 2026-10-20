@@ -751,6 +751,43 @@ def build_gateway_tuning(view: ConfigView, width: int) -> RenderableType:
     return boxed("GATEWAY TUNING", table, width)
 
 
+def build_monitoring(view: ConfigView, width: int) -> RenderableType:
+    mon = view.monitoring
+    # Wide enough for the longest rule name (engine_handle_p99_us): these are
+    # config keys, and a truncated one cannot be searched for.
+    grid = label_grid(20, 0)
+    if mon.error is not None:
+        grid.add_row(Text("invalid", style=T.S_BAD), Text(mon.error, style=T.S_BAD))
+        return boxed("MONITORING", grid, width)
+
+    state = onoff(mon.enabled)
+    if not mon.configured:
+        state.append("  defaults", style=T.S_DEFAULTED)
+    grid.add_row(Text("enabled", style=T.S_LABEL), state)
+    grid.add_row(Text("endpoint", style=T.S_LABEL), Text(mon.endpoint, style=T.S_VALUE))
+    grid.add_row(
+        Text("beacon", style=T.S_LABEL),
+        Text(f"every {mon.beacon_interval_sec:g}s", style=T.S_VALUE),
+    )
+    grid.add_row(
+        Text("hung / silent", style=T.S_LABEL),
+        Text(
+            f"hung {mon.hung_after_sec:g}s · silent {mon.silent_after_beacons}×",
+            style=T.S_VALUE,
+        ),
+    )
+    grid.add_row(
+        Text("retention", style=T.S_LABEL),
+        Text(f"raw {mon.raw_hours}h · 1m {mon.minute_days}d", style=T.S_VALUE),
+    )
+    for rule, warn, crit in mon.thresholds:
+        grid.add_row(
+            Text(rule, style=T.S_LABEL),
+            Text(f"warn {warn:g} · crit {crit:g}", style=T.S_VALUE),
+        )
+    return boxed("MONITORING", grid, width)
+
+
 def build_engine_tuning(view: ConfigView, width: int) -> RenderableType:
     grid = label_grid(30, 0)
     if not view.tuning:

@@ -79,6 +79,7 @@ class TestRealSpec:
             "book",
             "circuit_breaker",
             "drop_copy",
+            "health",
             "index",
             "log",
             "news",
@@ -690,3 +691,54 @@ class TestStrictness:
             _write(tmp_path / "messages", fam, name=name)
         with pytest.raises(SpecError, match="declared in both"):
             load_all(tmp_path)
+
+
+class TestTheMonitorFamilyAdditions:
+    """Operator dashboard WP-A1 (`health` family): two transports, two publishers,
+    four units."""
+
+    @pytest.mark.parametrize(
+        ("name", "pattern", "subscriber", "key"),
+        [
+            ("monitor_push", "PUSH", "PULL", "MONITOR_PULL_ADDR"),
+            ("monitor_pub", "PUB", "SUB", "MONITOR_PUB_ADDR"),
+        ],
+    )
+    def test_the_monitor_transports_are_registered(
+        self,
+        transports: dict[str, Any],
+        name: str,
+        pattern: str,
+        subscriber: str,
+        key: str,
+    ) -> None:
+        transport = transports[name]
+        assert transport.pattern == pattern
+        assert transport.subscriber_pattern == subscriber
+        assert transport.address_config_key == key
+        assert transport.is_bus is True
+
+    @pytest.mark.parametrize("publisher", ["monitor", "health_reporter"])
+    def test_the_new_publishers_load(
+        self, tmp_path: Path, transports: dict[str, Any], publisher: str
+    ) -> None:
+        doc = {"motivation": "Something happened.", "published_by": [publisher]}
+        fam = load_family(_write(tmp_path, _minimal_family(doc=doc)), transports)
+        assert fam.messages[0].doc["published_by"] == [publisher]
+
+    def test_an_unknown_publisher_still_raises_with_the_nearest_hint(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        doc = {"motivation": "Something happened.", "published_by": ["monitr"]}
+        with pytest.raises(SpecError, match="did you mean 'monitor'"):
+            load_family(_write(tmp_path, _minimal_family(doc=doc)), transports)
+
+    @pytest.mark.parametrize(
+        "unit", ["bytes", "duration_seconds", "duration_millis", "duration_micros"]
+    )
+    def test_the_new_units_load(
+        self, tmp_path: Path, transports: dict[str, Any], unit: str
+    ) -> None:
+        fields = [{"name": "size", "type": "int", "unit": unit}]
+        fam = load_family(_write(tmp_path, _minimal_family(fields=fields)), transports)
+        assert fam.messages[0].fields[0].unit == unit

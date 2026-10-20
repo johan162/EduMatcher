@@ -114,6 +114,8 @@ import errno
 
 import zmq
 
+from edumatcher.health import HealthReporter, counter
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import (
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
@@ -906,6 +908,14 @@ class StatsProcess:
             raise
         self._lock = threading.Lock()
         self._running = True
+        # Health beacon (operator dashboard §8.5), attached by main(). Ticked
+        # and sampled on the *receive* thread, which does all the work -- the
+        # main thread only join()s it, so ticking there would report HEALTHY
+        # while recording had stopped (finding F7).
+        self._reporter: HealthReporter | None = None
+        self._events_recorded = 0
+        self._records_dropped = 0
+        self._feed_gaps = 0
         self._record_retention_meta()
         self._snapshot_interval_sec = snapshot_interval_sec
         self._tz = session_tz
@@ -1084,6 +1094,7 @@ class StatsProcess:
             last + 1,
             seq,
         )
+        self._feed_gaps += 1
         with self._lock, self._conn:
             self._conn.execute(
                 INSERT_FEED_GAP,
@@ -1150,6 +1161,7 @@ class StatsProcess:
             last_suffix + 1,
             suffix,
         )
+        self._feed_gaps += 1
         self._conn.execute(
             INSERT_FEED_GAP, (ts, TRADE_STREAM, last_suffix + 1, suffix, missing)
         )
@@ -1736,7 +1748,10 @@ class StatsProcess:
         poller.register(self.sub, zmq.POLLIN)
         poller.register(self.index_sub, zmq.POLLIN)
         poller.register(self.health_rep, zmq.POLLIN)
+        reporter = self._reporter
         while self._running:
+            if reporter is not None:
+                reporter.tick_and_publish(self.metric_samples)
             try:
                 socks = dict(poller.poll(timeout=300))
             except zmq.ZMQError as exc:
@@ -1775,6 +1790,9 @@ class StatsProcess:
                 # dropped record, not a warning-level curiosity.
                 log.error("failed to record topic=%s err=%s", topic, exc)
                 self._dbg_count("records_dropped")
+                self._records_dropped += 1
+            else:
+                self._events_recorded += 1
 
     def _record_retention_meta(self) -> None:
         """Publish the order-event retention into ``stats_meta``.
@@ -2003,7 +2021,21 @@ class StatsProcess:
                 missing,
             )
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5, plus records_dropped: events that failed to persist."""
+        return [
+            counter("stats.events_recorded", self._events_recorded),
+            counter("stats.records_dropped", self._records_dropped),
+            counter("stats.feed_gaps", self._feed_gaps),
+        ]
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         self._flush_debug_summary(force=True)
         self._log_session_totals()
         log.info("closing stats process")
@@ -2408,6 +2440,9 @@ def main() -> None:
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        process.attach_reporter(reporter)
     sys.exit(process.run())
 
 

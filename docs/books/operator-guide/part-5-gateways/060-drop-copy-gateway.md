@@ -301,6 +301,11 @@ Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
 | `SLOW_CLIENT` | Outbound queue exceeded `max_client_queue` | No |
 | `IDLE_TIMEOUT` | No inbound traffic for `idle_timeout_sec` | No |
 
+`SLOW_CLIENT` and the idle timeout end the connection even for a client that
+has stopped reading: the gateway tries to deliver the final line, then closes
+the connection after at most 5 seconds. On idle timeout the final line is
+`EXIT|REASON=idle_timeout`.
+
 
 ## Minimal zero-dependency client (Python)
 

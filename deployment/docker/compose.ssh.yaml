@@ -6,6 +6,6 @@ services:
     environment:
       EM_SSH: "1"
     volumes:
-      - ./.ssh/authorized_keys:/run/host-authorized-keys:ro
+      - ./.ssh/authorized_keys:/run/host-authorized-keys:ro,z
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${SSH_PORT:-2222}:22"

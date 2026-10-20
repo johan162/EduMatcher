@@ -50,26 +50,38 @@ describe("buildConfigDocument", () => {
     ]);
   });
 
-  it("omits country when left at the default (Sweden)", () => {
+  it("omits locale when left at the defaults (Sweden, Europe/Stockholm)", () => {
     const doc = buildConfigDocument(twoTraderExchange());
+    expect(doc.locale).toBeUndefined();
     expect(doc.country).toBeUndefined();
   });
 
-  it("emits and round-trips a non-default country", () => {
+  it("writes a non-default country under locale, never at the top level", () => {
     const draft = twoTraderExchange();
     draft.country = "DE";
     const doc = buildConfigDocument(draft) as any;
-    expect(doc.country).toBe("DE");
+    expect(doc.country).toBeUndefined();
+    expect(doc.locale).toEqual({ country: "DE" });
 
     const text = generateYaml(draft);
-    expect(text).toContain("country: DE");
-    expect(text).toContain("# -- Scheduler country --");
+    expect(text).toContain("# -- Locale --\n");
+    expect(text).toMatch(/locale:\n(  #.*\n)+  country: DE/);
 
     const { draft: reparsed } = parseYamlToDraft(text);
     expect(reparsed.country).toBe("DE");
   });
 
-  it("parses a full country name from an imported file", () => {
+  it("writes and round-trips a session time zone", () => {
+    const draft = twoTraderExchange();
+    draft.sessionTimezone = "America/New_York";
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.locale).toEqual({ session_timezone: "America/New_York" });
+    expect(parseYamlToDraft(generateYaml(draft)).draft.sessionTimezone).toBe(
+      "America/New_York",
+    );
+  });
+
+  it("does not read a top-level country: no loader does", () => {
     const yamlText = [
       "symbols:",
       "  AAPL: {}",
@@ -78,8 +90,9 @@ describe("buildConfigDocument", () => {
       "country: Germany",
       "",
     ].join("\n");
-    const { draft } = parseYamlToDraft(yamlText);
-    expect(draft.country).toBe("Germany");
+    const { draft, unmapped } = parseYamlToDraft(yamlText);
+    expect(draft.country).toBe("Sweden");
+    expect(unmapped).toContain("country");
   });
 
   it("adds quote_refresh_policy and quote stubs for MARKET_MAKER gateways", () => {

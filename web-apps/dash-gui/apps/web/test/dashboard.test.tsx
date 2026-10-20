@@ -1,0 +1,262 @@
+// @vitest-environment jsdom
+/**
+ * WP-D3: the seven rows, end to end in the browser app -- the real App and
+ * stores, a snapshot captured from a running exchange over a fake socket,
+ * and a fake bridge REST API that records every request.
+ */
+
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HealthSnapshot, ProcessHealth, ProcessState, ServerFrame } from "@edumatcher/dash-types";
+import App from "../src/App.js";
+import { useLiveSeries } from "../src/hooks/history.js";
+import { useDashStore } from "../src/store/useDashStore.js";
+import { fakeBridge, NOW } from "./fake-bridge.js";
+import { FakeSocket } from "./fake-socket.js";
+import { CAPTURED, fixtureSnapshot } from "./fixtures/snapshots.js";
+
+function renderAt(path = "/") {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>,
+  );
+  const socket = FakeSocket.latest();
+  socket.open();
+  return socket;
+}
+
+const hello: ServerFrame = { type: "hello", version: "1", monitor: "UP", sessionTz: "Europe/Stockholm" };
+const frame = (data: HealthSnapshot): ServerFrame => ({ type: "snapshot", data });
+const row = (title: string) => screen.getByRole("region", { name: `${title} row` });
+const tile = (label: string) => within(screen.getByRole("region", { name: label })).getByTestId("stat-value").textContent;
+
+let bridge: ReturnType<typeof fakeBridge>;
+beforeEach(() => {
+  cleanup();
+  localStorage.clear();
+  FakeSocket.instances = [];
+  vi.stubGlobal("WebSocket", FakeSocket);
+  bridge = fakeBridge();
+  useDashStore.setState({ socket: "CONNECTING", monitor: null, snapshot: null, events: [], recent: [], thresholds: null, links: null, range: "1h", refresh: "off" });
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe("row 1, overview (D3.2)", () => {
+  it("shows the captured snapshot's figures", async () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    expect(tile("Processes")).toBe("10 / 10");
+    expect(row("Overview").textContent).toContain("all healthy");
+    expect(tile("Participants")).toBe("2 / 4");
+    expect(tile("Orders today")).toBe("11");
+    expect(tile("Trades today")).toBe("8");
+    expect(tile("Engine p99")).toBe("23 µs");
+    expect(screen.getAllByRole("meter").map((m) => m.getAttribute("aria-label"))).toEqual(["CPU", "Memory", "Disk free"]);
+    // The thresholds arrive from /api/thresholds and reach the gauges.
+    await waitFor(() => expect(screen.getByRole("meter", { name: "CPU" }).querySelector("title")?.textContent).toBe("WARN above 80.0%, CRIT above 95.0%"));
+  });
+
+  it("colours the processes tile by pm-monitor's verdict on the exchange (I118)", () => {
+    const socket = renderAt();
+    const tileLevel = () => screen.getByRole("region", { name: "Processes" }).getAttribute("data-level");
+    const dead = CAPTURED.processes.map((p, i) => (i === 0 ? { ...p, state: "DEAD" as ProcessState } : p));
+    socket.deliver(hello, frame(fixtureSnapshot({ processes: dead, exchange: { status: "IMPAIRED" } })));
+    expect(tile("Processes")).toBe("9 / 10");
+    expect(tileLevel()).toBe("CRIT");
+    expect(screen.getByRole("region", { name: "Processes" }).textContent).toContain("1 DEAD");
+    // Stopped on purpose (no profile roster): pm-monitor says OPERATIONAL, and so does the tile.
+    const stopped = CAPTURED.processes.map((p, i) => (i === 0 ? { ...p, state: "STOPPED" as ProcessState } : p));
+    socket.deliver(frame(fixtureSnapshot({ processes: stopped, exchange: { status: "OPERATIONAL" } })));
+    expect(tile("Processes")).toBe("9 / 10");
+    expect(tileLevel()).toBe("OK");
+    socket.deliver(frame(fixtureSnapshot({ exchange: { status: "DEGRADED" } })));
+    expect(tileLevel()).toBe("WARN");
+  });
+
+  it("gauges and the p99 tile take pm-monitor's level, not their own reading of the value (I118)", async () => {
+    const socket = renderAt();
+    const host = { ...CAPTURED.host, cpu_pct: 90 };
+    socket.deliver(hello, frame(fixtureSnapshot({ host, thresholds: [] })));
+    // Above the 80 % band, but pm-monitor has not judged it a breach (hysteresis, minimum samples).
+    await waitFor(() => expect(screen.getByRole("meter", { name: "CPU" }).querySelector("title")?.textContent).toContain("80.0%"));
+    expect(screen.getByRole("meter", { name: "CPU" }).getAttribute("aria-valuetext")).toBe("90.0%");
+    const breach = { rule: "host_cpu_pct", subject: "host", level: "CRIT" as const, value: 96, threshold: 95, since: CAPTURED.ts };
+    socket.deliver(frame(fixtureSnapshot({ host, thresholds: [breach] })));
+    expect(screen.getByRole("meter", { name: "CPU" }).getAttribute("aria-valuetext")).toBe("90.0%, CRIT");
+    const p99 = { rule: "engine_handle_p99_us", subject: "pm-engine@kappa1", level: "WARN" as const, value: 3000, threshold: 2000, since: CAPTURED.ts };
+    socket.deliver(frame(fixtureSnapshot({ thresholds: [p99] })));
+    expect(screen.getByRole("region", { name: "Engine p99" }).getAttribute("data-level")).toBe("WARN");
+  });
+});
+
+describe("row 2, processes (D3.3)", () => {
+  it("renders each of the seven states with its glyph and word", () => {
+    const states: [ProcessState, string][] = [
+      ["HEALTHY", "●"],
+      ["DEGRADED", "◐"],
+      ["HUNG", "◆"],
+      ["SILENT", "✕"],
+      ["DEAD", "✕"],
+      ["MISSING", "✕"],
+      ["STOPPED", "○"],
+    ];
+    const processes: ProcessHealth[] = states.map(([state], i) => ({
+      ...CAPTURED.processes[i]!,
+      state,
+      ...(state === "MISSING" ? { host: "", key: CAPTURED.processes[i]!.process } : {}),
+    }));
+    const socket = renderAt();
+    socket.deliver(hello, frame(fixtureSnapshot({ processes })));
+    const table = screen.getByRole("table", { name: "Processes" });
+    for (const [i, [state, glyph]] of states.entries()) {
+      const tr = table.querySelector(`[data-row="${processes[i]!.key}"]`)!;
+      expect(tr.textContent, state).toContain(`${glyph} ${state}`);
+    }
+    // A process without a beacon has no figures to show.
+    expect(table.querySelector(`[data-row="${processes[5]!.key}"]`)!.textContent).toContain("—");
+    expect(row("Processes").textContent).toContain("1 DEAD, 1 SILENT, 1 MISSING, 1 HUNG, 1 STOPPED, 1 DEGRADED");
+  });
+
+  it("loop age is coloured per process as pm-monitor judges it; a stopped process has no current memory (I118)", () => {
+    const engine = CAPTURED.processes.find((p) => p.process === "pm-engine")!;
+    const processes = CAPTURED.processes.map((p) =>
+      p.process === "pm-stats" ? { ...p, state: "DEAD" as ProcessState } : p.key === engine.key ? { ...p, loop_age_ms: 5000 } : p,
+    );
+    const breach = { rule: "loop_age_ms", subject: engine.key, level: "WARN" as const, value: 5000, threshold: 1000, since: CAPTURED.ts };
+    const socket = renderAt();
+    socket.deliver(hello, frame(fixtureSnapshot({ processes, thresholds: [breach] })));
+    const table = screen.getByRole("table", { name: "Processes" });
+    const loopCell = (key: string) => table.querySelector(`[data-row="${key}"]`)!.querySelectorAll("td")[5]!.firstElementChild!;
+    expect(loopCell(engine.key).className).toContain("text-warning");
+    const other = CAPTURED.processes.find((p) => p.process === "pm-md-gwy")!.key;
+    expect(loopCell(other).className).not.toContain("text-warning");
+    const bars = [...screen.getByRole("region", { name: "Memory per process" }).querySelectorAll("[data-label]")].map((li) => li.getAttribute("data-label"));
+    expect(bars).toContain("pm-engine");
+    expect(bars).not.toContain("pm-stats");
+  });
+
+  it("puts the participant bots after the exchange's own", () => {
+    const bot = { ...CAPTURED.processes[0]!, key: "pm-mm-bot@kappa1", process: "pm-mm-bot", group: "BOT" as const };
+    const socket = renderAt();
+    socket.deliver(hello, frame(fixtureSnapshot({ processes: [bot, ...CAPTURED.processes] })));
+    const table = screen.getByRole("table", { name: "Processes" });
+    const keys = [...table.querySelectorAll("[data-row]")].map((r) => r.getAttribute("data-row"));
+    expect(keys.at(-1)).toBe("pm-mm-bot@kappa1");
+    expect(within(table).getByRole("rowheader", { name: "Participant bots" })).toBeTruthy();
+  });
+});
+
+describe("rows 3-7 (D3.4)", () => {
+  it("trading: why orders were rejected, and which window each average covers (I123)", () => {
+    const socket = renderAt();
+    const trading = { ...CAPTURED.trading, rejects_by_code: [{ code: "MM_MAX_SPREAD", count: 12 }, { code: "MARKET_CLOSED", count: 2 }] };
+    socket.deliver(hello, frame(fixtureSnapshot({ trading })));
+    const reasons = screen.getByRole("region", { name: "Rejects today by reason" });
+    expect([...reasons.querySelectorAll("[data-label]")].map((li) => li.getAttribute("data-label"))).toEqual(["MM_MAX_SPREAD", "MARKET_CLOSED"]);
+    expect(reasons.textContent).toContain("12");
+    expect(screen.getByRole("region", { name: "Orders avg / min" }).textContent).toContain("last 60 min");
+    expect(screen.getByRole("region", { name: "Orders avg / hour" }).textContent).toContain("today, per hour open");
+    expect(screen.getByRole("region", { name: "Orders today" }).textContent).toContain("last hour");
+    expect(row("Participants").textContent).toContain("avg/min over the last 60 min");
+  });
+
+  it("participants: the averages show — before a full day of data", () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    const trader = screen.getByRole("table", { name: "Participants" }).querySelector('[data-row="TRADER01"]')!;
+    const cells = [...trader.querySelectorAll("td")].map((td) => td.textContent);
+    expect(CAPTURED.participants.find((p) => p.id === "TRADER01")!.orders.avg_per_day).toBeNull();
+    expect(cells[8]).toBe("—"); // avg/day
+    expect(cells[4]).toBe("8"); // orders today
+    expect(cells[2]).toContain("yes");
+    expect(row("Participants").textContent).toContain("2 / 4 connected");
+    expect(tile("Orders avg / day")).toBe("—");
+  });
+
+  it("books: heap garbage is coloured only where pm-monitor judges it (I118)", () => {
+    const socket = renderAt();
+    const books = CAPTURED.books.map((b) => ({ ...b, heap_garbage_pct: 60 }));
+    const breach = { rule: "heap_garbage_pct", subject: "MSFT", level: "WARN" as const, value: 60, threshold: 50, since: CAPTURED.ts };
+    socket.deliver(hello, frame(fixtureSnapshot({ books, thresholds: [breach] })));
+    const garbage = (symbol: string) => [...screen.getByRole("table", { name: "Order books" }).querySelector(`[data-row="${symbol}"]`)!.querySelectorAll("td")][6]!.textContent;
+    expect(garbage("MSFT")).toBe("60.0% ◐");
+    expect(garbage("AAPL")).toBe("60.0%"); // above the band, too few entries for pm-monitor to judge
+  });
+
+  it("books, gateways and the event log", async () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    const aapl = screen.getByRole("table", { name: "Order books" }).querySelector('[data-row="AAPL"]')!;
+    expect(aapl.textContent).toContain("trading");
+    expect([...aapl.querySelectorAll("td")][7]!.textContent).toBe("8");
+    expect(tile("Books")).toBe(String(CAPTURED.books.length));
+    expect(tile("ALF clients")).toBe("2 / 1 024");
+    expect(tile("API dropped events")).toBe("0");
+    expect(within(row("Gateways & infrastructure")).getByText("DISPATCH_ERROR")).toBeTruthy();
+    // The log's history comes from /api/events on connect.
+    await waitFor(() => expect(within(screen.getByRole("log")).getByText("TRADER01")).toBeTruthy());
+  });
+});
+
+describe("rules and links (I118)", () => {
+  it("are asked again every refresh interval, so a redeployed artifact shows without a reload", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      useDashStore.setState({ refresh: "10s" });
+      const socket = renderAt();
+      socket.deliver(hello, frame(CAPTURED));
+      await waitFor(() => expect(bridge.count("/api/thresholds")).toBe(1));
+      expect(bridge.count("/api/bridge/status")).toBe(1);
+      act(() => vi.advanceTimersByTime(10_000));
+      await waitFor(() => expect(bridge.count("/api/thresholds")).toBe(2));
+      expect(bridge.count("/api/bridge/status")).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("history wiring (D3.5)", () => {
+  it("one request per panel; switching range refetches each once", async () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2)); // memory and CPU
+    expect(bridge.count("/api/rate/by-label")).toBe(1);
+    expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
+    expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
+    expect(bridge.calls.find((c) => c.startsWith("/api/series/multi") && c.includes("proc.cpu_pct"))).toContain("range=1h");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Time range:/ }));
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Time range" })).getByText("Last 6 hours"));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(4));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(bridge.count("/api/series/multi")).toBe(4); // once, not more
+    expect(bridge.count("/api/rate/by-label")).toBe(2);
+    expect(bridge.calls.filter((c) => c.startsWith("/api/series/multi")).slice(-1)[0]).toContain("range=6h");
+  });
+
+  it("live snapshots add no request", async () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2));
+    const before = bridge.calls.length;
+    for (let i = 1; i <= 30; i++) socket.deliver(frame(fixtureSnapshot({ seq: i, ts: new Date(NOW + i * 1000).toISOString() })));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(bridge.calls.length).toBe(before);
+  });
+
+  it("live points are appended at the chart's resolution, without a fetch", () => {
+    useDashStore.setState({ snapshot: CAPTURED });
+    const base = [{ label: "pm-engine", points: [[NOW - 10_000, 1]] as [number, number][] }];
+    const { result } = renderHook(() => useLiveSeries(base, 10_000, (s) => [s.processes[0]!.rss_bytes]));
+    expect(result.current![0]!.points).toHaveLength(2); // the current bucket's live point
+    const step = (ms: number) => act(() => useDashStore.setState({ snapshot: fixtureSnapshot({ ts: new Date(NOW + ms).toISOString() }) }));
+    step(3_000);
+    expect(result.current![0]!.points).toHaveLength(2); // same bucket: nothing new
+    step(11_000);
+    expect(result.current![0]!.points).toHaveLength(3);
+    expect(result.current![0]!.points.at(-1)![1]).toBe(CAPTURED.processes[0]!.rss_bytes);
+  });
+});

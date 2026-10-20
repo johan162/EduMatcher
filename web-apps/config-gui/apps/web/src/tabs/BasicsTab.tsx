@@ -8,6 +8,7 @@ import {
   type DisconnectBehaviour,
   type ParticipantRole,
   type SmpAction,
+  DEFAULT_SESSION_TIMEZONE,
 } from "@edumatcher/schema";
 import { useState } from "react";
 import { useDraftStore } from "@/store/draftStore";
@@ -57,8 +58,8 @@ export function BasicsTab() {
       intro="Define the instruments that trade on your exchange and the gateway sessions that connect to it. At least one symbol and one gateway are required."
     >
       <Section
-        title="Country"
-        description="Sets pm-scheduler's local calendar. Later settings that depend on locale (for example, a timezone for countries spanning more than one) will live here too."
+        title="Locale"
+        description="The exchange's country and time zone, written to the `locale` block. The country sets pm-scheduler's holiday calendar; the time zone decides where every process draws the line between trading days."
       >
         <FieldRow
           label="Country"
@@ -78,6 +79,26 @@ export function BasicsTab() {
             placeholder="e.g. Sweden or SE"
           />
         </FieldRow>
+        {canSee("I") && (
+          <FieldRow
+            label="Session time zone"
+            path="sessionTimezone"
+            help={{
+              text: "IANA time zone (e.g. Europe/Stockholm, America/New_York) the schedule's wall-clock times are in, and that every process uses to bucket events into a trading day -- daily statistics, clearing and the session calendar. Written as locale.session_timezone only when it differs from Europe/Stockholm.",
+              cliFlag: "--session-timezone",
+            }}
+            defaultHint={`Default: ${DEFAULT_SESSION_TIMEZONE}`}
+            isSet={draft.sessionTimezone !== DEFAULT_SESSION_TIMEZONE}
+            onReset={() => update((d) => (d.sessionTimezone = DEFAULT_SESSION_TIMEZONE))}
+          >
+            <TextInput
+              aria-label="Session time zone"
+              value={draft.sessionTimezone}
+              onChange={(v) => update((d) => (d.sessionTimezone = v))}
+              className="w-64"
+            />
+          </FieldRow>
+        )}
       </Section>
 
       <Section

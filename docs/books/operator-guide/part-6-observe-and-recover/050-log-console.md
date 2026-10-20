@@ -11,13 +11,6 @@
     - The acknowledgement model, and why it is shared rather than per-browser
     - How to configure, secure, and troubleshoot a deployment
 
-!!! info "About the figures on this page"
-    Blocks marked **📷 Figure N** are placeholders indicating where a UI
-    screenshot should be added, together with a short description of what to
-    capture and a suggested asset path under
-    `docs/user-guide/images/log-gui/`. Replace each block with the image and
-    an italic caption once the screenshots are taken.
-
 ## Overview
 
 The **Log Operator Console** (`pm-log-ui`) is a browser-based console over the
@@ -391,7 +384,7 @@ navigation rail** on the left, and the active view filling the rest.
 │ ▣ Dash│                                                             │
 │ ▤ Logs│                                                             │
 │ ⚠ Ale.│                     active view                             │
-│ ◈ Proc│                                                             │
+│ ◈ Conn│                                                             │
 │ ⚕ Diag│                                                             │
 │ ♥ Heal│                                                             │
 └──────┴─────────────────────────────────────────────────────────────┘
@@ -408,11 +401,13 @@ The top bar is deliberately sparse. After the name and version
 - **Theme toggle** — light/dark. The icon shows the theme a click switches
   *to*, not the one currently active.
 
-!!! note "📷 Figure 1 — The main window"
-    _Screenshot placeholder._ Capture the console in dark theme on the
-    **Dashboard** with at least one unacknowledged issue, so the red banner,
-    the top-bar unacked link and the Alerts rail badge are all visible
-    together. Suggested file: `images/log-gui/fig-01-main-window.png`.
+![The Log Operator Console on the Dashboard, with four unacknowledged issues.](../../../assets/log-gui/log-dashboard.png)
+
+*The AI-trader simulation after a `stats.db` lock made pm-stats drop records. The top bar
+shows the source state (`log-srv01 log-srv up`) and the red `⚠ 4 unacked` link; the Alerts
+rail item carries the same count. On the Dashboard: the banner naming the most recent
+affected process, the five meter tiles, events over time, top processes by error count,
+and the five most recent errors.*
 
 ### The six views at a glance
 
@@ -421,7 +416,7 @@ The top bar is deliberately sparse. After the name and version
 | [Dashboard](#dashboard) | Is anything wrong right now? | Live counters + 15–30 s polls |
 | [Logs](#logs-the-explorer) | What exactly happened? | Live tail or on-demand query |
 | [Alerts](#alerts) | What is outstanding, and who has it? | 10 s |
-| [Processes](#processes) | Is everything still reporting in? | 10 s |
+| [Connections](#connections) | Is everything still reporting in? | 10 s |
 | [Diagnostics](#diagnostics) | What would `pm-log-cli diagnose` say? | 60 s |
 | [Health](#health) | Which component is degraded? | 10–30 s |
 
@@ -449,12 +444,6 @@ WebSocket stream and update every second. Everything else is polled from
 `log.db`. This is why the tiles can briefly disagree during a burst: the live
 counters have already seen rows the aggregate query has not yet been re-run
 for.
-
-!!! note "📷 Figure 2 — Dashboard with an active alert"
-    _Screenshot placeholder._ Capture the full Dashboard during a period with
-    errors, so the pulsing banner, all five meter tiles with real numbers,
-    both charts populated, and the recent-errors list are visible.
-    Suggested file: `images/log-gui/fig-02-dashboard.png`.
 
 ### Logs (the Explorer)
 
@@ -501,12 +490,12 @@ number — plus the untruncated message. Two actions there:
 - **Filter to this process** — rewrites the URL filter, which is usually the
   next thing you want after spotting one bad row.
 
-!!! note "📷 Figure 3 — The Explorer in live mode with a row selected"
-    _Screenshot placeholder._ Capture the Logs view in LIVE mode with a level
-    filter applied, several severity-coloured rows visible (at least one
-    ERROR with the ⚠ exception marker), and the right-hand detail pane open
-    on a row with a traceback. Suggested file:
-    `images/log-gui/fig-03-explorer.png`.
+![The Explorer in LIVE mode, filtered to INFO+, with an error selected.](../../../assets/log-gui/log-explorer.png)
+
+*Rows are coloured by level — `INF`, `WRN`, `ERR` — with a matching left edge on warnings
+and errors. The filter (`minLevel=INFO`) is in the URL. The detail pane shows the selected
+row's logger, module and line, pid and host, session and sequence number, the full
+message, and the **Copy** and **Filter to this process** actions.*
 
 ### Alerts
 
@@ -540,16 +529,17 @@ Issues with no activity beyond the retention window (7 days by default) are
 pruned hourly. The index is rebuilt from `log.db` at startup, so restarting the
 bridge loses nothing except issues that had already aged out.
 
-!!! note "📷 Figure 4 — Alerts with a recurred-since-ack issue"
-    _Screenshot placeholder._ Capture the Alerts view on the **all** tab
-    showing a mix: one unacknowledged CRITICAL, one acknowledged issue with
-    its "✓ acked … by … — note" line, and ideally one carrying the
-    `recurred since ack` chip. Suggested file:
-    `images/log-gui/fig-04-alerts.png`.
+![Alerts on the all tab, with an issue that recurred after it was acknowledged.](../../../assets/log-gui/log-alerts.png)
 
-### Processes
+*Each card is one fingerprint: level, process and logger, the occurrence count, a sample
+message and first/last seen. The second card was acknowledged by `instructor` with a note,
+then fired again — hence `recurred since ack` and **Un-ack** instead of **Acknowledge**.
+The operator name is set once, top right.*
 
-A registry of every process that has ever connected, with a status glyph:
+### Connections
+
+A registry of every connection a process has made to `pm-log-srv`, one row per
+connection, with a status glyph:
 
 | Glyph | Meaning |
 |---|---|
@@ -565,13 +555,20 @@ time, idle time, total log count and error count.
 The threshold is `PROCESS_SILENCE_SEC` (30 s by default) and is stated in the
 legend above the table, so the glyph is never ambiguous.
 
+**Hide probes** (on by default) hides each process's start-up probe: before it
+starts logging, a process opens a short connection only to find out whether
+`pm-log-srv` is reachable, then closes it and opens the one it logs over. That
+probe would otherwise appear as a second row for the same PID — connected and
+disconnected in the same second, having logged nothing — which looks
+alarmingly like a process flapping. The checkbox shows how many it hides.
+
 Clicking any row navigates to the Explorer pre-filtered to that process.
 
-!!! note "📷 Figure 5 — The Processes board"
-    _Screenshot placeholder._ Capture the table with a mix of all three status
-    glyphs — at least one live process, one silent (`⚠`), and one
-    disconnected (`○`) — with non-zero error counts on at least one row.
-    Suggested file: `images/log-gui/fig-05-processes.png`.
+![The Connections board.](../../../assets/log-gui/log-connections.png)
+
+*All three glyphs: `●` logging (the gateways and the AI traders), `⚠` silent for 30 s or more,
+and `○` for the two earlier `pm-market-sim` connections, which ended when it was restarted.
+pm-stats shows its 10 errors. **Hide probes** is on, so the two start-up probes are hidden.*
 
 ### Diagnostics
 
@@ -587,19 +584,21 @@ it was fine" is information too.
     `GET /api/diagnostics` shells out to `pm-log-cli --format json diagnose`
     so there is exactly one implementation of the heuristics to keep correct.
     The consequence: `pm-log-cli` must be installed and on `PATH` wherever
-    **the bridge** runs — which, in the container deployment, it is not by
-    default. If it is missing, this one view reports it and every other view
+    **the bridge** runs. The container image installs the `edumatcher`
+    package for exactly this reason; a bridge run some other way needs it
+    too. If it is missing, this one view reports it and every other view
     keeps working. Override the command with `LOG_CLI_COMMAND`, e.g.
     `LOG_CLI_COMMAND="poetry run pm-log-cli"`.
 
 See [`diagnose`](040-log-server.md#diagnose-rule-based-troubleshooting-report) for
 what each heuristic actually checks.
 
-!!! note "📷 Figure 6 — Diagnostics with findings"
-    _Screenshot placeholder._ Capture the view with at least two findings of
-    differing severity (one error-bordered, one warning-bordered), each
-    showing its recommendation and repro command, plus the "✓ No findings
-    for:" line. Suggested file: `images/log-gui/fig-06-diagnostics.png`.
+![Diagnostics with three findings.](../../../assets/log-gui/log-diagnostics.png)
+
+*An error-bordered `error_rate_spike` (pm-stats), a warning-bordered `repeated_warning` (the
+AI traders' `SESSION_LOST` after an engine restart) and an informational `process_silence`,
+each with its recommendation and the `pm-log-cli` command that reproduces it; the
+heuristics that found nothing are listed at the bottom.*
 
 ### Health
 
@@ -622,10 +621,11 @@ misconfiguration — a bridge reading a different database than the one
 is shedding inbound LALF-PS messages, which is a capacity signal rather than a
 console problem.
 
-!!! note "📷 Figure 7 — The Health view"
-    _Screenshot placeholder._ Capture all four panels populated against a
-    running server, with the resolved `log.db` path and the bridge `sub_id`
-    legible. Suggested file: `images/log-gui/fig-07-health.png`.
+![The Health view.](../../../assets/log-gui/log-health.png)
+
+*The four independently failing components side by side. The resolved `log.db` path is
+`/backend-data/log.db` — the container's read-only mount of the exchange's data directory —
+and the bridge's LALF-PS subscription is `pm-log-bridge-26`.*
 
 ## Exporting
 
@@ -701,7 +701,7 @@ empties them from Alerts.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PROCESS_SILENCE_SEC` | `30` | Seconds of silence after which a connected process is flagged `⚠` on the Processes board |
+| `PROCESS_SILENCE_SEC` | `30` | Seconds of silence after which a connected process is flagged `⚠` on the Connections board |
 | `ERROR_RATE_NORMAL_PER_MIN` | `5` | Error rate at which the Dashboard meter leaves **normal** |
 | `ERROR_RATE_ELEVATED_PER_MIN` | `20` | …and enters **high** |
 | `ERROR_RATE_SEVERE_PER_MIN` | `100` | …and enters **severe** |
@@ -738,7 +738,7 @@ because a fallback constant in the UI is exactly how these settings came to be
 ignored in the first place. Views render a neutral placeholder until the
 config arrives rather than guessing.
 
-One visible consequence: for the first moment after a page load the Processes
+One visible consequence: for the first moment after a page load the Connections
 board shows no `⚠` glyphs, because flagging every healthy process as silent
 would be worse than a fraction of a second's delay.
 

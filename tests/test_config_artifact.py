@@ -37,6 +37,12 @@ from edumatcher.config_artifact import (
     to_jsonable,
 )
 from edumatcher.dc_gateway.config import DcGatewayConfig
+from edumatcher.monitor.config import (
+    MonitorConfig,
+    MonitorRetention,
+    MonitorThresholds,
+    ThresholdBand,
+)
 from edumatcher.engine.circuit_breaker import CircuitBreakerConfig, CircuitBreakerLevel
 from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import (
@@ -123,6 +129,7 @@ def _config(**over: Any) -> CompiledConfig:
         "dc_gateway": DcGatewayConfig(),
         "log_server": LogServerConfig(),
         "log_client": LogClientConfig(),
+        "monitor": MonitorConfig(),
         "api_gateways": {
             # A tuple, as the real loader builds it — the field is declared
             # `tuple[ApiCredential, ...]` and the codec rebuilds the declared
@@ -388,6 +395,7 @@ _SECTION_TYPES = [
     LogClientConfig,
     LogServerConfig,
     MarketDataGatewayConfig,
+    MonitorConfig,
     RalfGatewayConfig,
     EngineConfig,
 ]
@@ -540,3 +548,53 @@ class TestLoadNamesTheFile:
 
     def test_absence_is_still_not_an_error(self, tmp_path: Path) -> None:
         assert load_compiled_config(tmp_path / "absent.json") is None
+
+
+class TestTheMonitorSection:
+    """Schema version 5: the operator dashboard's ``monitor`` section."""
+
+    _CUSTOM = MonitorConfig(
+        enabled=False,
+        bind_address="0.0.0.0",
+        host="monitor.internal",
+        pull_port=6610,
+        pub_port=6611,
+        beacon_interval_sec=1.5,
+        hung_after_sec=9.0,
+        silent_after_beacons=4,
+        book_metrics_interval_sec=20.0,
+        retention=MonitorRetention(raw_hours=12, minute_days=3),
+        thresholds=MonitorThresholds(disk_free_pct=ThresholdBand(25.0, 10.0)),
+    )
+
+    def test_the_schema_version_records_the_change(self) -> None:
+        assert SCHEMA_VERSION == 5
+
+    def test_a_non_default_section_round_trips(self) -> None:
+        rebuilt = decode(encode(_config(monitor=self._CUSTOM)))
+        assert rebuilt.monitor == self._CUSTOM
+
+    def test_threshold_bands_come_back_as_records_not_dicts(self) -> None:
+        rebuilt = decode(encode(_config(monitor=self._CUSTOM)))
+        assert isinstance(rebuilt.monitor.thresholds.disk_free_pct, ThresholdBand)
+        assert isinstance(rebuilt.monitor.retention, MonitorRetention)
+
+    @pytest.mark.parametrize(
+        "monitor",
+        [
+            MonitorConfig(enabled=False),
+            MonitorConfig(pull_port=5700),
+            MonitorConfig(retention=MonitorRetention(raw_hours=1)),
+            MonitorConfig(
+                thresholds=MonitorThresholds(host_cpu_pct=ThresholdBand(70.0, 95.0))
+            ),
+        ],
+    )
+    def test_the_digest_covers_the_section(self, monitor: MonitorConfig) -> None:
+        assert content_digest(_config(monitor=monitor)) != content_digest(_config())
+
+    def test_a_version_4_artifact_is_refused_with_the_redeploy_hint(self) -> None:
+        payload = json.loads(encode(_config(meta=_meta(schema_version=4))))
+        del payload["monitor"]
+        with pytest.raises(ArtifactError, match="redeploy with pm-config-deploy"):
+            decode(json.dumps(payload))

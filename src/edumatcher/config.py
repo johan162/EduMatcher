@@ -285,6 +285,8 @@ AUDIT_REPLAY_DB_FILE = DATA_DIR / "audit_replay.db"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 LOG_DB_FILE = DATA_DIR / "log.db"
+#: pm-monitor's history for the operator dashboard (WP-B4).
+METRICS_DB_FILE = DATA_DIR / "metrics.db"
 LOG_FALLBACK_DIR = DATA_DIR / "logs"
 
 # ---------------------------------------------------------------------------
@@ -311,6 +313,20 @@ LOG_SRV_PUB_PORT = 5601
 LOG_SRV_PULL_PORT = 5602
 LOG_SRV_PUB_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PUB_PORT}"
 LOG_SRV_PULL_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PULL_PORT}"
+
+# ---------------------------------------------------------------------------
+# pm-monitor (health collector) endpoints
+# ---------------------------------------------------------------------------
+# See docs-design/EduMatcher-Operator-Dashboard.md. pm-monitor binds a PULL
+# socket that receives every process's health.beacon and a PUB socket that
+# carries health.snapshot/health.event to the dashboard bridge. As with the
+# LOG_SRV_* constants above, these are only defaults: the compiled `monitor`
+# section (edumatcher.monitor.config.MonitorConfig) is the source of truth for
+# a running process. 5610/5611 sit clear of the 5600-5602 log block so that
+# block keeps room to grow.
+MONITOR_HOST = "127.0.0.1"
+MONITOR_PULL_PORT = 5610
+MONITOR_PUB_PORT = 5611
 
 
 # ---------------------------------------------------------------------------

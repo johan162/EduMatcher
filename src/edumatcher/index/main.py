@@ -14,6 +14,7 @@ from typing import Any
 
 import zmq
 
+from edumatcher.health import HealthReporter
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
@@ -122,6 +123,8 @@ class IndexProcess:
         self._config_path = config_path
         self._reset = reset
         self._running = True
+        # Health beacon, attached by main(); vitals only (design A6.6).
+        self._reporter: HealthReporter | None = None
 
         self._indices: dict[str, _ManagedIndex] = {}
         self._constituent_to_indices: dict[str, set[str]] = {}
@@ -781,7 +784,10 @@ class IndexProcess:
         poller.register(self._pull_sock, zmq.POLLIN)
         poller.register(self._health_rep, zmq.POLLIN)
 
+        reporter = self._reporter
         while self._running:
+            if reporter is not None:
+                reporter.tick()
             try:
                 socks = dict(poller.poll(timeout=200))
             except zmq.ZMQError as exc:
@@ -832,7 +838,14 @@ class IndexProcess:
         log.info("stop requested")
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this process's health beacon through ``reporter`` (main()).
+        No application metrics in this plan (design A6.6): vitals only."""
+        self._reporter = reporter
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         self._flush_debug_summary(force=True)
         log.info("closing index process")
         for idx in self._indices.values():
@@ -958,6 +971,9 @@ def main() -> None:
     # tests that drive run() directly keep pytest's own handlers.
     signal.signal(signal.SIGINT, lambda *_: proc.stop())
     signal.signal(signal.SIGTERM, lambda *_: proc.stop())
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        proc.attach_reporter(reporter)
     try:
         proc.run()
     except Exception as exc:

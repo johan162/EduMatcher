@@ -39,6 +39,9 @@ from typing import Any
 
 import zmq
 
+from edumatcher.health import HealthReporter
+from edumatcher.health.samples import gateway_stats_samples
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.balf_gwy.codec import (
     BALF_MAGIC,
     BALF_VERSION,
@@ -264,6 +267,8 @@ class BalfGateway:
             "disconnects_total": 0,
             "slow_client_disconnects": 0,
         }
+        # Health beacon (operator dashboard §8.5); attached by main().
+        self._reporter: HealthReporter | None = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -289,8 +294,11 @@ class BalfGateway:
             self.config.engine_pub_addr,
         )
 
+        reporter = self._reporter
         try:
             while self._running:
+                if reporter is not None:
+                    reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_engine_events()
@@ -305,7 +313,17 @@ class BalfGateway:
     def stop(self) -> None:
         self._running = False
 
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        """Ship this gateway's metrics through ``reporter`` (from main())."""
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        """Design §8.5: the existing ``_global_stats``, exported as they are."""
+        return gateway_stats_samples(self._global_stats, self.config.max_connections)
+
     def close(self) -> None:
+        if self._reporter is not None:
+            self._reporter.stop()
         for session in list(self._clients.values()):
             self._disconnect(session, reason="gateway_shutdown")
         self._clients.clear()

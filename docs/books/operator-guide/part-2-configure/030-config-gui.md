@@ -16,13 +16,6 @@
     - How to import, validate, and export a configuration
     - How to deploy the GUI in production and troubleshoot common problems
 
-!!! info "About the figures on this page"
-    Blocks marked **📷 Figure N** are placeholders indicating where a UI
-    screenshot should be added, together with a short description of what to
-    capture and a suggested asset path under
-    `docs/user-guide/images/config-gui/`. Replace each block with the image and
-    an italic caption once the screenshots are taken.
-
 ## Overview
 
 The **Config Builder** (`config-gui`) is a browser-based application for
@@ -54,12 +47,12 @@ pipes generated configs through the engine's own `load_engine_config()` parser,
 so anything the GUI exports is guaranteed to load (see
 [How the GUI stays valid](#how-the-gui-stays-valid)).
 
-!!! note "📷 Figure 1 — The main window"
-    _Screenshot placeholder._ Capture the application in light theme on the
-    **Basics** tab, showing the full three-pane layout (navigation list on the
-    left, the active panel in the centre, the diagnostics drawer on the right)
-    and the top bar (persona switcher, **Import**, **New**, theme toggle,
-    **Save**). Suggested file: `images/config-gui/fig-01-main-window.png`.
+![The Config Builder: the Basics tab of an imported configuration.](../../../assets/config-gui/config-main-window.png)
+
+*The `s10-complex` example imported at the Expert persona. The top bar holds the persona
+switcher, **Comment defaults**, **Import**, **New**, the theme toggle and **Save**; the
+navigation on the left shows every tab's status glyph; the Basics form fills the centre;
+the diagnostics drawer on the right reports no issues.*
 
 ## Prerequisites
 
@@ -197,7 +190,7 @@ know what to edit, what you are editing, and what still needs attention.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Top bar:  [Persona ▾]                     Import  New  ☾  Save       │
+│  Top bar:  [Persona ▾] [☐ Comment defaults]  Import  New  ☾  Save     │
 ├───────────────┬─────────────────────────────────┬────────────────────┤
 │  Navigation   │        Active panel             │   Diagnostics      │
 │  (tab list    │   (fields for the selected      │   drawer           │
@@ -206,7 +199,10 @@ know what to edit, what you are editing, and what still needs attention.
 └───────────────┴─────────────────────────────────┴────────────────────┘
 ```
 
-- **Top bar** — the [persona](#personas) switcher, **Import** (load an existing
+- **Top bar** — the [persona](#personas) switcher, **Comment defaults** (add
+  the commented reference block of every optional field at its default to the
+  exported file — `pm-config-gen --comment-default-config-fields`; the same
+  setting as the Review tab's toggle), **Import** (load an existing
   YAML file), **New** (start a blank draft, with a confirmation), the light/dark
   **theme toggle** (☾ / ☀), and **Save** (shows a confirmation toast; the draft
   is already autosaved to `localStorage` continuously on every change, so a
@@ -222,6 +218,15 @@ know what to edit, what you are editing, and what still needs attention.
   the *whole* configuration, not just the active tab, each with a **Jump →**
   action that navigates to and highlights the offending field(s). See
   [Diagnostics and live validation](#diagnostics-and-live-validation).
+
+Because the draft is autosaved, opening the application again in the same
+browser offers it back before anything else happens: **Restore** reloads it,
+**Start fresh** begins a blank draft.
+
+![The restore-draft dialog.](../../../assets/config-gui/config-restore-draft.png)
+
+*Shown on start-up when this browser holds an autosaved draft, over the blank draft
+it would otherwise begin with.*
 
 Mandatory fields carry a red asterisk and a red left border; optional fields
 show their default as ghost placeholder text until you set them. Every
@@ -247,33 +252,38 @@ up:
 | Persona | Tabs shown |
 |---|---|
 | **Beginner** | Basics, Sessions & Schedule, Market Maker¹, Review & Export |
-| **Intermediate** | …the above **plus** Risk & Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways |
+| **Intermediate** | …the above **plus** Risk & Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways, Health Monitoring |
 | **Expert** | …the above **plus** Combos, Engine Tuning |
 
 ¹ The **Market Maker** tab appears at any persona. It is greyed out and
 disabled until at least one gateway has the `MARKET_MAKER` role, then becomes
 editable.
 
-!!! note "📷 Figure 2 — Persona switcher and theme toggle"
-    _Screenshot placeholder._ Capture the top bar with the persona dropdown open
-    showing Beginner / Intermediate / Expert, plus the theme toggle. A second
-    capture in dark theme is useful to show both palettes.
-    Suggested file: `images/config-gui/fig-02-persona-theme.png`.
+![The persona switcher, open.](../../../assets/config-gui/config-persona-menu.png)
+
+*Beginner, Intermediate and Expert, with the current persona ticked. Switching hides or
+shows tabs and fields; it never discards a value.*
+
+![The same Basics tab in the dark palette.](../../../assets/config-gui/config-dark-theme.png)
+
+*The theme toggle (☾ / ☀) switches between the light and dark palettes; the choice is
+remembered in this browser.*
 
 ## The tabs at a glance
 
 | Tab | Persona | Configures | Reference chapter |
 |---|---|---|---|
-| **Basics** | Beginner | The symbol universe and the participants list | [Participants](010-the-configuration-workflow.md#participants), [ALF gateway](../part-5-gateways/010-alf-gateway.md) |
+| **Basics** | Beginner | The locale (country, session time zone), the symbol universe, and the participants list | [Participants](010-the-configuration-workflow.md#participants), [ALF gateway](../part-5-gateways/010-alf-gateway.md) |
 | **Sessions & Schedule** | Beginner | Whether the scheduler drives the trading day, and the phase times | [Auctions & Session Scheduling](../part-4-run-a-market/030-sessions-and-scheduling.md) |
 | **Risk & Collars** | Intermediate | The global collar band, named risk levels, and collar enforcement | [Price collars](../part-4-run-a-market/040-risk-controls.md#price-collars) |
-| **Circuit Breakers** | Intermediate | The halt ladder, reference window, and CB enforcement | [Circuit breakers](../part-4-run-a-market/040-risk-controls.md#circuit-breakers) |
+| **Circuit Breakers** | Intermediate | The halt ladder, reference window, reopening auction (ACE), and CB enforcement | [Circuit breakers](../part-4-run-a-market/040-risk-controls.md#circuit-breakers) |
 | **Market Maker** | Beginner¹ | Obligation defaults and startup quote seeding | [Market Making](../../participant-guide/part-3-market-making/020-market-making.md) |
 | **Symbols** | Intermediate | Per-symbol overrides for every setting, plus MM quotes | [Symbol universe](010-the-configuration-workflow.md#symbol-universe) |
 | **Indices** | Intermediate | Cap-weighted index definitions and constituents | [Market Index](../part-4-run-a-market/070-market-index.md) |
 | **Combos** | Expert | Multi-leg startup seed orders | [Combo Orders](../../participant-guide/part-2-orders/030-combo-and-oco-orders.md) |
 | **Auxiliary Gateways** | Intermediate | Post-Trade, Market-Data, BALF, and API gateway processes | [RALF](../part-5-gateways/040-ralf-gateway.md), [CALF](../part-5-gateways/030-calf-gateway.md), [BALF](../part-5-gateways/020-balf-gateway.md), [API](../part-5-gateways/050-api-gateway.md) |
-| **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs | [`engine_tuning`](010-the-configuration-workflow.md#engine_tuning) |
+| **Health Monitoring** | Intermediate | Health beacons and `pm-monitor`: liveness timing, history, alert thresholds (network at Expert) | [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md) |
+| **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs, and the auction indicative-price interval | [`engine_tuning`](010-the-configuration-workflow.md#engine_tuning) |
 | **Review & Export** | Beginner | Diagnostics summary, YAML preview, download, and verify | [Config Verifier](020-config-verifier.md) |
 
 ¹ Editable only once a `MARKET_MAKER` gateway exists; before that the tab is
@@ -289,6 +299,12 @@ just want to produce a working file quickly, follow the
 The **Basics** tab is the mandatory foundation: at least one **symbol** and one
 **participant** are required before anything can be exported.
 
+- **Locale** — the exchange's **country** (pm-scheduler's holiday calendar)
+  and, from Intermediate, its **session time zone** (the IANA zone the
+  schedule's times are in and that every process uses to split events into
+  trading days). Both are written to the `locale` block, each only when it
+  differs from its default (`Sweden`, `Europe/Stockholm`). An unknown time
+  zone is an error: the engine refuses it.
 - **Symbols** are the instruments that trade on the exchange. Add them with the
   [IPO dialog](#symbols-and-the-ipo-dialog); names are uppercased automatically
   and must be unique.
@@ -301,15 +317,19 @@ The **Basics** tab is the mandatory foundation: at least one **symbol** and one
   Market Maker tab and quote seeding; an `ADMIN` gateway can issue exchange-wide
   halt/resume commands (see
   [ADMIN-role operator controls](../part-4-run-a-market/040-risk-controls.md#admin-role-operator-controls)).
+  Each row also sets the session's **disconnect behaviour** and **SMP** action,
+  and a description.
+- **Participant defaults** — an SMP action and a disconnect behaviour applied
+  to every participant that does not set its own (`participant_defaults`).
 
 At **Expert** persona, each `MARKET_MAKER` gateway row shows a **⚙ Advanced**
 button — see [per-gateway market-maker overrides](#layer-3-per-gateway-per-symbol-overrides).
 
-!!! note "📷 Figure 3 — The Basics tab"
-    _Screenshot placeholder._ Capture the Basics tab showing the symbols tag
-    input with a few symbols and the gateways table with mixed roles (a TRADER,
-    a MARKET_MAKER, and an ADMIN), including the ⚙ button on the MM row (Expert
-    persona). Suggested file: `images/config-gui/fig-03-basics.png`.
+![The Participants section of the Basics tab.](../../../assets/config-gui/config-basics-participants.png)
+
+*Five TRADER desks, an ADMIN and two MARKET_MAKER gateways, above the participant defaults.
+The table is wider than the panel: scroll it sideways for the SMP and Description columns
+and, on each MARKET_MAKER row, the ⚙ **Advanced** button (Expert).*
 
 ## Core concepts and workflows
 
@@ -348,21 +368,43 @@ reference price — it is never left blank. [Mid-range seeding](#quote-seeding-m
 is a separate mechanism that applies when a symbol has no explicit quote at
 all (for example, one added outside the IPO dialog).
 
-!!! note "📷 Figure 4 — The IPO ‘List a new symbol’ dialog"
-    _Screenshot placeholder._ Capture the dialog open with a reference price,
-    tick decimals, and opening spread/quote size filled in, and (at Expert)
-    the additional market-maker quote rows visible. Suggested file:
-    `images/config-gui/fig-04-ipo-dialog.png`.
+![The List a new symbol (IPO) dialog at the Expert persona.](../../../assets/config-gui/config-ipo-dialog.png)
+
+*AMD listed at 42.50. The primary market maker's opening quote is derived from the opening
+spread and quote size and shown below them (bid 42.48 / ask 42.52, 500 × 500); an
+additional market-maker row gives MM02 its own explicit quote.*
 
 ### The Symbols workspace
 
-The **Symbols** tab (Intermediate+) is a master–detail editor. The left list
-holds every symbol; the right pane edits the selected one through sub-tabs:
+The **Symbols** tab (Intermediate+) has three parts, top to bottom.
+
+**Global default** — the global tick decimals and the symbol universe, a list
+of the symbols with **+ Add symbol** (the [IPO dialog](#symbols-and-the-ipo-dialog)).
+
+**Per-symbol overrides** — one row per symbol, with the per-symbol settings
+most often tuned across many symbols at once: the collar's static and dynamic
+bands, and the reopening auction's ACE switch, corridor and random end. A
+greyed cell inherits the exchange value; typing a value overrides it for that
+symbol, and clearing it returns the symbol to inheriting. A dot after a
+symbol's name marks one with overrides. For a large universe, **Filter
+symbols…**, **Only overridden** and the **Rows** page size (25, 50, 100) narrow
+the list. Tick rows to get the bulk toolbar: **Set** one of the five fields
+**to** a value and **Apply** it to every selected symbol, or **Clear
+overrides** to return them all to the exchange defaults.
+
+![The per-symbol overrides table, with three symbols selected.](../../../assets/config-gui/config-symbols-overrides.png)
+
+*META, NVDA and NFLX are selected, so the bulk toolbar is shown. TSLA carries a
+dynamic-band override of 4% (in full colour, marked by the dot); every other cell is
+greyed because it inherits.*
+
+**The editor** — the list of symbols on the left, the selected one on the right,
+through sub-tabs:
 
 | Sub-tab | Persona | Contents |
 |---|---|---|
-| **General** | Intermediate | Tick decimals, outstanding shares, last prices, assigned risk level |
-| **Collar** | Intermediate | Per-symbol static/dynamic band overrides |
+| **General** | Intermediate | Tick decimals, last buy and last sell prices, outstanding shares |
+| **Collar & Limits** | Intermediate | The assigned risk level, static/dynamic band overrides, and the order limits (max order quantity, max order value) |
 | **Circuit Breaker** | Expert | Per-symbol ladder overrides — see [Circuit breakers](#circuit-breakers) |
 | **Market Maker** | Intermediate | Per-symbol obligation overrides |
 | **MM Quotes** | Intermediate | Explicit opening quotes per MM gateway |
@@ -375,11 +417,11 @@ Two conveniences make it easy to check a symbol without losing your place:
 - An **Overview** button in the detail-pane header opens the same overview for
   the currently selected symbol.
 
-!!! note "📷 Figure 5 — The Symbols workspace"
-    _Screenshot placeholder._ Capture the Symbols tab: the left symbol list with
-    the eye icons, and the detail pane showing the sub-tabs (General, Collar,
-    Circuit Breaker, Market Maker, MM Quotes) with the **Overview** button
-    top-right. Suggested file: `images/config-gui/fig-05-symbols.png`.
+![The symbol editor on TSLA's Collar & Limits sub-tab.](../../../assets/config-gui/config-symbols-editor.png)
+
+*TSLA is assigned the HIGH_BETA risk level and overrides its dynamic band (4%, marked by the
+green edge and the ↺ reset); its static band and order limits are blank, so they inherit.
+The 👁 icons open any symbol's Overview without changing the selection.*
 
 ### Symbol overview
 
@@ -392,18 +434,20 @@ what is otherwise spread across five sub-tabs and several global defaults.
 |---|---|
 | **General** | Tick decimals (per-symbol override vs global), last buy/sell prices, outstanding shares, and the active risk level (assigned or inherited default). |
 | **Collar (effective)** | The static and dynamic band percentages that will apply, each tagged with its source (`symbol override`, `level CORE`, `engine default`). Flags if collar enforcement is off globally. |
-| **Circuit breaker (effective)** | The resolved reference window and full ladder. **Per-symbol overrides appear in accent colour**; inherited values are shown normally. Flags if CB enforcement is off globally. |
+| **Order limits (effective)** | The max order quantity and value that apply, or that the symbol has none. |
+| **Circuit breaker (effective)** | The resolved reference window and full ladder. **Per-symbol overrides appear in accent colour**; inherited values are shown normally. Below the ladder, the reopening auction (ACE on/off, initial corridor, random end) and how the corridor widens. Flags if CB enforcement is off globally. |
 | **Market maker (effective)** | The resolved obligation (enforce/max-spread/min-qty) with source, any per-gateway overrides, and the effective opening quotes with an origin badge (`explicit`, `seeded`, or `fill in`). |
 | **Memberships** | Which indices and combos reference this symbol — cross-references not otherwise visible from the Symbols tab. |
 
 Use it as a final sanity check before exporting, or to diagnose why a symbol
 behaves unexpectedly in the engine.
 
-!!! note "📷 Figure 6 — The read-only Symbol Overview"
-    _Screenshot placeholder._ Capture the overview dialog for a symbol that has
-    a mix of inherited and overridden values, so the source annotations and the
-    accent-coloured circuit-breaker overrides are visible.
-    Suggested file: `images/config-gui/fig-06-symbol-overview.png`.
+![The read-only Overview for TSLA.](../../../assets/config-gui/config-symbol-overview.png)
+
+*Every value carries its source: the static band comes from the HIGH_BETA level, the
+dynamic band and the 3-minute reference window are symbol overrides, and L1's 5% and 10 min
+are per-symbol ladder overrides, in accent colour. Both market makers' opening quotes are
+explicit.*
 
 ### Risk and collars
 
@@ -425,34 +469,58 @@ On the **Risk & Collars** tab (Intermediate+) you can:
 - Toggle **collar enforcement** globally (`enforce_collars`). Because this tab is
   Intermediate, a Beginner draft keeps enforcement at its safe default (on).
 
-Per-symbol band overrides live on the Symbols → **Collar** sub-tab and take
-precedence over the level and global values.
+Per-symbol band overrides live on the Symbols → **Collar & Limits** sub-tab
+(or the per-symbol overrides table) and take precedence over the level and
+global values.
+
+![The Risk & Collars tab.](../../../assets/config-gui/config-risk-collars.png)
+
+*Collar enforcement on, the global band that defines the DEFAULT level (20% / 2%), and two
+named levels, CORE and HIGH_BETA, that symbols can be assigned.*
+
 
 ### Circuit breakers
 
 A **circuit breaker** halts trading in a symbol when it moves too far from its
-rolling reference, then resumes after a cool-off. Each ladder level has a
-**shift %** (how far triggers it), a **halt duration** (the cool-off), and a
-**resumption mode** (`AUCTION` runs an uncross before continuous trading resumes;
-`CONTINUOUS` reopens matching immediately). The complete model — the rolling
-reference window, day-one behaviour, and resumption modes — is in
+rolling reference. A halt is the call phase of a **reopening auction**: each
+ladder level has a **shift %** (how far triggers it) and a **call-phase
+minimum** (how long the auction collects orders at least), or halts for the
+**rest of the day**. Automated Corridor Expansion (ACE) then decides whether
+the auction may end: the symbol reopens only if the indicative price falls
+inside a corridor around the reference price; otherwise the corridor widens
+and another call phase begins. The complete model — the rolling reference
+window, day-one behaviour, and ACE — is in
 [Circuit breakers](../part-4-run-a-market/040-risk-controls.md#circuit-breakers).
 
-The **Circuit Breakers** tab (Intermediate+) presents the ladder as a table
-(Level, Shift %, Halt, Rest of day, Resumption) plus the
-[reference window](../part-4-run-a-market/040-risk-controls.md#rolling-reference-window) and the global
-`enforce_circuit_breakers` toggle. At **Expert** persona you can add or remove
-ladder levels.
+The **Circuit Breakers** tab (Intermediate+) has four parts:
+
+- **Enforcement** — the global `enforce_circuit_breakers` switch, and **Write
+  exchange defaults**: off leaves the `circuit_breaker_defaults` block out of
+  the file, so a symbol without a circuit-breaker override of its own has no
+  circuit breaker at all.
+- **Reference window** — the
+  [rolling reference window](../part-4-run-a-market/040-risk-controls.md#rolling-reference-window),
+  in minutes.
+- **Ladder** — Level, Shift %, Call phase min (min), and Rest of day. At
+  **Expert** persona you can add or remove levels.
+- **Reopening auction (ACE)** — whether ACE is on, the initial corridor (±%),
+  the random end (seconds), an optional random seed, and the **expansion
+  ladder**: how much each further call phase widens the corridor and how long
+  it lasts. The last rung repeats indefinitely, so the corridor eventually
+  contains any price and every halt resolves on its own.
 
 Per-symbol overrides live on the Symbols → **Circuit Breaker** sub-tab (Expert),
-which mirrors the same table but treats blank cells as "inherit the global
-ladder value". You can override the shift, the cool-off (including "rest of
-day"), the resumption mode, and the reference window for a single symbol.
+which mirrors the ladder but treats blank cells as "inherit the global ladder
+value". You can override the shift, the call-phase minimum (including "rest of
+day") and the reference window for a single symbol, or add a level only that
+symbol has. The ACE switch, corridor and random end are overridden per symbol
+in the [per-symbol overrides table](#the-symbols-workspace).
 
-!!! note "📷 Figure 7 — The Circuit Breakers ladder"
-    _Screenshot placeholder._ Capture the Circuit Breakers tab ladder table with
-    L1/L2/L3, one level set to "rest of day", and the reference-window field.
-    Suggested file: `images/config-gui/fig-07-circuit-breakers.png`.
+![The Circuit Breakers tab.](../../../assets/config-gui/config-circuit-breakers.png)
+
+*The `s10-complex` ladder: L1 at 7% for a 5-minute call phase, L2 at 13% for 15 minutes,
+and L3 at 20% for the rest of the day. ACE reopens inside ±10%, widening to ±20% and then
+±40% (repeating) if the indicative price is still outside.*
 
 ### Sessions and schedule
 
@@ -466,6 +534,12 @@ The GUI enforces that phase times are strictly increasing as you type — the sa
 rule the engine applies — so an out-of-order schedule is caught immediately
 rather than at export. See [Session phases](../part-4-run-a-market/030-sessions-and-scheduling.md#session-phases)
 for what each phase means.
+
+![The Sessions & Schedule tab.](../../../assets/config-gui/config-sessions-schedule.png)
+
+*Sessions on, so `pm-scheduler` must run; the weekday phase times from pre-open (08:45) to
+the end of the closing auction (16:10). Weekends and holidays are not scheduled.*
+
 
 !!! tip "Sessions imply a running scheduler"
     Turning `sessions_enabled` on means the engine starts CLOSED and waits for
@@ -530,11 +604,11 @@ Per-gateway per-symbol  (mm_obligations.<SYM>)
       → Global defaults (mm_obligation_defaults)
 ```
 
-!!! note "📷 Figure 8 — Per-gateway ⚙ Advanced market-maker dialog"
-    _Screenshot placeholder._ Capture the Advanced dialog (Expert persona) for a
-    MARKET_MAKER gateway showing the quote refresh policy, the flat obligation
-    overrides, and the per-symbol override table.
-    Suggested file: `images/config-gui/fig-08-mm-advanced.png`.
+![The ⚙ Advanced market-maker settings for MM01.](../../../assets/config-gui/config-mm-advanced.png)
+
+*MM01 keeps the default quote refresh policy, allows itself a 25-tick spread instead of
+the global 20, and has a stricter AAPL override: at most 10 ticks wide, at least 500
+on each side.*
 
 #### Quote seeding: mid-range vs explicit
 
@@ -626,10 +700,17 @@ symbol × MM gateway pair:
 
 Export is blocked while any row is unresolved.
 
-!!! note "📷 Figure 9 — Market Maker tab and Quote Stub Review"
-    _Screenshot placeholder._ Capture the Market Maker tab showing the obligation
-    defaults, the mid-range seeding controls, and the Quote Stub Review table
-    with a mix of statuses. Suggested file: `images/config-gui/fig-09-market-maker.png`.
+![The Market Maker tab: obligations and quote seeding.](../../../assets/config-gui/config-market-maker.png)
+
+*AAPL's explicit quotes were removed and no mid-range is set, so its stubs would have null
+prices: the tab reports two errors, which are shown on the two fields that would resolve
+them.*
+
+![The top of the Quote Stub Review.](../../../assets/config-gui/config-quote-stub-review.png)
+
+*AAPL has no prices for either gateway; MSFT has an explicit quote for MM01 only, so MM02
+gets none written; TSLA has explicit quotes for both. Setting a seed mid-range turns
+AAPL's rows into "✓ seeded from mid-range".*
 
 ### Indices
 
@@ -638,6 +719,12 @@ constituents. Each constituent must be a configured symbol with
 `outstanding_shares` set (the GUI flags any that are missing). The calculation
 model and field reference are in [Market Index](../part-4-run-a-market/070-market-index.md).
 
+![The Indices tab with one index.](../../../assets/config-gui/config-indices.png)
+
+*EDU1, a cap-weighted index of six of the ten symbols, picked by clicking them. Base
+value, publish interval and the history and state files show their defaults.*
+
+
 ### Combos
 
 The **Combos** tab (Expert) builds multi-leg startup seed orders — pairs,
@@ -645,6 +732,12 @@ spreads, hedged entries, and market-maker spreads. Prices are entered as decimal
 display values and converted to ticks per each leg symbol's precision. See
 [Combo Orders](../../participant-guide/part-2-orders/030-combo-and-oco-orders.md) for the strategy background and
 [the COMBO order type](../../participant-guide/part-2-orders/020-order-types.md#combo) for lifecycle behaviour.
+
+![The Combos tab.](../../../assets/config-gui/config-combos.png)
+
+*The `s10-complex` pair: an all-or-nothing combo that buys 100 AAPL and sells 100 MSFT
+at their opening prices. The legs table scrolls sideways for the stop price and SMP.*
+
 
 ### Auxiliary gateways
 
@@ -663,6 +756,11 @@ advanced tuning — only appear at Expert:
 | Log Server | Expert | `pm-log-srv` — the centralized log collector every other process connects to, plus its optional LALF-PS live-distribution socket pair | [Log Server](../../operator-guide/part-6-observe-and-recover/040-log-server.md) |
 | API | Expert | REST/WebSocket gateway | [API Gateway](../part-5-gateways/050-api-gateway.md) |
 
+![The API sub-tab of Auxiliary Gateways.](../../../assets/config-gui/config-aux-gateways-api.png)
+
+*The `desk` instance on port 8080 with one credential per participant; **Generate** makes a
+fresh random key. A second instance, `dashboards`, follows below it with the read-only key.*
+
 Each sub-tab (other than ALF, which is always present) has its own **"Write
 `<section>` section"** toggle: off omits that section from the exported file
 entirely, rather than writing it with defaults. Enabling a gateway reveals its
@@ -678,6 +776,18 @@ they are written — lease duration, subscriber and backfill limits, and the
 PUB socket's send high-water mark. See [LALF-PS](../../operator-guide/part-6-observe-and-recover/040-log-server.md)
 for what each setting controls at the protocol level.
 
+At Expert the **Log Server** sub-tab ends with **Log client — every
+process**: the `log_server.client` settings that every *other* process reads —
+how long it waits to connect, how long it keeps trying before writing its log
+to a local file instead, and where. They are written only when one differs
+from its default.
+
+The **API** sub-tab also takes the instance's **Clearing DB path** (realized
+P&L on position rows), **Market-data cache** (seconds of recent trades kept so
+a reconnecting WebSocket client can resume), and the four **engine and index
+bus addresses** — needed only when the API gateway runs on another host than
+the engine. Each is written only when set.
+
 The **API** sub-tab includes **Order cache retention (s)**
 (`order_retention_sec`, default `3600`), which bounds how long a terminal
 order — `FILLED`, `CANCELLED`, `EXPIRED`, `REJECTED` — stays in the gateway's
@@ -686,6 +796,41 @@ order table, so the setting decides how far back those views reach. Resting
 orders are never evicted whatever their age. `0` disables eviction entirely,
 letting the cache grow for the lifetime of the process. See
 [API Gateway → Order cache retention](../part-5-gateways/050-api-gateway.md#order-cache-retention).
+
+### Health monitoring
+
+The **Health Monitoring** tab (Intermediate+) edits the `monitor` block read
+by every process (its health beacon) and by `pm-monitor`, which judges each
+process and the exchange from those beacons — see
+[Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md).
+
+**Write monitor section** off leaves the block out of the file; monitoring
+then still runs, on the defaults the tab shows. To turn monitoring off, write
+the section and switch **Monitoring enabled** off. With the section written:
+
+| Group | Persona | Fields |
+|---|---|---|
+| Liveness | Intermediate | Beacon interval, Hung after, Silent after (beacons) |
+| Liveness | Expert | Book metrics interval |
+| History | Intermediate | Raw samples kept (hours), Minute averages kept (days) |
+| Alert thresholds | Intermediate | Warn and crit for each of the seven rules, each with a reset to its default |
+| Network | Expert | Bind address, Host, Beacon (PULL) port, Publish (PUB) port |
+
+![The Health Monitoring tab: monitoring, liveness and history.](../../../assets/config-gui/config-health-monitoring.png)
+
+***Write monitor section** on, so the values are written; every field shows its default.*
+
+![The alert thresholds.](../../../assets/config-gui/config-health-thresholds.png)
+
+*The warn and crit level of each of the seven rules, with what it measures; disk free is the
+one where lower is worse.*
+
+The diagnostics mirror `pm-cverifier`: warn must be below crit (above, for
+**Disk free**, where lower is worse — `M029`); *Hung after* must exceed the
+beacon interval (`M030`); a host that cannot reach the bind address is a
+warning (`M031`); and the two ports must differ. pm-monitor's ports join the
+cross-gateway port-collision check even when the section is not written,
+since it then binds its defaults (5610, 5611).
 
 ### Engine tuning
 
@@ -711,6 +856,10 @@ exposes five fields:
 - **Depth snapshot tolerance** —
   [`engine_tuning.depth_snapshot_tolerance_ticks`](010-the-configuration-workflow.md#engine_tuningdepth_snapshot_tolerance_ticks),
   the published depth window around the last trade, measured in ticks.
+
+A separate **Auctions** section holds **Indicative price interval**
+(`auction_indicative_interval_sec`, default `1.0`): how often the engine
+broadcasts each auctioning symbol's indicative price and volume.
 
 The GUI presents these in the same way as the rest of the application: default
 values are shown as hints, changing a value marks the field as explicitly set,
@@ -739,10 +888,11 @@ constituents, combo legs, unknown market-maker obligation symbols, and more).
 **error**-severity diagnostic exists anywhere in the config. Warnings do not
 block export but require a one-time acknowledgement.
 
-!!! note "📷 Figure 10 — Diagnostics drawer with Jump →"
-    _Screenshot placeholder._ Capture the diagnostics drawer listing a mix of
-    errors and warnings, with a field highlighted after using **Jump →**.
-    Suggested file: `images/config-gui/fig-10-diagnostics.png`.
+![The diagnostics drawer after Jump →.](../../../assets/config-gui/config-diagnostics-jump.png)
+
+*Two errors and a warning across the whole configuration. **Jump →** on the first error
+opened the Market Maker tab and outlined both fields it links. The navigation shows the
+worst severity per tab: ✗ on Market Maker, ! on Risk & Collars.*
 
 ## Importing an existing configuration
 
@@ -755,16 +905,21 @@ schema — is preserved verbatim in a per-section **"unmapped YAML" passthrough*
 and re-emitted unchanged on export, so import → edit → export never silently
 drops data. A banner marks any tab that carries unmapped content.
 
+A file written by an earlier `config-gui` may carry a top-level `country`,
+which no process reads. Import does not convert it (it is kept as unmapped
+YAML); set the country again on the Basics tab so it is written under
+`locale`, where the scheduler looks.
+
 !!! note "Comments are not round-tripped"
     The GUI is a *structural* editor, not a text editor. It regenerates the
     header/comment block fresh (matching `pm-config-gen`'s convention) but does
     not preserve inline comments from the imported file.
 
-!!! note "📷 Figure 11 — Import result on the Review tab"
-    _Screenshot placeholder._ Capture the Review tab immediately after importing
-    a sample config, showing the diagnostics summary and, if present, an
-    "unmapped section preserved" banner.
-    Suggested file: `images/config-gui/fig-11-import.png`.
+![The Review tab right after importing the AI-trader simulation's configuration.](../../../assets/config-gui/config-import-review.png)
+
+*The `s300-sim` file (300 symbols, 112 participants) imports without errors. The summary
+groups what remains by tab: collar enforcement is off (a warning), sessions use the
+default schedule, and the universe is large (both informational).*
 
 ## Reviewing and exporting
 
@@ -773,7 +928,8 @@ The **Review & Export** tab (Beginner) is the final pass:
 1. **Diagnostics summary** — the full issue list grouped by tab.
 2. **Output options** — the download filename and the
    "comment default fields" toggle (emits the full commented reference block,
-   matching `pm-config-gen --comment-default-config-fields`).
+   matching `pm-config-gen --comment-default-config-fields`; the top bar's
+   **Comment defaults** checkbox is the same setting).
 3. **YAML preview** — a live, syntax-highlighted, read-only render of exactly
    what will be downloaded, with a copy-to-clipboard button. This preview *is*
    the dry-run view.
@@ -800,10 +956,15 @@ compiling does, [Running the Engine](../part-3-run/010-running-the-exchange.md) 
 the processes, and the Quick Start's [Your Own Configuration](../../quick-start/part-2-next-steps/020-your-own-configuration.md)
 for a first end-to-end run.
 
-!!! note "📷 Figure 12 — Review & Export with YAML preview"
-    _Screenshot placeholder._ Capture the Review tab showing the diagnostics
-    summary, the syntax-highlighted YAML preview, and the Download / Verify
-    actions. Suggested file: `images/config-gui/fig-12-review-export.png`.
+![Review & Export: the summary, output options and YAML preview.](../../../assets/config-gui/config-review-export.png)
+
+*The preview is the exact file that will be downloaded — here with collar enforcement off,
+which is the one remaining warning.*
+
+![The Export actions while a warning is unacknowledged.](../../../assets/config-gui/config-export-gate.png)
+
+***Download** stays disabled until the warning is acknowledged; **Verify with pm-cverifier**
+is always available.*
 
 ## Deployment and operations
 

@@ -16,6 +16,8 @@ from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from edumatcher.api_gateway.metrics import install as install_metrics
+from edumatcher.health import HealthReporter
 from edumatcher.api_gateway.config import (
     ApiGatewayConfig,
     load_default_api_gateway_config,
@@ -46,6 +48,8 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.models.price import TickViolation
 
 _CLIENT_NAME = "pm-api-gwy"
+#: How often the health task wakes; its oversleep is the event-loop lag.
+HEALTH_TICK_SEC = 0.25
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
@@ -103,8 +107,14 @@ def _validation_reject_code(error_type: str, message: str) -> str:
     return "INVALID_VALUE"
 
 
-def create_app(config: ApiGatewayConfig) -> FastAPI:
+def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> FastAPI:
     """Create a configured FastAPI application.
+
+    ``instance`` is the ``--instance`` this process was started with (``None``
+    without one). The health beacon carries it rather than ``config.name``: the
+    pm-opctl-cli roster knows a process by its command line, and a bare
+    ``pm-api-gwy`` that picked the single configured entry (or the built-in
+    ``default``) would otherwise read MISSING next to itself (A+B review, I90).
 
     FastAPI automatically publishes OpenAPI at ``/openapi.json`` and Swagger UI
     at ``/docs``.  Those endpoints are controlled by ``swagger_enabled`` in the
@@ -160,6 +170,21 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
                 for gateway_id in engine.active_gateways():
                     engine.send_heartbeat(gateway_id)
 
+        # Health beacon: a task that only sleeps and ticks, so loop_lag_ms is
+        # the event loop's own stall time. Never ticked from EngineClient's
+        # receive thread -- the loop is what must not stall (design A5.4).
+        reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME, instance)
+
+        async def _report_health(reporter: HealthReporter) -> None:
+            while True:
+                await asyncio.sleep(HEALTH_TICK_SEC)
+                reporter.tick_and_publish(lambda: metrics.samples(engine))
+
+        health_task = (
+            asyncio.create_task(_report_health(reporter))
+            if reporter is not None
+            else None
+        )
         heartbeat_task = asyncio.create_task(_send_heartbeats())
         sweeper = (
             asyncio.create_task(_evict_terminal_orders())
@@ -169,6 +194,11 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         try:
             yield
         finally:
+            if health_task is not None:
+                health_task.cancel()
+            if reporter is not None:
+                # Off the loop: stop() joins the sampler thread (< ~1 s).
+                await asyncio.to_thread(reporter.stop)
             heartbeat_task.cancel()
             if sweeper is not None:
                 sweeper.cancel()
@@ -195,6 +225,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         openapi_url=openapi_url,
         lifespan=lifespan,
     )
+    metrics = install_metrics(app)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(  # pyright: ignore[reportUnusedFunction]
@@ -462,7 +493,7 @@ def main() -> None:
     if not config.enabled:
         log.warning("selected api_gateways entry is disabled")
         sys.exit(1)
-    app = create_app(config)
+    app = create_app(config, instance=args.instance)
     _route_uvicorn_logging(config.log_level)
     try:
         uvicorn.run(

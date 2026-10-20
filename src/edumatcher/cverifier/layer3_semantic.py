@@ -23,11 +23,22 @@ from edumatcher.cverifier.models import CheckResult, Severity
 from edumatcher.gateway_ports import (
     DEFAULT_API_GATEWAY_PORT,
     LOG_SERVER_EXTRA_PORTS,
+    MONITOR_PORTS,
+    MONITOR_PROCESS,
+    MONITOR_SECTION,
     SINGLETON_GATEWAYS,
     effective_port,
+    monitor_section,
     resolved_fixed_listeners,
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
+from edumatcher.config import MONITOR_HOST
+from edumatcher.monitor.config import (
+    DEFAULT_BEACON_INTERVAL_SEC,
+    DEFAULT_BIND_ADDRESS,
+    DEFAULT_HUNG_AFTER_SEC,
+    INVERTED_THRESHOLDS,
+)
 
 _TIME_FIELDS = (
     "pre_open",
@@ -75,6 +86,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_balf_gateway_semantic(raw, results)
     _check_gateway_port_collisions(raw, results)
     _check_api_gateway_semantic(raw, results)
+    _check_monitor_semantic(raw, results)
     return results
 
 
@@ -961,6 +973,20 @@ def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, str, int]]:
 
     entries.extend(_collect_log_server_pubsub_ports(raw))
 
+    # Counted even when the block is absent: pm-monitor binds its defaults.
+    monitor = monitor_section(raw)
+    if monitor is not None:
+        for extra in MONITOR_PORTS:
+            port = _effective_port(monitor, extra.default_port, key=extra.field)
+            if port is not None:
+                entries.append(
+                    (
+                        f"{MONITOR_SECTION} ({MONITOR_PROCESS} {extra.function})",
+                        extra.field,
+                        port,
+                    )
+                )
+
     api_gateways = raw.get("api_gateways")
     if isinstance(api_gateways, dict):
         for name, section in api_gateways.items():
@@ -1098,3 +1124,113 @@ def _iter_api_gateway_credential_ids(raw: dict[str, Any]) -> list[tuple[str, str
                     )
 
     return items
+
+
+# ---------------------------------------------------------------------------
+# monitor section (M029-M031)
+# ---------------------------------------------------------------------------
+# Cross-field rules the runtime loader deliberately leaves to the verifier
+# (edumatcher/monitor/config.py). pm-config-deploy refuses on any of them, so
+# an incoherent section never reaches a compiled artifact. pull_port == pub_port
+# needs no code of its own: both ports are in the M018 inventory, which reports
+# the pair like any other collision.
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _check_monitor_semantic(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    section = raw.get(MONITOR_SECTION)
+    if not isinstance(section, dict):
+        return
+
+    thresholds = section.get("thresholds")
+    if isinstance(thresholds, dict):
+        for rule, band in thresholds.items():
+            if not isinstance(band, dict):
+                continue
+            warn, crit = _number(band.get("warn")), _number(band.get("crit"))
+            if warn is None or crit is None:
+                continue
+            inverted = rule in INVERTED_THRESHOLDS
+            if (warn > crit) if inverted else (warn < crit):
+                continue
+            order = "above" if inverted else "below"
+            results.append(
+                CheckResult(
+                    code="M029",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'monitor.thresholds.{rule}': warn ({band['warn']}) must "
+                        f"be strictly {order} crit ({band['crit']})."
+                    ),
+                    suggestion=(
+                        "A warning has to fire before the critical level is "
+                        "reached."
+                        + (
+                            " For disk_free_pct a lower value is worse, so warn "
+                            "is the larger number (e.g. warn: 15, crit: 5)."
+                            if inverted
+                            else ""
+                        )
+                    ),
+                    path=f"monitor.thresholds.{rule}",
+                )
+            )
+
+    interval = _number(section.get("beacon_interval_sec", DEFAULT_BEACON_INTERVAL_SEC))
+    hung = _number(section.get("hung_after_sec", DEFAULT_HUNG_AFTER_SEC))
+    if interval is not None and hung is not None and hung <= interval:
+        results.append(
+            CheckResult(
+                code="M030",
+                severity=Severity.ERROR,
+                message=(
+                    f"'monitor.hung_after_sec' ({hung:g}) must be greater than "
+                    f"'monitor.beacon_interval_sec' ({interval:g})."
+                ),
+                suggestion=(
+                    "A process is judged HUNG from the loop age its beacons "
+                    "report; a limit at or below one beacon interval would flag "
+                    "processes whose loop is merely between two reports. Use at "
+                    "least twice the interval."
+                ),
+                path="monitor.hung_after_sec",
+            )
+        )
+
+    bind = section.get("bind_address", DEFAULT_BIND_ADDRESS)
+    host = section.get("host", MONITOR_HOST)
+    if isinstance(bind, str) and isinstance(host, str) and not _reaches(bind, host):
+        results.append(
+            CheckResult(
+                code="M031",
+                severity=Severity.WARN,
+                message=(
+                    f"'monitor.bind_address' ({bind}) is neither a wildcard nor "
+                    f"'monitor.host' ({host}): every process sends its beacons to "
+                    f"{host}, where pm-monitor may not be listening."
+                ),
+                suggestion=(
+                    "Set host to the address pm-monitor binds, or bind 0.0.0.0. "
+                    "EDUMATCHER_GATEWAY_BIND_HOST overrides bind_address at run "
+                    "time (the container sets 0.0.0.0), which is why this is a "
+                    "warning, not an error."
+                ),
+                path="monitor.bind_address",
+            )
+        )
+
+
+_WILDCARDS = frozenset({"0.0.0.0", "::", "*", ""})
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _reaches(bind: str, host: str) -> bool:
+    """Whether beacons sent to ``host`` reach a socket bound to ``bind``."""
+    if bind in _WILDCARDS or bind == host:
+        return True
+    return bind in _LOOPBACK and host in _LOOPBACK

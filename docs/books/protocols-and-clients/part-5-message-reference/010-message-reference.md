@@ -550,6 +550,9 @@ Every topic in the system, and which process puts it on the wire.
 | `drop_copy.event.{gateway_id}` | `drop_copy` | `engine` |
 | `drop_copy.replay.{recipient_id}` | `drop_copy` | `engine` |
 | `execution_report (no bus topic)` | `order` | `gateway` |
+| `health.beacon` | `health` | `health_reporter` |
+| `health.event` | `health` | `monitor` |
+| `health.snapshot` | `health` | `monitor` |
 | `index.constituent_change` | `index` | `admin` |
 | `index.constituent_change_ack.{gateway_id}` | `index` | `index` |
 | `index.corp_action` | `index` | `admin` |
@@ -1062,6 +1065,284 @@ Engine to one named recipient: buffered events re-published on request, so a par
     Section 27.3.
 
 **See also:** `drop_copy.event.{GW_ID}`
+
+## Family `health`
+
+### Record types
+
+#### `MetricSample`
+
+One application metric of a process at the time of its beacon. A list entry rather than a map value, so the dimension (`label`) is a field and a metric with no dimension simply carries the empty label.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `name` | `string` | required | max_len 64, min_len 1 | Dotted name, `<family>.<metric>`, e.g. `engine.orders_in`. |
+| `kind` | enum: `COUNTER`, `GAUGE` | required | — | A COUNTER is monotonic since process start; a GAUGE is a level. |
+| `label` | `string` | defaults to `''` | max_len 32 | The single dimension: a gateway id, a symbol, a component, a reason. Bounded by configuration or by a closed set in code, never by what a client sends. |
+| `value` | `float` | required | unit `dimensionless` |  |
+
+#### `FileSize`
+
+The size of one data file pm-monitor watches under the data directory.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `name` | `string` | required | max_len 32 | Logical file name, e.g. `log.db`, `audit`, `metrics.db`. |
+| `size_bytes` | `int` | required | ge 0, unit `bytes` | 0 when the file does not exist. |
+
+#### `ExchangeStatus`
+
+The one-line answer to "is the exchange OK?" (design section 10).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `status` | enum: `OPERATIONAL`, `DEGRADED`, `IMPAIRED`, `DOWN` | required | — | DOWN when no pm-engine is running: it is DEAD, SILENT, HUNG, MISSING or STOPPED, or pm-monitor has never heard of one. IMPAIRED when any other expected exchange process is DEAD, SILENT, HUNG or MISSING (or STOPPED while the active emo profile expects it). DEGRADED when any exchange process is DEGRADED. Otherwise OPERATIONAL. Participant bots never count. |
+| `session_state` | `string` | required | max_len 32 | The engine's session state name; empty before the engine reports one. |
+| `trading_date` | `string` | required | max_len 10 | YYYY-MM-DD in the session timezone; what "today" means below. |
+| `session_timezone` | `string` | required | max_len 64 | IANA name from engine.locale.session_timezone. |
+
+#### `HostStats`
+
+The host pm-monitor runs on (design section 8.1).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `cpu_pct` | `float` | required | ge 0, unit `percent` |  |
+| `cpu_per_core` | list of `float` | required | — | Percent per logical CPU, in psutil order. |
+| `load1` | `float` | required | unit `dimensionless` |  |
+| `load5` | `float` | required | unit `dimensionless` |  |
+| `load15` | `float` | required | unit `dimensionless` |  |
+| `mem_total_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `mem_used_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `mem_available_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `swap_used_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `disk_free_bytes` | `int` | required | ge 0, unit `bytes` | On the filesystem holding the data directory. |
+| `disk_total_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `files` | list of [`FileSize`](#filesize) | required | — |  |
+
+#### `Sparkline`
+
+The last samples of a process, oldest first, for inline sparklines.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `rss` | list of `int` | required | max_items 60 | RSS in bytes, one per beacon. |
+| `cpu` | list of `float` | required | max_items 60 | CPU percent of one core, one per beacon. |
+
+#### `ProcessHealth`
+
+One process as pm-monitor sees it: a process that beacons, or one the active emo profile expects and that has never beaconed (MISSING, with zero figures and an empty host).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `key` | `string` | required | max_len 200, min_len 1 | `process/instance@host`, or `process@host` without an instance; a MISSING process has no host and no `@`. Stable identity for routes and history. |
+| `process` | `string` | required | max_len 32 |  |
+| `instance` | `string` | `null` when unset | max_len 32 |  |
+| `host` | `string` | required | max_len 128 |  |
+| `group` | enum: `EXCHANGE`, `BOT` | required | — | BOT for participant bots (pm-mm-bot, pm-ai-swarm), which never affect the exchange status. |
+| `pid` | `int` | required | ge 0, unit `dimensionless` | 0 when the process has never beaconed. |
+| `state` | enum: `HEALTHY`, `DEGRADED`, `HUNG`, `SILENT`, `DEAD`, `MISSING`, `STOPPED` | required | — | Design section 10; first matching rule wins. |
+| `restarted_recently` | `bool` | required | — | boot_id changed within the last 10 minutes. |
+| `starting` | `bool` | defaults to `False` | — | The latest beacon said the main loop has not ticked yet. The state stays HEALTHY through a start-up grace, so this is what tells a process still starting from one that is running. |
+| `uptime_sec` | `float` | required | ge 0, unit `duration_seconds` |  |
+| `rss_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `cpu_pct` | `float` | required | ge 0, unit `percent` | Percent of one core; may exceed 100 for a multi-threaded process. |
+| `threads` | `int` | required | ge 0, unit `dimensionless` |  |
+| `fds` | `int` | `null` when unset | unit `dimensionless` | null where the OS has no file-descriptor count. |
+| `loop_age_ms` | `float` | required | ge 0, unit `duration_millis` |  |
+| `loop_lag_ms` | `float` | required | ge 0, unit `duration_millis` |  |
+| `last_beacon_age_ms` | `float` | required | ge 0, unit `duration_millis` | Measured with pm-monitor's receive clock. |
+| `spark` | [`Sparkline`](#sparkline) | required | — |  |
+| `metrics` | list of [`MetricSample`](#metricsample) | required | — | The application metrics of the latest beacon, as sent -- except pm-engine's labelled samples (one per participant or symbol, thousands at 300 symbols): the trading, participants and books blocks carry those derived, and metrics.db keeps them. Its unlabelled samples and engine.diagnostics are kept. |
+
+#### `RateStats`
+
+A counter turned into the figures of design section 9.4. Every increment is reset-corrected, so a process restart neither loses nor double-counts.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `today` | `int` | required | ge 0, unit `dimensionless` | Sum of increments since the start of the trading date. |
+| `per_sec_now` | `float` | required | ge 0, unit `dimensionless` | Increments over the last 60 s divided by 60. |
+| `avg_per_min` | `float` | required | ge 0, unit `dimensionless` | Increments over the last 60 min divided by 60. |
+| `avg_per_hour` | `float` | required | ge 0, unit `dimensionless` | today divided by hours since the session opened (else midnight). |
+| `avg_per_day` | `float` | `null` when unset | unit `dimensionless` | Mean daily total over the last 7 trading days with data; null before the first full day. |
+
+#### `RejectCount`
+
+Rejects of one reason today: a RejectCode, or a label the engine gives a reject known only by its text (MM_MAX_SPREAD, MM_MIN_QTY, UNKNOWN).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `code` | `string` | required | max_len 32, min_len 1 |  |
+| `count` | `int` | required | ge 0, unit `dimensionless` |  |
+
+#### `TradingStats`
+
+Exchange-wide trading activity, summed over gateways and symbols.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `orders` | [`RateStats`](#ratestats) | required | — | engine.orders_in: inbound new orders, including those then rejected. |
+| `trades` | [`RateStats`](#ratestats) | required | — |  |
+| `traded_value_today` | `float` | required | ge 0, unit `money` |  |
+| `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none. |
+| `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` |  |
+| `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` |  |
+| `busy_pct` | `float` | required | ge 0, unit `percent` | Engine share of wall time spent handling; near 100 means saturated. |
+| `rejects_by_code` | list of [`RejectCount`](#rejectcount) | required | — | Today's rejects (engine.rejects_by_code) by reason, most first: what makes reject_pct_5m actionable. |
+
+#### `ParticipantStats`
+
+One configured participant (gateway id) as the engine counts it.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `id` | `string` | required | max_len 32 |  |
+| `role` | `string` | required | max_len 32 |  |
+| `connected` | `bool` | required | — |  |
+| `connected_since` | `string` | `null` when unset | max_len 32 | ISO-8601 UTC of the current session's connect; null when not connected or not seen. |
+| `orders` | [`RateStats`](#ratestats) | required | — |  |
+| `reject_pct` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests today (as TradingStats.reject_pct_5m); 0 when none. |
+| `fills_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `resting_orders` | `int` | required | ge 0, unit `dimensionless` |  |
+| `connects_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `disconnects_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `heartbeat_timeouts_today` | `int` | required | ge 0, unit `dimensionless` |  |
+
+#### `BookStats`
+
+One order book (design section 8.3); refreshed every book_metrics_interval_sec.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `resting_orders` | `int` | required | ge 0, unit `dimensionless` |  |
+| `stop_orders` | `int` | required | ge 0, unit `dimensionless` |  |
+| `bid_levels` | `int` | required | ge 0, unit `dimensionless` |  |
+| `ask_levels` | `int` | required | ge 0, unit `dimensionless` |  |
+| `est_bytes` | `int` | required | ge 0, unit `bytes` | An estimate from measured per-object constants, never an exact figure. |
+| `heap_garbage_pct` | `float` | required | ge 0, le 100, unit `percent` |  |
+| `trades_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `halted` | `bool` | required | — |  |
+
+#### `GatewayStats`
+
+One process that holds client connections: the ALF, BALF, MD, RALF and drop-copy gateways, the API gateway (WebSocket sessions) and pm-log-srv (LALF sessions). One shape for all, so row 6 of the dashboard is a loop.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `key` | `string` | required | max_len 200, min_len 1 | The ProcessHealth key of the same process. |
+| `kind` | enum: `ALF`, `BALF`, `MD`, `RALF`, `DC`, `API`, `LOG` | required | — |  |
+| `clients` | `int` | required | ge 0, unit `dimensionless` |  |
+| `clients_max` | `int` | `null` when unset | unit `dimensionless` | The configured connection limit; null where none exists. |
+| `msgs_per_sec` | `float` | required | ge 0, unit `dimensionless` | Main traffic counter of the kind (commands in, messages out, log events in) over the last 60 s. |
+| `disconnects_today` | `int` | required | ge 0, unit `dimensionless` |  |
+| `slow_disconnects_today` | `int` | required | ge 0, unit `dimensionless` | Clients cut off for not reading; the back-pressure signal. |
+
+#### `ActiveBreach`
+
+One threshold currently in breach (design section 9.6).
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `rule` | `string` | required | max_len 64 | The configuration key, e.g. `engine_handle_p99_us`. |
+| `subject` | `string` | required | max_len 200 | What breached: a process key, `host`, a symbol or `exchange`. |
+| `level` | enum: `WARN`, `CRIT` | required | — |  |
+| `value` | `float` | required | unit `dimensionless` |  |
+| `threshold` | `float` | required | unit `dimensionless` |  |
+| `since` | `string` | required | max_len 32 | ISO-8601 UTC of the breach. |
+
+### `health.beacon`
+
+**Published by:** `health_reporter`
+
+**Transport:** `monitor_push`
+
+**Since:** 1.2
+
+Every long-running pm-* process to pm-monitor, every beacon_interval_sec: the process's own memory, CPU, threads and file descriptors, how long ago its main loop last completed an iteration, and its application counters and gauges. Sent from a daemon thread, not from the main loop. That is the point: when the main loop hangs the thread keeps reporting, with a growing loop_age_ms, so pm-monitor can tell HUNG (beacons arrive, loop stuck) from SILENT (no beacons, PID alive) from DEAD (no beacons, no PID). A beacon built on the main loop would simply stop, and silence cannot make that distinction.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `process` | `string` | required | max_len 32, min_len 1 | The name the process uses in its LALF HELLO, e.g. `pm-engine`. |
+| `instance` | `string` | omitted when unset | max_len 32 | The --instance name where a process runs more than once, e.g. `desk`. |
+| `pid` | `int` | required | gt 0, unit `dimensionless` |  |
+| `host` | `string` | required | max_len 128, min_len 1 | socket.gethostname(). |
+| `boot_id` | `string` | required | max_len 16, min_len 1 | Random per process start; a change means a restart even when the PID is reused. |
+| `seq` | `int` | required | ge 0, unit `dimensionless` | Per boot_id; a gap means lost beacons. |
+| `started_at_ns` | `int` | required | ge 0, unit `epoch_nanos` | Process start, for uptime only; ages use pm-monitor's receive clock. |
+| `interval_sec` | `float` | required | gt 0, unit `duration_seconds` | The sender's beacon interval; pm-monitor's silence timers scale with it. |
+| `rss_bytes` | `int` | required | ge 0, unit `bytes` |  |
+| `cpu_pct` | `float` | required | ge 0, unit `percent` | Percent of one core since the previous beacon. |
+| `threads` | `int` | required | ge 0, unit `dimensionless` |  |
+| `fds` | `int` | omitted when unset | ge 0, unit `dimensionless` | Open file descriptors; absent where the OS has no such count. |
+| `loop_age_ms` | `float` | required | ge 0, unit `duration_millis` | Time since the main loop last called tick(). |
+| `loop_lag_ms` | `float` | required | ge 0, unit `duration_millis` | Longest gap between two tick() calls since the previous beacon. |
+| `final` | `bool` | defaults to `False` | — | True on the last beacon of a clean shutdown: STOPPED, not DEAD. |
+| `starting` | `bool` | defaults to `False` | — | True until the main loop has ticked once. The reporter starts before a process's loop exists (restoring state, loading config), and that time is not a hung loop; loop_age_ms still grows, so a process stuck starting stays visible. |
+| `metrics` | list of [`MetricSample`](#metricsample) | required | — | Application metrics (design section 8); may be empty. |
+
+!!! note
+
+    PUSH with SNDHWM 10, LINGER 0 and a non-blocking send to pm-monitor's PULL (monitor.pull_port, default 5610).
+
+    When pm-monitor is down the beacon is dropped and counted in health.beacons_dropped; an exchange process never blocks on it.
+
+**See also:** `health.snapshot`
+
+### `health.snapshot`
+
+**Published by:** `monitor`
+
+**Transport:** `monitor_pub`
+
+**Since:** 1.2
+
+pm-monitor to the dashboard bridge, once a second: everything the dashboard shows live, already derived. Rates, averages, health states and thresholds are computed once here, so every browser shows the same figures and none re-derives them.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `ts` | `string` | required | max_len 32 | ISO-8601 UTC with milliseconds; pm-monitor's clock. |
+| `seq` | `int` | required | ge 0, unit `dimensionless` | Per pm-monitor start. |
+| `exchange` | [`ExchangeStatus`](#exchangestatus) | required | — |  |
+| `host` | [`HostStats`](#hoststats) | required | — |  |
+| `processes` | list of [`ProcessHealth`](#processhealth) | required | — |  |
+| `trading` | [`TradingStats`](#tradingstats) | required | — |  |
+| `participants` | list of [`ParticipantStats`](#participantstats) | required | — |  |
+| `books` | list of [`BookStats`](#bookstats) | required | — |  |
+| `gateways` | list of [`GatewayStats`](#gatewaystats) | required | — |  |
+| `thresholds` | list of [`ActiveBreach`](#activebreach) | required | — | Breaches active now; empty when all is well. |
+
+!!! note
+
+    PUB on monitor.pub_port (default 5611).
+
+    About 120 KB at 112 participants and 300 symbols (the AI-trader simulation), most of it the participants and books blocks; pm-engine's own per-participant and per-symbol samples are left out of its process record.
+
+    A bridge that has seen no snapshot for 3 s reports pm-monitor as down.
+
+**See also:** `health.beacon`, `health.event`
+
+### `health.event`
+
+**Published by:** `monitor`
+
+**Transport:** `monitor_pub`
+
+**Since:** 1.2
+
+pm-monitor to the dashboard bridge, as it happens: an engine lifecycle event (connect, disconnect, diagnostic, session transition, halt) or one pm-monitor generated itself (a process changed health state, a threshold was breached or cleared). These are the dashboard's annotations and its event log, and the rows of metrics.db `events`.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `seq` | `int` | required | ge 0, unit `dimensionless` | The metrics.db events.seq of this event. |
+| `ts` | `string` | required | max_len 32 | ISO-8601 UTC with milliseconds. |
+| `kind` | enum: `CONNECT`, `AUTH_REJECT`, `DISCONNECT`, `DIAGNOSTIC`, `SESSION`, `HALT`, `RESUME`, `PROCESS_STATUS`, `THRESHOLD` | required | — |  |
+| `severity` | enum: `INFO`, `WARN`, `CRIT` | required | — | How the dashboard colours it; a heartbeat_timeout disconnect is WARN. |
+| `subject` | `string` | required | max_len 200 | A gateway id, a process key, a symbol, or a threshold rule. |
+| `detail` | `string` | defaults to `''` | max_len 512 | e.g. `heartbeat_timeout`, `HEALTHY -> HUNG`, `CONTINUOUS -> CLOSING_AUCTION`. |
+
+**See also:** `health.snapshot`, `system.gateway_auth.{gateway_id}`, `system.gateway_bye.{gateway_id}`, `system.diagnostic`
 
 ## Family `index`
 

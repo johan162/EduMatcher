@@ -32,6 +32,7 @@ make down      # stop it
 - [The AI-trader simulation](#the-ai-trader-simulation)
 - [Make targets](#make-targets)
 - [When a GUI shows something unexpected](#when-a-gui-shows-something-unexpected)
+- [Checking the stack end to end](#checking-the-stack-end-to-end)
 - [Publishing images by hand](#publishing-images-by-hand)
 - [Configuration reference (`.env`)](#configuration-reference-env)
 - [Building from PyPI instead of local source](#building-from-pypi-instead-of-local-source)
@@ -181,7 +182,7 @@ in `.env` to reach the exchange from other machines on your network.
 ## Exposing the ZeroMQ bus
 
 There are two planes with different defaults. The **service layer** — the four
-protocol gateways, `pm-log-srv` and `pm-api-gwy` — defaults to `0.0.0.0` and
+protocol gateways, `pm-log-srv`, `pm-api-gwy` and `pm-monitor` — defaults to `0.0.0.0` and
 needs nothing special. The **core plane** — the engine's three bus sockets and
 `pm-index`'s two — defaults to `127.0.0.1` and has to be told otherwise:
 `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and `EDUMATCHER_INDEX_BIND_HOST` to
@@ -205,7 +206,7 @@ running exchange.
 > Everything below builds it from your checkout instead.
 
 ```bash
-make up-all                                # exchange + terminal-, log-, trader- and book-gui
+make up-all                                # exchange + terminal-, log-, trader-, book- and dash-gui
 make up-all CONFIG=s10-nominal             # on a bundled example configuration
 make up-all CONFIG=~/mine/engine_config.yaml   # on a configuration of your own
 make up-all CONFIG_GUI=1                   # and the configuration builder too
@@ -217,7 +218,7 @@ its image first — otherwise compose reuses the one it already has and your
 change is invisible:
 
 ```bash
-make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all five)
+make build-guis GUI=terminal-gui   # rebuild one image (omit GUI= for all six)
 make up-all                        # recreate the containers whose image changed
 make up-all BUILD=1 GUI=log-gui    # both steps in one
 ```
@@ -239,6 +240,7 @@ reload against this container stack — see
 | Configuration GUI (`config-gui`) | <http://localhost:8092> | nothing — standalone, hence `CONFIG_GUI=1` |
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> | `pm-api-gwy` 8080 |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> | `pm-api-gwy` 8081 (market-data WebSocket and history), `pm-log-srv` 5600 |
+| Operator Dashboard (`pm-dash`) | <http://localhost:8095> | `pm-monitor` 5611, and `data/metrics.db` and the deployed configuration read-only, `pm-log-srv` 5600 |
 
 ### How the GUIs reach the exchange
 
@@ -433,7 +435,7 @@ make restart
 `edumatcher-ai-sim` image (the `ai-sim` stage of the `Dockerfile`: the
 `s300-sim` example, the `ai-sim` profile, Stockholm trading hours, dead
 processes restarted once a minute) plus TapeDeck, the Order Book Viewer, the
-Log Operator Console and the Trading GUI. It is self-contained (no `.env`
+Log Operator Console, the Trading GUI and the Operator Dashboard. It is self-contained (no `.env`
 needed), pulls every image from GHCR, keeps its data in `./data-sim` and is
 its own compose project, `edumatcher-sim`. It publishes the same host ports
 as the stack above, so run one or the other.
@@ -480,7 +482,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 | `make config-show` | Show the deployed configuration |
 | `make ports` | List the published ports |
 | `make mounts` | Which directory on disk is behind each container path, and which image each container came from |
-| `make ghcr-push` | Push all six images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
+| `make ghcr-push` | Push all seven images to GHCR as `:dev`. `TAG=x.y.z FORCE=1` for a release tag, `LATEST=1` to move `latest`. Needs `GITHUB_USER` and `GHCR_TOKEN` |
 | `make info` | Show the detected engine, compose command and image name |
 | `make clean` | Remove the container and the image |
 | `make clean-data` | Delete `./data` (asks first) |
@@ -518,10 +520,41 @@ anywhere. `make up-all` refuses to start alongside a foreign stack, but one
 started before that check existed can still be running — `make mounts` is how
 you see it.
 
+## Checking the stack end to end
+
+`make test-container` at the repository root proves the whole stack on this
+machine: it builds every image from your checkout, runs `make up-all` here,
+and drives it the way an operator would — the health monitor, the operator
+dashboard (its own WebSocket, REST API and, with Chrome installed, the page),
+and the failures the dashboard exists for. It refuses to run while an
+EduMatcher stack is up or `data/` holds an exchange, and empties `data/`
+afterwards only if it found it empty. It takes about 45 minutes, most of it a
+30-minute soak; `E3_SOAK_MIN=1` shortens that, `NOBUILD=1` skips the build.
+
+Where it cannot run (another engine, another OS), the same checklist by hand,
+from this directory, with an empty `data/`:
+
+| # | Do | Expect |
+|---|---|---|
+| 1 | `make up-all`, open <http://localhost:8095> | LIVE, OPERATIONAL, every process HEALTHY. `podman exec edumatcher-dash-gui node -e "fetch('http://127.0.0.1:8095/api/bridge/status').then(r=>r.json()).then(console.log)"` shows `monitor: 'UP'` and `source: 'edumatcher:5611'` — from *inside* the GUI container |
+| 2 | `podman exec -d edumatcher pm-mm-bot --gateway-id MM01 --all-symbols`, then `podman exec -d edumatcher pm-ai-trader --id TRADER01 --preset market-taker --duration 0` | Orders and trades per minute rise on the trading row. Leave it 30 minutes: no process is ever HUNG |
+| 3 | `podman exec edumatcher pkill -f pm-ai-trader; podman exec edumatcher pkill -f pm-mm-bot`, wait a minute | "Trades today" equals the row count of `podman exec edumatcher pm-stats-cli --format json trades --date <trading date> --limit 1000000` |
+| 4 | `podman exec edumatcher pkill -STOP -f 'bin/pm-clearing( \|$)'` | Within about 7 s pm-clearing is SILENT, the exchange IMPAIRED, and the event log shows `HEALTHY -> SILENT`. `pkill -CONT` the same way: HEALTHY, and the exchange back to OPERATIONAL (or DEGRADED by its reject ratio, see below) |
+| 5 | `podman exec edumatcher pkill -TERM -f 'bin/pm-monitor( \|$)'` | The red banner "pm-monitor down — data frozen at …". `podman exec edumatcher pm-opctl-cli list --restart`: the banner goes, and today's order and trade counts are unchanged |
+| 6 | `podman exec edumatcher pkill -KILL -f 'bin/pm-engine( \|$)'` | pm-engine DEAD, the status pill DOWN. `pm-opctl-cli list --restart`: HEALTHY with the RESTARTED badge |
+
+`docker` works the same in place of `podman`. Then `make down-all`, and
+empty `data/`.
+
+While the market maker trades, the exchange may show DEGRADED by its reject
+ratio with every process HEALTHY: the market maker's cancels of quotes that
+have just traded are refused as `ORDER_NOT_FOUND`, and "Rejects today by
+reason" on the trading row shows it.
+
 ## Publishing images by hand
 
 Releases publish images from `.github/workflows/publish-images.yml`, which
-builds all seven images (the exchange, `edumatcher-ai-sim` and the five web
+builds all eight images (the exchange, `edumatcher-ai-sim` and the six web
 GUIs) natively on amd64 and arm64 and joins each pair into one manifest list.
 `make ghcr-push` is the escape hatch for when that workflow
 cannot run — a registry outage, a fork without Actions, or an image you want in
@@ -530,7 +563,7 @@ someone's hands before a release exists.
 ```bash
 export GITHUB_USER=johan162 GHCR_TOKEN=<token with write:packages>
 
-make ghcr-push                              # all six, tagged :dev
+make ghcr-push                              # all seven, tagged :dev
 make ghcr-push TAG=0.20.6 FORCE=1           # ...as a release tag
 make ghcr-push TAG=0.20.6 FORCE=1 LATEST=1  # ...and move :latest
 ```
@@ -568,7 +601,8 @@ is git-ignored, so it is the right place for host-specific choices.
 | `TZ` | `Europe/Stockholm` | Container timezone — match your trading calendar |
 | `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
 | `SSH_PORT` | `2222` | Host port forwarded to sshd |
-| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` | Host ports for the GUIs started by `make up-all` |
+| `TERMINAL_GUI_PORT` / `LOG_GUI_PORT` / `CONFIG_GUI_PORT` / `TRADER_GUI_PORT` / `BOOK_GUI_PORT` / `DASH_GUI_PORT` | `8090` / `8091` / `8092` / `8093` / `8094` / `8095` | Host ports for the GUIs started by `make up-all` |
+| `LOG_GUI_URL` / `BOOK_GUI_URL` | `http://localhost:<port>` | Where the dashboard's drawers link to log-gui and book-gui, as your browser reaches them |
 | `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
 | `CONTAINER_NAME` | `edumatcher` | Container name |
 

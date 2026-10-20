@@ -73,6 +73,8 @@ from typing import Callable
 import holidays
 import zmq
 
+from edumatcher.health import HealthReporter, gauge
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.config import (
     COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
@@ -171,6 +173,20 @@ _ENGINE_START_STATE = SessionState.CLOSED
 # up server time adjustments (NTP sync, manual change, DST) promptly instead
 # of trusting a single duration computed once at the start of a long sleep.
 WALLCLOCK_RECHECK_SEC = 30.0
+
+#: The chunk the scheduler actually sleeps in while waiting for a transition
+#: or midnight. Every wake-up calls ``is_running()``, which ticks the health
+#: beacon, so a scheduler idle for hours still reports a fresh main loop. At
+#: the 30 s re-check bound it would read as HUNG between wake-ups (design
+#: finding F8). It must also stay well under pm-monitor's DEGRADED line for
+#: ``loop_lag_ms`` (1 s, the longest gap between ticks): at exactly 1 s every
+#: gap measured a hair over it and an idle scheduler read DEGRADED forever
+#: (I76). Re-deriving the remaining wait more often is harmless.
+LIVENESS_CHUNK_SEC = 0.5
+
+#: Seconds until the scheduler next acts, as last computed while waiting;
+#: 0 when not waiting. Reported as ``sched.next_transition_in_s``.
+_next_wait_sec = 0.0
 
 
 class _Clock:
@@ -389,11 +405,21 @@ def _sleep_until_wallclock(
     ``time.sleep`` call, so the scheduler never sleeps more than
     ``WALLCLOCK_RECHECK_SEC`` (30s) at a stretch.
     """
-    while is_running():
-        remaining = remaining_seconds()
-        if remaining <= 0:
-            return
-        time.sleep(max(0.0, min(max_chunk, remaining)))
+    global _next_wait_sec
+    try:
+        while is_running():
+            remaining = remaining_seconds()
+            if remaining <= 0:
+                return
+            _next_wait_sec = remaining
+            time.sleep(max(0.0, min(max_chunk, remaining)))
+    finally:
+        _next_wait_sec = 0.0
+
+
+def _metric_samples() -> list[MetricSample]:
+    """Design §8.5: how long until the scheduler next acts."""
+    return [gauge("sched.next_transition_in_s", _next_wait_sec)]
 
 
 def _no_wait() -> float:
@@ -470,10 +496,36 @@ def _send_transition(
         return False
 
 
+def _poll_live(
+    sock: zmq.Socket[bytes],
+    timeout_ms: int,
+    on_wake: Callable[[], object] | None,
+) -> bool:
+    """``sock.poll(timeout_ms)``, in LIVENESS_CHUNK_SEC slices calling
+    ``on_wake`` between them.
+
+    An engine round-trip waits up to 2 s for a reply; polled in one piece the
+    health beacon saw a loop ~2 s late and read DEGRADED at start-up and at
+    every session transition (A+B review, I93). ``on_wake`` is the same
+    ``is_running`` closure every other wait calls, which ticks the reporter.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while True:
+        remaining_ms = int(max(0.0, (deadline - time.monotonic()) * 1000.0))
+        chunk_ms = min(remaining_ms, int(LIVENESS_CHUNK_SEC * 1000))
+        if sock.poll(timeout=chunk_ms):
+            return True
+        if on_wake is not None:
+            on_wake()
+        if remaining_ms <= chunk_ms:
+            return False
+
+
 def _confirm_transition(
     confirm_sock: zmq.Socket[bytes],
     expected_state: str,
     timeout_ms: int = CONFIRM_TIMEOUT_MS,
+    on_wake: Callable[[], object] | None = None,
 ) -> bool:
     """Wait for the engine to broadcast ``session.state == expected_state``.
 
@@ -484,7 +536,7 @@ def _confirm_transition(
     deadline = time.monotonic() + timeout_ms / 1000.0
     while time.monotonic() < deadline:
         remaining_ms = int(max(0.0, (deadline - time.monotonic()) * 1000.0))
-        if not confirm_sock.poll(timeout=remaining_ms):
+        if not _poll_live(confirm_sock, remaining_ms, on_wake):
             break
         try:
             topic, payload = decode(confirm_sock.recv_multipart())
@@ -503,6 +555,7 @@ def _query_engine_state(
     sub_sock: zmq.Socket[bytes],
     gateway_id: str = SCHEDULER_GATEWAY_ID,
     timeout_ms: int = QUERY_TIMEOUT_MS,
+    on_wake: Callable[[], object] | None = None,
 ) -> SessionState | None:
     """Ask the engine for its current session state and wait for the reply.
 
@@ -521,7 +574,7 @@ def _query_engine_state(
     deadline = time.monotonic() + timeout_ms / 1000.0
     while time.monotonic() < deadline:
         remaining_ms = int(max(0.0, (deadline - time.monotonic()) * 1000.0))
-        if not sub_sock.poll(timeout=remaining_ms):
+        if not _poll_live(sub_sock, remaining_ms, on_wake):
             break
         try:
             topic, payload = decode(sub_sock.recv_multipart())
@@ -600,7 +653,7 @@ def _run_transitions(
             # trusting the single duration captured above, so a wall-clock
             # adjustment during a long wait is picked up promptly instead of
             # only after sleeping out a now-stale duration.
-            _sleep_until_wallclock(step.wait, is_running)
+            _sleep_until_wallclock(step.wait, is_running, max_chunk=LIVENESS_CHUNK_SEC)
             if not is_running():
                 log.info("Interrupted")
                 return False
@@ -614,7 +667,12 @@ def _run_transitions(
 
         log.info("-> %s", label)
         _dispatch_transition(
-            push_sock, confirm_sock, step.state, next_state=next_state, next_at=next_at
+            push_sock,
+            confirm_sock,
+            step.state,
+            next_state=next_state,
+            next_at=next_at,
+            on_wake=is_running,
         )
 
     return True
@@ -626,13 +684,14 @@ def _dispatch_transition(
     state: str,
     next_state: str = "",
     next_at: str = "",
+    on_wake: Callable[[], object] | None = None,
 ) -> None:
     """Send a transition and, when possible, confirm the engine applied it."""
     if not _send_transition(push_sock, state, next_state=next_state, next_at=next_at):
         return
     if confirm_sock is None:
         return
-    if _confirm_transition(confirm_sock, state):
+    if _confirm_transition(confirm_sock, state, on_wake=on_wake):
         log.debug("confirmed: engine applied %s", state)
     else:
         log.warning(
@@ -689,7 +748,9 @@ def _run_scheduled(
     # transitions it still needs, instead of blindly assuming a CLOSED start.
     engine_state: SessionState | None = None
     if confirm_sock is not None:
-        engine_state = _query_engine_state(push_sock, confirm_sock, gateway_id)
+        engine_state = _query_engine_state(
+            push_sock, confirm_sock, gateway_id, on_wake=running
+        )
         if engine_state is not None:
             log.info("Engine reports current state: %s", engine_state.value)
         else:
@@ -765,7 +826,9 @@ def _run_forever(
             "Day complete; sleeping until the next scheduled day (%s)",
             target_day.isoformat(),
         )
-        _sleep_until_wallclock(_wait_until(target_midnight), is_running)
+        _sleep_until_wallclock(
+            _wait_until(target_midnight), is_running, max_chunk=LIVENESS_CHUNK_SEC
+        )
     log.info("Stopped.")
 
 
@@ -969,7 +1032,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
+    # Health beacon (operator dashboard §8.5). Every wait in this process
+    # calls _is_running() on each wake-up, so that is where the main loop
+    # ticks; no wait sleeps longer than LIVENESS_CHUNK_SEC between calls.
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+
     def _is_running() -> bool:
+        if reporter is not None:
+            reporter.tick_and_publish(_metric_samples)
         return running
 
     push_sock = make_pusher(ENGINE_PULL_ADDR)
@@ -1073,6 +1143,8 @@ def main() -> None:
                     confirm_sock.close()
     finally:
         push_sock.close()
+        if reporter is not None:
+            reporter.stop()
 
 
 if __name__ == "__main__":

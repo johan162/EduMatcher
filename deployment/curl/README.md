@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment
 Then open <http://localhost:8090>.
 
 That starts a complete exchange — the matching engine, all the protocol
-gateways, the REST API — plus five web applications, from prebuilt images.
+gateways, the REST API — plus six web applications, from prebuilt images.
 The only requirement is **Podman or Docker**. Nothing is compiled: no Python,
 no Node, no checkout of this repository.
 
@@ -18,6 +18,7 @@ no Node, no checkout of this repository.
 | Configuration GUI (`config-gui`) | <http://localhost:8092> |
 | Trading GUI (`pm-trading-ui`) | <http://localhost:8093> |
 | Order Book Viewer (`pm-book`) | <http://localhost:8094> |
+| Operator Dashboard (`pm-dash`) | <http://localhost:8095> |
 | REST API docs | <http://localhost:8080/docs> |
 
 ## Choosing what the exchange trades
@@ -206,11 +207,11 @@ It installs into `~/.edumatcher-sim` and is driven by the same
 
 and `config` takes only a path to a configuration of your own — there is no
 bundled example to switch to besides `s300-sim`, which it starts with. There
-is no configuration GUI in this stack; the other four are on the usual ports.
+is no configuration GUI in this stack; the other five are on the usual ports.
 
 !!! warning
     The two installs use the same host ports (5560–5600, 8080/8081,
-    8090–8094), so only one of them can run at a time. `start` refuses if the
+    8090–8095), so only one of them can run at a time. `start` refuses if the
     other one's containers are up.
 
 What the simulation *is* — the hidden true value, the traders, the news — is
@@ -231,7 +232,7 @@ images have to be published first.
 
 ## How it fits together
 
-All six containers share one compose project, so they share its network and
+All seven containers share one compose project, so they share its network and
 the GUIs reach the exchange at the hostname `edumatcher`. The ports published
 on your machine are for *you* — `curl`, Swagger, the protocol example clients —
 and are not involved in GUI-to-backend traffic.
@@ -263,5 +264,5 @@ It survives stop, start and update. `uninstall --data` is what deletes it.
 ## Building from source instead
 
 If you want to change the code rather than run it, use
-[`../docker/`](../docker/), which builds the same six images from your
+[`../docker/`](../docker/), which builds the same seven images from your
 checkout with `make up-all`.

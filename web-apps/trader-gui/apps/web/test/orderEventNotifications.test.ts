@@ -57,6 +57,29 @@ afterEach(() => {
   cleanup();
 });
 
+describe("useOrderEventNotifications — order.fill", () => {
+  it("toasts the fill price at the symbol's decimals", () => {
+    renderHook(() => useOrderEventNotifications());
+    __privateMessageForTest({
+      type: "order.fill",
+      topic: "order.fill.GW1",
+      ts: "2026-09-18T10:00:00Z",
+      data: {
+        gateway_id: "GW1",
+        order_id: "ORD9",
+        fill_qty: 23,
+        fill_price: 108.66999999999999,
+        remaining_qty: 0,
+        status: "FILLED",
+        trade_ids: ["t9"],
+        symbol: "ANET",
+        side: "SELL",
+      },
+    });
+    expect(toast.success).toHaveBeenCalledWith("SELL ANET filled: 23 @ 108.67 · 0 left");
+  });
+});
+
 describe("useOrderEventNotifications — order.ack (C1)", () => {
   it("surfaces a rejected cancel/amend (request_tag present) as a toast and Event Center entry", () => {
     renderHook(() => useOrderEventNotifications());

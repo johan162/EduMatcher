@@ -11,6 +11,7 @@ from edumatcher.api_gateway.config import validate_api_gateway_sections
 from edumatcher.balf_gwy.config import validate_balf_gateway_section
 from edumatcher.log_srv.config import validate_log_server_section
 from edumatcher.md_gateway.config import validate_market_data_gateway_section
+from edumatcher.monitor.config import THRESHOLD_RULES, validate_monitor_section
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.order import TIF
 from edumatcher.models.price import TickViolation, to_ticks_exact_at
@@ -69,6 +70,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_market_data_gateway(raw, results)
     _check_dc_gateway(raw, results)
     _check_log_server(raw, results)
+    _check_monitor(raw, results)
     _check_api_gateway_sections(raw, results)
     _check_unknown_process_keys(raw, results)
     return results
@@ -2741,6 +2743,200 @@ def _check_log_server_lease_bounds(
 
 
 # ---------------------------------------------------------------------------
+# monitor section (S124-S131)
+# ---------------------------------------------------------------------------
+# Shape only; the cross-field rules (band order, hung vs. interval) are layer 3
+# (M029-M031) and port collisions are M018. Unknown keys at every level are
+# S121. See docs-design/EduMatcher-Operator-Dashboard.md §14.
+
+_MONITOR_PORT_FIELDS = (("pull_port", 5610), ("pub_port", 5611))
+_MONITOR_TEXT_FIELDS = ("bind_address", "host")
+_MONITOR_POSITIVE_NUMBER_FIELDS = (
+    "beacon_interval_sec",
+    "hung_after_sec",
+    "book_metrics_interval_sec",
+)
+
+
+def _is_number(val: object) -> bool:
+    return not isinstance(val, bool) and isinstance(val, (int, float))
+
+
+def _is_strict_positive_int(val: object) -> bool:
+    # Unlike _is_positive_int above, a numeric string does not pass: the
+    # monitor loader reads ints as ints, so "6" would fail at compile.
+    return not isinstance(val, bool) and isinstance(val, int) and val > 0
+
+
+def _monitor_error(
+    results: list[CheckResult], code: str, path: str, message: str, suggestion: str
+) -> None:
+    results.append(
+        CheckResult(
+            code=code,
+            severity=Severity.ERROR,
+            message=message,
+            suggestion=suggestion,
+            path=path,
+        )
+    )
+
+
+def _check_monitor(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Validate the optional monitor section (S124-S131)."""
+    section = raw.get("monitor")
+    if section is None:
+        return
+    if not isinstance(section, dict):
+        _monitor_error(
+            results,
+            "S124",
+            "monitor",
+            "'monitor' must be a mapping.",
+            "Change monitor to a mapping of field: value pairs, or remove it "
+            "to run on defaults.",
+        )
+        return
+
+    enabled = section.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        _monitor_error(
+            results,
+            "S125",
+            "monitor.enabled",
+            "'monitor.enabled' must be a boolean.",
+            "Set enabled to true or false (without quotes).",
+        )
+
+    for port_field, example in _MONITOR_PORT_FIELDS:
+        port = section.get(port_field)
+        if port is not None and not (
+            _is_strict_positive_int(port) and cast(int, port) <= 65535
+        ):
+            _monitor_error(
+                results,
+                "S126",
+                f"monitor.{port_field}",
+                f"'monitor.{port_field}' must be an integer in 1–65535.",
+                f"Set {port_field} to a valid TCP port number, e.g. {example}.",
+            )
+
+    for text_field in _MONITOR_TEXT_FIELDS:
+        val = section.get(text_field)
+        if val is not None and (not isinstance(val, str) or not val.strip()):
+            _monitor_error(
+                results,
+                "S127",
+                f"monitor.{text_field}",
+                f"'monitor.{text_field}' must be a non-empty string.",
+                f"Set {text_field} to a host name or address, e.g. 127.0.0.1.",
+            )
+
+    for number_field in _MONITOR_POSITIVE_NUMBER_FIELDS:
+        val = section.get(number_field)
+        if val is not None and not (_is_number(val) and val > 0):
+            _monitor_error(
+                results,
+                "S128",
+                f"monitor.{number_field}",
+                f"'monitor.{number_field}' must be a positive number of seconds.",
+                f"Set {number_field} to a number > 0.",
+            )
+    silent = section.get("silent_after_beacons")
+    if silent is not None and not _is_strict_positive_int(silent):
+        _monitor_error(
+            results,
+            "S128",
+            "monitor.silent_after_beacons",
+            "'monitor.silent_after_beacons' must be a positive integer.",
+            "Set silent_after_beacons to a whole number of missed beacons, e.g. 3.",
+        )
+
+    _check_monitor_retention(section.get("retention"), results)
+    _check_monitor_thresholds(section.get("thresholds"), results)
+
+    # Drift safety net, as for log_server (S101): suppressed once anything
+    # above has reported on this section, because the loader stops at its
+    # first failure and would only restate it less specifically.
+    if any(r.path.startswith("monitor") for r in results):
+        return
+    try:
+        validate_monitor_section({"monitor": section})
+    except ValueError as exc:
+        _monitor_error(
+            results,
+            "S131",
+            "monitor",
+            f"'monitor' section is invalid: {exc}",
+            "Match the pm-monitor loader schema (edumatcher/monitor/config.py).",
+        )
+
+
+def _check_monitor_retention(retention: object, results: list[CheckResult]) -> None:
+    if retention is None:
+        return
+    if not isinstance(retention, dict):
+        _monitor_error(
+            results,
+            "S129",
+            "monitor.retention",
+            "'monitor.retention' must be a mapping.",
+            "Use e.g. retention: {raw_hours: 6, minute_days: 7}.",
+        )
+        return
+    for key in ("raw_hours", "minute_days"):
+        val = retention.get(key)
+        if val is not None and not _is_strict_positive_int(val):
+            _monitor_error(
+                results,
+                "S129",
+                f"monitor.retention.{key}",
+                f"'monitor.retention.{key}' must be a positive integer.",
+                f"Set {key} to a whole number >= 1.",
+            )
+
+
+def _check_monitor_thresholds(thresholds: object, results: list[CheckResult]) -> None:
+    if thresholds is None:
+        return
+    if not isinstance(thresholds, dict):
+        _monitor_error(
+            results,
+            "S130",
+            "monitor.thresholds",
+            "'monitor.thresholds' must be a mapping of rule: {warn, crit}.",
+            "Use e.g. thresholds: {host_cpu_pct: {warn: 80, crit: 95}}.",
+        )
+        return
+    for rule in THRESHOLD_RULES:
+        band = thresholds.get(rule)
+        if band is None:
+            continue
+        path = f"monitor.thresholds.{rule}"
+        if not isinstance(band, dict):
+            _monitor_error(
+                results,
+                "S130",
+                path,
+                f"'{path}' must be a mapping with 'warn' and 'crit'.",
+                f"Use e.g. {rule}: {{warn: …, crit: …}}.",
+            )
+            continue
+        for edge in ("warn", "crit"):
+            val = band.get(edge)
+            if not (_is_number(val) and cast(float, val) >= 0):
+                _monitor_error(
+                    results,
+                    "S130",
+                    f"{path}.{edge}",
+                    f"'{path}.{edge}' must be a non-negative number"
+                    + (" and is required." if val is None else "."),
+                    "Give both warn and crit; a band with only one edge has no "
+                    "defined second level.",
+                )
+
+
+# ---------------------------------------------------------------------------
 # Unknown keys in process blocks (S121)
 # ---------------------------------------------------------------------------
 # The runtime loaders ignore a key they do not read, so a misspelled option
@@ -2848,10 +3044,28 @@ _PROCESS_BLOCK_KEYS: dict[str, frozenset[str]] = {
             "client",
         }
     ),
+    "monitor": frozenset(
+        {
+            "enabled",
+            "bind_address",
+            "host",
+            "pull_port",
+            "pub_port",
+            "beacon_interval_sec",
+            "hung_after_sec",
+            "silent_after_beacons",
+            "book_metrics_interval_sec",
+            "retention",
+            "thresholds",
+        }
+    ),
 }
 _LOG_CLIENT_KEYS = frozenset(
     {"connect_timeout_sec", "failover_timeout_sec", "failover_dir"}
 )
+_MONITOR_RETENTION_KEYS = frozenset({"raw_hours", "minute_days"})
+_MONITOR_THRESHOLD_KEYS = frozenset(THRESHOLD_RULES)
+_MONITOR_BAND_KEYS = frozenset({"warn", "crit"})
 _API_INSTANCE_KEYS = frozenset(
     {
         "enabled",
@@ -2917,6 +3131,27 @@ def _check_unknown_process_keys(
         _report_unknown_keys(
             log_server.get("client"), _LOG_CLIENT_KEYS, "log_server.client", results
         )
+
+    monitor = raw.get("monitor")
+    if isinstance(monitor, dict):
+        _report_unknown_keys(
+            monitor.get("retention"),
+            _MONITOR_RETENTION_KEYS,
+            "monitor.retention",
+            results,
+        )
+        thresholds = monitor.get("thresholds")
+        _report_unknown_keys(
+            thresholds, _MONITOR_THRESHOLD_KEYS, "monitor.thresholds", results
+        )
+        if isinstance(thresholds, dict):
+            for rule in sorted(_MONITOR_THRESHOLD_KEYS & set(thresholds)):
+                _report_unknown_keys(
+                    thresholds[rule],
+                    _MONITOR_BAND_KEYS,
+                    f"monitor.thresholds.{rule}",
+                    results,
+                )
 
     instances = raw.get("api_gateways")
     if not isinstance(instances, dict):

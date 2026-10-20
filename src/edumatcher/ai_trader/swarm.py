@@ -32,6 +32,8 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
+from edumatcher.health import HealthReporter, counter, gauge
+from edumatcher.models.generated.health import MetricSample
 from edumatcher.ai_trader.preset import Preset, builtin_presets
 from edumatcher.ai_trader.swarm_config import (
     SwarmConfigError,
@@ -227,6 +229,24 @@ class Supervisor:
         self._ctx = multiprocessing.get_context("spawn")
         self._stopping = False
         self._start = 0.0
+        # Health beacon (operator dashboard, B5.4): main() attaches it. The
+        # supervisor beacons for the swarm; its workers are separate
+        # processes, reported here as counts.
+        self._reporter: HealthReporter | None = None
+        self._worker_restarts = 0
+
+    def attach_reporter(self, reporter: HealthReporter) -> None:
+        self._reporter = reporter
+
+    def metric_samples(self) -> list[MetricSample]:
+        alive = sum(1 for s in self.slots if s.proc is not None and s.proc.is_alive())
+        return [
+            gauge("swarm.workers", len(self.slots)),
+            gauge("swarm.workers_alive", alive),
+            gauge("swarm.workers_gave_up", sum(1 for s in self.slots if s.gave_up)),
+            gauge("swarm.agents", sum(len(s.job.specs) for s in self.slots)),
+            counter("swarm.worker_restarts", self._worker_restarts),
+        ]
 
     def stop(self, _signum: int = 0, _frame: FrameType | None = None) -> None:
         self._stopping = True
@@ -281,6 +301,7 @@ class Supervisor:
             slot.done = slot.gave_up = True
             return
         slot.restarts.append(now)
+        self._worker_restarts += 1
         slot.restart_at = now + slot.backoff
         log.warning(
             "[%s] worker exited (code %s); restarting in %.0f s",
@@ -296,6 +317,8 @@ class Supervisor:
             self._spawn(slot, self._start)
         try:
             while not self._stopping and not all(s.done for s in self.slots):
+                if self._reporter is not None:
+                    self._reporter.tick_and_publish(self.metric_samples)
                 now = time.monotonic()
                 for slot in self.slots:
                     self._check(slot, now)
@@ -551,4 +574,12 @@ def main() -> None:
     supervisor = Supervisor(jobs, duration=float(args.duration))
     signal.signal(signal.SIGTERM, supervisor.stop)
     signal.signal(signal.SIGINT, supervisor.stop)
-    raise SystemExit(supervisor.run())
+    reporter = HealthReporter.start_from_compiled_config(_CLIENT_NAME)
+    if reporter is not None:
+        supervisor.attach_reporter(reporter)
+    try:
+        rc = supervisor.run()
+    finally:
+        if reporter is not None:
+            reporter.stop()
+    raise SystemExit(rc)

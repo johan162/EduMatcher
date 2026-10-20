@@ -134,9 +134,16 @@ export function LoginPage() {
   );
 }
 
-function describeLoginError(err: unknown): string {
+/**
+ * Only a 401 means the key is unknown. A 403 is a known key refused: a
+ * read-only key (`READ_ONLY`), or a gateway the engine will not authenticate
+ * (`ENGINE_AUTH`, e.g. one already connected elsewhere), whose reason the
+ * user needs to see.
+ */
+export function describeLoginError(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 401 || err.status === 403) return "Invalid API key.";
+    if (err.status === 401) return "Invalid API key.";
+    if (err.code === "READ_ONLY") return "ROLE_UNSUPPORTED: Unsupported role: READ_ONLY";
     if (err.status === 503) {
       return "Gateway reached, but the engine did not answer. Is pm-engine running?";
     }
