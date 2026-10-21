@@ -535,7 +535,15 @@ def test_the_real_loop_closes_an_idle_connection(name: str, fake_zmq: None) -> N
     runner = threading.Thread(target=gateway.run, daemon=True)
     runner.start()
     try:
-        client = socket.create_connection(("127.0.0.1", port), timeout=5)
+        deadline = time.monotonic() + 5
+        while True:  # run() binds on the thread; wait until it listens
+            try:
+                client = socket.create_connection(("127.0.0.1", port), timeout=5)
+                break
+            except ConnectionRefusedError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.05)
         received = b""
         while True:
             chunk = client.recv(4096)  # raises socket.timeout if never closed
