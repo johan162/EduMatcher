@@ -6,6 +6,8 @@ export interface SessionClock {
   /** Unix ms, re-read once a second. */
   now: number;
   phase: SessionState;
+  /** False until a session state has arrived; `phase` is only the store's default until then. */
+  known: boolean;
   /** Milliseconds since the current phase started, or null if unknown. */
   elapsedMs: number | null;
   /** Milliseconds until the next transition, or null when no target is known. */
@@ -49,6 +51,7 @@ export function useSessionClock(): SessionClock {
   return {
     now,
     phase,
+    known: phaseSince !== null,
     elapsedMs: phaseSince === null ? null : Math.max(0, now - phaseSince),
     countdownMs: target === null ? null : Math.max(0, target.at - now),
     nextState: target?.toState ?? null,

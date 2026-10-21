@@ -64,19 +64,22 @@ print-backend-ip: ## Print the IP address of the backend VM (if any)
 # Derive per-app environment variables from VM_BACKEND_IP when set.
 # When not set, each compose file's own default (host.docker.internal) applies.
 ifdef VM_BACKEND_IP
-  # log-gui: pm-log-srv host
-  LOG_GUI_ENV := LOG_SRV_HOST=$(VM_BACKEND_IP)
+  # log-gui: pm-log-srv host, pm-md-gwy (CALF, session phase)
+  LOG_GUI_ENV := LOG_SRV_HOST=$(VM_BACKEND_IP) \
+                 CALF_HOST=$(VM_BACKEND_IP)
   # terminal-gui: pm-md-gwy (CALF), pm-api-gwy (REST), pm-log-srv
   TERMINAL_GUI_ENV := CALF_HOST=$(VM_BACKEND_IP) \
                       API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                       LOG_SRV_HOST=$(VM_BACKEND_IP)
   # trader-gui: pm-api-gwy REST/WS proxy target
   TRADER_GUI_ENV := API_PROXY_TARGET=http://$(VM_BACKEND_IP):8080
-  # book-gui: pm-api-gwy (market-data WS + REST, dashboards instance), pm-log-srv
+  # book-gui: pm-api-gwy (market-data WS + REST, dashboards instance), pm-md-gwy (CALF, session phase), pm-log-srv
   BOOK_GUI_ENV := API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
+                  CALF_HOST=$(VM_BACKEND_IP) \
                   LOG_SRV_HOST=$(VM_BACKEND_IP)
-  # dash-gui: pm-monitor's PUB socket, pm-log-srv
+  # dash-gui: pm-monitor's PUB socket, pm-md-gwy (CALF, session phase), pm-log-srv
   DASH_GUI_ENV := MONITOR_HOST=$(VM_BACKEND_IP) \
+                  CALF_HOST=$(VM_BACKEND_IP) \
                   LOG_SRV_HOST=$(VM_BACKEND_IP)
 else
   LOG_GUI_ENV      :=

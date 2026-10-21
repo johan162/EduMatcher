@@ -7,8 +7,9 @@
 #
 # Everything this container talks to runs outside this compose file:
 # pm-monitor for the live health snapshot and events (ZeroMQ SUB to its PUB
-# port, 5611), its metrics.db for history, and optionally pm-log-srv for
-# operational logging. Point MONITOR_HOST/LOG_SRV_HOST at wherever those are
+# port, 5611), its metrics.db for history, pm-md-gwy for the session phase
+# (CALF, 5570), and optionally pm-log-srv for operational logging. Point
+# MONITOR_HOST/CALF_HOST/LOG_SRV_HOST at wherever those are
 # reachable from inside the container (host.containers.internal on Podman),
 # and mount the directory holding metrics.db (the backend's data directory)
 # at /backend-data. pm-monitor binds 127.0.0.1 unless
@@ -42,6 +43,9 @@ services:
       MONITOR_HOST: "${MONITOR_HOST:-host.docker.internal}"
       MONITOR_PUB_PORT: "${MONITOR_PUB_PORT:-5611}"
       METRICS_DB_PATH: "/backend-data/metrics.db"
+      # pm-md-gwy's CALF feed, for the session phase in the top bar.
+      CALF_HOST: "${CALF_HOST:-host.docker.internal}"
+      CALF_PORT: "${CALF_PORT:-5570}"
       # The deployed configuration: monitor.thresholds for /api/thresholds.
       CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
       # The drawers' links into log-gui and book-gui, as the browser reaches

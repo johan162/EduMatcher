@@ -38,6 +38,13 @@ export interface BridgeConfig {
     downAfterSec: number;
   };
 
+  /** pm-md-gwy's CALF port, for the session phase in the top bar (WP-UI01). */
+  calf: {
+    host: string;
+    port: number;
+    clientId: string;
+  };
+
   /** Trades kept per watched symbol for the TRADES panel. */
   tapeMax: number;
 
@@ -111,6 +118,12 @@ export function loadBridgeConfig(): BridgeConfig {
       pingSec: intFromEnv("UPSTREAM_PING_SEC", 10),
       pingMaxMissed: intFromEnv("UPSTREAM_PING_MAX_MISSED", 3),
       downAfterSec: intFromEnv("UPSTREAM_DOWN_AFTER_SEC", 30),
+    },
+
+    calf: {
+      host: process.env["CALF_HOST"] ?? "127.0.0.1",
+      port: intFromEnv("CALF_PORT", 5570),
+      clientId: process.env["CALF_CLIENT_ID"] ?? "pm-book-bridge",
     },
 
     tapeMax: intFromEnv("TAPE_MAX", 500),

@@ -10,7 +10,7 @@ const bridge = await buildBridge(config, log);
 
 log.info(
   "book-bridge.main",
-  `startup: bind=${config.host}:${config.port} api=${config.apiGateway.baseUrl} logging=${log.destination()}`,
+  `startup: bind=${config.host}:${config.port} api=${config.apiGateway.baseUrl} calf=${config.calf.host}:${config.calf.port} logging=${log.destination()}`,
 );
 
 async function shutdown(signal: string): Promise<void> {

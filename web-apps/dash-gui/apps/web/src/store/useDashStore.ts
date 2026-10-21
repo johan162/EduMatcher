@@ -17,7 +17,15 @@
  */
 
 import { create } from "zustand";
-import type { CrossAppLinks, HealthEvent, HealthSnapshot, MonitorState, ServerFrame, ThresholdRule } from "@edumatcher/dash-types";
+import type {
+  CrossAppLinks,
+  HealthEvent,
+  HealthSnapshot,
+  MarketSession,
+  MonitorState,
+  ServerFrame,
+  ThresholdRule,
+} from "@edumatcher/dash-types";
 import { liveSample, pushRecent, type LiveSample } from "../lib/live.js";
 import { DEFAULT_RANGE, DEFAULT_REFRESH, rangeFromParam, type RangeName, type RefreshName } from "../lib/range.js";
 
@@ -49,6 +57,8 @@ interface DashStore {
   bridgeVersion: string | null;
   sessionTz: string;
   snapshot: HealthSnapshot | null;
+  /** The session phase from pm-md-gwy, via the bridge; null while unknown. */
+  session: MarketSession | null;
   events: HealthEvent[];
   range: RangeName;
   refresh: RefreshName;
@@ -76,6 +86,7 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   bridgeVersion: null,
   sessionTz: "UTC",
   snapshot: null,
+  session: null,
   events: [],
   range: rangeAtLoad(),
   refresh: DEFAULT_REFRESH,
@@ -83,8 +94,8 @@ export const useDashStore = create<DashStore>()((set, get) => ({
   thresholds: null,
   links: null,
 
-  // A dropped socket leaves pm-monitor's state unknown; the snapshot stays, frozen.
-  setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null } : { socket }),
+  // A dropped socket leaves pm-monitor's state and the session phase unknown; the snapshot stays, frozen.
+  setSocket: (socket) => set(socket === "CLOSED" ? { socket, monitor: null, session: null } : { socket }),
   apply: (frame) => {
     switch (frame.type) {
       case "hello":
@@ -114,6 +125,9 @@ export const useDashStore = create<DashStore>()((set, get) => ({
       }
       case "monitor_state":
         set({ monitor: frame.monitor });
+        break;
+      case "market_session":
+        set({ session: frame.session });
         break;
     }
   },

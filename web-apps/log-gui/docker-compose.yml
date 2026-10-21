@@ -6,7 +6,8 @@
 #
 # This container reads log.db read-only and speaks LALF-PS (ZeroMQ) to
 # pm-log-srv, which runs outside this compose file (it is not part of this
-# project). Point LOG_SRV_HOST at wherever pm-log-srv is reachable.
+# project). Point LOG_SRV_HOST at wherever pm-log-srv is reachable. The top
+# bar's session phase comes from pm-md-gwy (CALF, 5570); point CALF_HOST at it.
 #
 # Two separate volumes, deliberately: log.db is pm-log-srv's, mounted
 # read-only, so "this project never writes to log.db" (design §19) is
@@ -34,6 +35,8 @@ services:
       LOG_SRV_HOST: "${LOG_SRV_HOST:-host.docker.internal}"
       LOG_SRV_PUB_PORT: "5601"
       LOG_SRV_PULL_PORT: "5602"
+      CALF_HOST: "${CALF_HOST:-host.docker.internal}"
+      CALF_PORT: "${CALF_PORT:-5570}"
       LOG_DB_PATH: "/app/logsrv-data/log.db"
       ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
     volumes:

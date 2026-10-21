@@ -802,6 +802,18 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     """Phase C: what a browser tab gets is pm-monitor's, live and from metrics.db."""
     hello = tab.wait(lambda f: f["type"] == "hello", "hello")
     assert hello["monitor"] == "UP" and hello["sessionTz"] == exchange.session_tz
+    # The top bar's session phase comes from pm-md-gwy over CALF (WP-UI01);
+    # this profile schedules no transition, so there is nothing to count down to.
+    session = tab.wait(
+        lambda f: f["type"] == "market_session"
+        and f["session"]["state"] == "CONTINUOUS",
+        "md-gwy's CONTINUOUS in a market_session frame",
+    )
+    assert session["session"] == {
+        "state": "CONTINUOUS",
+        "nextState": None,
+        "nextAt": None,
+    }
     snap = until(lambda: latest_snapshot(tab), "a snapshot frame")
     assert {(p["process"], p["instance"]) for p in snap["processes"]} >= EXPECTED
 
@@ -895,8 +907,14 @@ def test_the_dashboard_page_shows_the_live_exchange_in_a_browser(
         "the live exchange status pill",
     )
     assert pill == "●OPERATIONAL"
-    badge = page.js("document.querySelector('[data-testid=session-badge]').textContent")
-    assert badge == f"CONTINUOUS · {exchange.today}"
+    page.wait(
+        "document.querySelector('[aria-label=\"session phase\"]')?.textContent === 'Continuous'",
+        "the session indicator on Continuous",
+    )
+    title = page.js(
+        "document.querySelector('[data-testid=session-badge]').getAttribute('title')"
+    )
+    assert title == f"Trading date {exchange.today} ({exchange.session_tz})"
     header = page.js("document.querySelector('header').innerText")
     assert "LIVE" in header and "pm-dash" in header
     assert page.js(f"{BANNER}") is None and page.js(MAIN_STALE) == "false"

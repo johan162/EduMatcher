@@ -78,6 +78,21 @@ describe("connecting", () => {
     expect(hello.source).toBe(`127.0.0.1:${rig!.gw.port}`);
   });
 
+  it("follows the hello with md-gwy's session phase, and passes every change on", async () => {
+    await ready();
+    const tab = await open();
+    expect(await tab.next("market_session")).toEqual({
+      type: "market_session",
+      session: { state: "UNKNOWN", nextState: null, nextAt: null },
+    });
+    const session = { state: "CLOSING_AUCTION", nextState: "CLOSED", nextAt: "2026-10-21T15:30:00Z" };
+    rig!.bridge.session.emit("session", session);
+    expect(await tab.next("market_session", (f) => f.session.state !== "UNKNOWN")).toEqual({
+      type: "market_session",
+      session,
+    });
+  });
+
   it("never sends the API key to a tab", async () => {
     await ready();
     const tab = await open();

@@ -12,7 +12,9 @@ import fastifyStatic from "@fastify/static";
 import websocketPlugin from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { isAbsolute, resolve } from "node:path";
+import type { MarketSessionFrame } from "@edumatcher/book-types";
 import { BookService } from "./book-service.js";
+import { CalfSessionUplink } from "./calf-session.js";
 import type { BridgeConfig } from "./config.js";
 import type { Logger } from "./logging/logger.js";
 import { HistoryClient } from "./session/history-seed.js";
@@ -22,6 +24,7 @@ import { WsHub } from "./ws-fanout.js";
 export interface Bridge {
   app: FastifyInstance;
   uplink: MarketUplink;
+  session: CalfSessionUplink;
   service: BookService;
   hub: WsHub;
   close(): Promise<void>;
@@ -63,6 +66,11 @@ export async function buildBridge(config: BridgeConfig, log: Logger): Promise<Br
     wsClients: hub.clientCount,
   });
 
+  // The session phase comes from pm-md-gwy, which needs no key (WP-UI01).
+  const session = new CalfSessionUplink(config.calf);
+  const sessionFrame = (s = session.latest): MarketSessionFrame => ({ type: "market_session", session: s });
+  session.on("session", (s) => hub.toAll(sessionFrame(s)));
+
   service.on("symbolFrame", (sym, frame) => hub.toSymbol(sym, frame));
   service.on("frame", (frame) => hub.toAll(frame));
 
@@ -87,7 +95,9 @@ export async function buildBridge(config: BridgeConfig, log: Logger): Promise<Br
     if (!hub.register(socket, hello)) {
       log.warn("book-bridge.ws-fanout", `max_ws_clients=${config.maxWsClients} reached; refusing connection`);
       socket.close(1013, "max clients reached");
+      return;
     }
+    socket.send(JSON.stringify(sessionFrame()));
   });
 
   app.get("/api/bridge/status", () => ({
@@ -111,6 +121,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger): Promise<Br
     });
   }
 
+  session.start();
   if (!config.apiGateway.apiKey) {
     log.critical("book-bridge.main", "PM_BOOK_API_KEY is unset — no market data or history can be read");
   } else {
@@ -121,12 +132,14 @@ export async function buildBridge(config: BridgeConfig, log: Logger): Promise<Br
   return {
     app,
     uplink,
+    session,
     service,
     hub,
     async close() {
       clearInterval(heartbeat);
       hub.stop();
       uplink.stop();
+      session.stop();
       await app.close();
     },
   };

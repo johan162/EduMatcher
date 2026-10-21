@@ -134,6 +134,7 @@ SQLite cannot recreate them. It returns as soon as pm-monitor runs.
 | `MONITOR_HOST` | `127.0.0.1` | Where pm-monitor's PUB socket is reachable (`monitor.host`) |
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long → pm-monitor shown DOWN |
+| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | pm-md-gwy, for the session phase in the top bar |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | pm-monitor's history, opened read-only |
 | `CONFIG_ARTIFACT_PATH` | `<data dir>/ref_data/engine_config.json` | The deployed configuration, for `/api/thresholds` |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | unset | log-gui's and book-gui's base URLs (http or https); set, the drawers link there |

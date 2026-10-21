@@ -269,6 +269,9 @@ container* — `host.docker.internal` on Docker Desktop,
 LOG_SRV_HOST=host.containers.internal make up
 ```
 
+`CALF_HOST` names where `pm-md-gwy` is reachable in the same way; the top bar's
+session phase comes from it (see below).
+
 And mount the directory that holds `log.db` at `./logsrv-data`. This app's
 compose file mounts two volumes, deliberately:
 
@@ -301,6 +304,7 @@ the target host:
 podman load --input edumatcher-log-gui-<version>.tar.xz
 podman run -d --name log-gui -p 8091:8091 \
   -e LOG_SRV_HOST=logsrv.example \
+  -e CALF_HOST=exchange.example \
   -v /srv/logsrv-data:/app/logsrv-data:ro \
   -v /srv/log-ui-acks:/app/ack-data \
   edumatcher-log-gui:<version>
@@ -391,13 +395,19 @@ navigation rail** on the left, and the active view filling the rest.
 ```
 
 The top bar is deliberately sparse. After the name and version
-(`EduMatcher pm-log v<version>`) it holds three things, always visible:
+(`EduMatcher pm-log v<version>`) it holds four things, always visible:
 
 - **Source state dot** — green *log-srv up*, yellow *reconnecting…*, red
   *log server down* or *log.db unavailable*. The two red states are distinct
   because they mean different things and have different fixes.
 - **Unacked count** — a link to Alerts, styled red when non-zero. Also
   mirrored as a badge on the Alerts rail item.
+- **Session indicator** — the exchange session phase as a coloured badge, the
+  next phase and the time left to it (`Continuous → Closing Auction in 03:08`),
+  and the clock in the exchange session timezone, exactly as the Trading GUI
+  shows it. The bridge reads it from `pm-md-gwy` over CALF, which needs no
+  login or API key. The badge reads `Unknown` until `pm-md-gwy` has reported
+  the phase, and whenever it cannot be reached.
 - **Theme toggle** — light/dark. The icon shows the theme a click switches
   *to*, not the one currently active.
 
@@ -673,6 +683,8 @@ All bridge configuration is environment variables.
 | `LOG_SRV_PULL_PORT` | `5602` | LALF-PS `PULL` port |
 | `SUB_ID_PREFIX` | `pm-log-bridge` | Subscriber id prefix; `-<pid>` is appended |
 | `LEASE_SEC` | `30` | Subscription lease; renewed at half this |
+| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | `pm-md-gwy`, for the session phase in the top bar |
+| `CALF_CLIENT_ID` | `pm-log-bridge` | Name the bridge gives in CALF `HELLO` |
 | `LOG_DB_PATH` | _resolved data dir_ `/log.db` | The collector's database, read-only |
 | `ACK_STORE_PATH` | _resolved data dir_ `/log-ui-acks.db` | This project's own store, read-write |
 | `LOG_CLI_COMMAND` | `pm-log-cli` | Command backing the Diagnostics view |

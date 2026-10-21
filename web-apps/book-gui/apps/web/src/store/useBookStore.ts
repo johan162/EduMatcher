@@ -9,6 +9,7 @@
 import { create } from "zustand";
 import type {
   BookFrame,
+  MarketSession,
   ServerFrame,
   SessionStats,
   SymbolInfo,
@@ -25,6 +26,8 @@ interface BookStore {
   socketOpen: boolean;
   upstream: UpstreamState | null;
   source: string | null;
+  /** The exchange session phase from pm-md-gwy, via the bridge; null while unknown. */
+  marketSession: MarketSession | null;
   symbols: SymbolInfo[];
   watched: string | null;
   book: BookFrame | null;
@@ -48,6 +51,7 @@ export const useBookStore = create<BookStore>()((set, get) => ({
   socketOpen: false,
   upstream: null,
   source: null,
+  marketSession: null,
   symbols: [],
   watched: null,
   book: null,
@@ -63,7 +67,8 @@ export const useBookStore = create<BookStore>()((set, get) => ({
     return upstream === "ACTIVE" ? "LIVE" : "RECONNECTING";
   },
 
-  setSocketOpen: (socketOpen) => set({ socketOpen }),
+  // A dropped socket leaves the session phase unknown.
+  setSocketOpen: (socketOpen) => set(socketOpen ? { socketOpen } : { socketOpen, marketSession: null }),
 
   watch: (sym) => {
     if (sym === get().watched) return;
@@ -92,6 +97,8 @@ export const useBookStore = create<BookStore>()((set, get) => ({
         return;
       case "error":
         return set({ error: frame.message });
+      case "market_session":
+        return set({ marketSession: frame.session });
     }
   },
 }));

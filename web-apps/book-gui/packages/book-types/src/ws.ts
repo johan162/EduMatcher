@@ -111,8 +111,32 @@ export interface ErrorFrame {
   message: string;
 }
 
+/**
+ * The exchange session phase as pm-md-gwy reports it (WP-UI01): `UNKNOWN`
+ * until md-gwy has it, and whenever md-gwy is unreachable. `nextState` and
+ * `nextAt` (ISO-8601) are both set or both null.
+ */
+export interface MarketSession {
+  state: string;
+  nextState: string | null;
+  nextAt: string | null;
+}
+
+/** Sent after `hello` and on every change. Not `session`: that is one symbol's tape and stats. */
+export interface MarketSessionFrame {
+  type: "market_session";
+  session: MarketSession;
+}
+
 export type ServerFrame =
-  HelloFrame | BookFrame | SessionFrame | TradeFrame | SymbolsFrame | BridgeStatusFrame | ErrorFrame;
+  | HelloFrame
+  | BookFrame
+  | SessionFrame
+  | TradeFrame
+  | SymbolsFrame
+  | BridgeStatusFrame
+  | ErrorFrame
+  | MarketSessionFrame;
 
 /** One symbol per tab; a `watch` replaces the previous one. */
 export type ClientFrame = { t: "watch"; sym: string } | { t: "ping" };

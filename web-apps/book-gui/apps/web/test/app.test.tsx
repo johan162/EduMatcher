@@ -106,6 +106,7 @@ beforeEach(() => {
     socketOpen: false,
     upstream: null,
     source: null,
+    marketSession: null,
     symbols: [],
     watched: null,
     book: null,
@@ -129,6 +130,19 @@ describe("top bar", () => {
     expect(screen.getByText("EduMatcher")).toBeTruthy();
     expect(screen.getByText("pm-book").className).toContain("text-accent");
     expect(screen.getByText(`v${appVersion.version}`)).toBeTruthy();
+  });
+
+  it("shows md-gwy's session phase and the countdown to the next one, and Unknown once the bridge drops", () => {
+    const socket = renderAt("/book/AAPL");
+    expect(screen.getByLabelText("session phase").textContent).toBe("Unknown");
+    socket.deliver(HELLO, {
+      type: "market_session",
+      session: { state: "CLOSING_AUCTION", nextState: "CLOSED", nextAt: "2026-09-27T20:05:00Z" },
+    });
+    expect(screen.getByLabelText("session phase").textContent).toBe("Closing Auction");
+    expect(screen.getByLabelText("time to next session phase").textContent).toBe("in 05:00");
+    socket.drop();
+    expect(screen.getByLabelText("session phase").textContent).toBe("Unknown");
   });
 
   it("shows the connection state and the gateway it reads", () => {

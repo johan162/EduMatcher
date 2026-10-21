@@ -1,8 +1,9 @@
-/** Top bar (design §7.2): source status, unacked badge, theme toggle. */
+/** Top bar (design §7.2): source status, unacked badge, session indicator (WP-UI01), theme toggle. */
 
 import { Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { SessionIndicator } from "../SessionIndicator.js";
 import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
 import type { ThemePreference } from "../../lib/theme.js";
@@ -38,8 +39,10 @@ export function TopBar({
 }) {
   const connectionState = useLiveStore((s) => s.connectionState());
   const serverName = useLiveStore((s) => s.serverState?.server ?? "log-srv");
+  const session = useLiveStore((s) => s.marketSession);
 
-  const alertLevel = useUiConfig()?.alertLevel;
+  const uiConfig = useUiConfig();
+  const alertLevel = uiConfig?.alertLevel;
   const { data: unackedIssues } = useQuery({
     queryKey: ["issues", { acked: false, minLevel: alertLevel }],
     queryFn: () => api.issues({ acked: false, minLevel: alertLevel }),
@@ -75,6 +78,13 @@ export function TopBar({
       >
         ⚠ {unackedCount} unacked
       </Link>
+
+      <SessionIndicator
+        state={session?.state ?? null}
+        nextState={session?.nextState ?? null}
+        nextAt={session?.nextAt ?? null}
+        timeZone={uiConfig?.timezone ?? "UTC"}
+      />
 
       <div className="ml-auto flex items-center gap-3">
         <button

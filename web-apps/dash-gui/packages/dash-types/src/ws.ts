@@ -40,4 +40,21 @@ export interface MonitorStateFrame {
   monitor: MonitorState;
 }
 
-export type ServerFrame = HelloFrame | SnapshotFrame | EventFrame | MonitorStateFrame;
+/**
+ * The exchange session phase as pm-md-gwy reports it (WP-UI01): `UNKNOWN`
+ * until md-gwy has it, and whenever md-gwy is unreachable. `nextState` and
+ * `nextAt` (ISO-8601) are both set or both null.
+ */
+export interface MarketSession {
+  state: string;
+  nextState: string | null;
+  nextAt: string | null;
+}
+
+/** Sent after `hello` and on every change. */
+export interface MarketSessionFrame {
+  type: "market_session";
+  session: MarketSession;
+}
+
+export type ServerFrame = HelloFrame | SnapshotFrame | EventFrame | MonitorStateFrame | MarketSessionFrame;

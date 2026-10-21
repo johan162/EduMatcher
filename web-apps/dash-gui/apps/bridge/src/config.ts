@@ -33,6 +33,13 @@ export interface BridgeConfig {
     downAfterSec: number;
   };
 
+  /** pm-md-gwy's CALF port, for the session phase in the top bar (WP-UI01). */
+  calf: {
+    host: string;
+    port: number;
+    clientId: string;
+  };
+
   /** pm-monitor's history, opened read-only. */
   metricsDbPath: string;
   /** The deployed configuration artifact: `monitor.thresholds` (/api/thresholds). */
@@ -116,6 +123,12 @@ export function loadBridgeConfig(): BridgeConfig {
       host: process.env["MONITOR_HOST"] ?? "127.0.0.1",
       pubPort: intFromEnv("MONITOR_PUB_PORT", 5611),
       downAfterSec: floatFromEnv("MONITOR_DOWN_AFTER_SEC", 3),
+    },
+
+    calf: {
+      host: process.env["CALF_HOST"] ?? "127.0.0.1",
+      port: intFromEnv("CALF_PORT", 5570),
+      clientId: process.env["CALF_CLIENT_ID"] ?? "pm-dash-bridge",
     },
 
     metricsDbPath: process.env["METRICS_DB_PATH"] ?? join(dataDir, "metrics.db"),

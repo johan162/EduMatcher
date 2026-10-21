@@ -4,7 +4,7 @@ import { useUiStore } from "@/store/useUiStore.js";
 import { useThemeStore } from "@/store/useThemeStore.js";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth.js";
 import { useSessionClock } from "@/hooks/useSessionClock.js";
-import { SESSION_PHASE_META } from "@/lib/sessionState.js";
+import { SESSION_PHASE_META, UNKNOWN_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, Wifi, WifiOff, Activity, HelpCircle, Moon, Search, Sun } from "lucide-react";
@@ -32,17 +32,17 @@ export function TopBar() {
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const health = useConnectionHealth();
-  const { now, phase, elapsedMs, countdownMs, nextState } = useSessionClock();
+  const { now, phase, known, elapsedMs, countdownMs, nextState } = useSessionClock();
 
-  const phaseMeta = SESSION_PHASE_META[phase];
+  const phaseMeta = known ? SESSION_PHASE_META[phase] : UNKNOWN_PHASE_META;
   const { dot, Icon, label } = HEALTH_META[health.overall];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   // Countdown when a transition target is known, elapsed-in-phase otherwise
   // — a venue with sessions disabled or a partial schedule still gets a
-  // useful clock rather than a blank one.
-  const clockDetail =
-    countdownMs !== null && nextState !== null ? (
+  // useful clock rather than a blank one. Nothing while the phase itself is
+  // unknown: a countdown from an unknown phase is a guess.
+  const clockDetail = !known ? null : countdownMs !== null && nextState !== null ? (
       <>
         <span className="text-fg-faint">→</span>
         <span className="text-fg-dim">{SESSION_PHASE_META[nextState].label}</span>
@@ -68,8 +68,9 @@ export function TopBar() {
       {/* Centre: session badge + exchange clock + countdown */}
       <div className="flex-1 flex justify-center items-center gap-3 text-xs">
         <span
-          key={phase}
+          key={known ? phase : "UNKNOWN"}
           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium animate-fade-in ${phaseMeta.bgClass} ${phaseMeta.textClass}`}
+          aria-label="session phase"
         >
           {phaseMeta.label}
         </span>

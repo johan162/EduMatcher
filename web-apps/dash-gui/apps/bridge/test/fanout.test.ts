@@ -18,12 +18,26 @@ async function open(): Promise<Tab> {
 }
 
 describe("fan-out", () => {
-  it("greets with hello only while pm-monitor is DOWN", async () => {
+  it("greets with hello and the session phase only while pm-monitor is DOWN", async () => {
     rig = await startRig();
     const tab = await open();
     expect(await tab.next("hello")).toMatchObject({ monitor: "DOWN", sessionTz: "UTC" });
+    expect(await tab.next("market_session")).toEqual({
+      type: "market_session",
+      session: { state: "UNKNOWN", nextState: null, nextAt: null },
+    });
     await new Promise((r) => setTimeout(r, 50));
-    expect(tab.frames.map((f) => f.type)).toEqual(["hello"]);
+    expect(tab.frames.map((f) => f.type)).toEqual(["hello", "market_session"]);
+  });
+
+  it("tells every tab when md-gwy's session phase changes", async () => {
+    rig = await startRig();
+    const tab = await open();
+    await tab.next("market_session");
+    const greeted = tab.frames.length;
+    const session = { state: "CONTINUOUS", nextState: "CLOSING_AUCTION", nextAt: "2026-10-21T15:20:00Z" };
+    rig.bridge.session.emit("session", session);
+    expect(await tab.next("market_session", greeted)).toEqual({ type: "market_session", session });
   });
 
   it("sends hello and the latest snapshot on connect while UP", async () => {
@@ -32,7 +46,7 @@ describe("fan-out", () => {
     const tab = await open();
     expect(await tab.next("hello")).toMatchObject({ monitor: "UP", sessionTz: "Asia/Kolkata" });
     expect((await tab.next("snapshot")).data.seq).toBe(41);
-    expect(tab.frames.map((f) => f.type)).toEqual(["hello", "snapshot"]);
+    expect(tab.frames.map((f) => f.type)).toEqual(["hello", "snapshot", "market_session"]);
   });
 
   it("forwards the same snapshot and event to every tab, unchanged", async () => {
@@ -69,7 +83,7 @@ describe("fan-out", () => {
     const late = await open();
     await late.next("hello");
     await new Promise((r) => setTimeout(r, 50));
-    expect(late.frames.map((f) => f.type)).toEqual(["hello"]);
+    expect(late.frames.map((f) => f.type)).toEqual(["hello", "market_session"]);
   });
 
   it("cuts off a tab that does not read instead of buffering for it", async () => {

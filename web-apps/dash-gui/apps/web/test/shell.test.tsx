@@ -89,12 +89,26 @@ describe("top bar (D1.2)", () => {
     expect(screen.getByRole("status", { name: "Exchange status NO DATA" }).textContent).toBe("○NO DATA");
   });
 
-  it("shows the session state and trading date, and names the session timezone", () => {
+  it("shows the session phase from md-gwy, the next phase and the countdown, with the trading date in the tooltip", () => {
     const socket = renderAt();
-    socket.deliver(hello("UP"), snapshot("OPERATIONAL"));
+    const nextAt = new Date(Date.now() + 3 * 60_000 + 500).toISOString();
+    socket.deliver(hello("UP"), snapshot("OPERATIONAL"), {
+      type: "market_session",
+      session: { state: "CONTINUOUS", nextState: "CLOSING_AUCTION", nextAt },
+    });
     const badge = screen.getByTestId("session-badge");
-    expect(badge.textContent).toBe("CONTINUOUS · 2026-10-19");
-    expect(badge.getAttribute("title")).toContain("Europe/Stockholm");
+    expect(badge.textContent).toMatch(/^Continuous→Closing Auctionin 0[23]:\d\d\d\d:\d\d:\d\d$/);
+    expect(badge.getAttribute("title")).toBe("Trading date 2026-10-19 (Europe/Stockholm)");
+  });
+
+  it("shows the session as Unknown until md-gwy has reported it, and again when the bridge drops", () => {
+    const socket = renderAt();
+    expect(screen.getByLabelText("session phase").textContent).toBe("Unknown");
+    socket.deliver(hello("UP"), { type: "market_session", session: { state: "PRE_OPEN", nextState: null, nextAt: null } });
+    expect(screen.getByLabelText("session phase").textContent).toBe("Pre-Open");
+    expect(screen.queryByLabelText("time to next session phase")).toBeNull();
+    socket.drop();
+    expect(screen.getByLabelText("session phase").textContent).toBe("Unknown");
   });
 
   it("shows the bridge connection: connecting, live, offline", () => {

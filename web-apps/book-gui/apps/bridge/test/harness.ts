@@ -36,6 +36,8 @@ export function testConfig(
     wsMaxBufferedBytes: 5_000_000,
     apiGateway: { baseUrl, apiKey },
     upstream: { pingSec: 60, pingMaxMissed: 3, downAfterSec: 30 },
+    // Port 1: nothing listens, so a running pm-md-gwy cannot leak into a test.
+    calf: { host: "127.0.0.1", port: 1, clientId: "test" },
     tapeMax: 500,
     logServer: {
       enabled: false,

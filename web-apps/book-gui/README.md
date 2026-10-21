@@ -100,6 +100,7 @@ Open **http://127.0.0.1:8194**. Run `make help` for the full target list.
 | `PM_BOOK_API_KEY`                                                            | _(required)_                                   | Read-only (`gateway_id: null`) key of that instance                     |
 | `UPSTREAM_PING_SEC` / `UPSTREAM_PING_MAX_MISSED`                             | `10` / `3`                                     | Liveness of the upstream WebSocket                                      |
 | `UPSTREAM_DOWN_AFTER_SEC`                                                    | `30`                                           | How long `RECONNECTING` lasts before it is reported `DOWN`              |
+| `CALF_HOST` / `CALF_PORT`                                                    | `127.0.0.1` / `5570`                           | `pm-md-gwy`, for the session phase in the top bar (no key)              |
 | `TAPE_MAX`                                                                   | `500`                                          | Trades kept per watched symbol                                          |
 | `LOG_SRV_ENABLED`                                                            | `true`                                         | `false` skips even the startup probe                                    |
 | `LOG_SRV_HOST` / `LOG_SRV_PORT`                                              | `127.0.0.1` / `5600`                           | `pm-log-srv` address                                                    |

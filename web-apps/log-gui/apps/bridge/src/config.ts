@@ -21,6 +21,12 @@ export interface BridgeConfig {
     subIdPrefix: string;
     leaseSec: number;
   };
+  /** pm-md-gwy's CALF port, for the session phase in the top bar (WP-UI01). */
+  calf: {
+    host: string;
+    port: number;
+    clientId: string;
+  };
   logDb: {
     path: string;
   };
@@ -133,6 +139,11 @@ export function loadBridgeConfig(): BridgeConfig {
       pullPort: intFromEnv("LOG_SRV_PULL_PORT", 5602),
       subIdPrefix: process.env.SUB_ID_PREFIX ?? "pm-log-bridge",
       leaseSec: intFromEnv("LEASE_SEC", 30),
+    },
+    calf: {
+      host: process.env.CALF_HOST ?? "127.0.0.1",
+      port: intFromEnv("CALF_PORT", 5570),
+      clientId: process.env.CALF_CLIENT_ID ?? "pm-log-bridge",
     },
     logDb: {
       path: process.env.LOG_DB_PATH ?? join(resolveDataDir(), "log.db"),

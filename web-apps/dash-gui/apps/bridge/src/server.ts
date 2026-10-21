@@ -14,7 +14,8 @@ import websocketPlugin from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import type { BridgeStatus, HelloFrame } from "@edumatcher/dash-types";
+import type { BridgeStatus, HelloFrame, MarketSessionFrame } from "@edumatcher/dash-types";
+import { CalfSessionUplink } from "./calf-session.js";
 import type { BridgeConfig } from "./config.js";
 import { registerHistoryRoutes } from "./history-routes.js";
 import type { Logger } from "./logging/logger.js";
@@ -27,6 +28,7 @@ import { WsHub } from "./ws-fanout.js";
 export interface Bridge {
   app: FastifyInstance;
   uplink: MonitorUplink;
+  session: CalfSessionUplink;
   hub: WsHub;
   db: MetricsDb;
   close(): Promise<void>;
@@ -47,7 +49,7 @@ function frame(type: "snapshot" | "event", json: string): string {
 }
 
 export interface BuildOptions {
-  /** Start the ZeroMQ subscription (tests feed the uplink directly instead). */
+  /** Start the ZeroMQ subscription and the CALF connection (tests feed the uplinks directly instead). */
   connect?: boolean;
   now?: () => number;
 }
@@ -77,6 +79,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
       log.error("dash-bridge.uplink", `a pm-monitor message failed in the bridge (${uplink.handlerErrors} so far): ${String(err)}`);
     },
   });
+  const session = new CalfSessionUplink(config.calf);
   const db = new MetricsDb(config.metricsDbPath);
   const source = `${config.monitor.host}:${config.monitor.pubPort}`;
 
@@ -112,6 +115,9 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
     hub.toAll({ type: "monitor_state", monitor: state });
   });
 
+  const sessionFrame = (s = session.latest): MarketSessionFrame => ({ type: "market_session", session: s });
+  session.on("session", (s) => hub.toAll(sessionFrame(s)));
+
   app.get("/ws", { websocket: true }, (socket) => {
     const latest = uplink.latest;
     const hello: HelloFrame = {
@@ -122,6 +128,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
     };
     const opening = [JSON.stringify(hello)];
     if (latest) opening.push(frame("snapshot", latest.json));
+    opening.push(JSON.stringify(sessionFrame()));
     if (!hub.register(socket, opening)) {
       log.warn("dash-bridge.ws-fanout", `max_ws_clients=${config.maxWsClients} reached; refusing connection`);
       socket.close(1013, "max clients reached");
@@ -177,6 +184,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
   let firstCheck: ReturnType<typeof setTimeout> | undefined;
   if (opts.connect !== false) {
     uplink.start();
+    session.start();
     firstCheck = setTimeout(() => {
       if (uplink.snapshotsIn === 0) log.warn("dash-bridge.uplink", `no snapshot from pm-monitor yet: ${downReason()}`);
     }, config.monitor.downAfterSec * 1000);
@@ -186,11 +194,13 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
   return {
     app,
     uplink,
+    session,
     hub,
     db,
     async close() {
       clearTimeout(firstCheck);
       uplink.stop();
+      session.stop();
       hub.stop();
       await app.close();
       db.close();

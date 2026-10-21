@@ -1,11 +1,13 @@
 /**
  * Top bar (design §12.2): the wordmark and version as every EduMatcher GUI
- * shows them, the exchange status pill and session badge, then the time
- * picker, refresh, theme, settings and the bridge connection on the right.
+ * shows them, the exchange status pill and the session indicator (WP-UI01),
+ * then the time picker, refresh, theme, settings and the bridge connection on
+ * the right.
  */
 
 import clsx from "clsx";
 import { Moon, Sun } from "lucide-react";
+import { SessionIndicator } from "../SessionIndicator.js";
 import { StatusDot } from "../StatusDot.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { RefreshPicker, TimePicker } from "./TimePicker.js";
@@ -36,16 +38,19 @@ function ExchangeStatusPill() {
   );
 }
 
+/** The session phase from pm-md-gwy; pm-monitor's trading date goes in the tooltip. */
 function SessionBadge() {
-  const exchange = useDashStore((s) => s.snapshot?.exchange);
-  if (!exchange) return null;
+  const session = useDashStore((s) => s.session);
+  const tz = useDashStore((s) => s.sessionTz);
+  const tradingDate = useDashStore((s) => s.snapshot?.exchange.trading_date);
   return (
-    <span
-      data-testid="session-badge"
-      title={`Trading date in the session timezone, ${exchange.session_timezone}`}
-      className="font-mono text-xs text-fg-subtle tabular"
-    >
-      {exchange.session_state} · {exchange.trading_date}
+    <span data-testid="session-badge" title={tradingDate ? `Trading date ${tradingDate} (${tz})` : tz}>
+      <SessionIndicator
+        state={session?.state ?? null}
+        nextState={session?.nextState ?? null}
+        nextAt={session?.nextAt ?? null}
+        timeZone={tz}
+      />
     </span>
   );
 }
