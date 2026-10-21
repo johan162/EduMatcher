@@ -9042,7 +9042,17 @@ baked into its original <code>SNAP</code> while a reconnecting client saw the tr
 <li><code>CLOSING_AUCTION</code></li>
 <li><code>CLOSED</code></li>
 <li><code>HALTED</code> (symbol-level)</li>
+<li><code>UNKNOWN</code> (the gateway has not yet heard the phase from the engine)</li>
 </ul>
+<p><code>UNKNOWN</code> is what a freshly started gateway reports until the engine has
+answered its session-state query, normally within a couple of seconds of both
+running. The engine announces its phase only on a transition, and one started
+outside trading hours makes none, so the gateway asks the engine directly
+instead of assuming. A client should show <code>UNKNOWN</code> as "not known yet" rather
+than as either trading or closed. When the answer arrives (or a later one shows
+that a transition was missed, for example after an engine restart), the
+gateway publishes it as an ordinary <code>STATE</code> line with no <code>PREV</code>, <code>NEXTPHASE</code>
+or <code>NEXTAT</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS

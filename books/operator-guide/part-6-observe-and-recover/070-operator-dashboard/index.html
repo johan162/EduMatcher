@@ -7607,9 +7607,16 @@ bridge's environment from the stack:</p>
 <p>From left to right: the version, the <strong>exchange status</strong> (OPERATIONAL,
 DEGRADED, IMPAIRED or DOWN — <code>pm-monitor</code>'s verdict, see
 <a href="../060-health-monitor/#how-health-is-judged">How health is judged</a>), the
-session state and trading date, then the <strong>time range</strong>, the <strong>refresh</strong>
+<strong>session indicator</strong>, then the <strong>time range</strong>, the <strong>refresh</strong>
 setting, the theme, the settings, and the connection: <strong>LIVE</strong> while the
 browser is connected to the bridge.</p>
+<p>The session indicator is the one every EduMatcher GUI shows, as in the
+Trading GUI: the session phase as a coloured badge, the next phase and the
+time left to it (<code>Continuous → Closing Auction in 03:08</code>), and the clock in
+the exchange session timezone. Hover it for the trading date. The bridge
+reads the phase from <code>pm-md-gwy</code> (CALF, <code>CALF_HOST</code>/<code>CALF_PORT</code>), not from
+<code>pm-monitor</code>; the badge reads <code>Unknown</code> until <code>pm-md-gwy</code> has reported it,
+and whenever it cannot be reached.</p>
 <p>When the figures stop being live, a red banner says why and since when —
 "pm-monitor down — data frozen at 11:42:05", or the bridge is unreachable
 and the browser is reconnecting — and the panels dim. The last figures stay
@@ -7754,6 +7761,11 @@ these are already set; you need them only for Option 2 or 3.</p>
 <td><code>MONITOR_DOWN_AFTER_SEC</code></td>
 <td><code>3</code></td>
 <td>No snapshot for this long and <code>pm-monitor</code> is shown down</td>
+</tr>
+<tr>
+<td><code>CALF_HOST</code> / <code>CALF_PORT</code></td>
+<td><code>127.0.0.1</code> / <code>5570</code></td>
+<td><code>pm-md-gwy</code>, for the session phase in the top bar</td>
 </tr>
 <tr>
 <td><code>METRICS_DB_PATH</code></td>

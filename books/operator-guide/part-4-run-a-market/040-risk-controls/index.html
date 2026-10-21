@@ -9720,11 +9720,14 @@ check rather than a pre-trade validation:</p>
   have caused the self-match is removed from the book, and the aggressor
   keeps walking the book — it may still fill fully against other
   participants deeper in the book.</li>
-<li><strong>A resting <code>ICEBERG</code>'s SMP is evaluated against its currently displayed
-  slice</strong>, the same price-time unit any other order competes with — hidden
-  reserve quantity behind a cancelled iceberg peak is not separately
-  protected; if the peak is cancelled by SMP, replenishment behaves like any
-  other iceberg peak exhaustion.</li>
+<li><strong>A resting <code>ICEBERG</code> meets SMP when its displayed peak reaches the front
+  of the queue</strong>, the same price-time unit any other order competes with.
+  <code>CANCEL_RESTING</code>/<code>CANCEL_BOTH</code> then cancel the <strong>whole</strong> iceberg — peak and
+  hidden reserve — as one order with one <code>order.cancelled</code> message; the
+  hidden reserve is not replenished into a new peak.</li>
+<li><strong>SMP does not apply in an auction uncross.</strong> The uncross matches resting
+  interest at a single price with no aggressor, so a gateway's crossing bid
+  and ask in the same auction trade with each other.</li>
 </ul>
 <h3 id="fok-self-match-liquidity-is-excluded-before-the-pre-check"><code>FOK</code> — self-match liquidity is excluded before the pre-check<a class="headerlink" href="#fok-self-match-liquidity-is-excluded-before-the-pre-check" title="Permanent link">&para;</a></h3>
 <p><code>FOK</code> (Fill-Or-Kill) is the one order type that resolves SMP <em>before</em> the
@@ -9732,9 +9735,13 @@ sweep starts, because it needs to know up front whether the book has enough
 <strong>eligible</strong> liquidity to fill the whole order — same-gateway resting
 quantity that SMP would skip or cancel does not count as eligible liquidity:</p>
 <ol>
-<li>The engine walks the opposite side and sums <code>remaining_qty</code> <strong>excluding</strong>
-   any resting order belonging to the same <code>gateway_id</code>, when <code>smp_action</code>
-   is anything other than <code>NONE</code>.</li>
+<li>The engine walks the opposite side <strong>in priority order</strong>, the way the
+   sweep will meet it, and sums the liquidity it can reach. With any
+   <code>smp_action</code> other than <code>NONE</code>, resting orders of the same <code>gateway_id</code>
+   do not count. Under <code>CANCEL_AGGRESSOR</code> / <code>CANCEL_BOTH</code> the sweep would
+   stop at the first such order, so nothing behind it counts either. A
+   resting iceberg's hidden quantity counts, but behind everything else at
+   its price, where its replenished peaks queue.</li>
 <li>If that filtered total is still less than the FOK's quantity, the order
    cannot fill completely. SMP is then resolved the same way a sweep would
    have resolved it — <code>CANCEL_RESTING</code>/<code>CANCEL_BOTH</code> cancel the conflicting

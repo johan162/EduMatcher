@@ -8712,10 +8712,10 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
     BR --&gt;|"8094"| B
     BR --&gt;|"8095"| D
     T --&gt;|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
-    L --&gt;|"edumatcher:5601 / 5602\nlive log stream"| E
+    L --&gt;|"edumatcher:5601 / 5602\nlive log stream\nedumatcher:5570 session phase"| E
     TR --&gt;|"edumatcher:8080\nREST + WebSocket"| E
-    B --&gt;|"edumatcher:8081\nmarket data + history\nedumatcher:5600 own logs"| E
-    D --&gt;|"edumatcher:5611\nhealth snapshots\nedumatcher:5600 own logs"| E
+    B --&gt;|"edumatcher:8081\nmarket data + history\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
+    D --&gt;|"edumatcher:5611\nhealth snapshots\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     L -.-&gt;|"reads log.db from\n./data, read-only"| DATA[("./data")]
     D -.-&gt;|"reads metrics.db and the\nconfiguration, read-only"| DATA</code></pre>
 <table>
@@ -8736,8 +8736,8 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
 </tr>
 <tr>
 <td><code>log-gui</code></td>
-<td><code>pm-log-srv</code> LALF-PS (5601 PUB, 5602 PULL)</td>
-<td><code>LOG_SRV_HOST</code>, <code>LOG_SRV_PUB_PORT</code>, <code>LOG_SRV_PULL_PORT</code>, <code>LOG_DB_PATH</code>, <code>ACK_STORE_PATH</code></td>
+<td><code>pm-log-srv</code> LALF-PS (5601 PUB, 5602 PULL), <code>pm-md-gwy</code> (CALF, 5570)</td>
+<td><code>LOG_SRV_HOST</code>, <code>LOG_SRV_PUB_PORT</code>, <code>LOG_SRV_PULL_PORT</code>, <code>CALF_HOST</code>, <code>LOG_DB_PATH</code>, <code>ACK_STORE_PATH</code></td>
 <td><code>./data</code> read-only at <code>/backend-data</code>; named volume <code>log-gui-acks</code></td>
 </tr>
 <tr>
@@ -8748,14 +8748,14 @@ where the exchange answers to the hostname <code>edumatcher</code>.</p>
 </tr>
 <tr>
 <td><code>book-gui</code></td>
-<td><code>pm-api-gwy</code> dashboards (8081), <code>pm-log-srv</code> (5600)</td>
-<td><code>API_GATEWAY_URL</code>, <code>PM_BOOK_API_KEY</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
+<td><code>pm-api-gwy</code> dashboards (8081), <code>pm-md-gwy</code> (CALF, 5570), <code>pm-log-srv</code> (5600)</td>
+<td><code>API_GATEWAY_URL</code>, <code>PM_BOOK_API_KEY</code>, <code>CALF_HOST</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
 <td>named volume <code>book-gui-logs</code></td>
 </tr>
 <tr>
 <td><code>dash-gui</code></td>
-<td><code>pm-monitor</code> (5611 PUB), <code>pm-log-srv</code> (5600)</td>
-<td><code>MONITOR_HOST</code>/<code>MONITOR_PUB_PORT</code>, <code>METRICS_DB_PATH</code>, <code>CONFIG_ARTIFACT_PATH</code>, <code>LOG_GUI_URL</code>/<code>BOOK_GUI_URL</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
+<td><code>pm-monitor</code> (5611 PUB), <code>pm-md-gwy</code> (CALF, 5570), <code>pm-log-srv</code> (5600)</td>
+<td><code>MONITOR_HOST</code>/<code>MONITOR_PUB_PORT</code>, <code>CALF_HOST</code>, <code>METRICS_DB_PATH</code>, <code>CONFIG_ARTIFACT_PATH</code>, <code>LOG_GUI_URL</code>/<code>BOOK_GUI_URL</code>, <code>LOG_SRV_HOST</code>/<code>LOG_SRV_PORT</code></td>
 <td><code>./data</code> read-only at <code>/backend-data</code>; named volume <code>dash-gui-logs</code></td>
 </tr>
 </tbody>

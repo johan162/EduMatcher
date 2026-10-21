@@ -9349,16 +9349,18 @@ execution which is not available. Limit orders simply rest and accumulate.</p>
 executable volume:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># engine/auction.py</span>
 <a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">compute_equilibrium</span><span class="p">(</span><span class="n">book</span><span class="p">:</span> <span class="s2">"OrderBook"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AuctionResult</span><span class="p">:</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="c1"># Build cumulative buy and sell quantities at each price level</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="c1"># Uses _bid_qty and _ask_qty directly — O(P) not O(n)</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="n">bid_prices</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="n">ask_prices</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">book</span><span class="o">.</span><span class="n">_ask_qty</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>
-<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="c1"># For each candidate price P:</span>
-<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>    <span class="c1"># buy_qty  = Σ bids at prices &gt;= P  (buyers willing to pay at least P)</span>
-<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>    <span class="c1"># sell_qty = Σ asks at prices &lt;= P  (sellers willing to accept at most P)</span>
-<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>    <span class="c1"># exec_qty = min(buy_qty, sell_qty) — how much actually trades</span>
-<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>    <span class="c1"># Pick P that maximises exec_qty; break ties by minimising surplus</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="c1"># Build cumulative buy and sell quantities at each price level.</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="c1"># Not from _bid_qty/_ask_qty: that index holds only an iceberg's</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="c1"># visible peak, and the uncross executes hidden quantity too.</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="n">bid_qty</span><span class="p">,</span> <span class="n">ask_qty</span> <span class="o">=</span> <span class="n">_auction_levels</span><span class="p">(</span><span class="n">book</span><span class="p">)</span>   <span class="c1"># one O(n) walk of the heaps</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="n">bid_prices</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">bid_qty</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="n">ask_prices</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">ask_qty</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>    <span class="c1"># For each candidate price P:</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>    <span class="c1"># buy_qty  = Σ bids at prices &gt;= P  (buyers willing to pay at least P)</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>    <span class="c1"># sell_qty = Σ asks at prices &lt;= P  (sellers willing to accept at most P)</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>    <span class="c1"># exec_qty = min(buy_qty, sell_qty) — how much actually trades</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>    <span class="c1"># Pick P that maximises exec_qty; break ties by minimising surplus</span>
 </code></pre></div>
 <p>For example, imagine this auction book:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>Price    Cumul. bids (qty willing to pay ≥ P)    Cumul. asks (qty willing to accept ≤ P)    Executable

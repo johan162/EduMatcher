@@ -8004,13 +8004,15 @@ numbers, not navigation chrome) holding:</p>
   gateway id it is talking to.</li>
 </ul>
 <h3 id="status-strip-footer">Status strip (footer)<a class="headerlink" href="#status-strip-footer" title="Permanent link">&para;</a></h3>
-<p>A single-line summary meant to be readable from across a room: the current
-session phase (blank/no badge during <code>CONTINUOUS</code> — the absence of a badge
-<em>is</em> the "everything is normal" signal),
-a countdown to the next scheduled phase transition when the feed has named
-one, the number of currently-halted symbols, the total symbol count, the
-CALF connection state, <strong>the age of the last market-data tick</strong>, and a UTC
-clock.</p>
+<p>A single-line summary meant to be readable from across a room. It opens with
+the session indicator every EduMatcher GUI shows, exactly as the Trading GUI
+does in its top bar: the session phase as a coloured badge, the next phase and
+the time left to it when the feed has named one (<code>Continuous → Closing
+Auction in 03:08</code>), and the clock in the exchange session timezone. The badge
+reads <code>Unknown</code> until the feed has reported the phase, and whenever the CALF
+connection is not live. Then the number of currently-halted symbols, the
+total symbol count, the CALF connection state and <strong>the age of the last
+market-data tick</strong>.</p>
 <div class="admonition note">
 <p class="admonition-title">Connection state and data age are two different readings, on purpose</p>
 <p>"CALF connected" only says the pipe is open — it says nothing about

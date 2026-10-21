@@ -8025,6 +8025,8 @@ container</em> — <code>host.docker.internal</code> on Docker Desktop,
 <code>host.containers.internal</code> on Podman, or a real hostname:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>host.containers.internal<span class="w"> </span>make<span class="w"> </span>up
 </code></pre></div>
+<p><code>CALF_HOST</code> names where <code>pm-md-gwy</code> is reachable in the same way; the top bar's
+session phase comes from it (see below).</p>
 <p>And mount the directory that holds <code>log.db</code> at <code>./logsrv-data</code>. This app's
 compose file mounts two volumes, deliberately:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">volumes</span><span class="p">:</span>
@@ -8047,11 +8049,12 @@ the target host:</p>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-log-gui-&lt;version&gt;.tar.xz
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>log-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8091</span>:8091<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>logsrv.example<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>-v<span class="w"> </span>/srv/logsrv-data:/app/logsrv-data:ro<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>-v<span class="w"> </span>/srv/log-ui-acks:/app/ack-data<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span>edumatcher-log-gui:&lt;version&gt;
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Docker — identical, substituting `docker` for `podman`</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">CALF_HOST</span><span class="o">=</span>exchange.example<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>-v<span class="w"> </span>/srv/logsrv-data:/app/logsrv-data:ro<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span>-v<span class="w"> </span>/srv/log-ui-acks:/app/ack-data<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span>edumatcher-log-gui:&lt;version&gt;
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Docker — identical, substituting `docker` for `podman`</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">No Node.js or npm required</p>
@@ -8119,13 +8122,19 @@ navigation rail</strong> on the left, and the active view filling the rest.</p>
 <a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>└──────┴─────────────────────────────────────────────────────────────┘
 </code></pre></div>
 <p>The top bar is deliberately sparse. After the name and version
-(<code>EduMatcher pm-log v&lt;version&gt;</code>) it holds three things, always visible:</p>
+(<code>EduMatcher pm-log v&lt;version&gt;</code>) it holds four things, always visible:</p>
 <ul>
 <li><strong>Source state dot</strong> — green <em>log-srv up</em>, yellow <em>reconnecting…</em>, red
   <em>log server down</em> or <em>log.db unavailable</em>. The two red states are distinct
   because they mean different things and have different fixes.</li>
 <li><strong>Unacked count</strong> — a link to Alerts, styled red when non-zero. Also
   mirrored as a badge on the Alerts rail item.</li>
+<li><strong>Session indicator</strong> — the exchange session phase as a coloured badge, the
+  next phase and the time left to it (<code>Continuous → Closing Auction in 03:08</code>),
+  and the clock in the exchange session timezone, exactly as the Trading GUI
+  shows it. The bridge reads it from <code>pm-md-gwy</code> over CALF, which needs no
+  login or API key. The badge reads <code>Unknown</code> until <code>pm-md-gwy</code> has reported
+  the phase, and whenever it cannot be reached.</li>
 <li><strong>Theme toggle</strong> — light/dark. The icon shows the theme a click switches
   <em>to</em>, not the one currently active.</li>
 </ul>
@@ -8493,6 +8502,16 @@ instead; it reads the same database with no HTTP layer in between.</p>
 <td><code>LEASE_SEC</code></td>
 <td><code>30</code></td>
 <td>Subscription lease; renewed at half this</td>
+</tr>
+<tr>
+<td><code>CALF_HOST</code> / <code>CALF_PORT</code></td>
+<td><code>127.0.0.1</code> / <code>5570</code></td>
+<td><code>pm-md-gwy</code>, for the session phase in the top bar</td>
+</tr>
+<tr>
+<td><code>CALF_CLIENT_ID</code></td>
+<td><code>pm-log-bridge</code></td>
+<td>Name the bridge gives in CALF <code>HELLO</code></td>
 </tr>
 <tr>
 <td><code>LOG_DB_PATH</code></td>

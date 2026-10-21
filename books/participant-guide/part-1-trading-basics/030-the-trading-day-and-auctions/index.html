@@ -7693,6 +7693,16 @@ Here surplus happens to be tied too, so the lower price decides directly.)</p>
 <p><strong>Result published:</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>auction.result.AAPL: price=149.80 volume=500
 </code></pre></div></p>
+<div class="admonition info">
+<p class="admonition-title">Icebergs in the uncross</p>
+<p>An ICEBERG's <strong>hidden</strong> quantity takes part in the uncross, not just its
+visible peak: the matchable buys and sells above count each order's full
+remaining quantity, so the indicative published during the call phase is
+what the uncross prints. At the clearing price the hidden part still
+queues <strong>behind</strong> the visible orders at the same price — the uncross fills
+one peak at a time, and each refilled peak goes to the back of the queue,
+exactly as in continuous trading.</p>
+</div>
 <p>After the uncross, ATO orders that didn't fill are <strong>expired</strong> (not cancelled
 by the trader — automatically removed by the engine). The market transitions
 to CONTINUOUS.</p>

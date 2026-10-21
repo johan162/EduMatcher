@@ -7821,6 +7821,12 @@ socket and line-split logic.</p>
   <code>WELCOME|CH_SUPPORTED=</code>, so clients can detect <code>DEPTH</code>/<code>INDEX</code>/wildcard
   availability without a protocol version bump</li>
 <li>enforces per-client subscription limits and disconnects slow clients</li>
+<li>asks the engine for its session phase every two seconds, over the engine's
+  PULL socket (<code>:5555</code>). This is the gateway's only traffic towards the engine.
+  The engine announces its phase only on a transition, so without the query a
+  gateway started after the last transition, or an exchange started outside
+  trading hours, would never learn it. Until the first answer arrives, <code>STATE</code>
+  reports <code>SESSION=UNKNOWN</code>.</li>
 </ul>
 <h2 id="the-feed-at-a-glance">The feed at a glance<a class="headerlink" href="#the-feed-at-a-glance" title="Permanent link">&para;</a></h2>
 <p>Everything a client needs to know in one place. Read this section first; the rest

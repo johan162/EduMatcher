@@ -1879,6 +1879,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#exact-evaluation-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exact evaluation rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#lifecycle-after-trigger" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8760,6 +8771,10 @@ a small slice while preserving the same total parent quantity.</p>
   engine admitted first — gets filled first; a fresh <code>arrival_seq</code> means this
   peak waits behind all other orders already resting at that price)</li>
 <li>The total hidden size is <strong>never visible</strong> to other market participants</li>
+<li>An <strong>incoming</strong> iceberg that crosses the book trades its <strong>full</strong> quantity
+  immediately, like a LIMIT — one execution per resting counterparty, not
+  one per peak. Only the remainder that rests is hidden: it rests with a full
+  peak of <code>min(VISIBLE, remaining)</code></li>
 </ul>
 <div class="admonition info">
 <p class="admonition-title">Priority is keyed on <code>arrival_seq</code>, not the order's <code>timestamp</code></p>
@@ -8953,6 +8968,25 @@ event in the execution stream.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="exact-evaluation-rules">Exact evaluation rules<a class="headerlink" href="#exact-evaluation-rules" title="Permanent link">&para;</a></h3>
+<p>The rules below pin down the cases the overview leaves open. They hold for
+<code>STOP</code>, <code>STOP_LIMIT</code> and <code>TRAILING_STOP</code> alike.</p>
+<ul>
+<li><strong>On entry.</strong> A stop whose condition is <em>already</em> met by the last trade
+  price when it arrives triggers immediately instead of waiting for the next
+  trade. (While the market is not matching — pre-open, an auction call, a
+  halt — the entry check is skipped and the stop is simply stored; it is
+  evaluated after the next trade, normally the uncross print.)</li>
+<li><strong>Once per incoming order.</strong> Stops are evaluated after the incoming order
+  has finished matching, against the price of its <strong>last</strong> execution — not
+  after each individual print of a multi-level sweep. This matters for a
+  trailing stop: it ratchets once, to the sweep's final price.</li>
+<li><strong>Several at once.</strong> When one evaluation triggers several stops they
+  execute one after another: triggered BUY stops first (lowest stop price
+  first, then in arrival order), then SELL stops (highest stop price first,
+  then in arrival order), then trailing stops in arrival order. Stops
+  triggered by <em>those</em> executions queue behind them and run in turn.</li>
+</ul>
 <p><strong>Why does a BUY STOP trigger at a price <em>higher</em> than the stop?</strong></p>
 <p>It seems backwards — normally you want to buy <em>low</em>. The key is that a BUY
 STOP is not a value-buying tool; it is a <em>momentum confirmation</em> tool. The
@@ -9552,7 +9586,7 @@ otherwise be marketable.</p>
 </tr>
 <tr>
 <td>Iceberg order amended</td>
-<td>Supported — displayed_qty is recalculated from <code>visible_qty</code></td>
+<td>Supported — a price change or qty increase refills the peak to <code>visible_qty</code> (priority lost); a qty decrease never enlarges the current peak, only shrinks it to the new remaining</td>
 </tr>
 <tr>
 <td>Combo child order amended</td>

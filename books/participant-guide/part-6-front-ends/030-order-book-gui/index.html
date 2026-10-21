@@ -2299,6 +2299,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#session-phase-pm-md-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session phase (pm-md-gwy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#logging" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7701,9 +7712,9 @@ by URL, a dark and a light theme, font scaling, and a layout that fills
 whatever screen it is shown on.</p>
 <h3 id="what-starts-when-you-run-it">What starts when you run it<a class="headerlink" href="#what-starts-when-you-run-it" title="Permanent link">&para;</a></h3>
 <p>Running the viewer starts one server process, <code>pm-book-bridge</code>, which also
-serves the web page. The bridge reads <strong>all</strong> of its data from the
-<a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway</a> — it never talks to the engine, to
-<code>pm-md-gwy</code> or to <code>pm-stats</code> directly:</p>
+serves the web page. The bridge reads its market data from the
+<a href="../../../operator-guide/part-5-gateways/050-api-gateway/">API Gateway</a> — it never talks to the engine or to
+<code>pm-stats</code> directly:</p>
 <table>
 <thead>
 <tr>
@@ -7734,6 +7745,9 @@ serves the web page. The bridge reads <strong>all</strong> of its data from the
 </tr>
 </tbody>
 </table>
+<p>The one exception is the session phase in the top bar, which the bridge reads
+from <code>pm-md-gwy</code> over CALF (TCP 5570) — the same source as TapeDeck, and one
+that needs no key.</p>
 <p>The bridge holds exactly one upstream WebSocket however many browser tabs are
 open, and subscribes to a symbol only while at least one tab is watching it.
 The read-only API key stays in the bridge; the browser never sees it.</p>
@@ -7905,13 +7919,15 @@ one). It prints which instance and port the key came from, and warns when
 <code>API_GATEWAY_URL</code> points at a different port. With neither a key nor a deployed
 configuration to read it from, <code>make up</code> stops with an explanation rather than
 starting a viewer that can show nothing.</p>
-<p><strong>The address.</strong> The app's <code>docker-compose.yml</code> defaults <code>API_GATEWAY_URL</code> and
-<code>LOG_SRV_HOST</code> to <code>host.docker.internal</code>, which is right on Docker Desktop. On
-bare Linux Docker, <code>make up</code> adds <code>docker-compose.linux.yml</code>, which maps that
-name to the host. On Podman, point both at <code>host.containers.internal</code>:</p>
+<p><strong>The address.</strong> The app's <code>docker-compose.yml</code> defaults <code>API_GATEWAY_URL</code>,
+<code>CALF_HOST</code> and <code>LOG_SRV_HOST</code> to <code>host.docker.internal</code>, which is right on
+Docker Desktop. On bare Linux Docker, <code>make up</code> adds <code>docker-compose.linux.yml</code>,
+which maps that name to the host. On Podman, point them at
+<code>host.containers.internal</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">API_GATEWAY_URL</span><span class="o">=</span>http://host.containers.internal:8081
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>host.containers.internal
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>make<span class="w"> </span>up
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">CALF_HOST</span><span class="o">=</span>host.containers.internal
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>host.containers.internal
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>make<span class="w"> </span>up
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">The key is valid on 8081, not 8080</p>
@@ -7934,8 +7950,8 @@ one backend address:</p>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>make<span class="w"> </span>logs-book
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>make<span class="w"> </span>down-book
 </code></pre></div>
-<p><code>VM_BACKEND_IP</code> sets <code>API_GATEWAY_URL=http://&lt;ip&gt;:8081</code> and <code>LOG_SRV_HOST=&lt;ip&gt;</code>
-for the viewer. Pass the key explicitly when the backend runs in a VM: the
+<p><code>VM_BACKEND_IP</code> sets <code>API_GATEWAY_URL=http://&lt;ip&gt;:8081</code>, <code>CALF_HOST=&lt;ip&gt;</code> and
+<code>LOG_SRV_HOST=&lt;ip&gt;</code> for the viewer. Pass the key explicitly when the backend runs in a VM: the
 automatic look-up reads the deployed configuration from <em>this</em> host's data
 directory.</p>
 <h4 id="alternative-direct-compose-commands">Alternative: direct Compose commands<a class="headerlink" href="#alternative-direct-compose-commands" title="Permanent link">&para;</a></h4>
@@ -7970,12 +7986,16 @@ another read-only <code>pm-api-gwy</code> client.</p>
 <td>Must be running on the exchange server for complete statistics; the viewer reaches it only through <code>pm-api-gwy</code>.</td>
 </tr>
 <tr>
+<td><code>pm-md-gwy</code></td>
+<td>For the session phase in the top bar. Make TCP <code>5570</code> reachable and set <code>CALF_HOST</code>; without it the phase shows <code>Unknown</code>.</td>
+</tr>
+<tr>
 <td><code>pm-log-srv</code></td>
 <td>Optional. Make TCP <code>5600</code> reachable and set <code>LOG_SRV_HOST</code>, or set <code>LOG_SRV_ENABLED=false</code>.</td>
 </tr>
 <tr>
 <td>Firewall</td>
-<td>Open <code>8081</code> (and optionally <code>5600</code>) from the display server to the exchange. Browsers need only the display server's <code>8094</code>.</td>
+<td>Open <code>8081</code> and <code>5570</code> (and optionally <code>5600</code>) from the display server to the exchange. Browsers need only the display server's <code>8094</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -8208,11 +8228,12 @@ source-checkout service looks like this:</p>
 <a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">    </span><span class="nt">API_GATEWAY_URL</span><span class="p">:</span><span class="w"> </span><span class="s">"${API_GATEWAY_URL:-http://edumatcher:8081}"</span>
 <a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">    </span><span class="nt">PM_BOOK_API_KEY</span><span class="p">:</span><span class="w"> </span><span class="s">"${PM_BOOK_API_KEY:-}"</span>
 <a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="w">    </span><span class="nt">LOG_SRV_ENABLED</span><span class="p">:</span><span class="w"> </span><span class="s">"${LOG_SRV_ENABLED:-true}"</span>
-<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="w">    </span><span class="nt">LOG_SRV_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"edumatcher"</span>
-<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="w">    </span><span class="nt">LOG_SRV_PORT</span><span class="p">:</span><span class="w"> </span><span class="s">"5600"</span>
-<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="w">    </span><span class="nt">LOG_FAILOVER_DIR</span><span class="p">:</span><span class="w"> </span><span class="s">"/app/logs"</span>
-<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a><span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
-<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">book-gui-logs:/app/logs</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="w">    </span><span class="nt">CALF_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"edumatcher"</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="w">    </span><span class="nt">LOG_SRV_HOST</span><span class="p">:</span><span class="w"> </span><span class="s">"edumatcher"</span>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="w">    </span><span class="nt">LOG_SRV_PORT</span><span class="p">:</span><span class="w"> </span><span class="s">"5600"</span>
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a><span class="w">    </span><span class="nt">LOG_FAILOVER_DIR</span><span class="p">:</span><span class="w"> </span><span class="s">"/app/logs"</span>
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a><span class="w">  </span><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-15-22" name="__codelineno-15-22" href="#__codelineno-15-22"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">book-gui-logs:/app/logs</span>
 </code></pre></div>
 <p>Points worth knowing:</p>
 <ul>
@@ -8248,6 +8269,12 @@ three panels <strong>BIDS</strong>, <strong>ASKS</strong> and <strong>TRADES</st
   application.</li>
 <li><strong>The symbol picker</strong> — the current symbol with a drop-down arrow. Click it,
   or press <strong><code>s</code></strong> or <strong><code>F1</code></strong> anywhere on the page.</li>
+<li><strong>The session indicator</strong> — the exchange session phase as a coloured badge,
+  the next phase and the time left to it (<code>Continuous → Closing Auction in
+  03:08</code>), and the clock in the exchange session timezone, exactly as the
+  Trading GUI shows it. The countdown appears only while a transition is
+  scheduled; the badge reads <code>Unknown</code> until <code>pm-md-gwy</code> has reported the
+  phase, and whenever it cannot be reached.</li>
 <li><strong>Theme</strong> (sun/moon): switches between the dark and the light palette.</li>
 <li><strong>Settings</strong> (cog): font size, maximum levels and zebra rows — see
   <a href="#settings">Settings</a>.</li>
@@ -8604,6 +8631,28 @@ installations set only <code>PM_BOOK_API_KEY</code> and, outside the whole stack
 </tr>
 </tbody>
 </table>
+<h3 id="session-phase-pm-md-gwy">Session phase (<code>pm-md-gwy</code>)<a class="headerlink" href="#session-phase-pm-md-gwy" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default (dev / container)</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CALF_HOST</code> / <code>CALF_PORT</code></td>
+<td><code>127.0.0.1</code> / <code>5570</code> — app compose <code>host.docker.internal</code>, whole stack <code>edumatcher</code></td>
+<td><code>pm-md-gwy</code>, for the session phase in the top bar. No key needed</td>
+</tr>
+<tr>
+<td><code>CALF_CLIENT_ID</code></td>
+<td><code>pm-book-bridge</code></td>
+<td>Name the bridge gives in CALF <code>HELLO</code></td>
+</tr>
+</tbody>
+</table>
 <h3 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -8726,6 +8775,11 @@ JSON:</p>
 <td>Top bar stays <code>RECONNECTING</code>, nothing in the log about the key</td>
 <td>The bridge cannot reach <code>pm-api-gwy</code></td>
 <td>Check <code>API_GATEWAY_URL</code>; on Podman use <code>host.containers.internal</code>; check that <code>pm-api-gwy</code> is running</td>
+</tr>
+<tr>
+<td>The session badge in the top bar stays <code>Unknown</code></td>
+<td>The bridge cannot reach <code>pm-md-gwy</code>, or it is not running</td>
+<td>Check <code>CALF_HOST</code>/<code>CALF_PORT</code> and that TCP <code>5570</code> is reachable from the bridge; a badge that resolves after a second or two at exchange start is normal</td>
 </tr>
 <tr>
 <td>Red <em>Disconnected from pm-book-bridge</em> banner</td>

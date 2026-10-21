@@ -8832,7 +8832,9 @@ TRADER from MARKET_MAKER on the order and quote endpoints.</p>
 <li><strong>Wordmark</strong> — <code>EduMatcher pm-trader v&lt;version&gt;</code>, the version being the
   release the app was built from.</li>
 <li><strong>Session-phase badge</strong> — colour-coded: Pre-Open (slate), Opening/Closing
-  Auction (amber), Continuous (green), Closed (red). It animates on change.</li>
+  Auction (amber), Continuous (green), Closed (red), and Unknown (grey) until
+  the first session state has arrived after login. It animates on change. The
+  other EduMatcher GUIs show the same badge, clock and countdown.</li>
 <li><strong>Phase clock</strong> — a countdown to the next scheduled transition
   (<code>→ Continuous in 04:12</code>) when the schedule provides one, or <em>elapsed time
   in phase</em> when it does not, so a venue with sessions disabled or a partial
