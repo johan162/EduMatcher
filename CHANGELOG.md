@@ -1,4 +1,4 @@
-## [v0.51.2] - 2026-10-21
+## [v0.51.3] - 2026-10-21
 
 Release Type: minor
 
@@ -21,6 +21,8 @@ This release adds live trading-session indicators across the web GUIs and improv
 
 ### 🛠 Internal
 - Added regression and reference-matcher tests for matching-engine behavior
+- Add `poetry.lock` to repo to avoid surprises with new release library versions
+- Bumped all dependencies to latest versions
 
 
 ## [v0.51.1] - 2026-10-21
