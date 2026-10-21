@@ -1,3 +1,28 @@
+## [v0.51.2] - 2026-10-21
+
+Release Type: minor
+
+### 📋 Summary
+This release adds live trading-session indicators across the web GUIs and improves matching-engine correctness for iceberg and fill-or-kill orders. It also strengthens matching-engine validation with new reference and mutation testing tools.
+
+### ✨ Additions
+- Added session phase, next-transition countdown where available, and current-time indicators across the web GUIs
+- Added a matching-engine reference matcher and mutation-testing tool
+
+### 🚀 Improvements
+- Improved iceberg handling in auctions and priority handling when iceberg orders are amended
+
+### 🐛 Bug Fixes
+- Fixed fill-or-kill order behavior under self-match prevention
+- Fixed the market-data gateway reporting an assumed continuous session instead of the engine's actual session state
+
+### 📚 Documentation
+- Updated GUI, gateway, order-type, auction, and risk-control documentation for the new session information and matching behavior
+
+### 🛠 Internal
+- Added regression and reference-matcher tests for matching-engine behavior
+
+
 ## [v0.51.1] - 2026-10-21
 
 Release Type: major
