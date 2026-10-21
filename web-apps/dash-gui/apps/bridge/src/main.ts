@@ -10,7 +10,7 @@ const bridge = await buildBridge(config, log);
 
 log.info(
   "dash-bridge.main",
-  `startup: bind=${config.host}:${config.port} monitor=${config.monitor.host}:${config.monitor.pubPort} metrics_db=${config.metricsDbPath} logging=${log.destination()} log_gui=${config.links.logGui ?? "-"} book_gui=${config.links.bookGui ?? "-"}`,
+  `startup: bind=${config.host}:${config.port} monitor=${config.monitor.host}:${config.monitor.pubPort} calf=${config.calf.host}:${config.calf.port} metrics_db=${config.metricsDbPath} logging=${log.destination()} log_gui=${config.links.logGui ?? "-"} book_gui=${config.links.bookGui ?? "-"}`,
 );
 
 async function shutdown(signal: string): Promise<void> {

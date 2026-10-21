@@ -37,6 +37,17 @@ export interface SourceHealth {
   detail: string;
 }
 
+/**
+ * The exchange session phase as pm-md-gwy reports it (WP-UI01): `UNKNOWN`
+ * until md-gwy has it, and whenever md-gwy is unreachable. `nextState` and
+ * `nextAt` (ISO-8601) are both set or both null.
+ */
+export interface MarketSession {
+  state: string;
+  nextState: string | null;
+  nextAt: string | null;
+}
+
 export type ServerFrame =
   | {
       t: "hello";
@@ -50,6 +61,7 @@ export type ServerFrame =
   | { t: "issue"; issue: Issue }
   | { t: "ack"; fingerprint: string; ack: AckRecord | null }
   | { t: "server_state"; state: ServerState }
+  | { t: "market_session"; session: MarketSession }
   | {
       t: "bridge_status";
       lalfPs: SourceHealth;

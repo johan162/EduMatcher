@@ -23,6 +23,8 @@ from edumatcher.models.order import (
     Side,
 )
 
+from tests.engine_invariants import assert_book_invariants
+
 
 def _limit(
     side: Side,
@@ -403,6 +405,75 @@ class TestAmendIceberg:
 
         assert amended.remaining_qty == 50
         assert amended.displayed_qty == 50  # capped at remaining
+
+    def test_iceberg_qty_decrease_does_not_refill_a_used_peak(self):
+        """Workplan F2 (bug B): a decrease keeps priority, so it must not
+        enlarge the shown slice and jump the orders queued behind it."""
+        book = OrderBook("AAPL")
+        ice = _iceberg(Side.SELL, 100, qty=100, visible_qty=10)
+        behind = _limit(Side.SELL, 100, qty=10, gateway_id="GW2")
+        book.process(ice)
+        book.process(behind)
+        book.process(_limit(Side.BUY, 100, qty=6, gateway_id="GW3"))
+        assert ice.displayed_qty == 4
+
+        amended, priority_reset, _ = book.amend_order(ice.id, new_qty=90)
+
+        assert priority_reset is False
+        assert amended.remaining_qty == 84
+        assert amended.displayed_qty == 4
+        assert book._ask_qty == {100: 14}
+        trades, _ = book.process(_limit(Side.BUY, 100, qty=10, gateway_id="GW3"))
+        assert [(t.sell_order_id, t.quantity) for t in trades] == [
+            (ice.id, 4),
+            (behind.id, 6),
+        ]
+        assert_book_invariants(book, include_hygiene=True)
+
+    def test_iceberg_qty_decrease_below_a_used_peak_shrinks_it(self):
+        book = OrderBook("AAPL")
+        ice = _iceberg(Side.SELL, 100, qty=100, visible_qty=10)
+        book.process(ice)
+        book.process(_limit(Side.BUY, 100, qty=6, gateway_id="GW3"))
+
+        amended, _, _ = book.amend_order(ice.id, new_qty=8)
+
+        assert amended.remaining_qty == 2
+        assert amended.displayed_qty == 2
+        assert book._ask_qty == {100: 2}
+        assert_book_invariants(book, include_hygiene=True)
+
+    def test_iceberg_price_change_refills_a_used_peak_at_the_back(self):
+        book = OrderBook("AAPL")
+        ice = _iceberg(Side.SELL, 100, qty=100, visible_qty=10)
+        book.process(ice)
+        book.process(_limit(Side.BUY, 100, qty=6, gateway_id="GW3"))
+        ahead = _limit(Side.SELL, 101, qty=10, gateway_id="GW2")
+        book.process(ahead)
+
+        amended, priority_reset, _ = book.amend_order(ice.id, new_price=101)
+
+        assert priority_reset is True
+        assert amended.displayed_qty == 10
+        assert book._ask_qty == {101: 20}
+        trades, _ = book.process(_limit(Side.BUY, 101, qty=15, gateway_id="GW3"))
+        assert [(t.sell_order_id, t.quantity) for t in trades] == [
+            (ahead.id, 10),
+            (ice.id, 5),
+        ]
+        assert_book_invariants(book, include_hygiene=True)
+
+    def test_iceberg_qty_increase_refills_a_used_peak(self):
+        book = OrderBook("AAPL")
+        ice = _iceberg(Side.SELL, 100, qty=100, visible_qty=10)
+        book.process(ice)
+        book.process(_limit(Side.BUY, 100, qty=6, gateway_id="GW3"))
+
+        amended, priority_reset, _ = book.amend_order(ice.id, new_qty=120)
+
+        assert priority_reset is True
+        assert amended.displayed_qty == 10
+        assert_book_invariants(book, include_hygiene=True)
 
     def test_amended_iceberg_still_matchable(self):
         book = OrderBook("AAPL")

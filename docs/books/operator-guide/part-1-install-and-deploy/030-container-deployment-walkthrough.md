@@ -568,10 +568,10 @@ flowchart LR
     BR -->|"8094"| B
     BR -->|"8095"| D
     T -->|"edumatcher:5570 market data\nedumatcher:8081 history\nedumatcher:5600 own logs"| E
-    L -->|"edumatcher:5601 / 5602\nlive log stream"| E
+    L -->|"edumatcher:5601 / 5602\nlive log stream\nedumatcher:5570 session phase"| E
     TR -->|"edumatcher:8080\nREST + WebSocket"| E
-    B -->|"edumatcher:8081\nmarket data + history\nedumatcher:5600 own logs"| E
-    D -->|"edumatcher:5611\nhealth snapshots\nedumatcher:5600 own logs"| E
+    B -->|"edumatcher:8081\nmarket data + history\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
+    D -->|"edumatcher:5611\nhealth snapshots\nedumatcher:5570 session phase\nedumatcher:5600 own logs"| E
     L -.->|"reads log.db from\n./data, read-only"| DATA[("./data")]
     D -.->|"reads metrics.db and the\nconfiguration, read-only"| DATA
 ```
@@ -579,10 +579,10 @@ flowchart LR
 | Service | Talks to | Environment that wires it | Storage |
 |---|---|---|---|
 | `terminal-gui` | `pm-md-gwy` (CALF, 5570), `pm-api-gwy` dashboards (8081), `pm-log-srv` (5600) | `CALF_HOST`/`CALF_PORT`, `API_GATEWAY_URL`, `PM_TERMINAL_API_KEY`, `LOG_SRV_HOST`/`LOG_SRV_PORT`, `INDEX_IDS`, `MAX_WS_CLIENTS` | named volume `terminal-gui-logs` |
-| `log-gui` | `pm-log-srv` LALF-PS (5601 PUB, 5602 PULL) | `LOG_SRV_HOST`, `LOG_SRV_PUB_PORT`, `LOG_SRV_PULL_PORT`, `LOG_DB_PATH`, `ACK_STORE_PATH` | `./data` read-only at `/backend-data`; named volume `log-gui-acks` |
+| `log-gui` | `pm-log-srv` LALF-PS (5601 PUB, 5602 PULL), `pm-md-gwy` (CALF, 5570) | `LOG_SRV_HOST`, `LOG_SRV_PUB_PORT`, `LOG_SRV_PULL_PORT`, `CALF_HOST`, `LOG_DB_PATH`, `ACK_STORE_PATH` | `./data` read-only at `/backend-data`; named volume `log-gui-acks` |
 | `trader-gui` | `pm-api-gwy` desk (8080) | `API_PROXY_TARGET` | none |
-| `book-gui` | `pm-api-gwy` dashboards (8081), `pm-log-srv` (5600) | `API_GATEWAY_URL`, `PM_BOOK_API_KEY`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | named volume `book-gui-logs` |
-| `dash-gui` | `pm-monitor` (5611 PUB), `pm-log-srv` (5600) | `MONITOR_HOST`/`MONITOR_PUB_PORT`, `METRICS_DB_PATH`, `CONFIG_ARTIFACT_PATH`, `LOG_GUI_URL`/`BOOK_GUI_URL`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | `./data` read-only at `/backend-data`; named volume `dash-gui-logs` |
+| `book-gui` | `pm-api-gwy` dashboards (8081), `pm-md-gwy` (CALF, 5570), `pm-log-srv` (5600) | `API_GATEWAY_URL`, `PM_BOOK_API_KEY`, `CALF_HOST`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | named volume `book-gui-logs` |
+| `dash-gui` | `pm-monitor` (5611 PUB), `pm-md-gwy` (CALF, 5570), `pm-log-srv` (5600) | `MONITOR_HOST`/`MONITOR_PUB_PORT`, `CALF_HOST`, `METRICS_DB_PATH`, `CONFIG_ARTIFACT_PATH`, `LOG_GUI_URL`/`BOOK_GUI_URL`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | `./data` read-only at `/backend-data`; named volume `dash-gui-logs` |
 
 Every GUI also gets `HOST=0.0.0.0` (listen on the container's interface),
 `PORT` (its own port) and `CORS_ORIGIN`. `depends_on: edumatcher` only

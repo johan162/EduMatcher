@@ -281,7 +281,7 @@ class TestSmpNone:
 
 
 # ===========================================================================
-# 1b. SMP — Iceberg aggressor (_sweep_iceberg code path)
+# 1b. SMP — Iceberg aggressor (an incoming iceberg sweeps like a LIMIT)
 # ===========================================================================
 
 
@@ -326,7 +326,7 @@ def _fok(
 
 
 class TestSmpIceberg:
-    """SMP inside _sweep_iceberg — separate code path from _sweep."""
+    """SMP when the aggressor is an iceberg."""
 
     def test_iceberg_cancel_aggressor_on_own_resting(self):
         """Iceberg BUY with CANCEL_AGGRESSOR encounters its own SELL — iceberg cancelled."""

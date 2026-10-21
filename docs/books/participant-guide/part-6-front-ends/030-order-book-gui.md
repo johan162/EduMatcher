@@ -40,9 +40,9 @@ whatever screen it is shown on.
 ### What starts when you run it
 
 Running the viewer starts one server process, `pm-book-bridge`, which also
-serves the web page. The bridge reads **all** of its data from the
-[API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md) — it never talks to the engine, to
-`pm-md-gwy` or to `pm-stats` directly:
+serves the web page. The bridge reads its market data from the
+[API Gateway](../../operator-guide/part-5-gateways/050-api-gateway.md) — it never talks to the engine or to
+`pm-stats` directly:
 
 | From `pm-api-gwy` | Used for |
 |---|---|
@@ -51,6 +51,10 @@ serves the web page. The bridge reads **all** of its data from the
 | `GET /api/v1/history/session` | The exchange session timezone and today's trading date |
 | `GET /api/v1/history/trades` | The session's earlier trades, so the statistics and tape are complete when you open a book |
 | `GET /api/v1/history/daily` | The previous close |
+
+The one exception is the session phase in the top bar, which the bridge reads
+from `pm-md-gwy` over CALF (TCP 5570) — the same source as TapeDeck, and one
+that needs no key.
 
 The bridge holds exactly one upstream WebSocket however many browser tabs are
 open, and subscribes to a symbol only while at least one tab is watching it.
@@ -184,13 +188,15 @@ one). It prints which instance and port the key came from, and warns when
 configuration to read it from, `make up` stops with an explanation rather than
 starting a viewer that can show nothing.
 
-**The address.** The app's `docker-compose.yml` defaults `API_GATEWAY_URL` and
-`LOG_SRV_HOST` to `host.docker.internal`, which is right on Docker Desktop. On
-bare Linux Docker, `make up` adds `docker-compose.linux.yml`, which maps that
-name to the host. On Podman, point both at `host.containers.internal`:
+**The address.** The app's `docker-compose.yml` defaults `API_GATEWAY_URL`,
+`CALF_HOST` and `LOG_SRV_HOST` to `host.docker.internal`, which is right on
+Docker Desktop. On bare Linux Docker, `make up` adds `docker-compose.linux.yml`,
+which maps that name to the host. On Podman, point them at
+`host.containers.internal`:
 
 ```bash
 export API_GATEWAY_URL=http://host.containers.internal:8081
+export CALF_HOST=host.containers.internal
 export LOG_SRV_HOST=host.containers.internal
 make up
 ```
@@ -222,8 +228,8 @@ make logs-book
 make down-book
 ```
 
-`VM_BACKEND_IP` sets `API_GATEWAY_URL=http://<ip>:8081` and `LOG_SRV_HOST=<ip>`
-for the viewer. Pass the key explicitly when the backend runs in a VM: the
+`VM_BACKEND_IP` sets `API_GATEWAY_URL=http://<ip>:8081`, `CALF_HOST=<ip>` and
+`LOG_SRV_HOST=<ip>` for the viewer. Pass the key explicitly when the backend runs in a VM: the
 automatic look-up reads the deployed configuration from *this* host's data
 directory.
 
@@ -250,8 +256,9 @@ another read-only `pm-api-gwy` client.
 | `pm-api-gwy` | It binds `0.0.0.0` by default. The display server must reach the `dashboards` instance — HTTP and WebSocket on TCP `8081` in the bundled configurations. |
 | API key | The read-only credential (`gateway_id: null`) of that instance. It never leaves the display server's bridge. |
 | `pm-stats` | Must be running on the exchange server for complete statistics; the viewer reaches it only through `pm-api-gwy`. |
+| `pm-md-gwy` | For the session phase in the top bar. Make TCP `5570` reachable and set `CALF_HOST`; without it the phase shows `Unknown`. |
 | `pm-log-srv` | Optional. Make TCP `5600` reachable and set `LOG_SRV_HOST`, or set `LOG_SRV_ENABLED=false`. |
-| Firewall | Open `8081` (and optionally `5600`) from the display server to the exchange. Browsers need only the display server's `8094`. |
+| Firewall | Open `8081` and `5570` (and optionally `5600`) from the display server to the exchange. Browsers need only the display server's `8094`. |
 
 On the display server, use a prepared image rather than building from source:
 
@@ -446,6 +453,7 @@ book-gui:
     API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
     PM_BOOK_API_KEY: "${PM_BOOK_API_KEY:-}"
     LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
+    CALF_HOST: "edumatcher"
     LOG_SRV_HOST: "edumatcher"
     LOG_SRV_PORT: "5600"
     LOG_FAILOVER_DIR: "/app/logs"
@@ -492,6 +500,12 @@ three panels **BIDS**, **ASKS** and **TRADES**, and the footer.
   application.
 - **The symbol picker** — the current symbol with a drop-down arrow. Click it,
   or press **`s`** or **`F1`** anywhere on the page.
+- **The session indicator** — the exchange session phase as a coloured badge,
+  the next phase and the time left to it (`Continuous → Closing Auction in
+  03:08`), and the clock in the exchange session timezone, exactly as the
+  Trading GUI shows it. The countdown appears only while a transition is
+  scheduled; the badge reads `Unknown` until `pm-md-gwy` has reported the
+  phase, and whenever it cannot be reached.
 - **Theme** (sun/moon): switches between the dark and the light palette.
 - **Settings** (cog): font size, maximum levels and zebra rows — see
   [Settings](#settings).
@@ -679,6 +693,13 @@ installations set only `PM_BOOK_API_KEY` and, outside the whole stack,
 | `UPSTREAM_PING_SEC` / `UPSTREAM_PING_MAX_MISSED` | `10` / `3` | Liveness check of the upstream WebSocket |
 | `UPSTREAM_DOWN_AFTER_SEC` | `30` | How long `RECONNECTING` lasts before it is reported as `DOWN` |
 
+### Session phase (`pm-md-gwy`)
+
+| Variable | Default (dev / container) | Purpose |
+|---|---|---|
+| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` — app compose `host.docker.internal`, whole stack `edumatcher` | `pm-md-gwy`, for the session phase in the top bar. No key needed |
+| `CALF_CLIENT_ID` | `pm-book-bridge` | Name the bridge gives in CALF `HELLO` |
+
 ### Logging
 
 | Variable | Default (dev / container) | Purpose |
@@ -723,6 +744,7 @@ curl -s localhost:8094/api/bridge/status
 | Top bar stays `RECONNECTING`, footer `upstream DOWN`; the log says `PM_BOOK_API_KEY is unset` | The container was started without a key | Start it through `make up`, `make up-all` or `./edumatcher.sh start`, or pass the key |
 | Top bar stays `RECONNECTING`; the log says `refused PM_BOOK_API_KEY` | The key is wrong for that instance — typically `API_GATEWAY_URL` points at `desk` (8080), or the key belongs to a different engine configuration | Point `API_GATEWAY_URL` at port 8081; after switching configuration, restart the whole stack so the key is read again |
 | Top bar stays `RECONNECTING`, nothing in the log about the key | The bridge cannot reach `pm-api-gwy` | Check `API_GATEWAY_URL`; on Podman use `host.containers.internal`; check that `pm-api-gwy` is running |
+| The session badge in the top bar stays `Unknown` | The bridge cannot reach `pm-md-gwy`, or it is not running | Check `CALF_HOST`/`CALF_PORT` and that TCP `5570` is reachable from the bridge; a badge that resolves after a second or two at exchange start is normal |
 | Red *Disconnected from pm-book-bridge* banner | The browser cannot reach the bridge | Is the container running (`make ps`, `podman ps`)? Is the port right? |
 | Basis says `live since HH:MM`; times are in UTC | History is unavailable — `pm-stats` is not running or has not created its database | Start `pm-stats`, then reload the page: a symbol's history is read again when it is next opened with no other tab watching it |
 | *Waiting for the symbol list…* never goes away | The bridge could not read `/api/v1/reference/symbols` | See the rows about `RECONNECTING` above |

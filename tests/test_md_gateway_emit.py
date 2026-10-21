@@ -121,8 +121,7 @@ def test_state_carries_the_next_scheduled_transition() -> None:
         {
             "state": "CONTINUOUS",
             "prev_state": "OPENING_AUCTION",
-            "next_state": "CLOSING_AUCTION",
-            "next_at": "2026-07-30T16:25:00.000Z",
+            "next": {"state": "CLOSING_AUCTION", "at": "2026-07-30T16:25:00.000Z"},
         }
     )
 
@@ -156,8 +155,7 @@ def test_a_transition_without_a_timetable_clears_the_previous_one() -> None:
     norm.normalise_session_state(
         {
             "state": "CONTINUOUS",
-            "next_state": "CLOSING_AUCTION",
-            "next_at": "2026-07-30T16:25:00.000Z",
+            "next": {"state": "CLOSING_AUCTION", "at": "2026-07-30T16:25:00.000Z"},
         }
     )
     _, fields = norm.normalise_session_state({"state": "CLOSED"})
@@ -174,8 +172,7 @@ def test_snapshot_carries_the_transition_for_a_client_joining_mid_session() -> N
     norm.normalise_session_state(
         {
             "state": "CONTINUOUS",
-            "next_state": "CLOSING_AUCTION",
-            "next_at": "2026-07-30T16:25:00.000Z",
+            "next": {"state": "CLOSING_AUCTION", "at": "2026-07-30T16:25:00.000Z"},
         }
     )
 
@@ -191,8 +188,7 @@ def test_per_symbol_state_carries_no_timetable() -> None:
     norm.normalise_session_state(
         {
             "state": "CONTINUOUS",
-            "next_state": "CLOSING_AUCTION",
-            "next_at": "2026-07-30T16:25:00.000Z",
+            "next": {"state": "CLOSING_AUCTION", "at": "2026-07-30T16:25:00.000Z"},
         }
     )
 
@@ -265,3 +261,45 @@ def test_indicative_omits_the_side_when_balanced() -> None:
 
     assert "IMB" not in fields
     assert fields["IMBQTY"] == "0"
+
+
+def test_session_is_unknown_until_the_engine_says_otherwise() -> None:
+    # A CONTINUOUS default told every client a closed exchange was trading.
+    assert EngineNormaliser().state_snapshot_fields("*") == {"SESSION": "UNKNOWN"}
+
+
+def test_next_transition_survives_the_real_engine_encoding() -> None:
+    """The engine nests the next transition; reading flat keys lost it."""
+    from edumatcher.models.message import decode, make_session_state_msg
+
+    _, payload = decode(
+        make_session_state_msg(
+            "CONTINUOUS",
+            "OPENING_AUCTION",
+            "CLOSING_AUCTION",
+            "2026-07-30T16:25:00.000Z",
+        )
+    )
+    _, fields = EngineNormaliser().normalise_session_state(payload)
+
+    assert fields["NEXTPHASE"] == "CLOSING_AUCTION"
+    assert fields["NEXTAT"] == "2026-07-30T16:25:00.000Z"
+
+
+def test_a_changed_status_answer_drops_the_stale_timetable() -> None:
+    norm = EngineNormaliser()
+    norm.normalise_session_state(
+        {
+            "state": "CONTINUOUS",
+            "next": {"state": "CLOSING_AUCTION", "at": "2026-07-30T16:25:00.000Z"},
+        }
+    )
+
+    assert norm.apply_session_status({"state": "CONTINUOUS"}) is None
+    assert "NEXTPHASE" in norm.state_snapshot_fields("*")
+
+    assert norm.apply_session_status({"state": "CLOSED"}) == (
+        "*",
+        {"SESSION": "CLOSED"},
+    )
+    assert norm.state_snapshot_fields("*") == {"SESSION": "CLOSED"}

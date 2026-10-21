@@ -7,8 +7,9 @@
 #
 # Everything this container talks to runs outside this compose file:
 # pm-api-gwy for live market data (WS /api/v1/market-data) and history
-# (REST /api/v1/history/*), and optionally pm-log-srv for operational logging.
-# Point API_GATEWAY_URL/LOG_SRV_HOST at wherever those are reachable from
+# (REST /api/v1/history/*), pm-md-gwy for the session phase (CALF, 5570), and
+# optionally pm-log-srv for operational logging. Point
+# API_GATEWAY_URL/CALF_HOST/LOG_SRV_HOST at wherever those are reachable from
 # inside the container (host.containers.internal on Podman).
 #
 # There is no data volume: the bridge is stateless beyond in-memory session
@@ -41,6 +42,10 @@ services:
       # (8081), not "desk" (8080), and is generated per engine configuration.
       API_GATEWAY_URL: "${API_GATEWAY_URL:-http://host.docker.internal:8081}"
       PM_BOOK_API_KEY: "${PM_BOOK_API_KEY:-}"
+
+      # pm-md-gwy's CALF feed, for the session phase in the top bar. No key.
+      CALF_HOST: "${CALF_HOST:-host.docker.internal}"
+      CALF_PORT: "${CALF_PORT:-5570}"
 
       # Operational logging. An unreachable pm-log-srv is a normal condition:
       # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if

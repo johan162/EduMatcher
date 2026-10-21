@@ -29,6 +29,8 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     wsPingMaxMissed: 2,
     wsMaxBufferedBytes: 5_000_000,
     monitor: { host: "127.0.0.1", pubPort: 5611, downAfterSec: 3 },
+    // Port 1: nothing listens, so a running pm-md-gwy cannot leak into a test.
+    calf: { host: "127.0.0.1", port: 1, clientId: "test" },
     metricsDbPath: "/nonexistent/metrics.db",
     configArtifactPath: "/nonexistent/engine_config.json",
     links: { logGui: null, bookGui: null },

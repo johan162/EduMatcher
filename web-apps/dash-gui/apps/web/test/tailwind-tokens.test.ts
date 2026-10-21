@@ -117,7 +117,8 @@ function colourUsages(): Array<{ utility: string; token: string; path: string }>
   for (const [path, text] of SOURCES) {
     for (const match of code(text).matchAll(pattern)) {
       const [, utility, token] = match;
-      if (utility && token) found.push({ utility, token, path });
+      // `bg-slate-500` matches as `slate-`: the shade of a built-in palette colour.
+      if (utility && token) found.push({ utility, token: token.replace(/-$/, ""), path });
     }
   }
   return found;

@@ -111,7 +111,16 @@ class EngineNormaliser:
     # into its original SNAP while a reconnecting one saw the true value —
     # two clients on the same feed, disagreeing indefinitely.
     top_sent: dict[str, TopOfBook] = field(default_factory=dict)
-    session_state: str = "CONTINUOUS"
+    # UNKNOWN until the engine has said otherwise. The engine broadcasts its
+    # session only on a transition, and one booted CLOSED outside trading
+    # hours makes none -- so a CONTINUOUS default here told every client a
+    # closed exchange was trading. The gateway asks the engine directly
+    # (``apply_session_status``) rather than wait for a transition.
+    session_state: str = "UNKNOWN"
+    # What session_state held before its last change: the phase a symbol
+    # with no state of its own was implicitly in, which
+    # apply_session_to_symbols diffs against.
+    prior_session_state: str = "UNKNOWN"
     # The next scheduled transition, as the engine reported it. Cached so a
     # client connecting mid-session gets the countdown in its SNAP rather
     # than waiting until the next transition -- which could be hours, and is
@@ -234,20 +243,44 @@ class EngineNormaliser:
         prev_state = str(payload.get("prev_state", "")).upper()
 
         if session:
+            self.prior_session_state = self.session_state
             self.session_state = session
 
         # Replaced wholesale, not merged: the engine clears these on any
         # transition it was not given a timetable for, and that clearing is
         # the signal. Keeping the old pair would resurrect a target the
         # engine has just disowned.
-        self.next_session_state = str(payload.get("next_state", "")).upper()
-        self.next_session_at = str(payload.get("next_at", ""))
+        upcoming = payload.get("next") or {}
+        self.next_session_state = str(upcoming.get("state", "")).upper()
+        self.next_session_at = str(upcoming.get("at", ""))
 
         fields = {"SESSION": self.session_state}
         if prev_state:
             fields["PREV"] = prev_state
         fields.update(self._next_transition_fields())
         return "*", fields
+
+    def apply_session_status(
+        self, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]] | None:
+        """Adopt the engine's answer to a session-state query.
+
+        Returns ``STATE`` fields only when the answer differs from what this
+        gateway believed -- the query is repeated, and an unchanged answer is
+        not an event. A changed answer means a transition was missed, so the
+        cached next transition belonged to a phase that is over and is
+        dropped; the status reply carries no timetable to replace it with.
+        ``PREV`` is omitted for the same reason: the old value is this
+        gateway's stale belief, not the engine's previous phase.
+        """
+        session = str(payload.get("state", "")).upper()
+        if not session or session == self.session_state:
+            return None
+        self.prior_session_state = self.session_state
+        self.session_state = session
+        self.next_session_state = ""
+        self.next_session_at = ""
+        return "*", {"SESSION": session}
 
     def _next_transition_fields(self) -> dict[str, str]:
         """``NEXTPHASE``/``NEXTAT``, or nothing when no transition is scheduled.
@@ -286,7 +319,7 @@ class EngineNormaliser:
         updates: list[tuple[str, dict[str, str]]] = []
         for raw in symbols:
             sym = raw.upper()
-            prev = self.symbol_state.get(sym, self.session_state)
+            prev = self.symbol_state.get(sym, self.prior_session_state)
             if prev == "HALTED" or prev == self.session_state:
                 self.symbol_state.setdefault(sym, self.session_state)
                 continue

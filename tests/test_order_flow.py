@@ -3,6 +3,8 @@ from __future__ import annotations
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
 
+from tests.engine_invariants import assert_book_invariants
+
 
 def make_order(
     *,
@@ -250,3 +252,60 @@ def test_iceberg_exposes_only_visible_slice_in_book_snapshot() -> None:
     # the hidden remaining quantity.  After selling 4 from a peak size of 3,
     # the refreshed peak has 2 lots left on show (hidden 6 stays hidden).
     assert snapshot["asks"][0]["qty"] == 2
+
+
+def test_incoming_iceberg_trades_its_full_quantity_like_a_limit() -> None:
+    """One execution per resting counterparty, not one per peak (participant
+    guide, ICEBERG)."""
+    book = OrderBook("AAPL")
+    ask_1 = make_order(
+        side=Side.SELL, order_type=OrderType.LIMIT, qty=30, gateway_id="R1", price=100
+    )
+    ask_2 = make_order(
+        side=Side.SELL, order_type=OrderType.LIMIT, qty=25, gateway_id="R2", price=101
+    )
+    book.process(ask_1)
+    book.process(ask_2)
+
+    iceberg = make_order(
+        side=Side.BUY,
+        order_type=OrderType.ICEBERG,
+        qty=100,
+        gateway_id="I",
+        price=101,
+        visible_qty=10,
+    )
+    trades, _ = book.process(iceberg)
+
+    assert [(t.sell_order_id, t.price, t.quantity) for t in trades] == [
+        (ask_1.id, 100, 30),
+        (ask_2.id, 101, 25),
+    ]
+    assert iceberg.remaining_qty == 45
+
+
+def test_incoming_iceberg_rests_its_remainder_with_a_full_peak() -> None:
+    book = OrderBook("AAPL")
+    book.process(
+        make_order(
+            side=Side.SELL,
+            order_type=OrderType.LIMIT,
+            qty=25,
+            gateway_id="R",
+            price=100,
+        )
+    )
+    iceberg = make_order(
+        side=Side.BUY,
+        order_type=OrderType.ICEBERG,
+        qty=100,
+        gateway_id="I",
+        price=100,
+        visible_qty=10,
+    )
+    book.process(iceberg)
+
+    assert iceberg.remaining_qty == 75
+    assert iceberg.displayed_qty == 10
+    assert book.snapshot()["bids"][0]["qty"] == 10
+    assert_book_invariants(book, include_hygiene=True)

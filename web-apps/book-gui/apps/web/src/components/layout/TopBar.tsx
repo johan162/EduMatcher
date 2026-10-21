@@ -1,10 +1,12 @@
 /**
  * Top bar (design §9.2): the wordmark and version as every EduMatcher GUI shows
- * them, the symbol picker where terminal-gui has its view tabs, and the theme,
- * settings and connection controls on the right.
+ * them, the symbol picker where terminal-gui has its view tabs, the session
+ * indicator (WP-UI01), and the theme, settings and connection controls on the
+ * right.
  */
 
 import { Moon, Sun } from "lucide-react";
+import { SessionIndicator } from "../SessionIndicator.js";
 import { StatusDot } from "../StatusDot.js";
 import { SymbolPicker } from "../SymbolPicker.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
@@ -21,6 +23,8 @@ const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; labe
 export function TopBar() {
   const connection = useBookStore((s) => s.connection());
   const source = useBookStore((s) => s.source);
+  const session = useBookStore((s) => s.marketSession);
+  const timeZone = useBookStore((s) => s.stats?.timezone ?? "UTC");
   const theme = usePrefsStore((s) => s.theme);
   const toggleTheme = usePrefsStore((s) => s.toggleTheme);
 
@@ -36,6 +40,13 @@ export function TopBar() {
       </div>
 
       <SymbolPicker />
+
+      <SessionIndicator
+        state={session?.state ?? null}
+        nextState={session?.nextState ?? null}
+        nextAt={session?.nextAt ?? null}
+        timeZone={timeZone}
+      />
 
       <div className="ml-auto flex items-center gap-4">
         <button

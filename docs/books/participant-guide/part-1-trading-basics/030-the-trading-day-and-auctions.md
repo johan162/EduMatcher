@@ -207,6 +207,15 @@ All crossable orders execute at $149.80:
 auction.result.AAPL: price=149.80 volume=500
 ```
 
+!!! info "Icebergs in the uncross"
+    An ICEBERG's **hidden** quantity takes part in the uncross, not just its
+    visible peak: the matchable buys and sells above count each order's full
+    remaining quantity, so the indicative published during the call phase is
+    what the uncross prints. At the clearing price the hidden part still
+    queues **behind** the visible orders at the same price — the uncross fills
+    one peak at a time, and each refilled peak goes to the back of the queue,
+    exactly as in continuous trading.
+
 After the uncross, ATO orders that didn't fill are **expired** (not cancelled
 by the trader — automatically removed by the engine). The market transitions
 to CONTINUOUS.

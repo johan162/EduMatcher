@@ -19,6 +19,8 @@ import time
 from collections import defaultdict
 from typing import Any
 
+import zmq
+
 from edumatcher.health import HealthReporter
 from edumatcher.health.samples import client_gateway_samples
 from edumatcher.models.generated.health import MetricSample
@@ -29,8 +31,8 @@ from edumatcher.md_gateway.normaliser import EngineNormaliser
 from edumatcher.md_gateway.protocol import build_line, iso_utc, parse_line
 from edumatcher.md_gateway.replay_buffer import ReplayBuffer, ReplayMissError
 from edumatcher.md_gateway.sequencer import SequenceAllocator
-from edumatcher.messaging.bus import make_subscriber
-from edumatcher.models.message import decode
+from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
+from edumatcher.models.message import decode, make_session_state_request_msg
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
@@ -45,6 +47,7 @@ from edumatcher.models.generated.circuit_breaker import (
     PREFIX_CIRCUIT_BREAKER_RESUME,
 )
 from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
+from edumatcher.models.generated.system import topic_session_status
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -72,6 +75,10 @@ _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+# How often the engine is asked for its session state. Repeated rather than
+# asked once: an engine restarted under a running gateway comes back CLOSED
+# without broadcasting a transition, and only a fresh answer reveals that.
+_SESSION_QUERY_INTERVAL_SEC = 2.0
 
 log = logging.getLogger(__name__)
 
@@ -126,6 +133,18 @@ class MarketDataGateway:
             PREFIX_AUCTION_INDICATIVE,
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
+
+        # The engine broadcasts its session only on a transition, so a gateway
+        # started after the last one -- or an exchange booted CLOSED outside
+        # trading hours, which makes none -- would never learn the phase.
+        # Ask instead. The engine upper-cases the id it replies under.
+        self._session_query_id = config.name.upper()
+        self._session_status_topic = topic_session_status(self._session_query_id)
+        self._sub_sock.setsockopt(
+            zmq.SUBSCRIBE, self._session_status_topic.encode("utf-8")
+        )
+        self._push: PushSocket = make_pusher(config.engine_pull_addr)
+        self._next_session_query = 0.0
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -182,6 +201,7 @@ class MarketDataGateway:
                     reporter.tick_and_publish(self.metric_samples)
                 self._accept_new_clients()
                 self._read_client_data()
+                self._query_session_state_if_due()
                 self._poll_engine_events()
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
@@ -226,6 +246,8 @@ class MarketDataGateway:
 
         if not self._sub_sock.closed:
             self._sub_sock.close()
+        if not self._push.closed:
+            self._push.close()
         if not self._index_sub.closed:
             self._index_sub.close()
 
@@ -867,25 +889,17 @@ class MarketDataGateway:
 
                 if topic == TOPIC_SESSION_STATE:
                     self._dbg_count("session_state_topics")
-                    sym, state_fields = self._normaliser.normalise_session_state(
-                        payload
+                    self._emit_session_change(
+                        self._normaliser.normalise_session_state(payload),
+                        now_seconds,
                     )
-                    self._emit_stream_event(
-                        "STATE", "STATE", sym, state_fields, now_seconds
-                    )
-                    # A SUB carrying an explicit symbol only matches events on
-                    # that symbol, so a client watching one instrument would
-                    # never learn the exchange had opened or closed — it saw
-                    # halts and resumes but not the session around them. Repeat
-                    # the transition per symbol so a single-symbol subscriber is
-                    # as well informed as a wildcard one.
-                    for (
-                        per_sym,
-                        per_fields,
-                    ) in self._normaliser.apply_session_to_symbols(self._known_symbols):
-                        self._emit_stream_event(
-                            "STATE", "STATE", per_sym, per_fields, now_seconds
-                        )
+                    continue
+
+                if topic == self._session_status_topic:
+                    self._dbg_count("session_status_topics")
+                    change = self._normaliser.apply_session_status(payload)
+                    if change is not None:
+                        self._emit_session_change(change, now_seconds)
                     continue
 
                 if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
@@ -988,9 +1002,38 @@ class MarketDataGateway:
                 )
                 continue
 
+    def _emit_session_change(
+        self, change: tuple[str, dict[str, str]], now_seconds: float
+    ) -> None:
+        sym, state_fields = change
+        self._emit_stream_event("STATE", "STATE", sym, state_fields, now_seconds)
+        # A SUB carrying an explicit symbol only matches events on
+        # that symbol, so a client watching one instrument would
+        # never learn the exchange had opened or closed — it saw
+        # halts and resumes but not the session around them. Repeat
+        # the transition per symbol so a single-symbol subscriber is
+        # as well informed as a wildcard one.
+        for per_sym, per_fields in self._normaliser.apply_session_to_symbols(
+            self._known_symbols
+        ):
+            self._emit_stream_event("STATE", "STATE", per_sym, per_fields, now_seconds)
+
     # ------------------------------------------------------------------
     # Maintenance
     # ------------------------------------------------------------------
+
+    def _query_session_state_if_due(self) -> None:
+        now = time.monotonic()
+        if now < self._next_session_query:
+            return
+        self._next_session_query = now + _SESSION_QUERY_INTERVAL_SEC
+        try:
+            self._push.send_multipart(
+                make_session_state_request_msg(self._session_query_id)
+            )
+        except zmq.Again:
+            # Engine not up (the PUSH is non-blocking): ask again next time.
+            pass
 
     def _send_heartbeats_if_due(self) -> None:
         now = time.monotonic()

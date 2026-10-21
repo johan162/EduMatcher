@@ -71,6 +71,7 @@ PULL) and `data/log.db` exists. Run `make help` for the full target list.
 | `LOG_SRV_HOST`              | `127.0.0.1`                                     | Host running `pm-log-srv`                                  |
 | `LOG_SRV_PUB_PORT`          | `5601`                                          | `pm-log-srv` LALF-PS publish port                          |
 | `LOG_SRV_PULL_PORT`         | `5602`                                          | `pm-log-srv` LALF-PS pull port                             |
+| `CALF_HOST` / `CALF_PORT`   | `127.0.0.1` / `5570`                            | `pm-md-gwy`, for the session phase in the top bar          |
 | `SUB_ID_PREFIX`             | `pm-log-bridge`                                 | LALF-PS subscription id prefix                             |
 | `LEASE_SEC`                 | `30`                                            | LALF-PS subscription lease, in seconds                     |
 | `LOG_DB_PATH`               | `<data dir>/log.db`                             | Path to `pm-log-srv`'s SQLite database (read-only)          |

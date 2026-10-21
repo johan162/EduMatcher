@@ -34,6 +34,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import pytest
+
 from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import (
     EngineConfig,
@@ -698,6 +700,87 @@ class TestH8FokCorrectness:
             f"neither resting, filled, nor cancelled"
         )
         assert fok.id not in _resting_ids(book)
+
+    @pytest.mark.parametrize("smp", [SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH])
+    def test_fok_does_not_trade_up_to_its_own_order_and_then_cancel(
+        self, smp: SmpAction
+    ) -> None:
+        """Workplan T2, bug C: the sweep stops at the first own order it meets
+        under CANCEL_AGGRESSOR / CANCEL_BOTH, so only liquidity *ahead* of
+        that order can fill the FOK. Summing all non-own liquidity let a FOK
+        trade 3 of 10 lots and then cancel."""
+        book = OrderBook(SYMBOL)
+        for qty, price, gw in (
+            (3, 9900, "GW02"),
+            (5, 10000, "GW01"),
+            (10, 10100, "GW02"),
+        ):
+            book.process(
+                Order.create(
+                    symbol=SYMBOL,
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=qty,
+                    gateway_id=gw,
+                    price_ticks=price,
+                )
+            )
+        fok = Order.create(
+            symbol=SYMBOL,
+            side=Side.BUY,
+            order_type=OrderType.FOK,
+            quantity=10,
+            gateway_id="GW01",
+            price_ticks=10100,
+            smp_action=smp,
+        )
+        trades, _ = book.process(fok)
+
+        assert trades == []
+        assert fok.remaining_qty == 10
+        assert fok.status == OrderStatus.CANCELLED
+        assert fok.cancel_reason == "SELF_MATCH_PREVENTED"
+        own_left = [o.gateway_id for o in book.resting_orders()].count("GW01")
+        assert own_left == (0 if smp == SmpAction.CANCEL_BOTH else 1)
+
+    def test_fok_counts_an_iceberg_hidden_part_only_behind_an_own_order(self) -> None:
+        """A replenished peak queues behind an own order at the same price, so
+        under CANCEL_AGGRESSOR only the iceberg's shown slice is reachable."""
+        book = OrderBook(SYMBOL)
+        book.process(
+            Order.create(
+                symbol=SYMBOL,
+                side=Side.SELL,
+                order_type=OrderType.ICEBERG,
+                quantity=100,
+                gateway_id="GW02",
+                price_ticks=10000,
+                visible_qty=10,
+            )
+        )
+        book.process(
+            Order.create(
+                symbol=SYMBOL,
+                side=Side.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=5,
+                gateway_id="GW01",
+                price_ticks=10000,
+            )
+        )
+        fok = Order.create(
+            symbol=SYMBOL,
+            side=Side.BUY,
+            order_type=OrderType.FOK,
+            quantity=20,
+            gateway_id="GW01",
+            price_ticks=10000,
+            smp_action=SmpAction.CANCEL_AGGRESSOR,
+        )
+        trades, _ = book.process(fok)
+
+        assert trades == []
+        assert fok.status == OrderStatus.CANCELLED
 
 
 # ---------------------------------------------------------------------------

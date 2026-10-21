@@ -14,6 +14,7 @@ import Fastify from "fastify";
 import { resolve } from "node:path";
 import type { ServerFrame, ServerState } from "@edumatcher/log-types";
 import { AckStore } from "./ack-store.js";
+import { CalfSessionUplink } from "./calf-session.js";
 import { loadBridgeConfig } from "./config.js";
 import { RollingCounters } from "./counters.js";
 import { IssueIndex } from "./issue-index.js";
@@ -108,6 +109,12 @@ uplink.on("server_state", (payload) => {
   wsHub.broadcastAll(frame);
 });
 
+// The session phase for the top bar comes from pm-md-gwy, which needs no
+// login or API key (WP-UI01).
+const session = new CalfSessionUplink(config.calf);
+session.on("session", (s) => wsHub.broadcastAll({ t: "market_session", session: s }));
+session.start();
+
 // Counters at ~1 Hz regardless of ingest rate (design §6.4, §17).
 setInterval(() => {
   const frame: ServerFrame = { t: "counters", window: counters.snapshot() };
@@ -146,6 +153,8 @@ app.get("/ws/stream", { websocket: true }, (socket) => {
     lastSeq: uplink.lastSeq,
   };
   socket.send(JSON.stringify(hello));
+  const sessionFrame: ServerFrame = { t: "market_session", session: session.latest };
+  socket.send(JSON.stringify(sessionFrame));
 });
 
 registerLogsRoutes(app, logDb, config.limits.queryMaxRows, config.limits.exportMaxRows);
@@ -172,6 +181,7 @@ if (config.staticDir) {
 async function shutdown(): Promise<void> {
   // Flush before the sockets close, or a buffered batch is silently dropped.
   liveBatcher.stop();
+  session.stop();
   await uplink.stop();
   await app.close();
   process.exit(0);

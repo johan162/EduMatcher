@@ -407,13 +407,15 @@ numbers, not navigation chrome) holding:
 
 ### Status strip (footer)
 
-A single-line summary meant to be readable from across a room: the current
-session phase (blank/no badge during `CONTINUOUS` — the absence of a badge
-*is* the "everything is normal" signal),
-a countdown to the next scheduled phase transition when the feed has named
-one, the number of currently-halted symbols, the total symbol count, the
-CALF connection state, **the age of the last market-data tick**, and a UTC
-clock.
+A single-line summary meant to be readable from across a room. It opens with
+the session indicator every EduMatcher GUI shows, exactly as the Trading GUI
+does in its top bar: the session phase as a coloured badge, the next phase and
+the time left to it when the feed has named one (`Continuous → Closing
+Auction in 03:08`), and the clock in the exchange session timezone. The badge
+reads `Unknown` until the feed has reported the phase, and whenever the CALF
+connection is not live. Then the number of currently-halted symbols, the
+total symbol count, the CALF connection state and **the age of the last
+market-data tick**.
 
 !!! note "Connection state and data age are two different readings, on purpose"
     "CALF connected" only says the pipe is open — it says nothing about

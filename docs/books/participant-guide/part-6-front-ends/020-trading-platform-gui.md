@@ -374,7 +374,9 @@ Left to right:
 - **Wordmark** — `EduMatcher pm-trader v<version>`, the version being the
   release the app was built from.
 - **Session-phase badge** — colour-coded: Pre-Open (slate), Opening/Closing
-  Auction (amber), Continuous (green), Closed (red). It animates on change.
+  Auction (amber), Continuous (green), Closed (red), and Unknown (grey) until
+  the first session state has arrived after login. It animates on change. The
+  other EduMatcher GUIs show the same badge, clock and countdown.
 - **Phase clock** — a countdown to the next scheduled transition
   (`→ Continuous in 04:12`) when the schedule provides one, or *elapsed time
   in phase* when it does not, so a venue with sessions disabled or a partial

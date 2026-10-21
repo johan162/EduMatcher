@@ -670,6 +670,17 @@ Valid `SESSION` values:
 - `CLOSING_AUCTION`
 - `CLOSED`
 - `HALTED` (symbol-level)
+- `UNKNOWN` (the gateway has not yet heard the phase from the engine)
+
+`UNKNOWN` is what a freshly started gateway reports until the engine has
+answered its session-state query, normally within a couple of seconds of both
+running. The engine announces its phase only on a transition, and one started
+outside trading hours makes none, so the gateway asks the engine directly
+instead of assuming. A client should show `UNKNOWN` as "not known yet" rather
+than as either trading or closed. When the answer arrives (or a later one shows
+that a transition was missed, for example after an engine restart), the
+gateway publishes it as an ordinary `STATE` line with no `PREV`, `NEXTPHASE`
+or `NEXTAT`.
 
 ```text
 STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z

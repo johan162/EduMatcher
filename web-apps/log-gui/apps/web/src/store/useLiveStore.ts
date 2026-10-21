@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import type { CounterWindow, LogRow, ServerState } from "@edumatcher/log-types";
+import type { CounterWindow, LogRow, MarketSession, ServerState } from "@edumatcher/log-types";
 import type { WsStatus } from "../lib/ws.js";
 
 const TAIL_MAX_ROWS = 2000;
@@ -21,11 +21,14 @@ interface LiveStore {
   tailPaused: boolean;
   newRowsWhilePaused: number;
   processLastSeen: Record<string, string>;
+  /** The exchange session phase from pm-md-gwy, via the bridge; null while unknown. */
+  marketSession: MarketSession | null;
 
   setWsStatus: (status: WsStatus) => void;
   setServerState: (state: ServerState) => void;
   setLogDbHealthy: (healthy: boolean) => void;
   setCounters: (counters: CounterWindow) => void;
+  setMarketSession: (session: MarketSession) => void;
   pushRow: (row: LogRow) => void;
   setTailPaused: (paused: boolean) => void;
   clearNewRowsWhilePaused: () => void;
@@ -42,11 +45,14 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
   tailPaused: false,
   newRowsWhilePaused: 0,
   processLastSeen: {},
+  marketSession: null,
 
-  setWsStatus: (status) => set({ wsStatus: status }),
+  // A socket that is not open leaves the session phase unknown.
+  setWsStatus: (status) => set(status === "open" ? { wsStatus: status } : { wsStatus: status, marketSession: null }),
   setServerState: (state) => set({ serverState: state }),
   setLogDbHealthy: (healthy) => set({ logDbHealthy: healthy }),
   setCounters: (counters) => set({ counters }),
+  setMarketSession: (session) => set({ marketSession: session }),
 
   pushRow: (row) =>
     set((s) => {

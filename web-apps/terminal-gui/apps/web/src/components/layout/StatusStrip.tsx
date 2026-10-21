@@ -1,6 +1,7 @@
 /**
- * Footer status strip (design §7.1): session phase, halt count, CALF health,
- * and a clock in the exchange's session timezone.
+ * Footer status strip (design §7.1): the session indicator every EduMatcher
+ * GUI shows (WP-UI01) -- phase, next phase, countdown and a clock in the
+ * exchange's session timezone -- then halt count and CALF health.
  *
  * The clock ticks on its own interval rather than off the data stream, so a
  * lobby display shows a visibly stopped clock when the tab has genuinely
@@ -8,23 +9,11 @@
  * because no ticks arrived.
  */
 
-import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { SessionBadge } from "../Badge.js";
+import { SessionIndicator } from "../SessionIndicator.js";
 import { useLiveStore } from "../../store/useLiveStore.js";
 import { ageSec, isLate, liveTickLabel } from "../../lib/data-age.js";
-import { countdownLabel, countdownTo } from "../../lib/session-countdown.js";
 import { useNow } from "../../lib/staleness.js";
-import { clockInTimezone } from "../../lib/format.js";
-
-function useSessionClock(timeZone: string): string {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return clockInTimezone(now.toISOString(), timeZone);
-}
 
 export function StatusStrip() {
   const sessionPhase = useLiveStore((s) => s.sessionPhase);
@@ -35,43 +24,20 @@ export function StatusStrip() {
   const lastTickAt = useLiveStore((s) => s.lastTickAt);
   const nextPhase = useLiveStore((s) => s.sessionNextPhase);
   const nextAt = useLiveStore((s) => s.sessionNextAt);
-  const clock = useSessionClock(sessionTimezone);
   // Its own coarse clock: an age changes because time passes, not because
   // data arrived, so it cannot be driven off the frame stream — which is the
   // whole point of showing it.
   const tickAge = ageSec(lastTickAt, useNow(5_000));
-  // Its own one-second clock: a countdown's whole value is that it moves,
-  // and the seconds matter most in the last minute of a call phase.
-  const countdown = countdownTo(nextPhase, nextAt, useNow(1_000));
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-border bg-bg-subtle px-4 text-xs text-fg-subtle">
-      <span className="flex items-center gap-2">
-        {sessionPhase ?? "AWAITING SESSION"}
-        <SessionBadge phase={sessionPhase} />
-      </span>
-
-      {/*
-       * Rendered only when the feed named a transition. No countdown is a
-       * real state -- a manually driven session, or none scheduled -- and
-       * showing `0:00` for it would assert a transition that is not coming
-       * (§ T-M6).
-       */}
-      {countdown && (
-        <span
-          className={clsx(
-            "tabular",
-            countdown.overdue ? "font-semibold text-halt" : countdown.imminent && "font-semibold text-fg",
-          )}
-          title={
-            countdown.overdue
-              ? "The scheduled moment has passed without the transition arriving"
-              : `Next scheduled transition: ${nextAt}`
-          }
-        >
-          {countdownLabel(countdown)}
-        </span>
-      )}
+      {/* A phase from a feed that is not live is stale: shown as Unknown. */}
+      <SessionIndicator
+        state={connection === "LIVE" ? sessionPhase : null}
+        nextState={nextPhase}
+        nextAt={nextAt}
+        timeZone={sessionTimezone}
+      />
 
       <span className={haltCount > 0 ? "font-semibold text-halt" : undefined}>
         {haltCount === 0 ? "no halts" : `${haltCount} symbol${haltCount === 1 ? "" : "s"} halted`}
@@ -94,7 +60,6 @@ export function StatusStrip() {
         >
           {liveTickLabel(tickAge)}
         </span>
-        <span className="tabular" title={sessionTimezone}>{clock} {sessionTimezone}</span>
       </span>
     </footer>
   );

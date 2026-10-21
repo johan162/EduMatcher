@@ -116,9 +116,17 @@ cd ../../web-apps/dash-gui && make dev
 From left to right: the version, the **exchange status** (OPERATIONAL,
 DEGRADED, IMPAIRED or DOWN — `pm-monitor`'s verdict, see
 [How health is judged](060-health-monitor.md#how-health-is-judged)), the
-session state and trading date, then the **time range**, the **refresh**
+**session indicator**, then the **time range**, the **refresh**
 setting, the theme, the settings, and the connection: **LIVE** while the
 browser is connected to the bridge.
+
+The session indicator is the one every EduMatcher GUI shows, as in the
+Trading GUI: the session phase as a coloured badge, the next phase and the
+time left to it (`Continuous → Closing Auction in 03:08`), and the clock in
+the exchange session timezone. Hover it for the trading date. The bridge
+reads the phase from `pm-md-gwy` (CALF, `CALF_HOST`/`CALF_PORT`), not from
+`pm-monitor`; the badge reads `Unknown` until `pm-md-gwy` has reported it,
+and whenever it cannot be reached.
 
 When the figures stop being live, a red banner says why and since when —
 "pm-monitor down — data frozen at 11:42:05", or the bridge is unreachable
@@ -234,6 +242,7 @@ these are already set; you need them only for Option 2 or 3.
 | `MONITOR_HOST` | `127.0.0.1` | Where `pm-monitor`'s PUB socket is reachable (`monitor.host`) |
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long and `pm-monitor` is shown down |
+| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | `pm-md-gwy`, for the session phase in the top bar |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | `pm-monitor`'s history, opened read-only |
 | `CONFIG_ARTIFACT_PATH` | `<data dir>/ref_data/engine_config.json` | The deployed configuration, for the threshold bands |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | unset (`http://localhost:8091` / `:8094` in the stacks) | log-gui's and book-gui's addresses as your browser reaches them; set, the drawers link there |

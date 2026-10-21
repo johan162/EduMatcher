@@ -75,11 +75,11 @@ before each app's compose stack starts:
 
 | App | Env var set | Port assumed |
 | --- | --- | --- |
-| `log-gui` | `LOG_SRV_HOST` | `5601`/`5602` (LALF-PS) |
+| `log-gui` | `LOG_SRV_HOST`, `CALF_HOST` | `5601`/`5602` (LALF-PS), `5570` (CALF) |
 | `terminal-gui` | `CALF_HOST`, `API_GATEWAY_URL`, `LOG_SRV_HOST` | `5570` (CALF), `8080` (REST), `5600` (LALF) |
 | `trader-gui` | `API_PROXY_TARGET` | `8080` (REST/WS) |
-| `book-gui` | `API_GATEWAY_URL`, `LOG_SRV_HOST` | `8081` (REST + market-data WebSocket), `5600` (LALF) |
-| `dash-gui` | `MONITOR_HOST`, `LOG_SRV_HOST` | `5611` (`pm-monitor` PUB), `5600` (LALF) |
+| `book-gui` | `API_GATEWAY_URL`, `CALF_HOST`, `LOG_SRV_HOST` | `8081` (REST + market-data WebSocket), `5570` (CALF), `5600` (LALF) |
+| `dash-gui` | `MONITOR_HOST`, `CALF_HOST`, `LOG_SRV_HOST` | `5611` (`pm-monitor` PUB), `5570` (CALF), `5600` (LALF) |
 
 When `VM_BACKEND_IP` is not set, each app's compose file falls back to
 `host.docker.internal`, which is correct for Docker Desktop on macOS/Windows.
@@ -107,11 +107,11 @@ None of these apps depend on each other, but each depends on one or more
 
 | App | Requires | Optional |
 | --- | --- | --- |
-| `log-gui` | `pm-log-srv` (LALF-PS, `5601`/`5602`; reads its `log.db`) | `pm-log-cli` on `PATH`, for the Diagnostics view |
+| `log-gui` | `pm-log-srv` (LALF-PS, `5601`/`5602`; reads its `log.db`) | `pm-log-cli` on `PATH`, for the Diagnostics view; `pm-md-gwy` (CALF, `5570`) for the top bar's session phase |
 | `trader-gui` | `pm-api-gwy` (REST + WebSocket, `8080`) | — |
 | `terminal-gui` | `pm-md-gwy` (CALF TCP, `5570`), `pm-api-gwy` (REST, `8080`) | `pm-log-srv` (`5600`) — falls back to stdout/file logging if unreachable |
-| `book-gui` | `pm-api-gwy` (market-data WebSocket + REST, `8081`, read-only key) | `pm-stats` (for full-day statistics), `pm-log-srv` (`5600`) |
-| `dash-gui` | `pm-monitor` (PUB, `5611`; reads its `metrics.db` read-only, and the deployed configuration for the threshold bands) | `pm-log-srv` (`5600`); log-gui and book-gui for the drawers' links (`LOG_GUI_URL`, `BOOK_GUI_URL`) |
+| `book-gui` | `pm-api-gwy` (market-data WebSocket + REST, `8081`, read-only key) | `pm-stats` (for full-day statistics), `pm-md-gwy` (CALF, `5570`) for the top bar's session phase, `pm-log-srv` (`5600`) |
+| `dash-gui` | `pm-monitor` (PUB, `5611`; reads its `metrics.db` read-only, and the deployed configuration for the threshold bands) | `pm-md-gwy` (CALF, `5570`) for the top bar's session phase; `pm-log-srv` (`5600`); log-gui and book-gui for the drawers' links (`LOG_GUI_URL`, `BOOK_GUI_URL`) |
 | `config-gui` | — | `pm-cverifier` on `PATH`, for the "Verify" button |
 
 ## Common shape

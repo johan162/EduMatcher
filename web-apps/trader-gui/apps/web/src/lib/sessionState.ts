@@ -35,6 +35,9 @@ export const SESSION_PHASE_META: Record<
   CLOSED: { label: "Closed", bgClass: "bg-red-600", textClass: "text-white" },
 };
 
+/** Badge until the first session state arrives — the store's `CLOSED` default is not news from the engine. */
+export const UNKNOWN_PHASE_META = { label: "Unknown", bgClass: "bg-zinc-600", textClass: "text-white" };
+
 /** Returns true if a given TIF is allowed in the current session phase. */
 export function isTifAllowed(tif: Tif, phase: SessionState): boolean {
   return (ALLOWED_TIF[phase] as Tif[]).includes(tif);

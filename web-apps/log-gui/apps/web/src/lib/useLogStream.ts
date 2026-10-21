@@ -27,6 +27,9 @@ export function useLogStream(): void {
         case "server_state":
           s.setServerState(frame.state);
           break;
+        case "market_session":
+          s.setMarketSession(frame.session);
+          break;
         case "bridge_status":
           s.setLogDbHealthy(frame.logDb.ok);
           break;

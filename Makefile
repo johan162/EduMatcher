@@ -2,7 +2,7 @@
 # Structure: timestamp-file dependencies for smart re-runs; each command target
 # may depend on one or more stamp files that track when a task last succeeded.
 
-.PHONY: help install reinstall clean-venv test test-e2e test-container test-short test-html verify \
+.PHONY: help install reinstall clean-venv test test-e2e mutate test-container test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
 black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
@@ -266,6 +266,10 @@ test: $(TEST_STAMP) ## Run test suite (excl. perf), terminal coverage report [st
 test-perf: ## Run performance tests (marked with @pytest.mark.perf)
 	@echo -e "$(DARKYELLOW)- Running performance tests...$(NC)"
 	@poetry run pytest -o addopts='' tests -v -s -m perf -p no:cov
+
+mutate: ## Mutation testing of the matching engine: every mutant x full suite (~50 min); selections: tools/mutate_engine.py --help
+	@echo -e "$(DARKYELLOW)- Running matching-engine mutation tests (tools/mutate_engine.py)...$(NC)"
+	@poetry run python tools/mutate_engine.py
 
 test-e2e: ## End-to-end tests on a real exchange: mini profile, trader, pm-monitor, dash bridge (fixed ports)
 	@echo -e "$(DARKYELLOW)- Running end-to-end tests (needs the exchange ports free and dash-gui npm install)...$(NC)"

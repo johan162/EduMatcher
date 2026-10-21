@@ -653,6 +653,33 @@ def test_every_process_of_the_profile_beacons_and_is_healthy(
     assert seqs == list(range(seqs[0], seqs[0] + len(seqs)))
 
 
+def test_the_calf_feed_reports_the_engines_session_not_a_default(
+    exchange: Exchange,
+) -> None:
+    """pm-md-gwy asks the engine for the phase; it no longer assumes one.
+
+    The engine announces its session only on a transition, and this profile
+    makes none, so CONTINUOUS can reach a CALF client only through the
+    gateway's query -- the path that tells a terminal an exchange started
+    outside trading hours is CLOSED. Without it the feed says UNKNOWN.
+    """
+    from edumatcher.md_gateway.protocol import parse_line
+
+    seen: list[str] = []
+    with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
+        sock.sendall(b"HELLO|CLIENT=e2e-state|PROTO=CALF1\nSUB|CH=STATE|SYM=*\n")
+        reader = sock.makefile("r", encoding="utf-8")
+
+        def session_is_continuous() -> bool:
+            frame = parse_line(reader.readline().rstrip("\n"))
+            if frame.fields.get("CH") != "STATE" or frame.fields.get("SYM") != "*":
+                return False
+            seen.append(frame.fields["SESSION"])
+            return frame.fields["SESSION"] == "CONTINUOUS"
+
+        until(session_is_continuous, "CALF STATE SYM=* CONTINUOUS", 15, lambda: seen)
+
+
 def test_a_traders_activity_reaches_every_figure(
     exchange: Exchange, feed: Feed
 ) -> None:
@@ -775,6 +802,18 @@ def test_the_dashboard_bridge_shows_the_exchange_live_and_in_history(
     """Phase C: what a browser tab gets is pm-monitor's, live and from metrics.db."""
     hello = tab.wait(lambda f: f["type"] == "hello", "hello")
     assert hello["monitor"] == "UP" and hello["sessionTz"] == exchange.session_tz
+    # The top bar's session phase comes from pm-md-gwy over CALF (WP-UI01);
+    # this profile schedules no transition, so there is nothing to count down to.
+    session = tab.wait(
+        lambda f: f["type"] == "market_session"
+        and f["session"]["state"] == "CONTINUOUS",
+        "md-gwy's CONTINUOUS in a market_session frame",
+    )
+    assert session["session"] == {
+        "state": "CONTINUOUS",
+        "nextState": None,
+        "nextAt": None,
+    }
     snap = until(lambda: latest_snapshot(tab), "a snapshot frame")
     assert {(p["process"], p["instance"]) for p in snap["processes"]} >= EXPECTED
 
@@ -868,8 +907,14 @@ def test_the_dashboard_page_shows_the_live_exchange_in_a_browser(
         "the live exchange status pill",
     )
     assert pill == "●OPERATIONAL"
-    badge = page.js("document.querySelector('[data-testid=session-badge]').textContent")
-    assert badge == f"CONTINUOUS · {exchange.today}"
+    page.wait(
+        "document.querySelector('[aria-label=\"session phase\"]')?.textContent === 'Continuous'",
+        "the session indicator on Continuous",
+    )
+    title = page.js(
+        "document.querySelector('[data-testid=session-badge]').getAttribute('title')"
+    )
+    assert title == f"Trading date {exchange.today} ({exchange.session_tz})"
     header = page.js("document.querySelector('header').innerText")
     assert "LIVE" in header and "pm-dash" in header
     assert page.js(f"{BANNER}") is None and page.js(MAIN_STALE) == "false"
