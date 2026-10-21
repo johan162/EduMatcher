@@ -26,12 +26,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 ### WP-UI01 - Add Session state and time to next states
 
 
-In pm-trader top-row there is a highlighted current sessions state with the next state indicated as well as the
+In `pm-trader` top-row there is a highlighted current sessions state with the next state indicated as well as the
 time left until state-changes, 
 The format used is
 
 ```
-<CURRENT STATE>  ->  <NEXT STATE> in <TIME LEFT TO STATE CHANGE>  <CURRENT TIME>
+<CURRENT STATE>  ->  <NEXT STATE> in <TIME TO STATE CHANGE>  <CURRENT TIME>
 ```
 
 For example
@@ -42,15 +42,15 @@ CONTINUES -> Closing Auction in 03:08.23  12:51:37
 
 The same indication, using identical color schema and fonts should be added to
 
-   | GUI App   | Position  | Comment | 
+   | GUI App   | Position  | WP Step | 
 |-----------|-----------|---------|
-| pm-dash   | Top row   |         |
-| pm-terminal | Bottom status row |  |
-| pm-book  | Top row |  |
-| pm-log  | Top row |  |  
+| pm-dash   | Top row   |  WP-UI01.1       |
+| pm-terminal | Bottom status row | WP-UI01.2 |
+| pm-book  | Top row | WP-UI01.3 |
+| pm-log  | Top row | WP-UI01.4 |  
 
 If the exchange is started outside traing hours and before the proper states has been determined the stae should be shown
-as "UNKNOWN" usually just takes a second or two to resolve.
+as "UNKNOWN" usually just takes a second or two to resolve. See `pm-trader` logic for fetching current and next state.
 
 ### WP-UI02 - Add tooltip and better help text 
 

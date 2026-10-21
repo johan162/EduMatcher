@@ -1462,11 +1462,14 @@ check rather than a pre-trade validation:
   have caused the self-match is removed from the book, and the aggressor
   keeps walking the book — it may still fill fully against other
   participants deeper in the book.
-- **A resting `ICEBERG`'s SMP is evaluated against its currently displayed
-  slice**, the same price-time unit any other order competes with — hidden
-  reserve quantity behind a cancelled iceberg peak is not separately
-  protected; if the peak is cancelled by SMP, replenishment behaves like any
-  other iceberg peak exhaustion.
+- **A resting `ICEBERG` meets SMP when its displayed peak reaches the front
+  of the queue**, the same price-time unit any other order competes with.
+  `CANCEL_RESTING`/`CANCEL_BOTH` then cancel the **whole** iceberg — peak and
+  hidden reserve — as one order with one `order.cancelled` message; the
+  hidden reserve is not replenished into a new peak.
+- **SMP does not apply in an auction uncross.** The uncross matches resting
+  interest at a single price with no aggressor, so a gateway's crossing bid
+  and ask in the same auction trade with each other.
 
 ### `FOK` — self-match liquidity is excluded before the pre-check
 
@@ -1475,9 +1478,13 @@ sweep starts, because it needs to know up front whether the book has enough
 **eligible** liquidity to fill the whole order — same-gateway resting
 quantity that SMP would skip or cancel does not count as eligible liquidity:
 
-1. The engine walks the opposite side and sums `remaining_qty` **excluding**
-   any resting order belonging to the same `gateway_id`, when `smp_action`
-   is anything other than `NONE`.
+1. The engine walks the opposite side **in priority order**, the way the
+   sweep will meet it, and sums the liquidity it can reach. With any
+   `smp_action` other than `NONE`, resting orders of the same `gateway_id`
+   do not count. Under `CANCEL_AGGRESSOR` / `CANCEL_BOTH` the sweep would
+   stop at the first such order, so nothing behind it counts either. A
+   resting iceberg's hidden quantity counts, but behind everything else at
+   its price, where its replenished peaks queue.
 2. If that filtered total is still less than the FOK's quantity, the order
    cannot fill completely. SMP is then resolved the same way a sweep would
    have resolved it — `CANCEL_RESTING`/`CANCEL_BOTH` cancel the conflicting

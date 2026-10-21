@@ -339,7 +339,13 @@ class OrderBook:
             self._match_ioc(order, trades, events, now)
 
         elif order.order_type == OrderType.TRAILING_STOP:
-            self._add_trailing_stop(order, events)
+            # Same on-entry rule as STOP / STOP_LIMIT above (M2).
+            if self.last_trade_price is not None and self._stop_is_triggered(
+                order, self.last_trade_price
+            ):
+                self._trigger_stop_now(order, trades, events, now)
+            else:
+                self._add_trailing_stop(order, events)
 
         # After any trade, check if stop orders should trigger.
         # #23: drive the cascade (stop → trade → stop → …) with an explicit work
@@ -1043,52 +1049,86 @@ class OrderBook:
     def _fok_available_qty(self, order: Order, heap: list[_HeapEntry]) -> int:
         """Liquidity a FOK could actually execute against.
 
-        Walks live resting orders on *heap* up to the FOK's price limit,
-        counting each order's full ``remaining_qty`` (so resting iceberg hidden
-        quantity is included), and excluding same-gateway orders when SMP is
-        active (they are skipped/cancelled and cannot fill the FOK).  See H8.
+        Walks live resting orders on *heap* in priority order up to the FOK's
+        price limit, the way the sweep will meet them (H8):
+
+        - Resting iceberg hidden quantity counts, but -- as a replenished peak
+          queues at the back of its level -- only behind everything else at
+          that price.
+        - Same-gateway orders are skipped when SMP is active: the sweep skips
+          or cancels them.
+        - Under CANCEL_AGGRESSOR / CANCEL_BOTH the sweep *stops* at the first
+          same-gateway order it meets, so nothing behind it counts. Summing
+          past it let a FOK trade part of its size and then cancel (workplan
+          T2, bug C).
         """
         price_limit = order.price_ticks
         side = order.side
         # See _process_fok's comment: None should never reach here, but treat
         # it as "no SMP" rather than raising if it somehow does.
         smp = order.smp_action or SmpAction.NONE
+        stops_sweep = smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
         gw = order.gateway_id
+        live = sorted(
+            e
+            for e in heap
+            if e.valid
+            and e.order.status not in _DEAD_STATUSES
+            and e.order.price_ticks is not None
+        )
         total = 0
-        for entry in heap:
-            if not entry.valid:
-                continue
+        level_price: Optional[int] = None
+        level_hidden = 0  # hidden iceberg qty queued at the back of this level
+        for entry in live:
             o = entry.order
-            if o.status in _DEAD_STATUSES:
-                continue
-            if o.price_ticks is None:
-                continue
+            price = o.price_ticks
+            assert price is not None
             if price_limit is not None:
-                if side == Side.BUY and o.price_ticks > price_limit:
-                    continue
-                if side == Side.SELL and o.price_ticks < price_limit:
-                    continue
+                if side == Side.BUY and price > price_limit:
+                    break
+                if side == Side.SELL and price < price_limit:
+                    break
+            if price != level_price:
+                total += level_hidden
+                level_price, level_hidden = price, 0
             # SMP: same-gateway resting liquidity is skipped/cancelled by the
             # sweep, so it cannot be used to fill this FOK.
             if smp != SmpAction.NONE and o.gateway_id == gw:
+                if stops_sweep:
+                    return total
                 continue
-            total += o.remaining_qty
-        return total
+            shown = (
+                o.displayed_qty
+                if o.order_type == OrderType.ICEBERG and o.displayed_qty is not None
+                else o.remaining_qty
+            )
+            total += shown
+            level_hidden += o.remaining_qty - shown
+        return total + level_hidden
 
     def _match_iceberg(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         """
-        Iceberg enters the book as a LIMIT order showing only displayed_qty.
-        Each time the visible slice is fully consumed, it replenishes from hidden qty.
+        An incoming iceberg trades its full quantity like a LIMIT -- one
+        execution per resting counterparty, as on real venues; hiding only
+        matters for what rests. The remainder rests behind a full peak.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
-        # Try to fill the current peak against resting orders on the other side
-        self._sweep_iceberg(order, opposite, trades, events, now)
-        # If still has quantity, rest the displayed slice — but not if the
-        # sweep killed the order (e.g. SMP cancel), which would leak phantom
-        # quantity into the level index (finding C3).
+        self._sweep(
+            order,
+            opposite,
+            price_limit=order.price_ticks,
+            trades=trades,
+            events=events,
+            now=now,
+        )
+        # Rest the remainder -- but not if the sweep killed the order (e.g. SMP
+        # cancel), which would leak phantom quantity into the level index
+        # (finding C3).
         if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
+            if order.visible_qty is not None:
+                order.displayed_qty = min(order.visible_qty, order.remaining_qty)
             self._rest(order)
 
     def _match_ioc(
@@ -1160,9 +1200,10 @@ class OrderBook:
     ) -> None:
         """Convert an already-breached stop to its live type and match it
         immediately on entry (M2), instead of resting it until a future trade."""
-        if order.order_type == OrderType.STOP:
+        if order.order_type in (OrderType.STOP, OrderType.TRAILING_STOP):
             order.order_type = OrderType.MARKET
             order.price_ticks = None
+            order.trail_offset_ticks = None
             order.ts_ns = now
             self._match_market(order, trades, events, now)
         else:  # STOP_LIMIT → LIMIT
@@ -1244,7 +1285,7 @@ class OrderBook:
         events: list[Order],
         now: int,
     ) -> None:
-        """Generic price-time sweep for MARKET / LIMIT / FOK."""
+        """Generic price-time sweep for MARKET / LIMIT / IOC / FOK / ICEBERG."""
         # Cache immutable aggressor attributes / bound methods as locals for the
         # tight sweep loop (see docs-design/perf-notes.md).
         _side = aggressor.side
@@ -1326,103 +1367,6 @@ class OrderBook:
                 aggressor.remaining_qty - fill_qty,
             )
             _apply_fill(aggressor, best, fill_qty, best_price, trades, events, now)
-
-    def _sweep_iceberg(
-        self,
-        iceberg: Order,
-        opposite_heap: list[_HeapEntry],
-        trades: list[Trade],
-        events: list[Order],
-        now: int,
-    ) -> None:
-        """
-        Sweep visible slice of iceberg; replenish peak if exhausted and hidden qty remains.
-        """
-        # None should never reach here (see SmpAction's docstring) but treat
-        # it as "no SMP" defensively rather than raising.
-        _smp_action = iceberg.smp_action or SmpAction.NONE
-        while iceberg.remaining_qty > 0 and opposite_heap:
-            best = self._peek(opposite_heap)
-            if best is None:
-                break
-            # Both the iceberg and the resting order always carry a price
-            # (L7: local narrowing removes the Optional-comparison ignores).
-            best_price = best.price_ticks
-            assert best_price is not None and iceberg.price_ticks is not None
-            if iceberg.side == Side.BUY and best_price > iceberg.price_ticks:
-                break
-            if iceberg.side == Side.SELL and best_price < iceberg.price_ticks:
-                break
-
-            # Self-match prevention
-            if _smp_action != SmpAction.NONE and iceberg.gateway_id == best.gateway_id:
-                if _smp_action == SmpAction.CANCEL_AGGRESSOR:
-                    log.debug(
-                        "SMP cancel aggressor (iceberg) order_id=%s symbol=%s vs resting_id=%s gateway=%s",
-                        iceberg.id,
-                        self.symbol,
-                        best.id,
-                        iceberg.gateway_id,
-                    )
-                    iceberg.status = OrderStatus.CANCELLED
-                    iceberg.cancel_reason = "SELF_MATCH_PREVENTED"
-                    events.append(iceberg)
-                    return
-                elif _smp_action == SmpAction.CANCEL_RESTING:
-                    self._smp_cancel_resting(best, events)
-                    continue
-                elif _smp_action == SmpAction.CANCEL_BOTH:
-                    log.debug(
-                        "SMP cancel both (iceberg) aggressor_id=%s resting_id=%s symbol=%s gateway=%s",
-                        iceberg.id,
-                        best.id,
-                        self.symbol,
-                        iceberg.gateway_id,
-                    )
-                    self._smp_cancel_resting(best, events)
-                    iceberg.status = OrderStatus.CANCELLED
-                    iceberg.cancel_reason = "SELF_MATCH_PREVENTED"
-                    events.append(iceberg)
-                    return
-
-            # Iceberg fills up to its current displayed slice; and when the
-            # passive resting order is itself an iceberg, cap against its
-            # displayed slice too (finding #17) rather than its hidden qty.
-            visible = iceberg.displayed_qty or 0
-            _passive_avail = (
-                best.displayed_qty
-                if best.order_type == OrderType.ICEBERG
-                and best.displayed_qty is not None
-                else best.remaining_qty
-            )
-            fill_qty = min(visible, _passive_avail)
-
-            log.debug(
-                "sweep fill (iceberg) symbol=%s aggressor_id=%s passive_id=%s side=%s price=%s qty=%s aggressor_remaining_after=%s",
-                self.symbol,
-                iceberg.id,
-                best.id,
-                iceberg.side.value,
-                best_price,
-                fill_qty,
-                iceberg.remaining_qty - fill_qty,
-            )
-            self._apply_fill(iceberg, best, fill_qty, best_price, trades, events, now)
-
-            # After filling, replenish iceberg peak if needed and still resting
-            if iceberg.remaining_qty > 0 and iceberg.displayed_qty == 0:
-                new_peak = min(iceberg.visible_qty or 0, iceberg.remaining_qty)
-                iceberg.displayed_qty = new_peak
-                # Reuse the cached batch timestamp for the replenished slice
-                # that re-queues to the back at the same price level.
-                iceberg.ts_ns = now
-                log.debug(
-                    "iceberg replenish order_id=%s symbol=%s new_displayed_qty=%s remaining_qty=%s",
-                    iceberg.id,
-                    self.symbol,
-                    new_peak,
-                    iceberg.remaining_qty,
-                )
 
     def _available_qty(
         self,

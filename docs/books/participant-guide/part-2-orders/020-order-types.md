@@ -304,6 +304,10 @@ Use ICEBERG when:
   engine admitted first — gets filled first; a fresh `arrival_seq` means this
   peak waits behind all other orders already resting at that price)
 - The total hidden size is **never visible** to other market participants
+- An **incoming** iceberg that crosses the book trades its **full** quantity
+  immediately, like a LIMIT — one execution per resting counterparty, not
+  one per peak. Only the remainder that rests is hidden: it rests with a full
+  peak of `min(VISIBLE, remaining)`
 
 !!! info "Priority is keyed on `arrival_seq`, not the order's `timestamp`"
     `arrival_seq` is a monotonic counter the **engine** assigns when it
@@ -475,6 +479,26 @@ Stops are evaluated after every trade event:
 |------------|----------------------------------|
 | BUY STOP   | `last_trade_price >= stop_price` |
 | SELL STOP  | `last_trade_price <= stop_price` |
+
+### Exact evaluation rules
+
+The rules below pin down the cases the overview leaves open. They hold for
+`STOP`, `STOP_LIMIT` and `TRAILING_STOP` alike.
+
+- **On entry.** A stop whose condition is *already* met by the last trade
+  price when it arrives triggers immediately instead of waiting for the next
+  trade. (While the market is not matching — pre-open, an auction call, a
+  halt — the entry check is skipped and the stop is simply stored; it is
+  evaluated after the next trade, normally the uncross print.)
+- **Once per incoming order.** Stops are evaluated after the incoming order
+  has finished matching, against the price of its **last** execution — not
+  after each individual print of a multi-level sweep. This matters for a
+  trailing stop: it ratchets once, to the sweep's final price.
+- **Several at once.** When one evaluation triggers several stops they
+  execute one after another: triggered BUY stops first (lowest stop price
+  first, then in arrival order), then SELL stops (highest stop price first,
+  then in arrival order), then trailing stops in arrival order. Stops
+  triggered by *those* executions queue behind them and run in turn.
 
 **Why does a BUY STOP trigger at a price *higher* than the stop?**
 

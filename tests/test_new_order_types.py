@@ -451,6 +451,39 @@ class TestTrailingStopOrderBook:
         resting = book.resting_orders()
         assert any(o.id == ts.id for o in resting)
 
+    @pytest.mark.parametrize(
+        "side, stop, resting_side, resting_price",
+        [(Side.SELL, 101, Side.BUY, 99), (Side.BUY, 99, Side.SELL, 101)],
+    )
+    def test_trailing_stop_already_breached_triggers_on_entry(
+        self, book, side, stop, resting_side, resting_price
+    ):
+        """Like STOP / STOP_LIMIT, a trailing stop whose stop is already
+        breached by the last trade triggers on entry (participant guide,
+        Stop Trigger Logic → Exact evaluation rules)."""
+        book.process(_make_order(side=Side.BUY, qty=1, price=100, gateway_id="A"))
+        book.process(_make_order(side=Side.SELL, qty=1, price=100, gateway_id="B"))
+        resting = _make_order(
+            side=resting_side, qty=10, price=resting_price, gateway_id="C"
+        )
+        book.process(resting)
+
+        ts = _make_order(
+            side=side,
+            qty=5,
+            price=None,
+            order_type=OrderType.TRAILING_STOP,
+            stop_price=stop,
+            trail_offset=3,
+            gateway_id="T",
+        )
+        trades, _ = book.process(ts)
+
+        assert [(t.price, t.quantity) for t in trades] == [(resting_price, 5)]
+        assert ts.order_type == OrderType.MARKET
+        assert ts.status == OrderStatus.FILLED
+        assert book._trailing_stops == []
+
     def test_trailing_stop_not_triggered_without_trades(self, book):
         """A trailing stop should not trigger unless a trade occurs."""
         ts = _make_order(

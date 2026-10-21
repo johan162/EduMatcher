@@ -17,8 +17,9 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|---|---|---|---|---|---|
 | 1 | F1 | Fix bug A: auctions mishandle hidden iceberg quantity | Q1 | 1 d | ☑ | 2026-10-21 |
 | 2 | F2 | Fix bug B: iceberg qty-decrease amend refills its peak with priority kept | Q2 | 0.5 d | ☑ | 2026-10-21 |
-| 3 | T1 | Mutation-testing tool and baseline (`tools/mutate_engine.py`) | — | 1 d | ☐ | |
-| 4 | T2 | Independent reference matcher (`tests/reference_matcher.py`) | F1, F2, Q3 | 3 d | ☐ | |
+| 3 | T1 | Mutation-testing tool and baseline (`tools/mutate_engine.py`) | — | 1 d | ☑ | 2026-10-21 |
+| 4 | T2 | Independent reference matcher (`tests/reference_matcher.py`) | F1, F2, Q3 | 3 d | ☑ | 2026-10-21 |
+| 4b | F3 | Fix bug C: FOK partially fills under SMP CANCEL_AGGRESSOR/BOTH (found in T2) | — | — | ☑ | 2026-10-21 |
 | 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☐ | |
 | 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☐ | |
 | 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☐ | |
@@ -49,7 +50,7 @@ comes early because every later test WP measures itself against its baseline.
 |---|---|---|
 | Q1 | Does an iceberg's **hidden** quantity take part in an auction uncross? The docs do not say. | **Yes**, as on most real venues, but ranked behind visible quantity at the same price (the hidden part queues behind displayed orders, peak by peak). The indicative price/volume then has to include hidden quantity too, otherwise the published indicative differs from what the uncross prints. Alternative: hidden quantity sits out the auction, so equilibrium and execution both use displayed quantity only. That is simpler, but it is unusual and leaves hidden quantity unexecuted at a crossing price. |
 | Q2 | After a qty-decrease amend on an iceberg, may the shown slice grow? | **No.** Shown = min(current shown, new remaining), so priority is kept honestly. A refill is a new peak and goes to the back of the queue, as on replenishment. `020-order-types.md:1074` ("displayed_qty is recalculated from `visible_qty`") gets reworded. |
-| Q3 | The reference matcher must be written from the **documented** rules, not from `order_book.py`. Where the docs are silent (Q1, stop trigger evaluation after a multi-level sweep, iceberg aggressor resting with a partly used peak), whose rule wins? | Write each gap into the participant guide as part of T2, then implement both sides from that text. List each one in the insights log. |
+| Q3 ☑ | The reference matcher must be written from the **documented** rules, not from `order_book.py`. Where the docs are silent (Q1, stop trigger evaluation after a multi-level sweep, iceberg aggressor resting with a partly used peak), whose rule wins? | Write each gap into the participant guide as part of T2, then implement both sides from that text. List each one in the insights log. |
 
 ---
 
@@ -224,6 +225,30 @@ and that a price change or increase refills it (and loses priority).
 shown slice (shown shrinks to the new remaining), a price change (refills,
 goes to the back), and `assert_book_invariants` after each.
 
+### Bug C — FOK partially fills under SMP CANCEL_AGGRESSOR / CANCEL_BOTH (found in T2)
+
+The operator guide promises "a self-match candidate can never cause a partial
+fill". The FOK pre-check (`_fok_available_qty`) summed all non-own liquidity
+within the limit, but the sweep **stops** at the first own order it meets
+under `CANCEL_AGGRESSOR`/`CANCEL_BOTH`:
+
+```
+SELL LIMIT  3 @ 99   OTHER
+SELL LIMIT  5 @ 100  ME
+SELL LIMIT 10 @ 101  OTHER
+BUY  FOK   10 @ 101  ME, SMP=CANCEL_AGGRESSOR
+→ pre-check 13 ≥ 10, sweep trades 3 @ 99, meets ME @ 100, FOK cancelled
+  with 3 of 10 filled
+```
+
+**Fix.** The pre-check walks the opposite side in priority order, as the
+sweep will. Under `CANCEL_AGGRESSOR`/`CANCEL_BOTH` it stops at the first own
+order. Iceberg hidden quantity counts only behind everything else at its
+price, where replenished peaks queue. Under `CANCEL_RESTING` own orders are
+skipped. Tests: `TestH8FokCorrectness` (both modes, and the variant where an
+iceberg's hidden part sits behind an own order). Mutant M30. Operator guide
+FOK step 1 reworded.
+
 ---
 
 ## 3. Test work packages
@@ -236,8 +261,9 @@ Make the review's mutation run repeatable instead of a one-off.
   `(id, description, file, old, new)` (M01–M24 above, plus new mutants for
   bugs A and B: "uncross fills full remaining", "equilibrium on shown qty",
   "amend refills peak"). For each mutant it applies the change in a scratch
-  copy (`git archive HEAD` into a temp dir, `PYTHONPATH` first, so the
-  working tree is never touched), runs `pytest tests -n logical -q`, and
+  copy of the working tree (tracked + untracked files, `.venv` symlinked,
+  `PYTHONPATH` first, so the working tree is never touched; I7), runs
+  `pytest tests -n logical -q`, and
   reports kills per mutant plus the killing test IDs. Arguments: mutant IDs
   to run, `--tests` to restrict the selection.
 - A Makefile target `make mutate` (not part of `_check`; a full run takes
@@ -247,6 +273,35 @@ Make the review's mutation run repeatable instead of a one-off.
 - Record the baseline in this file.
 
 Success: the tool reproduces the §1 table.
+
+**As built (2026-10-21).** `tools/mutate_engine.py` (M01–M27; `--list`,
+`--check`, `--tests PATH` repeatable, `--timeout`), `make mutate`, and the
+guard `tests/test_mutate_engine.py` (in the default suite: every pattern occurs
+exactly once and the mutated file parses). A run starts with an unmutated
+baseline and stops unless pytest exits 0. A mutant is *killed* when pytest
+exits 1 (count = failing tests), *error* on exit ≥ 2 (detected, by no single
+test) and *hung* on timeout.
+
+**Baseline (2026-10-21, after F1/F2, full suite, 10,430 tests).** It
+reproduces §1: every count is equal or higher, and the F1/F2 regression
+tests are the only tests added since, so they account for the rises. M25–M27
+are new.
+
+| ID | §1 | T1 | ID | §1 | T1 | ID | §1 | T1 |
+|---|---|---|---|---|---|---|---|---|
+| M01 | 6 | 6 | M10 | 1 | 1 | M19 | 2 | 2 |
+| M02 | 3 | 3 | M11 | 3 | 3 | M20 | 2 | 2 |
+| M03 | 149 | 153 | M12 | 1 | 1 | M21 | 2 | 2 |
+| M04 | 5 | 6 | M13 | 6 | 6 | M22 | 9 | 9 |
+| M05 | 3 | 5 | M14 | 2 | 5 | M23 | 5 | 6 |
+| M06 | 8 | 8 | M15 | 6 | 6 | M24 | 5 | 5 |
+| **M07** | **0** | **0** | **M16** | **0** | **0** | M25 | — | 2 |
+| M08 | 4 | 4 | **M17** | **0** | **0** | M26 | — | 3 |
+| M09 | 1 | 1 | M18 | 2 | 2 | M27 | — | 1 |
+
+24/27 killed; survivors M07, M16, M17 (T5's targets). 12 of the 24 killed
+mutants have ≤ 3 kills. The T1 column is the full run minus the guard test
+(I10), spot-checked by a rerun of M07, M16, M17 and M27.
 
 ### T2 — Independent reference matcher
 
@@ -274,6 +329,15 @@ Watch-outs: about 300 lines. If it grows a heap or an index, it is no longer
 independent. Every place where the docs were silent goes into the docs first
 and then into the insights log.
 
+**As built (2026-10-21).** `tests/reference_matcher.py` (`ReferenceMatcher`:
+`submit`, `cancel`, `amend`, `equilibrium`, `uncross`, `book`; `ROrder`,
+`RTrade` with wire strings; about 420 lines including docstrings). Plain lists
+are re-scanned with `min()` per match. The FOK check is a dry run of the
+sweep on a deep copy, so it agrees with the sweep by construction.
+`tests/test_reference_matcher.py`: 48 acceptance tests, each a documented
+example or rule, cited. The gaps G1–G8 are in I13–I16; three of them changed
+the engine (I14, I15, F3).
+
 ### T3 — Differential fuzz: `OrderBook` vs reference
 
 `tests/test_matching_differential.py`: seeded random operation streams
@@ -295,6 +359,13 @@ resting books, plus `assert_book_invariants`.
 
 Success: M01, M02, M04, M05, M07, M09–M12, M14, M16, M17 and the bug A/B
 mutants are each killed by T3 alone.
+
+Starting point from T2 (I18): a scratch probe comparing trade lists over
+800 seeds × 300 steps (all types, SMP, stops, cancels) found 0 divergences
+against the fixed engine, and 200/200 against the pre-T2 engine. T3 makes it
+a real test: it adds statuses, the resting book, crossing amends (engine
+level) and auction batches. Expected divergence: the uncross stop cascade
+(I19).
 
 ### T4 — Dataset smoke test checked against the reference
 
@@ -402,3 +473,17 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I4 | F1 | `compute_equilibrium` is now O(n) instead of O(price levels). Callers: indicative flush (throttled), end of each call phase, ACE dry run, closing backstop, reopen dry run. None is per-order. | No action. Full suite and e2e unchanged in time. |
 | I5 | F1 | `docs/books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive.md` §"Iceberg Orders and the FOK Undercount" is stale independently of this plan: since finding #15 the FOK pre-check walks the heaps and counts hidden quantity (`_fok_available_qty`), and `_available_qty` is now unused dead code. | Not changed (out of scope). Candidates for T9's docs pass and a dead-code removal. |
 | I6 | F2 | `test_iceberg_qty_decrease_below_visible` already passed, because `min(visible, remaining)` happens to be right when the new remaining is below the current shown slice. Only the "partly used peak, decrease above it" case exposed the bug. | Regression tests cover decrease-above, decrease-below, price change and increase. T1 adds the mutant "amend refills peak". |
+| I7 | T1 | `git archive HEAD` (as planned) measures the last commit, not the code under test. The copy is built from `git ls-files --cached --others --exclude-standard` instead, so uncommitted work (e.g. a new test file) counts. | Tool and T1 text updated. |
+| I8 | T1 | `test_config_gen_cli_help.py` shells out to `poetry run`, which fails in a copy without an in-project venv. That was the one baseline failure in the review's scratch runs. | The copy gets a `.venv` symlink to the project's venv. |
+| I9 | T1 | `-p no:cov` makes pytest exit with a usage error, because pyproject's `addopts` carry `--cov` flags. The first draft read "no FAILED lines" as green, so a run that tested nothing reported every mutant as SURVIVED and the baseline as green. | `--no-cov`. Every run is classified by pytest's exit code (0 / 1 / ≥ 2) and the baseline must exit 0. |
+| I10 | T1 | The guard test fails for every mutant by construction (a mutated file no longer holds its pattern), so it added 1 to every count and turned the three survivors into "killed by 1". | Mutation runs `--ignore` the guard (`GUARD_TEST`). Baseline counts corrected by −1 (exact: no mutant's `new` contains its `old`) and spot-checked. |
+| I11 | T1 | Two review patterns were not unique: M11 (the STOP→MARKET block exists for buy and sell stops) and M21 (the ownership check also guards amend). The review script picked "the first occurrence", which silently depends on source order. | Patterns extended with context until unique; uniqueness is enforced by the guard test. |
+| I12 | T1 | Full run: 28 suite runs at about 90 s each, so about 45 min. Running a subset is fast (`--tests tests/test_auction.py …`: about 4 s per mutant), which is the practical loop for T5. | Documented in the tool's usage text and `make mutate` help. |
+| I13 | T2 | Docs gaps closed (Q3), written into the participant guide ("Stop Trigger Logic → Exact evaluation rules", ICEBERG) and operator guide (SMP): **G1** stops are evaluated once per incoming order, against its last print (matters for a trailing stop's ratchet); **G2** several triggered at once run BUY stops (lowest stop first), then SELL (highest first), then trailing, each by arrival, and stops triggered by those queue behind; **G3** a stop already breached on entry triggers at once, all 3 types; **G4** an incoming iceberg trades its full quantity; **G5** SMP cancels a resting iceberg whole; **G6** no SMP in the uncross; **G8** no entry check while not matching. G1, G2, G5, G6 and G8 document existing behaviour. (G7, fresh priority for a triggered stop, was already documented.) | Docs updated; the reference implements G1–G8. |
+| I14 | T2 | G3: a TRAILING_STOP already breached on entry was parked until the next trade, while STOP / STOP_LIMIT trigger on entry (M2). There was no reason for the difference. | `OrderBook.process` triggers it on entry via `_trigger_stop_now` (now also converts TRAILING_STOP → MARKET). Tests in `TestTrailingStopOrderBook`; mutant M28. |
+| I15 | T2 | G4: an incoming iceberg traded in **peak-sized chunks**: 5 prints of 10 against one resting 50-lot, inflating trade counts and MD prints. After a partial fill it then rested with a partly used peak. Real venues (e.g. Xetra) execute an incoming iceberg's full volume. | `_match_iceberg` uses `_sweep` and rests the remainder behind `min(visible, remaining)`; `_sweep_iceberg` removed as unused. Tests in `test_order_flow.py`; mutant M29. |
+| I16 | T2 | G5: the operator guide said SMP cancels only a resting iceberg's peak and it then replenishes; the engine cancels the whole order (one `order.cancelled`). The doc sentence was wrong. | Operator guide corrected; the reference follows the engine. |
+| I17 | T2 | Bug C (FOK partial fill under SMP) found while writing the reference's FOK rule from the operator guide text. | F3 row added; fixed (§2, bug C); mutant M30. |
+| I18 | T2 | A throwaway probe (reference vs `OrderBook`, trade lists only, 800 streams × 300 steps with SMP and stops) found 0 divergences after the T2 changes and 200/200 before them, so the probe is sensitive and the two independent implementations agree. | Basis for T3 (see its text). |
+| I19 | T2 | Stop cascade after an uncross differs from continuous: `Engine._run_uncross` takes the triggered list once and runs each with `book.process` (depth-first: a stop's own triggers run before the next listed stop), while `OrderBook.process` queues them breadth-first (rule G2). | Not changed. T3 will confirm with an engine-level auction case and decide on the fix. |
+| I20 | T2 | Mutant M09's pattern became ambiguous once the TRAILING_STOP on-entry branch existed. The T1 guard caught it on the first full run. | M09 re-anchored on its comment line; M28–M30 added (all killed). |
