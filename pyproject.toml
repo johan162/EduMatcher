@@ -51,7 +51,7 @@ types-tabulate = "^0.10.0.20260308"
 pyright = "^1.1.414"
 flake8 = "^7.3.0"
 black = "^26.5.1"
-shtab = "^1.12.1"
+shtab = "1.13.0"  # exact: the committed completion scripts are its byte-for-byte output
 mypy = "^2.3.1"
 types-psutil = "^7.2.2.20260906"
 
