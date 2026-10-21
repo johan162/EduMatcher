@@ -1123,10 +1123,12 @@ executable volume:
 ```python
 # engine/auction.py
 def compute_equilibrium(book: "OrderBook") -> AuctionResult:
-    # Build cumulative buy and sell quantities at each price level
-    # Uses _bid_qty and _ask_qty directly — O(P) not O(n)
-    bid_prices = sorted(book._bid_qty.keys(), reverse=True)
-    ask_prices = sorted(book._ask_qty.keys())
+    # Build cumulative buy and sell quantities at each price level.
+    # Not from _bid_qty/_ask_qty: that index holds only an iceberg's
+    # visible peak, and the uncross executes hidden quantity too.
+    bid_qty, ask_qty = _auction_levels(book)   # one O(n) walk of the heaps
+    bid_prices = sorted(bid_qty.keys(), reverse=True)
+    ask_prices = sorted(ask_qty.keys())
 
     # For each candidate price P:
     # buy_qty  = Σ bids at prices >= P  (buyers willing to pay at least P)

@@ -1071,7 +1071,7 @@ otherwise be marketable.
 | New QTY = 0 or negative           | **REJECTED** — "Quantity must be positive"                                             |
 | New PRICE $\leq$ 0                | **REJECTED** — "Price must be positive"                                                |
 | Neither PRICE nor QTY supplied    | **REJECTED** — "Amend requires at least PRICE or QTY"                                  |
-| Iceberg order amended             | Supported — displayed_qty is recalculated from `visible_qty`                           |
+| Iceberg order amended             | Supported — a price change or qty increase refills the peak to `visible_qty` (priority lost); a qty decrease never enlarges the current peak, only shrinks it to the new remaining |
 | Combo child order amended         | Allowed — the child is a normal resting order                                          |
 | OCO leg amended                   | Allowed — does not affect the OCO linkage                                              |
 | Amend during auction phase        | Allowed (any non-`CLOSED` state accepts amends) — see note above about crossing amends  |

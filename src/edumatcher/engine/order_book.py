@@ -517,7 +517,14 @@ class OrderBook:
         order.quantity = qty
         order.remaining_qty = qty - filled_qty
         if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
-            order.displayed_qty = min(order.visible_qty, order.remaining_qty)
+            # A refilled slice is a new peak and queues at the back, so only an
+            # amend that loses priority anyway may refill it. One that keeps
+            # priority (a qty decrease) can only shrink a partly used slice —
+            # refilling it in place would jump the orders queued behind.
+            if priority_reset:
+                order.displayed_qty = min(order.visible_qty, order.remaining_qty)
+            else:
+                order.displayed_qty = min(order.displayed_qty or 0, order.remaining_qty)
 
         new_visible = (
             order.displayed_qty or 0

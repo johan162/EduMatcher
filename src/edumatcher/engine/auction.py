@@ -6,6 +6,11 @@ Standard Two-sided Auction:
   2. Break ties by minimising surplus (imbalance).
   3. Execute all crossable interest at that single price using price-time priority.
 
+An iceberg's hidden quantity takes part, ranked behind the visible quantity at
+its price: the uncross fills at most its shown slice per pass and replenishes
+the slice at the back of the queue, as continuous matching does. The demand and
+supply curves count the same total quantity, so the indicative is what prints.
+
 The functions in this module operate on an OrderBook instance and return
 trades + events for the engine to publish.
 """
@@ -18,9 +23,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from edumatcher.engine.order_book import _DEAD_STATUSES
 from edumatcher.models.clock import now_ns
 
-from edumatcher.models.order import Order
+from edumatcher.models.order import Order, OrderType
 from edumatcher.models.trade import Trade
 
 if TYPE_CHECKING:
@@ -39,12 +45,33 @@ class AuctionResult:
     imbalance_side: str  # "BUY", "SELL", or "" if balanced
 
 
+def _auction_levels(book: "OrderBook") -> tuple[dict[int, int], dict[int, int]]:
+    """Total live resting quantity per price level, bids and asks.
+
+    Unlike the book's ``_bid_qty`` / ``_ask_qty`` index, which holds only an
+    iceberg's shown slice, this counts each order's full ``remaining_qty`` --
+    the quantity the uncross can actually execute. O(n) over the heaps, which
+    is fine for an auction; a second persistent index would be one more
+    structure to keep in sync.
+    """
+    levels: list[dict[int, int]] = []
+    for heap in (book._bids, book._asks):
+        qty: dict[int, int] = {}
+        for entry in heap:
+            o = entry.order
+            if not entry.valid or o.status in _DEAD_STATUSES or o.price_ticks is None:
+                continue
+            qty[o.price_ticks] = qty.get(o.price_ticks, 0) + o.remaining_qty
+        levels.append(qty)
+    return levels[0], levels[1]
+
+
 def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     """
     Find the price that maximises executable quantity.
 
-    Uses the book's price-level quantity indexes (_bid_qty / _ask_qty) for
-    an O(p) scan over p distinct price levels.
+    Builds the curves from total resting quantity per price level, hidden
+    iceberg quantity included (see ``_auction_levels``).
 
     Algorithm
     ---------
@@ -56,8 +83,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
 
     Pick P that maximises exec_qty; break ties by minimising surplus.
     """
-    bid_prices = sorted(book._bid_qty.keys(), reverse=True)  # highest first
-    ask_prices = sorted(book._ask_qty.keys())  # lowest first
+    bid_qty, ask_qty = _auction_levels(book)
+    bid_prices = sorted(bid_qty.keys(), reverse=True)  # highest first
+    ask_prices = sorted(ask_qty.keys())  # lowest first
 
     if not bid_prices or not ask_prices:
         log.debug(
@@ -70,7 +98,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     cum_buy: dict[int, int] = {}
     running = 0
     for p in bid_prices:
-        running += book._bid_qty[p]
+        running += bid_qty[p]
         cum_buy[p] = running
 
     # Build cumulative sell qty from lowest price upward:
@@ -78,7 +106,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     cum_sell: dict[int, int] = {}
     running = 0
     for p in ask_prices:
-        running += book._ask_qty[p]
+        running += ask_qty[p]
         cum_sell[p] = running
 
     # Candidate prices = union of all bid and ask price levels, sorted
@@ -169,8 +197,9 @@ def executable_at(book: "OrderBook", eq_price: int) -> AuctionResult:  # noqa: F
     peek to show what an asserted price would print. ``eq_price`` is echoed
     only when something would cross; ``None`` means the price prints nothing.
     """
-    buy_qty = sum(q for p, q in book._bid_qty.items() if p >= eq_price)
-    sell_qty = sum(q for p, q in book._ask_qty.items() if p <= eq_price)
+    bid_qty, ask_qty = _auction_levels(book)
+    buy_qty = sum(q for p, q in bid_qty.items() if p >= eq_price)
+    sell_qty = sum(q for p, q in ask_qty.items() if p <= eq_price)
     exec_qty = min(buy_qty, sell_qty)
     surplus = abs(buy_qty - sell_qty)
     if buy_qty > sell_qty:
@@ -187,6 +216,13 @@ def executable_at(book: "OrderBook", eq_price: int) -> AuctionResult:  # noqa: F
     )
 
 
+def _shown_qty(order: Order) -> int:
+    """What one uncross pass may fill against *order*."""
+    if order.order_type == OrderType.ICEBERG and order.displayed_qty is not None:
+        return order.displayed_qty
+    return order.remaining_qty
+
+
 def execute_uncross(
     book: "OrderBook", eq_price: int
 ) -> tuple[list[Trade], list[Order]]:
@@ -194,7 +230,8 @@ def execute_uncross(
     Execute all crossable interest at the equilibrium price.
 
     Sweeps bids (highest-first) against asks (lowest-first), all fills at
-    eq_price.  Uses price-time priority within each side.
+    eq_price.  Uses price-time priority within each side; an iceberg fills at
+    most its shown slice per pass (see the module docstring).
 
     Returns (trades, events) — same shape as OrderBook.process().
     """
@@ -216,7 +253,11 @@ def execute_uncross(
         if best_ask.price_ticks > eq_price:  # type: ignore[operator]
             break  # remaining asks above equilibrium
 
-        fill_qty = min(best_bid.remaining_qty, best_ask.remaining_qty)
+        # Cap an iceberg at its shown slice, as _sweep does for a passive one
+        # (finding #17): _apply_fill replenishes a used-up slice at the back of
+        # the queue, and the level index only ever held the shown slice, so a
+        # larger fill would both jump the queue and over-deduct the level.
+        fill_qty = min(_shown_qty(best_bid), _shown_qty(best_ask))
         log.debug(
             "uncross fill symbol=%s bid_id=%s ask_id=%s eq_price=%s qty=%s",
             book.symbol,
