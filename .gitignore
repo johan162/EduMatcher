@@ -83,9 +83,6 @@ ipython_config.py
 # pipenv
 Pipfile.lock
 
-# poetry
-poetry.lock
-
 # pdm
 .pdm.toml
 .pdm-python
