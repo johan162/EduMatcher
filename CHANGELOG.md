@@ -1,4 +1,4 @@
-## [v0.51.0] - 2026-10-21
+## [v0.51.1] - 2026-10-21
 
 Release Type: major
 
@@ -21,6 +21,7 @@ This release adds integrated exchange health monitoring and a new operator dashb
 ### 🛠 Internal
 - Added health-monitoring unit, integration, end-to-end, and deployment test coverage
 - Added `psutil` as a runtime dependency for host metrics
+- Make sure non of the e2e container tests are run in GítHub CI/CD pipeline
 
 
 ## [v0.50.7] - 2026-10-18
