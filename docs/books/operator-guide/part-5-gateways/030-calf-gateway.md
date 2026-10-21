@@ -61,6 +61,12 @@ Responsibilities of `pm-md-gwy`:
   `WELCOME|CH_SUPPORTED=`, so clients can detect `DEPTH`/`INDEX`/wildcard
   availability without a protocol version bump
 - enforces per-client subscription limits and disconnects slow clients
+- asks the engine for its session phase every two seconds, over the engine's
+  PULL socket (`:5555`). This is the gateway's only traffic towards the engine.
+  The engine announces its phase only on a transition, so without the query a
+  gateway started after the last transition, or an exchange started outside
+  trading hours, would never learn it. Until the first answer arrives, `STATE`
+  reports `SESSION=UNKNOWN`.
 
 
 ## The feed at a glance

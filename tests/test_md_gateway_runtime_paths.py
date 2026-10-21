@@ -5,7 +5,7 @@ import signal
 import socket
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from types import SimpleNamespace
 
 import pytest
@@ -300,6 +300,7 @@ def test_poll_engine_events_halt_emits_state_and_cb(
     )
     unit_gateway._sub_sock.close()
     unit_gateway._sub_sock = fake
+    unit_gateway._normaliser.session_state = "CONTINUOUS"
     monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
 
     seen: list[tuple[str, str, str, dict[str, str]]] = []
@@ -386,6 +387,7 @@ def test_poll_engine_events_resume_emits_state_and_cb(
     )
     unit_gateway._sub_sock.close()
     unit_gateway._sub_sock = fake
+    unit_gateway._normaliser.session_state = "CONTINUOUS"
     monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
 
     seen: list[tuple[str, str, str, dict[str, str]]] = []
@@ -860,3 +862,78 @@ def test_session_transition_leaves_a_halted_symbol_halted(
     # The halt outlives the phase it began in; only an explicit resume ends it.
     snapshot = unit_gateway._normaliser.state_snapshot_fields("AAPL")
     assert snapshot == {"SESSION": "HALTED"}
+
+
+def test_session_status_reply_corrects_the_session_without_a_transition(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exchange booted CLOSED outside hours broadcasts no transition.
+
+    The gateway only learns the phase from its own query, and must publish
+    it as if it were one -- otherwise every client is told CONTINUOUS (or,
+    now, UNKNOWN) about a closed exchange for as long as it stays closed.
+    A repeated, unchanged answer is not an event.
+    """
+    status_topic = unit_gateway._session_status_topic
+    fake = _FakeSubscriber(
+        [
+            (status_topic, {"state": "CLOSED", "sessions_enabled": True}),
+            (status_topic, {"state": "CLOSED", "sessions_enabled": True}),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((sym, fields)),
+    )
+    unit_gateway._poll_engine_events()
+
+    assert seen.count(("*", {"SESSION": "CLOSED"})) == 1
+    per_symbol = {sym: fields for sym, fields in seen if sym != "*"}
+    assert per_symbol["AAPL"] == {"SESSION": "CLOSED", "PREV": "UNKNOWN"}
+    assert unit_gateway._normaliser.state_snapshot_fields("*") == {"SESSION": "CLOSED"}
+
+
+def _replace_push(
+    gw: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    send: Callable[[list[bytes]], None],
+) -> None:
+    gw._push.close()
+    fake = SimpleNamespace(send_multipart=send, closed=True, close=lambda: None)
+    monkeypatch.setattr(gw, "_push", fake)
+
+
+def test_session_state_query_is_sent_and_throttled(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[list[bytes]] = []
+    _replace_push(unit_gateway, monkeypatch, sent.append)
+
+    unit_gateway._query_session_state_if_due()
+    unit_gateway._query_session_state_if_due()
+
+    assert len(sent) == 1
+    assert sent[0][0] == b"system.session_state_request"
+    # The engine answers under the upper-cased id, which is what is subscribed.
+    assert unit_gateway._session_status_topic == "system.session_status.MD-GWY01"
+
+
+def test_session_state_query_tolerates_an_absent_engine(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import zmq
+
+    def _engine_down(_frames: list[bytes]) -> None:
+        raise zmq.Again()
+
+    _replace_push(unit_gateway, monkeypatch, _engine_down)
+    unit_gateway._query_session_state_if_due()

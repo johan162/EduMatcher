@@ -184,6 +184,7 @@ def _resolve_config(
             bind_address=bind_address,
             port=port,
             engine_pub_addr=engine_pub_addr,
+            engine_pull_addr=cfg.engine_pull_addr,
             index_pub_addr=index_pub_addr,
             heartbeat_interval_sec=cfg.heartbeat_interval_sec,
             idle_timeout_sec=cfg.idle_timeout_sec,

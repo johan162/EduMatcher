@@ -10,6 +10,7 @@ import yaml
 
 from edumatcher.config import (
     ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
     INDEX_PUB_CONNECT_ADDR,
     resolve_gateway_bind_host,
 )
@@ -24,6 +25,8 @@ class MarketDataGatewayConfig:
     bind_address: str = field(default_factory=resolve_gateway_bind_host)
     port: int = 5570
     engine_pub_addr: str = ENGINE_PUB_ADDR
+    # The one thing sent upstream: session-state queries (gateway.py).
+    engine_pull_addr: str = ENGINE_PULL_ADDR
     index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
     heartbeat_interval_sec: int = 1
     # 5s matches config_gen's DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC, the

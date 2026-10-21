@@ -653,6 +653,33 @@ def test_every_process_of_the_profile_beacons_and_is_healthy(
     assert seqs == list(range(seqs[0], seqs[0] + len(seqs)))
 
 
+def test_the_calf_feed_reports_the_engines_session_not_a_default(
+    exchange: Exchange,
+) -> None:
+    """pm-md-gwy asks the engine for the phase; it no longer assumes one.
+
+    The engine announces its session only on a transition, and this profile
+    makes none, so CONTINUOUS can reach a CALF client only through the
+    gateway's query -- the path that tells a terminal an exchange started
+    outside trading hours is CLOSED. Without it the feed says UNKNOWN.
+    """
+    from edumatcher.md_gateway.protocol import parse_line
+
+    seen: list[str] = []
+    with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
+        sock.sendall(b"HELLO|CLIENT=e2e-state|PROTO=CALF1\nSUB|CH=STATE|SYM=*\n")
+        reader = sock.makefile("r", encoding="utf-8")
+
+        def session_is_continuous() -> bool:
+            frame = parse_line(reader.readline().rstrip("\n"))
+            if frame.fields.get("CH") != "STATE" or frame.fields.get("SYM") != "*":
+                return False
+            seen.append(frame.fields["SESSION"])
+            return frame.fields["SESSION"] == "CONTINUOUS"
+
+        until(session_is_continuous, "CALF STATE SYM=* CONTINUOUS", 15, lambda: seen)
+
+
 def test_a_traders_activity_reaches_every_figure(
     exchange: Exchange, feed: Feed
 ) -> None:
