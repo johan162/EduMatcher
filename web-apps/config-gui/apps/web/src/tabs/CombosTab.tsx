@@ -16,6 +16,7 @@ import { Panel } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
+import { ColumnHead } from "@/components/ui/ColumnHead";
 
 /**
  * "Use the seeding gateway's smp_action": the key is omitted from the leg.
@@ -101,18 +102,18 @@ export function CombosTab() {
             </button>
           </div>
 
-          <FieldRow label="Legs" path={`combos.${combo.comboId}.legs`} required>
+          <FieldRow label="Legs" help={{ text: "The orders that make up the combo, two to ten. They stand or fall together: if one is cancelled or expires, the rest are cancelled." }} path={`combos.${combo.comboId}.legs`} required>
             <div className="w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs uppercase text-fg-subtle">
                   <tr>
-                    <th className="px-2 py-1">Symbol</th>
-                    <th className="px-2 py-1">Side</th>
-                    <th className="px-2 py-1">Type</th>
-                    <th className="px-2 py-1">Qty</th>
-                    <th className="px-2 py-1">Price</th>
-                    <th className="px-2 py-1">Stop</th>
-                    <th className="px-2 py-1">SMP</th>
+                    <th className="px-2 py-1"><ColumnHead label="Symbol" help="The instrument this leg trades. Legs may be in different symbols." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="Side" help="BUY or SELL for this leg." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="Type" help="LIMIT trades at its price or better; MARKET takes what the book offers and carries no price." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="Qty" help="Quantity of this leg, a positive whole number." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="Price" help="Limit price of the leg. Required for a LIMIT leg." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="Stop" help="Stop trigger price, for legs that wait for the last trade to reach a level. Leave empty otherwise." /></th>
+                    <th className="px-2 py-1"><ColumnHead label="SMP" help="Self-match prevention for this leg: what happens when it would trade against an order of the same participant. NONE allows it; CANCEL_AGGRESSOR, CANCEL_RESTING and CANCEL_BOTH cancel the incoming order, the resting one, or both." /></th>
                     <th className="px-2 py-1" />
                   </tr>
                 </thead>

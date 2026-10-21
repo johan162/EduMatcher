@@ -52,6 +52,8 @@ import {
 } from "../lib/executable.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { DENSITY_ROW_CLASS, usePrefsStore } from "../store/usePrefsStore.js";
+import { valueHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 
 /** How long an auction banner stays before dismissing itself (§9.3a). */
 const AUCTION_BANNER_MS = 60_000;
@@ -754,7 +756,12 @@ function Group({
       </tr>
       {rows.map(({ label, value, note, tone }) => (
         <tr key={label} className={`border-b border-border-subtle ${rowClass}`} title={hint}>
-          <td className="text-fg-subtle">{label}</td>
+          <td className="text-fg-subtle">
+            <span className="inline-flex items-center gap-1">
+              {label}
+              {valueHelp(label) && <InfoTip label={label} help={valueHelp(label)!} />}
+            </span>
+          </td>
           <td className="text-right tabular">
             {note && <span className="mr-1.5 text-xs text-fg-faint">{note}</span>}
             <span className={muted ? "text-fg-faint" : tone} data-testid={`value-${label}`}>

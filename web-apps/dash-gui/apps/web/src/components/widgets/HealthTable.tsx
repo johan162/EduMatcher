@@ -11,6 +11,8 @@
 
 import clsx from "clsx";
 import { memo, useState, type ReactNode } from "react";
+import { columnHelp } from "../../lib/help.js";
+import { InfoTip } from "../shared/InfoTip.js";
 import { PROCESS_STATE, type StatusLook } from "../../lib/status.js";
 import type { ProcessState } from "@edumatcher/dash-types";
 
@@ -78,14 +80,17 @@ export function HealthTable<T>({ label, columns, rows, rowKey, initialSort, grou
               aria-sort={sort?.id === c.id ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
               className={clsx("px-2 py-1 font-semibold", c.align === "right" && "text-right")}
             >
-              {c.sortKey ? (
-                <button type="button" onClick={() => toggle(c.id)} className="uppercase hover:text-fg">
-                  {c.header}
-                  {sort?.id === c.id && (sort.dir === "asc" ? " ▲" : " ▼")}
-                </button>
-              ) : (
-                c.header
-              )}
+              <span className={clsx("inline-flex items-center gap-1", c.align === "right" && "justify-end")}>
+                {c.sortKey ? (
+                  <button type="button" onClick={() => toggle(c.id)} className="uppercase hover:text-fg">
+                    {c.header}
+                    {sort?.id === c.id && (sort.dir === "asc" ? " ▲" : " ▼")}
+                  </button>
+                ) : (
+                  c.header
+                )}
+                {columnHelp(label, c.id) && <InfoTip label={c.header} help={columnHelp(label, c.id)!} />}
+              </span>
             </th>
           ))}
         </tr>

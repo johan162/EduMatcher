@@ -26,6 +26,8 @@ import clsx from "clsx";
 import type { DepthFrame } from "@edumatcher/terminal-types";
 import { buildLadder, type LadderRow } from "../lib/depth.js";
 import { ABSENT, price, qty } from "../lib/format.js";
+import { depthHelp } from "../lib/help.js";
+import { InfoTip } from "./shared/InfoTip.js";
 
 export function DepthLadder({
   frame,
@@ -57,17 +59,17 @@ export function DepthLadder({
       <table className="w-full text-left tabular">
         <thead>
           <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-            <th className="py-1 text-right font-medium">Cum</th>
-            <th className="py-1 text-right font-medium">Qty</th>
-            <th className="py-1 text-right font-medium">#</th>
-            <th className="py-1 text-right font-medium">Bid</th>
-            <th className="py-1 text-right font-medium">%</th>
+            <th className="py-1 text-right font-medium">Cum <InfoTip label="Cum" help={depthHelp("Cum")!} /></th>
+            <th className="py-1 text-right font-medium">Qty <InfoTip label="Qty" help={depthHelp("Qty")!} /></th>
+            <th className="py-1 text-right font-medium"># <InfoTip label="#" help={depthHelp("#")!} /></th>
+            <th className="py-1 text-right font-medium">Bid <InfoTip label="Bid" help={depthHelp("Bid")!} /></th>
+            <th className="py-1 text-right font-medium">% <InfoTip label="%" help={depthHelp("%")!} /></th>
             <th className="w-1/4 py-1" />
-            <th className="py-1 font-medium">%</th>
-            <th className="py-1 font-medium">Ask</th>
-            <th className="py-1 font-medium">#</th>
-            <th className="py-1 font-medium">Qty</th>
-            <th className="py-1 font-medium">Cum</th>
+            <th className="py-1 font-medium">% <InfoTip label="%" help={depthHelp("%")!} /></th>
+            <th className="py-1 font-medium">Ask <InfoTip label="Ask" help={depthHelp("Ask")!} /></th>
+            <th className="py-1 font-medium"># <InfoTip label="#" help={depthHelp("#")!} /></th>
+            <th className="py-1 font-medium">Qty <InfoTip label="Qty" help={depthHelp("Qty")!} /></th>
+            <th className="py-1 font-medium">Cum <InfoTip label="Cum" help={depthHelp("Cum")!} /></th>
           </tr>
         </thead>
         <tbody>

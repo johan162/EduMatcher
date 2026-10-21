@@ -14,6 +14,7 @@ import { StatusPill } from "./StatusPill.js";
 import { isTerminal } from "@/store/useOrderStore.js";
 import { formatPrice, formatQty, shortId } from "@/lib/formatters.js";
 import type { Order } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /** HH:MM:SS.mmm from an ISO timestamp (§13.1.1 Updated column). */
 function formatTime(iso: string | null): string {
@@ -314,6 +315,7 @@ export function OrdersBlotter({
                       }
                       className="text-left font-medium text-fg-dim px-2 py-1.5 border-b border-line whitespace-nowrap"
                     >
+                      <span className="inline-flex items-center gap-1">
                       {header.isPlaceholder ? null : sortable ? (
                         <button
                           type="button"
@@ -327,6 +329,10 @@ export function OrdersBlotter({
                       ) : (
                         flexRender(header.column.columnDef.header, header.getContext())
                       )}
+                      {typeof header.column.columnDef.header === "string" && (
+                        <HeaderTip table="blotter" col={header.column.columnDef.header} />
+                      )}
+                      </span>
                     </th>
                   );
                 })}

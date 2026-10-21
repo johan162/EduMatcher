@@ -15,6 +15,8 @@
 
 import { useId } from "react";
 import { clipText, fitFontSize } from "./svgText.js";
+import { widgetHelp } from "../../lib/help.js";
+import { InfoTip } from "../shared/InfoTip.js";
 import { NO_VALUE } from "../../lib/format.js";
 import { describeThresholds, levelOf, type Level, type Thresholds } from "../../lib/thresholds.js";
 import { LEVEL } from "../../lib/status.js";
@@ -180,6 +182,7 @@ export function Gauge({ value, min = 0, max = 100, thresholds, format, label, su
         <span className="truncate font-semibold uppercase tracking-wide" title={label}>
           {label}
         </span>
+        {widgetHelp(label) && <InfoTip label={label} help={widgetHelp(label)!} />}
         {level && level !== "OK" && (
           <span className={`shrink-0 font-semibold ${look.text}`}>
             {look.glyph} {look.label}

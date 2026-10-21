@@ -7,6 +7,7 @@ import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { ocoSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { Side } from "@/types/index.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 const fieldCls =
   "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
@@ -108,8 +109,8 @@ export function OcoForm() {
     <fieldset className="rounded border border-line p-2">
       <legend className="px-1 text-[10px] text-fg-dim">{label}</legend>
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Side</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Side <FieldHelp form="oco" field="Side" /></span>
           <select
             value={leg.side}
             onChange={(e) => setLeg({ ...leg, side: e.target.value as Side })}
@@ -119,9 +120,9 @@ export function OcoForm() {
             <option value="BUY">BUY</option>
             <option value="SELL">SELL</option>
           </select>
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Type</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Type <FieldHelp form="oco" field="Type" /></span>
           <select
             value={leg.order_type}
             onChange={(e) => setLeg({ ...leg, order_type: e.target.value as LegType })}
@@ -131,10 +132,10 @@ export function OcoForm() {
             <option value="LIMIT">LIMIT</option>
             <option value="STOP">STOP</option>
           </select>
-        </label>
+        </div>
         {leg.order_type === "LIMIT" && (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Price</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Price <FieldHelp form="oco" field="Price" /></span>
             <input
               type="number"
               step="any"
@@ -146,11 +147,11 @@ export function OcoForm() {
             {errors[`${keyPrefix}.price`] && (
               <span className="text-[10px] text-ask">{errors[`${keyPrefix}.price`]}</span>
             )}
-          </label>
+          </div>
         )}
         {leg.order_type === "STOP" && (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Stop price</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Stop price <FieldHelp form="oco" field="Stop price" /></span>
             <input
               type="number"
               step="any"
@@ -162,7 +163,7 @@ export function OcoForm() {
             {errors[`${keyPrefix}.stop_price`] && (
               <span className="text-[10px] text-ask">{errors[`${keyPrefix}.stop_price`]}</span>
             )}
-          </label>
+          </div>
         )}
       </div>
     </fieldset>
@@ -180,8 +181,8 @@ export function OcoForm() {
       }}
     >
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">OCO ID</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">OCO ID <FieldHelp form="oco" field="OCO ID" /></span>
           <input
             value={ocoId}
             onChange={(e) => setOcoId(e.target.value)}
@@ -189,9 +190,9 @@ export function OcoForm() {
             className={fieldCls}
           />
           {errors.oco_id && <span className="text-[10px] text-ask">{errors.oco_id}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Symbol</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Symbol <FieldHelp form="oco" field="Symbol" /></span>
           <input
             list="oco-symbols"
             value={symbol}
@@ -210,9 +211,9 @@ export function OcoForm() {
             ))}
           </datalist>
           {errors.symbol && <span className="text-[10px] text-ask">{errors.symbol}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Quantity</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Quantity <FieldHelp form="oco" field="Quantity" /></span>
           <input
             type="number"
             min={1}
@@ -222,9 +223,9 @@ export function OcoForm() {
             className={fieldCls}
           />
           {errors.quantity && <span className="text-[10px] text-ask">{errors.quantity}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">TIF</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">TIF <FieldHelp form="oco" field="TIF" /></span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}
@@ -234,7 +235,7 @@ export function OcoForm() {
             <option value="DAY">DAY</option>
             <option value="GTC">GTC</option>
           </select>
-        </label>
+        </div>
       </div>
 
       {legEditor("Leg 1", leg1, setLeg1, "leg1")}

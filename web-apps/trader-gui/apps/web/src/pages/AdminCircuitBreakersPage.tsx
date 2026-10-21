@@ -10,6 +10,8 @@ import { useHaltStore } from "@/store/useHaltStore.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { formatNsTimestamp } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 const th = "px-2 py-1.5 text-left font-medium";
 const fieldCls =
@@ -94,8 +96,8 @@ export function AdminCircuitBreakersPage() {
       <section aria-label="Manual trigger" className="flex flex-col gap-2 rounded border border-line bg-deep p-3">
         <h2 className="text-xs font-semibold text-fg">Manual halt</h2>
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Symbol</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Symbol <FieldHelp form="halt" field="Symbol" /></span>
             <input
               list="cb-symbols"
               value={symbol}
@@ -112,9 +114,9 @@ export function AdminCircuitBreakersPage() {
                 <option key={s.symbol} value={s.symbol} />
               ))}
             </datalist>
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Level</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Level <FieldHelp form="halt" field="Level" /></span>
             <select
               value={level}
               onChange={(e) => setLevel(e.target.value)}
@@ -130,7 +132,7 @@ export function AdminCircuitBreakersPage() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
           <button
             type="button"
             onClick={() => setConfirmTrigger(true)}
@@ -155,13 +157,13 @@ export function AdminCircuitBreakersPage() {
           <table className="w-full border-collapse text-xs">
             <thead className="bg-panel text-fg-dim">
               <tr>
-                <th className={th}>Symbol</th>
-                <th className={th}>Level</th>
-                <th className="px-2 py-1.5 text-right font-medium">Trigger Price</th>
-                <th className="px-2 py-1.5 text-right font-medium">Reference Price</th>
-                <th className={th}>Est. Resume</th>
-                <th className={th}>Source</th>
-                <th className="px-2 py-1.5 text-right font-medium">Action</th>
+                <th className={th}>Symbol <HeaderTip table="admin-circuit" col="Symbol" /></th>
+                <th className={th}>Level <HeaderTip table="admin-circuit" col="Level" /></th>
+                <th className="px-2 py-1.5 text-right font-medium">Trigger Price <HeaderTip table="admin-circuit" col="Trigger Price" /></th>
+                <th className="px-2 py-1.5 text-right font-medium">Reference Price <HeaderTip table="admin-circuit" col="Reference Price" /></th>
+                <th className={th}>Est. Resume <HeaderTip table="admin-circuit" col="Est. Resume" /></th>
+                <th className={th}>Source <HeaderTip table="admin-circuit" col="Source" /></th>
+                <th className="px-2 py-1.5 text-right font-medium">Action <HeaderTip table="admin-circuit" col="Action" /></th>
               </tr>
             </thead>
             <tbody>

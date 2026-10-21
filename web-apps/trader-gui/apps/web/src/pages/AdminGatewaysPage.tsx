@@ -6,6 +6,7 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { KillSwitchPanel } from "@/components/admin/KillSwitchPanel.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { AdminGateway } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /**
  * Gateway Management (§15.7) — the roster from `GET /admin/gateways` with a
@@ -57,11 +58,11 @@ export function AdminGatewaysPage() {
         <table className="w-full border-collapse text-xs">
           <thead className="bg-panel text-fg-dim">
             <tr>
-              <th className="px-2 py-1.5 text-left font-medium">Gateway ID</th>
-              <th className="px-2 py-1.5 text-left font-medium">Role</th>
-              <th className="px-2 py-1.5 text-left font-medium">Description</th>
-              <th className="px-2 py-1.5 text-left font-medium">Connected</th>
-              <th className="px-2 py-1.5 text-right font-medium">Action</th>
+              <th className="px-2 py-1.5 text-left font-medium">Gateway ID <HeaderTip table="admin-gateways" col="Gateway ID" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Role <HeaderTip table="admin-gateways" col="Role" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Description <HeaderTip table="admin-gateways" col="Description" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Connected <HeaderTip table="admin-gateways" col="Connected" /></th>
+              <th className="px-2 py-1.5 text-right font-medium">Action <HeaderTip table="admin-gateways" col="Action" /></th>
             </tr>
           </thead>
           <tbody>

@@ -1,5 +1,6 @@
 /** Connections board (design §10): the LALF connect/disconnect registry. */
 
+import { InfoTip } from "../components/InfoTip.js";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -53,7 +54,8 @@ export function ConnectionsView() {
       <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-fg-subtle">
         <p>
           ● logging · ⚠ silent for{" "}
-          {uiConfig ? `${uiConfig.processSilenceSec}s` : "…"} or more · ○ disconnected
+          {uiConfig ? `${uiConfig.processSilenceSec}s` : "…"} or more · ○
+          disconnected
         </p>
         <label
           className="flex items-center gap-1"
@@ -73,13 +75,51 @@ export function ConnectionsView() {
         <thead className="sticky top-0 z-10 bg-bg text-xs uppercase text-fg-subtle">
           <tr>
             <th className="border-b border-border py-1 pr-2"> </th>
-            <th className="border-b border-border py-1 pr-2">Process</th>
-            <th className="border-b border-border py-1 pr-2">PID</th>
-            <th className="border-b border-border py-1 pr-2">Host</th>
-            <th className="border-b border-border py-1 pr-2">Connected</th>
-            <th className="border-b border-border py-1 pr-2">Last seen</th>
-            <th className="border-b border-border py-1 pr-2">Logs</th>
-            <th className="border-b border-border py-1 pr-2">Errors</th>
+            <th className="border-b border-border py-1 pr-2">
+              Process{" "}
+              <InfoTip label="Process">
+                The EduMatcher program that logged, with its instance name in
+                brackets when several of the same kind run.
+              </InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              PID{" "}
+              <InfoTip label="PID">
+                The operating-system process id, to tell apart two instances or
+                find the process with ps or kill.
+              </InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              Host{" "}
+              <InfoTip label="Host">The machine the process runs on.</InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              Connected{" "}
+              <InfoTip label="Connected">
+                When the process opened its logging connection to the log
+                server, in the configured time zone.
+              </InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              Last seen{" "}
+              <InfoTip label="Last seen">
+                How long ago the process last sent anything, or “disconnected”
+                if it closed its connection. A long silence on a live connection
+                is flagged with a warning mark.
+              </InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              Logs{" "}
+              <InfoTip label="Logs">
+                How many log events this connection has sent in total.
+              </InfoTip>
+            </th>
+            <th className="border-b border-border py-1 pr-2">
+              Errors{" "}
+              <InfoTip label="Errors">
+                How many of those events were ERROR or CRITICAL.
+              </InfoTip>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -87,7 +127,9 @@ export function ConnectionsView() {
             <tr
               key={row.session}
               className="cursor-pointer border-b border-border/50 font-mono hover:bg-bg-subtle"
-              onClick={() => navigate(`/logs?processes=${encodeURIComponent(row.process)}`)}
+              onClick={() =>
+                navigate(`/logs?processes=${encodeURIComponent(row.process)}`)
+              }
             >
               <td className="py-1 pr-2">
                 {statusGlyph(
@@ -107,10 +149,14 @@ export function ConnectionsView() {
               <td className="py-1 pr-2">{row.pid}</td>
               <td className="py-1 pr-2">{row.host}</td>
               <td className="py-1 pr-2 text-fg-subtle">
-                {uiConfig ? formatClock(row.connected_at, uiConfig.timezone) : "…"}
+                {uiConfig
+                  ? formatClock(row.connected_at, uiConfig.timezone)
+                  : "…"}
               </td>
               <td className="py-1 pr-2 text-fg-subtle">
-                {row.disconnected_at ? "disconnected" : `${idleSeconds(row.last_seen_at).toFixed(0)}s ago`}
+                {row.disconnected_at
+                  ? "disconnected"
+                  : `${idleSeconds(row.last_seen_at).toFixed(0)}s ago`}
               </td>
               <td className="py-1 pr-2">{row.log_count.toLocaleString()}</td>
               <td className="py-1 pr-2 text-level-error">{row.errorCount}</td>

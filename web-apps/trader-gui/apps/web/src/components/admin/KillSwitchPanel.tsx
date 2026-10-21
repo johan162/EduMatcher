@@ -10,6 +10,7 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { ConfirmTypedDialog } from "@/components/shared/ConfirmTypedDialog.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { AdminGateway } from "@/types/index.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 interface KillSwitchPanelProps {
   gateways: AdminGateway[];
@@ -104,8 +105,8 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {/* By Symbol */}
       <div className="flex items-end gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">By Symbol</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">By Symbol <FieldHelp form="kill-switch" field="By Symbol" /></span>
           <input
             list="ks-symbols"
             value={symbol}
@@ -119,7 +120,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
               <option key={s.symbol} value={s.symbol} />
             ))}
           </datalist>
-        </label>
+        </div>
         <button
           type="button"
           onClick={() => setConfirmSymbol(true)}
@@ -132,8 +133,8 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
 
       {/* By Gateway */}
       <div className="flex items-end gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">By Gateway</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">By Gateway <FieldHelp form="kill-switch" field="By Gateway" /></span>
           <select
             value={gatewayId}
             onChange={(e) => setGatewayId(e.target.value)}
@@ -147,7 +148,7 @@ export function KillSwitchPanel({ gateways }: KillSwitchPanelProps) {
               </option>
             ))}
           </select>
-        </label>
+        </div>
         <button
           type="button"
           onClick={() => setConfirmGateway(true)}

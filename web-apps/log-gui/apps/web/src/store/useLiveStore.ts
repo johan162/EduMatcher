@@ -47,8 +47,9 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
   processLastSeen: {},
   marketSession: null,
 
-  // A socket that is not open leaves the session phase unknown.
-  setWsStatus: (status) => set(status === "open" ? { wsStatus: status } : { wsStatus: status, marketSession: null }),
+  // A socket that is not open leaves the session phase and log-server state unknown.
+  setWsStatus: (status) =>
+    set(status === "open" ? { wsStatus: status } : { wsStatus: status, marketSession: null, serverState: null }),
   setServerState: (state) => set({ serverState: state }),
   setLogDbHealthy: (healthy) => set({ logDbHealthy: healthy }),
   setCounters: (counters) => set({ counters }),

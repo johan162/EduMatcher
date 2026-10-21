@@ -5,6 +5,7 @@ import { useAmendOrderMutation } from "@/queries/index.js";
 import { validateAmend } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 interface AmendDialogProps {
   orderId: string;
@@ -82,7 +83,9 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
 
   const ro = (label: string, value: string) => (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-fg-faint">{label}</span>
+      <span className="flex items-center gap-1 text-[10px] text-fg-faint">
+        {label} <FieldHelp form="amend" field={label} />
+      </span>
       <span className="font-mono text-xs text-fg-dim">{value}</span>
     </div>
   );
@@ -100,8 +103,8 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         {hasPrice && (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Price</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Price <FieldHelp form="amend" field="Price" /></span>
             <input
               type="number"
               step="any"
@@ -110,10 +113,10 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
               aria-label="Amend price"
               className={field}
             />
-          </label>
+          </div>
         )}
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Quantity</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Quantity <FieldHelp form="amend" field="Quantity" /></span>
           <input
             type="number"
             min={1}
@@ -122,7 +125,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
             aria-label="Amend quantity"
             className={field}
           />
-        </label>
+        </div>
       </div>
 
       <p className="mt-3 text-[10px] leading-snug text-fg-mute">

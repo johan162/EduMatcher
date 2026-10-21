@@ -6,6 +6,7 @@ import { useOrderFields } from "@/hooks/useOrderFields.js";
 import { orderSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 interface ReplaceDialogProps {
   orderId: string;
@@ -123,31 +124,31 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
     <Modal title={`Replace ${order.symbol} · ${order.order_id.slice(0, 8)}`} onClose={onClose}>
       <div className="grid grid-cols-4 gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Symbol</span>
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Symbol <FieldHelp form="replace" field="Symbol" /></span>
           <span className="font-mono text-xs text-fg-dim">{order.symbol}</span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Side</span>
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Side <FieldHelp form="replace" field="Side" /></span>
           <span className={`font-mono text-xs ${order.side === "BUY" ? "text-bid" : "text-ask"}`}>
             {order.side}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Type · TIF</span>
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Type · TIF <FieldHelp form="replace" field="Type · TIF" /></span>
           <span className="font-mono text-xs text-fg-dim">
             {order.order_type} · {order.tif}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Filled</span>
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Filled <FieldHelp form="replace" field="Filled" /></span>
           <span className="font-mono text-xs text-fg-dim">{filled}</span>
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         {fields.price && (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Price</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Price <FieldHelp form="replace" field="Price" /></span>
             <input
               type="number"
               step="any"
@@ -156,11 +157,11 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
               aria-label="Replace price"
               className={field}
             />
-          </label>
+          </div>
         )}
         {fields.stop_price && (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-fg-faint">Stop price</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[10px] text-fg-faint">Stop price <FieldHelp form="replace" field="Stop price" /></span>
             <input
               type="number"
               step="any"
@@ -169,10 +170,10 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
               aria-label="Replace stop price"
               className={field}
             />
-          </label>
+          </div>
         )}
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Replacement quantity</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Replacement quantity <FieldHelp form="replace" field="Replacement quantity" /></span>
           <input
             type="number"
             min={1}
@@ -181,7 +182,7 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
             aria-label="Replace quantity"
             className={field}
           />
-        </label>
+        </div>
       </div>
 
       <p className="mt-3 text-[10px] leading-snug text-fg-mute">

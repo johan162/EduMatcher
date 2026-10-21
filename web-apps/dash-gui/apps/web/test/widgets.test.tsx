@@ -142,10 +142,20 @@ describe("HealthTable", () => {
     fireEvent.click(screen.getByRole("button", { name: "RSS" }));
     expect(order()).toEqual(["pm-mm-bot", "pm-clearing", "pm-stats", "pm-engine"]);
     expect(screen.getByRole("columnheader", { name: /RSS/ }).getAttribute("aria-sort")).toBe("ascending");
-    fireEvent.click(screen.getByRole("button", { name: /RSS/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^RSS [▲▼]/ }));
     expect(order()).toEqual(["pm-engine", "pm-stats", "pm-clearing", "pm-mm-bot"]);
     expect(screen.getByRole("columnheader", { name: /RSS/ }).getAttribute("aria-sort")).toBe("descending");
     expect(screen.queryByRole("button", { name: "State" })).toBeNull(); // no sort key, no sorting
+  });
+
+  it("explains a column in a tip that opens on focus, and not one without help", () => {
+    render(<HealthTable label="Processes" columns={columns} rows={rows} rowKey={(r) => r.key} />);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.focus(screen.getByRole("button", { name: "RSS help" }));
+    expect(screen.getByRole("tooltip").textContent).toMatch(/Resident memory/);
+    fireEvent.blur(screen.getByRole("button", { name: "RSS help" }));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Process help" })).not.toBeNull();
   });
 
   it("sorts within groups, the groups in the order they first appear", () => {

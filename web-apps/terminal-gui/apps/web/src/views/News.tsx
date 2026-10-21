@@ -14,6 +14,8 @@ import { api } from "../lib/api.js";
 import { clockInTimezone } from "../lib/format.js";
 import { newsMatches, resolutions, sectorIndex } from "../lib/news.js";
 import { useLiveStore } from "../store/useLiveStore.js";
+import { newsHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 
 export const NEWS_POLL_MS = 1000;
 const VISIBLE_ROWS = 100;
@@ -93,10 +95,10 @@ export function NewsView() {
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
             <tr>
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Scope</th>
-              <th className="px-3 py-2">Headline</th>
+              <th className="px-3 py-2">Time <InfoTip label="Time" help={newsHelp("Time")!} /></th>
+              <th className="px-3 py-2">Status <InfoTip label="Status" help={newsHelp("Status")!} /></th>
+              <th className="px-3 py-2">Scope <InfoTip label="Scope" help={newsHelp("Scope")!} /></th>
+              <th className="px-3 py-2">Headline <InfoTip label="Headline" help={newsHelp("Headline")!} /></th>
             </tr>
           </thead>
           <tbody>

@@ -23,6 +23,8 @@ import {
 import { ABSENT, compact, price } from "../lib/format.js";
 import { usePrevCloses } from "../lib/usePrevCloses.js";
 import { useTickDecimals } from "../lib/precision.js";
+import { moversHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 
 const TABS: { id: MoversTab; label: string }[] = [
   { id: "gainers", label: "Gainers" },
@@ -137,9 +139,15 @@ export function MoversView() {
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
             <tr>
-              <th className="px-3 py-2">Symbol</th>
-              <th className="px-3 py-2 text-right">Last</th>
-              <th className="px-3 py-2 text-right">{tab === "active" ? "Turnover" : "%Chg"}</th>
+              <th className="px-3 py-2">Symbol <InfoTip label="Symbol" help={moversHelp("Symbol")!} /></th>
+              <th className="px-3 py-2 text-right">Last <InfoTip label="Last" help={moversHelp("Last")!} /></th>
+              <th className="px-3 py-2 text-right">
+                {tab === "active" ? "Turnover" : "%Chg"}{" "}
+                <InfoTip
+                  label={tab === "active" ? "Turnover" : "%Chg"}
+                  help={moversHelp(tab === "active" ? "Turnover" : "%Chg")!}
+                />
+              </th>
               <th className="px-3 py-2 w-1/2" />
             </tr>
           </thead>

@@ -6,6 +6,7 @@ import { MonitorKindBadge } from "@/components/admin/MonitorKindBadge.js";
 import { AdminOrderDetailModal } from "@/components/admin/AdminOrderDetailModal.js";
 import { monitorEventsToCsv } from "@/lib/monitorEvents.js";
 import type { MonitorEventKind } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 const FILTER_KINDS: (MonitorEventKind | "ALL")[] = [
   "ALL",
@@ -132,12 +133,12 @@ export function AdminMonitorPage() {
         <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
             <tr>
-              <th className="px-2 py-1.5 text-left font-medium">Time</th>
-              <th className="px-2 py-1.5 text-right font-medium">Seq</th>
-              <th className="px-2 py-1.5 text-left font-medium">Type</th>
-              <th className="px-2 py-1.5 text-left font-medium">Order / Gateway</th>
-              <th className="px-2 py-1.5 text-left font-medium">Symbol</th>
-              <th className="px-2 py-1.5 text-left font-medium">Details</th>
+              <th className="px-2 py-1.5 text-left font-medium">Time <HeaderTip table="admin-monitor" col="Time" /></th>
+              <th className="px-2 py-1.5 text-right font-medium">Seq <HeaderTip table="admin-monitor" col="Seq" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Type <HeaderTip table="admin-monitor" col="Type" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Order / Gateway <HeaderTip table="admin-monitor" col="Order / Gateway" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Symbol <HeaderTip table="admin-monitor" col="Symbol" /></th>
+              <th className="px-2 py-1.5 text-left font-medium">Details <HeaderTip table="admin-monitor" col="Details" /></th>
             </tr>
           </thead>
           <tbody>

@@ -421,7 +421,7 @@ describe("sorting and search (T-M5)", () => {
     show();
 
     await screen.findByText("AAPL");
-    await user.click(screen.getByRole("button", { name: /Last/ }));
+    await user.click(screen.getByRole("button", { name: /^Last( [▲▼])?$/ }));
 
     // Descending on the first click: the question a trader asks by clicking
     // a numeric header is "what is biggest".
@@ -438,7 +438,7 @@ describe("sorting and search (T-M5)", () => {
     show();
 
     await screen.findByText("AAPL");
-    await user.click(screen.getByRole("button", { name: /Symbol/ }));
+    await user.click(screen.getByRole("button", { name: /^Symbol( [▲▼])?$/ }));
 
     await waitFor(() => expect(screen.getByText(/paging held/)).toBeDefined());
   });
@@ -554,5 +554,15 @@ describe("auction indicative on the grid (T-M1)", () => {
     await screen.findByText("AAPL");
     expect(screen.queryByText("150.25")).toBeNull();
     expect(screen.getByText("Bid")).toBeDefined();
+  });
+});
+
+describe("column help (WP-UI02)", () => {
+  it("explains a column in a tip that opens on focus", async () => {
+    apply(hello(["AAPL"]));
+    show();
+    await screen.findByText("AAPL");
+    await userEvent.setup().hover(screen.getByRole("button", { name: "Spread help" }));
+    expect(screen.getByRole("tooltip").textContent).toMatch(/round trip/);
   });
 });
