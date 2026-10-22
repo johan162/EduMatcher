@@ -12,14 +12,32 @@ function TopicBody({ topic }: { topic: HelpTopic }) {
         <div key={i} className="flex flex-col gap-1">
           {b.heading && <h3 className="text-xs font-semibold text-fg">{b.heading}</h3>}
           {b.paragraphs?.map((p, j) => (
-            <p key={j} className="text-[11px] leading-relaxed text-fg-soft">
+            <p key={j} className="text-xs leading-relaxed text-fg-soft">
               {p}
             </p>
           ))}
+          {b.terms && (
+            <dl className="flex flex-col gap-1.5">
+              {b.terms.map((t, j) => (
+                <div key={j}>
+                  <dt className="text-xs font-semibold text-fg">{t.term}</dt>
+                  <dd className="ml-3 text-xs leading-relaxed text-fg-soft">{t.text}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {b.example && (
+            <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-line bg-panel p-2 font-mono text-[11px] leading-relaxed text-fg-soft">
+              {b.example}
+            </pre>
+          )}
+          {b.note && (
+            <p className="rounded border-l-2 border-sky-400 bg-panel px-2 py-1.5 text-xs leading-relaxed text-fg-soft">{b.note}</p>
+          )}
           {b.bullets && (
             <ul className="ml-4 list-disc space-y-0.5">
               {b.bullets.map((li, j) => (
-                <li key={j} className="text-[11px] leading-relaxed text-fg-soft">
+                <li key={j} className="text-xs leading-relaxed text-fg-soft">
                   {li}
                 </li>
               ))}
@@ -54,7 +72,7 @@ export function HelpDrawer() {
     <aside
       role="dialog"
       aria-label="Help"
-      className="fixed right-0 top-10 bottom-0 z-40 flex w-[480px] max-w-[92vw] flex-col border-l border-line bg-deep shadow-2xl animate-fade-in"
+      className="fixed right-0 top-10 bottom-0 z-40 flex w-[680px] max-w-[92vw] flex-col border-l border-line bg-deep shadow-2xl animate-fade-in"
     >
       <div className="flex items-center justify-between border-b border-line px-4 pt-3 pb-2">
         <h2 className="text-sm font-semibold text-fg">Help</h2>

@@ -52,7 +52,7 @@ export function IndicesTab() {
             </button>
           </div>
 
-          <FieldRow label="Index ID" path={`indices.${index.id}.id`} required>
+          <FieldRow label="Index ID" help={{ text: "Alphanumeric identifier of the index, used in messages, file names and subscriptions. Stored in upper case." }} path={`indices.${index.id}.id`} required>
             <TextInput
               aria-label="Index ID"
               value={index.id}
@@ -62,7 +62,7 @@ export function IndicesTab() {
             />
           </FieldRow>
 
-          <FieldRow label="Description" path={`indices.${index.id}.description`} required>
+          <FieldRow label="Description" help={{ text: "Human-readable label shown in operator output." }} path={`indices.${index.id}.description`} required>
             <TextInput
               aria-label="Index description"
               value={index.description ?? ""}
@@ -71,7 +71,7 @@ export function IndicesTab() {
             />
           </FieldRow>
 
-          <FieldRow label="Constituents" path={`indices.${index.id}.constituents`} required>
+          <FieldRow label="Constituents" help={{ text: "The symbols the index is calculated from. Each must be configured, and each needs outstanding shares set. Click a symbol to add or remove it." }} path={`indices.${index.id}.constituents`} required>
             <div className="flex flex-wrap gap-1.5">
               {draft.symbolOrder.length === 0 && <span className="text-sm text-fg-subtle">Add symbols first.</span>}
               {draft.symbolOrder.map((symbol) => {
@@ -99,7 +99,7 @@ export function IndicesTab() {
           </FieldRow>
 
           <div className="flex flex-wrap gap-4">
-            <FieldRow label="Base value" path={`indices.${index.id}.baseValue`} defaultHint="Default: 1000">
+            <FieldRow label="Base value" help={{ text: "The level the index starts at when it is launched; the divisor is calibrated to it." }} path={`indices.${index.id}.baseValue`} defaultHint="Default: 1000">
               <NumberInput
                 aria-label="Base value"
                 value={index.baseValue}
@@ -108,7 +108,7 @@ export function IndicesTab() {
                 onChange={(v) => update((d) => (d.indices[i]!.baseValue = v ?? 1000))}
               />
             </FieldRow>
-            <FieldRow label="Publish interval (sec)" path={`indices.${index.id}.publishIntervalSec`} defaultHint="Default: 1.0">
+            <FieldRow label="Publish interval (sec)" help={{ text: "Minimum seconds between two index updates. A throttle: it keeps the index from flooding subscribers on every trade." }} path={`indices.${index.id}.publishIntervalSec`} defaultHint="Default: 1.0">
               <NumberInput
                 aria-label="Publish interval"
                 value={index.publishIntervalSec}
@@ -121,7 +121,7 @@ export function IndicesTab() {
 
           {canSee("E") && (
             <>
-              <FieldRow label="History file" path={`indices.${index.id}.historyFile`} defaultHint={`Default: data/indexes/${index.id}_history.jsonl`}>
+              <FieldRow label="History file" help={{ text: "Append-only file where pm-index records the index levels, end-of-day values and corporate actions." }} path={`indices.${index.id}.historyFile`} defaultHint={`Default: data/indexes/${index.id}_history.jsonl`}>
                 <TextInput
                   aria-label="History file"
                   value={index.historyFile ?? ""}
@@ -129,7 +129,7 @@ export function IndicesTab() {
                   className="w-full"
                 />
               </FieldRow>
-              <FieldRow label="State file" path={`indices.${index.id}.stateFile`} defaultHint={`Default: data/indexes/${index.id}_state.json`}>
+              <FieldRow label="State file" help={{ text: "Checkpoint file pm-index uses to recover its divisor and last prices after a restart." }} path={`indices.${index.id}.stateFile`} defaultHint={`Default: data/indexes/${index.id}_state.json`}>
                 <TextInput
                   aria-label="State file"
                   value={index.stateFile ?? ""}

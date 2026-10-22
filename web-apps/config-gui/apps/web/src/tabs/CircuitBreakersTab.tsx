@@ -6,6 +6,7 @@ import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput } from "@/components/fields/inputs";
 import { Switch } from "@/components/ui/Switch";
+import { ColumnHead } from "@/components/ui/ColumnHead";
 
 export function CircuitBreakersTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -106,10 +107,10 @@ export function CircuitBreakersTab() {
           <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
               <tr>
-                <th className="px-3 py-2">Level</th>
-                <th className="px-3 py-2">Shift %</th>
-                <th className="px-3 py-2">Call phase min (min)</th>
-                <th className="px-3 py-2">Rest of day</th>
+                <th className="px-3 py-2"><ColumnHead label="Level" help="The name of the circuit breaker level. Levels are checked from the smallest shift to the largest." /></th>
+                <th className="px-3 py-2"><ColumnHead label="Shift %" help="How far the price must move from the rolling reference price, in percent, to trigger this level and halt the symbol." /></th>
+                <th className="px-3 py-2"><ColumnHead label="Call phase min (min)" help="The minimum length of the reopening call phase after this level trips, in minutes. For the corridor ladder: the minimum length of that call phase." /></th>
+                <th className="px-3 py-2"><ColumnHead label="Rest of day" help="Halts trading for the remainder of the session instead of a fixed time." /></th>
                 {canSee("E") && <th className="px-3 py-2" />}
               </tr>
             </thead>
@@ -340,10 +341,10 @@ export function CircuitBreakersTab() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
                     <tr>
-                      <th className="px-3 py-2">#</th>
-                      <th className="px-3 py-2">Widen by %</th>
-                      <th className="px-3 py-2">Call phase min (min)</th>
-                      <th className="px-3 py-2">Corridor after</th>
+                      <th className="px-3 py-2"><ColumnHead label="#" help="The rung of the expansion ladder. They are applied in order; the last rung repeats." /></th>
+                      <th className="px-3 py-2"><ColumnHead label="Widen by %" help="How much wider the corridor around the reference price becomes at this rung, in percent. Widening is additive, not compounding." /></th>
+                      <th className="px-3 py-2"><ColumnHead label="Call phase min (min)" help="The minimum length of the reopening call phase after this level trips, in minutes. For the corridor ladder: the minimum length of that call phase." /></th>
+                      <th className="px-3 py-2"><ColumnHead label="Corridor after" help="The half-width of the corridor once this rung has been applied, as ± percent of the reference price." /></th>
                       {canSee("E") && <th className="px-3 py-2" />}
                     </tr>
                   </thead>

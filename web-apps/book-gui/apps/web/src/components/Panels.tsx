@@ -9,6 +9,8 @@
 
 import clsx from "clsx";
 import type { Level, TapeTrade } from "@edumatcher/book-types";
+import { columnHelp, panelHelp } from "../lib/help.js";
+import { InfoTip } from "./shared/InfoTip.js";
 import { price, qty, tradeTime } from "../lib/format.js";
 import { barPct, maxQty, tapeRows } from "../lib/ladder.js";
 import type { Trend } from "../lib/stats.js";
@@ -39,7 +41,10 @@ function Panel({
 }) {
   return (
     <section aria-label={title} className="flex min-h-0 flex-col rounded border border-border bg-bg-raised">
-      <h2 className={clsx("py-1 text-center text-xs font-bold tracking-[0.2em]", titleClass)}>{title}</h2>
+      <h2 className={clsx("flex items-center justify-center gap-1 py-1 text-xs font-bold tracking-[0.2em]", titleClass)}>
+        {title}
+        {panelHelp(title) && <InfoTip label={title} help={panelHelp(title)!} />}
+      </h2>
       <div
         className={clsx(
           "grid border-b border-border px-2 pb-1 text-[11px] font-semibold uppercase",
@@ -47,11 +52,18 @@ function Panel({
         )}
         style={{ gridTemplateColumns: columns }}
       >
-        {header.map((h) => (
-          <span key={h} className={h.startsWith("<") ? "text-left" : "text-right"}>
-            {h.replace("<", "")}
-          </span>
-        ))}
+        {header.map((h) => {
+          const name = h.replace("<", "");
+          return (
+            <span
+              key={h}
+              className={clsx("flex items-center gap-0.5", h.startsWith("<") ? "justify-start" : "justify-end")}
+            >
+              {name}
+              {columnHelp(name) && <InfoTip label={name} help={columnHelp(name)!} />}
+            </span>
+          );
+        })}
       </div>
       <div ref={bodyRef} className="min-h-0 flex-1 overflow-hidden font-mono tabular text-xs">
         {children}

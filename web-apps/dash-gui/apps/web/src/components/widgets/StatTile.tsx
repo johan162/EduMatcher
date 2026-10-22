@@ -16,6 +16,8 @@
 
 import clsx from "clsx";
 import { Sparkline } from "./Sparkline.js";
+import { widgetHelp } from "../../lib/help.js";
+import { InfoTip } from "../shared/InfoTip.js";
 import { NO_VALUE } from "../../lib/format.js";
 import { LEVEL } from "../../lib/status.js";
 import { describeThresholds, levelOf, type Level, type Thresholds } from "../../lib/thresholds.js";
@@ -39,6 +41,7 @@ export interface StatTileProps {
 }
 
 export function StatTile({ label, value, format, spark, sub, thresholds, colorMode, level: given }: StatTileProps) {
+  const help = widgetHelp(label);
   const preferred = usePrefsStore((s) => s.statColorMode);
   const mode = colorMode ?? preferred;
   const known = value !== null && Number.isFinite(value);
@@ -58,9 +61,12 @@ export function StatTile({ label, value, format, spark, sub, thresholds, colorMo
         filled ? [look.bg, look.border, "text-bg"] : "border-border bg-bg-subtle",
       )}
     >
-      <h3 title={label} className={clsx("truncate text-[11px] font-semibold uppercase tracking-wide", filled ? "text-bg" : "text-fg-subtle")}>
-        {label}
-      </h3>
+      <div className="flex min-w-0 items-center gap-1">
+        <h3 title={label} className={clsx("truncate text-[11px] font-semibold uppercase tracking-wide", filled ? "text-bg" : "text-fg-subtle")}>
+          {label}
+        </h3>
+        {help && <InfoTip label={label} help={help} />}
+      </div>
       <div className="flex min-w-0 items-baseline gap-2">
         <span
           data-testid="stat-value"

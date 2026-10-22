@@ -22,6 +22,7 @@ import { CountryCombobox } from "@/components/fields/CountryCombobox";
 import { Select } from "@/components/ui/Select";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
+import { ColumnHead } from "@/components/ui/ColumnHead";
 
 /** Select value for "key omitted": the gateway inherits the gateway default. */
 const INHERIT = "__inherit__";
@@ -119,11 +120,11 @@ export function BasicsTab() {
               <table className="w-full text-sm">
                 <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
                   <tr>
-                    <th className="px-3 py-2">Symbol</th>
-                    <th className="px-3 py-2">Last buy</th>
-                    <th className="px-3 py-2">Last sell</th>
-                    {canSee("I") && <th className="px-3 py-2">MM quotes</th>}
-                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2"><ColumnHead label="Symbol" help="The instrument ticker." /></th>
+                    <th className="px-3 py-2"><ColumnHead label="Last buy" help="Startup seed for the last-trade reference, used until live or persisted history exists." /></th>
+                    <th className="px-3 py-2"><ColumnHead label="Last sell" help="Startup seed for the last-trade reference on the sell side, used until live or persisted history exists." /></th>
+                    {canSee("I") && <th className="px-3 py-2"><ColumnHead label="MM quotes" help="How many market-maker quote levels are defined for the symbol." /></th>}
+                    <th className="px-3 py-2"><ColumnHead label="Status" help="Whether the symbol has both startup prices. A symbol without them is flagged: it has no reference price until it trades." /></th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -276,11 +277,11 @@ export function BasicsTab() {
               <table className="w-full text-sm">
                 <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
                   <tr>
-                    <th className="px-3 py-2">ID *</th>
-                    <th className="px-3 py-2">Role</th>
-                    {canSee("I") && <th className="px-3 py-2">Disconnect</th>}
-                    {canSee("I") && <th className="px-3 py-2">SMP</th>}
-                    {canSee("I") && <th className="px-3 py-2">Description</th>}
+                    <th className="px-3 py-2"><ColumnHead label="ID *" help="The gateway identifier participants connect with. Required; it appears on every order and fill." /></th>
+                    <th className="px-3 py-2"><ColumnHead label="Role" help="What the participant may do: TRADER sends orders, MARKET_MAKER also quotes, ADMIN may operate the venue." /></th>
+                    {canSee("I") && <th className="px-3 py-2"><ColumnHead label="Disconnect" help="What the engine does with this participant's resting orders when it disconnects: CANCEL_ALL, CANCEL_QUOTES_ONLY or LEAVE_ALL. The default depends on the role." /></th>}
+                    {canSee("I") && <th className="px-3 py-2"><ColumnHead label="SMP" help="Self-match prevention: what happens if this participant's order would trade against its own resting order. NONE allows it; CANCEL_AGGRESSOR, CANCEL_RESTING and CANCEL_BOTH cancel the incoming order, the resting one, or both." /></th>}
+                    {canSee("I") && <th className="px-3 py-2"><ColumnHead label="Description" help="A free-text description of the participant, for operators." /></th>}
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>

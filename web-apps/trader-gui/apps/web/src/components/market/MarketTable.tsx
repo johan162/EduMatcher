@@ -13,6 +13,7 @@ import { FlashCell } from "@/components/shared/FlashCell.js";
 import { AuctionBadge, ChangeCell, HaltBadge, WatchStar } from "./Badges.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import type { MarketRow } from "@/lib/marketRows.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /** Estimated row height in px; the virtualizer measures the real ones. */
 const ROW_HEIGHT = 28;
@@ -179,19 +180,24 @@ export function MarketTable({
                     }
                     className="text-left font-medium text-fg-dim px-2 py-1.5 border-b border-line whitespace-nowrap"
                   >
-                    {sortable ? (
-                      <button
-                        type="button"
-                        onClick={header.column.getToggleSortingHandler()}
-                        className="flex items-center gap-1 hover:text-fg"
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {dir === "asc" && <ChevronUp size={11} />}
-                        {dir === "desc" && <ChevronDown size={11} />}
-                      </button>
-                    ) : (
-                      flexRender(header.column.columnDef.header, header.getContext())
-                    )}
+                    <span className="inline-flex items-center gap-1">
+                      {sortable ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="flex items-center gap-1 hover:text-fg"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {dir === "asc" && <ChevronUp size={11} />}
+                          {dir === "desc" && <ChevronDown size={11} />}
+                        </button>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                      {typeof header.column.columnDef.header === "string" && (
+                        <HeaderTip table="market" col={header.column.columnDef.header} />
+                      )}
+                    </span>
                   </th>
                 );
               })}

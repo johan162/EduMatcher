@@ -13,6 +13,7 @@ import {
 } from "@/lib/fills.js";
 import { formatIsoTime, formatPrice, formatQty, shortId } from "@/lib/formatters.js";
 import type { Side } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /** Local calendar date YYYY-MM-DD (matches the venue-day approximation elsewhere). */
 function todayIso(now = new Date()): string {
@@ -171,14 +172,14 @@ export function TradeHistoryPage() {
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
               <tr>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Time</th>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol</th>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Side</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Fill Qty</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Fill Price</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Remaining</th>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Trade ID</th>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Order ID</th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Time <HeaderTip table="trades" col="Time" /></th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol <HeaderTip table="trades" col="Symbol" /></th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Side <HeaderTip table="trades" col="Side" /></th>
+                <th scope="col" className="px-2 py-1.5 text-right font-medium">Fill Qty <HeaderTip table="trades" col="Fill Qty" /></th>
+                <th scope="col" className="px-2 py-1.5 text-right font-medium">Fill Price <HeaderTip table="trades" col="Fill Price" /></th>
+                <th scope="col" className="px-2 py-1.5 text-right font-medium">Remaining <HeaderTip table="trades" col="Remaining" /></th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Trade ID <HeaderTip table="trades" col="Trade ID" /></th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Order ID <HeaderTip table="trades" col="Order ID" /></th>
               </tr>
             </thead>
             <tbody>

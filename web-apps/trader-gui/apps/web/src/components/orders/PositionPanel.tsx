@@ -17,6 +17,7 @@ import { summarizeSettled, describeBulkOutcome } from "@/lib/bulkOutcome.js";
 import { formatPrice, formatQty, formatSignedPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { Order, Position, Side } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 /**
  * M4: count of this symbol's working (non-terminal) orders on `side` -- the
@@ -219,58 +220,37 @@ export function PositionPanel() {
           <table className="w-full text-xs border-collapse">
             <thead className="bg-panel text-fg-dim">
               <tr>
-                <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol</th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Position</th>
+                <th scope="col" className="px-2 py-1.5 text-left font-medium">Symbol <HeaderTip table="positions" col="Symbol" /></th>
+                <th scope="col" className="px-2 py-1.5 text-right font-medium">Position <HeaderTip table="positions" col="Position" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Volume-weighted average cost of the open position"
-                >
-                  VWAP
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >VWAP <HeaderTip table="positions" col="VWAP" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Latest traded price for this symbol on the venue"
-                >
-                  Last Traded
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >Last Traded <HeaderTip table="positions" col="Last Traded" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Position × Last Price — what the open position is worth at the latest market price"
-                >
-                  Market Value
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >Market Value <HeaderTip table="positions" col="Market Value" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Position × (Last Price − Price) — the gain or loss if the position were flattened at the latest market price. Excludes fees and assumes the full size can be covered."
-                >
-                  Unrealized P&amp;L
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >Unrealized P&amp;L <HeaderTip table="positions" col="Unrealized P&L" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Gain or loss locked in by closing trades during today's trading session. From the clearing ledger, so it survives a gateway restart."
-                >
-                  Session P&amp;L
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >Session P&amp;L <HeaderTip table="positions" col="Session P&L" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Realized gain or loss for this symbol since the first of the month, including today"
-                >
-                  MTD P&amp;L
-                </th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >MTD P&amp;L <HeaderTip table="positions" col="MTD P&L" /></th>
                 <th
                   scope="col"
-                  className="px-2 py-1.5 text-right font-medium cursor-help"
-                  title="Realized gain or loss for this symbol since the first of January, including today"
-                >
-                  YTD P&amp;L
-                </th>
-                <th scope="col" className="px-2 py-1.5 text-right font-medium">Action</th>
+                  className="px-2 py-1.5 text-right font-medium"
+                >YTD P&amp;L <HeaderTip table="positions" col="YTD P&L" /></th>
+                <th scope="col" className="px-2 py-1.5 text-right font-medium">Action <HeaderTip table="positions" col="Action" /></th>
               </tr>
             </thead>
             <tbody>

@@ -14,6 +14,8 @@ import type { GapFrame, TradeFrame } from "@edumatcher/terminal-types";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { clockUtc, price, qty } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
+import { tapeHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 
 /** Rows rendered at once. The buffer holds more; the eye takes far less. */
 const VISIBLE_ROWS = 200;
@@ -155,11 +157,11 @@ export function TradeTapeView() {
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
             <tr>
-              <th className="px-3 py-2">Time</th>
-              <th className="px-3 py-2">Symbol</th>
-              <th className="px-3 py-2 text-right">Price</th>
-              <th className="px-3 py-2 text-right">Qty</th>
-              <th className="px-3 py-2">Side</th>
+              <th className="px-3 py-2">Time <InfoTip label="Time" help={tapeHelp("Time")!} /></th>
+              <th className="px-3 py-2">Symbol <InfoTip label="Symbol" help={tapeHelp("Symbol")!} /></th>
+              <th className="px-3 py-2 text-right">Price <InfoTip label="Price" help={tapeHelp("Price")!} /></th>
+              <th className="px-3 py-2 text-right">Qty <InfoTip label="Qty" help={tapeHelp("Qty")!} /></th>
+              <th className="px-3 py-2">Side <InfoTip label="Side" help={tapeHelp("Side")!} /></th>
             </tr>
           </thead>
           <tbody>

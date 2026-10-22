@@ -11,8 +11,10 @@
 import clsx from "clsx";
 import { Gauge, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { StatusDot } from "../Badge.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
+import { HelpButton } from "../help/HelpButton.js";
+import { HELP_TOPICS } from "../help/helpContent.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
@@ -27,10 +29,10 @@ const VIEWS = [
   { to: "/news", label: "News", end: false },
 ] as const;
 
-const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; label: string }> = {
-  LIVE: { tone: "live", label: "LIVE" },
-  RECONNECTING: { tone: "warn", label: "RECONNECTING" },
-  OFFLINE: { tone: "down", label: "OFFLINE" },
+const CONNECTION: Record<ConnectionState, ConnectionBadgeState> = {
+  LIVE: "live",
+  RECONNECTING: "reconnecting",
+  OFFLINE: "offline",
 };
 
 export function TopBar() {
@@ -41,7 +43,6 @@ export function TopBar() {
   const density = usePrefsStore((s) => s.density);
   const cycleDensity = usePrefsStore((s) => s.cycleDensity);
 
-  const { tone, label } = CONNECTION[connection];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
@@ -70,7 +71,7 @@ export function TopBar() {
         ))}
       </nav>
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-3">
         <button
           type="button"
           onClick={cycleDensity}
@@ -94,10 +95,9 @@ export function TopBar() {
 
         <SettingsPopover />
 
-        <StatusDot tone={tone}>
-          <span className="text-xs font-semibold tracking-wider">{label}</span>
-          {gateway && <span className="ml-1.5 text-xs text-fg-faint">{gateway}</span>}
-        </StatusDot>
+        <HelpButton topics={HELP_TOPICS} />
+
+        <ConnectionBadge state={CONNECTION[connection]} detail={gateway ?? undefined} />
       </div>
     </header>
   );

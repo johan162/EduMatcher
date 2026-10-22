@@ -6,15 +6,16 @@ import { useConnectionHealth } from "@/hooks/useConnectionHealth.js";
 import { useSessionClock } from "@/hooks/useSessionClock.js";
 import { SESSION_PHASE_META, UNKNOWN_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "@/components/ConnectionBadge.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
-import { Bell, LogOut, Wifi, WifiOff, Activity, HelpCircle, Moon, Search, Sun } from "lucide-react";
+import { Bell, LogOut, HelpCircle, Moon, Search, Sun } from "lucide-react";
 import appVersion from "../../version.json";
 
-const HEALTH_META = {
-  connected: { dot: "text-emerald-400", Icon: Wifi, label: "Connected" },
-  reconnecting: { dot: "text-amber-400", Icon: Activity, label: "Reconnecting" },
-  disconnected: { dot: "text-red-500", Icon: WifiOff, label: "Disconnected" },
-} as const;
+const HEALTH_BADGE: Record<"connected" | "reconnecting" | "disconnected", ConnectionBadgeState> = {
+  connected: "live",
+  reconnecting: "reconnecting",
+  disconnected: "offline",
+};
 
 /** Wall clock as HH:MM:SS, for the exchange clock (§9.2). */
 function clockLabel(nowMs: number): string {
@@ -35,7 +36,6 @@ export function TopBar() {
   const { now, phase, known, elapsedMs, countdownMs, nextState } = useSessionClock();
 
   const phaseMeta = known ? SESSION_PHASE_META[phase] : UNKNOWN_PHASE_META;
-  const { dot, Icon, label } = HEALTH_META[health.overall];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   // Countdown when a transition target is known, elapsed-in-phase otherwise
@@ -82,16 +82,6 @@ export function TopBar() {
 
       {/* Right: WS health, last update, notifications, gateway ID, logout */}
       <div className="flex items-center gap-3 w-56 justify-end">
-        <span
-          className={`flex items-center gap-1 text-xs ${dot}`}
-          title={`events: ${health.events} · market-data: ${health.marketData}${
-            health.adminMonitor ? ` · monitor: ${health.adminMonitor}` : ""
-          }`}
-        >
-          <Icon size={12} />
-          <span className="hidden md:inline">{label}</span>
-        </span>
-
         {health.lastMarketDataAt !== null && (
           <span className="text-[10px] font-mono text-fg-faint hidden xl:inline">
             Updated {clockLabel(health.lastMarketDataAt)}
@@ -122,8 +112,6 @@ export function TopBar() {
           )}
         </button>
 
-        <SettingsPopover />
-
         <button
           type="button"
           onClick={toggleTheme}
@@ -134,6 +122,8 @@ export function TopBar() {
           <ThemeIcon size={16} />
         </button>
 
+        <SettingsPopover />
+
         <button
           type="button"
           onClick={toggleHelp}
@@ -143,6 +133,13 @@ export function TopBar() {
         >
           <HelpCircle size={16} />
         </button>
+
+        <ConnectionBadge
+          state={HEALTH_BADGE[health.overall]}
+          title={`events: ${health.events} · market-data: ${health.marketData}${
+            health.adminMonitor ? ` · monitor: ${health.adminMonitor}` : ""
+          }`}
+        />
 
         <span className="text-xs text-fg-faint hidden lg:inline">{gatewayId}</span>
         <span className="text-xs text-fg-faint hidden lg:inline">{role}</span>

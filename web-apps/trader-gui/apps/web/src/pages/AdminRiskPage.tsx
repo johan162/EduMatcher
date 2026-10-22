@@ -2,6 +2,7 @@ import { useReferenceQuery, useReferenceRiskQuery } from "@/queries/index.js";
 import { TableSkeleton } from "@/components/shared/Skeleton.js";
 import { formatNsDuration, formatPct } from "@/lib/formatters.js";
 import type { Collar, ReferenceSymbol, RiskLevel } from "@/types/index.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 const th = "px-2 py-1.5 text-left font-medium";
 const thr = "px-2 py-1.5 text-right font-medium";
@@ -57,9 +58,9 @@ export function AdminRiskPage() {
             <table className="w-full border-collapse text-xs">
               <thead className="bg-panel text-fg-dim">
                 <tr>
-                  <th className={th}>Level</th>
-                  <th className={thr}>Static Band</th>
-                  <th className={thr}>Dynamic Band</th>
+                  <th className={th}>Level <HeaderTip table="admin-risk" col="Level" /></th>
+                  <th className={thr}>Static Band <HeaderTip table="admin-risk" col="Static Band" /></th>
+                  <th className={thr}>Dynamic Band <HeaderTip table="admin-risk" col="Dynamic Band" /></th>
                 </tr>
               </thead>
               <tbody>
@@ -91,10 +92,10 @@ export function AdminRiskPage() {
           <table className="w-full border-collapse text-xs">
             <thead className="bg-panel text-fg-dim">
               <tr>
-                <th className={th}>Symbol</th>
-                <th className={thr}>Static Band</th>
-                <th className={thr}>Dynamic Band</th>
-                <th className={th}>Profile</th>
+                <th className={th}>Symbol <HeaderTip table="admin-risk" col="Symbol" /></th>
+                <th className={thr}>Static Band <HeaderTip table="admin-risk" col="Static Band" /></th>
+                <th className={thr}>Dynamic Band <HeaderTip table="admin-risk" col="Dynamic Band" /></th>
+                <th className={th}>Profile <HeaderTip table="admin-risk" col="Profile" /></th>
               </tr>
             </thead>
             <tbody>
@@ -135,10 +136,10 @@ export function AdminRiskPage() {
           <table className="w-full border-collapse text-xs">
             <thead className="bg-panel text-fg-dim">
               <tr>
-                <th className={th}>Symbol</th>
-                <th className={th}>Level</th>
-                <th className={thr}>Price Shift</th>
-                <th className={thr}>Halt Duration</th>
+                <th className={th}>Symbol <HeaderTip table="admin-risk" col="Symbol" /></th>
+                <th className={th}>Level <HeaderTip table="admin-risk" col="Level" /></th>
+                <th className={thr}>Price Shift <HeaderTip table="admin-risk" col="Price Shift" /></th>
+                <th className={thr}>Halt Duration <HeaderTip table="admin-risk" col="Halt Duration" /></th>
               </tr>
             </thead>
             <tbody>

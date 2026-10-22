@@ -81,7 +81,7 @@ export function AlertsView() {
                 <span className="text-fg-subtle">· {issue.logger}</span>
                 <span className="text-fg-subtle">×{issue.count}</span>
                 {issue.recurredSinceAck && (
-                  <span className="rounded bg-level-warning/20 px-1.5 text-xs text-level-warning">
+                  <span className="rounded bg-level-warning-bg px-1.5 text-xs text-level-warning">
                     recurred since ack
                   </span>
                 )}

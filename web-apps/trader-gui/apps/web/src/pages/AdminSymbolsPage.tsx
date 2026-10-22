@@ -1,6 +1,7 @@
 import { useReferenceQuery } from "@/queries/index.js";
 import { useThrottledBooks } from "@/hooks/useThrottledBooks.js";
 import { formatPrice, formatPct } from "@/lib/formatters.js";
+import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 const th = "px-2 py-1.5 text-left font-medium";
 const thr = "px-2 py-1.5 text-right font-medium";
@@ -49,15 +50,15 @@ export function AdminSymbolsPage() {
         <table className="w-full border-collapse text-xs">
           <thead className="bg-panel text-fg-dim">
             <tr>
-              <th className={th}>Symbol</th>
-              <th className={thr}>Tick Dec.</th>
-              <th className={th}>Risk Level</th>
-              <th className={thr}>Static Band</th>
-              <th className={thr}>Dynamic Band</th>
-              <th className={thr}>CB Levels</th>
-              <th className={thr}>Last Bid</th>
-              <th className={thr}>Last Ask</th>
-              <th className={thr}>Action</th>
+              <th className={th}>Symbol <HeaderTip table="admin-symbols" col="Symbol" /></th>
+              <th className={thr}>Tick Dec. <HeaderTip table="admin-symbols" col="Tick Dec." /></th>
+              <th className={th}>Risk Level <HeaderTip table="admin-symbols" col="Risk Level" /></th>
+              <th className={thr}>Static Band <HeaderTip table="admin-symbols" col="Static Band" /></th>
+              <th className={thr}>Dynamic Band <HeaderTip table="admin-symbols" col="Dynamic Band" /></th>
+              <th className={thr}>CB Levels <HeaderTip table="admin-symbols" col="CB Levels" /></th>
+              <th className={thr}>Last Bid <HeaderTip table="admin-symbols" col="Last Bid" /></th>
+              <th className={thr}>Last Ask <HeaderTip table="admin-symbols" col="Last Ask" /></th>
+              <th className={thr}>Action <HeaderTip table="admin-symbols" col="Action" /></th>
             </tr>
           </thead>
           <tbody>

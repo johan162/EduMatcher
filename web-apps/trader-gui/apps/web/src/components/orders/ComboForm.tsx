@@ -8,6 +8,7 @@ import { comboSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { SMP_OPTIONS } from "@/components/orders/OrderTicket.js";
 import type { Side, SmpAction } from "@/types/index.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 const fieldCls =
   "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
@@ -117,8 +118,8 @@ export function ComboForm() {
       }}
     >
       <div className="grid grid-cols-3 gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">Combo ID</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">Combo ID <FieldHelp form="combo" field="Combo ID" /></span>
           <input
             value={comboId}
             onChange={(e) => setComboId(e.target.value)}
@@ -126,9 +127,9 @@ export function ComboForm() {
             className={fieldCls}
           />
           {errors.combo_id && <span className="text-[10px] text-ask">{errors.combo_id}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">TIF (all legs)</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">TIF (all legs) <FieldHelp form="combo" field="TIF (all legs)" /></span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}
@@ -138,9 +139,9 @@ export function ComboForm() {
             <option value="DAY">DAY</option>
             <option value="GTC">GTC</option>
           </select>
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-fg-faint">SMP (all legs)</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">SMP (all legs) <FieldHelp form="combo" field="SMP (all legs)" /></span>
           <select
             value={smp}
             onChange={(e) => setSmp(e.target.value as SmpAction | "")}
@@ -154,7 +155,7 @@ export function ComboForm() {
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
 
       <datalist id="combo-symbols">
@@ -166,8 +167,8 @@ export function ComboForm() {
       <div className="flex flex-col gap-1.5">
         {legs.map((leg, i) => (
           <div key={i} className="flex items-end gap-1.5 rounded border border-line p-1.5">
-            <label className="flex flex-1 flex-col gap-0.5">
-              <span className="text-[10px] text-fg-faint">Symbol</span>
+            <div className="flex flex-1 flex-col gap-0.5">
+              <span className="flex items-center gap-1 text-[10px] text-fg-faint">Symbol <FieldHelp form="combo" field="Symbol" /></span>
               <input
                 list="combo-symbols"
                 value={leg.symbol}
@@ -179,9 +180,9 @@ export function ComboForm() {
               {errors[`legs.${i}.symbol`] && (
                 <span className="text-[10px] text-ask">{errors[`legs.${i}.symbol`]}</span>
               )}
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-fg-faint">Side</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1 text-[10px] text-fg-faint">Side <FieldHelp form="combo" field="Side" /></span>
               <select
                 value={leg.side}
                 onChange={(e) => setLeg(i, { side: e.target.value as Side })}
@@ -191,9 +192,9 @@ export function ComboForm() {
                 <option value="BUY">BUY</option>
                 <option value="SELL">SELL</option>
               </select>
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-fg-faint">Type</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1 text-[10px] text-fg-faint">Type <FieldHelp form="combo" field="Type" /></span>
               <select
                 value={leg.order_type}
                 onChange={(e) => setLeg(i, { order_type: e.target.value as LegType })}
@@ -203,9 +204,9 @@ export function ComboForm() {
                 <option value="LIMIT">LIMIT</option>
                 <option value="MARKET">MARKET</option>
               </select>
-            </label>
-            <label className="flex w-16 flex-col gap-0.5">
-              <span className="text-[10px] text-fg-faint">Qty</span>
+            </div>
+            <div className="flex w-16 flex-col gap-0.5">
+              <span className="flex items-center gap-1 text-[10px] text-fg-faint">Qty <FieldHelp form="combo" field="Qty" /></span>
               <input
                 type="number"
                 min={1}
@@ -217,9 +218,9 @@ export function ComboForm() {
               {errors[`legs.${i}.quantity`] && (
                 <span className="text-[10px] text-ask">{errors[`legs.${i}.quantity`]}</span>
               )}
-            </label>
-            <label className="flex w-20 flex-col gap-0.5">
-              <span className="text-[10px] text-fg-faint">Price</span>
+            </div>
+            <div className="flex w-20 flex-col gap-0.5">
+              <span className="flex items-center gap-1 text-[10px] text-fg-faint">Price <FieldHelp form="combo" field="Price" /></span>
               <input
                 type="number"
                 step="any"
@@ -232,7 +233,7 @@ export function ComboForm() {
               {errors[`legs.${i}.price`] && (
                 <span className="text-[10px] text-ask">{errors[`legs.${i}.price`]}</span>
               )}
-            </label>
+            </div>
             <button
               type="button"
               onClick={() => removeLeg(i)}

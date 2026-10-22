@@ -305,7 +305,7 @@ export function SymbolsTab() {
                   />
                 </FieldRow>
                 <FieldRow
-                  label="Static band override"
+                  label="Static band override" help={{ text: "Overrides the static collar for this symbol only: the maximum distance of an order price from the reference price, in percent. Empty inherits the global setting or the risk level." }}
                   path={`symbols.${symbol}.collar.staticBandPct`}
                   defaultHint="Inherits global/level"
                   isSet={config.collar?.staticBandPct !== undefined}
@@ -328,7 +328,7 @@ export function SymbolsTab() {
                   <span className="text-sm text-fg-subtle">%</span>
                 </FieldRow>
                 <FieldRow
-                  label="Dynamic band override"
+                  label="Dynamic band override" help={{ text: "Overrides the dynamic collar for this symbol only: the maximum distance of an order price from the last trade price, in percent. Empty inherits the global setting or the risk level." }}
                   path={`symbols.${symbol}.collar.dynamicBandPct`}
                   defaultHint="Inherits global/level"
                   isSet={config.collar?.dynamicBandPct !== undefined}
@@ -616,7 +616,7 @@ export function SymbolsTab() {
 
               <Tabs.Content value="mm">
                 <FieldRow
-                  label="Enforce MM obligation"
+                  label="Enforce MM obligation" help={{ text: "Whether market makers in this symbol must keep a two-sided quote within the maximum spread and minimum quantity. Empty inherits the exchange default." }}
                   path={`symbols.${symbol}.marketMaker.enforceMmObligation`}
                   defaultHint="Inherits global"
                 >
@@ -638,7 +638,7 @@ export function SymbolsTab() {
                   />
                 </FieldRow>
                 <FieldRow
-                  label="Max spread (ticks)"
+                  label="Max spread (ticks)" help={{ text: "The widest bid-ask spread, in ticks, an obligated market maker may quote. Empty inherits the exchange default." }}
                   path={`symbols.${symbol}.marketMaker.mmMaxSpreadTicks`}
                   defaultHint={`Inherits global: ${draft.mmObligationDefaults.mmMaxSpreadTicks}`}
                   isSet={config.marketMaker?.mmMaxSpreadTicks !== undefined}
@@ -658,7 +658,7 @@ export function SymbolsTab() {
                   />
                 </FieldRow>
                 <FieldRow
-                  label="Min quantity"
+                  label="Min quantity" help={{ text: "The smallest quantity an obligated market maker must show on each side of the quote. Empty inherits the exchange default." }}
                   path={`symbols.${symbol}.marketMaker.mmMinQty`}
                   defaultHint={`Inherits global: ${draft.mmObligationDefaults.mmMinQty}`}
                   isSet={config.marketMaker?.mmMinQty !== undefined}

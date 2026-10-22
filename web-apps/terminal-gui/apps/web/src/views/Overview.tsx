@@ -38,6 +38,8 @@ import { useAutoPaging } from "../lib/useAutoPaging.js";
 import { usePrevCloses } from "../lib/usePrevCloses.js";
 import { notExecutableLabel, notExecutableReason, type NotExecutableReason } from "../lib/executable.js";
 import { useLiveStore } from "../store/useLiveStore.js";
+import { columnHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 import {
   DENSITY_ROW_CLASS,
   PAGE_DELAY_CHOICES,
@@ -393,6 +395,7 @@ export function OverviewView() {
                         }
                         className={clsx("py-1 font-medium", NUMERIC.has(column) && "text-right")}
                       >
+                        <span className={clsx("inline-flex items-center gap-1", NUMERIC.has(column) && "justify-end")}>
                         {key === undefined ? (
                           HEADING[column]
                         ) : (
@@ -412,6 +415,10 @@ export function OverviewView() {
                             {active && <span aria-hidden>{sort.direction === "asc" ? " ▲" : " ▼"}</span>}
                           </button>
                         )}
+                        {columnHelp(HEADING[column]) && (
+                          <InfoTip label={HEADING[column]} help={columnHelp(HEADING[column])!} />
+                        )}
+                        </span>
                       </th>
                     );
                   })}

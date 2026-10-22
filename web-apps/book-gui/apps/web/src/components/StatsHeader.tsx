@@ -6,6 +6,8 @@
 
 import clsx from "clsx";
 import type { BookFrame, SessionStats } from "@edumatcher/book-types";
+import { fieldHelp } from "../lib/help.js";
+import { InfoTip } from "./shared/InfoTip.js";
 import { clock, hhmm, isoDate, pct, price, qty, signedPrice } from "../lib/format.js";
 import { useNow } from "../lib/hooks.js";
 import {
@@ -26,6 +28,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <span className="flex items-baseline gap-1.5 whitespace-nowrap">
       <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-faint">{label}</span>
+      {fieldHelp(label) && <InfoTip label={label} help={fieldHelp(label)!} />}
       {children}
     </span>
   );

@@ -7,6 +7,7 @@ import { quoteSchema } from "@/lib/validators.js";
 import { spreadInfo } from "@/lib/quotes.js";
 import { formatPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
+import { FieldHelp } from "@/components/shared/FieldHelp.js";
 
 const fieldCls =
   "bg-raised border border-line rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#3a3a60]";
@@ -115,8 +116,8 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
 
   return (
     <div className="mt-2 flex flex-col gap-2 border-t border-line pt-2">
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] text-fg-faint">Quote ID</span>
+      <div className="flex flex-col gap-0.5">
+        <span className="flex items-center gap-1 text-[10px] text-fg-faint">Quote ID <FieldHelp form="quote" field="Quote ID" /></span>
         <input
           ref={quoteIdRef}
           value={quoteId}
@@ -125,11 +126,11 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
           className={fieldCls}
         />
         {errors.quote_id && <span className="text-[10px] text-ask">{errors.quote_id}</span>}
-      </label>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-bid">Bid price</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-bid">Bid price <FieldHelp form="quote" field="Bid price" /></span>
           <input
             type="number"
             step="any"
@@ -139,9 +140,9 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             className={fieldCls}
           />
           {errors.bid_price && <span className="text-[10px] text-ask">{errors.bid_price}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-bid">Bid qty</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-bid">Bid qty <FieldHelp form="quote" field="Bid qty" /></span>
           <input
             type="number"
             min={1}
@@ -151,9 +152,9 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             className={fieldCls}
           />
           {errors.bid_qty && <span className="text-[10px] text-ask">{errors.bid_qty}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-ask">Ask price</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-ask">Ask price <FieldHelp form="quote" field="Ask price" /></span>
           <input
             type="number"
             step="any"
@@ -163,9 +164,9 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             className={fieldCls}
           />
           {errors.ask_price && <span className="text-[10px] text-ask">{errors.ask_price}</span>}
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-ask">Ask qty</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-ask">Ask qty <FieldHelp form="quote" field="Ask qty" /></span>
           <input
             type="number"
             min={1}
@@ -175,12 +176,12 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             className={fieldCls}
           />
           {errors.ask_qty && <span className="text-[10px] text-ask">{errors.ask_qty}</span>}
-        </label>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="flex items-center gap-1">
-          <span className="text-[10px] text-fg-faint">TIF</span>
+        <div className="flex items-center gap-1">
+          <span className="flex items-center gap-1 text-[10px] text-fg-faint">TIF <FieldHelp form="quote" field="TIF" /></span>
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as "DAY" | "GTC")}
@@ -190,7 +191,7 @@ export function NewQuoteForm({ symbol, tickDecimals, initial, onDone }: NewQuote
             <option value="DAY">DAY</option>
             <option value="GTC">GTC</option>
           </select>
-        </label>
+        </div>
         <span className="text-[10px] text-fg-dim" aria-label="spread indicator">
           {spread
             ? `Spread: ${formatPrice(spread.currency, tickDecimals)} (${spread.ticks} ticks)`

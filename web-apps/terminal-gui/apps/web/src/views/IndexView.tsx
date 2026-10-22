@@ -28,6 +28,8 @@ import {
   type IndexTimeframe,
 } from "../lib/index-series.js";
 import { IndexChart } from "../components/IndexChart.js";
+import { indexHelp } from "../lib/help.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 
 export function IndexView() {
   const configured = useLiveStore((s) => s.indexes);
@@ -163,14 +165,15 @@ export function IndexView() {
 
       <div className="grid gap-3 md:grid-cols-2">
         <dl className="rounded border border-border px-3 py-2 text-sm">
-          <Row label="Open" value={price(todayRow?.open_level ?? undefined)} />
-          <Row label="High" value={price(todayRow?.high_level ?? undefined)} />
-          <Row label="Low" value={price(todayRow?.low_level ?? undefined)} />
+          <Row label="Open" help={indexHelp("Open")} value={price(todayRow?.open_level ?? undefined)} />
+          <Row label="High" help={indexHelp("High")} value={price(todayRow?.high_level ?? undefined)} />
+          <Row label="Low" help={indexHelp("Low")} value={price(todayRow?.low_level ?? undefined)} />
           <Row
             label="Aggregate cap"
+            help={indexHelp("Aggregate cap")}
             value={snapshot?.aggCap === undefined ? ABSENT : `${(snapshot.aggCap / 1e12).toFixed(2)}T`}
           />
-          <Row label="Session" value={snapshot?.session ?? ABSENT} />
+          <Row label="Session" help={indexHelp("Session")} value={snapshot?.session ?? ABSENT} />
         </dl>
 
         {changes.length > 0 && (
@@ -190,10 +193,13 @@ export function IndexView() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, help, value }: { label: string; help?: string; value: string }) {
   return (
     <div className="flex justify-between py-0.5">
-      <dt className="text-fg-subtle">{label}</dt>
+      <dt className="flex items-center gap-1 text-fg-subtle">
+        {label}
+        {help && <InfoTip label={label} help={help} />}
+      </dt>
       <dd className="tabular">{value}</dd>
     </div>
   );

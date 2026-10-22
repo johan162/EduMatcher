@@ -28,6 +28,7 @@ import { registerProcessesRoutes } from "./routes/processes.js";
 import { registerStatsRoutes } from "./routes/stats.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { registerUiConfigRoutes } from "./routes/ui-config.js";
+import { downFrom } from "./server-state.js";
 import { WsHub } from "./ws-hub.js";
 
 const config = loadBridgeConfig();
@@ -93,6 +94,8 @@ uplink.on("event", (rows) => {
   }
 });
 
+let lastServerState: ServerState | null = null;
+
 uplink.on("server_state", (payload) => {
   const state: ServerState = {
     server: String(payload.server ?? ""),
@@ -105,8 +108,16 @@ uplink.on("server_state", (payload) => {
     defaultLeaseSec: Number(payload.default_lease_sec ?? 0),
     timestamp: Number(payload.timestamp ?? Date.now() / 1000),
   };
+  lastServerState = state;
   const frame: ServerFrame = { t: "server_state", state };
   wsHub.broadcastAll(frame);
+});
+
+// A killed log server never publishes its own DOWN; the uplink only sees heartbeats stop.
+uplink.on("state_change", (next) => {
+  if (next !== "SERVER_DOWN" || lastServerState?.state === "DOWN") return;
+  lastServerState = downFrom(lastServerState, Date.now() / 1000);
+  wsHub.broadcastAll({ t: "server_state", state: lastServerState });
 });
 
 // The session phase for the top bar comes from pm-md-gwy, which needs no

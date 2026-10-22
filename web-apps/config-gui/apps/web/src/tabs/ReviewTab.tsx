@@ -99,7 +99,7 @@ export function ReviewTab() {
       </Section>
 
       <Section title="Output options">
-        <FieldRow label="Download filename" path="output.filename">
+        <FieldRow label="Download filename" help={{ text: "The name the browser gives the generated engine_config.yaml when you download it." }} path="output.filename">
           <TextInput
             aria-label="Download filename"
             value={draft.output.filename}

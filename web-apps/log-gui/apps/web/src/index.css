@@ -16,8 +16,13 @@ html.dark {
   --fg: #e6edf3;
   --fg-subtle: #8b949e;
   --accent: #2f81f7;
+  --accent-fg: #ffffff;
   /* Brand wordmark version number only (TopBar). */
   --brand-version: #26d07c;
+  /* Connection badge (top bar); same values as the other web apps. */
+  --live: #26d07c;
+  --warning: #ffb020;
+  --offline: #ff4d5e;
 
   --level-debug: #8b949e;
   --level-info: #58a6ff;
@@ -25,6 +30,11 @@ html.dark {
   --level-error: #f85149;
   --level-critical: #ff7b72;
   --level-critical-bg: #490202;
+  /* Tints for badges and banners: Tailwind cannot derive an alpha from a bare var(). */
+  --accent-bg: color-mix(in srgb, var(--accent) 15%, transparent);
+  --level-warning-bg: color-mix(in srgb, var(--level-warning) 20%, transparent);
+  --level-error-bg: color-mix(in srgb, var(--level-error) 15%, transparent);
+  --border-subtle: color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 html:not(.dark) {
@@ -35,7 +45,11 @@ html:not(.dark) {
   --fg: #1f2328;
   --fg-subtle: #59636e;
   --accent: #0969da;
+  --accent-fg: #ffffff;
   --brand-version: #065f46;
+  --live: #067647;
+  --warning: #8a5a00;
+  --offline: #c8102e;
 
   --level-debug: #6e7781;
   --level-info: #0969da;
@@ -43,6 +57,18 @@ html:not(.dark) {
   --level-error: #cf222e;
   --level-critical: #ffffff;
   --level-critical-bg: #cf222e;
+  --accent-bg: color-mix(in srgb, var(--accent) 15%, transparent);
+  --level-warning-bg: color-mix(in srgb, var(--level-warning) 20%, transparent);
+  --level-error-bg: color-mix(in srgb, var(--level-error) 15%, transparent);
+  --border-subtle: color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+/*
+ * Fallback for the zoom factor CSS `zoom` (see useFontSizeStore) sets on #root
+ * before first paint; AppShell sizes itself against it.
+ */
+:root {
+  --zoom: 1;
 }
 
 html,
