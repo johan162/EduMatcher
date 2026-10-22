@@ -1,3 +1,19 @@
+## [v0.51.5] - 2026-10-22
+
+Release Type: patch
+
+### 📋 Summary
+This patch release reduces noise in operator monitoring and dashboard charts. It also smooths process-health transitions and reduces terminal news polling.
+
+### 🚀 Improvements
+- Removed event annotation bars from dashboard time-series charts to reduce visual noise
+- Added hysteresis to warning and recovery evaluations to prevent process-health states from rapidly oscillating
+- Raised the default engine-handle p99 warning and critical thresholds from 2 ms/10 ms to 5 ms/20 ms
+- Extended recovery from HUNG status and reduced terminal news polling from every second to every 20 seconds
+
+### 🛠 Internal
+- Updated monitoring and dashboard tests for the threshold and chart behavior changes
+
 ## [v0.51.4] - 2026-10-22
 
 Release Type: minor
