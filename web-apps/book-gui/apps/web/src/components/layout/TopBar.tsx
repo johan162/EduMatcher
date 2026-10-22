@@ -47,7 +47,7 @@ export function TopBar() {
         timeZone={timeZone}
       />
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-3">
         <button
           type="button"
           onClick={toggleTheme}

@@ -112,8 +112,6 @@ export function TopBar() {
           )}
         </button>
 
-        <SettingsPopover />
-
         <button
           type="button"
           onClick={toggleTheme}
@@ -123,6 +121,8 @@ export function TopBar() {
         >
           <ThemeIcon size={16} />
         </button>
+
+        <SettingsPopover />
 
         <button
           type="button"
@@ -134,9 +134,12 @@ export function TopBar() {
           <HelpCircle size={16} />
         </button>
 
-        <ConnectionBadge state={HEALTH_BADGE[health.overall]} title={`events: ${health.events} · market-data: ${health.marketData}${
+        <ConnectionBadge
+          state={HEALTH_BADGE[health.overall]}
+          title={`events: ${health.events} · market-data: ${health.marketData}${
             health.adminMonitor ? ` · monitor: ${health.adminMonitor}` : ""
-          }`} />
+          }`}
+        />
 
         <span className="text-xs text-fg-faint hidden lg:inline">{gatewayId}</span>
         <span className="text-xs text-fg-faint hidden lg:inline">{role}</span>

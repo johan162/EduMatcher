@@ -69,7 +69,7 @@ export function TopBar() {
         ))}
       </nav>
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-3">
         <button
           type="button"
           onClick={cycleDensity}

@@ -52,7 +52,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
+    <header className="flex h-12 items-center justify-between gap-4 border-b border-border bg-surface px-4">
       <div className="flex items-baseline gap-2">
         <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
         <span className="font-mono text-xs text-accent">pm-config</span>
@@ -116,18 +116,18 @@ export function TopBar() {
         </button>
         <button
           type="button"
+          onClick={() => showToast("Draft saved to this browser.")}
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
+        >
+          Save
+        </button>
+        <button
+          type="button"
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
           className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
         >
           {theme === "dark" ? "☀" : "☾"}
-        </button>
-        <button
-          type="button"
-          onClick={() => showToast("Draft saved to this browser.")}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg"
-        >
-          Save
         </button>
       </div>
 

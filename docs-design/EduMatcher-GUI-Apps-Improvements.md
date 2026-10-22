@@ -22,7 +22,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | WP-UI04 | Analyse chnanges to make the different GUI harmonized | - | 0.5 d | ☑ | 2026-10-22 |
 | 5 | WP-UI05 | Shared `ConnectionBadge` and status tokens (F5, F6) | UI03 | 0.5 d | ☑ | 2026-10-22 |
 | 6 | WP-UI06 | pm-log settings popover, font size, density (F1) | UI05 | 0.5 d | ☑ | 2026-10-22 |
-| 7 | WP-UI07 | One top-bar order and active-item style (F3, F8) | UI06 | 0.5 d | ☐ | |
+| 7 | WP-UI07 | One top-bar order and active-item style (F3, F8) | UI06 | 0.5 d | ☑ | 2026-10-22 |
 | 8 | WP-UI08 | Per-app help panel and `?` button (F2) | UI07 | 1.5 d | ☐ | |
 | 9 | WP-UI09 | Theme default and pm-config frame (F4, F7) | UI06 | 0.5 d | ☐ | |
 | 10 | WP-UI10 | Universal keyboard shortcuts (F9) | UI08 | 0.5 d | ☐ | |
@@ -312,6 +312,30 @@ Apps: all six.
 - **Tests:** update tests that find buttons by position; add one test per app asserting the DOM order of the
   top-bar controls by accessible name.
 - **Done when:** the six top bars, side by side, differ only by their app-specific tools and navigation.
+
+**Done 2026-10-22.** The agreed order of the right-hand group, in every app:
+
+`[app-specific tools] · Theme · Settings · Help · Connection badge · identity`
+
+| App | App-specific tools | Then |
+|---|---|---|
+| pm-log | - | Theme, Settings, badge |
+| pm-trader | last-update time, command palette, notifications | Theme, Settings, Help, badge, gateway, role, logout |
+| pm-terminal | density | Theme, Settings, badge (+ gateway) |
+| pm-dash | time range, refresh | Theme, Settings, badge |
+| pm-book | (symbol picker and session sit left of the group) | Theme, Settings, badge (+ source) |
+| pm-config | Import, New, Save | Theme (it has no settings or badge) |
+
+Changes: pm-trader had Settings before Theme (swapped); pm-config had the theme toggle before Save (moved last)
+and its bar was `h-14` (now `h-12` like the rest); the right-group gap is `gap-3` everywhere (terminal and book
+had 4, dash 2). Help is placed after Settings in pm-trader and is the slot WP-UI08 fills in the others.
+Active navigation item is the accent fill with `accent-fg` text in pm-log's rail (was a tint), pm-trader's
+sidebar (was a grey fill) and, already, pm-terminal's tabs and pm-config's list.
+- **Not changed:** pm-trader's bar is still `h-10` (its help drawer, event centre and other panels are anchored to
+  `top-10`); making it `h-12` means moving those too, and is a separate, cosmetic change.
+- **Tests:** `topbar-order.test.tsx` in pm-log, pm-trader, pm-terminal, pm-dash and pm-book asserts the DOM
+  order by accessible name. pm-config has no component-test setup (its 178 tests are package tests), so its order
+  is unguarded; WP-UI09 adds a settings popover there and should add the jsdom setup with it.
 
 #### WP-UI08 - Per-app help panel and `?` button (F2)
 

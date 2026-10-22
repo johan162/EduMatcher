@@ -73,7 +73,7 @@ export function TopBar() {
       <ExchangeStatusPill />
       <SessionBadge />
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-3">
         <TimePicker />
         <RefreshPicker />
         <button
