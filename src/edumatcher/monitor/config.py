@@ -56,7 +56,7 @@ class MonitorThresholds:
     host_cpu_pct: ThresholdBand = ThresholdBand(80.0, 95.0)
     host_mem_pct: ThresholdBand = ThresholdBand(80.0, 92.0)
     disk_free_pct: ThresholdBand = ThresholdBand(15.0, 5.0)
-    engine_handle_p99_us: ThresholdBand = ThresholdBand(2000.0, 10000.0)
+    engine_handle_p99_us: ThresholdBand = ThresholdBand(5000.0, 20000.0)
     reject_pct_5m: ThresholdBand = ThresholdBand(10.0, 30.0)
     rss_growth_pct_1h: ThresholdBand = ThresholdBand(50.0, 100.0)
     heap_garbage_pct: ThresholdBand = ThresholdBand(50.0, 80.0)

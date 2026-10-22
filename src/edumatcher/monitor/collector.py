@@ -575,6 +575,7 @@ class Monitor:
                         state.key,
                         state.loop_age_ms,
                         warn=LOOP_AGE_WARN_MS,
+                        debounce=False,
                     )
                 )
             growth = state.rss_growth_pct(now)

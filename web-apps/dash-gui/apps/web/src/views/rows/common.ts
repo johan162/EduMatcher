@@ -1,19 +1,16 @@
 /**
  * What the dashboard rows share (design §12.3, D3): the dashboard-wide
- * loads (threshold rules, the event log's catch-up), threshold lookup,
- * annotations from events, and the pure computations behind two panels --
+ * loads (threshold rules, the event log's catch-up), threshold lookup, and the pure computations behind two panels --
  * the connection timeline and the reject ratio -- kept here so they are
  * tested on their own.
  */
 
 import { useEffect, useMemo } from "react";
 import type { ActiveBreach, BridgeStatus, EventsResponse, HealthEvent, ParticipantStats, Point, ProcessHealth, ThresholdsResponse } from "@edumatcher/dash-types";
-import type { Annotation } from "../../components/widgets/TimeSeries.js";
 import type { Lane, Segment, Mark, TimeRangeMs } from "../../components/widgets/StateTimeline.js";
 import { getJson, query } from "../../lib/api.js";
 import { MIN_REQUESTS } from "../../lib/metrics.js";
 import { REFRESH_MS } from "../../lib/range.js";
-import { SEVERITY } from "../../lib/status.js";
 import { fromRule, type Level, type Thresholds } from "../../lib/thresholds.js";
 import { useDashStore } from "../../store/useDashStore.js";
 
@@ -130,21 +127,6 @@ export function useBreaches(): readonly ActiveBreach[] {
 export function breachLevel(breaches: readonly ActiveBreach[], rule: string, subject?: string): Level {
   const levels = breaches.filter((b) => b.rule === rule && (subject === undefined || b.subject === subject)).map((b) => b.level);
   return levels.includes("CRIT") ? "CRIT" : levels.includes("WARN") ? "WARN" : "OK";
-}
-
-/** The kinds that mark the charts (§12.1): state changes, not the connect/disconnect stream. */
-const MARKED = new Set(["PROCESS_STATUS", "THRESHOLD", "SESSION", "HALT", "RESUME"]);
-
-/** Events as chart annotations, coloured by severity. */
-export function useAnnotations(): readonly Annotation[] {
-  const events = useDashStore((s) => s.events);
-  return useMemo(
-    () =>
-      events
-        .filter((e) => MARKED.has(e.kind))
-        .map((e) => ({ ts: Date.parse(e.ts), label: `${e.kind} ${e.subject}`, color: SEVERITY[e.severity].color })),
-    [events],
-  );
 }
 
 export const CONNECTED = "CONNECTED";

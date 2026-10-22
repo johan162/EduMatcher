@@ -18,6 +18,7 @@ import pytest
 from edumatcher.models.generated.health import HealthBeacon, HealthSnapshot
 from edumatcher.monitor.collector import FORGET_AFTER_SEC, Monitor
 from edumatcher.monitor.config import MonitorConfig
+from edumatcher.monitor.thresholds import CLEAR_AFTER
 from edumatcher.monitor.state import (
     STARTUP_GRACE_SEC,
     HealthRules,
@@ -369,10 +370,10 @@ class TestTransitions:
         mon.snapshot()
         mon.receive(_beacon_frames(seq=2, loop_age_ms=7000.0), clock.t)
         mon.snapshot()
-        for seq in range(3, 7):
+        for seq in range(3, 4 + CLEAR_AFTER):
             mon.receive(_beacon_frames(seq=seq), clock.t)
             mon.snapshot()
-        # The loop_age_ms warning (§9.6) clears after 3 OK seconds, so the
+        # The loop_age_ms warning (§9.6) clears after CLEAR_AFTER OK seconds, so the
         # way back passes through DEGRADED.
         assert [e for e in events if e[0] == "PROCESS_STATUS"] == [
             ("PROCESS_STATUS", "CRIT", "pm-engine@box", "HEALTHY -> HUNG"),

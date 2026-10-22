@@ -1,8 +1,8 @@
 /**
  * News (WP-E5): pm-market-sim's headlines, newest first.
  *
- * CALF carries no news, so this polls the bridge's `/api/news` proxy once a
- * second while the view is open. The filter takes a symbol or a sector; a
+ * CALF carries no news, so this polls the bridge's `/api/news` proxy every 20
+ * seconds while the view is open. The filter takes a symbol or a sector; a
  * symbol also shows its sector's and the market's news. A rumour that was
  * later retracted is struck through, as is the retraction.
  */
@@ -17,7 +17,7 @@ import { useLiveStore } from "../store/useLiveStore.js";
 import { newsHelp } from "../lib/help.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
 
-export const NEWS_POLL_MS = 1000;
+export const NEWS_POLL_MS = 20_000;
 const VISIBLE_ROWS = 100;
 
 function StatusBadge({ item }: { item: NewsEvent }) {

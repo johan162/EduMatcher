@@ -298,7 +298,7 @@ export function buildDefaultEngineFieldCommentLines(): string[] {
     "    host_cpu_pct: {warn: 80, crit: 95}",
     "    host_mem_pct: {warn: 80, crit: 92}",
     "    disk_free_pct: {warn: 15, crit: 5}",
-    "    engine_handle_p99_us: {warn: 2000, crit: 10000}",
+    "    engine_handle_p99_us: {warn: 5000, crit: 20000}",
     "    reject_pct_5m: {warn: 10, crit: 30}",
     "    rss_growth_pct_1h: {warn: 50, crit: 100}",
     "    heap_garbage_pct: {warn: 50, crit: 80}",

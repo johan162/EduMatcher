@@ -51,7 +51,7 @@ class TestDefaults:
         assert cfg.book_metrics_interval_sec == 10.0
         assert cfg.retention == MonitorRetention(raw_hours=6, minute_days=7)
         assert cfg.thresholds.disk_free_pct == ThresholdBand(15.0, 5.0)
-        assert cfg.thresholds.engine_handle_p99_us == ThresholdBand(2000.0, 10000.0)
+        assert cfg.thresholds.engine_handle_p99_us == ThresholdBand(5000.0, 20000.0)
 
     def test_the_defaults_equal_the_config_module_constants(self) -> None:
         """A3.7: one place decides the default endpoint."""

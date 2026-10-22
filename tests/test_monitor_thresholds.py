@@ -12,6 +12,7 @@ from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig, MonitorThresholds
 from edumatcher.monitor.thresholds import (
     CLEAR_AFTER,
+    RAISE_AFTER,
     Reading,
     ThresholdBook,
     band_reading,
@@ -60,16 +61,54 @@ class TestLevels:
 class TestHysteresis:
     def test_an_oscillating_value_breaches_once_and_clears_once(self) -> None:
         book = ThresholdBook()
-        values = [79, 81, 79, 81, 79, 81, 79, 79, 79]
+        values = [81] * RAISE_AFTER + [79, 81] * 10 + [50] * CLEAR_AFTER
         assert _run(book, values) == ["OK->WARN", "WARN->OK"]
 
-    def test_rises_at_once(self) -> None:
+    def test_a_short_spike_over_warn_is_not_a_breach(self) -> None:
+        book = ThresholdBook()
+        values = ([81] * (RAISE_AFTER - 1) + [50]) * 5
+        assert _run(book, values) == []
+        assert book.active() == []
+
+    def test_a_critical_level_rises_at_once(self) -> None:
         book = ThresholdBook()
         assert _run(book, [50, 96]) == ["OK->CRIT"]
 
+    def test_a_warn_over_an_existing_breach_needs_no_debounce(self) -> None:
+        book = ThresholdBook()
+        assert _run(book, [81] * RAISE_AFTER + [96]) == ["OK->WARN", "WARN->CRIT"]
+
     def test_eases_to_the_highest_level_of_the_lower_run(self) -> None:
         book = ThresholdBook()
-        assert _run(book, [96, 85, 50, 85]) == ["OK->CRIT", "CRIT->WARN"]
+        lower = [85] * CLEAR_AFTER
+        assert _run(book, [96] + lower) == ["OK->CRIT", "CRIT->WARN"]
+
+    def test_a_value_just_inside_the_threshold_does_not_clear(self) -> None:
+        book = ThresholdBook()
+        # 79 is below warn (80) but not 20 % below it: the breach holds.
+        assert _run(book, [81] * RAISE_AFTER + [79] * 3 * CLEAR_AFTER) == ["OK->WARN"]
+        assert _run(book, [63] * CLEAR_AFTER) == ["WARN->OK"]
+
+    def test_an_inverted_rule_clears_only_beyond_its_deadband(self) -> None:
+        book = ThresholdBook()
+
+        def disk(v: float) -> list[str]:
+            return [
+                f"{c.previous}->{c.level}"
+                for c in book.evaluate(
+                    [band_reading(T, "disk_free_pct", "host", v)], "ts"
+                )
+            ]
+
+        assert [x for _ in range(RAISE_AFTER) for x in disk(14)] == ["OK->WARN"]
+        assert [x for _ in range(CLEAR_AFTER) for x in disk(16)] == []
+        assert [x for _ in range(CLEAR_AFTER) for x in disk(19)] == ["WARN->OK"]
+
+    def test_a_pending_warn_is_forgotten_when_the_reading_stops(self) -> None:
+        book = ThresholdBook()
+        _run(book, [81] * (RAISE_AFTER - 1))
+        book.evaluate([], "ts")
+        assert _run(book, [81]) == []
 
     def test_a_reading_that_stops_arriving_clears(self) -> None:
         book = ThresholdBook()
@@ -80,7 +119,8 @@ class TestHysteresis:
 
     def test_active_breaches(self) -> None:
         book = ThresholdBook()
-        book.evaluate([_cpu(90)], "2026-10-19T10:00:00.000Z")
+        for _ in range(RAISE_AFTER):
+            book.evaluate([_cpu(90)], "2026-10-19T10:00:00.000Z")
         book.evaluate([_cpu(97)], "2026-10-19T10:00:01.000Z")
         assert book.active() == [
             {
@@ -117,7 +157,8 @@ def monitor() -> Iterator[Monitor]:
 def test_an_oscillation_logs_one_breach_and_one_clear(
     monitor: Monitor, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    values = iter([79, 81, 79, 81, 79, 81, 79, 79, 79])
+    values_list = [81] * RAISE_AFTER + [79, 81] * 5 + [50] * CLEAR_AFTER
+    values = iter(values_list)
     monkeypatch.setattr(monitor, "readings", lambda now, host: [_cpu(next(values))])
     events: list[tuple[str, str, str]] = []
 
@@ -127,7 +168,7 @@ def test_an_oscillation_logs_one_breach_and_one_clear(
 
     monkeypatch.setattr(monitor, "publish_event", record)
     caplog.set_level(logging.INFO, logger="edumatcher.monitor.collector")
-    for _ in range(9):
+    for _ in values_list:
         monitor.snapshot()
     lines = [
         (r.levelname, r.getMessage())
@@ -136,11 +177,11 @@ def test_an_oscillation_logs_one_breach_and_one_clear(
     ]
     assert lines == [
         ("WARNING", "threshold host_cpu_pct WARN 81 > 80 on host"),
-        ("INFO", "threshold host_cpu_pct cleared (79) on host"),
+        ("INFO", "threshold host_cpu_pct cleared (50) on host"),
     ]
     assert [e for e in events if e[0] == "THRESHOLD"] == [
         ("THRESHOLD", "WARN", "host_cpu_pct WARN 81 > 80"),
-        ("THRESHOLD", "INFO", "host_cpu_pct cleared (79)"),
+        ("THRESHOLD", "INFO", "host_cpu_pct cleared (50)"),
     ]
     assert monitor.threshold_changes == 2
 
