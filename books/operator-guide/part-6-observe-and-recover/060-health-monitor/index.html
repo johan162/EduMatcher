@@ -7744,8 +7744,8 @@ and nothing is MISSING.</p>
 <tr>
 <td><code>engine_handle_p99_us</code></td>
 <td>the engine</td>
-<td>&gt; 2 000 µs</td>
-<td>&gt; 10 000 µs</td>
+<td>&gt; 5 000 µs</td>
+<td>&gt; 20 000 µs</td>
 </tr>
 <tr>
 <td><code>reject_pct_5m</code> — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min</td>
@@ -7786,9 +7786,12 @@ and nothing is MISSING.</p>
 </tbody>
 </table>
 <p>The configurable rules take their levels from <code>monitor.thresholds</code>. A breach
-is reported at once; it clears (or eases from critical to warning) only after
-three consecutive seconds at the lower level, so a value hovering around a
-threshold produces one breach and one clear, not a flood. Each breach and
+is raised after five consecutive seconds over a warn level (a critical level
+is raised at once), so one noisy sample is not a breach. It clears (or eases
+from critical to warning) only after thirty consecutive seconds at the lower
+level, each with the value back inside 80 % of the threshold it crossed, so a
+value hovering around a threshold produces one breach and one clear, not a
+flood. Each breach and
 each clear is one <code>THRESHOLD</code> event and one log line through the log server
 (<code>threshold host_cpu_pct WARN 81 &gt; 80 on host</code> at WARNING, critical at ERROR,
 a clear at INFO), so the log console's alerting already covers notification.</p>
