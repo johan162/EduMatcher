@@ -175,7 +175,7 @@ and nothing is MISSING.
 | `host_cpu_pct` | `host` | > 80 % | > 95 % |
 | `host_mem_pct` (total − available) | `host` | > 80 % | > 92 % |
 | `disk_free_pct` (data directory) | `host` | < 15 % | < 5 % |
-| `engine_handle_p99_us` | the engine | > 2 000 µs | > 10 000 µs |
+| `engine_handle_p99_us` | the engine | > 5 000 µs | > 20 000 µs |
 | `reject_pct_5m` — rejected over all inbound requests (orders, cancels, amends, quotes), judged from 20 requests in 5 min | `exchange` | > 10 % | > 30 % |
 | `rss_growth_pct_1h` — judged once a process has been watched for 10 min | a process | > 50 % | > 100 % |
 | `heap_garbage_pct` — judged from 100 heap entries | a symbol | > 50 % | > 80 % |
@@ -184,9 +184,12 @@ and nothing is MISSING.
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 
 The configurable rules take their levels from `monitor.thresholds`. A breach
-is reported at once; it clears (or eases from critical to warning) only after
-three consecutive seconds at the lower level, so a value hovering around a
-threshold produces one breach and one clear, not a flood. Each breach and
+is raised after five consecutive seconds over a warn level (a critical level
+is raised at once), so one noisy sample is not a breach. It clears (or eases
+from critical to warning) only after thirty consecutive seconds at the lower
+level, each with the value back inside 80 % of the threshold it crossed, so a
+value hovering around a threshold produces one breach and one clear, not a
+flood. Each breach and
 each clear is one `THRESHOLD` event and one log line through the log server
 (`threshold host_cpu_pct WARN 81 > 80 on host` at WARNING, critical at ERROR,
 a clear at INFO), so the log console's alerting already covers notification.

@@ -8,7 +8,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Point } from "@edumatcher/dash-types";
 import { bucketGrid, RateBars, rateRows } from "../src/components/widgets/RateBars.js";
-import { inRange, mergeSeries, seriesStyle, thresholdBands, TimeSeries, yDomain } from "../src/components/widgets/TimeSeries.js";
+import { mergeSeries, seriesStyle, thresholdBands, TimeSeries, yDomain } from "../src/components/widgets/TimeSeries.js";
 import { formatCount } from "../src/lib/format.js";
 import { OTHER, topN, topNSeries } from "../src/lib/topn.js";
 import { useCrosshair } from "../src/store/useCrosshair.js";
@@ -22,20 +22,10 @@ beforeEach(() => useCrosshair.setState({ ts: null }));
 afterEach(cleanup);
 
 describe("TimeSeries", () => {
-  const annotations = [
-    { ts: T0 - MIN, label: "before", color: "var(--crit)" },
-    { ts: T0, label: "at the start", color: "var(--crit)" },
-    { ts: T0 + 20 * MIN, label: "inside", color: "var(--warn)" },
-    { ts: T0 + 60 * MIN, label: "at the end", color: "var(--info)" },
-    { ts: T0 + 61 * MIN, label: "after", color: "var(--info)" },
-  ];
-
-  it("draws one marker per event in range and none outside it", () => {
-    render(<TimeSeries label="CPU" series={[{ label: "pm-engine", points: line(30) }]} range={RANGE} tz="UTC" format={String} annotations={annotations} width={600} />);
-    const markers = document.querySelectorAll(".recharts-reference-line.annotation");
-    expect(markers).toHaveLength(3);
-    expect(inRange(annotations, RANGE).map((a) => a.label)).toEqual(["at the start", "inside", "at the end"]);
+  it("draws a line per series and no event markers", () => {
+    render(<TimeSeries label="CPU" series={[{ label: "pm-engine", points: line(30) }]} range={RANGE} tz="UTC" format={String} width={600} />);
     expect(document.querySelectorAll(".recharts-line")).toHaveLength(1);
+    expect(document.querySelectorAll(".recharts-reference-line")).toHaveLength(0);
   });
 
   it("labels the time axis on the session clock, not the browser's", () => {

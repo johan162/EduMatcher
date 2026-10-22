@@ -14,7 +14,7 @@ import { getJson, query } from "../../lib/api.js";
 import type { Thresholds } from "../../lib/thresholds.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { NO_SERIES } from "../charts.js";
-import { beaconing, liveExchangeProcesses, shortKey, useAnnotations } from "./common.js";
+import { beaconing, liveExchangeProcesses, shortKey } from "./common.js";
 
 export interface ProcessSeriesChartProps {
   label: string;
@@ -55,7 +55,6 @@ export function ProcessSeriesChart({ label, name, live, format, stacked, thresho
   const keys = useMemo(() => history.data?.series.map((s) => s.source) ?? [], [history.data]);
   const series = useLiveSeries(base, bucketMs, (snap: HealthSnapshot) => liveValues(snap, keys, live));
   const range = useChartRange(bucketMs);
-  const annotations = useAnnotations();
 
   return (
     <TimeSeries
@@ -66,7 +65,6 @@ export function ProcessSeriesChart({ label, name, live, format, stacked, thresho
       format={format}
       stacked={stacked}
       thresholds={thresholds}
-      annotations={annotations}
       height={height}
     />
   );

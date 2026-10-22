@@ -24,7 +24,7 @@ import { COUNTER, REQUEST_COUNTERS } from "../../lib/metrics.js";
 import { useDashStore } from "../../store/useDashStore.js";
 import { useMemo } from "react";
 import { CounterBars, NO_SERIES } from "../charts.js";
-import { rejectRatio, useAnnotations, useRule } from "./common.js";
+import { rejectRatio, useRule } from "./common.js";
 
 function useBucket() {
   return rateBucket(useDashStore((s) => s.range));
@@ -44,7 +44,6 @@ function RejectRatio() {
   const tz = useDashStore((s) => s.sessionTz);
   const { bucketMs } = useBucket();
   const rule = useRule("reject_pct_5m");
-  const annotations = useAnnotations();
   const history = useHistory<{ rejects: RateResponse; requests: RateResponse }>("reject-ratio", async (range, signal) => {
     const bucket = rateBucket(range).bucket;
     const [rejects, requests] = await Promise.all([
@@ -67,7 +66,6 @@ function RejectRatio() {
       tz={tz}
       format={formatPercent}
       thresholds={rule}
-      annotations={annotations}
     />
   );
 }

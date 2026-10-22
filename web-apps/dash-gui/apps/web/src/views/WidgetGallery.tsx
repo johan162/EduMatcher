@@ -16,7 +16,7 @@ import { StateTimeline } from "../components/widgets/StateTimeline.js";
 import { StatTile } from "../components/widgets/StatTile.js";
 import { TimeSeries } from "../components/widgets/TimeSeries.js";
 import { formatBytes, formatCount, formatDuration, formatMicros, formatPercent, formatRate } from "../lib/format.js";
-import { SEVERITY, TONE } from "../lib/status.js";
+import { TONE } from "../lib/status.js";
 
 const TZ = "Europe/Stockholm";
 const END = Date.parse("2026-10-19T10:00:00Z");
@@ -115,10 +115,6 @@ export function WidgetGallery() {
             tz={TZ}
             format={(v) => formatPercent(v)}
             thresholds={{ warn: 80, crit: 95 }}
-            annotations={[
-              { ts: RANGE.fromMs + 20 * MIN, label: "HUNG", color: SEVERITY.CRIT.color },
-              { ts: RANGE.fromMs + 41 * MIN, label: "DISCONNECT", color: SEVERITY.WARN.color },
-            ]}
           />
           <TimeSeries
             label="Exchange memory"

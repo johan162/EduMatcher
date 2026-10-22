@@ -17,7 +17,6 @@ import { useChartRange, useHistory, useLiveSeries } from "../hooks/history.js";
 import { getJson, query, rateBucket } from "../lib/api.js";
 import type { Thresholds } from "../lib/thresholds.js";
 import { useDashStore } from "../store/useDashStore.js";
-import { useAnnotations } from "./rows/common.js";
 
 /** No series yet: one array for every render, so a memoised chart is not redrawn (I118). */
 export const NO_SERIES: readonly never[] = [];
@@ -68,7 +67,6 @@ export function SeriesChart({ label, name, seriesLabel = "", source, legend, liv
   const base = useMemo(() => (history.data ? [{ label: legend, points: history.data.points }] : null), [history.data, legend]);
   const series = useLiveSeries(base, bucketMs, (snap) => [live(snap)]);
   const range = useChartRange(bucketMs);
-  const annotations = useAnnotations();
   return (
     <TimeSeries
       label={label}
@@ -77,7 +75,6 @@ export function SeriesChart({ label, name, seriesLabel = "", source, legend, liv
       tz={tz}
       format={format}
       thresholds={thresholds}
-      annotations={annotations}
       integer={integer}
       height={height}
     />

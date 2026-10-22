@@ -1,10 +1,15 @@
 """Threshold rules with hysteresis (design §9.6).
 
 Every second the collector hands in one :class:`Reading` per rule and subject
-it can measure. A level rises at once and falls only after
-``CLEAR_AFTER`` consecutive evaluations at the lower level, so a value
-oscillating around a threshold produces one breach and one clear, not a
-flood. A reading that stops arriving (the process went away) counts as OK.
+it can measure. A warning of a configurable rule is raised only after ``RAISE_AFTER`` consecutive
+evaluations over its threshold (a single noisy sample is not a breach); a
+critical level, and a warning of a fixed rule (a counter that moved, a late
+loop), is raised at once. A level falls only after ``CLEAR_AFTER``
+consecutive evaluations at the lower level, and an evaluation counts only
+once the value is ``CLEAR_RATIO`` of the way back inside the threshold it
+breached, so a value hovering around a threshold produces one breach and one
+clear, not a flood. A reading that stops arriving (the process went away)
+counts as OK.
 
 Every level change is a :class:`Change`: the collector publishes it as a
 ``THRESHOLD`` event and logs one line through LALF (WARNING for a warn
@@ -24,8 +29,15 @@ from edumatcher.monitor.config import (
     ThresholdBand,
 )
 
+#: Consecutive evaluations over a warn threshold before the breach is raised.
+RAISE_AFTER = 5
+
 #: Consecutive evaluations at a lower level before a breach clears or eases.
-CLEAR_AFTER = 3
+CLEAR_AFTER = 30
+
+#: A breach holds until the value is back inside this fraction of the
+#: threshold it crossed (inverted rules: beyond threshold / CLEAR_RATIO).
+CLEAR_RATIO = 0.8
 
 #: Fixed rules that are not in the ``monitor.thresholds`` configuration.
 #: ``loop_age_ms``: a loop over 1 s late is a warning; its critical level is
@@ -52,6 +64,7 @@ class Reading:
     warn: float
     crit: float | None = None  # None: the rule has no critical level
     inverted: bool = False  # a LOW value is bad (disk free)
+    debounce: bool = True  # False: a warning is raised at once
 
     def level(self) -> str:
         if self.inverted:
@@ -64,6 +77,19 @@ class Reading:
 
     def threshold(self, level: str) -> float:
         return self.crit if level == "CRIT" and self.crit is not None else self.warn
+
+    def holds(self, level: str) -> bool:
+        """Whether the value is still too close to ``level``'s threshold for
+        that level to count as cleared."""
+        limit = self.threshold(level)
+        edge = limit / CLEAR_RATIO if self.inverted else limit * CLEAR_RATIO
+        if level == "CRIT" and (
+            edge > self.warn if self.inverted else edge < self.warn
+        ):
+            # The deadband would reach into the warn band: a value there is a
+            # warning, not a critical level on its way down.
+            return False
+        return self.value < edge if self.inverted else self.value > edge
 
 
 def band_reading(
@@ -78,7 +104,7 @@ def band_reading(
 
 def increase_reading(rule: str, subject: str, increase: float) -> Reading:
     """``any increase in 5 min`` (§9.6): WARN on anything above zero."""
-    return Reading(rule, subject, increase, warn=0.0)
+    return Reading(rule, subject, increase, warn=0.0, debounce=False)
 
 
 @dataclass(frozen=True)
@@ -120,9 +146,14 @@ class _Track:
 class ThresholdBook:
     """The breach state of every rule and subject."""
 
-    def __init__(self, clear_after: int = CLEAR_AFTER) -> None:
+    def __init__(
+        self, clear_after: int = CLEAR_AFTER, raise_after: int = RAISE_AFTER
+    ) -> None:
         self.clear_after = clear_after
+        self.raise_after = raise_after
         self._tracks: dict[tuple[str, str], _Track] = {}
+        #: Consecutive warn evaluations of subjects not yet in breach.
+        self._pending: dict[tuple[str, str], int] = {}
         self._inverted: dict[tuple[str, str], bool] = {}
 
     def evaluate(self, readings: Iterable[Reading], now_iso: str) -> list[Change]:
@@ -133,9 +164,19 @@ class ThresholdBook:
             key = (reading.rule, reading.subject)
             seen.add(key)
             self._inverted[key] = reading.inverted
-            change = self._step(key, reading.level(), reading.value, reading, now_iso)
+            target = reading.level()
+            track = self._tracks.get(key)
+            if (
+                track is not None
+                and _LEVELS.index(target) < _LEVELS.index(track.level)
+                and reading.holds(track.level)
+            ):
+                target = track.level
+            change = self._step(key, target, reading.value, reading, now_iso)
             if change is not None:
                 changes.append(change)
+        for key in [k for k in self._pending if k not in seen]:
+            del self._pending[key]
         for key in [k for k in self._tracks if k not in seen]:
             track = self._tracks[key]
             change = self._step(key, "OK", track.value, None, now_iso)
@@ -154,7 +195,14 @@ class ThresholdBook:
         track = self._tracks.get(key)
         if track is None:
             if target == "OK":
+                self._pending.pop(key, None)
                 return None
+            if target == "WARN" and reading is not None and reading.debounce:
+                streak = self._pending.get(key, 0) + 1
+                if streak < self.raise_after:
+                    self._pending[key] = streak
+                    return None
+            self._pending.pop(key, None)
             track = self._tracks[key] = _Track()
         rank = _LEVELS.index
         previous = track.level

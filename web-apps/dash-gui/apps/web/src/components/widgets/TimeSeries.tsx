@@ -14,8 +14,6 @@
  *   zone).
  * - Threshold bands are tinted `ReferenceArea`s, with the level's colour;
  *   an inverted rule (low is bad) tints the bottom.
- * - Events are annotations: one thin `ReferenceLine` each, only for those
- *   inside the range.
  * - The crosshair is shared (useCrosshair) and drawn as an overlay of its
  *   own, so a moving pointer re-renders that line, not every chart's points.
  * - Series 1-8 take the eight series colours; 9-16 repeat them dashed and
@@ -30,7 +28,6 @@ import {
   Line,
   LineChart,
   ReferenceArea,
-  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis,
@@ -49,19 +46,12 @@ export interface TimeSeriesLine {
   points: readonly Point[];
 }
 
-export interface Annotation {
-  ts: number;
-  label: string;
-  color: string;
-}
-
 export interface TimeSeriesProps {
   label: string;
   series: readonly TimeSeriesLine[];
   range: TimeRangeMs;
   tz: string;
   format: (v: number) => string;
-  annotations?: readonly Annotation[];
   thresholds?: Thresholds;
   stacked?: boolean;
   /** Whole-number values (counts): no fractional axis ticks. */
@@ -98,10 +88,6 @@ export function mergeSeries(series: readonly TimeSeriesLine[], fillZero = false)
     for (const row of out) series.forEach((_s, i) => (row[`s${i}`] ??= 0));
   }
   return out;
-}
-
-export function inRange(annotations: readonly Annotation[], range: TimeRangeMs): Annotation[] {
-  return annotations.filter((a) => a.ts >= range.fromMs && a.ts <= range.toMs);
 }
 
 /** Series i's colour and dash: colours cycle, each cycle in a new dash. */
@@ -159,7 +145,6 @@ interface BodyProps {
   range: TimeRangeMs;
   tz: string;
   format: (v: number) => string;
-  annotations: readonly Annotation[];
   thresholds?: Thresholds;
   stacked: boolean;
   integer: boolean;
@@ -169,7 +154,7 @@ interface BodyProps {
 }
 
 /** The chart itself; memoised, so the crosshair's moves do not redraw it. */
-const Body = memo(function Body({ rows, series, range, tz, format, annotations, thresholds, stacked, integer, width, height }: BodyProps) {
+const Body = memo(function Body({ rows, series, range, tz, format, thresholds, stacked, integer, width, height }: BodyProps) {
   const setCrosshair = useCrosshair((s) => s.setTs);
   const span = range.toMs - range.fromMs;
   const [lo, hi] = yDomain(rows, series.length, stacked, thresholds);
@@ -222,9 +207,6 @@ const Body = memo(function Body({ rows, series, range, tz, format, annotations, 
           <Line key={i} dataKey={`s${i}`} name={s.label} stroke={color} strokeDasharray={dash} dot={false} strokeWidth={1.5} isAnimationActive={false} />
         );
       })}
-      {inRange(annotations, range).map((a, i) => (
-        <ReferenceLine key={i} x={a.ts} stroke={a.color} strokeDasharray="2 2" className="annotation" />
-      ))}
     </Chart>
   );
 });
@@ -256,7 +238,6 @@ export function TimeSeries({
   range,
   tz,
   format,
-  annotations = [],
   thresholds,
   stacked = false,
   integer = false,
@@ -273,7 +254,7 @@ export function TimeSeries({
         <ChartBox width={width} height={height}>
           {(size) => (
             // ResponsiveContainer sizes its direct child through width/height props.
-            <Body rows={rows} series={series} range={range} tz={tz} format={format} annotations={annotations} thresholds={thresholds} stacked={stacked} integer={integer} {...size} />
+            <Body rows={rows} series={series} range={range} tz={tz} format={format} thresholds={thresholds} stacked={stacked} integer={integer} {...size} />
           )}
         </ChartBox>
         <Crosshair range={range} height={height} />

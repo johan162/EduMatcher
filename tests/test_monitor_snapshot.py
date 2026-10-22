@@ -13,6 +13,7 @@ from edumatcher.models.generated.health import HealthSnapshot
 from edumatcher.monitor.activity import GATEWAYS
 from edumatcher.monitor.collector import Monitor
 from edumatcher.monitor.config import MonitorConfig
+from edumatcher.monitor.thresholds import RAISE_AFTER
 from tests.conftest import free_ports
 from tests.test_monitor_main import QuietHost, _beacon_frames
 
@@ -377,7 +378,9 @@ def test_heap_garbage_needs_a_real_heap(
         ),
         clocks.mono,
     )
-    rules = [(b.rule, b.subject) for b in _snapshot(mon).thresholds]
+    snaps = [_snapshot(mon) for _ in range(RAISE_AFTER)]
+    snap = snaps[-1]
+    rules = [(b.rule, b.subject) for b in snap.thresholds]
     assert rules == ([("heap_garbage_pct", "AAA")] if breached else [])
 
 
