@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | WP-UI05 | Shared `ConnectionBadge` and status tokens (F5, F6) | UI03 | 0.5 d | ☑ | 2026-10-22 |
 | 6 | WP-UI06 | pm-log settings popover, font size, density (F1) | UI05 | 0.5 d | ☑ | 2026-10-22 |
 | 7 | WP-UI07 | One top-bar order and active-item style (F3, F8) | UI06 | 0.5 d | ☑ | 2026-10-22 |
-| 8 | WP-UI08 | Per-app help panel and `?` button (F2) | UI07 | 1.5 d | ☐ | |
+| 8 | WP-UI08 | Per-app help panel and `?` button (F2) | UI07 | 1.5 d | ☑ | 2026-10-23 |
 | 9 | WP-UI09 | Theme default and pm-config frame (F4, F7) | UI06 | 0.5 d | ☐ | |
 | 10 | WP-UI10 | Universal keyboard shortcuts (F9) | UI08 | 0.5 d | ☐ | |
 | 11 | WP-UI11 | Drift test for the copied components (F10) | UI05, UI08 | 0.5 d | ☐ | |
@@ -363,6 +363,30 @@ Apps: pm-log, pm-terminal, pm-dash, pm-book, pm-config (pm-trader keeps its draw
 - **Estimate note:** the code is small; the writing is the work. Split into two commits if needed (log+config,
   terminal+dash+book).
 - **Done when:** every app opens a readable help panel from the top bar and from the keyboard.
+
+**Done 2026-10-23.** Every app now has a "?" in the top bar (after Settings, before the connection badge) opening a
+topic panel, written from the guides and the code.
+- **Component:** `components/help/HelpButton.tsx` renders the button and a right-edge panel (topic list left, topic
+  right, Esc or the close button closes). Content is data: `HelpTopic[]` of blocks (`paragraphs`, `bullets`,
+  `terms` as a glossary, `example`, `note`) in each app's `helpContent.ts`. The file is byte-identical in pm-log,
+  pm-terminal, pm-dash and pm-book. pm-config has its own copy with its colour tokens and plain-text icons (it has
+  no icon library, and a new dependency was not worth two glyphs). pm-trader keeps its existing drawer
+  (WP-UI02) and gained the shared topics.
+- **Topics common to all live apps:** *Connection badge* (LIVE / RECONNECTING or CONNECTING / OFFLINE as that app
+  defines them, and what to do with stale numbers), *Session badge* (the five phases, Unknown, countdown, exchange
+  clock) and *Settings & theme*. **pm-log:** about, levels, dashboard, Logs, Alerts and acknowledging, Connections,
+  Diagnostics, Health. **pm-terminal:** about the seven views, Overview, Symbol detail with the depth ladder,
+  Index, Tape, Movers, Session view, News. **pm-dash:** about the seven rows, process states and the exchange pill,
+  colours and thresholds, time range and refresh, detail drawers. **pm-book:** about, how the book works, the
+  statistics rows and their basis. **pm-config:** about and workflow, personas, the tabs, diagnostics, drafts.
+- **Checked against the code:** claims about what each view shows were checked in the source (for example the exchange
+  pill has four states plus NO DATA; pm-log acknowledgements live in their own SQLite file; the terminal's Session
+  view shows halts and uncrossed auctions, not a schedule). The `Ctrl+/` shortcut is not added here; WP-UI10 does it.
+- **Tests:** `help.test.tsx` in the four apps (content well-formed, connection and session topics present, panel
+  opens, switches topic, closes on Esc and on the button); the top-bar order tests now include Help; pm-trader
+  asserts the two new topics; pm-config has a data-only content test because it still has no component-test setup.
+- **Not done:** the guide chapters are named in the text but not linked, because the apps do not know where the
+  documentation is hosted.
 
 #### WP-UI09 - Theme default and pm-config frame (F4, F7)
 

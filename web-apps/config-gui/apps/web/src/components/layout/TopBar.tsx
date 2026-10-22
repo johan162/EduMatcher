@@ -5,6 +5,8 @@ import { useDraftStore } from "@/store/draftStore";
 import { importYaml } from "@/api/client";
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog } from "@/components/ui/Dialog";
+import { HelpButton } from "../help/HelpButton";
+import { HELP_TOPICS } from "../help/helpContent";
 import appVersion from "../../version.json";
 
 const PERSONA_LABELS: Record<Persona, string> = {
@@ -129,6 +131,7 @@ export function TopBar() {
         >
           {theme === "dark" ? "☀" : "☾"}
         </button>
+        <HelpButton topics={HELP_TOPICS} />
       </div>
 
       {toast && (

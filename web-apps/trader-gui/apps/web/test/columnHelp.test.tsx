@@ -55,3 +55,12 @@ describe("order type help (WP-UI02.4)", () => {
     expect(document.querySelector("pre")?.textContent).toMatch(/stop/i);
   });
 });
+
+describe("shared help topics (WP-UI08)", () => {
+  it("explains the connection and session badges, as every live app does", () => {
+    const ids = HELP_TOPICS.map((t) => t.id);
+    expect(ids).toContain("connection");
+    expect(ids).toContain("session");
+    expect(JSON.stringify(HELP_TOPICS.find((t) => t.id === "connection"))).toContain("OFFLINE");
+  });
+});

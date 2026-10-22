@@ -56,6 +56,86 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
   },
   {
+    "id": "connection",
+    "title": "Connection badge",
+    "blocks": [
+      {
+        "paragraphs": [
+          "The dot and word at the right of the top bar say whether what you see is live. They look and mean the same in every EduMatcher web app; the text after the word is specific to this one."
+        ],
+        "terms": [
+          {
+            "term": "LIVE (green)",
+            "text": "Every connection this screen needs is up: order events, market data, and for an administrator the monitor stream."
+          },
+          {
+            "term": "RECONNECTING (amber)",
+            "text": "At least one of them dropped and is being re-established. Prices and order states may be out of date; a banner explains what is paused."
+          },
+          {
+            "term": "OFFLINE (red)",
+            "text": "No connection. Do not trade on what you see. Orders you send may not arrive; check the blotter once the badge is green again."
+          }
+        ]
+      },
+      {
+        "note": "Whenever the badge is not LIVE, treat the numbers on screen as the last known values, not as the state of the exchange now. The page reconnects by itself; you do not need to reload."
+      },
+      {
+        "note": "Hover the badge to see the state of each connection separately: events, market-data and, for administrators, monitor."
+      }
+    ]
+  },
+  {
+    "id": "session",
+    "title": "Session badge",
+    "blocks": [
+      {
+        "paragraphs": [
+          "The coloured badge in the top bar is the phase the exchange is in right now, as reported by the market-data gateway (pm-md-gwy). It is the same badge, in the same colours, in every EduMatcher web app."
+        ],
+        "terms": [
+          {
+            "term": "Pre-Open",
+            "text": "Before the opening auction. The exchange is not matching yet."
+          },
+          {
+            "term": "Opening Auction",
+            "text": "A call phase: orders are collected and then match together at a single uncross price, instead of one by one."
+          },
+          {
+            "term": "Continuous",
+            "text": "Normal trading: every new order is matched against the book at once."
+          },
+          {
+            "term": "Closing Auction",
+            "text": "A call phase before the close, like the opening auction."
+          },
+          {
+            "term": "Closed",
+            "text": "The day is over. Nothing matches."
+          },
+          {
+            "term": "Unknown",
+            "text": "The market-data gateway cannot be reached, so the phase is not known. The badge never guesses."
+          }
+        ]
+      },
+      {
+        "heading": "Next phase and countdown",
+        "paragraphs": [
+          "When the next phase change is scheduled, the badge is followed by an arrow, the next phase and the time left, for example → Closing Auction in 03:08. With no schedule (a manually driven session) there is no countdown, because a countdown to zero would promise a change that is not coming. When no change is scheduled, the time spent in the current phase is shown instead (\"12:40 elapsed\")."
+        ]
+      },
+      {
+        "heading": "Exchange clock",
+        "paragraphs": [
+          "The clock at the right of the badge shows the time in the exchange's own time zone (hover for its name), which may differ from your computer's."
+        ]
+      }
+    ]
+  },
+  {
     id: "workspace",
     title: "Trading Workspace",
     blocks: [

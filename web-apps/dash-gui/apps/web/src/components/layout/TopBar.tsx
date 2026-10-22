@@ -10,6 +10,8 @@ import { Moon, Sun } from "lucide-react";
 import { SessionIndicator } from "../SessionIndicator.js";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
+import { HelpButton } from "../help/HelpButton.js";
+import { HELP_TOPICS } from "../help/helpContent.js";
 import { RefreshPicker, TimePicker } from "./TimePicker.js";
 import { EXCHANGE_STATUS, UNKNOWN_STATUS } from "../../lib/status.js";
 import { useDashStore, type SocketState } from "../../store/useDashStore.js";
@@ -87,6 +89,8 @@ export function TopBar() {
         </button>
 
         <SettingsPopover />
+
+        <HelpButton topics={HELP_TOPICS} />
 
         <ConnectionBadge state={SOCKET[socket]} />
       </div>

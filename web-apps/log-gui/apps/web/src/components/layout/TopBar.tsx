@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
+import { HelpButton } from "../help/HelpButton.js";
+import { HELP_TOPICS } from "../help/helpContent.js";
 import { SessionIndicator } from "../SessionIndicator.js";
 import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
@@ -88,6 +90,8 @@ export function TopBar({
         </button>
 
         <SettingsPopover />
+
+        <HelpButton topics={HELP_TOPICS} />
 
         <ConnectionBadge
           state={badge.state}

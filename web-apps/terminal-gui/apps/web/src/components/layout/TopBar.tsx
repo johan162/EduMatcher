@@ -13,6 +13,8 @@ import { Gauge, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
+import { HelpButton } from "../help/HelpButton.js";
+import { HELP_TOPICS } from "../help/helpContent.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
@@ -92,6 +94,8 @@ export function TopBar() {
         </button>
 
         <SettingsPopover />
+
+        <HelpButton topics={HELP_TOPICS} />
 
         <ConnectionBadge state={CONNECTION[connection]} detail={gateway ?? undefined} />
       </div>

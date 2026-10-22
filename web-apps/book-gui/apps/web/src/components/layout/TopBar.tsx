@@ -10,6 +10,8 @@ import { SessionIndicator } from "../SessionIndicator.js";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SymbolPicker } from "../SymbolPicker.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
+import { HelpButton } from "../help/HelpButton.js";
+import { HELP_TOPICS } from "../help/helpContent.js";
 import { useBookStore, type ConnectionState } from "../../store/useBookStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
@@ -59,6 +61,8 @@ export function TopBar() {
         </button>
 
         <SettingsPopover />
+
+        <HelpButton topics={HELP_TOPICS} />
 
         <ConnectionBadge state={CONNECTION[connection]} detail={source || undefined} />
       </div>

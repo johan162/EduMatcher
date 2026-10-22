@@ -17,9 +17,11 @@ describe("top bar order (WP-UI07)", () => {
     const density = screen.getByRole("button", { name: /^Density/ });
     const theme = screen.getByRole("button", { name: /^Theme/ });
     const settings = screen.getByRole("button", { name: "Settings" });
+    const help = screen.getByRole("button", { name: "Help" });
     const badge = screen.getByTestId("connection-badge");
     expect(before(density, theme)).toBe(true);
     expect(before(theme, settings)).toBe(true);
-    expect(before(settings, badge)).toBe(true);
+    expect(before(settings, help)).toBe(true);
+    expect(before(help, badge)).toBe(true);
   });
 });
