@@ -123,7 +123,7 @@ export function DashboardView() {
       {unackedIssues.length > 0 && (
         <div
           className={clsx(
-            "alert-pulse rounded border-2 border-level-error bg-level-error/10 p-3",
+            "alert-pulse rounded border-2 border-level-error bg-level-error-bg p-3",
           )}
         >
           <div className="flex items-center justify-between">

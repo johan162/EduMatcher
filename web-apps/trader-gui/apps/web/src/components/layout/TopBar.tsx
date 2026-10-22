@@ -6,16 +6,16 @@ import { useConnectionHealth } from "@/hooks/useConnectionHealth.js";
 import { useSessionClock } from "@/hooks/useSessionClock.js";
 import { SESSION_PHASE_META, UNKNOWN_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "@/components/ConnectionBadge.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, HelpCircle, Moon, Search, Sun } from "lucide-react";
 import appVersion from "../../version.json";
 
-/** Same words and colours as the other web apps' connection indicator. */
-const HEALTH_META = {
-  connected: { dot: "bg-emerald-500", label: "LIVE" },
-  reconnecting: { dot: "bg-amber-500", label: "RECONNECTING" },
-  disconnected: { dot: "bg-red-500", label: "OFFLINE" },
-} as const;
+const HEALTH_BADGE: Record<"connected" | "reconnecting" | "disconnected", ConnectionBadgeState> = {
+  connected: "live",
+  reconnecting: "reconnecting",
+  disconnected: "offline",
+};
 
 /** Wall clock as HH:MM:SS, for the exchange clock (§9.2). */
 function clockLabel(nowMs: number): string {
@@ -36,7 +36,6 @@ export function TopBar() {
   const { now, phase, known, elapsedMs, countdownMs, nextState } = useSessionClock();
 
   const phaseMeta = known ? SESSION_PHASE_META[phase] : UNKNOWN_PHASE_META;
-  const { dot, label } = HEALTH_META[health.overall];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   // Countdown when a transition target is known, elapsed-in-phase otherwise
@@ -135,15 +134,9 @@ export function TopBar() {
           <HelpCircle size={16} />
         </button>
 
-        <span
-          className="flex items-center gap-1.5"
-          title={`events: ${health.events} · market-data: ${health.marketData}${
+        <ConnectionBadge state={HEALTH_BADGE[health.overall]} title={`events: ${health.events} · market-data: ${health.marketData}${
             health.adminMonitor ? ` · monitor: ${health.adminMonitor}` : ""
-          }`}
-        >
-          <span className={`h-2 w-2 rounded-full ${dot}`} />
-          <span className="text-xs font-semibold tracking-wider text-fg">{label}</span>
-        </span>
+          }`} />
 
         <span className="text-xs text-fg-faint hidden lg:inline">{gatewayId}</span>
         <span className="text-xs text-fg-faint hidden lg:inline">{role}</span>

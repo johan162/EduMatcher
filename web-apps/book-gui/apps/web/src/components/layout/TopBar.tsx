@@ -7,17 +7,17 @@
 
 import { Moon, Sun } from "lucide-react";
 import { SessionIndicator } from "../SessionIndicator.js";
-import { StatusDot } from "../StatusDot.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SymbolPicker } from "../SymbolPicker.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { useBookStore, type ConnectionState } from "../../store/useBookStore.js";
 import { usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
 
-const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; label: string }> = {
-  LIVE: { tone: "live", label: "LIVE" },
-  RECONNECTING: { tone: "warn", label: "RECONNECTING" },
-  OFFLINE: { tone: "down", label: "OFFLINE" },
+const CONNECTION: Record<ConnectionState, ConnectionBadgeState> = {
+  LIVE: "live",
+  RECONNECTING: "reconnecting",
+  OFFLINE: "offline",
 };
 
 export function TopBar() {
@@ -28,7 +28,6 @@ export function TopBar() {
   const theme = usePrefsStore((s) => s.theme);
   const toggleTheme = usePrefsStore((s) => s.toggleTheme);
 
-  const { tone, label } = CONNECTION[connection];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
@@ -61,10 +60,7 @@ export function TopBar() {
 
         <SettingsPopover />
 
-        <StatusDot tone={tone}>
-          <span className="text-xs font-semibold tracking-wider">{label}</span>
-          {source && <span className="ml-1.5 text-xs text-fg-faint">{source}</span>}
-        </StatusDot>
+        <ConnectionBadge state={CONNECTION[connection]} detail={source || undefined} />
       </div>
     </header>
   );

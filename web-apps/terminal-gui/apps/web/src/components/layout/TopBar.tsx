@@ -11,7 +11,7 @@
 import clsx from "clsx";
 import { Gauge, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { StatusDot } from "../Badge.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { useLiveStore, type ConnectionState } from "../../store/useLiveStore.js";
 import { DENSITY_LABEL, usePrefsStore } from "../../store/usePrefsStore.js";
@@ -27,10 +27,10 @@ const VIEWS = [
   { to: "/news", label: "News", end: false },
 ] as const;
 
-const CONNECTION: Record<ConnectionState, { tone: "live" | "warn" | "down"; label: string }> = {
-  LIVE: { tone: "live", label: "LIVE" },
-  RECONNECTING: { tone: "warn", label: "RECONNECTING" },
-  OFFLINE: { tone: "down", label: "OFFLINE" },
+const CONNECTION: Record<ConnectionState, ConnectionBadgeState> = {
+  LIVE: "live",
+  RECONNECTING: "reconnecting",
+  OFFLINE: "offline",
 };
 
 export function TopBar() {
@@ -41,7 +41,6 @@ export function TopBar() {
   const density = usePrefsStore((s) => s.density);
   const cycleDensity = usePrefsStore((s) => s.cycleDensity);
 
-  const { tone, label } = CONNECTION[connection];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
@@ -94,10 +93,7 @@ export function TopBar() {
 
         <SettingsPopover />
 
-        <StatusDot tone={tone}>
-          <span className="text-xs font-semibold tracking-wider">{label}</span>
-          {gateway && <span className="ml-1.5 text-xs text-fg-faint">{gateway}</span>}
-        </StatusDot>
+        <ConnectionBadge state={CONNECTION[connection]} detail={gateway ?? undefined} />
       </div>
     </header>
   );

@@ -21,12 +21,20 @@ const config: Config = {
         // Brand wordmark version number only (TopBar).
         "brand-version": "var(--brand-version)",
 
+        live: "var(--live)",
+        warning: "var(--warning)",
+        offline: "var(--offline)",
+
         "level-debug": "var(--level-debug)",
         "level-info": "var(--level-info)",
         "level-warning": "var(--level-warning)",
         "level-error": "var(--level-error)",
         "level-critical": "var(--level-critical)",
         "level-critical-bg": "var(--level-critical-bg)",
+        "accent-bg": "var(--accent-bg)",
+        "level-warning-bg": "var(--level-warning-bg)",
+        "level-error-bg": "var(--level-error-bg)",
+        "border-subtle": "var(--border-subtle)",
       },
     },
   },

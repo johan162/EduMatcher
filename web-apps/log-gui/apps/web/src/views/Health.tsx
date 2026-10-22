@@ -16,7 +16,7 @@ function Row({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between border-b border-border/50 py-1 text-sm last:border-0">
+    <div className="flex justify-between border-b border-border-subtle py-1 text-sm last:border-0">
       <span className="flex items-center gap-1 text-fg-subtle">
         {label}
         <InfoTip label={label}>{help}</InfoTip>

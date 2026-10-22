@@ -3,6 +3,7 @@
 import { Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SessionIndicator } from "../SessionIndicator.js";
 import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
@@ -16,12 +17,11 @@ const NEXT_THEME_ICON: Record<ThemePreference, typeof Moon> = {
   light: Moon,
 };
 
-/** Same words and colours as the other web apps' connection indicator. */
-const STATE_BADGE: Record<SourceState, { dot: string; label: string; cause: string }> = {
-  LIVE: { dot: "bg-green-500", label: "LIVE", cause: "" },
-  RECONNECTING: { dot: "bg-yellow-500", label: "RECONNECTING", cause: "" },
-  LOG_SERVER_DOWN: { dot: "bg-red-500", label: "OFFLINE", cause: "log server down" },
-  HISTORY_UNAVAILABLE: { dot: "bg-red-500", label: "OFFLINE", cause: "log.db unavailable" },
+const STATE_BADGE: Record<SourceState, { state: ConnectionBadgeState; cause: string }> = {
+  LIVE: { state: "live", cause: "" },
+  RECONNECTING: { state: "reconnecting", cause: "" },
+  LOG_SERVER_DOWN: { state: "offline", cause: "log server down" },
+  HISTORY_UNAVAILABLE: { state: "offline", cause: "log.db unavailable" },
 };
 
 export function TopBar({
@@ -62,7 +62,7 @@ export function TopBar({
         to="/alerts"
         className={
           unackedCount > 0
-            ? "flex items-center gap-1 rounded bg-level-error/20 px-2 py-0.5 font-semibold text-level-error"
+            ? "flex items-center gap-1 rounded bg-level-error-bg px-2 py-0.5 font-semibold text-level-error"
             : "flex items-center gap-1 text-fg-subtle"
         }
       >
@@ -86,17 +86,11 @@ export function TopBar({
           <ThemeIcon size={16} />
         </button>
 
-        <span
-          className="flex items-center gap-1.5"
+        <ConnectionBadge
+          state={badge.state}
+          detail={badge.cause ? `${serverName} · ${badge.cause}` : serverName}
           title="Whether pm-log-srv, the process that collects every log line, is alive. LIVE: it is publishing its heartbeat. OFFLINE: it announced a shutdown or its heartbeat stopped, or the log database cannot be read; the numbers then show only what was stored before."
-        >
-          <span className={`h-2 w-2 rounded-full ${badge.dot}`} />
-          <span className="text-xs font-semibold tracking-wider">{badge.label}</span>
-          <span className="text-xs text-fg-subtle">
-            {serverName}
-            {badge.cause && ` · ${badge.cause}`}
-          </span>
-        </span>
+        />
       </div>
     </header>
   );

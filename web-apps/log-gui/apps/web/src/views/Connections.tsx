@@ -126,7 +126,7 @@ export function ConnectionsView() {
           {rows.map((row) => (
             <tr
               key={row.session}
-              className="cursor-pointer border-b border-border/50 font-mono hover:bg-bg-subtle"
+              className="cursor-pointer border-b border-border-subtle font-mono hover:bg-bg-subtle"
               onClick={() =>
                 navigate(`/logs?processes=${encodeURIComponent(row.process)}`)
               }

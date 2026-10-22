@@ -40,6 +40,9 @@ const config: Config = {
         down: channel("ask"),
         halt: channel("halt"),
         auction: channel("halt"),
+        accent: channel("accent"),
+        "accent-fg": channel("accent-fg"),
+        warning: channel("halt"),
         live: channel("bid"),
         offline: channel("ask"),
         // Brand wordmark version number only (TopBar) — kept apart from

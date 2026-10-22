@@ -36,7 +36,7 @@ export function NavRail() {
           className={({ isActive }) =>
             clsx(
               "relative flex w-16 flex-col items-center gap-1 rounded py-2 text-[11px]",
-              isActive ? "bg-accent/15 text-accent" : "text-fg-subtle hover:bg-bg-inset",
+              isActive ? "bg-accent-bg text-accent" : "text-fg-subtle hover:bg-bg-inset",
             )
           }
         >

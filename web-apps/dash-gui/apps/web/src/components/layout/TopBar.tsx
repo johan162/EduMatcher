@@ -8,7 +8,7 @@
 import clsx from "clsx";
 import { Moon, Sun } from "lucide-react";
 import { SessionIndicator } from "../SessionIndicator.js";
-import { StatusDot } from "../StatusDot.js";
+import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { RefreshPicker, TimePicker } from "./TimePicker.js";
 import { EXCHANGE_STATUS, UNKNOWN_STATUS } from "../../lib/status.js";
@@ -17,10 +17,10 @@ import { usePrefsStore } from "../../store/usePrefsStore.js";
 import appVersion from "../../version.json";
 
 /** The bridge connection only; pm-monitor's own state is the banner's. */
-const SOCKET: Record<SocketState, { tone: "live" | "warn" | "down"; label: string }> = {
-  OPEN: { tone: "live", label: "LIVE" },
-  CONNECTING: { tone: "warn", label: "CONNECTING" },
-  CLOSED: { tone: "down", label: "OFFLINE" },
+const SOCKET: Record<SocketState, ConnectionBadgeState> = {
+  OPEN: "live",
+  CONNECTING: "connecting",
+  CLOSED: "offline",
 };
 
 function ExchangeStatusPill() {
@@ -60,7 +60,6 @@ export function TopBar() {
   const theme = usePrefsStore((s) => s.theme);
   const toggleTheme = usePrefsStore((s) => s.toggleTheme);
 
-  const { tone, label } = SOCKET[socket];
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
@@ -89,9 +88,7 @@ export function TopBar() {
 
         <SettingsPopover />
 
-        <StatusDot tone={tone}>
-          <span className="text-xs font-semibold tracking-wider">{label}</span>
-        </StatusDot>
+        <ConnectionBadge state={SOCKET[socket]} />
       </div>
     </header>
   );

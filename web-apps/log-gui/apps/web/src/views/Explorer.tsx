@@ -144,7 +144,7 @@ export function ExplorerView() {
         <button
           type="button"
           onClick={() => setTailPaused(false)}
-          className="border-b border-border bg-accent/10 py-1 text-center text-xs text-accent"
+          className="border-b border-border bg-accent-bg py-1 text-center text-xs text-accent"
         >
           ⏸ {newRowsWhilePaused} new rows — jump to top
         </button>
