@@ -21,7 +21,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | WP-UI03 | Harmonize all ONLINE/OFFLINE top row badges  | - | 0.5 d | ☑ | 2026-10-22 |
 | 4 | WP-UI04 | Analyse chnanges to make the different GUI harmonized | - | 0.5 d | ☑ | 2026-10-22 |
 | 5 | WP-UI05 | Shared `ConnectionBadge` and status tokens (F5, F6) | UI03 | 0.5 d | ☑ | 2026-10-22 |
-| 6 | WP-UI06 | pm-log settings popover, font size, density (F1) | UI05 | 0.5 d | ☐ | |
+| 6 | WP-UI06 | pm-log settings popover, font size, density (F1) | UI05 | 0.5 d | ☑ | 2026-10-22 |
 | 7 | WP-UI07 | One top-bar order and active-item style (F3, F8) | UI06 | 0.5 d | ☐ | |
 | 8 | WP-UI08 | Per-app help panel and `?` button (F2) | UI07 | 1.5 d | ☐ | |
 | 9 | WP-UI09 | Theme default and pm-config frame (F4, F7) | UI06 | 0.5 d | ☐ | |
@@ -282,6 +282,22 @@ Apps: pm-log.
   apps use); store test for font size persistence.
 - **Done when:** pm-log's settings behave exactly like pm-book's for font size, and the popover opens by mouse
   and keyboard and closes on Esc.
+
+**Done 2026-10-22.** pm-log now has a settings popover (gear, between the theme toggle and the connection
+badge) with the font-size control, built from the pm-book/pm-dash pieces: `useFontSizeStore` (key
+`log-font-size`, same six sizes, CSS `zoom` on `#root`, applied before first paint in `main.tsx`), `--zoom`
+fallback in `index.css`, and `AppShell` sized as `calc(100vh / var(--zoom, 1))`. The popover also closes on Esc.
+- **Density removed instead of controlled** (the WP's own fallback): the `density` preference in
+  `usePrefsStore` was read by nothing, so adding a control would have promised an effect that does not exist.
+  The store keeps only `operatorName`.
+- **Theme not duplicated in the popover:** pm-log keeps its theme state in `AppShell`, so a second control
+  would need that state lifted; the top-bar toggle stays the only one. WP-UI09 reworks theme handling and is the
+  place to decide whether the popover should carry it.
+- **Test setup:** pm-log now has jsdom, `@testing-library/{dom,react,user-event}` (same versions as pm-dash) and
+  `test/setup-dom.ts` (copied from pm-book); `vitest.config.ts` includes `.tsx` tests. New
+  `settings.test.tsx` covers open/close, the six sizes, persistence and the zoom factor. `package-lock.json`
+  changed accordingly.
+- Added the missing `accent-fg` token (white in both themes) that the active radio needs.
 
 #### WP-UI07 - One top-bar order and active-item style (F3, F8)
 

@@ -16,6 +16,7 @@ html.dark {
   --fg: #e6edf3;
   --fg-subtle: #8b949e;
   --accent: #2f81f7;
+  --accent-fg: #ffffff;
   /* Brand wordmark version number only (TopBar). */
   --brand-version: #26d07c;
   /* Connection badge (top bar); same values as the other web apps. */
@@ -44,6 +45,7 @@ html:not(.dark) {
   --fg: #1f2328;
   --fg-subtle: #59636e;
   --accent: #0969da;
+  --accent-fg: #ffffff;
   --brand-version: #065f46;
   --live: #067647;
   --warning: #8a5a00;
@@ -59,6 +61,14 @@ html:not(.dark) {
   --level-warning-bg: color-mix(in srgb, var(--level-warning) 20%, transparent);
   --level-error-bg: color-mix(in srgb, var(--level-error) 15%, transparent);
   --border-subtle: color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+/*
+ * Fallback for the zoom factor CSS `zoom` (see useFontSizeStore) sets on #root
+ * before first paint; AppShell sizes itself against it.
+ */
+:root {
+  --zoom: 1;
 }
 
 html,

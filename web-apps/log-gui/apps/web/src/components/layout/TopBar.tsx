@@ -4,6 +4,7 @@ import { Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
+import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { SessionIndicator } from "../SessionIndicator.js";
 import { api } from "../../lib/api.js";
 import { useUiConfig } from "../../lib/useUiConfig.js";
@@ -85,6 +86,8 @@ export function TopBar({
         >
           <ThemeIcon size={16} />
         </button>
+
+        <SettingsPopover />
 
         <ConnectionBadge
           state={badge.state}

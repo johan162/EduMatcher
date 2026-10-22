@@ -18,6 +18,7 @@ const config: Config = {
         fg: "var(--fg)",
         "fg-subtle": "var(--fg-subtle)",
         accent: "var(--accent)",
+        "accent-fg": "var(--accent-fg)",
         // Brand wordmark version number only (TopBar).
         "brand-version": "var(--brand-version)",
 
