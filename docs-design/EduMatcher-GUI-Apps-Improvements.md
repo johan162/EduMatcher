@@ -17,8 +17,9 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 1 | WP-UI01 | Add Session state and time to next states | - | 0.5 d | ☑ | 2026-10-21 |
-| 1 | WP-UI02 | Add tooltip and better help text  | - | 0.5 d | ☑ | 2026-10-21 |
-
+| 2 | WP-UI02 | Add tooltip and better help text  | - | 0.5 d | ☑ | 2026-10-21 |
+| 3 | WP-UI03 | Harmonize all ONLINE/OFFLINE top row badges  | - | 0.5 d | ☑ | 2026-10-22 |
+| 4 | WP-UI04 | Analyse chnanges to make the different GUI harmonized | - | 0.5 d | ☐ |  |
 
 
 ## Workpackages
@@ -109,7 +110,7 @@ should be tooltipped.
 3. **WP-UI02.3**: pm-dash. The columns header in the second dashboard row that shows a table of processes needs explanation vy a tooltip (perhaps a separate circled "i" to be clicked)
 4. **WP-UI02.4**: pm-trader. The current help text (top right corner "?") is too compact. Each order type needs a much more extensive and formatted description.
 
-**Done 2026-10-21.** Scope was widened by Johan from the four items to *every* table header and
+**Done 2026-10-21.** Scope was widened the four items to *every* table header and
 field across the web GUIs. What exists now:
 
 - **Convention:** a small "i" (`InfoTip`, or `FieldInfo` in pm-trader) beside the heading or label; it opens on hover
@@ -142,3 +143,32 @@ Insights:
   similarly named figure on a different basis the text says so.
 - The `InfoTip` component is copied per app (dash, book, terminal, log), like `SessionIndicator`; a shared package
   was not worth the build wiring for 40 lines.
+
+
+### WP-UI03 - Harmonize all ONLINE/OFFLINE top row badges
+
+All Web-apps that display a ONLINE/OFFLINE badge except one do it in an identical manner - a RED/GREEN Marker and the TEXT ONLINE/OFFLINE. The one not following this standard is pm-trader which uses a signal-strength icon + ONLINE/OFFLINE Text in the more middle of the top row.
+
+- **WP-UI03.1** Change the pm-trader connection badge to be the same as for example pm-terminal ; a RED/GREEN Dot + the text ONLINE/OFFLINE further to the right in the top row, just to the left of the participant name.
+
+- **WP-UI03.2** Add the same badge indicator to the log-gui in the top row and remove it as separate value in the dashbboard top row saying UP/DOWN to be consistent with the othre GUI
+
+
+**Done 2026-10-22.** The existing standard in pm-dash, pm-book and pm-terminal is a dot plus **LIVE** /
+RECONNECTING (CONNECTING in pm-dash) / **OFFLINE**, not the word ONLINE, so that wording was kept.
+- pm-trader: the signal-strength icon is gone; the top bar's right group now ends with the same dot + word
+  (green LIVE, amber RECONNECTING, red OFFLINE) immediately left of the gateway ID. The per-socket detail
+  (events / market-data / monitor) stays as the hover title.
+- pm-log: the same dot + word is in the right group of the top bar, followed by the server name and, when not
+  LIVE, the cause ("log server down", "log.db unavailable"). The "Log server" tile is removed from the dashboard
+  (grid 5 -> 4 tiles); its explanation moved into the badge's hover title.
+- Not harmonised (left for WP-UI04): pm-log's dot colours use `bg-green-500`/`bg-yellow-500` Tailwind shades
+  while the others use the `live`/`warn`/`offline` tokens, and pm-log and pm-trader still carry their own
+  markup instead of a shared `StatusDot`.
+
+
+### WP-UI04 - Analyse chnanges to make the different GUI harmonized
+
+The different GUI was made at different times and while they are reasonable alike they still differ in some operational way, for example the log-GUI does not have a font scaling setting. It is only trader-fui that have a help button in the top row to the right. Since they below to the same system the app-framework , settings etc. should ideally be identical so the user can find things easier.
+
+- **WP-UI04.1** Compare and analyse what minor and low-risk top level app-changes can or should be done to harmonize the different GUI apps. Create a list in this document as findings and suggest a way to fix each of the findings. 

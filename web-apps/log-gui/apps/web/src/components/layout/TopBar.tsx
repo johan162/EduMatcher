@@ -16,18 +16,12 @@ const NEXT_THEME_ICON: Record<ThemePreference, typeof Moon> = {
   light: Moon,
 };
 
-const STATE_LABEL: Record<SourceState, string> = {
-  LIVE: "log-srv up",
-  RECONNECTING: "reconnecting…",
-  LOG_SERVER_DOWN: "log server down",
-  HISTORY_UNAVAILABLE: "log.db unavailable",
-};
-
-const STATE_DOT: Record<SourceState, string> = {
-  LIVE: "bg-green-500",
-  RECONNECTING: "bg-yellow-500",
-  LOG_SERVER_DOWN: "bg-red-500",
-  HISTORY_UNAVAILABLE: "bg-red-500",
+/** Same words and colours as the other web apps' connection indicator. */
+const STATE_BADGE: Record<SourceState, { dot: string; label: string; cause: string }> = {
+  LIVE: { dot: "bg-green-500", label: "LIVE", cause: "" },
+  RECONNECTING: { dot: "bg-yellow-500", label: "RECONNECTING", cause: "" },
+  LOG_SERVER_DOWN: { dot: "bg-red-500", label: "OFFLINE", cause: "log server down" },
+  HISTORY_UNAVAILABLE: { dot: "bg-red-500", label: "OFFLINE", cause: "log.db unavailable" },
 };
 
 export function TopBar({
@@ -53,6 +47,7 @@ export function TopBar({
   });
   const unackedCount = unackedIssues?.issues.length ?? 0;
 
+  const badge = STATE_BADGE[connectionState];
   const ThemeIcon = NEXT_THEME_ICON[theme];
 
   return (
@@ -61,11 +56,6 @@ export function TopBar({
         <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
         <span className="font-mono text-xs text-accent">pm-log</span>
         <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
-      </span>
-
-      <span className="flex items-center gap-1.5">
-        <span className={`h-2 w-2 rounded-full ${STATE_DOT[connectionState]}`} />
-        {serverName} {STATE_LABEL[connectionState]}
       </span>
 
       <Link
@@ -95,6 +85,18 @@ export function TopBar({
         >
           <ThemeIcon size={16} />
         </button>
+
+        <span
+          className="flex items-center gap-1.5"
+          title="Whether pm-log-srv, the process that collects every log line, is alive. LIVE: it is publishing its heartbeat. OFFLINE: it announced a shutdown or its heartbeat stopped, or the log database cannot be read; the numbers then show only what was stored before."
+        >
+          <span className={`h-2 w-2 rounded-full ${badge.dot}`} />
+          <span className="text-xs font-semibold tracking-wider">{badge.label}</span>
+          <span className="text-xs text-fg-subtle">
+            {serverName}
+            {badge.cause && ` · ${badge.cause}`}
+          </span>
+        </span>
       </div>
     </header>
   );

@@ -77,7 +77,6 @@ function MeterTile({
 export function DashboardView() {
   const [window_] = useState("1h");
   const counters = useLiveStore((s) => s.counters);
-  const serverState = useLiveStore((s) => s.serverState);
   const uiConfig = useUiConfig();
   const errorBand: ErrorRateBand | undefined =
     counters && uiConfig
@@ -143,7 +142,7 @@ export function DashboardView() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MeterTile
           label="Total events"
           help="How many log events pm-log-srv has stored since it was first started, across every process and level. It only ever grows, and it counts what the server wrote to its database, not just what this browser has seen."
@@ -174,12 +173,6 @@ export function DashboardView() {
           label="Processes"
           help="The number of distinct EduMatcher processes (matching engine, gateways, monitor, traders and so on) that have logged to the server. See the Connections view for who is connected right now."
           big={summary?.perProcess.length ?? "—"}
-        />
-        <MeterTile
-          label="Log server"
-          help="Whether pm-log-srv, the process that collects every log line, is alive. UP means it is publishing its heartbeat; DOWN means it announced a shutdown or its heartbeat stopped. While it is DOWN no new events arrive, and the numbers here show only what was stored before."
-          big={serverState?.state ?? "—"}
-          bigClass={serverState?.state === "DOWN" ? "text-level-critical" : undefined}
         />
       </div>
 
