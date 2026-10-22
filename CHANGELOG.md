@@ -1,3 +1,29 @@
+## [v0.51.4] - 2026-10-22
+
+Release Type: minor
+
+### 📋 Summary
+This release improves consistency and discoverability across the web GUIs with contextual help, field tooltips, and unified connection-status styling. It also adds log-GUI display settings and corrects server-down status reporting.
+
+### ✨ Additions
+- Added per-application help panels accessible from the GUI top bars
+- Added a log-GUI settings popover with font-size controls
+- Added tooltips to table headers, fields, and trading controls
+
+### 🚀 Improvements
+- Standardized top-bar control ordering, active-navigation styling, and connection badges across the GUIs
+- Expanded Trade Terminal help and field explanations
+
+### 🐛 Bug Fixes
+- Fixed the log GUI failing to show the server-DOWN state correctly
+
+### 📚 Documentation
+- Updated the GUI improvements design document
+
+### 🛠 Internal
+- Added GUI tests for help panels, tooltips, settings, connection badges, and shared status behavior
+- Added VS Code settings and test setup for the log GUI
+
 ## [v0.51.3] - 2026-10-21
 
 Release Type: minor
