@@ -121,6 +121,11 @@ done
   --enforce-mm-obligations \
   --no-collars \
   --sessions-enabled \
+  --pre-open 09:00 --opening-auction 09:25 --continuous 09:30 \
+  --closing-auction 16:00 --closing-end 16:05 \
+  --weekend \
+  --weekend-pre-open 09:00 --weekend-opening-auction 09:25 --weekend-continuous 09:30 \
+  --weekend-closing-auction 16:00 --weekend-closing-end 16:05 \
   --market-data-gateway --market-data-enabled --market-data-name md-gwy01 \
   --market-data-bind-address 0.0.0.0 --market-data-port 5570 \
   --market-data-heartbeat-interval-sec 1 --market-data-idle-timeout-sec 5 \
