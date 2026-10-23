@@ -234,7 +234,9 @@ Each gateway can define quote refresh behavior in [The Configuration Workflow](.
 - `NEVER_INACTIVATE`: quote is not auto-inactivated by fills
 
 When inactivation is triggered, the engine cancels the opposite leg and emits
-`quote.status.<GW_ID>`.
+`quote.status.<GW_ID>`. The opposite leg is pulled at the moment of the fill,
+before anything else that order causes is matched: a stop order the fill
+triggers cannot trade against it.
 
 MM obligation enforcement is optional and configured per gateway:
 

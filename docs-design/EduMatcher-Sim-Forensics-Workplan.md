@@ -453,13 +453,14 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 
 | ID | Found by | Run | Count | Classification | Status |
 |---|---|---|---|---|---|
-| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Open — fix WP |
+| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (B1/B2/C2) |
 | X2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
-| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Open — fix WP |
+| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (C2) |
 | X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open |
 | X5 | C1 | 2026-10-23 | 4 107 FOK orders | Engine bug or spec gap | Open |
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects | Recorder gap (pm-stats) + label | Open |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings | Recorder gap (pm-stats) | Open |
+| X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -515,3 +516,51 @@ sibling's cancel only as `oco.cancelled {oco_id, cancelled_order_id}` (as
 documented); pm-stats stores it under `oco_id` and drops
 `cancelled_order_id`, so 3 423 cancelled orders look live forever in
 `order_events`. C4/C5 infer the closure from the group's OCO_CANCEL row.
+
+### X1 / X3 fix (2026-10-23)
+
+**X1 root cause.** Of the six loops in `engine/main.py` that publish a
+dispatch's fills and cancels, only the new-order and amend loops published a
+fill whenever the order *executed* ("finding #5"/C4). The quote-submit, seed
+quote, combo-child and OCO-leg loops still chose the message by the order's
+*final* status (`if status in FILLED/PARTIAL … elif CANCELLED`), so an order
+that filled part and was cancelled for the rest in the same dispatch — a stop
+converted to MARKET by the cascade — got only `order.cancelled`. The
+auction-uncross stop loop also chose by final status and published no cancel at
+all. The sim's case was the quote path (MM01 quotes are the most frequent
+crossing input). Fix: in all five loops the fill branch keys on the quantity
+matched in this dispatch, and the cancel/reject branch is an independent `if`;
+the auction loop gains the missing cancel (with the combo/OCO follow-ups the
+new-order path runs).
+
+**X3 root cause.** `_on_quote_leg_filled` (inactivate the quote, cancel the
+sibling leg) ran only in the publication loop, *after* `book.process()`
+returned — but the stop cascade runs inside `process()`, so a stop triggered by
+the leg's fill could still match the sibling. Fix: `OrderBook` calls a new
+`on_quote_leg_fill` hook from `_apply_fill` for every continuous fill of an
+order with a `quote_id`; the engine sets it to `_on_quote_leg_filled`, which is
+idempotent, so the loops' later calls are no-ops. Message order changes: the
+sibling's cancel and `quote.status INACTIVE_*` now precede the leg's
+`order.fill` (they already did in the cascade case). Not called in an uncross
+(`both_resting`), whose two-sided heap walk must not be mutated mid-way.
+
+**Tests.** `tests/test_engine_cascade_publication.py`: one repro per path
+(quote, OCO, combo, auction for X1; X3 plus the INACTIVATE_ON_FULL_FILL case
+where the stop *may* buy the still-live ask), each also asserting the B1
+oracle in-engine — every trade side gets exactly one `order.fill` naming that
+trade. All failed before the fix (the auction case: the stop's owner heard
+nothing at all) and pass after; the full suite was unaffected, so no existing
+test covered these paths.
+
+**X8 — seen while fixing, deliberately not changed:**
+
+- Quote submission whose bid leg fills on entry: the engine inactivates the
+  quote (`INACTIVE_BID_FILLED`), then still rests the ask leg and publishes
+  `quote.status ACTIVE` — the X1 audit trace shows exactly this sequence.
+- Quote legs filled *in an uncross* are not inactivated by the hook (see
+  above); whether the uncross path inactivates them at all is unchecked.
+- The auction stop loop prices fills at `book.last_trade_price`, not the
+  order's own VWAP (H6) as every other loop does.
+- Six near-identical publication loops are the reason X1 survived the
+  "finding #5" fix; consolidating them on one helper (the shape of
+  `_publish_amend_rematch`) is worth a WP of its own.
