@@ -19,6 +19,8 @@ import {
   type Time,
 } from "lightweight-charts";
 import { useEffect, useRef } from "react";
+import { sessionTimeOptions } from "../lib/chart-time.js";
+import { useLiveStore } from "../store/useLiveStore.js";
 import type { Bar, LinePoint, VolumePoint } from "../lib/bars.js";
 
 export interface PriceChartProps {
@@ -60,6 +62,7 @@ function token(name: string, fallback: string): string {
 
 export function PriceChart(props: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const chartRef = useRef<IChartApi | null>(null);
   const candles = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volume = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -78,12 +81,14 @@ export function PriceChart(props: PriceChartProps) {
     const fg = token("--fg-subtle", "#8792a6");
     const grid = token("--border", "#262d3a");
 
+    const tz = sessionTimeOptions(sessionTimezone);
     const chart = createChart(container, {
       autoSize: true,
       layout: { background: { color: "transparent" }, textColor: fg, attributionLogo: false },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       rightPriceScale: { borderColor: grid },
-      timeScale: { borderColor: grid, timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: grid, timeVisible: true, secondsVisible: false, tickMarkFormatter: tz.tickMarkFormatter },
+      localization: tz.localization,
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
@@ -128,7 +133,7 @@ export function PriceChart(props: PriceChartProps) {
       candles.current = volume.current = null;
       midPast.current = midNow.current = null;
     };
-  }, [props.theme]);
+  }, [props.theme, sessionTimezone]);
 
   useEffect(() => {
     candles.current?.setData(

@@ -1,7 +1,8 @@
 /** Application shell (design §7.1): top bar, active view, status strip. */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { DrawerSlotContext } from "./DrawerSlot.js";
 import { StatusStrip } from "./StatusStrip.js";
 import { TopBar } from "./TopBar.js";
 import { useLiveStore } from "../../store/useLiveStore.js";
@@ -10,6 +11,7 @@ import { applyThemeToDocument, usePrefsStore } from "../../store/usePrefsStore.j
 export function AppShell() {
   const theme = usePrefsStore((s) => s.theme);
   const connection = useLiveStore((s) => s.connectionState());
+  const [drawerSlot, setDrawerSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => applyThemeToDocument(theme), [theme]);
 
@@ -32,9 +34,15 @@ export function AppShell() {
           </div>
         </main>
       ) : (
-        <main className="min-h-0 flex-1 overflow-auto p-4">
-          <Outlet />
-        </main>
+        // The drawer slot overlays the view area and stays put while the view scrolls.
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <main className="min-h-0 flex-1 overflow-auto p-4">
+            <DrawerSlotContext.Provider value={drawerSlot}>
+              <Outlet />
+            </DrawerSlotContext.Provider>
+          </main>
+          <div ref={setDrawerSlot} />
+        </div>
       )}
 
       <StatusStrip />

@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Pause, Play, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { AuctionIndicativeFrame, DailyBar } from "@edumatcher/terminal-types";
 import { FlashCell } from "../components/FlashCell.js";
+import { BookDrawer } from "./BookDrawer.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { api } from "../lib/api.js";
 import { ABSENT, clockInTimezone, compact, price, qty } from "../lib/format.js";
@@ -167,10 +168,23 @@ export function OverviewView() {
   // (§ T-M5).
   const [sort, setSort] = useState<SortState | null>(null);
   const [query, setQuery] = useState("");
+  // The symbol whose drawer is open. Not persisted: like the sort, a drawer
+  // left open on a wallboard would hide the columns behind it.
+  const [opened, setOpened] = useState<string | null>(null);
 
   const rows = useMemo(
     () => buildRows({ symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter }),
     [symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter],
+  );
+
+  // The open drawer's row is built on its own, so unpinning or searching does
+  // not take the symbol out from under it.
+  const drawerRow = useMemo(
+    () =>
+      opened === null || !symbols.includes(opened)
+        ? undefined
+        : buildRows({ symbols: [opened], top, daily, prevClose, lastTradeTs, halted, watchlist, filter: "all" })[0],
+    [opened, symbols, top, daily, prevClose, lastTradeTs, halted, watchlist],
   );
 
   // Search narrows, then sort orders what is left. The other way round would
@@ -438,6 +452,8 @@ export function OverviewView() {
                     indicative={indicative[row.sym]}
                     sessionTimezone={sessionTimezone}
                     onTogglePin={() => toggleWatchlist(row.sym)}
+                    selected={row.sym === opened}
+                    onOpen={() => setOpened(row.sym)}
                   />
                 ))}
               </tbody>
@@ -483,6 +499,15 @@ export function OverviewView() {
           )}
         </div>
       </Panel>
+      {opened !== null && (
+        <BookDrawer
+          symbol={opened}
+          row={drawerRow}
+          tradeCount={daily[opened]?.trade_count}
+          decimals={tickDecimals(opened)}
+          onClose={() => setOpened(null)}
+        />
+      )}
     </div>
   );
 }
@@ -498,6 +523,8 @@ function Row({
   indicative,
   sessionTimezone,
   onTogglePin,
+  selected,
+  onOpen,
 }: {
   row: OverviewRow;
   columns: OverviewColumn[];
@@ -514,6 +541,9 @@ function Row({
   /** The exchange's configured session timezone, for the Time column. */
   sessionTimezone: string;
   onTogglePin: () => void;
+  /** Whether this row's drawer is open. */
+  selected: boolean;
+  onOpen: () => void;
 }) {
   /*
    * The quote group only. `last`, `chg`, `%chg`, `volume` and `turnover`
@@ -527,7 +557,18 @@ function Row({
   const quoteTitle = notExecutable ? notExecutableLabel(notExecutable) : undefined;
   return (
     <tr
-      className={clsx("border-b border-border-subtle", rowClass, stale && "opacity-50")}
+      className={clsx(
+        "cursor-pointer border-b border-border-subtle hover:bg-bg-inset",
+        rowClass,
+        stale && "opacity-50",
+        selected && "bg-bg-inset",
+      )}
+      tabIndex={0}
+      aria-selected={selected}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) onOpen();
+      }}
       /*
        * Faded rather than recoloured. Dimming the whole row leaves the up/down
        * colours meaning exactly what they always mean — the row is simply
@@ -544,7 +585,10 @@ function Row({
               <td key={column} className="w-6">
                 <button
                   type="button"
-                  onClick={onTogglePin}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePin();
+                  }}
                   aria-label={row.pinned ? `Unpin ${row.sym}` : `Pin ${row.sym}`}
                   aria-pressed={row.pinned}
                   className={row.pinned ? "text-accent" : "text-fg-faint hover:text-fg-subtle"}
