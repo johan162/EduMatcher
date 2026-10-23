@@ -2,7 +2,7 @@
 # Structure: timestamp-file dependencies for smart re-runs; each command target
 # may depend on one or more stamp files that track when a task last succeeded.
 
-.PHONY: help install reinstall clean-venv test test-e2e mutate test-container test-short test-html verify \
+.PHONY: help install reinstall clean-venv test test-e2e mutate forensics test-container test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
 black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
@@ -270,6 +270,12 @@ test-perf: ## Run performance tests (marked with @pytest.mark.perf)
 mutate: ## Mutation testing of the matching engine: every mutant x full suite (~50 min); selections: tools/mutate_engine.py --help
 	@echo -e "$(DARKYELLOW)- Running matching-engine mutation tests (tools/mutate_engine.py)...$(NC)"
 	@poetry run python tools/mutate_engine.py
+
+forensics: ## Check a stopped sim run's records against each other: make forensics DATA=<data dir> OUT=<report dir>
+	@if [ -z "$(DATA)" ] || [ -z "$(OUT)" ]; then \
+		echo -e "$(RED)✗ usage: make forensics DATA=<data dir> OUT=<report dir>$(NC)"; exit 1; \
+	fi
+	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)"
 
 test-e2e: ## End-to-end tests on a real exchange: mini profile, trader, pm-monitor, dash bridge (fixed ports)
 	@echo -e "$(DARKYELLOW)- Running end-to-end tests (needs the exchange ports free and dash-gui npm install)...$(NC)"

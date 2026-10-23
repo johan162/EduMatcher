@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|---|---|---|---|---|---|
 | 0 | S0 | Freeze the current run: consistent snapshot of all stores | — | 0.5 h | ☑ | 2026-10-23 |
 | 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (code; new run pending) | 2026-10-23 |
-| 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☐ | |
+| 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☑ | 2026-10-23 |
 | 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☐ | |
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☐ | |
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☐ | |
@@ -315,6 +315,37 @@ the sim on this data dir (pm-stats would prune `order_events`).
 the check registry and contract from §4; one trivial check (F1) end to end.
 Tests: small fixture data dir in `tests/fixtures/` with a planted violation
 per check type, so every check is proven to *fail* when it should.
+
+**Done 2026-10-23 (changed from the sketch above):**
+
+- Layout: `tools/sim_forensics/{dataset,registry,report,__main__}.py` and
+  `checks/` (one module per family; `checks/derived.py` holds F1). No
+  `snapshot.py` — runs are analysed after the sim is stopped (S0 decision).
+  Run: `make forensics DATA=<data dir> OUT=<report dir>` or
+  `PYTHONPATH=tools poetry run python -m sim_forensics --data … --out … [--check ID] [--list]`.
+  Exit code 1 on any FAIL/ERROR.
+- `Dataset`: in-memory connection, each present store ATTACHed read-only
+  under its name (`stats`, `clearing`, `metrics`, `log`); `session_date(ts)`
+  SQL function in the session timezone (from `stats_meta`/`clearing_meta`);
+  `cut_trade_id` = lowest of the trade stores' highest trade id. Audit parsing
+  is left to S5 where it is first needed.
+- Contract: `@check(id, oracle, title, needs=(stores…))` → `Outcome(violations,
+  samples, note)`; a missing store → SKIPPED, an exception → ERROR (traceback in
+  the report) without stopping the other checks; samples capped (`--samples`),
+  violations counted in full.
+- Fixture data is built in `tests/test_sim_forensics.py` with the recorders'
+  real schemas (`stats.main.SCHEMA`, `clearing.store.apply_schema`) rather than
+  checked-in files under `tests/fixtures/`, so a schema change breaks the test,
+  not the next run. 16 tests, including planted violations for F1 and a
+  midnight-in-Stockholm trade that a UTC date bucket would misfile.
+- F1 on the 2026-10-23 run: PASS (300 symbol-days, 1.2 s); report in
+  `~/.edumatcher-sim/forensics/2026-10-23/`. Open/close are recomputed in
+  engine trade-id order, so this also shows pm-stats recorded trades in
+  sequence.
+- Insight: `make _check` runs black/flake8/pyright on `src tests` only; the
+  tool's own files are reached by mypy through the test's imports but not by
+  pyright/flake8. Run `poetry run flake8 tools/sim_forensics` and
+  `poetry run pyright tools/sim_forensics` in each later S-WP.
 
 ### S3 — Checks A + B
 
