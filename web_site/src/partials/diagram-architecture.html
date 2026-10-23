@@ -1,0 +1,99 @@
+<svg viewBox="0 0 1100 540" role="img" aria-labelledby="arch-t arch-d" xmlns="http://www.w3.org/2000/svg">
+  <title id="arch-t">EduMatcher process architecture</title>
+  <desc id="arch-d">Clients connect through ALF, BALF and API gateways to the matching engine. The engine publishes every event on a ZeroMQ bus read by internal services and by external dissemination gateways.</desc>
+
+  <!-- column captions -->
+  <g class="t-dim" font-size="11" letter-spacing="2">
+    <text x="100" y="14" text-anchor="middle">PARTICIPANTS</text><text x="320" y="14" text-anchor="middle">GATEWAYS</text>
+    <text x="905" y="14" text-anchor="middle">THE BUS FANS OUT</text>
+  </g>
+
+  <!-- ===== wires (static) ===== -->
+  <g class="wire">
+    <path d="M190 73 H440 V150 H460"/>
+    <path d="M190 158 H215 V130 H235"/><path d="M190 158 H215 V225 H235"/>
+    <path d="M190 243 H215 V130 H235" opacity=".0"/><path d="M190 243 H215 V225 H235"/><path d="M190 243 H215 V320 H235"/>
+    <path d="M190 328 H215 V320 H235"/>
+    <path d="M405 125 H430 V170 H460"/><path d="M405 220 H460"/><path d="M405 315 H430 V270 H460"/>
+    <path d="M550 76 V120"/><path d="M550 440 V400"/>
+    <path d="M640 260 H668"/>
+    <path d="M674 135 H720"/><path d="M674 385 H720"/>
+    <path d="M190 413 H440 V330 H460"/>
+  </g>
+  <!-- ===== flowing traffic ===== -->
+  <g>
+    <path class="flow" d="M190 73 H440 V150 H460"/>
+    <path class="flow" d="M190 158 H215 V130 H235"/><path class="flow" d="M190 243 H215 V225 H235"/><path class="flow" d="M190 328 H215 V320 H235"/>
+    <path class="flow" d="M405 125 H430 V170 H460"/><path class="flow" d="M405 220 H460"/><path class="flow" d="M405 315 H430 V270 H460"/>
+    <path class="flow slow" d="M550 76 V120"/>
+    <path class="flow slow" d="M550 440 V400"/>
+    <path class="flow" d="M190 413 H440 V330 H460"/>
+    <path class="flow rev" d="M668 260 H640"/>
+    <path class="flow rev" d="M720 135 H674"/><path class="flow rev" d="M720 385 H674"/>
+    <path class="flow rev slow" d="M460 190 H405"/><path class="flow rev slow" d="M460 245 H405" opacity="0"/>
+  </g>
+
+  <!-- ===== participants ===== -->
+  <g class="node" id="c0" data-link="eng"><rect class="box" x="10" y="40" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="64" font-size="13">Trader console</text><text class="t-dim" x="24" y="84" font-size="11">pm-alf-console · local</text></g>
+  <g class="node" id="c1" data-link="g0 g1"><rect class="box" x="10" y="125" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="149" font-size="13">Bots &amp; AI swarm</text><text class="t-dim" x="24" y="169" font-size="11">pm-mm-bot · pm-ai-swarm</text></g>
+  <g class="node" id="c2" data-link="g0 g1 g2"><rect class="box" x="10" y="210" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="234" font-size="13">Your own programs</text><text class="t-dim" x="24" y="254" font-size="11">any language · TCP / HTTP</text></g>
+  <g class="node" id="c3" data-link="g2"><rect class="box" x="10" y="295" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="319" font-size="13">Browser apps</text><text class="t-dim" x="24" y="339" font-size="11">Trading GUI · TapeDeck</text></g>
+  <g class="node" id="c4" data-link="eng"><rect class="box" x="10" y="380" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="404" font-size="13">Operators</text><text class="t-dim" x="24" y="424" font-size="11">pm-admin · pm-opctl-cli</text></g>
+
+  <!-- ===== gateways ===== -->
+  <g class="node" id="g0" data-link="eng c1 c2"><rect class="box" x="235" y="90" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="114" font-size="12">ALF · text</text><text class="t-strong" x="250" y="134" font-size="13">pm-alf-gwy</text><text class="t-dim" x="250" y="150" font-size="11">TCP :5565</text></g>
+  <g class="node" id="g1" data-link="eng c1 c2"><rect class="box" x="235" y="185" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="209" font-size="12">BALF · binary</text><text class="t-strong" x="250" y="229" font-size="13">pm-balf-gwy</text><text class="t-dim" x="250" y="245" font-size="11">TCP :5560</text></g>
+  <g class="node" id="g2" data-link="eng c2 c3"><rect class="box" x="235" y="280" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="304" font-size="12">REST · WebSocket</text><text class="t-strong" x="250" y="324" font-size="13">pm-api-gwy</text><text class="t-dim" x="250" y="340" font-size="11">HTTP :8080</text></g>
+
+  <!-- ===== engine ===== -->
+  <g class="node" id="sch" data-link="eng"><rect class="box" x="460" y="20" width="180" height="56" rx="10"/><text class="t-strong" x="475" y="44" font-size="13">pm-scheduler</text><text class="t-dim" x="475" y="62" font-size="11">open · auctions · close</text></g>
+  <g class="node" id="eng" data-link="c0 c4 g0 g1 g2 sch sim pa pb">
+    <rect class="box-acc" x="460" y="120" width="180" height="280" rx="14"/>
+    <text class="t-acc" x="475" y="146" font-size="11" letter-spacing="2">MATCHING ENGINE</text>
+    <text class="t-strong" x="475" y="170" font-size="16">pm-engine</text>
+    <g font-size="10.5"><text class="t-dim" x="475" y="192">PULL :5555 ◂ cmds</text><text class="t-dim" x="475" y="208">PUB  :5556 ▸ events</text><text class="t-dim" x="475" y="224">PUB  :5557 ▸ dropcopy</text></g>
+    <!-- mini order book -->
+    <g transform="translate(475 246)">
+      <rect x="0" y="0" width="75" height="9" rx="2" fill="var(--up)" opacity=".25"/><rect x="25" y="14" width="50" height="9" rx="2" fill="var(--up)" opacity=".4"/><rect x="45" y="28" width="30" height="9" rx="2" fill="var(--up)" opacity=".65"/>
+      <rect x="85" y="28" width="38" height="9" rx="2" fill="var(--down)" opacity=".65"/><rect x="85" y="14" width="56" height="9" rx="2" fill="var(--down)" opacity=".4"/><rect x="85" y="0" width="76" height="9" rx="2" fill="var(--down)" opacity=".25"/>
+    </g>
+    <text class="t-dim" x="475" y="304" font-size="10">· price-time order books</text>
+    <text class="t-dim" x="475" y="320" font-size="10">· auctions, uncrossing</text>
+    <text class="t-dim" x="475" y="336" font-size="10">· collars &amp; breakers</text>
+    <text class="t-dim" x="475" y="352" font-size="10">· stops, icebergs</text>
+    <text class="t-dim" x="475" y="368" font-size="10">· sole socket binder</text>
+  </g>
+  <g class="node" id="sim" data-link="eng"><rect class="box" x="460" y="440" width="180" height="56" rx="10"/><text class="t-strong" x="475" y="464" font-size="13">pm-market-sim</text><text class="t-dim" x="475" y="482" font-size="11">true values · news</text></g>
+
+  <!-- ===== bus ===== -->
+  <rect x="666" y="36" width="10" height="460" rx="5" fill="var(--accent)" opacity=".85"/>
+  <text x="0" y="0" transform="translate(693 270) rotate(90)" text-anchor="middle" font-size="10.5" letter-spacing="3" class="t-acc">ZEROMQ  PUB / SUB</text>
+
+  <!-- ===== services panel ===== -->
+  <g class="node" id="pa" data-link="eng">
+    <rect class="box" x="720" y="26" width="370" height="236" rx="14"/>
+    <text class="t-acc" x="738" y="50" font-size="11" letter-spacing="2">INTERNAL SERVICES</text>
+    <g font-size="12">
+      <rect x="738" y="66" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="89">pm-stats</text><text class="t-dim" x="830" y="89" font-size="10.5">stats</text>
+      <rect x="912" y="66" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="89">pm-clearing</text><text class="t-dim" x="1010" y="89" font-size="10.5">P&amp;L</text>
+      <rect x="738" y="114" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="137">pm-audit</text><text class="t-dim" x="820" y="137" font-size="10.5">trail</text>
+      <rect x="912" y="114" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="137">pm-index</text><text class="t-dim" x="995" y="137" font-size="10.5">index</text>
+      <rect x="738" y="162" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="185">pm-monitor</text><text class="t-dim" x="835" y="185" font-size="10.5">health</text>
+      <rect x="912" y="162" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="185">pm-log-srv</text><text class="t-dim" x="1000" y="185" font-size="10.5">LALF :5600</text>
+      <rect x="738" y="210" width="334" height="36" rx="8" class="box"/><text class="t-strong" x="752" y="232">pm-viewer · pm-board · pm-ticker</text><text class="t-dim" x="990" y="232" font-size="10.5">terminal</text>
+    </g>
+  </g>
+
+  <!-- ===== dissemination panel ===== -->
+  <g class="node" id="pb" data-link="eng">
+    <rect class="box" x="720" y="282" width="370" height="214" rx="14"/>
+    <text class="t-acc" x="738" y="306" font-size="11" letter-spacing="2">EXTERNAL GATEWAYS</text>
+    <g font-size="12">
+      <rect x="738" y="322" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="752" y="344" font-size="11">CALF · market data</text><text class="t-strong" x="752" y="364">pm-md-gwy</text><text class="t-dim" x="840" y="364" font-size="10.5">:5570</text>
+      <rect x="912" y="322" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="926" y="344" font-size="11">RALF · post-trade</text><text class="t-strong" x="926" y="364">pm-ralf-gwy</text><text class="t-dim" x="1018" y="364" font-size="10.5">:5580</text>
+      <rect x="738" y="392" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="752" y="414" font-size="11">DC1 · drop-copy</text><text class="t-strong" x="752" y="434">pm-dc-gwy</text><text class="t-dim" x="830" y="434" font-size="10.5">:5590</text>
+      <rect x="912" y="392" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="926" y="414" font-size="11">WebSocket events</text><text class="t-strong" x="926" y="434">pm-api-gwy</text><text class="t-dim" x="1018" y="434" font-size="10.5">:8080</text>
+    </g>
+    <text class="t-dim" x="738" y="478" font-size="10.5">→ vendors · clearing · risk · compliance</text>
+  </g>
+</svg>

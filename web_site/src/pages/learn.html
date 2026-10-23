@@ -1,0 +1,128 @@
+---
+title: Learn — EduMatcher
+desc: How EduMatcher teaches market microstructure: a library of books, a 29-chapter training guide, slide decks and a self-running simulated market for classrooms.
+nav: learn
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+{{> head}}
+</head>
+<body>
+{{> header}}
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Learn</div>
+    <div class="eyebrow">Education</div>
+    <h1 class="display">Learn markets by<br><span class="accent">running one</span></h1>
+    <p class="lede">Textbooks describe order books. EduMatcher lets you place an order, watch it rest, get hit, and appear in the audit trail — and then read exactly which lines of code did it.</p>
+  </div>
+</section>
+<nav class="subnav" aria-label="On this page"><div class="wrap">
+  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#library">Library</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
+</div></nav>
+
+<section class="section" id="approach">
+  <div class="wrap">
+    <div class="grid g3">
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"/></svg></div><h3>See it run first</h3><p class="muted">The Quick Start gets a live exchange on screen in minutes, then a first trade, a full trading day and your own configuration — with a checkpoint at every step.</p></div>
+      <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div><h3>Concepts, then code</h3><p class="muted">Every chapter opens with learning objectives and builds from the finance idea to the data structure to the source file that implements it.</p></div>
+      <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.500 4.500L18.500 21 12 16.500 5.500 21l2-7.500L2 9h7z"/></svg></div><h3>Break it on purpose</h3><p class="muted">Halt a symbol, trip a circuit breaker, kill a process, replay the audit trail. A venue that can be broken safely is one you can understand.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="paths">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:38px">
+      <div class="eyebrow">Learning paths</div>
+      <h2 class="display">Start anywhere,<br>go as deep as you like</h2>
+      <p class="lede">Read <a href="{{PRIMER_URL}}">{{PRIMER_TITLE}}</a> if markets are new, work through the Quick Start, then branch by what you want to do.</p>
+    </div>
+    <div class="rv">{{> diagram-paths}}</div>
+    <p class="center muted small rv" style="margin-top:14px">Every box in the map is a link.</p>
+  </div>
+</section>
+
+<section class="section" id="library">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:46px">
+      <div class="eyebrow">The library</div>
+      <h2 class="display">{{N_BOOKS_ONLY}} books, one primer</h2>
+      <p class="lede">Each book is written for one reader and one task. Read online, or download as PDF (light and dark, A4 and B5) and EPUB from the <a href="download.html#books">Download page</a>.</p>
+    </div>
+    <div class="books">{{BOOKS_CARDS}}</div>
+    <div class="card flat rv" style="margin-top:40px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <div><span class="tag">The primer</span><h3 style="margin:4px 0 4px">{{PRIMER_TITLE}}</h3><p class="muted small" style="margin:0">Order books, bids and asks, auctions and market makers — explained for software developers with no finance background.</p></div>
+      <a class="btn ghost" href="{{PRIMER_URL}}">Read it →</a>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="training">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:0">
+      <div class="copy-col rv">
+        <div class="eyebrow">Hands-on</div>
+        <h2 class="display">The Training Guide:<br>29 exercises</h2>
+        <p class="lede">A self-paced course in five parts. Every chapter is a set of commands to run and results to predict, check and explain.</p>
+        <div class="btn-row" style="margin-top:22px"><a class="btn primary sm" href="docs/books/training-guide/">Open the Training Guide</a></div>
+      </div>
+      <div class="rv d1">
+        <div class="tbl-wrap"><table class="tbl">
+          <tbody>
+            <tr><td>I · Foundations</td><td>install, configure, market-maker liquidity, your first trade</td></tr>
+            <tr><td>II · Trading mechanics</td><td>amend, order types, time-in-force, auctions, cancels</td></tr>
+            <tr><td>III · Liquidity, risk, results</td><td>market making, combos, risk controls, P&amp;L, market data, AI traders</td></tr>
+            <tr><td>IV · A full session</td><td>statistics, persistence, capstone scenario, observers, admin</td></tr>
+            <tr><td>V · Integration</td><td>drop-copy, automation, RALF, CALF, REST/WS, index, ALF and BALF gateways, IPO valuation</td></tr>
+          </tbody></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="classroom">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">For instructors</div>
+      <h2 class="display">A class-sized market,<br>on demand</h2>
+    </div>
+    <div class="grid g2">
+      <div class="card rv"><h3>An exchange that is never empty</h3><p class="muted">A single container runs {{F_SIM_TRADERS}} AI traders across {{F_SIM_SYMBOLS}} symbols, with a hidden true value, headlines and rumours. Students trade next to the bots and see prices react to news they can read.</p></div>
+      <div class="card rv d1"><h3>Accelerated time</h3><p class="muted">Compress a trading day into minutes so a lecture can include an opening auction, a news shock and a close.</p></div>
+      <div class="card rv"><h3>One URL per student</h3><p class="muted">API keys map to participants and roles. Give each student a trader key; put TapeDeck on the projector; keep the Operator Dashboard on your own screen.</p></div>
+      <div class="card rv d1"><h3>Grade the evidence</h3><p class="muted">The audit trail and clearing P&amp;L record exactly what each participant did — perfect for post-session debriefs and assignments.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="decks">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:38px">
+      <div class="eyebrow">Teaching material</div>
+      <h2 class="display">Slide decks</h2>
+      <p class="lede">Presentations for lectures and workshops — an introduction to EduMatcher, the full training course and topic decks for each protocol and tool. Available as PDF; editable PPTX sources live in the repository.</p>
+    </div>
+    <div class="filelist rv" style="max-width:820px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 14px">{{DECK_FILES}}</div>
+  </div>
+</section>
+
+<section class="section" id="experiments">
+  <div class="wrap" style="max-width:880px">
+    <div class="center rv">
+      <div class="eyebrow">Go further</div>
+      <h2 class="display">Extend it</h2>
+      <p class="lede">The Architecture &amp; Developer Guide includes an <a href="docs/books/architecture-and-development/part-4-developing/070-extension-experiments/">Exchange Experiments Roadmap</a> — concrete ideas for new order types, matching rules and market-structure experiments, each small enough for a course project and each grounded in a deterministic test harness.</p>
+      <div class="btn-row" style="justify-content:center;margin-top:24px"><a class="btn ghost" href="docs/books/architecture-and-development/part-4-developing/010-development-practice/">Development practice</a><a class="btn ghost" href="{{REPO_URL}}" rel="noopener">Fork on GitHub</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+{{> footer}}
+</body>
+</html>

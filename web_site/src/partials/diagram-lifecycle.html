@@ -1,0 +1,52 @@
+<figure class="fig">
+<div class="diagram narrow">
+<svg viewBox="0 0 560 560" role="img" aria-labelledby="life-t" xmlns="http://www.w3.org/2000/svg">
+  <title id="life-t">The life of one limit order</title>
+  <defs>
+    <linearGradient id="lg1" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".0"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".35"/></linearGradient>
+  </defs>
+  <path id="lifepath" class="wire" d="M44 54 V506"/>
+  <path class="flow" d="M44 54 V506"/>
+  <circle r="7" fill="var(--accent)"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"><mpath href="#lifepath"/></animateMotion></circle>
+  <circle r="14" fill="var(--accent)" opacity=".18"><animateMotion dur="7s" repeatCount="indefinite"><mpath href="#lifepath"/></animateMotion></circle>
+
+  <!-- 1 -->
+  <g><circle cx="44" cy="54" r="15" class="box-acc"/><text x="44" y="59" text-anchor="middle" class="t-acc" font-size="13">1</text>
+    <text class="t-strong" x="80" y="48" font-size="14">Client sends an ALF line</text>
+    <rect x="80" y="58" width="460" height="28" rx="6" fill="var(--code-bg)" stroke="var(--line-strong)"/>
+    <text x="92" y="77" font-size="11.5" fill="#cfe6ff">NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=150.35</text></g>
+  <!-- 2 -->
+  <g><circle cx="44" cy="140" r="15" class="box-acc"/><text x="44" y="145" text-anchor="middle" class="t-acc" font-size="13">2</text>
+    <text class="t-strong" x="80" y="136" font-size="14">Gateway authenticates &amp; parses</text>
+    <text class="t-dim" x="80" y="156" font-size="12">ID checked · parsed into an engine request</text></g>
+  <!-- 3 -->
+  <g><circle cx="44" cy="226" r="15" class="box-acc"/><text x="44" y="231" text-anchor="middle" class="t-acc" font-size="13">3</text>
+    <text class="t-strong" x="80" y="222" font-size="14">Engine pulls &amp; risk-checks</text>
+    <text class="t-dim" x="80" y="242" font-size="12">tick · collar · breaker · session phase</text></g>
+  <!-- 4 : book -->
+  <g><circle cx="44" cy="312" r="15" class="box-acc"/><text x="44" y="317" text-anchor="middle" class="t-acc" font-size="13">4</text>
+    <text class="t-strong" x="80" y="308" font-size="14">Matched with price-time priority</text>
+    <g transform="translate(80 322)" font-size="11">
+      <rect x="0" y="0" width="210" height="62" rx="8" class="box"/>
+      <text class="t-dim" x="12" y="18" font-size="10">ASKS</text>
+      <rect x="12" y="24" width="64" height="9" rx="2" fill="var(--down)" opacity=".5"/><text class="t-dim" x="84" y="33" font-size="10">150.37 · 400</text>
+      <rect x="12" y="38" width="38" height="9" rx="2" fill="var(--down)" opacity=".85"/><text x="58" y="47" fill="var(--down)" font-size="10">150.35 · 300 ← crosses</text>
+      <rect x="226" y="0" width="300" height="62" rx="8" fill="url(#lg1)" stroke="var(--line-strong)"/>
+      <text class="t-strong" x="240" y="22" font-size="12">TRADE  300 @ 150.35</text><text class="t-dim" x="240" y="40" font-size="10.5">resting order keeps its price</text><text class="t-dim" x="240" y="54" font-size="10.5">aggressor takes the rest, or rests</text>
+    </g></g>
+  <!-- 5 -->
+  <g><circle cx="44" cy="418" r="15" class="box-acc"/><text x="44" y="423" text-anchor="middle" class="t-acc" font-size="13">5</text>
+    <text class="t-strong" x="80" y="414" font-size="14">Acks and fills go back — privately</text>
+    <text class="t-dim" x="80" y="434" font-size="12">on a topic only the sender subscribes to</text></g>
+  <!-- 6 -->
+  <g><circle cx="44" cy="504" r="15" class="box-acc"/><text x="44" y="509" text-anchor="middle" class="t-acc" font-size="13">6</text>
+    <text class="t-strong" x="80" y="498" font-size="14">…and the world finds out</text>
+    <g font-size="10.5"><rect x="80" y="508" width="68" height="24" rx="12" class="box"/><text class="t-dim" x="114" y="524" text-anchor="middle">stats</text>
+    <rect x="154" y="508" width="76" height="24" rx="12" class="box"/><text class="t-dim" x="192" y="524" text-anchor="middle">clearing</text>
+    <rect x="236" y="508" width="62" height="24" rx="12" class="box"/><text class="t-dim" x="267" y="524" text-anchor="middle">audit</text>
+    <rect x="304" y="508" width="104" height="24" rx="12" class="box"/><text class="t-dim" x="356" y="524" text-anchor="middle">market data</text>
+    <rect x="414" y="508" width="76" height="24" rx="12" class="box"/><text class="t-dim" x="452" y="524" text-anchor="middle">screens</text></g></g>
+</svg>
+</div>
+<figcaption><b>Fig.</b> One limit order, end to end. The ALF line is the real wire format; the engine path is described in the Architecture book.</figcaption>
+</figure>

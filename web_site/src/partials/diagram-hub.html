@@ -1,0 +1,33 @@
+<div class="diagram">
+<svg viewBox="0 0 900 520" role="img" aria-labelledby="hub-t" xmlns="http://www.w3.org/2000/svg">
+<title id="hub-t">One exchange, many ways in</title>
+<path class="wire" d="M450 260 L450 75"/>
+<path class="flow" d="M450 260 L450 75" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L683 129"/>
+<path class="flow" d="M450 260 L683 129" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L780 260"/>
+<path class="flow" d="M450 260 L780 260" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L683 391"/>
+<path class="flow" d="M450 260 L683 391" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L450 445"/>
+<path class="flow" d="M450 260 L450 445" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L217 391"/>
+<path class="flow" d="M450 260 L217 391" style="stroke:var(--accent)"/>
+<path class="wire" d="M450 260 L120 260"/>
+<path class="flow rev" d="M450 260 L120 260" style="stroke:var(--up)"/>
+<path class="wire" d="M450 260 L217 129"/>
+<path class="flow rev" d="M450 260 L217 129" style="stroke:var(--amber)"/>
+<circle cx="450" cy="260" r="74" fill="var(--accent)" opacity=".1"><animate attributeName="r" values="70;86;70" dur="4s" repeatCount="indefinite"/></circle>
+<circle cx="450" cy="260" r="62" class="box-acc"/>
+<text class="t-acc" x="450" y="246" text-anchor="middle" font-size="10.5" letter-spacing="2">ONE</text>
+<text class="t-strong" x="450" y="266" text-anchor="middle" font-size="17">EXCHANGE</text>
+<text class="t-dim" x="450" y="286" text-anchor="middle" font-size="10.5">engine + gateways</text>
+<g class="node"><rect class="box" x="355" y="49" width="190" height="52" rx="10"/><text class="t-strong" x="450" y="71" text-anchor="middle" font-size="13.5">Trading GUI</text><text class="t-dim" x="450" y="88" text-anchor="middle" font-size="10.5">trader · :8093</text></g>
+<g class="node"><rect class="box" x="588" y="103" width="190" height="52" rx="10"/><text class="t-strong" x="683" y="125" text-anchor="middle" font-size="13.5">TapeDeck</text><text class="t-dim" x="683" y="142" text-anchor="middle" font-size="10.5">market wall · :8090</text></g>
+<g class="node"><rect class="box" x="685" y="234" width="190" height="52" rx="10"/><text class="t-strong" x="780" y="256" text-anchor="middle" font-size="13.5">Order Book</text><text class="t-dim" x="780" y="273" text-anchor="middle" font-size="10.5">depth · :8094</text></g>
+<g class="node"><rect class="box" x="588" y="365" width="190" height="52" rx="10"/><text class="t-strong" x="683" y="387" text-anchor="middle" font-size="13.5">Operator Dashboard</text><text class="t-dim" x="683" y="404" text-anchor="middle" font-size="10.5">health · :8095</text></g>
+<g class="node"><rect class="box" x="355" y="419" width="190" height="52" rx="10"/><text class="t-strong" x="450" y="441" text-anchor="middle" font-size="13.5">Log Console</text><text class="t-dim" x="450" y="458" text-anchor="middle" font-size="10.5">logs · :8091</text></g>
+<g class="node"><rect class="box" x="122" y="365" width="190" height="52" rx="10"/><text class="t-strong" x="217" y="387" text-anchor="middle" font-size="13.5">Config Builder</text><text class="t-dim" x="217" y="404" text-anchor="middle" font-size="10.5">design · :8092</text></g>
+<g class="node"><rect class="box" x="25" y="234" width="190" height="52" rx="10"/><text class="t-strong" x="120" y="256" text-anchor="middle" font-size="13.5">Terminal tools</text><text class="t-dim" x="120" y="273" text-anchor="middle" font-size="10.5">pm-alf-console · pm-viewer …</text></g>
+<g class="node"><rect class="box" x="122" y="103" width="190" height="52" rx="10"/><text class="t-strong" x="217" y="125" text-anchor="middle" font-size="13.5">Your code</text><text class="t-dim" x="217" y="142" text-anchor="middle" font-size="10.5">ALF · BALF · CALF · RALF · REST/WS</text></g>
+</svg></div>

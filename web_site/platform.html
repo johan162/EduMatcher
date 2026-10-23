@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Platform — EduMatcher</title>
+<meta name="description" content="Architecture, order types, auctions, risk controls, protocols and operations of EduMatcher — a full multi-process exchange written in Python.">
+<meta name="theme-color" content="#020c1b">
+<meta property="og:title" content="The Platform — EduMatcher">
+<meta property="og:description" content="Architecture, order types, auctions, risk controls, protocols and operations of EduMatcher — a full multi-process exchange written in Python.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@1,400;1,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+<script>
+  /* Set the theme before first paint: saved choice, else the OS preference. */
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("em-theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="page-bg"></div><div class="page-grid"></div>
+<div class="ticker-tape" aria-hidden="true" title="Illustrative data — not a market feed"><div class="track" id="tape"></div></div>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="index.html" aria-label="EduMatcher home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
+        <rect x="5" y="19" width="6" height="2.6" rx="1" fill="#00e676"/><rect x="7" y="14.5" width="4" height="2.6" rx="1" fill="#00e676" opacity=".7"/><rect x="9" y="10" width="2" height="2.6" rx="1" fill="#00e676" opacity=".45"/>
+        <rect x="21" y="19" width="6" height="2.6" rx="1" fill="#ff3d5a"/><rect x="21" y="14.5" width="4" height="2.6" rx="1" fill="#ff3d5a" opacity=".7"/><rect x="21" y="10" width="2" height="2.6" rx="1" fill="#ff3d5a" opacity=".45"/>
+        <circle cx="16" cy="16" r="2.4" fill="#00d4ff"/></svg>
+      <span>EDU<em>MATCHER</em></span>
+    </a>
+    <button class="icon-btn menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <nav class="nav" aria-label="Main">
+      <a class="link" href="platform.html" aria-current="page">Platform</a>
+      <a class="link" href="apps.html" >Applications</a>
+      <a class="link" href="learn.html" >Learn</a>
+      <a class="link" href="docs.html" >Documentation</a>
+      <a class="link" href="download.html" >Download</a>
+      <span class="nav-actions">
+        <a class="btn ghost sm" href="https://github.com/johan162/EduMatcher" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.200 1.200a11 11 0 0 1 5.800 0c2.200-1.500 3.200-1.200 3.200-1.200.6 1.600.2 2.800.1 3.100.8.800 1.200 1.800 1.200 3.100 0 4.400-2.700 5.400-5.300 5.700.4.400.8 1.100.8 2.200v3.200c0 .3.2.7.8.6 4.600-1.500 7.900-5.800 7.900-10.900C23.500 5.700 18.300.5 12 .5z"/></svg>GitHub</a>
+        <button class="icon-btn theme-toggle" aria-label="Toggle theme"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.400 1.400M17.700 17.700l1.400 1.400M2 12h2M20 12h2M4.9 19.100l1.400-1.400M17.700 6.300l1.400-1.400"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.800A9 9 0 1 1 11.200 3a7 7 0 0 0 9.800 9.800z"/></svg></button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Platform</div>
+    <div class="eyebrow">The system</div>
+    <h1 class="display">Not a toy.<br><span class="accent">A venue.</span></h1>
+    <p class="lede">49 commands, a brokerless message bus, five order-entry and data protocols, auctions, risk controls, clearing and an audit trail. This is what is running when you start EduMatcher.</p>
+  </div>
+</section>
+<nav class="subnav" aria-label="On this page"><div class="wrap">
+  <a href="#architecture">Architecture</a><a href="#orders">Orders</a><a href="#day">Trading day</a><a href="#risk">Risk</a><a href="#protocols">Protocols</a><a href="#ops">Operations</a><a href="#quality">Engineering</a><a href="#limits">Limits</a>
+</div></nav>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section class="section" id="architecture">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:46px">
+      <div class="copy-col rv">
+        <div class="eyebrow">Architecture</div>
+        <h2 class="display">Processes, not<br>functions</h2>
+        <p class="lede">Real exchanges are fleets of cooperating services. EduMatcher is built the same way: each process owns its state, talks only by message and can run on a different machine.</p>
+        <ul class="checks">
+          <li><b>Brokerless ZeroMQ</b> — PUSH/PULL for commands, PUB/SUB for events. The engine is the only process that binds.</li>
+          <li><b>Private replies over PUB/SUB</b> — acks and fills ride topics only the sender subscribes to.</li>
+          <li><b>Add an observer without touching the engine</b> — audit, clearing and market data are all just subscribers.</li>
+          <li><b>Persistence &amp; recovery</b> — SQLite stores, restart-safe, with an audit replay tool.</li>
+        </ul>
+      </div>
+      <div class="rv d1">
+        <div class="grid g2" style="gap:14px">
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">3</div><p class="muted small" style="margin:6px 0 0">engine sockets: commands in, events out, drop-copy out</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">49</div><p class="muted small" style="margin:6px 0 0">installable <code>pm-*</code> commands</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">0</div><p class="muted small" style="margin:6px 0 0">brokers or external services required</p></div>
+          <div class="card flat"><div class="mono accent" style="font-size:34px;line-height:1">1</div><p class="muted small" style="margin:6px 0 0">YAML file as the single source of reference data</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="diagram rv" data-hl><svg viewBox="0 0 1100 540" role="img" aria-labelledby="arch-t arch-d" xmlns="http://www.w3.org/2000/svg">
+  <title id="arch-t">EduMatcher process architecture</title>
+  <desc id="arch-d">Clients connect through ALF, BALF and API gateways to the matching engine. The engine publishes every event on a ZeroMQ bus read by internal services and by external dissemination gateways.</desc>
+
+  <!-- column captions -->
+  <g class="t-dim" font-size="11" letter-spacing="2">
+    <text x="100" y="14" text-anchor="middle">PARTICIPANTS</text><text x="320" y="14" text-anchor="middle">GATEWAYS</text>
+    <text x="905" y="14" text-anchor="middle">THE BUS FANS OUT</text>
+  </g>
+
+  <!-- ===== wires (static) ===== -->
+  <g class="wire">
+    <path d="M190 73 H440 V150 H460"/>
+    <path d="M190 158 H215 V130 H235"/><path d="M190 158 H215 V225 H235"/>
+    <path d="M190 243 H215 V130 H235" opacity=".0"/><path d="M190 243 H215 V225 H235"/><path d="M190 243 H215 V320 H235"/>
+    <path d="M190 328 H215 V320 H235"/>
+    <path d="M405 125 H430 V170 H460"/><path d="M405 220 H460"/><path d="M405 315 H430 V270 H460"/>
+    <path d="M550 76 V120"/><path d="M550 440 V400"/>
+    <path d="M640 260 H668"/>
+    <path d="M674 135 H720"/><path d="M674 385 H720"/>
+    <path d="M190 413 H440 V330 H460"/>
+  </g>
+  <!-- ===== flowing traffic ===== -->
+  <g>
+    <path class="flow" d="M190 73 H440 V150 H460"/>
+    <path class="flow" d="M190 158 H215 V130 H235"/><path class="flow" d="M190 243 H215 V225 H235"/><path class="flow" d="M190 328 H215 V320 H235"/>
+    <path class="flow" d="M405 125 H430 V170 H460"/><path class="flow" d="M405 220 H460"/><path class="flow" d="M405 315 H430 V270 H460"/>
+    <path class="flow slow" d="M550 76 V120"/>
+    <path class="flow slow" d="M550 440 V400"/>
+    <path class="flow" d="M190 413 H440 V330 H460"/>
+    <path class="flow rev" d="M668 260 H640"/>
+    <path class="flow rev" d="M720 135 H674"/><path class="flow rev" d="M720 385 H674"/>
+    <path class="flow rev slow" d="M460 190 H405"/><path class="flow rev slow" d="M460 245 H405" opacity="0"/>
+  </g>
+
+  <!-- ===== participants ===== -->
+  <g class="node" id="c0" data-link="eng"><rect class="box" x="10" y="40" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="64" font-size="13">Trader console</text><text class="t-dim" x="24" y="84" font-size="11">pm-alf-console · local</text></g>
+  <g class="node" id="c1" data-link="g0 g1"><rect class="box" x="10" y="125" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="149" font-size="13">Bots &amp; AI swarm</text><text class="t-dim" x="24" y="169" font-size="11">pm-mm-bot · pm-ai-swarm</text></g>
+  <g class="node" id="c2" data-link="g0 g1 g2"><rect class="box" x="10" y="210" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="234" font-size="13">Your own programs</text><text class="t-dim" x="24" y="254" font-size="11">any language · TCP / HTTP</text></g>
+  <g class="node" id="c3" data-link="g2"><rect class="box" x="10" y="295" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="319" font-size="13">Browser apps</text><text class="t-dim" x="24" y="339" font-size="11">Trading GUI · TapeDeck</text></g>
+  <g class="node" id="c4" data-link="eng"><rect class="box" x="10" y="380" width="180" height="66" rx="10"/><text class="t-strong" x="24" y="404" font-size="13">Operators</text><text class="t-dim" x="24" y="424" font-size="11">pm-admin · pm-opctl-cli</text></g>
+
+  <!-- ===== gateways ===== -->
+  <g class="node" id="g0" data-link="eng c1 c2"><rect class="box" x="235" y="90" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="114" font-size="12">ALF · text</text><text class="t-strong" x="250" y="134" font-size="13">pm-alf-gwy</text><text class="t-dim" x="250" y="150" font-size="11">TCP :5565</text></g>
+  <g class="node" id="g1" data-link="eng c1 c2"><rect class="box" x="235" y="185" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="209" font-size="12">BALF · binary</text><text class="t-strong" x="250" y="229" font-size="13">pm-balf-gwy</text><text class="t-dim" x="250" y="245" font-size="11">TCP :5560</text></g>
+  <g class="node" id="g2" data-link="eng c2 c3"><rect class="box" x="235" y="280" width="170" height="70" rx="10"/><text class="t-acc" x="250" y="304" font-size="12">REST · WebSocket</text><text class="t-strong" x="250" y="324" font-size="13">pm-api-gwy</text><text class="t-dim" x="250" y="340" font-size="11">HTTP :8080</text></g>
+
+  <!-- ===== engine ===== -->
+  <g class="node" id="sch" data-link="eng"><rect class="box" x="460" y="20" width="180" height="56" rx="10"/><text class="t-strong" x="475" y="44" font-size="13">pm-scheduler</text><text class="t-dim" x="475" y="62" font-size="11">open · auctions · close</text></g>
+  <g class="node" id="eng" data-link="c0 c4 g0 g1 g2 sch sim pa pb">
+    <rect class="box-acc" x="460" y="120" width="180" height="280" rx="14"/>
+    <text class="t-acc" x="475" y="146" font-size="11" letter-spacing="2">MATCHING ENGINE</text>
+    <text class="t-strong" x="475" y="170" font-size="16">pm-engine</text>
+    <g font-size="10.5"><text class="t-dim" x="475" y="192">PULL :5555 ◂ cmds</text><text class="t-dim" x="475" y="208">PUB  :5556 ▸ events</text><text class="t-dim" x="475" y="224">PUB  :5557 ▸ dropcopy</text></g>
+    <!-- mini order book -->
+    <g transform="translate(475 246)">
+      <rect x="0" y="0" width="75" height="9" rx="2" fill="var(--up)" opacity=".25"/><rect x="25" y="14" width="50" height="9" rx="2" fill="var(--up)" opacity=".4"/><rect x="45" y="28" width="30" height="9" rx="2" fill="var(--up)" opacity=".65"/>
+      <rect x="85" y="28" width="38" height="9" rx="2" fill="var(--down)" opacity=".65"/><rect x="85" y="14" width="56" height="9" rx="2" fill="var(--down)" opacity=".4"/><rect x="85" y="0" width="76" height="9" rx="2" fill="var(--down)" opacity=".25"/>
+    </g>
+    <text class="t-dim" x="475" y="304" font-size="10">· price-time order books</text>
+    <text class="t-dim" x="475" y="320" font-size="10">· auctions, uncrossing</text>
+    <text class="t-dim" x="475" y="336" font-size="10">· collars &amp; breakers</text>
+    <text class="t-dim" x="475" y="352" font-size="10">· stops, icebergs</text>
+    <text class="t-dim" x="475" y="368" font-size="10">· sole socket binder</text>
+  </g>
+  <g class="node" id="sim" data-link="eng"><rect class="box" x="460" y="440" width="180" height="56" rx="10"/><text class="t-strong" x="475" y="464" font-size="13">pm-market-sim</text><text class="t-dim" x="475" y="482" font-size="11">true values · news</text></g>
+
+  <!-- ===== bus ===== -->
+  <rect x="666" y="36" width="10" height="460" rx="5" fill="var(--accent)" opacity=".85"/>
+  <text x="0" y="0" transform="translate(693 270) rotate(90)" text-anchor="middle" font-size="10.5" letter-spacing="3" class="t-acc">ZEROMQ  PUB / SUB</text>
+
+  <!-- ===== services panel ===== -->
+  <g class="node" id="pa" data-link="eng">
+    <rect class="box" x="720" y="26" width="370" height="236" rx="14"/>
+    <text class="t-acc" x="738" y="50" font-size="11" letter-spacing="2">INTERNAL SERVICES</text>
+    <g font-size="12">
+      <rect x="738" y="66" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="89">pm-stats</text><text class="t-dim" x="830" y="89" font-size="10.5">stats</text>
+      <rect x="912" y="66" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="89">pm-clearing</text><text class="t-dim" x="1010" y="89" font-size="10.5">P&amp;L</text>
+      <rect x="738" y="114" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="137">pm-audit</text><text class="t-dim" x="820" y="137" font-size="10.5">trail</text>
+      <rect x="912" y="114" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="137">pm-index</text><text class="t-dim" x="995" y="137" font-size="10.5">index</text>
+      <rect x="738" y="162" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="752" y="185">pm-monitor</text><text class="t-dim" x="835" y="185" font-size="10.5">health</text>
+      <rect x="912" y="162" width="160" height="38" rx="8" class="box"/><text class="t-strong" x="926" y="185">pm-log-srv</text><text class="t-dim" x="1000" y="185" font-size="10.5">LALF :5600</text>
+      <rect x="738" y="210" width="334" height="36" rx="8" class="box"/><text class="t-strong" x="752" y="232">pm-viewer · pm-board · pm-ticker</text><text class="t-dim" x="990" y="232" font-size="10.5">terminal</text>
+    </g>
+  </g>
+
+  <!-- ===== dissemination panel ===== -->
+  <g class="node" id="pb" data-link="eng">
+    <rect class="box" x="720" y="282" width="370" height="214" rx="14"/>
+    <text class="t-acc" x="738" y="306" font-size="11" letter-spacing="2">EXTERNAL GATEWAYS</text>
+    <g font-size="12">
+      <rect x="738" y="322" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="752" y="344" font-size="11">CALF · market data</text><text class="t-strong" x="752" y="364">pm-md-gwy</text><text class="t-dim" x="840" y="364" font-size="10.5">:5570</text>
+      <rect x="912" y="322" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="926" y="344" font-size="11">RALF · post-trade</text><text class="t-strong" x="926" y="364">pm-ralf-gwy</text><text class="t-dim" x="1018" y="364" font-size="10.5">:5580</text>
+      <rect x="738" y="392" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="752" y="414" font-size="11">DC1 · drop-copy</text><text class="t-strong" x="752" y="434">pm-dc-gwy</text><text class="t-dim" x="830" y="434" font-size="10.5">:5590</text>
+      <rect x="912" y="392" width="160" height="58" rx="8" class="box"/><text class="t-acc" x="926" y="414" font-size="11">WebSocket events</text><text class="t-strong" x="926" y="434">pm-api-gwy</text><text class="t-dim" x="1018" y="434" font-size="10.5">:8080</text>
+    </g>
+    <text class="t-dim" x="738" y="478" font-size="10.5">→ vendors · clearing · risk · compliance</text>
+  </g>
+</svg>
+</div>
+    <div class="legend"><span><i></i>commands in</span><span><i class="b"></i>events out</span><span>Hover a box to follow its connections</span></div>
+  </div>
+</section>
+
+<!-- ============ ORDERS ============ -->
+<section class="section band" id="orders">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">Order handling</div>
+      <h2 class="display">Every order type a trader expects</h2>
+      <p class="lede">From the simplest market order to multi-leg strategies — with the semantics real venues apply: when stops trigger, how icebergs refill, what a fill-or-kill checks before it fires.</p>
+    </div>
+    <div class="grid g4">
+      <div class="card rv"><span class="tag">Aggressive</span><h3>MARKET · IOC · FOK</h3><p class="muted small">Execute now against resting liquidity. FOK pre-checks the whole quantity, including hidden iceberg reserve, before it fires.</p></div>
+      <div class="card rv d1"><span class="tag">Passive</span><h3>LIMIT · ICEBERG</h3><p class="muted small">Rest at a price. Icebergs show only a visible peak and refill from hidden reserve, losing queue position like the real thing.</p></div>
+      <div class="card rv d2"><span class="tag">Conditional</span><h3>STOP · STOP_LIMIT · TRAILING</h3><p class="muted small">Triggered by trades, in deterministic order: stops first, then trailing stops, each in arrival order.</p></div>
+      <div class="card rv d3"><span class="tag">Auction</span><h3>ATO · ATC</h3><p class="muted small">At-the-open and at-the-close orders live only in their auction and expire when it uncrosses.</p></div>
+      <div class="card rv"><span class="tag">Multi-leg</span><h3>OCO · COMBO</h3><p class="muted small">One-cancels-other pairs and coupled combo orders that manage multi-leg exposure.</p></div>
+      <div class="card rv d1"><span class="tag">Liquidity</span><h3>Market-maker quotes</h3><p class="muted small">Two-sided quotes with bootstrap, per-symbol management and a bundled bot that keeps every book alive.</p></div>
+      <div class="card rv d2"><span class="tag">Safety</span><h3>Self-match prevention</h3><p class="muted small">Configurable per gateway and per order, so a participant cannot trade with itself.</p></div>
+      <div class="card rv d3"><span class="tag">Lifecycle</span><h3>AMEND · CANCEL · mass cancel</h3><p class="muted small">Amendments that respect or reset time priority exactly as documented; mass cancel by participant.</p></div>
+    </div>
+    <div class="codebox rv" style="margin-top:34px;max-width:860px;margin-inline:auto">
+      <span class="label">ALF · text order entry</span><button class="copy" data-copy="#alf-sample">copy</button>
+<pre class="code" id="alf-sample"><span class="c"># a 1000-share iceberg that shows only 100 at a time</span>
+<span class="k">NEW</span>|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRADING DAY ============ -->
+<section class="section" id="day">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:40px">
+      <div class="eyebrow">Market structure</div>
+      <h2 class="display">A trading day with auctions</h2>
+      <p class="lede">Exchanges do not simply match from the first second to the last. A scheduler walks every symbol through pre-open, opening auction, continuous trading and a closing auction — with equilibrium-price uncrossing and imbalance published as it goes.</p>
+    </div>
+    <div class="rv"><div class="diagram">
+<svg viewBox="0 0 1100 260" role="img" aria-labelledby="day-t" xmlns="http://www.w3.org/2000/svg">
+  <title id="day-t">A trading day as session phases</title>
+  <text class="t-dim" x="40" y="20" font-size="11" letter-spacing="2">EXAMPLE SCHEDULE · CONFIGURABLE PER WEEKDAY</text>
+  <line x1="40" y1="150" x2="1060" y2="150" class="wire"/>
+  <!-- phases -->
+  <rect x="40"  y="112" width="130" height="76" rx="8" class="box"/>
+  <rect x="174" y="112" width="110" height="76" rx="8" fill="color-mix(in srgb, var(--amber) 22%, var(--surface-2))" stroke="var(--amber)" stroke-width="1.4"/>
+  <rect x="288" y="112" width="440" height="76" rx="8" class="box-acc"/>
+  <rect x="732" y="112" width="110" height="76" rx="8" fill="color-mix(in srgb, var(--amber) 22%, var(--surface-2))" stroke="var(--amber)" stroke-width="1.4"/>
+  <rect x="846" y="112" width="214" height="76" rx="8" class="box"/>
+  <g font-size="12" text-anchor="middle">
+    <text class="t-strong" x="105" y="146">PRE_OPEN</text><text class="t-dim" x="105" y="166" font-size="10">orders rest · no match</text>
+    <text class="t-strong" x="229" y="142">OPENING</text><text class="t-strong" x="229" y="157">AUCTION</text><text class="t-dim" x="229" y="175" font-size="10">ATO · uncross</text>
+    <text class="t-acc" x="508" y="144" font-size="15">CONTINUOUS</text><text class="t-dim" x="508" y="166" font-size="11">price-time priority · every order matches on arrival</text>
+    <text class="t-strong" x="787" y="142">CLOSING</text><text class="t-strong" x="787" y="157">AUCTION</text><text class="t-dim" x="787" y="175" font-size="10">ATC · uncross</text>
+    <text class="t-strong" x="953" y="146">CLOSED</text><text class="t-dim" x="953" y="166" font-size="10.5">orders rejected</text>
+  </g>
+  <!-- times -->
+  <g font-size="12" class="t-acc"><text x="40" y="100">09:00</text><text x="174" y="100">09:25</text><text x="288" y="100">09:30</text><text x="732" y="100">16:00</text><text x="846" y="100">16:05</text></g>
+  <!-- halt marker -->
+  <g>
+    <path d="M580 112 V70" stroke="var(--down)" stroke-width="1.6" stroke-dasharray="3 3"/>
+    <rect x="500" y="42" width="160" height="28" rx="14" fill="color-mix(in srgb, var(--down) 18%, var(--surface-2))" stroke="var(--down)"/>
+    <text x="580" y="60" text-anchor="middle" font-size="11" fill="var(--down)">circuit breaker halt</text>
+    <path d="M580 188 V218" stroke="var(--amber)" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <text x="580" y="238" text-anchor="middle" font-size="11" fill="var(--amber)">reopening auction with collar expansion</text>
+  </g>
+  <circle r="6" fill="var(--accent)"><animateMotion dur="14s" repeatCount="indefinite" path="M40 150 H1060"/></circle>
+</svg>
+</div>
+</div>
+    <div class="grid g3" style="margin-top:28px">
+      <div class="card flat rv"><h3>Why auctions?</h3><p class="muted small">They concentrate liquidity and neutralise speed advantages at the open and close — the two moments when a reliable price matters most.</p></div>
+      <div class="card flat rv d1"><h3>Calendar-aware</h3><p class="muted small">Weekday-specific schedules, a country holiday calendar and a time zone. The scheduler can run daily for weeks.</p></div>
+      <div class="card flat rv d2"><h3>Visible to everyone</h3><p class="muted small">TapeDeck shows session state, recent auction results, imbalance and active halts live.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RISK ============ -->
+<section class="section band" id="risk">
+  <div class="wrap">
+    <div class="feature">
+      <div class="copy-col rv">
+        <div class="eyebrow">Risk controls</div>
+        <h2 class="display">Defence<br>in depth</h2>
+        <p class="lede">Controls run in the hot path for every order and every match — and they are measured: the benchmark figures include them.</p>
+        <ul class="checks">
+          <li><b>Price collars</b> — static and dynamic, per symbol or exchange-wide.</li>
+          <li><b>Circuit breakers</b> — three market-wide levels modelled on real venues.</li>
+          <li><b>Automated Collar Expansion</b> — the reopening call widens its corridor step by step, modelled on Xetra, until it can uncross.</li>
+          <li><b>Operator override</b> — kill switch, mass cancel, symbol halts and resumes.</li>
+          <li><b>Health monitoring</b> — thresholds on loop lag and heartbeat raise alerts in the dashboard.</li>
+        </ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/operator-guide/part-4-run-a-market/040-risk-controls/">Risk controls in the Operator's Guide</a></div>
+      </div>
+      <div class="rv d1"><div class="diagram narrow">
+<svg viewBox="0 0 520 380" role="img" aria-labelledby="cb-t" xmlns="http://www.w3.org/2000/svg">
+  <title id="cb-t">Defence in depth: the gates an order passes before it can trade</title>
+  <path id="gatepath" class="wire" d="M40 20 V360"/>
+  <path class="flow" d="M40 20 V360"/>
+  <g font-size="12.5">
+    <g><rect x="80" y="12" width="420" height="58" rx="10" class="box"/><text class="t-acc" x="98" y="34" font-size="11" letter-spacing="1.5">1 · STATIC COLLAR</text><text class="t-strong" x="98" y="54">±20 % of reference — outside rejected</text></g>
+    <g><rect x="80" y="82" width="420" height="58" rx="10" class="box"/><text class="t-acc" x="98" y="104" font-size="11" letter-spacing="1.5">2 · DYNAMIC COLLAR</text><text class="t-strong" x="98" y="124">band around the last trade price</text></g>
+    <g><rect x="80" y="152" width="420" height="78" rx="10" class="box-acc"/><text class="t-acc" x="98" y="174" font-size="11" letter-spacing="1.5">3 · CIRCUIT BREAKERS</text><text class="t-strong" x="98" y="194">L1 7 % · L2 13 % · L3 20 %</text><text class="t-dim" x="98" y="214" font-size="11.5">the highest level crossed fires → halt</text></g>
+    <g><rect x="80" y="242" width="420" height="58" rx="10" class="box"/><text class="t-acc" x="98" y="264" font-size="11" letter-spacing="1.5">4 · REOPENING AUCTION + ACE</text><text class="t-strong" x="98" y="284">collar widens until the call uncrosses</text></g>
+    <g><rect x="80" y="312" width="420" height="58" rx="10" fill="color-mix(in srgb, var(--down) 14%, var(--surface-2))" stroke="var(--down)" stroke-width="1.4"/><text x="98" y="334" font-size="11" letter-spacing="1.5" fill="var(--down)">OPERATOR OVERRIDE</text><text class="t-strong" x="98" y="354">kill switch · mass cancel · admin halts</text></g>
+  </g>
+  <circle r="6.5" fill="var(--accent)"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#gatepath"/></animateMotion></circle>
+  <circle r="15" fill="var(--accent)" opacity=".16"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#gatepath"/></animateMotion></circle>
+</svg>
+</div>
+</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROTOCOLS ============ -->
+<section class="section" id="protocols">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">Wire protocols</div>
+      <h2 class="display">Speak to it in six dialects</h2>
+      <p class="lede">EduMatcher defines its own readable protocol family — the ALF family, “ALmost Fix” — and documents every message. Write a client in any language over plain TCP.</p>
+    </div>
+    <div class="tbl-wrap rv">
+      <table class="tbl">
+        <thead><tr><th>Protocol</th><th>Purpose</th><th>Format</th><th>Served by</th></tr></thead>
+        <tbody>
+          <tr><td>ALF</td><td>Human-readable order entry and gateway control</td><td>Text lines, <code>FIELD=VALUE|…</code></td><td><code>pm-alf-gwy</code> · <code>pm-alf-console</code></td></tr>
+          <tr><td>BALF</td><td>Low-latency order entry for programs</td><td>Binary frames, fixed-point <code>i64</code> prices</td><td><code>pm-balf-gwy</code></td></tr>
+          <tr><td>CALF</td><td>Market data: top of book, depth, trades, state, index</td><td>Text over TCP, snapshot + incremental, sequence-aware</td><td><code>pm-md-gwy</code></td></tr>
+          <tr><td>RALF</td><td>Post-trade for clearing, drop-copy and audit roles</td><td>Text over TCP, replay-aware reconnect</td><td><code>pm-ralf-gwy</code></td></tr>
+          <tr><td>LALF</td><td>Centralised process logging</td><td>Text over TCP</td><td><code>pm-log-srv</code></td></tr>
+          <tr><td>REST · WebSocket</td><td>Order entry, history and live events for browsers and tools</td><td>JSON over HTTP + WS, Swagger docs at <code>/docs</code></td><td><code>pm-api-gwy</code></td></tr>
+          <tr><td>DC1</td><td>Plain-TCP view of the drop-copy fill feed</td><td>Text lines</td><td><code>pm-dc-gwy</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="center muted small rv" style="margin-top:18px">Protocol spy tools — <code>pm-calf-spy</code>, <code>pm-ralf-spy</code>, <code>pm-dc-spy</code> — let you watch any feed on the wire while you learn it.</p>
+    <div class="center rv" style="margin-top:22px"><a class="btn ghost" href="docs/books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview/">Protocols and Clients book →</a></div>
+  </div>
+</section>
+
+<!-- ============ OPERATIONS ============ -->
+<section class="section band" id="ops">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">Operations</div>
+      <h2 class="display">Run it like you would run one</h2>
+    </div>
+    <div class="grid g3">
+      <div class="card rv"><h3>Configure once</h3><p class="muted small">A single <code>engine_config.yaml</code> defines symbols, participants, sessions, risk and gateways. Edit by hand, generate with <code>pm-config-gen</code>, or build it in the Configuration GUI; lint with <code>pm-cverifier</code>; deploy with <code>pm-config-deploy</code>.</p></div>
+      <div class="card rv d1"><h3>List new symbols</h3><p class="muted small">Add instruments at runtime with <code>pm-new-symbol</code> and run an IPO with <code>pm-valuation</code> to derive a sensible opening price.</p></div>
+      <div class="card rv d2"><h3>Observe everything</h3><p class="muted small">Central structured logs, health beacons from every process, a monitor and the Operator Dashboard. <code>pm-log-cli</code>, <code>pm-monitor-cli</code> and <code>pm-audit-cli</code> for the shell.</p></div>
+      <div class="card rv"><h3>Audit &amp; replay</h3><p class="muted small">Every engine event is written to the audit trail; <code>pm-audit-replay</code> re-runs history for verification and teaching.</p></div>
+      <div class="card rv d1"><h3>Deploy</h3><p class="muted small">Container images for the engine and each GUI, a Compose bundle, a one-line installer, a VM runtime image with a pinned release, or plain <code>pipx</code>.</p></div>
+      <div class="card rv d2"><h3>Multi-host ready</h3><p class="muted small">Internal buses bind to loopback by default; external gateways bind to the network. Put the pieces on different machines when you want to.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ QUALITY ============ -->
+<section class="section" id="quality">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:0">
+      <div class="copy-col rv">
+        <div class="eyebrow">Engineering</div>
+        <h2 class="display">Written like it<br>might matter</h2>
+        <p class="lede">An educational code base is only as good as its worst example. EduMatcher is held to production-style standards, so what you learn from it is worth learning.</p>
+        <ul class="checks">
+          <li><b>7200+ tests</b> across 157000+ lines of source, with a deterministic verification harness for the matching engine.</li>
+          <li><b>Static typing &amp; linting</b> — type hints throughout; black, flake8 and mypy gate every change in CI.</li>
+          <li><b>Documented design decisions</b> — complexity of every core operation, failure modes such as ZeroMQ back-pressure, and the trust model.</li>
+          <li><b>One message specification</b> — <code>pm-msgen</code> generates the Python (and C) bindings for 120+ messages, byte-for-byte deterministic, so docs, code and wire never drift.</li>
+        </ul>
+      </div>
+      <div class="rv d1">
+        <div class="codebox"><span class="label">terminal</span><button class="copy" data-copy="#qa-sample">copy</button>
+<pre class="code" id="qa-sample"><span class="p">$ </span>pm-help                 <span class="c"># every command, grouped</span>
+<span class="p">$ </span>pm-config-show -a       <span class="c"># resolved config, ports, API keys</span>
+<span class="p">$ </span>pm-cverifier engine.yaml <span class="c"># lint a configuration</span>
+<span class="p">$ </span>pm-alf-console          <span class="c"># trade from the terminal</span>
+<span class="p">$ </span>pm-viewer -s AAPL        <span class="c"># live order book</span>
+<span class="p">$ </span>pm-audit-replay          <span class="c"># replay history</span></pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIMITS ============ -->
+<section class="section band" id="limits">
+  <div class="wrap" style="max-width:900px">
+    <div class="center rv" style="margin-bottom:34px">
+      <div class="eyebrow">Straight talk</div>
+      <h2 class="display">What it deliberately leaves out</h2>
+      <p class="lede">EduMatcher keeps the parts of an exchange that matter for learning and simplifies the rest. These are the limits, stated up front.</p>
+    </div>
+    <div class="grid g2">
+      <div class="callout rv"><b>Speed.</b> Roughly 29,122 orders/s and ~49.7 µs median engine latency, in Python. Real venues are far faster.</div>
+      <div class="callout rv"><b>Authentication.</b> Participants are identified by configured IDs and API keys; there is no member/firm/user hierarchy.</div>
+      <div class="callout rv"><b>Fault tolerance.</b> One machine runs the exchange; no hot standby, replication or failover.</div>
+      <div class="callout rv"><b>Instruments.</b> Equities only. No implied (synthetic) orders; combos are coupled order books rather than a book of their own.</div>
+    </div>
+    <p class="center muted small rv" style="margin-top:22px">The Reference Manual keeps the full, current <a href="docs/books/reference-manual/90-backmatter/020-known-limitations/">list of known limitations</a>.</p>
+  </div>
+</section>
+
+<section class="section tight"><div class="wrap"><div class="cta rv">
+  <h2 class="display">Seen enough? <span class="accent">Run it.</span></h2>
+  <div class="btn-row" style="margin-top:20px"><a class="btn primary" href="download.html">Download</a><a class="btn ghost" href="apps.html">See the applications</a></div>
+</div></div></section>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="index.html"><span>EDU<em>MATCHER</em></span></a>
+        <p class="blurb" style="margin-top:14px">A complete, multi-process exchange in Python — built so you can read it, run it, break it and learn from it.</p>
+        <div class="chips" style="margin-top:14px"><span class="chip">v0.51.5</span><span class="chip">MIT licence</span><span class="chip">Python 3.13+</span></div>
+      </div>
+      <div><h4>Explore</h4><ul>
+        <li><a href="platform.html">The platform</a></li><li><a href="apps.html">Applications</a></li><li><a href="learn.html">Learn</a></li><li><a href="docs.html">Documentation</a></li></ul></div>
+      <div><h4>Get it</h4><ul>
+        <li><a href="download.html">Download</a></li><li><a href="download.html#install">Install in one command</a></li><li><a href="download.html#books">Books (PDF, EPUB)</a></li><li><a href="https://pypi.org/project/edumatcher/" rel="noopener">PyPI</a></li></ul></div>
+      <div><h4>Project</h4><ul>
+        <li><a href="https://github.com/johan162/EduMatcher" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/johan162/EduMatcher/issues" rel="noopener">Issues</a></li><li><a href="https://github.com/johan162/EduMatcher/releases" rel="noopener">Releases</a></li><li><a href="https://github.com/johan162/EduMatcher/blob/main/CHANGELOG.md" rel="noopener">Changelog</a></li></ul></div>
+    </div>
+    <p class="warn-strip"><b>Not for real trading.</b> EduMatcher is for teaching and experimenting in a controlled environment. Never use it for real financial transactions. Market data on this site's decorative tickers and charts is illustrative.</p>
+    <div class="legal"><span>© 2026 Johan Persson · MIT licence</span><span>Grokking trading, one order at a time.</span></div>
+  </div>
+</footer>
+<script src="assets/js/site.js" defer></script>
+
+</body>
+</html>
