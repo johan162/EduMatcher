@@ -490,10 +490,11 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-audit [--audit-log-file data/audit.log] [--terminal]",
             "         [--buffer-size 100] [--flush-interval 10]",
+            "         [--max-file-mb 10] [--backup-count 5]",
         ),
         description=(
             "Subscribes to everything published on :5556 with an empty topic prefix "
-            "and appends each entry to a rotating log file (10 MB, 5 backups), "
+            "and appends each entry to a rotating log file (10 MB, 5 backups by default), "
             "buffering to reduce disk wear. On shutdown, buffered messages are always "
             "flushed before exit.",
         ),
@@ -513,6 +514,16 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "--flush-interval SEC",
                 "10.0",
                 "Max seconds before flushing the buffer to disk",
+            ),
+            Option(
+                "--max-file-mb MB",
+                "10",
+                "Rotate the audit log when it reaches this size",
+            ),
+            Option(
+                "--backup-count N",
+                "5",
+                "Rotated audit log files to keep",
             ),
         ),
         has_common_log_options=True,

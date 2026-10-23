@@ -3,6 +3,7 @@ Audit Process — records every event in the system to a rotating log file.
 
 Usage:
   poetry run pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
+                      [--max-file-mb 10] [--backup-count 5]
 
 Subscribes to ALL topics (empty filter) and appends each event as a
 single JSON line:
@@ -19,6 +20,8 @@ Options
   --terminal       Also print each entry to stdout
   --buffer-size    Number of messages to buffer before writing to disk (default: 100)
   --flush-interval Maximum seconds to wait before flushing buffer (default: 10)
+  --max-file-mb    Rotate the audit log at this size in MB (default: 10)
+  --backup-count   Rotated audit log files to keep (default: 5)
 
 This process's own *operational* logging (``log.info(...)``/``log.warning(...)``
 calls below, distinct from the audit trail above) is sent to ``pm-log-srv``
@@ -72,6 +75,8 @@ _SUB_RCVHWM = 200_000
 
 _DEFAULT_BUFFER_SIZE = 100
 _DEFAULT_FLUSH_INTERVAL = 10.0
+_DEFAULT_MAX_FILE_MB = 10
+_DEFAULT_BACKUP_COUNT = 5
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 log = logging.getLogger(__name__)
@@ -104,7 +109,12 @@ def _meta_section(frames: list[bytes]) -> str | None:
     return " ".join(parts)
 
 
-def _setup_logger(log_path: Path, to_terminal: bool) -> logging.Logger:
+def _setup_logger(
+    log_path: Path,
+    to_terminal: bool,
+    max_file_mb: int = _DEFAULT_MAX_FILE_MB,
+    backup_count: int = _DEFAULT_BACKUP_COUNT,
+) -> logging.Logger:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("edumatcher.audit.data")
     logger.setLevel(logging.INFO)
@@ -117,7 +127,10 @@ def _setup_logger(log_path: Path, to_terminal: bool) -> logging.Logger:
     fmt = logging.Formatter("%(message)s")
 
     fh = RotatingFileHandler(
-        log_path, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        log_path,
+        maxBytes=max_file_mb * 1024 * 1024,
+        backupCount=backup_count,
+        encoding="utf-8",
     )
     fh.setFormatter(fmt)
     logger.addHandler(fh)
@@ -160,6 +173,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=_DEFAULT_FLUSH_INTERVAL,
         metavar="SECONDS",
         help=f"Maximum seconds to wait before flushing buffer (default: {_DEFAULT_FLUSH_INTERVAL})",
+    )
+    parser.add_argument(
+        "--max-file-mb",
+        type=int,
+        default=_DEFAULT_MAX_FILE_MB,
+        metavar="MB",
+        help=f"Rotate the audit log when it reaches this size (default: {_DEFAULT_MAX_FILE_MB})",
+    )
+    parser.add_argument(
+        "--backup-count",
+        type=int,
+        default=_DEFAULT_BACKUP_COUNT,
+        metavar="N",
+        help=f"Rotated audit log files to keep (default: {_DEFAULT_BACKUP_COUNT})",
     )
     parser.add_argument(
         "--log-level",
@@ -253,8 +280,10 @@ class AuditProcess:
         to_terminal: bool,
         buffer_size: int = _DEFAULT_BUFFER_SIZE,
         flush_interval: float = _DEFAULT_FLUSH_INTERVAL,
+        max_file_mb: int = _DEFAULT_MAX_FILE_MB,
+        backup_count: int = _DEFAULT_BACKUP_COUNT,
     ) -> None:
-        self.logger = _setup_logger(log_path, to_terminal)
+        self.logger = _setup_logger(log_path, to_terminal, max_file_mb, backup_count)
         self._log_path = log_path
         self._to_terminal = to_terminal
         self._running = True
@@ -462,11 +491,14 @@ def main() -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-audit with log level %s", logging.getLevelName(log_level))
     log.debug(
-        "resolved audit config: audit_log_file=%s terminal=%s buffer_size=%d flush_interval=%s",
+        "resolved audit config: audit_log_file=%s terminal=%s buffer_size=%d "
+        "flush_interval=%s max_file_mb=%d backup_count=%d",
         args.audit_log_file,
         args.terminal,
         args.buffer_size,
         args.flush_interval,
+        args.max_file_mb,
+        args.backup_count,
     )
 
     # Validate arguments
@@ -474,6 +506,10 @@ def main() -> None:
         parser.error("--buffer-size must be at least 1")
     if args.flush_interval <= 0:
         parser.error("--flush-interval must be positive")
+    if args.max_file_mb < 1:
+        parser.error("--max-file-mb must be at least 1")
+    if args.backup_count < 1:
+        parser.error("--backup-count must be at least 1")
 
     try:
         process = AuditProcess(
@@ -481,6 +517,8 @@ def main() -> None:
             args.terminal,
             buffer_size=args.buffer_size,
             flush_interval=args.flush_interval,
+            max_file_mb=args.max_file_mb,
+            backup_count=args.backup_count,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

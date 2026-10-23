@@ -813,7 +813,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--backup-count 5] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -824,6 +824,8 @@ pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--f
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
+| `--max-file-mb`       | 10               | Rotate the audit log when it reaches this size in MB         |
+| `--backup-count`      | 5                | Rotated audit log files to keep                              |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |

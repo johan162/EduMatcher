@@ -849,14 +849,25 @@ class TestOnOrderEvent:
                 "order_id": "O002",
                 "fill_price": 100.0,
                 "fill_qty": 50,
-                "trade_id": "T001",
+                "trade_ids": ["T001", "T002"],
                 "remaining_qty": 50,
                 "tick_decimals": 2,
                 "status": "PARTIAL",
             },
         )
-        rows = sp._conn.execute("SELECT event_type FROM order_events").fetchall()
-        assert rows == [("FILL",)]
+        rows = sp._conn.execute(
+            "SELECT event_type, trade_ids FROM order_events"
+        ).fetchall()
+        # The engine's fill aggregates every trade of one dispatch.
+        assert rows == [("FILL", '["T001", "T002"]')]
+
+    def test_non_fill_event_has_no_trade_ids(self, sp: StatsProcess) -> None:
+        sp._on_order_event(
+            "order.cancelled.GW01",
+            {"order_id": "O002", "cancel_reason": "USER"},
+        )
+        rows = sp._conn.execute("SELECT trade_ids FROM order_events").fetchall()
+        assert rows == [(None,)]
 
     def test_records_cancel_event(self, sp: StatsProcess) -> None:
         sp._on_order_event(
@@ -903,7 +914,7 @@ class TestOnOrderEvent:
                 "status": "FILLED",
                 "fill_price": 250.0,
                 "fill_qty": 200,
-                "trade_id": "T002",
+                "trade_ids": ["T002"],
                 "reason": None,
                 "client_tag": "CL001",
                 "combo_parent_id": None,

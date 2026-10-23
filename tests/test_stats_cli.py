@@ -74,7 +74,7 @@ def _seed_db(path: Path) -> None:
         conn.execute(
             "INSERT INTO order_events "
             "(ts, event_type, order_id, gateway_id, symbol, side, fill_price, fill_qty, "
-            "trade_id, remaining_qty, status) "
+            "trade_ids, remaining_qty, status) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "2026-06-14T09:00:01.000+00:00",
@@ -85,7 +85,7 @@ def _seed_db(path: Path) -> None:
                 "BUY",
                 150.0,
                 100,
-                "T-AAPL-1",
+                '["T-AAPL-1"]',
                 0,
                 "FILLED",
             ),
