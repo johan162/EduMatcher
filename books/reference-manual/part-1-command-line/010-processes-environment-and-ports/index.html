@@ -9901,7 +9901,7 @@ or redirected the viewer behaves exactly as it always did.</p>
 </table>
 <h2 id="pm-audit-event-logger">pm-audit - Event Logger<a class="headerlink" href="#pm-audit-event-logger" title="Permanent link">&para;</a></h2>
 <p>Records every message on the bus to a rotating log file.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-file-mb<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--backup-count<span class="w"> </span><span class="m">5</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9932,6 +9932,16 @@ or redirected the viewer behaves exactly as it always did.</p>
 <td><code>--flush-interval</code></td>
 <td>10.0</td>
 <td>Maximum seconds to wait before flushing buffer to disk</td>
+</tr>
+<tr>
+<td><code>--max-file-mb</code></td>
+<td>10</td>
+<td>Rotate the audit log when it reaches this size in MB</td>
+</tr>
+<tr>
+<td><code>--backup-count</code></td>
+<td>5</td>
+<td>Rotated audit log files to keep</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>

@@ -7678,7 +7678,9 @@ quote is cancelled and the new one is registered atomically.</p>
 <li><code>NEVER_INACTIVATE</code>: quote is not auto-inactivated by fills</li>
 </ul>
 <p>When inactivation is triggered, the engine cancels the opposite leg and emits
-<code>quote.status.&lt;GW_ID&gt;</code>.</p>
+<code>quote.status.&lt;GW_ID&gt;</code>. The opposite leg is pulled at the moment of the fill,
+before anything else that order causes is matched: a stop order the fill
+triggers cannot trade against it.</p>
 <p>MM obligation enforcement is optional and configured per gateway:</p>
 <ul>
 <li><code>enforce_mm_obligation: false</code> (default): quote spread/size checks are skipped</li>

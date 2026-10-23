@@ -8309,8 +8309,9 @@ OCO and quote <code>event_type</code> values, which the DDL alone cannot express
 version 3 added <code>feed_gaps</code> and widened <code>trade_log</code>'s primary key, and
 version 4 moved prices from REAL display money to INTEGER ticks (except
 <code>order_events</code>, see below), version 5 added the <code>instruments</code> reference table,
-version 6 renamed <code>order_events.client_order_id</code> to <code>client_tag</code>, and
-version 7 made the durable <code>trade_id</code> the sole primary key of <code>trade_log</code>.</p>
+version 6 renamed <code>order_events.client_order_id</code> to <code>client_tag</code>,
+version 7 made the durable <code>trade_id</code> the sole primary key of <code>trade_log</code>, and
+version 8 replaced <code>order_events.trade_id</code> (always empty) with <code>trade_ids</code>.</p>
 <p><code>pm-stats</code> refuses to open a database whose <code>user_version</code> does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
 that, move or delete the file and let <code>pm-stats</code> create a fresh one.</p>
@@ -9259,9 +9260,9 @@ row for the same execution, depending on delivery latency. Within
 <td>Executed quantity for fill events</td>
 </tr>
 <tr>
-<td><code>trade_id</code></td>
+<td><code>trade_ids</code></td>
 <td>TEXT</td>
-<td>Trade identifier linked to a fill event</td>
+<td>FILL only: JSON array of the trade ids the fill executed — one fill can aggregate several trades</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
@@ -10062,10 +10063,10 @@ required because lifecycle history is private per participant.</p>
 </tbody>
 </table>
 <p><strong>Example output:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_id         | reason | client_tag | combo_parent_id | oco_group_id | priority_reset
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+------------------+--------+------------+-----------------+--------------+---------------
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                  |        |            |                 |              |               
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | 000042-000000001 |        |            |                 |              |               
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_ids              | reason | client_tag | combo_parent_id | oco_group_id | priority_reset
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+------------------------+--------+------------+-----------------+--------------+---------------
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                        |        |            |                 |              |               
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | ["000042-000000001"]   |        |            |                 |              |               
 </code></pre></div>
 <p>All 21 <code>order_events</code> columns are printed (the table is wide). <code>price</code> and
 <code>fill_price</code> are display money, exactly as stored.</p>

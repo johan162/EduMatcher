@@ -7849,6 +7849,16 @@ a small health socket (port <code>5562</code>) that answers
 <td>Maximum seconds to wait before flushing buffer regardless of size</td>
 </tr>
 <tr>
+<td><code>--max-file-mb MB</code></td>
+<td><code>10</code></td>
+<td>Rotate the audit log when it reaches this size — see <a href="#log-rotation">Log rotation</a></td>
+</tr>
+<tr>
+<td><code>--backup-count N</code></td>
+<td><code>5</code></td>
+<td>Rotated audit log files to keep</td>
+</tr>
+<tr>
 <td><code>--log-level</code></td>
 <td><code>WARNING</code></td>
 <td>Explicit level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
@@ -7983,16 +7993,22 @@ chronologically monotonic by receipt time — but note that receipt order across
 several publishers is not causal order. <code>cause</code> and <code>chain</code> are what establish
 causality; the timestamp only establishes when <code>pm-audit</code> saw it.</p>
 <h3 id="log-rotation">Log rotation<a class="headerlink" href="#log-rotation" title="Permanent link">&para;</a></h3>
-<p>Log files rotate at <strong>10 MB</strong> with <strong>5 backups</strong> kept:</p>
+<p>By default log files rotate at <strong>10 MB</strong> with <strong>5 backups</strong> kept
+(<code>--max-file-mb</code>, <code>--backup-count</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>data/audit.log       ← active, current writes
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>data/audit.log.1     ← previous
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>data/audit.log.2     ← older
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>...
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>data/audit.log.5     ← oldest kept
 </code></pre></div>
-<p>When <code>audit.log</code> reaches 10 MB the Python <code>RotatingFileHandler</code> renames it
-to <code>audit.log.1</code> (shifting existing backups up) and opens a fresh
-<code>audit.log</code>. Rotated files may also be compressed externally; <code>pm-audit-cli</code>
+<p>When <code>audit.log</code> reaches the size limit the Python <code>RotatingFileHandler</code>
+renames it to <code>audit.log.1</code> (shifting existing backups up) and opens a fresh
+<code>audit.log</code>; the oldest backup beyond <code>--backup-count</code> is deleted.</p>
+<p>Size the two options for the retention you need. The default 60 MB is
+minutes, not days, under load: a 100-trader AI simulation writes about
+1.2 GB an hour, which is why the <code>ai-sim</code> emo profile runs
+<code>pm-audit --max-file-mb 256 --backup-count 100</code> (~25 GB, about two trading
+days). Rotated files may also be compressed externally; <code>pm-audit-cli</code>
 reads <code>.gz</code> files transparently.</p>
 <h3 id="subscribed-topics">Subscribed topics<a class="headerlink" href="#subscribed-topics" title="Permanent link">&para;</a></h3>
 <p><code>pm-audit</code> subscribes with an <strong>empty topic filter</strong>, which causes ZeroMQ to
