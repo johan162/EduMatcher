@@ -1,3 +1,39 @@
+## [v0.52.0] - 2026-10-23
+
+Release Type: major (due to breaking change in DB schema)
+
+### 📋 Summary
+This release adds post-run simulation forensics and longer audit and statistics retention for investigating trading sessions. It also improves the Trading Workstation and fixes fill reporting and quote handling during cascaded matching.
+
+### ⚠️ Breaking Changes
+- Updated the statistics database to schema version 8, replacing `order_events.trade_id` with the JSON-array field `trade_ids`; existing databases are not migrated, so archive the old database and let `pm-stats` create a new one
+
+### ✨ Additions
+- Added simulation-forensics tooling with cross-store trade reconciliation, double-entry bookkeeping, and order-lifecycle checks, plus Markdown and JSON reports
+- Added `pm-audit --max-file-mb` and `--backup-count` options for configurable audit-log retention
+- Added a Trading Workstation symbol drawer with market details and per-minute trade-count and traded-value charts
+
+### 🚀 Improvements
+- Expanded AI-simulation audit retention to approximately 25 GB and automated order-event retention to two days for post-run analysis
+- Enabled the same 09:00–16:05 session schedule on weekdays and weekends in both 300-symbol example setups
+- Moved Trading Workstation navigation to its own row and placed session information in the top bar
+
+### 🐛 Bug Fixes
+- Fixed missing fill events for cascaded and triggered-stop orders that execute before being cancelled
+- Fixed triggered stops matching against a quote's stale sibling leg after the other leg fills
+- Fixed statistics fill records missing their associated trade IDs
+- Fixed OHLC chart times not using the configured session time zone
+- Fixed GUI tooltips appearing off-screen in zoomed layouts
+
+### 📚 Documentation
+- Documented audit-retention options, the statistics schema change, and quote-leg fill behavior
+- Added simulation-forensics workflow and check documentation, and updated the example schedule descriptions
+- Added test API-key login guidance to the curl installer
+
+### 🛠 Internal
+- Added regression coverage for cascaded fills, quote-sibling cancellation, audit and statistics retention, simulation-forensics checks, and Trading Workstation behavior
+- Added `forensic` target to top level `Makefile` , use as `make forensics DATA=<new data dir> OUT=<dir>` 
+
 ## [v0.51.5] - 2026-10-22
 
 Release Type: patch

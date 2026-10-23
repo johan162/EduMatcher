@@ -97,6 +97,7 @@ SQLite tables
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import signal
 import sqlite3
@@ -370,7 +371,10 @@ class _IndexDayAccum:
 #:     engine/REST correlation field and avoid implying FIX-style idempotency.
 #: 7 — ``trade_log`` uses the durable engine ``trade_id`` as its sole primary
 #:     key. Existing database files are deliberately refused, not migrated.
-SCHEMA_VERSION = 7
+#: 8 — ``order_events.trade_id`` replaced by ``trade_ids``, a JSON array: the
+#:     engine's fill names every trade it aggregates, and the old column read a
+#:     ``trade_id`` key the fill never carried, so it was always NULL.
+SCHEMA_VERSION = 8
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 #: Taken from the generated binding rather than retyped, so a topic rename in
@@ -535,7 +539,10 @@ CREATE TABLE IF NOT EXISTS order_events (
     status          TEXT,
     fill_price      REAL,
     fill_qty        INTEGER,
-    trade_id        TEXT,
+    -- JSON array of the durable engine trade ids behind a FILL. One fill
+    -- event aggregates everything the order executed in one dispatch, so it
+    -- can name several trades; NULL for every other event type.
+    trade_ids       TEXT,
     reason          TEXT,
     client_tag      TEXT,
     combo_parent_id TEXT,
@@ -650,7 +657,7 @@ VALUES (?,?,?,?,?)
 INSERT_ORDER_EVENT = """
 INSERT INTO order_events
     (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
-     quantity, remaining_qty, status, fill_price, fill_qty, trade_id, reason,
+     quantity, remaining_qty, status, fill_price, fill_qty, trade_ids, reason,
     client_tag, combo_parent_id, oco_group_id, priority_reset)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
@@ -1708,7 +1715,11 @@ class StatsProcess:
                     payload.get("status"),
                     payload.get("fill_price"),
                     payload.get("fill_qty"),
-                    payload.get("trade_id"),
+                    (
+                        json.dumps(payload["trade_ids"])
+                        if "trade_ids" in payload
+                        else None
+                    ),
                     payload.get("cancel_reason") or payload.get("reason"),
                     payload.get("client_tag"),
                     payload.get("combo_parent_id"),

@@ -92,7 +92,11 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     ai_swarm = {p["name"]: p for p in load_profiles()["ai-swarm"]}
     assert list(processes) == list(ai_swarm)
     changed = {name for name in processes if processes[name] != ai_swarm[name]}
-    assert changed == {"engine", "stats", "clearing", "ai-swarm", "mm-bot"}
+    assert changed == {"engine", "audit", "stats", "clearing", "ai-swarm", "mm-bot"}
+    # A whole session of audit trail survives for post-run forensics.
+    audit = processes["audit"]["command"]
+    assert audit[audit.index("--max-file-mb") + 1] == "256"
+    assert audit[audit.index("--backup-count") + 1] == "100"
     mm = processes["mm-bot"]["command"]
     assert mm[mm.index("--strategy") + 1] == "symmetric"
     assert mm[mm.index("--anchor-sim") + 1] == "0.3"
@@ -102,7 +106,7 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     assert clearing[clearing.index("--retention-days") + 1] == "7"
     stats = processes["stats"]["command"]
     assert stats[stats.index("--keep-days") + 1] == "7"
-    assert stats[stats.index("--keep-order-events-days") + 1] == "0.5"
+    assert stats[stats.index("--keep-order-events-days") + 1] == "2"
     # A person's handful of orders a day must not be pruned on the swarm's
     # clock -- that is what made a trader's own fills vanish from history.
     assert stats[stats.index("--human-gateways") + 1] == "TRADER*"

@@ -24,7 +24,7 @@ from __future__ import annotations
 import heapq
 import logging
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -131,6 +131,7 @@ class OrderBook:
         "daily_value_ticks",
         "daily_trades",
         "_has_stops",
+        "on_quote_leg_fill",
         "_arrival_seq",
     )
 
@@ -205,6 +206,14 @@ class OrderBook:
         # Guards the stop-check calls in process() to avoid function-call
         # overhead on every fill when no stops are present.
         self._has_stops: bool = False
+
+        # Called after every continuous fill of a quote leg (an order with a
+        # quote_id), while the dispatch is still running, so the engine can
+        # pull the quote's sibling leg before anything else matches: a stop
+        # the fill triggers must not trade against a leg the engine has just
+        # reported cancelled (finding X3). Not called in an uncross, where
+        # both sides are resting and the auction walks both heaps.
+        self.on_quote_leg_fill: Optional[Callable[[Order], None]] = None
 
         # Monotonic arrival sequence for time priority (finding H1).  Assigned
         # by the book when an order is placed on a heap, so queue position is
@@ -1502,6 +1511,12 @@ class OrderBook:
             # heap entry for lazy deletion).
             self._purge_from_indexes(passive)
         events.append(passive)
+
+        if not both_resting and self.on_quote_leg_fill is not None:
+            if passive.quote_id is not None:
+                self.on_quote_leg_fill(passive)
+            if aggressor.quote_id is not None:
+                self.on_quote_leg_fill(aggressor)
 
     def _purge_from_indexes(self, order: Order) -> None:
         """Remove a terminal order from the id→order and id→entry maps and

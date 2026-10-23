@@ -1,6 +1,9 @@
 import { useId, useState } from "react";
 import { Info } from "lucide-react";
 
+/** The tooltip's width in CSS pixels (`w-72`). */
+const TIP_WIDTH = 288;
+
 /**
  * A help tooltip (WP-UI02): an "i" that explains a field or column on hover
  * or keyboard focus. Positioned `fixed` from the trigger's rectangle so a
@@ -16,9 +19,13 @@ export function InfoTip({
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const id = useId();
 
+  // `#root` is scaled with CSS `zoom`, and a `fixed` box inside it is placed in
+  // zoomed units, while the rectangle and the window are in screen pixels.
   const show = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    setPos({ x: Math.min(r.left, window.innerWidth - 300), y: r.bottom + 4 });
+    const zoom = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
+    const x = Math.min(r.left / zoom, window.innerWidth / zoom - TIP_WIDTH - 8);
+    setPos({ x: Math.max(8, x), y: r.bottom / zoom + 4 });
   };
 
   return (

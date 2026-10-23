@@ -1,6 +1,9 @@
 import { useId, useState } from "react";
 import { Info } from "lucide-react";
 
+/** The tooltip's width in CSS pixels (`w-56`). */
+const TIP_WIDTH = 224;
+
 interface FieldInfoProps {
   /** Field name (also used in the accessible label). */
   label: string;
@@ -20,10 +23,14 @@ export function FieldInfo({ label, lines }: FieldInfoProps) {
   const open = pos !== null;
 
   // `fixed` from the trigger's rectangle: a table or panel that scrolls
-  // would clip an absolutely positioned tip.
+  // would clip an absolutely positioned tip. `#root` is scaled with CSS
+  // `zoom`, and a `fixed` box inside it is placed in zoomed units, while the
+  // rectangle and the window are in screen pixels.
   const show = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    setPos({ x: Math.max(8, Math.min(r.right + 4, window.innerWidth - 232)), y: r.top });
+    const zoom = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
+    const x = Math.min(r.right / zoom + 4, window.innerWidth / zoom - TIP_WIDTH - 8);
+    setPos({ x: Math.max(8, x), y: r.top / zoom });
   };
 
   return (

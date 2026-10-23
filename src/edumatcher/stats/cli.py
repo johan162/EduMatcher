@@ -101,7 +101,7 @@ _ORDER_EVENTS_COLUMNS = [
     "status",
     "fill_price",
     "fill_qty",
-    "trade_id",
+    "trade_ids",
     "reason",
     "client_tag",
     "combo_parent_id",

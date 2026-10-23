@@ -1635,7 +1635,7 @@ sequenceDiagram
     E->>QI: put(GW01, AAPL) -> {bid_id, ask_id}
 
     Note over OB: An independent taker buys 100 from the bid
-    OB->>E: bid PARTIAL, remaining=400
+    OB->>E: on_quote_leg_fill(bid): PARTIAL, remaining=400 (at the fill)
     E->>E: _on_quote_leg_filled: INACTIVATE_ON_ANY_FILL
     E->>QI: remove(GW01, AAPL)  -- entry gone
     E->>OB: cancel sibling ask (via _purge_from_indexes)

@@ -898,9 +898,11 @@ class Engine:
 
     def _book(self, symbol: str) -> OrderBook:
         if symbol not in self.books:
-            self.books[symbol] = OrderBook(
-                symbol, recent_trades_maxlen=self.recent_trades_maxlen
-            )
+            book = OrderBook(symbol, recent_trades_maxlen=self.recent_trades_maxlen)
+            # X3: inactivate a quote at the fill itself, inside the dispatch;
+            # the publication loops' later calls find it already done.
+            book.on_quote_leg_fill = self._on_quote_leg_filled
+            self.books[symbol] = book
         return self.books[symbol]
 
     def _flush_auction_indicative(self) -> None:
@@ -1161,7 +1163,8 @@ class Engine:
                     _seed_fill_ids: set[str] = set()
                     _seed_cancel_ids: set[str] = set()
                     for evt in events:
-                        if evt.status in _FILL_STATUSES:
+                        # X1: fill by what executed, not by final status.
+                        if _seed_matched.get(evt.id, 0) > 0:
                             if evt.id not in _seed_fill_ids:
                                 _seed_fill_ids.add(evt.id)
                                 self._fills_published += 1
@@ -1193,7 +1196,7 @@ class Engine:
                                 )
                                 if evt.quote_id:
                                     self._on_quote_leg_filled(evt)
-                        elif evt.status == OrderStatus.CANCELLED:
+                        if evt.status == OrderStatus.CANCELLED:
                             if evt.id not in _seed_cancel_ids:
                                 _seed_cancel_ids.add(evt.id)
                                 self.pub_sock.send_multipart(
@@ -3816,7 +3819,10 @@ class Engine:
             _pub_fill_ids: set[str] = set()
             _pub_cancel_ids: set[str] = set()
             for evt in events:
-                if evt.status in _FILL_STATUSES:
+                # X1: a fill whenever the order executed here, whatever its
+                # final status -- a stop this leg triggers can fill part and
+                # be cancelled for the rest, and its owner must hear both.
+                if _q_matched.get(evt.id, 0) > 0:
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
                         self._fills_published += 1
@@ -3844,7 +3850,7 @@ class Engine:
                         )
                         if evt.quote_id:
                             self._on_quote_leg_filled(evt)
-                elif evt.status == OrderStatus.CANCELLED:
+                if evt.status == OrderStatus.CANCELLED:
                     if evt.id not in _pub_cancel_ids:
                         _pub_cancel_ids.add(evt.id)
                         self.pub_sock.send_multipart(
@@ -5030,7 +5036,8 @@ class Engine:
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
-                if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
+                # X1: fill by what executed, not by final status.
+                if _c_matched.get(evt.id, 0) > 0:
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
                         self._fills_published += 1
@@ -5058,7 +5065,7 @@ class Engine:
                         )
                     if evt.combo_parent_id and evt.id != child.id:
                         self._check_combo_after_child_event(evt)
-                elif evt.status == OrderStatus.REJECTED:
+                if evt.status == OrderStatus.REJECTED:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self._reject(
@@ -5551,8 +5558,10 @@ class Engine:
                     sub_trades, sub_events = book.process(stop_order, now=now_stop)
                     _stop_matched = self._order_matched_qty(sub_trades)
                     published_stop_ids: set[str] = set()
+                    cancelled_stop_ids: set[str] = set()
                     for sub_evt in sub_events:
-                        if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
+                        # X1: fill by what executed, not by final status.
+                        if _stop_matched.get(sub_evt.id, 0) > 0:
                             if sub_evt.id not in published_stop_ids:
                                 published_stop_ids.add(sub_evt.id)
                                 self._fills_published += 1
@@ -5584,6 +5593,25 @@ class Engine:
                                     and sub_evt.oco_group_id
                                 ):
                                     self._check_oco_after_event(sub_evt)
+                        # A triggered stop converts to MARKET; what it cannot
+                        # fill is cancelled, and this loop never said so.
+                        if (
+                            sub_evt.status == OrderStatus.CANCELLED
+                            and sub_evt.id not in cancelled_stop_ids
+                        ):
+                            cancelled_stop_ids.add(sub_evt.id)
+                            self.pub_sock.send_multipart(
+                                make_cancelled_msg(
+                                    sub_evt.gateway_id,
+                                    sub_evt.id,
+                                    order=sub_evt.to_dict(),
+                                    cancel_reason=self._cancel_reason_of(sub_evt),
+                                )
+                            )
+                            if sub_evt.combo_parent_id:
+                                self._check_combo_after_child_event(sub_evt)
+                            if sub_evt.oco_group_id:
+                                self._check_oco_after_event(sub_evt)
                     for sub_trade in sub_trades:
                         self._publish_trade(sub_trade)  # updates positions (H3)
 
@@ -5836,7 +5864,8 @@ class Engine:
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
-                if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
+                # X1: fill by what executed, not by final status.
+                if _o_matched.get(evt.id, 0) > 0:
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
                         self._fills_published += 1
@@ -5864,7 +5893,7 @@ class Engine:
                         )
                         if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                             _oco_pending_checks.append(evt)
-                elif evt.status == OrderStatus.CANCELLED:
+                if evt.status == OrderStatus.CANCELLED:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
