@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fractions import Fraction
 
-from sim_forensics.dataset import Dataset
+from sim_forensics.dataset import Dataset, iso_ns
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 #: One row per trade side: the order, its gateway, and the trade it is in.
@@ -34,9 +35,9 @@ def _cut(ds: Dataset) -> str:
     return ds.cut_trade_id
 
 
-def _ns(ts: str) -> int:
-    moment = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    return int(moment.timestamp()) * 1_000_000_000 + moment.microsecond * 1000
+def _session_date_ns(ts_ns: int, ds: Dataset) -> str:
+    moment = datetime.fromtimestamp(ts_ns / 1e9, timezone.utc)
+    return moment.astimezone(ds.session_tz).date().isoformat()
 
 
 def _horizons(ds: Dataset) -> dict[str, int]:
@@ -46,7 +47,7 @@ def _horizons(ds: Dataset) -> dict[str, int]:
     its gateway's horizon cannot have a retained fill, so it is not compared.
     """
     return {
-        gw: _ns(ts)
+        gw: iso_ns(ts)
         for gw, ts in ds.conn.execute(
             "SELECT gateway_id, min(ts) FROM stats.order_events GROUP BY gateway_id"
         )
@@ -238,12 +239,7 @@ def _replay(ds: Dataset) -> _Replay:
         "sell_gateway_id FROM clearing.trade_events ORDER BY id"
     )
     for trade_id, ts_ns, stored_date, symbol, price, qty, buy_gw, sell_gw in rows:
-        date = (
-            datetime.fromtimestamp(ts_ns / 1e9, timezone.utc)
-            .astimezone(ds.session_tz)
-            .date()
-            .isoformat()
-        )
+        date = _session_date_ns(ts_ns, ds)
         if date != stored_date:
             r.misdated.append((trade_id, stored_date, date))
         for gw, is_buy in ((buy_gw, True), (sell_gw, False)):
@@ -436,51 +432,60 @@ _COUNTED = (
     needs=("metrics", "clearing"),
 )
 def counters_match_rows(ds: Dataset) -> Outcome:
-    """A counter covers events up to its last sample (counter_last.ts), minus
-    up to _COUNTER_SLACK_NS of reporting delay, so it must lie between the
-    rows before ts − slack and the rows before ts."""
     samples: list[Sample] = []
     for name, source, query in _COUNTED:
-        totals = {
-            (date, label): (total, _ns(ts))
-            for date, label, total, ts in ds.conn.execute(
-                "SELECT d.date, d.label, sum(d.total), max(c.ts) "
-                "FROM metrics.daily_totals d JOIN metrics.counter_last c "
-                "ON c.source = d.source AND c.name = d.name AND c.label = d.label "
-                "WHERE d.name = ? AND d.source LIKE ? GROUP BY d.date, d.label",
-                (name, f"{source}%"),
-            )
-        }
-        if not totals:
-            samples.append({"counter": name, "error": "no daily_totals rows"})
-            continue
-        last_ts = max(ts for _total, ts in totals.values())
-        events: dict[tuple[str, str], list[int]] = defaultdict(list)
-        for ts_ns, label in ds.conn.execute(query):
-            date = (
-                datetime.fromtimestamp(ts_ns / 1e9, timezone.utc)
-                .astimezone(ds.session_tz)
-                .date()
-                .isoformat()
-            )
-            events[(date, label)].append(ts_ns)
-        for key in sorted(totals.keys() | events.keys()):
-            total, ts = totals.get(key, (0, last_ts))
-            times = events.get(key, [])
-            upper = sum(1 for t in times if t <= ts)
-            lower = sum(1 for t in times if t <= ts - _COUNTER_SLACK_NS)
-            if not lower <= total <= upper:
-                samples.append(
-                    {
-                        "counter": name,
-                        "date": key[0],
-                        "label": key[1],
-                        "counter_total": total,
-                        "rows_before_sample": upper,
-                        "rows_before_sample_minus_slack": lower,
-                    }
-                )
+        samples += counter_mismatches(ds, name, source, ds.conn.execute(query))
     return Outcome(len(samples), samples)
+
+
+def counter_mismatches(
+    ds: Dataset, name: str, source: str, events: Iterable[tuple[int, str]]
+) -> list[Sample]:
+    """Compare counter *name* per (session date, label) with *events*.
+
+    A counter covers events up to its last sample (counter_last.ts), minus up
+    to _COUNTER_SLACK_NS of reporting delay, so its daily total must lie
+    between the events before ts − slack and the events before ts. A counter
+    still at zero has a counter_last row but no daily_totals row.
+    """
+    (reported,) = ds.conn.execute(
+        "SELECT max(ts) FROM metrics.counter_last WHERE name = ? AND source LIKE ?",
+        (name, f"{source}%"),
+    ).fetchone()
+    if reported is None:
+        return [{"counter": name, "error": "never reported"}]
+    last_ts = iso_ns(reported)
+    totals = {
+        (date, label): (total, iso_ns(ts))
+        for date, label, total, ts in ds.conn.execute(
+            "SELECT d.date, d.label, sum(d.total), max(c.ts) "
+            "FROM metrics.daily_totals d JOIN metrics.counter_last c "
+            "ON c.source = d.source AND c.name = d.name AND c.label = d.label "
+            "WHERE d.name = ? AND d.source LIKE ? GROUP BY d.date, d.label",
+            (name, f"{source}%"),
+        )
+    }
+    by_key: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for ts_ns, label in events:
+        by_key[(_session_date_ns(ts_ns, ds), label)].append(ts_ns)
+    samples: list[Sample] = []
+    for key in sorted(totals.keys() | by_key.keys()):
+        total, ts = totals.get(key, (0, last_ts))
+        times = by_key.get(key, [])
+        upper = sum(1 for t in times if t <= ts)
+        lower = sum(1 for t in times if t <= ts - _COUNTER_SLACK_NS)
+        if not lower <= total <= upper:
+            samples.append(
+                {
+                    "counter": name,
+                    "date": key[0],
+                    "label": key[1],
+                    "counter_total": total,
+                    "rows_before_sample": upper,
+                    "rows_before_sample_minus_slack": lower,
+                }
+            )
+    return samples
 
 
 #: Counters that count lost or rejected data; any non-zero sample is a finding.

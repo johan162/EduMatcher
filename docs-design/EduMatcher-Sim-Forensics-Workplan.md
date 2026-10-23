@@ -25,7 +25,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (code; new run pending) | 2026-10-23 |
 | 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☑ | 2026-10-23 |
 | 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☑ | 2026-10-23 |
-| 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☐ | |
+| 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☑ | 2026-10-23 |
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☐ | |
 | 6 | S6 | Check E: full replay differential (engine + reference matcher) | S5, T3 of matching plan | 2–3 d | ☐ | |
 | 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☐ | |
@@ -190,7 +190,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C4 | Every ACKed order ends terminal, or is still resting at the cut; resting GTC orders = `gtc_orders.json`; DAY orders all EXPIRE at close. |
 | C5 | OCO: at most one leg fills; sibling cancelled with the right reason. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
 | C6 | Reject / cancel reason codes are canonical; reject-rate time series per code (spikes → H). |
-| C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. |
+| C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -378,12 +378,42 @@ PASS except **B2 FAIL (749 orders)**; B1 SKIPPED (schema 7, R2).
   count different things; examine in C6. (4) A4 confirmed auction prints are
   stamped up to 0.37 s *before* the CONTINUOUS transition, i.e. inside
   OPENING_AUCTION, as the uncross runs on exit.
-- R6 resolved → finding **E1** (ledger, §9).
+- R6 resolved → finding **X1** (ledger, §9).
 
 ### S4 — Checks C
 
 Python over `orders`/`order_events`, ordered by audit order where available.
 Decides R5.
+
+**Done 2026-10-23:** `checks/lifecycle.py` (C1–C6; C7 moved to S5). One
+cached pass over `order_events` (order by order, receive order = engine
+publish order: one PUB, one SUB) through a state machine; ~10 s on the run.
+Result: C3, C5 PASS; C1 FAIL 4 107 (X5), C2 FAIL 414 (365 X3 + 49 X1 legs),
+C4 FAIL 1 (X4), C6 FAIL 1 (X6). R5 decided → X3 (engine bug).
+
+- Grammar decisions from the data, not just the spec: REJECT is pm-stats's
+  name for `order.ack accepted=false`, so a REJECT after a terminal state is a
+  rejected cancel/amend command (`Order not found`) and is legal; quote legs
+  have no per-order ACK, so a quoting gateway (one with QUOTE_ACK rows) may
+  start an order with FILL/CANCEL; "without an ACK" is not checked when the
+  order events span more than `keep_order_events_days`.
+- C4 uses `gtc_orders.json` as the oracle: it is the engine's whole resting
+  book at shutdown (DAY and GTC, orders and quote legs, untriggered stops),
+  not just GTC orders. DAY-after-close is checked when the last PHASE is
+  CLOSED (not reached in this run).
+- C5 encodes only the unambiguous OCO rule (docs: "when one fills or is
+  cancelled, the engine cancels the other"); both legs partially filling is
+  reported in the note (0 in this run). OCO closures are inferred from the
+  group's OCO_CANCEL row (X7).
+- C6 reconciles rejects with `engine.rejects` through the B6 helper
+  (`counter_mismatches`, now shared). Fixed in it: a counter still at zero has
+  no `daily_totals` row, so the sample time comes from `counter_last`.
+- Tests: `tests/test_sim_forensics_lifecycle.py` (21); the world gained real
+  ACK/FILL quantities, one resting order in `gtc_orders.json` and a zero
+  `engine.rejects` counter. `iso_ns` consolidated into `dataset.py`.
+- Gaps for S1-style follow-up: pm-stats keeps no `reject_code`, no
+  `quote_id` on order rows, no `cancelled_order_id` on OCO_CANCEL rows, no
+  stop price / display qty — each one forced an inference or a deferral here.
 
 ### S5 — Checks D
 
@@ -419,25 +449,69 @@ Work the ledger; spin out fix WPs.
 
 ## 9. Findings ledger
 
+Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
+
 | ID | Found by | Run | Count | Classification | Status |
 |---|---|---|---|---|---|
-| E1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug (probable) | Open — triage in S8 |
-| E2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
-| E3 | R5 | 2026-10-23 | 358 quote-leg orders | Undecided (ordering artefact or engine) | Open — C1 in S4 |
-| E4 | R9 | 2026-10-23 | 1 trade | Recorder bug (pm-stats shutdown flush) | Open |
+| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Open — fix WP |
+| X2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
+| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Open — fix WP |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open |
+| X5 | C1 | 2026-10-23 | 4 107 FOK orders | Engine bug or spec gap | Open |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects | Recorder gap (pm-stats) + label | Open |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings | Recorder gap (pm-stats) | Open |
 
-**E1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
+**X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
 gateways AI082, AI020, AI045, AI069, AI033). Of these, the 700 that have an
-ACK are all `STOP` (32) or `TRAILING_STOP` (668); the other 49 have no ACK
-(not yet examined; MM01 among them). The audit window holds 8 of them, and
-for all 8 the audit has `order.ack`, `order.cancelled` and
+ACK are all `STOP` (32) or `TRAILING_STOP` (668); the other 49 are MM01 quote
+legs with the shape `CANCEL CANCEL` (C2). The audit window holds 8 of them,
+and for all 8 the audit has `order.ack`, `order.cancelled` and
 `trade.executed` but **no `order.fill`** — so the engine never published it,
 pm-stats is not at fault. Example: AI082 `TRAILING_STOP` SELL 375 CCL
 (`a028dbad…`) triggers at 12:34:59.616, trades 178 with MM01
 (`000001-000456050`), remainder cancelled `INSUFFICIENT_LIQUIDITY` — and the
-cancel is published 1 ms *before* the trade. Hypothesis: orders that match in
-a stop-trigger cascade are not in the dispatch's matched-quantity map that
-`engine/main.py` uses to publish fills (cf. the "finding #5" comment there).
-Next: failing engine test with a resting trailing stop triggered by another
-order's trade.
+cancel is published 1 ms *before* the trade. Not every triggered stop is hit
+(X3's example shows a triggered trailing stop whose fill *was* published), so
+the condition is narrower — probably a stop triggered and then cancelled in the
+same cascade. Hypothesis: such orders are missing from the dispatch's
+matched-quantity map that `engine/main.py` uses to publish fills (cf. the
+"finding #5" comment there). Next: failing engine test.
+
+**X3 — a quote leg cancelled with `QUOTE_LEG_FILLED` still trades.** C2: 365
+MM01 orders `CANCEL FILL+ CANCEL`. Decided from the audit (one causal chain,
+12:35:05.773): AI036 SELL LIMIT 57 IR hits MM01's bid leg `3e25…` (trade
+…171); the engine publishes `order.cancelled` for the ask leg `1d7f…`
+(`QUOTE_LEG_FILLED`) and `quote.status INACTIVE_BID_FILLED`; AI096's
+`TRAILING_STOP` BUY 49 (`db27…`) triggers in the same dispatch and **matches
+the cancelled ask leg** (trade `000001-000456172`, 49 @ 201.35); a second,
+reason-less cancel follows. So the leg is reported cancelled before it leaves
+the book, and the stop cascade matches it. A real trade against an order its
+owner was told is dead. Same area as X1 (stop cascades). Next: failing engine
+test (quote + resting stop that the quote's first fill triggers).
+
+**X4 — pm-stats loses its last messages at shutdown.** Clearing has trade
+`000001-000456710`, stats does not; C4's single "live in order_events, not in
+the book" order (`b0e1a2e6…`, AI062) is the order that trade filled — its
+ACK reached pm-stats, its FILL did not.
+
+**X5 — an FOK without liquidity is accepted, then rejected.** C1: 4 107
+orders `ACK REJECT`, all `FOK`. The audit shows two `order.ack` for the same
+order within 1 ms: `accepted: true`, then `accepted: false` with
+`reject_code INSUFFICIENT_LIQUIDITY`. IOC/MARKET/STOP orders in the same
+situation get one ACK and `order.cancelled` with `cancel_reason
+INSUFFICIENT_LIQUIDITY`. Either the FOK should be rejected without a prior
+acceptance, or cancelled like the others — a client cannot otherwise tell
+which ack to believe. Spec decision needed.
+
+**X6 — quote-cancel rejects are invisible in pm-stats.** C6: the engine
+counted 31 678 rejects for MM01 (labelled `ORDER_NOT_FOUND`); pm-stats has
+none. They are `quote.ack accepted=false "No active quote for symbol"` with an
+empty `quote_id` (257 in the audit window); pm-stats skips events without an
+id. Also: pm-stats records no `reject_code` at all, only reason text.
+
+**X7 — OCO sibling cancels lose the cancelled order.** The engine reports a
+sibling's cancel only as `oco.cancelled {oco_id, cancelled_order_id}` (as
+documented); pm-stats stores it under `oco_id` and drops
+`cancelled_order_id`, so 3 423 cancelled orders look live forever in
+`order_events`. C4/C5 infer the closure from the group's OCO_CANCEL row.

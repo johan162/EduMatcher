@@ -73,6 +73,23 @@ PHASES = [
 #: When pm-monitor last sampled the counters: one second after the tape ends.
 COUNTER_TS_NS = TRADES[-1].ts_ns + SEC
 
+#: The one order still resting at shutdown, as the engine persists it in
+#: gtc_orders.json (only the fields the checks read, plus identity).
+RESTING_TS_NS = ns("09:40:00")
+RESTING: dict[str, object] = {
+    "id": "O9",
+    "gateway_id": "GW3",
+    "symbol": "MSFT",
+    "side": "SELL",
+    "order_type": "LIMIT",
+    "tif": "DAY",
+    "origin": "ORDER",
+    "quantity": 50,
+    "remaining_qty": 50,
+    "status": "NEW",
+    "ts_ns": RESTING_TS_NS,
+}
+
 
 def iso(ts_ns: int) -> str:
     moment = datetime.fromtimestamp(ts_ns // SEC, timezone.utc).replace(
@@ -86,6 +103,7 @@ def build(data: Path) -> Path:
     _stats(data)
     _clearing(data)
     _metrics(data)
+    (data / "gtc_orders.json").write_text(json.dumps([RESTING]))
     return data
 
 
@@ -103,14 +121,19 @@ def _stats(data: Path) -> None:
             for t in TRADES
         ],
     )
+    # (ts, type, order, gateway, symbol, quantity, remaining, status,
+    #  fill_qty, fill_price, trade_ids)
     events: list[tuple[object, ...]] = []
     for t in TRADES:
         for oid, gw in ((t.buy_oid, t.buy_gw), (t.sell_oid, t.sell_gw)):
-            events.append((iso(t.ts_ns - SEC), "ACK", oid, gw, t.symbol, None, None, None))  # fmt: skip
-            events.append((iso(t.ts_ns), "FILL", oid, gw, t.symbol, t.qty, t.price / 100, json.dumps([t.id])))  # fmt: skip
+            events.append((iso(t.ts_ns - SEC), "ACK", oid, gw, t.symbol, t.qty, None, None, None, None, None))  # fmt: skip
+            events.append((iso(t.ts_ns), "FILL", oid, gw, t.symbol, t.qty, 0, "FILLED", t.qty, t.price / 100, json.dumps([t.id])))  # fmt: skip
+    r = RESTING
+    events.append((iso(RESTING_TS_NS), "ACK", r["id"], r["gateway_id"], r["symbol"], r["quantity"], None, None, None, None, None))  # fmt: skip
     conn.executemany(
         "INSERT INTO order_events (ts, event_type, order_id, gateway_id, symbol, "
-        "fill_qty, fill_price, trade_ids) VALUES (?,?,?,?,?,?,?,?)",
+        "quantity, remaining_qty, status, fill_qty, fill_price, trade_ids) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         sorted(events),
     )
     conn.commit()
@@ -174,6 +197,7 @@ def _metrics(data: Path) -> None:
         + [("pm-engine@h", "engine.fills", gw, n) for gw, n in fills.items()]
         + [("pm-clearing@h", "clearing.trades_settled", "", len(TRADES))]
         + [("pm-stats@h", "stats.records_dropped", "", 0)]
+        + [("pm-engine@h", "engine.rejects", "GW1", 0)]
     )
     ts = iso(COUNTER_TS_NS).replace("+00:00", "Z")
     for source, name, label, value in counters:
@@ -182,6 +206,8 @@ def _metrics(data: Path) -> None:
             "VALUES (?, ?, ?, 'boot', ?, ?)",
             (source, name, label, value, ts),
         )
+        if not value:
+            continue  # pm-monitor writes no daily total for a counter at zero
         conn.execute(
             "INSERT INTO daily_totals (date, source, name, label, total) "
             "VALUES ('2026-06-15', ?, ?, ?, ?)",

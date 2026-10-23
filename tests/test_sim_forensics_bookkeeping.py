@@ -183,7 +183,7 @@ def test_b1_b2_ignore_trades_older_than_a_gateways_retained_events(
     sql(
         world / "stats.db",
         "INSERT INTO order_events (ts, event_type, order_id, gateway_id, symbol) "
-        "VALUES (?, 'ACK', 'O9', 'GW3', 'MSFT')",
+        "VALUES (?, 'ACK', 'O99', 'GW3', 'MSFT')",
         iso(TRADES[-1].ts_ns + SEC),
     )
     assert run(open_ds, world, "B1").violations == 0

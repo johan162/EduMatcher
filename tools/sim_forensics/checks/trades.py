@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
-from sim_forensics.dataset import Dataset
+from sim_forensics.dataset import Dataset, iso_ns
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 #: Phases a print may carry a timestamp in. Auction prints are stamped during
@@ -116,7 +115,7 @@ def same_trade_fields(ds: Dataset) -> Outcome:
             for i, name in enumerate(_A3_FIELDS)
             if pairs[2 * i] != pairs[2 * i + 1]
         }
-        if abs(_epoch_ns(ts) - ts_ns) >= _TS_TOLERANCE_NS:
+        if abs(iso_ns(ts) - ts_ns) >= _TS_TOLERANCE_NS:
             diffs["ts"] = {"stats": ts, "clearing_ts_ns": ts_ns}
         if diffs:
             samples.append({"trade_id": trade_id, "diffs": diffs})
@@ -160,8 +159,3 @@ def trade_times(ds: Dataset) -> Outcome:
                 {"trade_id": trade_id, "aggressor_side": aggressor, "phase": phase}
             )
     return Outcome(len(samples), samples)
-
-
-def _epoch_ns(ts: str) -> int:
-    moment = datetime.fromisoformat(ts)
-    return int(moment.timestamp()) * 1_000_000_000 + moment.microsecond * 1000
