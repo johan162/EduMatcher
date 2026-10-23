@@ -98,6 +98,8 @@ pm-audit [options]
 | `--terminal` / `-t` | off | Also print each entry to stdout (useful during demos) |
 | `--buffer-size N` | `100` | Number of messages to buffer in memory before flushing to disk |
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
+| `--max-file-mb MB` | `10` | Rotate the audit log when it reaches this size — see [Log rotation](#log-rotation) |
+| `--backup-count N` | `5` | Rotated audit log files to keep |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
@@ -182,7 +184,8 @@ causality; the timestamp only establishes when `pm-audit` saw it.
 
 ### Log rotation
 
-Log files rotate at **10 MB** with **5 backups** kept:
+By default log files rotate at **10 MB** with **5 backups** kept
+(`--max-file-mb`, `--backup-count`):
 
 ```
 data/audit.log       ← active, current writes
@@ -192,9 +195,15 @@ data/audit.log.2     ← older
 data/audit.log.5     ← oldest kept
 ```
 
-When `audit.log` reaches 10 MB the Python `RotatingFileHandler` renames it
-to `audit.log.1` (shifting existing backups up) and opens a fresh
-`audit.log`. Rotated files may also be compressed externally; `pm-audit-cli`
+When `audit.log` reaches the size limit the Python `RotatingFileHandler`
+renames it to `audit.log.1` (shifting existing backups up) and opens a fresh
+`audit.log`; the oldest backup beyond `--backup-count` is deleted.
+
+Size the two options for the retention you need. The default 60 MB is
+minutes, not days, under load: a 100-trader AI simulation writes about
+1.2 GB an hour, which is why the `ai-sim` emo profile runs
+`pm-audit --max-file-mb 256 --backup-count 100` (~25 GB, about two trading
+days). Rotated files may also be compressed externally; `pm-audit-cli`
 reads `.gz` files transparently.
 
 ### Subscribed topics

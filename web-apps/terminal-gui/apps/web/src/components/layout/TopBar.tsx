@@ -1,6 +1,6 @@
 /**
- * Top bar (design §7.1, §7.2): app name, the full row of view tabs, and the
- * global connection indicator.
+ * Top bar (design §7.1, §7.2): app name, the session indicator and the global
+ * connection indicator on the first row, the full row of view tabs below it.
  *
  * Tabs live here rather than in a left nav rail, which is where log-gui puts
  * them. Design §7.2 argues the case explicitly — six destinations (seven with
@@ -11,6 +11,7 @@
 import clsx from "clsx";
 import { Gauge, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { SessionIndicator } from "../SessionIndicator.js";
 import { ConnectionBadge, type ConnectionBadgeState } from "../ConnectionBadge.js";
 import { SettingsPopover } from "../shared/SettingsPopover.js";
 import { HelpButton } from "../help/HelpButton.js";
@@ -38,6 +39,10 @@ const CONNECTION: Record<ConnectionState, ConnectionBadgeState> = {
 export function TopBar() {
   const connection = useLiveStore((s) => s.connectionState());
   const gateway = useLiveStore((s) => s.gateway);
+  const sessionPhase = useLiveStore((s) => s.sessionPhase);
+  const nextPhase = useLiveStore((s) => s.sessionNextPhase);
+  const nextAt = useLiveStore((s) => s.sessionNextAt);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const theme = usePrefsStore((s) => s.theme);
   const toggleTheme = usePrefsStore((s) => s.toggleTheme);
   const density = usePrefsStore((s) => s.density);
@@ -46,14 +51,52 @@ export function TopBar() {
   const ThemeIcon = theme === "dark" ? Sun : Moon;
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
-      <div className="flex items-baseline gap-2">
-        <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
-        <span className="font-mono text-xs text-accent">pm-terminal</span>
-        <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
-      </div>
+    <>
+      <header className="flex h-12 shrink-0 items-center gap-6 border-b border-border bg-bg-subtle px-4 text-sm">
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono font-bold text-sm text-fg">EduMatcher</span>
+          <span className="font-mono text-xs text-accent">pm-terminal</span>
+          <span className="font-mono text-xs text-brand-version">v{appVersion.version}</span>
+        </div>
 
-      <nav className="flex items-center gap-1">
+        {/* A phase from a feed that is not live is stale: shown as Unknown. */}
+        <SessionIndicator
+          state={connection === "LIVE" ? sessionPhase : null}
+          nextState={nextPhase}
+          nextAt={nextAt}
+          timeZone={sessionTimezone}
+        />
+
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={cycleDensity}
+            title={`Density: ${DENSITY_LABEL[density]} — click to cycle`}
+            aria-label={`Density: ${DENSITY_LABEL[density]}`}
+            className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-inset hover:text-fg"
+          >
+            <Gauge size={14} />
+            {DENSITY_LABEL[density]}
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={`Theme: ${theme} — click to switch`}
+            aria-label={`Theme: ${theme}`}
+            className="rounded p-1.5 text-fg-subtle hover:bg-bg-inset hover:text-fg"
+          >
+            <ThemeIcon size={16} />
+          </button>
+
+          <SettingsPopover />
+
+          <HelpButton topics={HELP_TOPICS} />
+
+          <ConnectionBadge state={CONNECTION[connection]} detail={gateway ?? undefined} />
+        </div>
+      </header>
+      <nav className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-bg-subtle px-4">
         {VIEWS.map(({ to, label: viewLabel, end }) => (
           <NavLink
             key={to}
@@ -70,35 +113,6 @@ export function TopBar() {
           </NavLink>
         ))}
       </nav>
-
-      <div className="ml-auto flex items-center gap-3">
-        <button
-          type="button"
-          onClick={cycleDensity}
-          title={`Density: ${DENSITY_LABEL[density]} — click to cycle`}
-          aria-label={`Density: ${DENSITY_LABEL[density]}`}
-          className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-inset hover:text-fg"
-        >
-          <Gauge size={14} />
-          {DENSITY_LABEL[density]}
-        </button>
-
-        <button
-          type="button"
-          onClick={toggleTheme}
-          title={`Theme: ${theme} — click to switch`}
-          aria-label={`Theme: ${theme}`}
-          className="rounded p-1.5 text-fg-subtle hover:bg-bg-inset hover:text-fg"
-        >
-          <ThemeIcon size={16} />
-        </button>
-
-        <SettingsPopover />
-
-        <HelpButton topics={HELP_TOPICS} />
-
-        <ConnectionBadge state={CONNECTION[connection]} detail={gateway ?? undefined} />
-      </div>
-    </header>
+    </>
   );
 }

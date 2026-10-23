@@ -83,7 +83,7 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: order_events` | `status` | `TEXT` | no |  |  |
 | `table: order_events` | `fill_price` | `REAL` | no |  |  |
 | `table: order_events` | `fill_qty` | `INTEGER` | no |  |  |
-| `table: order_events` | `trade_id` | `TEXT` | no |  |  |
+| `table: order_events` | `trade_ids` | `TEXT` | no |  |  |
 | `table: order_events` | `reason` | `TEXT` | no |  |  |
 | `table: order_events` | `client_tag` | `TEXT` | no |  |  |
 | `table: order_events` | `combo_parent_id` | `TEXT` | no |  |  |
@@ -237,7 +237,10 @@ CREATE TABLE order_events (
     status          TEXT,
     fill_price      REAL,
     fill_qty        INTEGER,
-    trade_id        TEXT,
+    -- JSON array of the durable engine trade ids behind a FILL. One fill
+    -- event aggregates everything the order executed in one dispatch, so it
+    -- can name several trades; NULL for every other event type.
+    trade_ids       TEXT,
     reason          TEXT,
     client_tag      TEXT,
     combo_parent_id TEXT,

@@ -123,8 +123,9 @@ OCO and quote `event_type` values, which the DDL alone cannot express, and
 version 3 added `feed_gaps` and widened `trade_log`'s primary key, and
 version 4 moved prices from REAL display money to INTEGER ticks (except
 `order_events`, see below), version 5 added the `instruments` reference table,
-version 6 renamed `order_events.client_order_id` to `client_tag`, and
-version 7 made the durable `trade_id` the sole primary key of `trade_log`.
+version 6 renamed `order_events.client_order_id` to `client_tag`,
+version 7 made the durable `trade_id` the sole primary key of `trade_log`, and
+version 8 replaced `order_events.trade_id` (always empty) with `trade_ids`.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -639,7 +640,7 @@ Append-only order lifecycle history captured from private engine topics. This ta
 | `status`          | TEXT    | Engine status value when present                                                                                     |
 | `fill_price`      | REAL    | Execution price for fill events, in **display money** (not ticks)                                                    |
 | `fill_qty`        | INTEGER | Executed quantity for fill events                                                                                    |
-| `trade_id`        | TEXT    | Trade identifier linked to a fill event                                                                              |
+| `trade_ids`       | TEXT    | FILL only: JSON array of the trade ids the fill executed — one fill can aggregate several trades                    |
 | `reason`          | TEXT    | Rejection, cancel, expire, or status reason when provided                                                            |
 | `client_tag`      | TEXT    | Client-supplied order correlation tag when present                                                                   |
 | `combo_parent_id` | TEXT    | Parent combo identifier for combo child events                                                                       |
@@ -1075,10 +1076,10 @@ pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:
 **Example output:**
 
 ```
-seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_id         | reason | client_tag | combo_parent_id | oco_group_id | priority_reset
-----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+------------------+--------+------------+-----------------+--------------+---------------
-1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                  |        |            |                 |              |               
-2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | 000042-000000001 |        |            |                 |              |               
+seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status   | fill_price | fill_qty | trade_ids              | reason | client_tag | combo_parent_id | oco_group_id | priority_reset
+----+-------------------------------+------------+----------+------------+--------+------+------------+-----+-------+----------+---------------+----------+------------+----------+------------------------+--------+------------+-----------------+--------------+---------------
+1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED |            |          |                        |        |            |                 |              |               
+2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED   | 150        | 100      | ["000042-000000001"]   |        |            |                 |              |               
 ```
 
 All 21 `order_events` columns are printed (the table is wide). `price` and

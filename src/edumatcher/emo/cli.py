@@ -359,9 +359,12 @@ AI_SWARM_PROCESSES: list[dict[str, Any]] = [
 
 # ai-swarm on the s300-sim example, set up to run for weeks: the example's
 # swarm file (AI001-AI100, 30 symbols each); the engine without --verbose, which
-# logs every order at INFO and would fill log.db; pm-stats keeping a week of
-# trades and an hour of order events, which are nearly all of stats.db under a
-# swarm (daily rollups are kept for good); pm-clearing keeping a week of raw
+# logs every order at INFO and would fill log.db; pm-audit rotating 256 MB
+# files and keeping 100 of them (~25 GB, about two trading days at ~1.2 GB an
+# hour) so a whole session can be checked afterwards; pm-stats keeping a week
+# of trades and two days of order events, which are nearly all of stats.db
+# under a swarm (~1.2 GB a trading day; daily rollups are kept for good);
+# pm-clearing keeping a week of raw
 # trades (not 90 days: ~150 MB a trading day here) and without its console P&L
 # table, which it redraws every 100 trades into its emo log; and a
 # symmetric market maker: the passive one re-quotes whenever other traders'
@@ -387,13 +390,21 @@ _AI_SIM_COMMANDS = {
         "--anchor-sim",
         "0.3",
     ],
+    "audit": [
+        "pm-audit",
+        "--verbose",
+        "--max-file-mb",
+        "256",
+        "--backup-count",
+        "100",
+    ],
     "stats": [
         "pm-stats",
         "--verbose",
         "--keep-days",
         "7",
         "--keep-order-events-days",
-        "0.5",
+        "2",
         "--human-gateways",
         "TRADER*",
         "--keep-human-order-events-days",
