@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -22,6 +22,8 @@ class Dataset:
     #: Highest trade id present in every trade store. Stores are flushed at
     #: different moments, so cross-store checks only compare trades up to it.
     cut_trade_id: str | None
+    #: Results several checks derive from the same expensive pass.
+    cache: dict[str, object] = field(default_factory=dict)
 
     @classmethod
     def open(cls, data_dir: Path) -> Dataset:

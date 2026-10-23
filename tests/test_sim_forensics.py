@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -28,6 +28,7 @@ from sim_forensics.registry import (  # noqa: E402
 
 from edumatcher.clearing.store import apply_schema  # noqa: E402
 from edumatcher.stats.main import SCHEMA as STATS_SCHEMA  # noqa: E402
+from tests.sim_forensics_world import OpenDataset, opener  # noqa: E402
 
 #: (trade_id, ts UTC, symbol, price ticks, qty). 22:30 UTC on 06-14 is
 #: 00:30 on 06-15 in Stockholm (CEST): it belongs to the next trading day.
@@ -119,21 +120,9 @@ def data(tmp_path: Path) -> Path:
     return d
 
 
-OpenDataset = Callable[[Path], Dataset]
-
-
 @pytest.fixture
 def open_ds() -> Iterator[OpenDataset]:
-    """Dataset.open, closing every dataset at teardown."""
-    opened: list[Dataset] = []
-
-    def _open(path: Path) -> Dataset:
-        opened.append(Dataset.open(path))
-        return opened[-1]
-
-    yield _open
-    for ds in opened:
-        ds.conn.close()
+    yield from opener()
 
 
 def _f1(open_ds: OpenDataset, data: Path) -> Outcome:
@@ -276,7 +265,7 @@ def test_cli_writes_report_and_findings_and_exit_code_reflects_failures(
     assert main(["--data", str(data), "--out", str(out)]) == 0
 
     findings = json.loads((out / "findings.json").read_text())
-    assert [c["id"] for c in findings["checks"]] == list(REGISTRY)
+    assert [c["id"] for c in findings["checks"]] == sorted(REGISTRY)
     assert "| F1 |" in (out / "report.md").read_text()
 
     bad = tmp_path / "bad"

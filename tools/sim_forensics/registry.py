@@ -33,6 +33,10 @@ class Outcome:
     note: str = ""
 
 
+class Skipped(Exception):
+    """Raised by a check whose stores are present but cannot answer it."""
+
+
 @dataclass(frozen=True)
 class Check:
     id: str
@@ -84,6 +88,8 @@ def _run_one(ds: Dataset, c: Check, max_samples: int) -> Result:
     start = time.monotonic()
     try:
         out = c.fn(ds)
+    except Skipped as exc:
+        return Result(c, "SKIPPED", 0, [], str(exc), time.monotonic() - start)
     except Exception:
         # A check broken by real data must not hide the other checks' results.
         return Result(

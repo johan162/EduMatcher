@@ -42,7 +42,9 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         parser.error(f"unknown check id(s): {', '.join(unknown)}")
 
-    selected = [c for c in REGISTRY.values() if not args.check or c.id in args.check]
+    selected = [
+        REGISTRY[i] for i in sorted(REGISTRY) if not args.check or i in args.check
+    ]
     with Dataset.open(args.data.expanduser()) as ds:
         results = run_checks(ds, selected, args.samples)
         report.write(ds, results, args.out.expanduser())

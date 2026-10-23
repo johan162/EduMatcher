@@ -24,7 +24,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 0 | S0 | Freeze the current run: consistent snapshot of all stores | — | 0.5 h | ☑ | 2026-10-23 |
 | 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (code; new run pending) | 2026-10-23 |
 | 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☑ | 2026-10-23 |
-| 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☐ | |
+| 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☑ | 2026-10-23 |
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☐ | |
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☐ | |
 | 6 | S6 | Check E: full replay differential (engine + reference matcher) | S5, T3 of matching plan | 2–3 d | ☐ | |
@@ -173,11 +173,12 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | ID | Check |
 |---|---|
 | B1 | Each trade has exactly one buy-side and one sell-side FILL whose order ids, qty and price match the trade (needs R2 fixed or audit). |
-| B2 | Σfill_qty = 2·Σtrade_qty per (symbol, gateway); localises R6. |
+| B2 | Per order: Σfill_qty = Σ qty of the trades it is a side of (finer than per (symbol, gateway); needs no trade ids); localises R6. |
 | B3 | Recompute `gateway_symbol_positions` from `trade_events` (net qty, buy/sell qty, notional, avg cost, realised P&L) and compare exactly. |
 | B4 | `gateway_daily_summary` = aggregate of B3 per trade date. |
 | B5 | Per symbol Σnet_qty = 0; Σbuy_notional = Σsell_notional; Σrealised P&L + Σunrealised P&L = 0 at a common mark (zero-sum market). |
-| B6 | metrics counters vs. rows: `engine.trades` per symbol delta = trade count; `engine.fills` per gateway = FILL count; `clearing.trades_settled`; `stats.events_recorded` vs `order_events` rows; `audit.records` vs lines; `stats.records_dropped`, `stats.feed_gaps`, `audit.decode_errors` must be 0. |
+| B6 | metrics `daily_totals` (restart-corrected) vs. rows, within a 15 s reporting slack of `counter_last.ts`: `engine.trades` per symbol = trades; `engine.fills` per gateway = trade sides (the engine counts one per side, not per FILL message); `clearing.trades_settled` = trade_events by ingest time. `stats.events_recorded` and `audit.records` deferred (no row set to count them against yet). |
+| B7 | Loss/error counters never above 0 (`stats.records_dropped`, `stats.feed_gaps`, `audit.decode_errors`, `health.beacons_dropped`, `health.samples_rejected`, `monitor.*_invalid`, `monitor.*_errors`); `stats.feed_gaps` table empty. |
 
 ### C — Order lifecycle
 
@@ -352,6 +353,33 @@ per check type, so every check is proven to *fail* when it should.
 Mostly SQL over ATTACHed DBs. Gives the R6 answer (B2 per gateway/symbol)
 and the full clearing recomputation (B3).
 
+**Done 2026-10-23:** `checks/trades.py` (A1–A4), `checks/bookkeeping.py`
+(B1–B7). Result on the 2026-10-23 run (21 s for all 12 checks): everything
+PASS except **B2 FAIL (749 orders)**; B1 SKIPPED (schema 7, R2).
+
+- Design decisions: B1 needs `trade_ids` (schema 8) and raises the new
+  `Skipped` for older files; B2 works without them (per-order quantity). B1/B2
+  skip trades older than their gateway's oldest retained order event (pm-stats
+  prunes per gateway class) and orders with trades beyond the cut. B3/B4
+  replay `trade_events` in trade-id order with exact `Fraction` average cost
+  and skip when clearing has pruned its first trade (positions are
+  cumulative). B5 needs no replay: Σnet = 0 per symbol, and per position
+  realized + unrealized = sell − buy notional + net·mark under any cost method.
+- Tests: `tests/sim_forensics_world.py` builds a consistent 4-trade run
+  (auction print, reduce, cross through zero, second symbol) whose stored
+  positions come from the **production** clearing `Ledger`, so the all-pass test
+  also pins replay ≡ Ledger. `tests/test_sim_forensics_bookkeeping.py`: one
+  planted violation per failure mode (25 tests).
+- Insights: (1) a FULL OUTER JOIN of two un-indexed CTEs ran > 10 min on
+  real data — materialise into indexed temp tables (B2 now 3 s). (2) The
+  registry fills on import of `sim_forensics.checks`; a test module that
+  forgot it passed the all-pass test vacuously — the test now pins the check
+  ids. (3) `engine.rejects` (35 903) ≫ REJECT rows in pm-stats (4 141): they
+  count different things; examine in C6. (4) A4 confirmed auction prints are
+  stamped up to 0.37 s *before* the CONTINUOUS transition, i.e. inside
+  OPENING_AUCTION, as the uncross runs on exit.
+- R6 resolved → finding **E1** (ledger, §9).
+
 ### S4 — Checks C
 
 Python over `orders`/`order_events`, ordered by audit order where available.
@@ -388,3 +416,28 @@ Work the ledger; spin out fix WPs.
 - **Q4** Should the checks also run continuously against a live sim (e.g. a
   periodic job, findings as pm-monitor events)? Recommendation: not before S8
   has shown which checks are stable and cheap.
+
+## 9. Findings ledger
+
+| ID | Found by | Run | Count | Classification | Status |
+|---|---|---|---|---|---|
+| E1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug (probable) | Open — triage in S8 |
+| E2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
+| E3 | R5 | 2026-10-23 | 358 quote-leg orders | Undecided (ordering artefact or engine) | Open — C1 in S4 |
+| E4 | R9 | 2026-10-23 | 1 trade | Recorder bug (pm-stats shutdown flush) | Open |
+
+**E1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
+traded but have no FILL event in pm-stats (traded − filled = +95 132; top
+gateways AI082, AI020, AI045, AI069, AI033). Of these, the 700 that have an
+ACK are all `STOP` (32) or `TRAILING_STOP` (668); the other 49 have no ACK
+(not yet examined; MM01 among them). The audit window holds 8 of them, and
+for all 8 the audit has `order.ack`, `order.cancelled` and
+`trade.executed` but **no `order.fill`** — so the engine never published it,
+pm-stats is not at fault. Example: AI082 `TRAILING_STOP` SELL 375 CCL
+(`a028dbad…`) triggers at 12:34:59.616, trades 178 with MM01
+(`000001-000456050`), remainder cancelled `INSUFFICIENT_LIQUIDITY` — and the
+cancel is published 1 ms *before* the trade. Hypothesis: orders that match in
+a stop-trigger cascade are not in the dispatch's matched-quantity map that
+`engine/main.py` uses to publish fills (cf. the "finding #5" comment there).
+Next: failing engine test with a resting trailing stop triggered by another
+order's trade.
