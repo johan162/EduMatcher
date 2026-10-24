@@ -22,11 +22,11 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 0 | S0 | Freeze the current run: consistent snapshot of all stores | — | 0.5 h | ☑ | 2026-10-23 |
-| 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (code; new run pending) | 2026-10-23 |
+| 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (run 2026-10-24 made) | 2026-10-23 |
 | 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☑ | 2026-10-23 |
 | 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☑ | 2026-10-23 |
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☑ | 2026-10-23 |
-| 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☐ | |
+| 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☑ | 2026-10-24 |
 | 6 | S6 | Check E: full replay differential (engine + reference matcher) | S5, T3 of matching plan | 2–3 d | ☐ | |
 | 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☐ | |
 | 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☐ | |
@@ -420,6 +420,65 @@ C4 FAIL 1 (X4), C6 FAIL 1 (X6). R5 decided → X3 (engine bug).
 Extend the replay `Detector` with a reconstructed book per symbol and the
 D1–D8 oracles. Needs a run made after S1.
 
+**Done 2026-10-24 (changed: no `Detector`):** `tools/sim_forensics/audit.py`
+(streaming line reader) and `checks/matching.py` (D1–D9, C7). The run of
+2026-10-24 (engine start 2026-10-23 18:29 → close 2026-10-24 16:05, one full
+session) has a complete audit: 36 × 256 MB, 14.6 M lines, first line the
+engine's `system.startup_recovery`. Result: everything PASS except **D7
+FAIL 12 (X9)**; 3.9 min for all 28 checks, ~2.5 min of it the replay.
+
+- Why not `pm-audit-replay`'s `Detector`: on one 256 MB file it builds a
+  750 MB index in a minute and then crashes (X10), so ~25 GB of index for
+  the run; and its episodes model one order's life, not a book. The replay
+  instead streams the files once: pm-audit has one SUB on the engine's PUB,
+  and the engine republishes each inbound command, so file order is engine
+  order and `chain` delimits a dispatch.
+- Model: a per-symbol book rebuilt from acks, trades, cancels and expiries,
+  plus an independent model of the matching rules — price-time priority,
+  iceberg slices refilling at the back, stop/trailing-stop checkpoints after
+  each matching step (the engine's cascade order; trailing stops ratchet at
+  every checkpoint), STOP→MARKET / STOP_LIMIT→LIMIT conversion, M2 trigger
+  on entry, the uncross equilibrium (max volume, least surplus, lowest
+  price) with the stop cascade after it. Orders removed anywhere in a
+  dispatch are excused from "who should have traded first" (the stream does
+  not order a cancel against the trades). Tick sizes and SMP defaults come
+  from `ref_data/engine_config.json`; trade counts by symbol need no stores.
+- The oracle for the model itself is the engine's full-book snapshot
+  (`book.<SYM>`, every level): **D9 compared all 4 061 328 snapshots and
+  every fill's `remaining_qty` — none differ**, over 2 551 121 dispatches,
+  563 282 trades (all), 588 uncrosses with prints, 11 195 stop triggers. So
+  every other D check ran against an exact book. D9 counts divergence
+  *episodes* (first differing snapshot per symbol), the note all differing
+  snapshots.
+- Checks: D1 crossed engine snapshot in CONTINUOUS; D2 replayed book crossed
+  after a dispatch (names the order that rested); D3 fill through the
+  aggressor's limit; D4 fill not at the resting price or a better price
+  resting; D5 an earlier order at the price passed over, or a fill size other
+  than min(aggressor left, shown slice); D6 uncross: one price, = replayed
+  equilibrium, = `auction.result`, both sides in priority, book uncrossed
+  after; D7 continuous self-trade when the aggressor's SMP is not NONE
+  (auction self-trades counted in the note: 182, X2); D8 price on the tick
+  grid; C7 a stop the engine traded or cancelled without a replay trigger,
+  and one the replay triggered that the engine left silent. Iceberg rules
+  (the C7 sketch) are D5 + D9.
+- Not covered: collars and circuit-breaker bands (none configured in this
+  run), halts/reopen auctions, amends and combos (counted in the D9 note if
+  a run has them), runs whose audit does not reach the engine start or that
+  span an engine restart (both SKIPPED: restored GTC orders are not in the
+  stream).
+- A4 changed (check wrong, run 2026-10-24: 41): a closing uncross's prints
+  trigger stops that match at once, still in CLOSING_AUCTION, as the order
+  types chapter documents. A4 now allows a non-AUCTION print in an auction
+  phase for a symbol that already printed in that phase's uncross, and
+  counts them in the note.
+- `make forensics` no longer ends in `make: *** Error 1` when a check
+  fails: exit 1 is the tool saying "findings", which the target now reports
+  in words (other exit codes still fail the target).
+- Tests: `tests/test_sim_forensics_matching.py` (23) writes small audit
+  tapes in pm-audit's line format: a consistent continuous day (stop
+  cascade, iceberg refill), an opening auction, seeds + MM quote + OCO, and
+  one planted violation per check, including the X9 shape.
+
 ### S6 — Check E
 
 Depends on the differential-fuzz work (T3 of the matching workplan), which
@@ -453,14 +512,16 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 
 | ID | Found by | Run | Count | Classification | Status |
 |---|---|---|---|---|---|
-| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (B1/B2/C2) |
-| X2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
-| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (C2) |
-| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open |
-| X5 | C1 | 2026-10-23 | 4 107 FOK orders | Engine bug or spec gap | Open |
-| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects | Recorder gap (pm-stats) + label | Open |
-| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings | Recorder gap (pm-stats) | Open |
+| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: B1, B2, C2 PASS |
+| X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Spec question (Q2) | Open |
+| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: C2 PASS, D4/D5/D9 PASS |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open; not seen 2026-10-24 (sim stopped after the close) |
+| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug or spec gap | Open |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open |
 | X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
+| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Open |
+| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -564,3 +625,27 @@ test covered these paths.
 - Six near-identical publication loops are the reason X1 survived the
   "finding #5" fix; consolidating them on one helper (the shape of
   `_publish_amend_rematch`) is worth a WP of its own.
+
+**X9 — OCO legs trade with their owner despite SMP.** D7, run 2026-10-24:
+12 continuous self-trades, all with an OCO **STOP leg** as the aggressor
+against its owner's resting LIMIT order; every gateway involved is
+configured `CANCEL_AGGRESSOR`. Example (chain `01M5PD2ZHKE2NBR31V7PZGZQJ6`,
+MA, 07:30:31Z): AI017's buy prints 64.76, which triggers AI057's sell stop
+and then AI037's OCO stop leg `00a4435c…`, which sells 5 @ 62.15 into
+AI037's own bid `d49b804e…` (trade `000001-000015487`). Root cause:
+`_handle_new_order` (and quotes, combo legs) resolve the order's SMP action
+from the gateway default with `_resolve_smp_action`; `_handle_oco_order`
+never does, so both legs carry `smp_action=None`, which `_sweep` treats as
+`NONE`. All 12 are stop legs; a limit leg that crosses its owner's order
+on entry should be exposed the same way (not seen in this run). Next: failing
+engine test (an OCO stop leg triggered into its owner's bid must be
+cancelled `SELF_MATCH_PREVENTED`), then resolve SMP for both legs.
+
+**X10 — `pm-audit-replay` cannot read one rotated file of the sim
+profile.** `pm-audit-replay --log-file audit.log.5 anomalies` (256 MB,
+~390 k lines) builds a 750 MB episode index in about a minute and then fails
+in `reader._events_for` with `sqlite3.OperationalError: too many SQL
+variables`: `_hydrate` binds every episode id of the window into one
+`IN (…)`, beyond SQLite's limit of 32 766. With the S1 rotation (256 MB ×
+100) the tool cannot be used on a sim run's audit at all. Not needed by the
+forensics (S5 streams the files itself); a fix chunks the `IN` list.

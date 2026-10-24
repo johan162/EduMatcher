@@ -192,15 +192,16 @@ that you can use for testing purposes.
 
 The first five API keys and the Admin key are:
 
-| Participant| Role         | API key               |
-|------------|--------------|-----------------------|
-| `TRADER01` | student desk | `key-trader01-rwlr0v` |
-| `TRADER02` | student desk | `key-trader02-uzytnc` |
-| `TRADER03` | student desk | `key-trader03-rwqo7n` |
-| `TRADER04` | student desk | `key-trader04-3etdg0` |
-| `TRADER05` | student desk | `key-trader05-k0c8fm` |
-| `OPS01`    | (ADMIN)      | `key-ops01-3e34rs`    |
-
+====================================================
+| Participant | Role         | API key             |
+|-------------|--------------|---------------------|
+| TRADER01    | student desk | key-trader01-rwlr0v |
+| TRADER02    | student desk | key-trader02-uzytnc |
+| TRADER03    | student desk | key-trader03-rwqo7n |
+| TRADER04    | student desk | key-trader04-3etdg0 |
+| TRADER05    | student desk | key-trader05-k0c8fm |
+| OPS01       | (ADMIN)      | key-ops01-3e34rs    |
+====================================================
 
 You can find the full list of API keys in the simulation configuration in the "Ten Minute Start" chapter in 
 the "AI Traders and Market Simulation" book.

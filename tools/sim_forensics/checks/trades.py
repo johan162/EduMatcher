@@ -10,8 +10,12 @@ from sim_forensics.registry import Outcome, Sample, Skipped, check
 #: Phases a print may carry a timestamp in. Auction prints are stamped during
 #: the uncross, just before the phase moves on; CONTINUOUS also allows them
 #: for intraday re-opening auctions (circuit breaker, ACE).
-_AUCTION_PHASES = ("OPENING_AUCTION", "CLOSING_AUCTION", "CONTINUOUS")
-_CONTINUOUS_PHASES = ("CONTINUOUS",)
+_AUCTION_PHASES: tuple[str, ...] = ("OPENING_AUCTION", "CLOSING_AUCTION", "CONTINUOUS")
+_CONTINUOUS_PHASES: tuple[str, ...] = ("CONTINUOUS",)
+#: Phases whose uncross may be followed by continuous prints: the stops the
+#: uncross price triggers match at once ("stop evaluations run after those
+#: trade events and can create cascades", participant guide, order types).
+_UNCROSS_PHASES = ("OPENING_AUCTION", "CLOSING_AUCTION")
 
 #: trade_log.ts is the engine timestamp truncated to milliseconds.
 _TS_TOLERANCE_NS = 1_000_000
@@ -141,10 +145,13 @@ def trade_times(ds: Dataset) -> Outcome:
     samples: list[Sample] = []
     prev_ts = None
     i = -1  # index of the phase in force
+    uncrossed: set[str] = set()  # symbols that printed in this phase's uncross
+    cascade = 0
     rows = ds.conn.execute(
-        "SELECT id, ts_ns, aggressor_side FROM clearing.trade_events ORDER BY id"
+        "SELECT id, ts_ns, symbol, aggressor_side FROM clearing.trade_events "
+        "ORDER BY id"
     )
-    for trade_id, ts_ns, aggressor in rows:
+    for trade_id, ts_ns, symbol, aggressor in rows:
         if prev_ts is not None and ts_ns < prev_ts:
             samples.append(
                 {"trade_id": trade_id, "error": "ts before previous trade's"}
@@ -152,10 +159,20 @@ def trade_times(ds: Dataset) -> Outcome:
         prev_ts = ts_ns
         while i + 1 < len(phases) and phases[i + 1][0] <= ts_ns:
             i += 1
+            uncrossed.clear()
         phase = phases[i][1] if i >= 0 else None
-        allowed = _AUCTION_PHASES if aggressor == "AUCTION" else _CONTINUOUS_PHASES
+        if aggressor == "AUCTION":
+            uncrossed.add(symbol)
+            allowed = _AUCTION_PHASES
+        elif phase in _UNCROSS_PHASES and symbol in uncrossed:
+            cascade += 1
+            continue
+        else:
+            allowed = _CONTINUOUS_PHASES
         if phase not in allowed:
             samples.append(
                 {"trade_id": trade_id, "aggressor_side": aggressor, "phase": phase}
             )
-    return Outcome(len(samples), samples)
+    return Outcome(
+        len(samples), samples, f"{cascade} stop-cascade prints after an uncross"
+    )

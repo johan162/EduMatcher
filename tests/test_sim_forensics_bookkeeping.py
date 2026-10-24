@@ -108,6 +108,23 @@ def test_a4_finds_a_continuous_print_in_the_auction_and_time_going_back(
     ]
 
 
+def test_a4_allows_the_uncross_stop_cascade_but_not_another_symbol(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """A stop the opening print triggers trades at once, still inside
+    OPENING_AUCTION; a continuous print in a symbol that did not uncross is
+    still a violation."""
+    db = world / "clearing.db"
+    sql(db, "UPDATE trade_events SET ts_ns = ? WHERE id = ?", TRADES[0].ts_ns, T2)
+    sql(db, "UPDATE trade_events SET ts_ns = ? WHERE id = ?", TRADES[0].ts_ns, T3)
+    sql(db, "UPDATE trade_events SET symbol = 'MSFT' WHERE id = ?", T3)
+    out = run(open_ds, world, "A4")
+    assert out.samples == [
+        {"trade_id": T3, "aggressor_side": "SELL", "phase": "OPENING_AUCTION"}
+    ]
+    assert out.note == "1 stop-cascade prints after an uncross"
+
+
 def test_a4_is_skipped_without_phase_rows(world: Path, open_ds: OpenDataset) -> None:
     sql(world / "clearing.db", "DELETE FROM session_events")
     (result,) = run_checks(open_ds(world), [REGISTRY["A4"]], 10)
