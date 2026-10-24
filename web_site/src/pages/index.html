@@ -51,7 +51,7 @@ nav: home
       <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Wire protocol families</div></div>
       <div class="s" role="listitem"><div class="n"><span data-count="{{N_LOC}}">{{N_LOC_FMT}}</span><small>+</small></div><div class="l">Lines of Python</div></div>
       <div class="s" role="listitem"><div class="n"><span data-count="{{N_TESTS}}">{{N_TESTS_FMT}}</span><small>+</small></div><div class="l">Automated tests</div></div>
-      <div class="s" role="listitem"><div class="n"><span data-count="{{N_BOOKS}}">{{N_BOOKS}}</span></div><div class="l">Books in the library</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{N_BOOKS}}">{{N_BOOKS}}</span></div><div class="l">Guide books</div></div>
     </div>
   </div>
 </section>
@@ -70,7 +70,7 @@ nav: home
         <h3 class="display" style="margin-top:6px">Made to be read</h3>
         <ul>
           <li><b>Plain Python</b> — no C extensions in the matching path, no magic; step through any order in a debugger.</li>
-          <li><b>{{N_BOOKS}} books</b> from a no-finance-needed primer to protocol specifications and a guided code tour.</li>
+          <li><b>{{N_BOOKS}} guide books</b> from a quick start to protocol specifications and a guided code tour — plus a separate general introduction to exchanges for readers new to finance.</li>
           <li><b>29-chapter training guide</b> with hands-on exercises, plus slide decks for instructors.</li>
           <li><b>An exchange that trades itself</b> — 100 AI traders keep 300 symbols alive for your class.</li>
           <li><b>Observable by design</b> — every process logs, every event is on the bus, every fill is audited.</li>
@@ -264,14 +264,19 @@ nav: home
   <div class="wrap">
     <div class="center rv" style="margin-bottom:48px">
       <div class="eyebrow">The library</div>
-      <h2 class="display">{{N_BOOKS}} books. One exchange.</h2>
-      <p class="lede">Start with <a href="{{PRIMER_URL}}">{{PRIMER_TITLE}}</a> if markets are new to you, then pick the book that matches what you want to do. Every book is on the web and downloadable as PDF and EPUB.</p>
+      <h2 class="display">{{N_BOOKS}} guide books. One exchange.</h2>
+      <p class="lede">Start with the Quick Start Guide, then pick the book that matches what you want to do. Every guide book is on the web and downloadable as PDF and EPUB. New to financial markets? A separate introduction to exchanges follows below.</p>
     </div>
     <div class="books">
       {{BOOKS_CARDS}}
     </div>
     <div class="center rv" style="margin-top:46px"><a class="btn ghost" href="learn.html">Learning paths →</a> &nbsp; <a class="btn ghost" href="docs.html">Open the documentation</a></div>
   </div>
+</section>
+
+<!-- ================= INTRO BOOK ================= -->
+<section class="section" id="intro">
+{{> intro-book}}
 </section>
 
 <!-- ================= CTA ================= -->

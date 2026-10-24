@@ -23,7 +23,7 @@ nav: download
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#install">Install</a><a href="#system">System files</a><a href="#books">Books</a><a href="#decks">Slide decks</a><a href="#verify">Verify</a><a href="#source">Source</a>
+  <a href="#install">Install</a><a href="#system">System files</a><a href="#books">Guide books</a><a href="#intro">Intro book</a><a href="#decks">Slide decks</a><a href="#verify">Verify</a><a href="#source">Source</a>
 </div></nav>
 
 <section class="section" id="install">
@@ -69,7 +69,7 @@ nav: download
 
 <section class="section" id="books">
   <div class="wrap">
-    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">Documentation · v{{VERSION}}</div><h2 class="display">Every book, offline</h2>
+    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">Documentation · EduMatcher v{{VERSION}}</div><h2 class="display">Every guide book, offline</h2>
       <p class="lede">PDF in four flavours — <b>A4</b> for print, <b>B5</b> for tablets and compact print, and <b>dark</b> editions for night reading — plus <b>EPUB</b> for e-readers.</p></div>
     <div class="tbl-wrap rv"><table class="tbl">
       <thead><tr><th>Book</th><th>For</th><th>Formats</th></tr></thead>
@@ -80,7 +80,26 @@ nav: download
   </div>
 </section>
 
-<section class="section band" id="decks">
+<section class="section band" id="intro">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow gold">A separate book · edition {{INTRO_VERSION}}</div><h2 class="display">{{INTRO_TITLE}}</h2>
+      <p class="lede">{{INTRO_BLURB}} Written for readers who are not finance experts, it is <b>not</b> part of the EduMatcher guide series and does not document the software.</p></div>
+    <div class="intro-book rv">
+      <a class="cover" href="{{INTRO_URL}}"><img src="assets/img/covers/exchange-intro.jpg" alt="Cover of {{INTRO_TITLE}}" loading="lazy" width="720" height="1019"></a>
+      <div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Download</th><th>Formats</th></tr></thead>
+          <tbody>
+            {{INTRO_DOWNLOAD_ROWS}}
+          </tbody></table></div>
+        <p class="small muted" style="margin:14px 0 0"><b>Edition {{INTRO_VERSION}}</b> — {{INTRO_CHAPTERS}} chapters. This book is versioned on its own schedule: its edition number is unrelated to the EduMatcher version (v{{VERSION}}) and only changes when the book itself is revised. The quiz bundle is for instructors; the answer keys inside it are encrypted.</p>
+        <div class="btn-row" style="margin-top:16px"><a class="btn ghost sm" href="{{INTRO_URL}}">Read the online edition</a><a class="btn ghost sm" href="learn.html#intro">About this book</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="decks">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">Teaching material</div><h2 class="display">Slide decks</h2></div>
     <div class="filelist rv" style="max-width:900px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 14px">{{DECK_FILES}}</div>

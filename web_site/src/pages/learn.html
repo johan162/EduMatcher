@@ -22,7 +22,7 @@ nav: learn
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#library">Library</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
+  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#library">Library</a><a href="#intro">Intro book</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
 </div></nav>
 
 <section class="section" id="approach">
@@ -40,7 +40,7 @@ nav: learn
     <div class="center rv" style="margin-bottom:38px">
       <div class="eyebrow">Learning paths</div>
       <h2 class="display">Start anywhere,<br>go as deep as you like</h2>
-      <p class="lede">Read <a href="{{PRIMER_URL}}">{{PRIMER_TITLE}}</a> if markets are new, work through the Quick Start, then branch by what you want to do.</p>
+      <p class="lede">If markets are new, start with <a href="{{INTRO_URL}}">{{INTRO_TITLE}}</a> (a general book about exchanges, not about EduMatcher). Then work through the Quick Start and branch by what you want to do.</p>
     </div>
     <div class="rv">{{> diagram-paths}}</div>
     <p class="center muted small rv" style="margin-top:14px">Every box in the map is a link.</p>
@@ -51,15 +51,15 @@ nav: learn
   <div class="wrap">
     <div class="center rv" style="margin-bottom:46px">
       <div class="eyebrow">The library</div>
-      <h2 class="display">{{N_BOOKS_ONLY}} books, one primer</h2>
+      <h2 class="display">{{N_BOOKS}} guide books</h2>
       <p class="lede">Each book is written for one reader and one task. Read online, or download as PDF (light and dark, A4 and B5) and EPUB from the <a href="download.html#books">Download page</a>.</p>
     </div>
     <div class="books">{{BOOKS_CARDS}}</div>
-    <div class="card flat rv" style="margin-top:40px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-      <div><span class="tag">The primer</span><h3 style="margin:4px 0 4px">{{PRIMER_TITLE}}</h3><p class="muted small" style="margin:0">Order books, bids and asks, auctions and market makers — explained for software developers with no finance background.</p></div>
-      <a class="btn ghost" href="{{PRIMER_URL}}">Read it →</a>
-    </div>
   </div>
+</section>
+
+<section class="section" id="intro">
+{{> intro-book}}
 </section>
 
 <section class="section band" id="training">

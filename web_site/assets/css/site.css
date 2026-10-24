@@ -457,3 +457,19 @@ pre.code .c { color: #6f8db3; } pre.code .k { color: #00d4ff; } pre.code .s { co
 .cli-grid .c span { color: #a9c3e6; font-size: 14px; line-height: 1.45; display: block; }
 
 .section > .wrap > .feature:last-child { margin-bottom: 0; }
+
+/* ---------- Introduction book (separate from the guide books) ---------- */
+:root { --gold: #9a6b00; }
+:root[data-theme="dark"] { --gold: #e0b34d; }
+.eyebrow.gold { color: var(--gold); } .eyebrow.gold::before { background: var(--gold); }
+.chip.gold { color: var(--gold); border-color: var(--gold); }
+.intro-book { display: grid; grid-template-columns: minmax(200px, 270px) 1fr; gap: clamp(26px, 4vw, 52px); align-items: center; padding: clamp(24px, 4vw, 42px);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line)); border-radius: 18px; position: relative; overflow: hidden;
+  background: radial-gradient(ellipse 70% 100% at 0% 0%, color-mix(in srgb, var(--gold) 12%, transparent), transparent 70%), var(--surface); }
+.intro-book .cover { display: block; border-radius: 4px 10px 10px 4px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  box-shadow: -6px 10px 30px -8px rgba(0, 0, 0, .55); transition: transform .35s; transform-origin: left center; }
+.intro-book .cover:hover { transform: rotateY(-12deg) translateY(-3px); }
+.intro-book .cover img { width: 100%; height: auto; }
+.intro-book h2 { font-size: clamp(34px, 4.2vw, 54px); margin-bottom: .25em; }
+.intro-book .lede { font-size: 18px; }
+@media (max-width: 760px) { .intro-book { grid-template-columns: 1fr; } .intro-book .cover { max-width: 240px; } }

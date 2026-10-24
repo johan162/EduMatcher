@@ -15,6 +15,8 @@ Everything that changes between releases is derived, never typed in by hand:
   command / test /
   code-size counts ... pyproject.toml, tests/, src/
   documentation ...... docs/ + mkdocs.yml  ->  web_site/docs/   (via mkdocs-site.yml)
+  intro book ......... docs-exchange-intro/version.toml (its own version) + dist/ files, shown
+                       and downloaded separately from the guide books
   book downloads ..... data/books.json x version  ->  copies of the PDFs/EPUBs in docs/dist
                        (self-hosted) plus a link to the all-formats ZIP on the GitHub release
   system downloads ... wheel / sdist (self-hosted from dist/) and source archives of the tag
@@ -34,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import zipfile
 from pathlib import Path
 
 SITE = Path(__file__).resolve().parent
@@ -188,6 +191,57 @@ def deck_download_html() -> str:
     return "\n".join(out)
 
 
+def intro_info(intro: dict) -> dict[str, str]:
+    """Facts about the general-introduction book, which is versioned independently of EduMatcher."""
+    src = REPO / intro["source"]
+    version = tomllib.loads((src / "version.toml").read_text())["config"]["version"]
+    manifest = tomllib.loads((src / "book.toml").read_text())
+    chapters = sum(1 for part in manifest.get("parts", []) for f in part["files"] if not f.startswith("00-part"))
+    return {"INTRO_VERSION": version, "INTRO_CHAPTERS": str(chapters), "INTRO_TITLE": intro["title"],
+            "INTRO_BLURB": intro["blurb"], "INTRO_URL": f'docs/{intro["read_online"]}/'}
+
+
+def _links(items: dict[str, tuple[str | None, str | None]], title: str) -> str:
+    return "".join(
+        f'<a href="{html.escape(h)}" download title="{html.escape(title)} — {k}{" · " + sz if sz else ""}">{k}</a>'
+        if h else f'<a class="na" title="not hosted for this build">{k}</a>'
+        for k, (h, sz) in items.items()
+    )
+
+
+def intro_downloads_html(intro: dict, iv: str, dl: Downloads) -> str:
+    """Table rows for the introduction book: complete book, by part, quizzes (its own version `iv`)."""
+    stem, dist, title = intro["stem"], REPO / intro["source"] / "dist", intro["title"]
+    names = {"A4": f"{stem}_a4-{iv}.pdf", "B5": f"{stem}_b5-{iv}.pdf", "A4 dark": f"{stem}_dark_a4-{iv}.pdf",
+             "B5 dark": f"{stem}_dark_b5-{iv}.pdf", "EPUB": f"{stem}-{iv}.epub"}
+    complete = {k: dl.resolve(n, dist / n, group="intro", on_release=k == "EPUB") for k, n in names.items()}
+
+    # The four part PDFs are shipped as one ZIP; unpack them so each part is a direct download.
+    parts: dict[str, tuple[str | None, str | None]] = {}
+    zip_name = f"{stem}_parts_a4_bundle-{iv}.zip"
+    if dl.mode != "release" and (dist / zip_name).is_file():
+        out = dl.local_dir / "intro"
+        out.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(dist / zip_name) as zf:
+            for info in sorted(zf.infolist(), key=lambda i: i.filename):
+                m = re.search(r"part-([IV]+)-", info.filename)
+                if not m or not info.filename.endswith(".pdf"):
+                    continue
+                dest = out / Path(info.filename).name
+                dest.write_bytes(zf.read(info))
+                dl.sums.append((hashlib.sha256(dest.read_bytes()).hexdigest(), f"intro/{dest.name}"))
+                dl.used_local += 1
+                parts[f"Part {m.group(1)}"] = (f"downloads/intro/{dest.name}", fmt_size(dest.stat().st_size))
+    if not parts:
+        parts["ZIP"] = dl.resolve(zip_name, dist / zip_name, group="intro")
+
+    quiz_name = f"{stem}_quiz_bundle-{iv}.zip"
+    quiz = {"ZIP": dl.resolve(quiz_name, dist / quiz_name, group="intro")}
+
+    rows = [("Complete book", complete), ("By part (A4 PDF)", parts), ("Quizzes &amp; self-study", quiz)]
+    return "\n".join(f'<tr><td>{label}</td><td class="fmt">{_links(items, title)}</td></tr>' for label, items in rows)
+
+
 def books_cards_html(books: list[dict]) -> str:
     out = []
     for b in books:
@@ -201,8 +255,10 @@ def books_cards_html(books: list[dict]) -> str:
     return "\n".join(out)
 
 
-def check_entries(books: list[dict], primer: dict) -> None:
-    missing = [b["entry"] for b in books + [primer] if not (REPO / "docs" / f'{b["entry"]}.md').exists()]
+def check_entries(books: list[dict], intro: dict) -> None:
+    missing = [b["entry"] for b in books if not (REPO / "docs" / f'{b["entry"]}.md').exists()]
+    if not (REPO / "docs" / f'{intro["read_online"]}.md').exists():
+        missing.append(intro["read_online"])
     if missing:
         sys.exit("books.json points at docs pages that do not exist: " + ", ".join(missing))
 
@@ -268,8 +324,9 @@ def main() -> None:
 
     f = project_facts()
     cfg = json.loads((SITE / "data" / "books.json").read_text())
-    books, primer = cfg["books"], cfg["primer"]
-    check_entries(books, primer)
+    books, intro = cfg["books"], cfg["intro"]
+    check_entries(books, intro)
+    intro_facts = intro_info(intro)
 
     if a.build_dist and not (REPO / "dist" / f"edumatcher-{f['VERSION']}.tar.gz").exists():
         print("• building wheel and sdist with poetry …")
@@ -281,10 +338,9 @@ def main() -> None:
         BOOKS_DOWNLOAD_ROWS=books_download_html(books, dl),
         SYSTEM_FILES=system_download_html(dl),
         DECK_FILES=deck_download_html(),
-        N_BOOKS=str(len(books) + 1),
-        N_BOOKS_ONLY=str(len(books)),
-        PRIMER_TITLE=primer["title"],
-        PRIMER_URL=f'docs/{primer["entry"]}/',
+        N_BOOKS=str(len(books)),
+        INTRO_DOWNLOAD_ROWS=intro_downloads_html(intro, intro_facts["INTRO_VERSION"], dl),
+        **intro_facts,
         REPO_URL=REPO_URL,
         RELEASE_URL=f"{REPO_URL}/releases/tag/v{f['VERSION']}",
         LATEST_URL=f"{REPO_URL}/releases/latest",
