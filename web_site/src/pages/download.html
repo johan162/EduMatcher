@@ -1,0 +1,112 @@
+---
+title: Download — EduMatcher
+desc: Install EduMatcher with one command, or download the wheel, source and the complete documentation as PDF and EPUB for every release.
+nav: download
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+{{> head}}
+</head>
+<body>
+{{> header}}
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Download</div>
+    <div class="eyebrow">Release v{{VERSION}} · MIT licensed</div>
+    <h1 class="display">Get the<br><span class="accent">exchange</span></h1>
+    <p class="lede">One command for a running venue, or download the package, the source and every book. The source lives on <a href="{{REPO_URL}}" rel="noopener">GitHub</a>.</p>
+    <div class="btn-row" style="margin-top:24px"><a class="btn primary" href="#install">Install in one command</a><a class="btn ghost" href="#books">Documentation downloads</a><a class="btn ghost" href="{{RELEASE_URL}}" rel="noopener">Release notes</a></div>
+  </div>
+</section>
+<nav class="subnav" aria-label="On this page"><div class="wrap">
+  <a href="#install">Install</a><a href="#system">System files</a><a href="#books">Books</a><a href="#decks">Slide decks</a><a href="#verify">Verify</a><a href="#source">Source</a>
+</div></nav>
+
+<section class="section" id="install">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:40px"><div class="eyebrow">The system</div><h2 class="display">Pick how you want to run it</h2></div>
+    <div class="dl-grid">
+      <div class="card method rv">
+        <div class="head"><h3>A clean exchange</h3><span class="badge">recommended</span></div>
+        <p class="muted small">Docker or Podman. Starts the exchange and the six web applications with a bundled configuration — you are the only trader.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c1">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash</code><button class="copy" data-copy="#c1">copy</button></div>
+        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher</code> and run <code>./edumatcher.sh shell</code>.</p>
+      </div>
+      <div class="card method rv d1">
+        <div class="head"><h3>A living market</h3><span class="badge">for classes</span></div>
+        <p class="muted small">The same, plus {{F_SIM_SYMBOLS}} symbols and {{F_SIM_TRADERS}} AI traders trading on hidden values, news and rumours.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c2">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --sim</code><button class="copy" data-copy="#c2">copy</button></div>
+        <p class="muted small" style="margin:0">Then <code>cd ~/.edumatcher-sim</code>.</p>
+      </div>
+      <div class="card method rv">
+        <div class="head"><h3>Python package</h3><span class="badge" style="background:transparent;color:var(--muted);border-color:var(--line-strong)">PyPI</span></div>
+        <p class="muted small">Python {{PYTHON}}+. Installs the engine, gateways and terminal tools; the browser apps are container images.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c3">pipx install edumatcher &amp;&amp; pm-setup</code><button class="copy" data-copy="#c3">copy</button></div>
+        <p class="muted small" style="margin:0">Pin this release: <code>pipx install edumatcher=={{VERSION}}</code></p>
+      </div>
+      <div class="card method rv d1">
+        <div class="head"><h3>From source</h3><span class="badge" style="background:transparent;color:var(--muted);border-color:var(--line-strong)">hackers</span></div>
+        <p class="muted small">Clone, install with Poetry and run the test-suite — the route for contributors.</p>
+        <div class="cmd" style="margin:0;max-width:none"><span class="prompt">$</span><code id="c4">git clone {{REPO_URL}} &amp;&amp; cd EduMatcher &amp;&amp; poetry install</code><button class="copy" data-copy="#c4">copy</button></div>
+        <p class="muted small" style="margin:0">See the <a href="docs/books/architecture-and-development/part-4-developing/010-development-practice/">Development Practice</a> chapter.</p>
+      </div>
+    </div>
+    <div class="callout rv" style="margin-top:28px"><b>Once it is running:</b> Trading GUI <code>:8093</code> · TapeDeck <code>:8090</code> · Order Book <code>:8094</code> · Dashboard <code>:8095</code> · Log Console <code>:8091</code> · Config Builder <code>:8092</code> · REST docs <code>:8080/docs</code>. The Trading GUI needs an API key — <code>./edumatcher.sh shell pm-config-show -a</code> prints them.</div>
+  </div>
+</section>
+
+<section class="section band" id="system">
+  <div class="wrap" style="max-width:900px">
+    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">System files · v{{VERSION}}</div><h2 class="display">Packages &amp; source</h2></div>
+    <div class="filelist rv">{{SYSTEM_FILES}}</div>
+    <p class="muted small rv" style="margin-top:16px">Also on <a href="https://pypi.org/project/edumatcher/{{VERSION}}/" rel="noopener">PyPI</a>, and as container images under <code>ghcr.io/johan162/edumatcher*</code>. Every release, with notes: <a href="{{LATEST_URL}}" rel="noopener">GitHub Releases</a>.</p>
+  </div>
+</section>
+
+<section class="section" id="books">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">Documentation · v{{VERSION}}</div><h2 class="display">Every book, offline</h2>
+      <p class="lede">PDF in four flavours — <b>A4</b> for print, <b>B5</b> for tablets and compact print, and <b>dark</b> editions for night reading — plus <b>EPUB</b> for e-readers.</p></div>
+    <div class="tbl-wrap rv"><table class="tbl">
+      <thead><tr><th>Book</th><th>For</th><th>Formats</th></tr></thead>
+      <tbody>
+        {{BOOKS_DOWNLOAD_ROWS}}
+      </tbody></table></div>
+    <p class="muted small rv" style="margin-top:16px">Prefer to read online? The <a href="docs.html">documentation site</a> is searchable and always at this version. Per-chapter PDFs and complete bundles (ZIP) are attached to the <a href="{{RELEASE_URL}}" rel="noopener">GitHub release</a>.</p>
+  </div>
+</section>
+
+<section class="section band" id="decks">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:34px"><div class="eyebrow">Teaching material</div><h2 class="display">Slide decks</h2></div>
+    <div class="filelist rv" style="max-width:900px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 14px">{{DECK_FILES}}</div>
+  </div>
+</section>
+
+<section class="section" id="verify">
+  <div class="wrap" style="max-width:860px">
+    <div class="center rv" style="margin-bottom:26px"><div class="eyebrow">Integrity</div><h2 class="display">Verify what you downloaded</h2></div>
+    <p class="rv">SHA-256 checksums for the files hosted on this site: {{SUMS_LINK}}.</p>
+    <div class="codebox rv"><span class="label">verify</span><button class="copy" data-copy="#v1">copy</button>
+<pre class="code" id="v1"><span class="p">$ </span>sha256sum -c SHA256SUMS.txt        <span class="c"># Linux</span>
+<span class="p">$ </span>shasum -a 256 -c SHA256SUMS.txt     <span class="c"># macOS</span></pre></div>
+  </div>
+</section>
+
+<section class="section tight" id="source">
+  <div class="wrap"><div class="cta rv">
+    <div class="eyebrow">Open source · MIT</div>
+    <h2 class="display">The source is <span class="accent">all on GitHub</span></h2>
+    <p class="lede" style="margin-bottom:26px">Read it, star it, fork it, open an issue, send a pull request.</p>
+    <div class="btn-row"><a class="btn primary" href="{{REPO_URL}}" rel="noopener">github.com/johan162/EduMatcher</a><a class="btn ghost" href="{{REPO_URL}}/issues" rel="noopener">Issues</a><a class="btn ghost" href="{{REPO_URL}}/blob/main/CHANGELOG.md" rel="noopener">Changelog</a></div>
+    <p class="warn-strip" style="margin:22px auto 0">For teaching and experimenting only. Never use EduMatcher for real financial transactions.</p>
+  </div></div></section>
+
+</main>
+{{> footer}}
+</body>
+</html>

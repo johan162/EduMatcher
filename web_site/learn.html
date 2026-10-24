@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn — EduMatcher</title>
+<meta name="description" content="How EduMatcher teaches market microstructure: a library of books, a 29-chapter training guide, slide decks and a self-running simulated market for classrooms.">
+<meta name="theme-color" content="#020c1b">
+<meta property="og:title" content="Learn — EduMatcher">
+<meta property="og:description" content="How EduMatcher teaches market microstructure: a library of books, a 29-chapter training guide, slide decks and a self-running simulated market for classrooms.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@1,400;1,700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+<script>
+  /* Set the theme before first paint: saved choice, else the OS preference. */
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("em-theme"); } catch (e) {}
+    if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="page-bg"></div><div class="page-grid"></div>
+<div class="ticker-tape" aria-hidden="true" title="Illustrative data — not a market feed"><div class="track" id="tape"></div></div>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="index.html" aria-label="EduMatcher home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.5"/>
+        <rect x="5" y="19" width="6" height="2.6" rx="1" fill="#00e676"/><rect x="7" y="14.5" width="4" height="2.6" rx="1" fill="#00e676" opacity=".7"/><rect x="9" y="10" width="2" height="2.6" rx="1" fill="#00e676" opacity=".45"/>
+        <rect x="21" y="19" width="6" height="2.6" rx="1" fill="#ff3d5a"/><rect x="21" y="14.5" width="4" height="2.6" rx="1" fill="#ff3d5a" opacity=".7"/><rect x="21" y="10" width="2" height="2.6" rx="1" fill="#ff3d5a" opacity=".45"/>
+        <circle cx="16" cy="16" r="2.4" fill="#00d4ff"/></svg>
+      <span>EDU<em>MATCHER</em></span>
+    </a>
+    <button class="icon-btn menu-btn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <nav class="nav" aria-label="Main">
+      <a class="link" href="platform.html" >Platform</a>
+      <a class="link" href="apps.html" >Applications</a>
+      <a class="link" href="learn.html" aria-current="page">Learn</a>
+      <a class="link" href="docs.html" >Documentation</a>
+      <a class="link" href="download.html" >Download</a>
+      <span class="nav-actions">
+        <a class="btn ghost sm" href="https://github.com/johan162/EduMatcher" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.200 1.200a11 11 0 0 1 5.800 0c2.200-1.500 3.200-1.200 3.200-1.200.6 1.600.2 2.800.1 3.100.8.800 1.200 1.800 1.200 3.100 0 4.400-2.700 5.400-5.300 5.700.4.400.8 1.100.8 2.200v3.200c0 .3.2.7.8.6 4.600-1.500 7.900-5.800 7.900-10.900C23.500 5.700 18.300.5 12 .5z"/></svg>GitHub</a>
+        <button class="icon-btn theme-toggle" aria-label="Toggle theme"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.400 1.400M17.700 17.700l1.400 1.400M2 12h2M20 12h2M4.9 19.100l1.400-1.400M17.700 6.300l1.400-1.400"/></svg><svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.800A9 9 0 1 1 11.200 3a7 7 0 0 0 9.800 9.800z"/></svg></button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Learn</div>
+    <div class="eyebrow">Education</div>
+    <h1 class="display">Learn markets by<br><span class="accent">running one</span></h1>
+    <p class="lede">Textbooks describe order books. EduMatcher lets you place an order, watch it rest, get hit, and appear in the audit trail — and then read exactly which lines of code did it.</p>
+  </div>
+</section>
+<nav class="subnav" aria-label="On this page"><div class="wrap">
+  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#library">Library</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
+</div></nav>
+
+<section class="section" id="approach">
+  <div class="wrap">
+    <div class="grid g3">
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"/></svg></div><h3>See it run first</h3><p class="muted">The Quick Start gets a live exchange on screen in minutes, then a first trade, a full trading day and your own configuration — with a checkpoint at every step.</p></div>
+      <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg></div><h3>Concepts, then code</h3><p class="muted">Every chapter opens with learning objectives and builds from the finance idea to the data structure to the source file that implements it.</p></div>
+      <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.500 4.500L18.500 21 12 16.500 5.500 21l2-7.500L2 9h7z"/></svg></div><h3>Break it on purpose</h3><p class="muted">Halt a symbol, trip a circuit breaker, kill a process, replay the audit trail. A venue that can be broken safely is one you can understand.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="paths">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:38px">
+      <div class="eyebrow">Learning paths</div>
+      <h2 class="display">Start anywhere,<br>go as deep as you like</h2>
+      <p class="lede">Read <a href="docs/how-exchange-works/">How an Exchange Works</a> if markets are new, work through the Quick Start, then branch by what you want to do.</p>
+    </div>
+    <div class="rv"><div class="diagram">
+<svg viewBox="0 0 1000 450" role="img" aria-labelledby="path-t" xmlns="http://www.w3.org/2000/svg">
+<title id="path-t">Learning paths through the library</title>
+<path class="wire" d="M170 215 H300"/><path class="flow" d="M170 215 H300"/>
+<a href="docs/how-exchange-works/"><g class="node"><rect class="box" x="20" y="185" width="150" height="60" rx="12"/><text class="t-dim" x="95" y="207" text-anchor="middle" font-size="10" letter-spacing="1.5">NEW TO MARKETS?</text><text class="t-strong" x="95" y="228" text-anchor="middle" font-size="13.5">How an Exchange Works</text></g></a>
+<path class="wire" d="M300 215 H420"/><path class="flow" d="M300 215 H420"/>
+<a href="docs/books/quick-start/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box-acc" x="300" y="185" width="120" height="60" rx="12"/><text class="t-acc" x="360" y="207" text-anchor="middle" font-size="10" letter-spacing="1.5">EVERYONE</text><text class="t-strong" x="360" y="228" text-anchor="middle" font-size="13.5">Quick Start</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 62 540 62"/><path class="flow slow" d="M420 215 C480 215 480 62 540 62"/>
+<a href="docs/books/training-guide/"><g class="node"><rect class="box" x="540" y="40" width="290" height="46" rx="10"/><circle cx="562" cy="63" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="60" font-size="13.5">Training Guide</text><text class="t-dim" x="580" y="77" font-size="11">Students · hands-on</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 132 540 132"/><path class="flow slow" d="M420 215 C480 215 480 132 540 132"/>
+<a href="docs/books/participant-guide/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box" x="540" y="110" width="290" height="46" rx="10"/><circle cx="562" cy="133" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="130" font-size="13.5">Participant Guide</text><text class="t-dim" x="580" y="147" font-size="11">Traders · market makers</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 202 540 202"/><path class="flow slow" d="M420 215 C480 215 480 202 540 202"/>
+<a href="docs/books/operator-guide/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box" x="540" y="180" width="290" height="46" rx="10"/><circle cx="562" cy="203" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="200" font-size="13.5">Operator's Guide</text><text class="t-dim" x="580" y="217" font-size="11">Run an exchange</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 272 540 272"/><path class="flow slow" d="M420 215 C480 215 480 272 540 272"/>
+<a href="docs/books/protocols-and-clients/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box" x="540" y="250" width="290" height="46" rx="10"/><circle cx="562" cy="273" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="270" font-size="13.5">Protocols & Clients</text><text class="t-dim" x="580" y="287" font-size="11">Connect your own code</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 342 540 342"/><path class="flow slow" d="M420 215 C480 215 480 342 540 342"/>
+<a href="docs/books/architecture-and-development/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box" x="540" y="320" width="290" height="46" rx="10"/><circle cx="562" cy="343" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="340" font-size="13.5">Architecture & Developer</text><text class="t-dim" x="580" y="357" font-size="11">Change the code</text></g></a>
+<path class="wire" d="M420 215 C480 215 480 412 540 412"/><path class="flow slow" d="M420 215 C480 215 480 412 540 412"/>
+<a href="docs/books/ai-traders/00-front/010-how-to-use-this-book/"><g class="node"><rect class="box" x="540" y="390" width="290" height="46" rx="10"/><circle cx="562" cy="413" r="6" fill="var(--accent)"/><text class="t-strong" x="580" y="410" font-size="13.5">AI Traders & Simulation</text><text class="t-dim" x="580" y="427" font-size="11">Run a living market</text></g></a>
+<rect x="900" y="30" width="22" height="410" rx="11" fill="var(--accent)" opacity=".2" stroke="var(--accent)"/>
+<a href="docs/books/reference-manual/00-front/010-how-to-use-this-book/"><text x="0" y="0" transform="translate(918 235) rotate(90)" text-anchor="middle" class="t-acc" font-size="11" letter-spacing="3">REFERENCE MANUAL</text></a>
+<path d="M830 63 H900 M830 133 H900 M830 203 H900 M830 273 H900 M830 343 H900 M830 413 H900" class="wire" stroke-dasharray="3 5"/>
+<text class="t-dim" x="20" y="300" font-size="11.5">1 · optional primer</text><text class="t-dim" x="300" y="300" font-size="11.5">2 · install, trade, run a day</text><text class="t-dim" x="540" y="30" font-size="11.5">3 · choose your path</text>
+</svg></div></div>
+    <p class="center muted small rv" style="margin-top:14px">Every box in the map is a link.</p>
+  </div>
+</section>
+
+<section class="section" id="library">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:46px">
+      <div class="eyebrow">The library</div>
+      <h2 class="display">8 books, one primer</h2>
+      <p class="lede">Each book is written for one reader and one task. Read online, or download as PDF (light and dark, A4 and B5) and EPUB from the <a href="download.html#books">Download page</a>.</p>
+    </div>
+    <div class="books"><a class="book rv" href="docs/books/quick-start/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/quick-start.jpg" alt="Cover of the Quick Start Guide" loading="lazy" width="720" height="1019"></div><h3>Quick Start Guide</h3><p>Install, first trade, a full trading day and your own configuration — a checkpoint at every step.</p><span class="meta">Everyone — start here</span></a>
+<a class="book rv" href="docs/books/training-guide/"><div class="cover"><img src="assets/img/covers/training-guide.jpg" alt="Cover of the Training Guide" loading="lazy" width="720" height="1019"></div><h3>Training Guide</h3><p>29 hands-on chapters: order types, auctions, market making, risk, clearing, protocols.</p><span class="meta">Students &amp; instructors</span></a>
+<a class="book rv" href="docs/books/participant-guide/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/participant-guide.jpg" alt="Cover of the Participant Guide" loading="lazy" width="720" height="1019"></div><h3>Participant Guide</h3><p>The order book, every order type, auctions, market making, bots, P&amp;L and the trading screens.</p><span class="meta">Traders &amp; market makers</span></a>
+<a class="book rv" href="docs/books/operator-guide/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/operator-guide.jpg" alt="Cover of the Operator&#x27;s Guide" loading="lazy" width="720" height="1019"></div><h3>Operator&#x27;s Guide</h3><p>Install, configure, run, supervise and recover an exchange — gateways, risk, audit, persistence.</p><span class="meta">Exchange operators</span></a>
+<a class="book rv" href="docs/books/protocols-and-clients/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/protocols-and-clients.jpg" alt="Cover of the Protocols and Clients" loading="lazy" width="720" height="1019"></div><h3>Protocols and Clients</h3><p>ALF, BALF, CALF, RALF, LALF and REST/WebSocket — specifications, sessions and client examples.</p><span class="meta">Client developers</span></a>
+<a class="book rv" href="docs/books/reference-manual/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/reference-manual.jpg" alt="Cover of the Reference Manual" loading="lazy" width="720" height="1019"></div><h3>Reference Manual</h3><p>Every command, port, configuration field and a finance glossary.</p><span class="meta">Everyone — look-ups</span></a>
+<a class="book rv" href="docs/books/architecture-and-development/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/architecture-and-development.jpg" alt="Cover of the Architecture &amp; Developer Guide" loading="lazy" width="720" height="1019"></div><h3>Architecture &amp; Developer Guide</h3><p>The design, the data structures, the code tour and how to change it with confidence.</p><span class="meta">Contributors</span></a>
+<a class="book rv" href="docs/books/ai-traders/00-front/010-how-to-use-this-book/"><div class="cover"><img src="assets/img/covers/ai-traders.jpg" alt="Cover of the AI Traders &amp; Market Simulation" loading="lazy" width="720" height="1019"></div><h3>AI Traders &amp; Market Simulation</h3><p>An exchange that trades itself: AI traders, hidden true values, news and rumours.</p><span class="meta">Instructors &amp; curious minds</span></a></div>
+    <div class="card flat rv" style="margin-top:40px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <div><span class="tag">The primer</span><h3 style="margin:4px 0 4px">How an Exchange Works</h3><p class="muted small" style="margin:0">Order books, bids and asks, auctions and market makers — explained for software developers with no finance background.</p></div>
+      <a class="btn ghost" href="docs/how-exchange-works/">Read it →</a>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="training">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:0">
+      <div class="copy-col rv">
+        <div class="eyebrow">Hands-on</div>
+        <h2 class="display">The Training Guide:<br>29 exercises</h2>
+        <p class="lede">A self-paced course in five parts. Every chapter is a set of commands to run and results to predict, check and explain.</p>
+        <div class="btn-row" style="margin-top:22px"><a class="btn primary sm" href="docs/books/training-guide/">Open the Training Guide</a></div>
+      </div>
+      <div class="rv d1">
+        <div class="tbl-wrap"><table class="tbl">
+          <tbody>
+            <tr><td>I · Foundations</td><td>install, configure, market-maker liquidity, your first trade</td></tr>
+            <tr><td>II · Trading mechanics</td><td>amend, order types, time-in-force, auctions, cancels</td></tr>
+            <tr><td>III · Liquidity, risk, results</td><td>market making, combos, risk controls, P&amp;L, market data, AI traders</td></tr>
+            <tr><td>IV · A full session</td><td>statistics, persistence, capstone scenario, observers, admin</td></tr>
+            <tr><td>V · Integration</td><td>drop-copy, automation, RALF, CALF, REST/WS, index, ALF and BALF gateways, IPO valuation</td></tr>
+          </tbody></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="classroom">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">For instructors</div>
+      <h2 class="display">A class-sized market,<br>on demand</h2>
+    </div>
+    <div class="grid g2">
+      <div class="card rv"><h3>An exchange that is never empty</h3><p class="muted">A single container runs 100 AI traders across 300 symbols, with a hidden true value, headlines and rumours. Students trade next to the bots and see prices react to news they can read.</p></div>
+      <div class="card rv d1"><h3>Accelerated time</h3><p class="muted">Compress a trading day into minutes so a lecture can include an opening auction, a news shock and a close.</p></div>
+      <div class="card rv"><h3>One URL per student</h3><p class="muted">API keys map to participants and roles. Give each student a trader key; put TapeDeck on the projector; keep the Operator Dashboard on your own screen.</p></div>
+      <div class="card rv d1"><h3>Grade the evidence</h3><p class="muted">The audit trail and clearing P&amp;L record exactly what each participant did — perfect for post-session debriefs and assignments.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section band" id="decks">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:38px">
+      <div class="eyebrow">Teaching material</div>
+      <h2 class="display">Slide decks</h2>
+      <p class="lede">Presentations for lectures and workshops — an introduction to EduMatcher, the full training course and topic decks for each protocol and tool. Available as PDF; editable PPTX sources live in the repository.</p>
+    </div>
+    <div class="filelist rv" style="max-width:820px;margin-inline:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 14px"><a class="file" href="docs/presentations/developer/msg-generator.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">MSG Generator</span><span class="sz">461.4 KB</span></a>
+<a class="file" href="docs/presentations/finance/combo-orders.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Combo Orders</span><span class="sz">1.9 MB</span></a>
+<a class="file" href="docs/presentations/finance/implied-orders.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Implied Orders</span><span class="sz">478.4 KB</span></a>
+<a class="file" href="docs/presentations/introduction-to-edumatcher.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Introduction To EduMatcher</span><span class="sz">3.3 MB</span></a>
+<a class="file" href="docs/presentations/training/ALF-order-entry-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">ALF Order Entry Intro</span><span class="sz">2.8 MB</span></a>
+<a class="file" href="docs/presentations/training/API-Gwy-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">API Gateway Intro</span><span class="sz">2.3 MB</span></a>
+<a class="file" href="docs/presentations/training/CALF-market-data-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">CALF Market Data Intro</span><span class="sz">2.8 MB</span></a>
+<a class="file" href="docs/presentations/training/RALF-post-trade-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">RALF Post Trade Intro</span><span class="sz">2.9 MB</span></a>
+<a class="file" href="docs/presentations/training/drop-copy-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Drop Copy Intro</span><span class="sz">642.1 KB</span></a>
+<a class="file" href="docs/presentations/training/edumatcher-training.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">EduMatcher Training</span><span class="sz">7.1 MB</span></a>
+<a class="file" href="docs/presentations/training/log-srv-intro.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Log Srv Intro</span><span class="sz">1.3 MB</span></a>
+<a class="file" href="docs/presentations/training/ref-data-config.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span class="nm">Ref Data Config</span><span class="sz">797.7 KB</span></a></div>
+  </div>
+</section>
+
+<section class="section" id="experiments">
+  <div class="wrap" style="max-width:880px">
+    <div class="center rv">
+      <div class="eyebrow">Go further</div>
+      <h2 class="display">Extend it</h2>
+      <p class="lede">The Architecture &amp; Developer Guide includes an <a href="docs/books/architecture-and-development/part-4-developing/070-extension-experiments/">Exchange Experiments Roadmap</a> — concrete ideas for new order types, matching rules and market-structure experiments, each small enough for a course project and each grounded in a deterministic test harness.</p>
+      <div class="btn-row" style="justify-content:center;margin-top:24px"><a class="btn ghost" href="docs/books/architecture-and-development/part-4-developing/010-development-practice/">Development practice</a><a class="btn ghost" href="https://github.com/johan162/EduMatcher" rel="noopener">Fork on GitHub</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="brand" href="index.html"><span>EDU<em>MATCHER</em></span></a>
+        <p class="blurb" style="margin-top:14px">A complete, multi-process exchange in Python — built so you can read it, run it, break it and learn from it.</p>
+        <div class="chips" style="margin-top:14px"><span class="chip">v0.51.5</span><span class="chip">MIT licence</span><span class="chip">Python 3.13+</span></div>
+      </div>
+      <div><h4>Explore</h4><ul>
+        <li><a href="platform.html">The platform</a></li><li><a href="apps.html">Applications</a></li><li><a href="learn.html">Learn</a></li><li><a href="docs.html">Documentation</a></li></ul></div>
+      <div><h4>Get it</h4><ul>
+        <li><a href="download.html">Download</a></li><li><a href="download.html#install">Install in one command</a></li><li><a href="download.html#books">Books (PDF, EPUB)</a></li><li><a href="https://pypi.org/project/edumatcher/" rel="noopener">PyPI</a></li></ul></div>
+      <div><h4>Project</h4><ul>
+        <li><a href="https://github.com/johan162/EduMatcher" rel="noopener">Source on GitHub</a></li><li><a href="https://github.com/johan162/EduMatcher/issues" rel="noopener">Issues</a></li><li><a href="https://github.com/johan162/EduMatcher/releases" rel="noopener">Releases</a></li><li><a href="https://github.com/johan162/EduMatcher/blob/main/CHANGELOG.md" rel="noopener">Changelog</a></li></ul></div>
+    </div>
+    <p class="warn-strip"><b>Not for real trading.</b> EduMatcher is for teaching and experimenting in a controlled environment. Never use it for real financial transactions. Market data on this site's decorative tickers and charts is illustrative.</p>
+    <div class="legal"><span>© 2026 Johan Persson · MIT licence</span><span>Grokking trading, one order at a time.</span></div>
+  </div>
+</footer>
+<script src="assets/js/site.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+name: Web site
+
+# Rebuilds web_site/ for every published release (version, documentation, download
+# links and counts are all derived from the repository -- see web_site/README.md)
+# and, when GitHub Pages is set to "GitHub Actions", publishes it.
+#
+# NOTE: the existing docs.yml publishes the MkDocs site to the gh-pages branch.
+# Switching Settings > Pages > Source to "GitHub Actions" replaces that with this
+# site, which contains the same documentation under /docs/.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'web_site/**'
+      - '!web_site/docs/**'
+      - '!web_site/downloads/**'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: website
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --with docs
+
+      - name: Create CHANGELOG symlink
+        run: ln -sf ../CHANGELOG.md docs/CHANGELOG.md
+
+      # Every download points at this version's GitHub release assets, so the site
+      # never has to host (or be rebuilt around) the large PDF/EPUB/wheel files.
+      - name: Build site
+        run: poetry run python web_site/build.py --downloads release
+
+      - name: Assemble publishable tree
+        run: |
+          mkdir _site
+          rsync -a --exclude 'src' --exclude 'data' --exclude 'docs_theme' --exclude '__pycache__' \
+                --exclude 'build.py' --exclude 'docs_hooks.py' --exclude 'mkdocs-site.yml' \
+                --exclude 'README.md' --exclude '.gitignore' web_site/ _site/
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,11 @@
+{
+  "_comment": "Hand-maintained marketing facts that are NOT derivable from the repo. Update after re-running the benchmarks (see README 'Performance'). Version, command count, test count and code size are computed by build.py.",
+  "latency_median_us": 49.7,
+  "latency_p90_us": 53.2,
+  "latency_max_us": 84.7,
+  "us_per_order": 34.3,
+  "tps": 29122,
+  "perf_note": "engine-only, risk checks enabled (price collar + circuit breaker), high-end Linux server",
+  "sim_traders": 100,
+  "sim_symbols": 300
+}
