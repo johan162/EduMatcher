@@ -33,7 +33,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 9 | S9 | Fix X5: an unfillable FOK gets one rejecting ack | S8 | 0.5 d | ☑ | 2026-10-24 |
 | 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☑ | 2026-10-25 |
 | 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☑ | 2026-10-25 |
-| 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☐ | |
+| 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☑ | 2026-10-25 |
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
@@ -678,8 +678,9 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4 inferred count 0) |
 | X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a engine bug; X8b/c unmeasured; X8d refactor | X8a fixed 2026-10-25 (S10, uncommitted; confirm C8 on next run); S13 (b, c) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
-| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open → S12 |
+| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
 | X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
+| X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Open |
 | X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
@@ -916,4 +917,32 @@ MM quotes (refresh policies).
   a real one would once drained.
 - Docs: operator guide, statistics (schema version history, `event_type`
   table); the generated SQLite schema chapter.
+
+**X10 fix (S12, 2026-10-25).** The four reader queries that bound a whole id
+list into one `IN (…)` (`_by_ids`, `_events_for`, `_anomalies_for`,
+`neighbours`) now run in batches sized by the connection's own
+`SQLITE_LIMIT_VARIABLE_NUMBER` (`_batches`). `neighbours` binds each id twice
+and keeps a link read from two batches once, by its primary key. `_in`
+(CLI filter values) is unchanged: it binds what a user typed. Test:
+`tests/test_audit_replay_reader_limits.py` lowers the limit to 3 on the
+kill-switch fixture's index; a window and its neighbours read the same as
+at the default limit. Both failed with the sim's `too many SQL variables`
+before the fix.
+
+On the real file (`audit.log.5`, 256 MB, copied to a scratch dir with a
+scratch `--db`), `anomalies` now completes in 1 min 41 s: 252 222 episodes,
+8 640 findings (4 errors). Before the fix it failed after the index build.
+One error is a fill naming a trade outside this one file's window, which is
+normal for a single rotated file. The other three are X13.
+
+**X13 — `pm-audit-replay` reads a rejected cancel as a rejected order.**
+`ILLEGAL_STATUS_TRANSITION … went FILLED -> REJECTED` (3 in `audit.log.5`).
+Example `70c51725…` (AI091, ABNB): filled at 12:55:55.213; at .248 its
+gateway's `order.cancel` (request_tag `CXL-AI091-4C1F`) is refused with
+`order.ack accepted=false ORDER_NOT_FOUND`, correctly. The replay's status
+ladder takes every `accepted=false` ack as the order becoming REJECTED. A
+refusal that answers a cancel or amend (it carries a `request_tag`, or
+`ORDER_NOT_FOUND` / `ORDER_ALREADY_TERMINAL`) refuses the command, not the
+order. The forensics C1/C2 grammar already makes this distinction (S4). Fix
+in `audit/replay/state.py` with a test; small, its own WP.
 

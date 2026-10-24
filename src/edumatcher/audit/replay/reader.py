@@ -146,15 +146,21 @@ def neighbours(
     ids = list(episode_ids)
     if not ids:
         return {}
-    marks = ",".join("?" * len(ids))
     confidence = " AND confidence = 'RECORDED'" if recorded_only else ""
-    rows = conn.execute(
-        f"SELECT * FROM links WHERE (from_episode IN ({marks}) "
-        f"OR to_episode IN ({marks})){confidence}",
-        ids + ids,
-    ).fetchall()
+    # Each id is bound twice, and a link whose ends fall in two batches is
+    # read twice: kept once, by its primary key.
+    rows: dict[tuple[int, int, str], sqlite3.Row] = {}
+    for batch in _batches(conn, ids, per_id=2):
+        marks = ",".join("?" * len(batch))
+        for row in conn.execute(
+            f"SELECT * FROM links WHERE (from_episode IN ({marks}) "
+            f"OR to_episode IN ({marks})){confidence}",
+            batch + batch,
+        ):
+            key = (int(row["from_episode"]), int(row["to_episode"]), str(row["relation"]))  # fmt: skip
+            rows.setdefault(key, row)
     found: dict[int, list[tuple[int, Link]]] = {}
-    for row in rows:
+    for row in rows.values():
         link = Link(
             source=str(row["from_episode"]),
             target=str(row["to_episode"]),
@@ -304,25 +310,29 @@ def _ordinal(sort_key: str) -> int:
 def _events_for(
     conn: sqlite3.Connection, ids: Sequence[int]
 ) -> dict[int, list[sqlite3.Row]]:
-    marks = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"SELECT * FROM episode_events WHERE episode_id IN ({marks}) "
-        f"ORDER BY episode_id, seq_in_ep",
-        list(ids),
-    ).fetchall()
     found: dict[int, list[sqlite3.Row]] = {}
-    for row in rows:
-        found.setdefault(int(row["episode_id"]), []).append(row)
+    for batch in _batches(conn, ids):
+        marks = ",".join("?" * len(batch))
+        for row in conn.execute(
+            f"SELECT * FROM episode_events WHERE episode_id IN ({marks}) "
+            f"ORDER BY episode_id, seq_in_ep",
+            batch,
+        ):
+            found.setdefault(int(row["episode_id"]), []).append(row)
     return found
 
 
 def _anomalies_for(
     conn: sqlite3.Connection, ids: Sequence[int]
 ) -> dict[int, list[Anomaly]]:
-    marks = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"SELECT * FROM anomalies WHERE episode_id IN ({marks})", list(ids)
-    ).fetchall()
+    rows = [
+        row
+        for batch in _batches(conn, ids)
+        for row in conn.execute(
+            f"SELECT * FROM anomalies WHERE episode_id IN ({','.join('?' * len(batch))})",  # fmt: skip
+            batch,
+        )
+    ]
     found: dict[int, list[Anomaly]] = {}
     for row in rows:
         found.setdefault(int(row["episode_id"]), []).append(
@@ -366,13 +376,27 @@ def _by_id(conn: sqlite3.Connection, episode_id: int) -> Episode | None:
 def _by_ids(conn: sqlite3.Connection, ids: Sequence[int]) -> list[Episode]:
     if not ids:
         return []
-    marks = ",".join("?" * len(ids))
-    return _hydrate(
-        conn,
-        conn.execute(
-            f"SELECT * FROM episodes WHERE episode_id IN ({marks})", list(ids)
-        ).fetchall(),
-    )
+    rows = [
+        row
+        for batch in _batches(conn, ids)
+        for row in conn.execute(
+            f"SELECT * FROM episodes WHERE episode_id IN ({','.join('?' * len(batch))})",  # fmt: skip
+            batch,
+        )
+    ]
+    return _hydrate(conn, rows)
+
+
+def _batches(
+    conn: sqlite3.Connection, ids: Sequence[int], *, per_id: int = 1
+) -> Iterator[list[int]]:
+    """*ids* in slices small enough to bind, *per_id* times each, into one
+    statement. A sim run's audit file holds ~390 k episodes, far beyond
+    SQLite's variable limit (32 766 by default), which one ``IN (...)`` of
+    them all exceeded (X10)."""
+    size = max(1, conn.getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER) // per_id)
+    for start in range(0, len(ids), size):
+        yield list(ids[start : start + size])
 
 
 def _in(
