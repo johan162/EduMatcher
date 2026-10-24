@@ -5597,6 +5597,15 @@ class Engine:
                             )
                         if evt.combo_parent_id:
                             self._check_combo_after_child_event(evt)
+                        # X8b: the follow-ups every continuous fill runs. The
+                        # quote hook is not called inside execute_uncross
+                        # (its two-sided walk must not be mutated mid-way),
+                        # so it runs here -- before the stops below, which
+                        # must not trade with a leg the policy pulls.
+                        if evt.quote_id:
+                            self._on_quote_leg_filled(evt)
+                        if evt.status == OrderStatus.FILLED and evt.oco_group_id:
+                            self._check_oco_after_event(evt)
 
                 for trade in trades:
                     self._publish_trade(trade)  # updates positions (H3)
@@ -5611,6 +5620,8 @@ class Engine:
                 for stop_order in triggered:
                     sub_trades, sub_events = book.process(stop_order, now=now_stop)
                     _stop_matched = self._order_matched_qty(sub_trades)
+                    # H6 / X8c: each order's own VWAP, as every other loop.
+                    _stop_fill_px = self._order_fill_prices(sub_trades)
                     published_stop_ids: set[str] = set()
                     cancelled_stop_ids: set[str] = set()
                     for sub_evt in sub_events:
@@ -5624,10 +5635,15 @@ class Engine:
                                         sub_evt.gateway_id,
                                         sub_evt.id,
                                         fill_qty=_stop_matched.get(sub_evt.id, 0),
-                                        fill_price=(
-                                            from_ticks(book.last_trade_price, symbol)
-                                            if book.last_trade_price is not None
-                                            else 0.0
+                                        fill_price=_stop_fill_px.get(
+                                            sub_evt.id,
+                                            (
+                                                from_ticks(
+                                                    book.last_trade_price, symbol
+                                                )
+                                                if book.last_trade_price is not None
+                                                else 0.0
+                                            ),
                                         ),
                                         remaining_qty=sub_evt.remaining_qty,
                                         status=fill_status(sub_evt.remaining_qty),

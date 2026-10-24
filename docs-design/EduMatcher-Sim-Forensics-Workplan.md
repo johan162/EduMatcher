@@ -34,7 +34,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☑ | 2026-10-25 |
 | 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☑ | 2026-10-25 |
 | 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☑ | 2026-10-25 |
-| 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☐ | |
+| 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☑ | 2026-10-25 |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -676,10 +676,11 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C6) |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4 inferred count 0) |
-| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a engine bug; X8b/c unmeasured; X8d refactor | X8a fixed 2026-10-25 (S10, uncommitted; confirm C8 on next run); S13 (b, c) |
+| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10); X8b/c fixed 2026-10-25 (S13, uncommitted); X8d open |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
 | X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
+| X14 | S13 | 2026-10-24 | 20 stop fills | Check gap: B1 does not compare a fill's price with its trades' VWAP | Open |
 | X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Open |
 | X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
 
@@ -945,4 +946,28 @@ refusal that answers a cancel or amend (it carries a `request_tag`, or
 `ORDER_NOT_FOUND` / `ORDER_ALREADY_TERMINAL`) refuses the command, not the
 order. The forensics C1/C2 grammar already makes this distinction (S4). Fix
 in `audit/replay/state.py` with a test; small, its own WP.
+
+**X8b and X8c (S13, 2026-10-25).** Measured on the 2026-10-24 audit, in
+uncross dispatches only (scratch script, 38 s):
+- X8b: 301 quote-leg fills in an uncross. Each left the quote ACTIVE and the
+  sibling leg live: the market maker cancelled 94 siblings itself later, and
+  9 were still live at the end. No trade hit one in this run. The same
+  loop also lacked the OCO sibling cancel, so a resting OCO leg filled in
+  (say) the closing auction left its sibling live; that did not occur in
+  the run.
+- X8c: of 45 fills of stops the uncross triggered, 20 were reported at the
+  last print rather than at their own VWAP.
+
+Fix in `_run_uncross`: the uncross fill loop now runs `_on_quote_leg_filled`
+and, for a FILLED OCO leg, `_check_oco_after_event`. These run after
+`execute_uncross` (whose two-sided walk must not be mutated mid-way) and
+before the stop loop, so a triggered stop cannot buy a leg the policy pulls.
+The stop loop reports `_order_fill_prices` (H6) like every other loop.
+Tests: `tests/test_engine_uncross_followups.py` (3). All failed before the
+fix; in the quote case the triggered stop bought the MM's ask.
+
+**X14 — no check compares a fill's price with its trades.** X8c's 20 wrong
+fill prices passed B1, which matches fill to trade by id and quantity only.
+Add to B1 (or a B8): each FILL's `fill_price` equals the quantity-weighted
+price of the trades it names (`trade_ids`, schema 8+).
 
