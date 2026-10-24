@@ -29,7 +29,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☑ | 2026-10-24 |
 | 6 | S6 | Check E: full replay differential (engine re-run; reference part covered by S5) | S5 | 2–3 d | ☑ | 2026-10-24 |
 | 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☑ | 2026-10-24 |
-| 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☐ | |
+| 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☑ | 2026-10-24 |
+| 9 | S9 | Fix X5: an unfillable FOK gets one rejecting ack | S8 | 0.5 d | ☑ | 2026-10-24 |
+| 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☐ | |
+| 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☐ | |
+| 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☐ | |
+| 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -613,6 +618,33 @@ the sim profile). Decided with Johan: H checks report a new **INFO** status
 
 Work the ledger; spin out fix WPs.
 
+**Done 2026-10-24.** Every open item is classified from code, docs or a
+repro on today's engine (probes against `tests/engine_harness.py`). Three
+decisions were taken with Johan (X5, X8a, X6). Each confirmed bug is a fix
+WP (S9–S13) that starts with the failing test and closes its ledger row.
+
+| ID | Verdict | Evidence | Action |
+|---|---|---|---|
+| X2 | **Expected (documented)**: closes Q2 | Operator guide, risk controls: "SMP does not apply in an auction uncross … a gateway's crossing bid and ask in the same auction trade with each other." D7 already exempts uncross prints. | Close |
+| X4 | Recorder bug, confirmed (2026-10-23) | pm-stats `_stop` clears `_running`, and the receive loop exits with messages still queued on its SUB socket (2026-10-24: "EOD received" logged after "stopped"). | S11: drain the SUB socket before closing |
+| X5 | **Engine bug** (decision: the engine follows the docs) | Participant guide, order types: "an unfillable FOK is *rejected* … rather than accepted and cancelled". The engine publishes `accepted=true` before `book.process()`, then `accepted=false`; reproduced today. | S9 |
+| X6 | Recorder gap, confirmed (decision: add `reject_code`) | `_on_order_event` drops events without an id (`quote.ack` "No active quote for symbol" has an empty `quote_id`); no `reject_code` column. | S11: record them, keyed on (gateway, symbol); add `reject_code`; fresh stats.db, no migration |
+| X7 | Recorder gap, confirmed | `oco.cancelled` is stored under `oco_id`; `cancelled_order_id` is dropped. | S11: also a CANCEL row for the cancelled leg; C4/C5 lose their inference |
+| X8a | **Engine bug** (decision: apply the refresh policy) | A quote whose bid fills on entry publishes `INACTIVE_BID_FILLED`, the fills, then `quote.ack` and `quote.status ACTIVE`, and rests the ask: against "INACTIVATE_ON_ANY_FILL: sibling leg cancelled, quote removed" (participant guide, MM quotes). Reproduced today. No check sees it. | S10: ack first; under ANY_FILL the sibling does not rest and the last status is `INACTIVE_*`; add check **C8** (no quote leg rests or trades after its quote's `INACTIVE_*`; no `ACTIVE` after `INACTIVE_*` in one dispatch) |
+| X8b | Unmeasured | Quote legs filled in an uncross are not inactivated by the X3 hook. | S13: test first |
+| X8c | Suspected | The auction stop loop prices `order.fill` at `book.last_trade_price`, not the order's own VWAP. B1 passed on both runs, so it has not happened yet. | S13: test (a stop the uncross triggers sweeps two levels) |
+| X8d | Refactor | Six near-identical publication loops. | Its own WP after S9/S10/S13, which touch them |
+| X10 | Tool bug, confirmed | `reader._hydrate` and the links query bind every id into one `IN (…)`. | S12 |
+| X11 | Fixed (5b8a5f5f) | | Confirm on the next run |
+| H1 | Pointer | C1/X5 samples sit near ops events at 2× chance. | Re-read after S9 |
+| H2 | Not a bug | P&L outliers are agent behaviour. Jumps cluster after the open in thin books, and the sim runs `--no-collars`. | None. Revisit if a run with collars still jumps |
+| H3 | Perf pointer | p99 spikes also at idle overnight (600 resting, 3 % busy) | Perf plan |
+
+Fix order: S9 and S10 (engine, small, both change what clients see), then
+S11, S12, S13. The next long sim run comes after S11, so that it starts
+with the fresh stats.db and every fix in place, and confirms X9, X11, X5,
+X8a and X4–X7 together.
+
 ## 8. Open questions
 
 - **Q1** Audit retention: bigger rotation for the sim profile, or keep
@@ -621,7 +653,9 @@ Work the ledger; spin out fix WPs.
   with enough space, because D1/F2/F3 use the book snapshots as the oracle.
   **Settled 2026-10-23:** configurable rotation only, no topic exclude.
 - **Q2** Does SMP apply to the auction uncross (R4)? The spec must say so
-  either way; today 123 auction self-trades happened.
+  either way; today 123 auction self-trades happened. **Settled (S8):** the
+  operator guide already says it does not (risk controls, SMP rules); X2
+  closed as expected.
 - **Q3** Tool vs product: `tools/sim_forensics` (recommended now) or a
   `pm-forensics` CLI later once the checks have stabilised?
 - **Q4** Should the checks also run continuously against a live sim (e.g. a
@@ -635,16 +669,17 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | ID | Found by | Run | Count | Classification | Status |
 |---|---|---|---|---|---|
 | X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: B1, B2, C2 PASS |
-| X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Spec question (Q2) | Open |
+| X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Expected: SMP does not apply in an uncross (documented) | Closed (S8) |
 | X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: C2 PASS, D4/D5/D9 PASS |
-| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open; not seen 2026-10-24 (sim stopped after the close) |
-| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug or spec gap | Open |
-| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open |
-| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open |
-| X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open → S11 |
+| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open → S11 |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open → S11 |
+| X8 | X1/X3 fix review | — | — | X8a engine bug (repro 2026-10-24); X8b/c unmeasured; X8d refactor | Open → S10 (a), S13 (b, c) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
-| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open |
-| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (uncommitted); confirm on next run (E2, no reordered batches) |
+| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open → S12 |
+| X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
+| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -804,3 +839,32 @@ at each read. The global kill switch already walked `_order_index` (a dict).
 Tests: `tests/test_engine_batch_cancel_order.py` (40 ids, so a set matching
 arrival order by chance is negligible; all three fail on the old code). On
 the next run, E2's note should report no reordered cancel batches.
+
+**X5 fix (S9, 2026-10-24).** An order the book may still reject
+(`_book_may_reject`: a FOK, or a MARKET/IOC/FOK posted while matching is off)
+is acked only after `book.process()`, and only if the book did not reject it.
+A rejected one gets the single `accepted=false` ack (`INSUFFICIENT_LIQUIDITY`)
+of the events loop. Applied at the three sites that ack before matching:
+`_handle_new_order`, combo children (`_accept_combo`) and OCO legs. In the
+new-order path the second clause never applies, because gate 8 rejects
+MARKET/IOC/FOK before the book while matching is off. Message order changes
+only for a FOK: its ack follows anything `process()` publishes itself (the
+X3 quote-leg hook, when the FOK hits a quote). A FOK cancelled by SMP
+(`CANCEL_AGGRESSOR` with a same-gateway conflict) is still accepted, then
+cancelled `SELF_MATCH_PREVENTED`, as risk controls documents. Tests:
+`tests/test_engine_fok_ack.py`: unfillable FOK, fillable FOK (ack before
+fill), the SMP cancel (control), CANCEL_RESTING shortfall, an OCO FOK leg, and
+a FOK combo child of a blocked AON combo. The four bug cases failed before
+the fix. Docs: the order-flow chapter's ACK section. The audit replay keeps
+tolerating accept-then-refuse, which older logs and converting stops hold.
+
+**X12 — book rejects outside the new-order path (seen in S9, not changed).**
+(a) A combo child posted while matching is off (symbol halted, session not
+matching, or an AON combo blocked) that the book rejects (MARKET/IOC/FOK) is
+reported with `reject_code INSUFFICIENT_LIQUIDITY`. A halted symbol should say
+`INSTRUMENT_HALTED`, as gate 8 does for ordinary orders. (b) An OCO leg the
+book rejects does not close its sibling (no `_check_oco_after_event`), whereas
+`_handle_new_order` runs it for a rejected OCO-tagged order. Both are for
+the X8d publication-loop consolidation, which removes the per-loop drift
+that causes them.
+
