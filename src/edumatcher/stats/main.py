@@ -374,7 +374,13 @@ class _IndexDayAccum:
 #: 8 — ``order_events.trade_id`` replaced by ``trade_ids``, a JSON array: the
 #:     engine's fill names every trade it aggregates, and the old column read a
 #:     ``trade_id`` key the fill never carried, so it was always NULL.
-SCHEMA_VERSION = 8
+#: 9 — ``order_events.reject_code``: the engine's machine-readable rejection
+#:     class, which only the reason text carried before (sim forensics X6).
+SCHEMA_VERSION = 9
+
+#: How long pm-stats keeps recording already-queued engine messages after it
+#: is told to stop (see StatsProcess._drain).
+_DRAIN_SEC = 0.5
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 #: Taken from the generated binding rather than retyped, so a topic rename in
@@ -544,6 +550,8 @@ CREATE TABLE IF NOT EXISTS order_events (
     -- can name several trades; NULL for every other event type.
     trade_ids       TEXT,
     reason          TEXT,
+    -- The ack's reject_code on a *_REJECT event; NULL otherwise.
+    reject_code     TEXT,
     client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,
@@ -658,8 +666,8 @@ INSERT_ORDER_EVENT = """
 INSERT INTO order_events
     (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
      quantity, remaining_qty, status, fill_price, fill_qty, trade_ids, reason,
-    client_tag, combo_parent_id, oco_group_id, priority_reset)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     reject_code, client_tag, combo_parent_id, oco_group_id, priority_reset)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 UPSERT_INDEX_DAILY = """
@@ -1688,7 +1696,10 @@ class StatsProcess:
             or payload.get("quote_id")
             or ""
         )
-        if not order_id or not gateway_id:
+        # A quote rejection may name no quote: cancelling a symbol with no
+        # live quote is refused for (gateway, symbol), which the row keeps
+        # (X6). Every other event without an id is noise.
+        if not gateway_id or not (order_id or event_name == "QUOTE_REJECT"):
             return
         ts = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
         # `or` would treat a legitimate quantity of 0 as absent and fall
@@ -1721,6 +1732,7 @@ class StatsProcess:
                         else None
                     ),
                     payload.get("cancel_reason") or payload.get("reason"),
+                    payload.get("reject_code"),
                     payload.get("client_tag"),
                     payload.get("combo_parent_id"),
                     payload.get("oco_group_id"),
@@ -1731,6 +1743,17 @@ class StatsProcess:
                     ),
                 ),
             )
+            leg = payload.get("cancelled_order_id")
+            if event_name == "OCO_CANCEL" and leg:
+                # The engine reports an OCO sibling's cancel only here (no
+                # order.cancelled for it), so the leg's own history gets the
+                # CANCEL it would otherwise never have (X7).
+                self._conn.execute(
+                    INSERT_ORDER_EVENT,
+                    (ts, "CANCEL", str(leg), gateway_id, str(payload.get("symbol", "")))
+                    + (None,) * 10  # side ... trade_ids
+                    + (payload.get("reason"), None, None, None, order_id, None),
+                )
         self._dbg_count("order_events_written")
 
     # ------------------------------------------------------------------
@@ -1781,29 +1804,45 @@ class StatsProcess:
             if self.index_sub in socks:
                 self._receive_one_index_message()
 
-            if self.sub not in socks:
-                continue
-            try:
-                frames = self.sub.recv_multipart()
-                topic, payload = decode(frames)
-            except Exception as exc:
-                log.warning("failed to decode engine message: %s", exc)
-                self._dbg_count("messages_undecodable")
-                continue
+            if self.sub in socks:
+                self._receive_one_engine_message()
+        self._drain()
 
-            self._dbg_count("messages_received")
-            self._check_topic_sequence(topic, decode_sequence(frames))
+    def _drain(self) -> None:
+        """After a stop, record what is already queued on the engine SUB.
 
-            try:
-                self._dispatch(topic, payload)
-            except Exception as exc:
-                # Reaching here means the event was not persisted. That is a
-                # dropped record, not a warning-level curiosity.
-                log.error("failed to record topic=%s err=%s", topic, exc)
-                self._dbg_count("records_dropped")
-                self._records_dropped += 1
-            else:
-                self._events_recorded += 1
+        A stop arrives while the engine is still publishing -- its last
+        trades, and system.eod, which it sends on its own shutdown. Leaving
+        the loop at once lost whatever was queued (X4: a run's last trade
+        and fill). Bounded by _DRAIN_SEC so a live engine cannot hold the
+        shutdown open; run() joins this thread for one second.
+        """
+        deadline = time.monotonic() + _DRAIN_SEC
+        while time.monotonic() < deadline and self.sub.poll(timeout=50):
+            self._receive_one_engine_message()
+
+    def _receive_one_engine_message(self) -> None:
+        try:
+            frames = self.sub.recv_multipart()
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("failed to decode engine message: %s", exc)
+            self._dbg_count("messages_undecodable")
+            return
+
+        self._dbg_count("messages_received")
+        self._check_topic_sequence(topic, decode_sequence(frames))
+
+        try:
+            self._dispatch(topic, payload)
+        except Exception as exc:
+            # Reaching here means the event was not persisted. That is a
+            # dropped record, not a warning-level curiosity.
+            log.error("failed to record topic=%s err=%s", topic, exc)
+            self._dbg_count("records_dropped")
+            self._records_dropped += 1
+        else:
+            self._events_recorded += 1
 
     def _record_retention_meta(self) -> None:
         """Publish the order-event retention into ``stats_meta``.

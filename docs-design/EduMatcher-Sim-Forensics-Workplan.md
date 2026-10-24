@@ -32,7 +32,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☑ | 2026-10-24 |
 | 9 | S9 | Fix X5: an unfillable FOK gets one rejecting ack | S8 | 0.5 d | ☑ | 2026-10-24 |
 | 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☑ | 2026-10-25 |
-| 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☐ | |
+| 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☑ | 2026-10-25 |
 | 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☐ | |
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☐ | |
 
@@ -672,10 +672,10 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: B1, B2, C2 PASS |
 | X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Expected: SMP does not apply in an uncross (documented) | Closed (S8) |
 | X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: C2 PASS, D4/D5/D9 PASS |
-| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open → S11 |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4, A1) |
 | X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
-| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open → S11 |
-| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open → S11 |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C6) |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4 inferred count 0) |
 | X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a engine bug; X8b/c unmeasured; X8d refactor | X8a fixed 2026-10-25 (S10, uncommitted; confirm C8 on next run); S13 (b, c) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open → S12 |
@@ -893,4 +893,27 @@ before the fix) and `tests/test_sim_forensics_quotes.py` (4).
 `test_engine_fill_status_vocabulary` traded against the ask that X8a
 wrongly rested; it now posts a fresh quote first. Docs: participant guide,
 MM quotes (refresh policies).
+
+**X4, X6, X7 fix (S11, 2026-10-25), all in pm-stats.**
+- **X4:** after a stop, the receive loop drains what is already queued on
+  the engine SUB socket (`_drain`, at most `_DRAIN_SEC` = 0.5 s, inside
+  `run()`'s 1 s join). The 2026-10-24 log shows the case: "EOD received"
+  logged after "stopped".
+- **X6:** a `QUOTE_REJECT` with no quote id (a quote cancel for a symbol
+  with no live quote) is recorded with an empty `order_id`, identified by
+  `gateway_id` and `symbol`; every other event without an id is still
+  dropped. `order_events` gained `reject_code` (schema version 9). Older
+  stats.db files are refused, not migrated: the next sim run starts with a
+  fresh one.
+- **X7:** `oco.cancelled` also writes a `CANCEL` row for `cancelled_order_id`,
+  with the pair in `oco_group_id`.
+- C4/C5 keep their OCO_CANCEL inference for older files. On a new run it
+  should find nothing to infer.
+- Tests: `tests/test_stats_recorder_gaps.py` (6: queued at stop, bounded
+  drain, the X6 quote reject, `reject_code` kept, id-less events still
+  dropped, the X7 leg row). All failed before the change.
+  `test_service_metrics`'s mock SUB socket now reports an empty queue, as
+  a real one would once drained.
+- Docs: operator guide, statistics (schema version history, `event_type`
+  table); the generated SQLite schema chapter.
 
