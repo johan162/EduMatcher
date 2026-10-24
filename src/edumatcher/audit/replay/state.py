@@ -52,6 +52,21 @@ STATUS_CANCELLED = "CANCELLED"
 STATUS_REJECTED = "REJECTED"
 STATUS_EXPIRED = "EXPIRED"
 
+#: Reject codes only a request acting on an existing order can get (a cancel,
+#: an amend, a second order.new with the same id). An ``order.ack
+#: accepted=false`` carrying one refuses the request; the order itself keeps
+#: its status (X13: a cancel arriving just after the fill is refused
+#: ORDER_NOT_FOUND, and the order stays FILLED).
+_REQUEST_REFUSALS = frozenset(
+    {
+        "ORDER_NOT_FOUND",
+        "ORDER_ALREADY_TERMINAL",
+        "AMEND_NOT_PERMITTED",
+        "NOT_OWNER",
+        "DUPLICATE_ORDER",
+    }
+)
+
 #: The four states an order cannot leave.
 TERMINAL_STATUSES = frozenset(
     {STATUS_FILLED, STATUS_CANCELLED, STATUS_REJECTED, STATUS_EXPIRED}
@@ -265,6 +280,9 @@ class StateModel:
 
     def __init__(self) -> None:
         self.orders: dict[str, OrderState] = {}
+        #: msg ids of order.cancel / order.amend commands whose answer has not
+        #: been seen yet (see _refuses_request).
+        self._requests: set[str] = set()
         self.symbols: dict[str, SymbolState] = {}
         self.gateways: dict[str, GatewayState] = {}
         self.run = RunState()
@@ -398,9 +416,22 @@ class StateModel:
         order.client_tag = _str(fact.payload, "client_tag") or order.client_tag
         if order.quantity is None:
             order.quantity = _int(fact.payload, "qty")
-        if fact.payload.get("accepted") is False:
+        if fact.payload.get("accepted") is False and not self._refuses_request(fact):
             order.ended_because = _str(fact.payload, "reject_code") or "REJECTED"
             self._advance(order, STATUS_REJECTED, fact, found)
+
+    def _refuses_request(self, fact: Fact) -> bool:
+        """Whether a refusing ack answers a cancel or amend of the order
+        rather than the order itself: its cause is that command, or -- in a
+        log without envelopes -- its code is one only such a request gets."""
+        if fact.causation_id is not None and fact.causation_id in self._requests:
+            self._requests.discard(fact.causation_id)
+            return True
+        return _str(fact.payload, "reject_code") in _REQUEST_REFUSALS
+
+    def _on_order_request(self, fact: Fact, found: list[Anomaly]) -> None:
+        if fact.msg_id is not None:
+            self._requests.add(fact.msg_id)
 
     def _on_order_fill(self, fact: Fact, found: list[Anomaly]) -> None:
         order_id = _str(fact.payload, "order_id")
@@ -670,6 +701,8 @@ class StateModel:
         kinds.OCO_CANCELLED: _on_oco_cancelled,
         kinds.ORDER_EXPIRED: _on_order_expired,
         kinds.ORDER_AMENDED: _on_order_amended,
+        kinds.ORDER_CANCEL: _on_order_request,
+        kinds.ORDER_AMEND: _on_order_request,
         kinds.TRADE_EXECUTED: _on_trade,
         kinds.CIRCUIT_BREAKER_HALT: _on_halt,
         kinds.CIRCUIT_BREAKER_EXTEND: _on_extend,

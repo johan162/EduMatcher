@@ -38,6 +38,7 @@ from edumatcher.audit.replay.anomalies import (
     FILL_STATUS_DISAGREE,
     FILL_WITHOUT_TRADE,
     HALT_UNRESUMED,
+    ILLEGAL_STATUS_TRANSITION,
     LEG_PRICE_DISAGREE,
     LEG_QTY_DISAGREE,
     LIQUIDITY_FLAG_DISAGREE,
@@ -80,10 +81,16 @@ class Log:
         self._entries: list[AuditEntry] = []
         self._options = detector_options
 
-    def line(self, topic: str, payload: dict[str, Any] | None = None) -> Log:
+    def line(
+        self, topic: str, payload: dict[str, Any] | None = None, *, cause: str = ""
+    ) -> Log:
+        """Add a line; its msg id is ``M`` + its index (``M003`` for the
+        fourth), which a later line may name as its *cause*."""
         index = len(self._entries)
         when = BASE + timedelta(milliseconds=index)
         meta = {"msg": f"M{index:03d}", "chain": "M000"}
+        if cause:
+            meta["cause"] = cause
         self._entries.append(
             AuditEntry(
                 when.isoformat(timespec="milliseconds"),
@@ -726,6 +733,55 @@ class TestTheEngineSPublicationShape:
         )
 
         assert ACK_DUPLICATE not in log.codes()
+
+    def test_x13_a_refused_cancel_of_a_filled_order_is_not_a_transition(
+        self,
+    ) -> None:
+        """The sim's case: a cancel 34 ms after the fill is refused
+        ORDER_NOT_FOUND. That refuses the command; the order stays FILLED."""
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.cancel", {"order_id": ORDER, "gateway_id": GATEWAY})
+        log.line(
+            "order.ack." + GATEWAY,
+            _ack(accepted=False, reject_code="ORDER_NOT_FOUND", reason="Order not found"),  # fmt: skip
+            cause="M003",
+        )
+        assert ILLEGAL_STATUS_TRANSITION not in log.codes()
+
+    def test_x13_a_refused_amend_leaves_a_live_order_live(self) -> None:
+        """Refused for a reason an order could also be rejected for: only the
+        cause says it answers the amend."""
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.amend", {"order_id": ORDER, "gateway_id": GATEWAY, "quantity": 100})  # fmt: skip
+        log.line(
+            "order.ack." + GATEWAY,
+            _ack(accepted=False, reject_code="MARKET_CLOSED"),
+            cause="M002",
+        )
+        run, steps = reconstruct(log._entries)
+        list(steps)  # the model is built as the steps are read
+        assert run.state.orders[ORDER].status == "NEW"
+
+    def test_x13_without_an_envelope_the_reject_code_decides(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line("order.ack." + GATEWAY, _ack())
+        log.line("order.fill." + GATEWAY, _fill())
+        log.line("order.ack." + GATEWAY, _ack(accepted=False, reject_code="ORDER_NOT_FOUND"))  # fmt: skip
+        assert ILLEGAL_STATUS_TRANSITION not in log.codes()
+
+    def test_x13_a_rejected_order_is_still_rejected(self) -> None:
+        log = Log().line("order.new", _submitted())
+        log.line(
+            "order.ack." + GATEWAY,
+            _ack(accepted=False, reject_code="MARKET_CLOSED"),
+            cause="M000",
+        )
+        run, steps = reconstruct(log._entries)
+        list(steps)  # the model is built as the steps are read
+        assert run.state.orders[ORDER].status == "REJECTED"
 
     def test_two_acceptances_still_are(self) -> None:
         log = Log().line("order.new", _submitted())

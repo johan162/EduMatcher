@@ -25,7 +25,7 @@ from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
 T1, T2, T3, T4 = (t.id for t in TRADES)
-AB = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5", "B6", "B7"]
+AB = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"]
 
 
 @pytest.fixture
@@ -157,6 +157,23 @@ def test_b1_and_b2_find_a_trade_side_without_its_fill(
         }
     ]
     assert "total +30" in out.note
+
+
+def test_b8_finds_a_fill_reported_at_a_price_its_trades_did_not_print(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """X8c's shape: a stop's fill reported at the last print, not its VWAP."""
+    sql(world / "stats.db", "UPDATE order_events SET fill_price = 151.5 WHERE order_id = 'O3' AND event_type = 'FILL'")  # fmt: skip
+    (sample,) = run(open_ds, world, "B8").samples
+    assert (sample["order_id"], sample["fill_price"], sample["trades_vwap"]) == ("O3", 151.5, 151.0)  # fmt: skip
+
+
+def test_b8_finds_a_fill_quantity_that_is_not_its_trades_total(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    sql(world / "stats.db", "UPDATE order_events SET fill_qty = 29 WHERE order_id = 'O3' AND event_type = 'FILL'")  # fmt: skip
+    (sample,) = run(open_ds, world, "B8").samples
+    assert (sample["fill_qty"], sample["trades_qty"]) == (29, 30)
 
 
 def test_b1_finds_a_fill_naming_a_trade_its_order_is_not_in(

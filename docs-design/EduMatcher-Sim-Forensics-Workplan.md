@@ -183,6 +183,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | B4 | `gateway_daily_summary` = aggregate of B3 per trade date. |
 | B5 | Per symbol Σnet_qty = 0; Σbuy_notional = Σsell_notional; Σrealised P&L + Σunrealised P&L = 0 at a common mark (zero-sum market). |
 | B6 | metrics `daily_totals` (restart-corrected) vs. rows, within a 15 s reporting slack of `counter_last.ts`: `engine.trades` per symbol = trades; `engine.fills` per gateway = trade sides (the engine counts one per side, not per FILL message); `clearing.trades_settled` = trade_events by ingest time. `stats.events_recorded` and `audit.records` deferred (no row set to count them against yet). |
+| B8 | Each FILL's `fill_qty` and `fill_price` are the total and the VWAP (integer notional, divided once, as the engine does) of the trades its `trade_ids` names (finding X14). |
 | B7 | Loss/error counters never above 0 (`stats.records_dropped`, `stats.feed_gaps`, `audit.decode_errors`, `health.beacons_dropped`, `health.samples_rejected`, `monitor.*_invalid`, `monitor.*_errors`); `stats.feed_gaps` table empty. |
 
 ### C — Order lifecycle
@@ -680,8 +681,8 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
 | X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
-| X14 | S13 | 2026-10-24 | 20 stop fills | Check gap: B1 does not compare a fill's price with its trades' VWAP | Open |
-| X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Open |
+| X14 | S13 | 2026-10-24 | 23 fills (B8) | Check gap: B1 does not compare a fill's price with its trades' VWAP | Fixed 2026-10-25: new check B8 (uncommitted) |
+| X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Fixed 2026-10-25 (uncommitted) |
 | X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
@@ -970,4 +971,33 @@ fix; in the quote case the triggered stop bought the MM's ask.
 fill prices passed B1, which matches fill to trade by id and quantity only.
 Add to B1 (or a B8): each FILL's `fill_price` equals the quantity-weighted
 price of the trades it names (`trade_ids`, schema 8+).
+
+**X13 fix (2026-10-25).** `StateModel` remembers the msg ids of
+`order.cancel` and `order.amend` commands. An `order.ack accepted=false`
+whose `cause` is one of them, or (for logs without envelopes) whose
+`reject_code` only a request on an existing order can get (`ORDER_NOT_FOUND`,
+`ORDER_ALREADY_TERMINAL`, `AMEND_NOT_PERMITTED`, `NOT_OWNER`,
+`DUPLICATE_ORDER`), refuses the request. The order keeps its status. The bug
+was wider than the 3 findings showed: a refused cancel or amend of a *live*
+order silently marked it REJECTED (NEW → REJECTED is on the ladder, so
+nothing was reported). Tests in `tests/test_audit_replay_anomalies.py`:
+- the sim's FILLED case;
+- a refused amend for a code an order could also be rejected for (the
+  cause alone decides);
+- the envelope-less code rule;
+- a genuine rejection, still REJECTED (control).
+
+The first three failed before the fix. Two of the new tests first passed
+vacuously: `reconstruct()` yields its steps lazily, and the model is built
+only as they are read.
+
+**X14 fix (2026-10-25): check B8.** On the 2026-10-24 run (4 s, 937 487
+fills) B8 finds 23, all in the 14:05 closing uncross. They are the fills of
+stops the uncross triggered **and of the resting limit orders those stops
+traded with**, all reported at the last print: limit sells that executed
+at 93.82 were told 92.28. That is X8c, wider than S13's scratch count (20
+of 45, stops only). S13's fix covers both sides, since each order in the
+stop loop now gets its own VWAP; `test_x8c_…` now also pins a passive
+order's price. B8 should pass on the next run. Tests:
+`tests/test_sim_forensics_bookkeeping.py` (a wrong price, a wrong quantity).
 

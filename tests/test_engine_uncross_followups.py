@@ -92,14 +92,14 @@ def test_x8b_an_oco_leg_filled_in_the_closing_auction_cancels_its_sibling(
 def test_x8c_a_stop_the_uncross_triggers_reports_its_own_average_price(
     monkeypatch, tmp_path
 ) -> None:
-    """The stop sweeps 10 @ 101 and 10 @ 102: it filled at 101.50, not at
-    the last print."""
+    """The stop sweeps 10 @ 101 and 10 @ 102: it filled at 101.50, and the
+    order at 101 at 101.00 -- neither at the last print."""
     engine, pub = make_engine(monkeypatch, tmp_path)
     connect(engine)
     engine._session_state = SessionState.OPENING_AUCTION
     new_order(engine, side=Side.BUY, order_type=OrderType.LIMIT, qty=100, gateway_id="GW01", price=100.0)  # fmt: skip
     new_order(engine, side=Side.SELL, order_type=OrderType.LIMIT, qty=100, gateway_id="GW02", price=100.0)  # fmt: skip
-    new_order(engine, side=Side.SELL, order_type=OrderType.LIMIT, qty=10, gateway_id="GW02", price=101.0)  # fmt: skip
+    at_101 = new_order(engine, side=Side.SELL, order_type=OrderType.LIMIT, qty=10, gateway_id="GW02", price=101.0)  # fmt: skip
     new_order(engine, side=Side.SELL, order_type=OrderType.LIMIT, qty=10, gateway_id="GW02", price=102.0)  # fmt: skip
     stop = new_order(engine, side=Side.BUY, order_type=OrderType.STOP, qty=20, gateway_id="GW03", stop_price=100.0)  # fmt: skip
 
@@ -107,3 +107,7 @@ def test_x8c_a_stop_the_uncross_triggers_reports_its_own_average_price(
 
     (fill,) = [m for m in msgs(pub, "order.fill.GW03") if m["order_id"] == stop]
     assert (fill["fill_qty"], fill["fill_price"]) == (20, 101.5)
+    # The resting order the stop hit first was reported at the last print
+    # too (the 2026-10-24 sim: limit sells that printed 93.82, told 92.28).
+    (passive,) = [m for m in msgs(pub, "order.fill.GW02") if m["order_id"] == at_101]
+    assert passive["fill_price"] == 101.0

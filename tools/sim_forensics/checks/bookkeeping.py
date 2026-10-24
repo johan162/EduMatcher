@@ -99,6 +99,45 @@ def fills_name_their_trades(ds: Dataset) -> Outcome:
 
 
 @check(
+    "B8",
+    "conservation",
+    "Each FILL's quantity and price are the total and VWAP of the trades it names",
+    needs=("stats", "clearing"),
+)
+def fill_prices_are_their_trades(ds: Dataset) -> Outcome:
+    """One FILL aggregates what its order executed in one dispatch: its
+    fill_qty must be the trades' total, its fill_price their quantity-weighted
+    price, as the engine computes it (integer notional, divided once). B1
+    matches fills to trades by id and quantity only; this caught the X8c
+    stops reported at the last print (finding X14)."""
+    columns = {r[1] for r in ds.conn.execute("PRAGMA stats.table_info(order_events)")}
+    if "trade_ids" not in columns:
+        raise Skipped("stats.db before schema 8: FILL rows carry no trade ids (R2)")
+    cut = _cut(ds)
+    rows = ds.conn.execute(
+        "SELECT f.seq, f.order_id, f.fill_qty, f.fill_price, sum(e.quantity), "
+        "sum(e.price * e.quantity), max(e.tick_decimals), max(f.tid), "
+        "count(e.id), count(*) "
+        "FROM (SELECT oe.seq, oe.order_id, oe.fill_qty, oe.fill_price, "
+        "j.value AS tid FROM stats.order_events oe, json_each(oe.trade_ids) j "
+        "WHERE oe.event_type = 'FILL') f "
+        "LEFT JOIN clearing.trade_events e ON e.id = f.tid GROUP BY f.seq"
+    )
+    samples: list[Sample] = []
+    checked = 0
+    for seq, oid, fill_qty, fill_price, qty, notional, td, last, known, named in rows:
+        if last > cut or known < named:
+            continue  # beyond the cut, or a trade B1 already reports unknown
+        checked += 1
+        vwap = notional / (qty * 10**td)
+        if fill_qty != qty or not math.isclose(fill_price, vwap, rel_tol=1e-12):
+            samples.append(
+                {"order_id": oid, "seq": seq, "fill_qty": fill_qty, "trades_qty": qty, "fill_price": fill_price, "trades_vwap": vwap}  # fmt: skip
+            )
+    return Outcome(len(samples), samples, f"{checked} fills checked")
+
+
+@check(
     "B2",
     "conservation",
     "Per order, FILL quantity equals the quantity it traded",
