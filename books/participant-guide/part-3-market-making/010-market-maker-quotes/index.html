@@ -7681,6 +7681,12 @@ quote is cancelled and the new one is registered atomically.</p>
 <code>quote.status.&lt;GW_ID&gt;</code>. The opposite leg is pulled at the moment of the fill,
 before anything else that order causes is matched: a stop order the fill
 triggers cannot trade against it.</p>
+<p>The same holds for a quote that crosses the book when it arrives. Its
+<code>quote.ack</code> and <code>quote.status ACTIVE</code> come first, then the fills. If the
+bid's fill inactivates the quote, the ask never reaches the book: it is
+reported as <code>order.cancelled</code> with <code>QUOTE_LEG_FILLED</code>, and the quote's last
+status is <code>INACTIVE_BID_FILLED</code>. If the ask fills, the bid that has already
+rested is cancelled the same way.</p>
 <p>MM obligation enforcement is optional and configured per gateway:</p>
 <ul>
 <li><code>enforce_mm_obligation: false</code> (default): quote spread/size checks are skipped</li>

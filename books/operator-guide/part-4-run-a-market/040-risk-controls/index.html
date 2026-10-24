@@ -9888,6 +9888,11 @@ state and needs no special-casing for it.</p>
 <td>Always <code>participants[].smp_action</code>, else <code>NONE</code></td>
 </tr>
 <tr>
+<td>OCO (<code>order.oco</code>, every gateway)</td>
+<td><strong>No</strong> — the OCO has no SMP field</td>
+<td>Always <code>participants[].smp_action</code>, else <code>NONE</code>, applied to both legs — including a stop leg that triggers later</td>
+</tr>
+<tr>
 <td><code>market_maker_combos[].legs[]</code> config-seeded combo</td>
 <td>Optional <code>smp_action</code> key, settable <strong>per leg</strong></td>
 <td>Explicit per-leg value, else gateway default, else <code>NONE</code> — resolved independently per leg</td>

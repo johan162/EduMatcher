@@ -8301,7 +8301,7 @@ this applies.</p>
 </code></pre></div>
 <p>The schema version is in <code>PRAGMA user_version</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"PRAGMA user_version"</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">7</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">9</span>
 </code></pre></div>
 <p>The version is bumped both when the table definitions change and when the
 <em>meaning</em> of stored values changes — version 2 introduced the distinct combo,
@@ -8310,8 +8310,10 @@ version 3 added <code>feed_gaps</code> and widened <code>trade_log</code>'s prim
 version 4 moved prices from REAL display money to INTEGER ticks (except
 <code>order_events</code>, see below), version 5 added the <code>instruments</code> reference table,
 version 6 renamed <code>order_events.client_order_id</code> to <code>client_tag</code>,
-version 7 made the durable <code>trade_id</code> the sole primary key of <code>trade_log</code>, and
-version 8 replaced <code>order_events.trade_id</code> (always empty) with <code>trade_ids</code>.</p>
+version 7 made the durable <code>trade_id</code> the sole primary key of <code>trade_log</code>,
+version 8 replaced <code>order_events.trade_id</code> (always empty) with <code>trade_ids</code>, and
+version 9 added <code>order_events.reject_code</code>, the rejection's machine-readable
+code (until then only the reason text was kept).</p>
 <p><code>pm-stats</code> refuses to open a database whose <code>user_version</code> does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
 that, move or delete the file and let <code>pm-stats</code> create a fresh one.</p>
@@ -9325,8 +9327,8 @@ row for the same execution, depending on delivery latency. Within
 </tr>
 <tr>
 <td><code>CANCEL</code></td>
-<td><code>order.cancelled.*</code></td>
-<td>Order cancelled</td>
+<td><code>order.cancelled.*</code>, and <code>oco.cancelled.*</code> for the leg it names</td>
+<td>Order cancelled; an OCO sibling's row carries the pair in <code>oco_group_id</code></td>
 </tr>
 <tr>
 <td><code>EXPIRE</code></td>
@@ -9361,7 +9363,7 @@ row for the same execution, depending on delivery latency. Within
 <tr>
 <td><code>OCO_CANCEL</code></td>
 <td><code>oco.cancelled.*</code></td>
-<td>One leg of an OCO pair cancelled</td>
+<td>One leg of an OCO pair cancelled (row keyed on the OCO id; the leg also gets a <code>CANCEL</code>)</td>
 </tr>
 <tr>
 <td><code>QUOTE_ACK</code></td>
@@ -9371,7 +9373,7 @@ row for the same execution, depending on delivery latency. Within
 <tr>
 <td><code>QUOTE_REJECT</code></td>
 <td><code>quote.ack.*</code> with <code>accepted: false</code></td>
-<td>Quote rejected</td>
+<td>Quote rejected. A quote cancel for a symbol with no live quote names no quote: its row has an empty <code>order_id</code> and is identified by <code>gateway_id</code> and <code>symbol</code></td>
 </tr>
 <tr>
 <td><code>QUOTE_STATUS</code></td>
@@ -9390,6 +9392,8 @@ row for the same execution, depending on delivery latency. Within
 </tr>
 </tbody>
 </table>
+<p>Every <code>*_REJECT</code> row keeps the engine's <code>reject_code</code> (for example
+<code>INSUFFICIENT_LIQUIDITY</code>, <code>ORDER_NOT_FOUND</code>) next to the free-text <code>reason</code>.</p>
 <p>Combo, OCO and quote events each carry their own accept / reject / cancel /
 status value rather than a single family name, so a rejected combo is
 distinguishable from an accepted one and <code>oco.cancelled</code> is findable as a

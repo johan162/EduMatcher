@@ -7862,13 +7862,13 @@ describe half a day.</p>
 instants</strong>. Only the daily rollups use the trading date. Converting between the
 two is exactly the job of the session timezone.</p>
 <h3 id="setting-the-session-timezone">Setting the session timezone<a class="headerlink" href="#setting-the-session-timezone" title="Permanent link">&para;</a></h3>
-<p>The two <strong>recorders</strong>, <code>pm-stats</code> and <code>pm-clearing</code>, both read
+<p>The scheduler and the two <strong>recorders</strong>, <code>pm-stats</code> and <code>pm-clearing</code>, read
 <code>locale.session_timezone</code> from the engine config, an IANA timezone name
 defaulting to <code>"Europe/Stockholm"</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">locale</span><span class="p">:</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">session_timezone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Europe/Stockholm</span>
 </code></pre></div>
-<p>Each writes the value into its own database. Every <strong>reader</strong> then picks it up
+<p>Each recorder writes the value into its own database. Every <strong>reader</strong> then picks it up
 from there and needs no configuration:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w">   </span><span class="c1"># resolves in Europe/Stockholm</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-ticker<span class="w">                              </span><span class="c1"># same</span>
@@ -7898,8 +7898,9 @@ set <code>session_timezone: UTC</code>.</p>
 <code>locale.session_timezone</code> are <strong>separate settings and are not derived from
 one another</strong>, even though they are grouped under the same <code>locale:</code> block
 and share a Swedish default. <code>locale.country</code> decides <em>which days</em> the
-schedule runs on; <code>locale.session_timezone</code> decides <em>which calendar day</em> a
-timestamp is filed under. A country can span several timezones, so one
+schedule runs on; <code>locale.session_timezone</code> determines the scheduler's clock
+and <em>which calendar day</em> a timestamp is filed under. A country can span several
+timezones, so one
 cannot be inferred from the other.</p>
 <p>Keep them consistent: an exchange configured with <code>locale.country: Sweden</code>
 should also be recording with <code>locale.session_timezone: Europe/Stockholm</code>
@@ -7909,6 +7910,21 @@ should also be recording with <code>locale.session_timezone: Europe/Stockholm</c
 query tooling accounts for this — a <code>--date</code> filter resolves to the instant
 range between local midnight and the <em>next</em> local midnight, whatever its
 length. Nothing needs configuring for this to work.</p>
+<p>The scheduler follows <code>locale.session_timezone</code>, independently of the host's
+timezone. Its waits and published UTC countdown targets account for
+offset changes automatically. On the autumn rollback, a transition inside the
+repeated hour runs <strong>only on the second occurrence</strong> (for example, 02:30 CET,
+not 02:30 CEST, in Stockholm). Startup catch-up uses that same instant.
+During the spring jump, a nonexistent time is shifted forward by the gap;
+prefer scheduling transitions outside that missing hour to preserve the
+intended spacing between phases.</p>
+<div class="admonition warning">
+<p class="admonition-title">Upgrading from host-local scheduling</p>
+<p>Older versions interpreted schedule times in the host's timezone.
+If that differs from <code>locale.session_timezone</code>, check the deployed timezone
+before restarting the scheduler: the same <code>HH:MM</code> now means exchange-local
+time, including for holiday selection and daily rollover.</p>
+</div>
 <h2 id="session-phases">Session phases<a class="headerlink" href="#session-phases" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -8254,7 +8270,9 @@ different things about the same day, so the config MUST pick one.</p>
 </code></pre></div>
 <p>Rejected at load: <code>weekdays</code> is present but doesn't define all five
 transition times.</p>
-<p>Times are <code>HH:MM</code> in local time. Any day left with no resolved schedule —
+<p>Times are <code>HH:MM</code> in <code>locale.session_timezone</code> (default <code>Europe/Stockholm</code>).
+Naive <code>--start</code> values use this timezone too; an explicit UTC offset is converted
+to the session timezone. Any day left with no resolved schedule —
 not covered by <code>weekdays</code>/<code>weekend</code> and not individually specified —
 defaults to <strong>CLOSED</strong>, exactly like an omitted <code>holidays:</code> block. See
 <a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below for how the

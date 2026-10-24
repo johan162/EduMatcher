@@ -7818,7 +7818,8 @@ LIMIT-only resting). Our order is <code>LIMIT</code>, so this is a no-op either 
 <p>Every gate passed. The order is now <strong>accepted</strong>.</p>
 <h2 id="6-the-ack-sent-before-the-book-ever-sees-the-order">6. The ACK — sent before the book ever sees the order<a class="headerlink" href="#6-the-ack-sent-before-the-book-ever-sees-the-order" title="Permanent link">&para;</a></h2>
 <p>This is the detail most people expect to be complicated and is not: the ACK
-is built and published <em>before</em> <code>book.process()</code> runs at all.</p>
+is built and published <em>before</em> <code>book.process()</code> runs at all (for every
+order type but <code>FOK</code>, see the caveat below).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">_gw</span> <span class="o">=</span> <span class="n">order</span><span class="o">.</span><span class="n">gateway_id</span>                         <span class="c1"># "TRADER01"</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">ack_topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_gw</span><span class="p">)</span>
@@ -7887,12 +7888,13 @@ layer before it reaches Python.</p>
 (<code>_dispatch_response</code> → <code>ACK|ORDER_ID=...|ACCEPTED=TRUE</code>), and <code>TRADER01</code>'s
 terminal prints it.</p>
 <p>One caveat: this ACK means <em>"the engine accepted the order for
-processing"</em>, not <em>"this is its final state"</em>. For <code>MARKET</code>/<code>FOK</code>/<code>IOC</code>
-orders the book can still reject afterwards (e.g. insufficient liquidity for
-a <code>FOK</code>) — a second, <code>accepted=False</code> message follows in that case. For our
-resting <code>LIMIT</code> order, this ACK is the only acknowledgement it gets; its
-fate from here is reported via <code>order.fill</code> / <code>order.cancelled</code> /
-<code>order.expired</code>.</p>
+processing"</em>, not <em>"this is its final state"</em>. The exception is a <code>FOK</code>,
+which the book can still reject for want of liquidity: its ACK is sent
+<em>after</em> <code>book.process()</code> (<code>_book_may_reject</code>), so an unfillable <code>FOK</code> gets a
+single <code>accepted=False</code> ACK with <code>INSUFFICIENT_LIQUIDITY</code> and never an
+acceptance first. For our resting <code>LIMIT</code> order, this ACK is the only
+acknowledgement it gets; its fate from here is reported via <code>order.fill</code> /
+<code>order.cancelled</code> / <code>order.expired</code>.</p>
 <h2 id="7-handing-the-order-to-the-book">7. Handing the order to the book<a class="headerlink" href="#7-handing-the-order-to-the-book" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">do_match</span> <span class="o">=</span> <span class="n">is_matching_enabled</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_session_state</span><span class="p">)</span>   <span class="c1"># True in CONTINUOUS</span>
