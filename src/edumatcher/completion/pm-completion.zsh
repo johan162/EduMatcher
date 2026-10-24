@@ -4334,7 +4334,7 @@ _shtab_pm_scheduler_options=(
   "--daily[Run continuously, repeating the schedule every working day (weekends and bank holidays for the configured country are skipped)]"
   "--delay[Seconds between transitions in --now mode (default\: 3.0\; ignored outside --now)]:delay:"
   "--speed[Compressed mode (with --daily)\: simulated time runs F times faster than the wall clock (default\: EDUMATCHER_SCHEDULER_SPEED)]:F:"
-  "--start[Compressed mode\: local time the simulated clock starts at (default\: EDUMATCHER_SCHEDULER_START, else now)]:YYYY-MM-DDTHH:MM:"
+  "--start[Compressed mode\: session-local time the simulated clock starts at (default\: EDUMATCHER_SCHEDULER_START, else now)]:YYYY-MM-DDTHH:MM:"
   "--no-confirm[Do not query\/confirm session state via the engine]"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{--verbose,-v}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"

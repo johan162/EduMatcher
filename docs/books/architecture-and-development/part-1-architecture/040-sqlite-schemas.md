@@ -85,6 +85,7 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: order_events` | `fill_qty` | `INTEGER` | no |  |  |
 | `table: order_events` | `trade_ids` | `TEXT` | no |  |  |
 | `table: order_events` | `reason` | `TEXT` | no |  |  |
+| `table: order_events` | `reject_code` | `TEXT` | no |  |  |
 | `table: order_events` | `client_tag` | `TEXT` | no |  |  |
 | `table: order_events` | `combo_parent_id` | `TEXT` | no |  |  |
 | `table: order_events` | `oco_group_id` | `TEXT` | no |  |  |
@@ -242,6 +243,8 @@ CREATE TABLE order_events (
     -- can name several trades; NULL for every other event type.
     trade_ids       TEXT,
     reason          TEXT,
+    -- The ack's reject_code on a *_REJECT event; NULL otherwise.
+    reject_code     TEXT,
     client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,

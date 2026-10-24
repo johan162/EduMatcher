@@ -72,7 +72,9 @@ def errors(out: Outcome) -> list[tuple[object, object]]:
 def test_every_c_check_passes_on_a_consistent_run(
     world: Path, open_ds: OpenDataset
 ) -> None:
-    assert sorted(i for i in REGISTRY if i[0] == "C") == C
+    # C7 and C8 read the audit: tests/test_sim_forensics_matching.py and
+    # tests/test_sim_forensics_quotes.py.
+    assert sorted(i for i in REGISTRY if i[0] == "C" and i not in ("C7", "C8")) == C
     results = run_checks(open_ds(world), [REGISTRY[i] for i in C], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {
         i: ("PASS", []) for i in C

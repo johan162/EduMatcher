@@ -90,10 +90,22 @@ export function parseClockTime(value: string | null | undefined): number | null 
   return h * 3600 + min * 60 + sec;
 }
 
-/** Unix ms for `secondsPastMidnight` on the local day containing `now`, plus `dayOffset` days. */
+/** Unix ms for the wall-clock time `secondsPastMidnight` on the local day containing
+ * `now`, plus `dayOffset` days. Built from h/m/s fields rather than midnight plus an
+ * offset, so a DST switch on that day doesn't shift the boundary by an hour. */
 function atLocalTime(now: Date, secondsPastMidnight: number, dayOffset = 0): number {
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, 0, 0, 0, 0);
-  return d.getTime() + secondsPastMidnight * 1000;
+  const h = Math.floor(secondsPastMidnight / 3600);
+  const m = Math.floor((secondsPastMidnight % 3600) / 60);
+  const s = secondsPastMidnight % 60;
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + dayOffset,
+    h,
+    m,
+    s,
+    0,
+  ).getTime();
 }
 
 /** `times`' boundaries, parsed and sorted — config order is the day's order, but

@@ -1,0 +1,46 @@
+# MkDocs configuration for the documentation that is embedded in the web site
+# (web_site/docs/). It inherits everything from the repository's mkdocs.yml and
+# only changes where the output goes and how it is themed so that it matches the
+# site. web_site/build.py runs it; nothing here needs editing for a new release.
+INHERIT: ../mkdocs.yml
+
+docs_dir: ../docs
+site_dir: docs
+site_url: ""
+use_directory_urls: true
+
+theme:
+  name: material
+  custom_dir: ../overrides
+  font:
+    text: Barlow
+    code: DM Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - toc.integrate
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+hooks:
+  - docs_hooks.py

@@ -114,7 +114,7 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-7
+9
 ```
 
 The version is bumped both when the table definitions change and when the
@@ -124,8 +124,10 @@ version 3 added `feed_gaps` and widened `trade_log`'s primary key, and
 version 4 moved prices from REAL display money to INTEGER ticks (except
 `order_events`, see below), version 5 added the `instruments` reference table,
 version 6 renamed `order_events.client_order_id` to `client_tag`,
-version 7 made the durable `trade_id` the sole primary key of `trade_log`, and
-version 8 replaced `order_events.trade_id` (always empty) with `trade_ids`.
+version 7 made the durable `trade_id` the sole primary key of `trade_log`,
+version 8 replaced `order_events.trade_id` (always empty) with `trade_ids`, and
+version 9 added `order_events.reject_code`, the rejection's machine-readable
+code (until then only the reason text was kept).
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -659,19 +661,22 @@ Every value the recorder can write, and the engine topic it comes from:
 | `REJECT` | `order.ack.*` with `accepted: false` | Order rejected |
 | `FILL` | `order.fill.*` | Execution against the order |
 | `AMEND` | `order.amended.*` | Order amended |
-| `CANCEL` | `order.cancelled.*` | Order cancelled |
+| `CANCEL` | `order.cancelled.*`, and `oco.cancelled.*` for the leg it names | Order cancelled; an OCO sibling's row carries the pair in `oco_group_id` |
 | `EXPIRE` | `order.expired.*` | Order expired |
 | `COMBO_ACK` | `combo.ack.*` with `accepted: true` | Combo accepted |
 | `COMBO_REJECT` | `combo.ack.*` with `accepted: false` | Combo rejected |
 | `COMBO_STATUS` | `combo.status.*` | Combo status update |
 | `OCO_ACK` | `oco.ack.*` with `accepted: true` | OCO pair accepted |
 | `OCO_REJECT` | `oco.ack.*` with `accepted: false` | OCO pair rejected |
-| `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled |
+| `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled (row keyed on the OCO id; the leg also gets a `CANCEL`) |
 | `QUOTE_ACK` | `quote.ack.*` with `accepted: true` | Quote accepted |
-| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected |
+| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected. A quote cancel for a symbol with no live quote names no quote: its row has an empty `order_id` and is identified by `gateway_id` and `symbol` |
 | `QUOTE_STATUS` | `quote.status.*` | Quote status update |
 | `UNKNOWN` | any ack topic missing its `accepted` flag | See the note below |
 | `EVENT` | any other subscribed private topic | Unclassified |
+
+Every `*_REJECT` row keeps the engine's `reject_code` (for example
+`INSUFFICIENT_LIQUIDITY`, `ORDER_NOT_FOUND`) next to the free-text `reason`.
 
 Combo, OCO and quote events each carry their own accept / reject / cancel /
 status value rather than a single family name, so a rejected combo is

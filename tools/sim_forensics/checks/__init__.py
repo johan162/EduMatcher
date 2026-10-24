@@ -1,3 +1,13 @@
 """Check families; importing this package registers every check."""
 
-from sim_forensics.checks import bookkeeping, derived, lifecycle, trades  # noqa: F401
+from sim_forensics.checks import (  # noqa: F401
+    bookkeeping,
+    derived,
+    lifecycle,
+    matching,
+    ops,
+    persistence,
+    quotes,
+    rerun,
+    trades,
+)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -54,7 +55,8 @@ def test_countdown_instant_is_wall_time(wall: _Wall) -> None:
 
 def test_default_clock_is_the_wall_clock() -> None:
     clock = _Clock()
-    assert abs((clock.now() - datetime.now()).total_seconds()) < 1.0
+    now = datetime.now(ZoneInfo("Europe/Stockholm")).replace(tzinfo=None)
+    assert abs((clock.now() - now).total_seconds()) < 1.0
 
 
 @pytest.mark.parametrize(

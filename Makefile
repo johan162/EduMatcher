@@ -4,7 +4,7 @@
 
 .PHONY: help install reinstall clean-venv test test-e2e mutate forensics test-container test-short test-html verify \
 check _check lint format typecheck pre-commit \
-build clean maintainer-clean docs docs-serve run pull-all \
+build clean maintainer-clean docs docs-serve web-site web-site-serve web-site-upload run pull-all \
 black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
 
 # Makefile itself as a dependency to ensure re-evaluation when changed.
@@ -275,7 +275,10 @@ forensics: ## Check a stopped sim run's records against each other: make forensi
 	@if [ -z "$(DATA)" ] || [ -z "$(OUT)" ]; then \
 		echo -e "$(RED)✗ usage: make forensics DATA=<data dir> OUT=<report dir>$(NC)"; exit 1; \
 	fi
-	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)"
+	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)"; \
+	rc=$$?; if [ $$rc -eq 1 ]; then \
+		echo -e "$(DARKYELLOW)! some checks FAILed or hit an ERROR: that is the finding, see the report$(NC)"; \
+	elif [ $$rc -ne 0 ]; then exit $$rc; fi
 
 test-e2e: ## End-to-end tests on a real exchange: mini profile, trader, pm-monitor, dash bridge (fixed ports)
 	@echo -e "$(DARKYELLOW)- Running end-to-end tests (needs the exchange ports free and dash-gui npm install)...$(NC)"
@@ -410,6 +413,20 @@ docs-site: ## Build the MkDocs documentation site into site/
 
 docs-serve: ## Serve the documentation site locally with live reload
 	@poetry run mkdocs serve
+
+# ============================================================================================
+# Web site (web_site/) -- landing site + embedded docs + download page, all derived from the repo
+# ============================================================================================
+web-site: ## Build the web site (web_site/) incl. embedded docs; self-hosts the books in docs/dist and the wheel in dist/
+	@echo -e "$(DARKYELLOW)- Building web site...$(NC)"
+	@poetry run python web_site/build.py
+	@echo -e "$(GREEN)✓ Web site built in web_site/ (see web_site/README.md)$(NC)"
+
+web-site-serve: ## Fast pages-only web site build, served on http://localhost:8000
+	@poetry run python web_site/build.py --no-docs --serve
+
+web-site-upload: ## Upload the built web site via sftp (scripts/mkweb.sh; needs the TIRNEX_ADITUS_FTP_* variables)
+	@./scripts/mkweb.sh
 
 # ============================================================================================
 # Cleanup

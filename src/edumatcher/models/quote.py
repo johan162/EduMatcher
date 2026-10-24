@@ -99,26 +99,28 @@ class QuoteHistoryEntry:
 class QuoteIndex:
     def __init__(self, history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN) -> None:
         self._index: dict[tuple[str, str], QuoteEntry] = {}
-        self._keys_by_gateway: dict[str, set[tuple[str, str]]] = {}
-        self._keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+        # Insertion-ordered dicts, not sets (X11): the batch cancels walk
+        # them, and a set of string tuples iterates in hash-seed order.
+        self._keys_by_gateway: dict[str, dict[tuple[str, str], None]] = {}
+        self._keys_by_symbol: dict[str, dict[tuple[str, str], None]] = {}
         self._history_maxlen = history_maxlen
         self._history: dict[str, deque[QuoteHistoryEntry]] = {}
 
     def _track_key(self, key: tuple[str, str]) -> None:
         gw, sym = key
-        self._keys_by_gateway.setdefault(gw, set()).add(key)
-        self._keys_by_symbol.setdefault(sym, set()).add(key)
+        self._keys_by_gateway.setdefault(gw, {})[key] = None
+        self._keys_by_symbol.setdefault(sym, {})[key] = None
 
     def _untrack_key(self, key: tuple[str, str]) -> None:
         gw, sym = key
         gw_keys = self._keys_by_gateway.get(gw)
         if gw_keys is not None:
-            gw_keys.discard(key)
+            gw_keys.pop(key, None)
             if not gw_keys:
                 self._keys_by_gateway.pop(gw, None)
         sym_keys = self._keys_by_symbol.get(sym)
         if sym_keys is not None:
-            sym_keys.discard(key)
+            sym_keys.pop(key, None)
             if not sym_keys:
                 self._keys_by_symbol.pop(sym, None)
 
@@ -191,7 +193,7 @@ class QuoteIndex:
     def cancel_all_for_gateway(
         self, gateway_id: str, reason: str = ""
     ) -> list[QuoteEntry]:
-        keys = list(self._keys_by_gateway.get(gateway_id, set()))
+        keys = list(self._keys_by_gateway.get(gateway_id, {}))
         removed: list[QuoteEntry] = []
         for key in keys:
             entry = self._index.pop(key, None)
@@ -202,7 +204,7 @@ class QuoteIndex:
         return removed
 
     def cancel_all_for_symbol(self, symbol: str, reason: str = "") -> list[QuoteEntry]:
-        keys = list(self._keys_by_symbol.get(symbol, set()))
+        keys = list(self._keys_by_symbol.get(symbol, {}))
         removed: list[QuoteEntry] = []
         for key in keys:
             entry = self._index.pop(key, None)
@@ -224,7 +226,7 @@ class QuoteIndex:
 
     def entries_for_gateway(self, gateway_id: str) -> list[QuoteEntry]:
         """Return active quote entries for one gateway."""
-        keys = self._keys_by_gateway.get(gateway_id, set())
+        keys = self._keys_by_gateway.get(gateway_id, {})
         return [self._index[key] for key in keys if key in self._index]
 
     def recent_for_gateway(

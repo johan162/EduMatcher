@@ -1,0 +1,54 @@
+/* Web-site skin for the embedded MkDocs-Material documentation. */
+:root, [data-md-color-scheme] { --em-accent: #0072b0; }
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #f4f8fc;
+  --md-default-fg-color: #06162e;
+  --md-default-fg-color--light: #2c4466;
+  --md-primary-fg-color: #04142b;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #0072b0;
+  --md-typeset-a-color: #0072b0;
+  --md-code-bg-color: #e9f1fa;
+  --md-code-fg-color: #0a2a52;
+  --md-footer-bg-color: #04142b;
+}
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #020c1b;
+  --md-default-bg-color--light: rgba(2, 12, 27, .72);
+  --md-default-fg-color: #e6f1ff;
+  --md-default-fg-color--light: #b9cde8;
+  --md-default-fg-color--lighter: #8199ba;
+  --md-primary-fg-color: #031227;
+  --md-primary-bg-color: #e6f1ff;
+  --md-accent-fg-color: #00d4ff;
+  --md-typeset-a-color: #00d4ff;
+  --md-code-bg-color: #05182f;
+  --md-code-fg-color: #cfe6ff;
+  --md-typeset-table-color: rgba(0, 210, 255, .14);
+  --md-footer-bg-color: #010812;
+}
+[data-md-color-primary="custom"] .md-header,
+[data-md-color-primary="custom"] .md-tabs { background: linear-gradient(180deg, #031227, #04162e); box-shadow: none; border-bottom: 1px solid rgba(0, 210, 255, .22); }
+.md-tabs__link { opacity: .78; } .md-tabs__link--active, .md-tabs__link:hover { opacity: 1; color: #00d4ff; }
+.md-header__title { font-family: "Bebas Neue", "Barlow", sans-serif; letter-spacing: .12em; font-size: 1.05rem; }
+.md-typeset h1 { font-family: "Bebas Neue", "Barlow", sans-serif; font-weight: 400; letter-spacing: .03em; font-size: 2.8em; text-transform: uppercase; color: var(--md-default-fg-color); }
+.md-typeset h2, .md-typeset h3 { font-weight: 600; }
+[data-md-color-scheme="slate"] .md-typeset h1 { text-shadow: 0 0 40px rgba(0, 180, 255, .25); }
+.md-typeset code { font-family: "DM Mono", monospace; }
+.md-typeset .admonition, .md-typeset details { border-radius: 10px; }
+.md-typeset table:not([class]) { border-radius: 10px; overflow: hidden; border: 1px solid var(--md-typeset-table-color, rgba(4, 60, 120, .15)); }
+[data-md-color-scheme="slate"] .md-search__form { background: rgba(255, 255, 255, .07); }
+.md-content img { border-radius: 8px; }
+.md-footer { border-top: 1px solid rgba(0, 210, 255, .18); }
+
+/* Home link and site menu injected by docs-site.js */
+.em-home { display: flex; align-items: center; gap: 10px; color: #fff; font-family: "Bebas Neue", sans-serif; letter-spacing: .2em; font-size: 1.4rem; padding: 0 6px 0 4px; text-decoration: none; line-height: 1; }
+.em-home em { font-style: normal; color: #00d4ff; }
+.em-home:hover { color: #fff; opacity: .85; }
+.em-sitenav { display: none; gap: 2px; margin-left: 6px; }
+.em-sitenav a { color: rgba(255, 255, 255, .78); font-size: .72rem; font-weight: 600; letter-spacing: .04em; padding: 6px 10px; border-radius: 6px; text-decoration: none; }
+.em-sitenav a:hover { background: rgba(0, 210, 255, .14); color: #fff; }
+@media (min-width: 76em) { .em-sitenav { display: flex; } }
+.em-ver { font: 11px "DM Mono", monospace; letter-spacing: .1em; color: #00d4ff; border: 1px solid rgba(0, 212, 255, .4); padding: 2px 8px; border-radius: 99px; margin-left: 10px; }
+@media (max-width: 60em) { .em-ver { display: none; } }

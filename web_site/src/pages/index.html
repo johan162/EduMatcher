@@ -1,0 +1,297 @@
+---
+title: EduMatcher — a real exchange you can learn from
+desc: EduMatcher is a complete multi-process trading exchange in Python — matching engine, auctions, clearing, market data, six web applications and five wire protocols — built to teach how markets really work.
+nav: home
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+{{> head}}
+</head>
+<body>
+{{> header}}
+<main id="main">
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap grid-hero">
+    <div>
+      <div class="eyebrow">Equity trading infrastructure · v{{VERSION}}</div>
+      <h1 class="display">A real exchange.<br><span class="accent">Built to be understood.</span></h1>
+      <p class="sub">EduMatcher is a complete trading venue — matching engine, auctions, risk controls, clearing, market data, audit trail and six browser applications — written in readable Python, so you can run it, watch it and take it apart.</p>
+      <div class="btn-row">
+        <a class="btn primary" href="download.html#install">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Run it in one command</a>
+        <a class="btn ghost" href="docs.html">Read the documentation</a>
+        <a class="btn ghost" href="{{REPO_URL}}" rel="noopener">★ Source on GitHub</a>
+      </div>
+      <div class="cmd" role="group" aria-label="Install command"><span class="prompt">$</span><code id="hero-cmd">curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash</code><button class="copy" data-copy="#hero-cmd">copy</button></div>
+      <div class="hero-meta"><span>Docker or Podman</span><span>Python {{PYTHON}}+</span><span>MIT licensed</span><span>No toy order book</span></div>
+    </div>
+
+    <div class="rv" aria-label="A live, illustrative order book">
+      <div class="ladder" id="ladder">
+        <header><span><i class="live-dot"></i>Market depth · EDU</span><span>illustrative</span></header>
+        <div class="last"><b id="lad-last">150.32</b><span id="lad-chg" class="up">+0.00</span></div>
+        <div class="cols"><span style="text-align:right;padding-right:10px">BID QTY</span><span>PRICE</span><span>ASK QTY</span></div>
+        <div id="lad-rows"></div>
+        <div class="tape" id="lad-tape"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STATS ================= -->
+<section class="section tight" style="padding-top:0">
+  <div class="wrap">
+    <div class="stats rv" role="list">
+      <div class="s" role="listitem"><div class="n"><span data-count="{{N_COMMANDS}}">{{N_COMMANDS}}</span></div><div class="l">Commands &amp; processes</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Browser applications</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="6">6</span></div><div class="l">Wire protocol families</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{N_LOC}}">{{N_LOC_FMT}}</span><small>+</small></div><div class="l">Lines of Python</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{N_TESTS}}">{{N_TESTS_FMT}}</span><small>+</small></div><div class="l">Automated tests</div></div>
+      <div class="s" role="listitem"><div class="n"><span data-count="{{N_BOOKS}}">{{N_BOOKS}}</span></div><div class="l">Guide books</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TWO THINGS ================= -->
+<section class="section">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:54px">
+      <div class="eyebrow">Two things at once</div>
+      <h2 class="display">Educational on purpose.<br><span class="accent">Not a toy</span> by any measure.</h2>
+      <p class="lede">Most teaching exchanges are a single script with a sorted list. EduMatcher is the opposite: the whole venue, as separate processes talking over real protocols — with the books and tooling to learn every part of it.</p>
+    </div>
+    <div class="twin rv">
+      <div class="half">
+        <span class="tag mono muted small">// for learning</span>
+        <h3 class="display" style="margin-top:6px">Made to be read</h3>
+        <ul>
+          <li><b>Plain Python</b> — no C extensions in the matching path, no magic; step through any order in a debugger.</li>
+          <li><b>{{N_BOOKS}} guide books</b> from a quick start to protocol specifications and a guided code tour — plus a separate general introduction to exchanges for readers new to finance.</li>
+          <li><b>29-chapter training guide</b> with hands-on exercises, plus slide decks for instructors.</li>
+          <li><b>An exchange that trades itself</b> — 100 AI traders keep 300 symbols alive for your class.</li>
+          <li><b>Observable by design</b> — every process logs, every event is on the bus, every fill is audited.</li>
+        </ul>
+      </div>
+      <div class="join" aria-hidden="true">
+        <svg viewBox="0 0 80 160" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="jg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0"/><stop offset=".5" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+          <line x1="40" y1="0" x2="40" y2="160" stroke="url(#jg)" stroke-width="2"/><circle cx="40" cy="80" r="17" fill="var(--bg-solid)" stroke="var(--accent)" stroke-width="2"/>
+          <path d="M33 80h14M40 73v14" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="half">
+        <span class="tag mono muted small">// for real</span>
+        <h3 class="display" style="margin-top:6px">Built like a venue</h3>
+        <ul>
+          <li><b>Multi-process</b> ZeroMQ architecture — engine, gateways, clearing, audit, statistics, scheduler, monitor.</li>
+          <li><b>Full order set</b> — market, limit, stop, stop-limit, trailing stop, IOC/FOK, iceberg, combo, OCO, mass quotes.</li>
+          <li><b>Auctions &amp; risk</b> — opening/closing auctions, price collars, circuit breakers with collar expansion, kill switch.</li>
+          <li><b>Real interfaces</b> — text, binary, market-data, post-trade, REST and WebSocket protocols.</li>
+          <li><b>Operations</b> — health monitor, audit replay, persistence and recovery, containers, one-line install.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="center muted rv" style="margin-top:28px;max-width:70ch;margin-inline:auto"><b style="color:var(--text)">The one honest difference:</b> it is written in Python. It will not rival C++ and FPGA venues on raw speed — and that is exactly why you can read it.</p>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">Anatomy of a venue</div>
+      <h2 class="display">Every part of a real exchange,<br>as its own process</h2>
+      <p class="lede">A brokerless ZeroMQ bus ties them together. The engine is the only process that binds sockets; everything else — gateways, clearing, audit, market data — is just a client of the bus, exactly like the colocated services of a production venue.</p>
+    </div>
+    <div class="diagram rv" data-hl>
+      {{> diagram-architecture}}
+    </div>
+    <div class="legend"><span><i></i>commands in</span><span><i class="b"></i>events out</span><span>Hover a box to follow its connections</span></div>
+    <div class="center rv" style="margin-top:30px"><a class="btn ghost" href="platform.html">Explore the platform →</a></div>
+  </div>
+</section>
+
+<!-- ================= APPS ================= -->
+<section class="section">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:40px">
+      <div class="eyebrow">Six windows on one exchange</div>
+      <h2 class="display">Trade it. Watch it.<br><span class="accent">Operate it.</span></h2>
+      <p class="lede">Six browser applications and a full set of terminal tools all talk to the same running exchange. Place an order in one — see it on the others within a second.</p>
+    </div>
+    <div class="rv">
+      <div class="tabs" data-tabs role="tablist" aria-label="Applications">
+        <button class="tab" role="tab" data-id="trading">Trading GUI</button>
+        <button class="tab" role="tab" data-id="tapedeck">TapeDeck</button>
+        <button class="tab" role="tab" data-id="book">Order Book</button>
+        <button class="tab" role="tab" data-id="dash">Operator Dashboard</button>
+        <button class="tab" role="tab" data-id="logs">Log Console</button>
+        <button class="tab" role="tab" data-id="config">Config Builder</button>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">pm-trading-ui · :8093</span><h3>A real trading workstation</h3>
+          <p class="muted">Candles, a live depth ladder, an order ticket with eight order types and a blotter — plus market-maker quote management and, for operators, halts, circuit breakers and the kill switch.</p>
+          <ul class="checks"><li>Market, limit, stop, stop-limit, FOK, iceberg, IOC, trailing stop</li><li>Role-based screens: trader, market maker, admin</li><li>API-key login; talks to the exchange over REST + WebSocket</li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8093 — Trading Workspace</span></div><img src="assets/img/shots/trader-workspace.png" alt="Trading GUI workspace: price chart, depth ladder, order ticket and working orders" loading="lazy"></div>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">pm-terminal · :8090</span><h3>TapeDeck: the classroom wallboard</h3>
+          <p class="muted">All 300 symbols in a live market overview, plus symbol detail, index, tape, movers, session status with halts and auction results, and the news feed.</p>
+          <ul class="checks"><li>Read-only — safe to put on a projector</li><li>Live CALF market-data feed, sequence-aware</li><li>Auction equilibrium prices and halts at a glance</li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8090 — Market overview</span></div><img src="assets/img/shots/tapedeck-overview.png" alt="TapeDeck market overview with 300 symbols, bid/ask and volume" loading="lazy"></div>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">pm-book · :8094</span><h3>Order Book Viewer</h3>
+          <p class="muted">One symbol, every price level: bids, asks, depth bars, the trade tape and session OHLC. Watch an iceberg refill or an auction uncross as it happens.</p>
+          <ul class="checks"><li>Full depth with order counts per level</li><li>Trade tape with aggressor colouring</li><li>The browser companion to <code>pm-viewer</code></li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8094 — MSFT</span></div><img src="assets/img/shots/book-viewer.png" alt="Order book viewer showing bids, asks and trades for one symbol" loading="lazy"></div>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">pm-dash · :8095</span><h3>Operator Dashboard</h3>
+          <p class="muted">The exchange's vital signs: process health, CPU, memory, loop lag, orders and trades per minute, reject ratio and participant connectivity.</p>
+          <ul class="checks"><li>Every process with sparkline CPU and RSS</li><li>Engine P99 latency and throughput</li><li>Drill into a process for its recent history</li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8095 — Overview</span></div><img src="assets/img/shots/dash-overview.png" alt="Operator dashboard with gauges, process table and memory chart" loading="lazy"></div>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">pm-log-ui · :8091</span><h3>Log Operator Console</h3>
+          <p class="muted">Every process ships structured logs to a central server. Search, filter, follow live, acknowledge alerts and inspect connections and diagnostics — the answer to “why was my order rejected?”.</p>
+          <ul class="checks"><li>Live tail with level and text filters</li><li>Alerts you can acknowledge</li><li>Connection and health views</li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8091 — Logs</span></div><img src="assets/img/shots/log-explorer.png" alt="Log console with live structured log lines and a detail panel" loading="lazy"></div>
+      </div>
+      <div class="tabpanel">
+        <div><span class="port">config-gui · :8092</span><h3>Configuration Builder</h3>
+          <p class="muted">Design a whole venue with forms instead of YAML: symbols and reference prices, sessions and holidays, risk collars, circuit breakers, market makers, indices — validated as you type.</p>
+          <ul class="checks"><li>Live diagnostics and an export gate</li><li>Import, review and diff existing configs</li><li>Light and dark themes</li></ul></div>
+        <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8092 — Basics</span></div><img src="assets/img/shots/config-main.png" alt="Configuration GUI with symbol table and diagnostics panel" loading="lazy"></div>
+      </div>
+    </div>
+    <div class="center rv" style="margin-top:34px"><a class="btn ghost" href="apps.html">See every application →</a></div>
+  </div>
+</section>
+
+<!-- ================= ORDER LIFECYCLE ================= -->
+<section class="section band">
+  <div class="wrap">
+    <div class="feature">
+      <div class="copy-col rv">
+        <div class="eyebrow">From order to trade</div>
+        <h2 class="display">Follow one order<br>through the venue</h2>
+        <p class="lede">A <code>NEW</code> order is parsed by a gateway, risk-checked, matched with price-time priority, and then fanned out on the bus to clearing, audit, statistics, market data and every screen you have open.</p>
+        <ul class="checks">
+          <li>Heaps and price-level indexes with lazy deletion — complexity documented for every operation</li>
+          <li>Pre-trade collar and circuit-breaker checks in the hot path</li>
+          <li>Every step observable: topics, acks, fills, rejects</li>
+        </ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/architecture-and-development/part-2-inside-the-engine/020-order-flow-end-to-end/">Read the step-by-step walkthrough</a></div>
+      </div>
+      <div class="rv d1">{{> diagram-lifecycle}}</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AI MARKET ================= -->
+<section class="section">
+  <div class="wrap">
+    <div class="feature">
+      <div class="copy-col rv">
+        <div class="eyebrow">An exchange that trades itself</div>
+        <h2 class="display">A market with<br><span class="accent">nobody at the desks</span></h2>
+        <p class="lede">An empty exchange teaches nothing. EduMatcher ships a simulation: {{F_SIM_TRADERS}} AI traders, each with a simple rule of its own, trade {{F_SIM_SYMBOLS}} symbols all day — chasing a <b>hidden true value</b> that jumps when news breaks and wobbles when rumours spread.</p>
+        <ul class="checks"><li>Value investors, trend followers, noise traders, news reactors</li><li>Public headlines, secret values — price discovery you can watch</li><li>One container, runs for weeks, accelerated time for lectures</li></ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/ai-traders/part-1-start-here/010-a-market-that-runs-itself/">How the simulation works</a></div>
+      </div>
+      <div class="rv d1">
+        <div class="chart-box">
+          <canvas id="pdchart" aria-label="Animated chart: a price chasing a hidden true value that jumps on news" role="img"></canvas>
+          <div class="legend"><span style="color:var(--accent)">━ market price</span><span style="color:var(--amber)">╌ hidden true value</span><span>▏news jumps the value; price follows</span></div>
+          <div class="swarm" id="swarm" style="margin-top:16px" aria-hidden="true"></div>
+          <div class="legend"><span class="up">■ buying</span><span class="down">■ selling</span><span>□ waiting — the {{F_SIM_TRADERS}}-trader swarm, live</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:44px">
+      <div class="eyebrow">What is inside</div>
+      <h2 class="display">The unglamorous parts, too</h2>
+      <p class="lede">The parts of an exchange nobody puts on a brochure are the parts that make it real.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></div><h3>Order book &amp; matching</h3><p class="muted">Price-time priority, partial fills, iceberg refills, stop triggers in deterministic order, self-match prevention, amend semantics that respect priority.</p></div>
+      <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Sessions &amp; auctions</h3><p class="muted">A scheduler with holiday calendars drives pre-open, opening auction, continuous trading, closing auction and close. Equilibrium-price uncrossing with imbalance.</p></div>
+      <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z"/></svg></div><h3>Risk controls</h3><p class="muted">Static and dynamic price collars, three-level market-wide circuit breakers, automated collar expansion on reopening, kill switch and mass cancel.</p></div>
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div><h3>Market makers</h3><p class="muted">Two-sided quotes and a bundled market-maker bot keep books liquid; quote management lives in the Trading GUI.</p></div>
+      <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4zM4 9h16M9 4v16"/></svg></div><h3>Clearing, P&amp;L &amp; audit</h3><p class="muted">Positions and P&amp;L per participant, a durable audit trail of every event, and a replay tool to re-run history against the engine.</p></div>
+      <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M21 19H3"/></svg></div><h3>Indices &amp; statistics</h3><p class="muted">A real-time cap-weighted index, session statistics in SQLite, movers, tape and news — all published to external consumers over CALF.</p></div>
+      <div class="card rv"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13.500 6l-3 12"/></svg></div><h3>Protocols &amp; APIs</h3><p class="muted">ALF text and BALF binary order entry, CALF market data, RALF post-trade, LALF logging, DC1 drop-copy, plus a documented REST and WebSocket API.</p></div>
+      <div class="card rv d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-4 4 8 2-4h6"/></svg></div><h3>Health &amp; observability</h3><p class="muted">Every process emits a heartbeat beacon; the monitor derives health, lag and alerts. Central structured logging feeds the console.</p></div>
+      <div class="card rv d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg></div><h3>Deploy anywhere</h3><p class="muted">One-line container install, a pinned-release VM image, or <code>pipx install edumatcher</code>. Multi-host ready: internal bus on loopback, gateways on the network.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PERFORMANCE ================= -->
+<section class="section">
+  <div class="wrap perf">
+    <div class="rv">
+      <div class="eyebrow">Honest numbers</div>
+      <h2 class="display">Fast <span class="accent">for Python.</span><br>Open about the rest.</h2>
+      <p class="lede">EduMatcher does not try to match NYSE or LSE. It was measured, though — with price-collar and circuit-breaker checks switched on, because those are what a real engine pays for.</p>
+      <div class="callout warn" style="margin-top:22px"><b>Why Python?</b> Because a matching engine you can read in an afternoon teaches more than one you cannot. Production venues use C++, Java or hardware and are orders of magnitude faster; EduMatcher trades raw speed for clarity — and keeps the architecture honest.</div>
+    </div>
+    <div class="rv d1">
+      <div class="card flat">
+        <div class="bars" id="perfbars">
+          <div class="b"><div class="top"><span>Median engine latency (limit order)</span><b>{{F_LATENCY_MEDIAN_US}} µs</b></div><div class="track"><div class="fill" style="--w:28%"></div></div></div>
+          <div class="b"><div class="top"><span>P90 latency</span><b>{{F_LATENCY_P90_US}} µs</b></div><div class="track"><div class="fill" style="--w:31%"></div></div></div>
+          <div class="b"><div class="top"><span>Mean cost per order</span><b>{{F_US_PER_ORDER}} µs</b></div><div class="track"><div class="fill" style="--w:20%"></div></div></div>
+          <div class="b"><div class="top"><span>Sustained throughput</span><b>~{{F_TPS}} orders/s</b></div><div class="track"><div class="fill" style="--w:88%"></div></div></div>
+        </div>
+        <p class="small muted" style="margin:6px 0 0">Mix: 20 % market, 30 % aggressive limit, 50 % passive limit. {{F_PERF_NOTE}}. Bars are for visual scale only.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIBRARY ================= -->
+<section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:48px">
+      <div class="eyebrow">The library</div>
+      <h2 class="display">{{N_BOOKS}} guide books. One exchange.</h2>
+      <p class="lede">Start with the Quick Start Guide, then pick the book that matches what you want to do. Every guide book is on the web and downloadable as PDF and EPUB. New to financial markets? A separate introduction to exchanges follows below.</p>
+    </div>
+    <div class="books">
+      {{BOOKS_CARDS}}
+    </div>
+    <div class="center rv" style="margin-top:46px"><a class="btn ghost" href="learn.html">Learning paths →</a> &nbsp; <a class="btn ghost" href="docs.html">Open the documentation</a></div>
+  </div>
+</section>
+
+<!-- ================= INTRO BOOK ================= -->
+<section class="section" id="intro">
+{{> intro-book}}
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="section">
+  <div class="wrap">
+    <div class="cta rv">
+      <div class="eyebrow">Version {{VERSION}} · MIT licensed</div>
+      <h2 class="display">Start your own exchange<br><span class="accent">in the next five minutes</span></h2>
+      <p class="lede" style="margin-bottom:28px">One command, a running venue, six web apps. Fork it, break it, extend it — the whole source is on GitHub.</p>
+      <div class="btn-row"><a class="btn primary" href="download.html">Download</a><a class="btn ghost" href="{{REPO_URL}}" rel="noopener">★ Star on GitHub</a><a class="btn ghost" href="docs/books/quick-start/00-front/010-how-to-use-this-book/">Quick Start Guide</a></div>
+    </div>
+  </div>
+</section>
+
+</main>
+{{> footer}}
+</body>
+</html>

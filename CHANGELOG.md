@@ -1,3 +1,43 @@
+## [v0.53.0] - 2026-10-25
+
+Release Type: major
+
+### 📋 Summary
+This release expands simulation forensics with matching checks, engine re-runs, and persistence and operational analysis, and fixes matching and recording defects found during investigation. It also makes scheduling independent of the host timezone, corrects DST handling, and introduces a new project website.
+
+### ⚠️ Breaking Changes
+- Updated the statistics database to schema version 9, adding `order_events.reject_code`; existing databases are not migrated, so archive the old database and let `pm-stats` create a new one
+- Changed the scheduler to interpret schedule times, trading dates, and compressed-mode start times in `locale.session_timezone` rather than the host timezone; check the deployed setting before restarting if the two timezones differ
+
+### ✨ Additions
+- Added simulation-forensics checks for matching legality, quote behavior, fill prices, derived market data, persistence, and operational signals
+- Added audit-command re-runs through a fresh engine to compare published events and final resting books with the recorded simulation
+- Added a project website with book information, documentation access, and exchange-introduction downloads
+
+### 🚀 Improvements
+- Made batch cancellation follow order arrival order for deterministic event sequences and reproducible engine re-runs
+- Preserved rejection codes, quote rejection events, and OCO sibling cancellations in statistics, and drained queued messages during shutdown
+
+### 🐛 Bug Fixes
+- Fixed OCO legs ignoring their gateway's default self-match prevention policy
+- Fixed unfillable fill-or-kill orders receiving an accepted acknowledgement before their rejection instead of a single rejecting acknowledgement
+- Fixed quotes that trade immediately on entry not following their configured refresh policy
+- Fixed auction uncrosses omitting fill follow-up handling applied during continuous trading
+- Fixed scheduler waits, countdowns, and startup catch-up disagreeing during the repeated DST hour; transitions now use the second occurrence only
+- Fixed the trading GUI's schedule calculations around DST changes
+- Fixed audit replay failing on large episode queries that exceed SQLite's variable limit
+- Fixed audit replay treating refused cancel or amend requests as rejected orders
+
+### 📚 Documentation
+- Documented session-timezone scheduling, DST policies, and the change from host-local scheduling
+- Updated statistics schema, order-flow, quote, and risk-control documentation
+- Expanded the simulation-forensics workplan with check coverage and findings triage
+
+### 🛠 Internal
+- Added regression coverage for matching-engine fixes, statistics recording, audit replay, simulation forensics, and DST scheduling on hosts with different timezones
+- Added website build, upload, and release-deployment tooling
+- Regenerated shell completions
+
 ## [v0.52.0] - 2026-10-23
 
 Release Type: major (due to breaking change in DB schema)

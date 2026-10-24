@@ -145,21 +145,39 @@ It will base the GitHub release on the latest tag on `main`
 ```
 
 **What it does:**
-1. Validates that `gh` is installed and authenticated
+1. Validates that `gh` is installed and authenticated, and that the web-site prerequisites
+   (mkdocs, `expect`, the `TIRNEX_ADITUS_FTP_*` variables) are met
 2. Finds the release tag to publish
-3. Collects artifacts from `dist/`
+3. Collects artifacts from `dist/` and `docs/dist/`
 4. Prepares release notes
 5. Creates the GitHub release and uploads the artifacts
+6. Waits for the container-image workflow
+7. Builds the web site for the release (`web_site/build.py --downloads local --strict`) and uploads it with `mkweb.sh`
 
 **Options:**
 - `--help` - Display help message
 - `--pre-release` - Force pre-release mode (same as ticking the pre-release box in the GitHub UI)
 - `--dry-run` - Preview without creating the release
+- `--skip-images` - Do not wait for the container-image workflow
+- `--skip-web` - Do not build or upload the web site
+- `--no-web-upload` - Build the web site but do not upload it
 
 **Requirements:**
 - GitHub CLI installed and authenticated
 - Release artifacts already built in `dist/`
 - Typically run after `mkrelease.sh` and after CI completes successfully
+
+### `mkweb.sh` - Web Site Upload
+
+Cleans the previous site off the server (root `*.html`, `assets/`, `docs/`, `downloads/` only) and then uploads the built web site (`web_site/*.html`, `assets/`, `docs/`, `downloads/`) with sftp. Build it first
+with `make web-site`. Normally run for you by `mkghrelease.sh`; run it by hand to publish a site-only change.
+
+```bash
+export TIRNEX_ADITUS_FTP_SITE=… TIRNEX_ADITUS_FTP_USER=… TIRNEX_ADITUS_FTP_PWD=…
+make web-site && ./scripts/mkweb.sh      # or: make web-site-upload
+```
+
+Options: `--dry-run` (list what would be removed, change nothing), `--no-clean` (upload only). Requires `expect`. See `web_site/README.md` for the full release procedure for the site.
 
 ### `mkdocs.sh` - Documentation Automation Script
 
@@ -425,7 +443,8 @@ make docs-container-start
 # Perform the release workflow
 ./scripts/mkrelease.sh 0.2.0rc5 minor
 
-# After CI and artifacts are ready, create the GitHub release
+# After CI and artifacts are ready, create the GitHub release.
+# This also builds the web site and uploads it with scripts/mkweb.sh
 ./scripts/mkghrelease.sh
 ```
 

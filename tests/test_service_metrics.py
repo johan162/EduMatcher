@@ -162,6 +162,7 @@ def stats_proc(tmp_path: Path) -> Iterator[Any]:
         recorder = StatsProcess(tmp_path / "stats.db")
     sub: Any = recorder.sub
     sub.recv_multipart.return_value = encode("system.anything", {})
+    sub.poll.return_value = 0  # nothing left queued when the loop stops
     yield recorder
     recorder._running = False
     recorder.close()

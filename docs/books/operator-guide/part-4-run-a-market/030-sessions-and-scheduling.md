@@ -87,7 +87,7 @@ two is exactly the job of the session timezone.
 
 ### Setting the session timezone
 
-The two **recorders**, `pm-stats` and `pm-clearing`, both read
+The scheduler and the two **recorders**, `pm-stats` and `pm-clearing`, read
 `locale.session_timezone` from the engine config, an IANA timezone name
 defaulting to `"Europe/Stockholm"`:
 
@@ -96,7 +96,7 @@ locale:
   session_timezone: Europe/Stockholm
 ```
 
-Each writes the value into its own database. Every **reader** then picks it up
+Each recorder writes the value into its own database. Every **reader** then picks it up
 from there and needs no configuration:
 
 ```bash
@@ -132,8 +132,9 @@ the database records.
 `locale.session_timezone` are **separate settings and are not derived from
 one another**, even though they are grouped under the same `locale:` block
 and share a Swedish default. `locale.country` decides *which days* the
-schedule runs on; `locale.session_timezone` decides *which calendar day* a
-timestamp is filed under. A country can span several timezones, so one
+schedule runs on; `locale.session_timezone` determines the scheduler's clock
+and *which calendar day* a timestamp is filed under. A country can span several
+timezones, so one
 cannot be inferred from the other.
 
 Keep them consistent: an exchange configured with `locale.country: Sweden`
@@ -146,6 +147,21 @@ On a daylight-saving transition the trading date spans 23 or 25 hours, and the
 query tooling accounts for this — a `--date` filter resolves to the instant
 range between local midnight and the *next* local midnight, whatever its
 length. Nothing needs configuring for this to work.
+
+The scheduler follows `locale.session_timezone`, independently of the host's
+timezone. Its waits and published UTC countdown targets account for
+offset changes automatically. On the autumn rollback, a transition inside the
+repeated hour runs **only on the second occurrence** (for example, 02:30 CET,
+not 02:30 CEST, in Stockholm). Startup catch-up uses that same instant.
+During the spring jump, a nonexistent time is shifted forward by the gap;
+prefer scheduling transitions outside that missing hour to preserve the
+intended spacing between phases.
+
+!!! warning "Upgrading from host-local scheduling"
+    Older versions interpreted schedule times in the host's timezone.
+    If that differs from `locale.session_timezone`, check the deployed timezone
+    before restarting the scheduler: the same `HH:MM` now means exchange-local
+    time, including for holiday selection and daily rollover.
 
 
 
@@ -389,7 +405,9 @@ schedule:
 Rejected at load: `weekdays` is present but doesn't define all five
 transition times.
 
-Times are `HH:MM` in local time. Any day left with no resolved schedule —
+Times are `HH:MM` in `locale.session_timezone` (default `Europe/Stockholm`).
+Naive `--start` values use this timezone too; an explicit UTC offset is converted
+to the session timezone. Any day left with no resolved schedule —
 not covered by `weekdays`/`weekend` and not individually specified —
 defaults to **CLOSED**, exactly like an omitted `holidays:` block. See
 [Bank holidays and weekends](#bank-holidays-and-weekends) below for how the

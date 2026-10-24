@@ -22,14 +22,19 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 0 | S0 | Freeze the current run: consistent snapshot of all stores | — | 0.5 h | ☑ | 2026-10-23 |
-| 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (code; new run pending) | 2026-10-23 |
+| 1 | S1 | Close observability gaps found in recon (§2), then start a new long run | S0, Q1 | 1 d | ☑ (run 2026-10-24 made) | 2026-10-23 |
 | 2 | S2 | `tools/sim_forensics/` skeleton: loader, check registry, report | S0 | 1 d | ☑ | 2026-10-23 |
 | 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☑ | 2026-10-23 |
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☑ | 2026-10-23 |
-| 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☐ | |
-| 6 | S6 | Check E: full replay differential (engine + reference matcher) | S5, T3 of matching plan | 2–3 d | ☐ | |
-| 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☐ | |
-| 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☐ | |
+| 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☑ | 2026-10-24 |
+| 6 | S6 | Check E: full replay differential (engine re-run; reference part covered by S5) | S5 | 2–3 d | ☑ | 2026-10-24 |
+| 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☑ | 2026-10-24 |
+| 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☑ | 2026-10-24 |
+| 9 | S9 | Fix X5: an unfillable FOK gets one rejecting ack | S8 | 0.5 d | ☑ | 2026-10-24 |
+| 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☑ | 2026-10-25 |
+| 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☑ | 2026-10-25 |
+| 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☑ | 2026-10-25 |
+| 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☑ | 2026-10-25 |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -178,6 +183,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | B4 | `gateway_daily_summary` = aggregate of B3 per trade date. |
 | B5 | Per symbol Σnet_qty = 0; Σbuy_notional = Σsell_notional; Σrealised P&L + Σunrealised P&L = 0 at a common mark (zero-sum market). |
 | B6 | metrics `daily_totals` (restart-corrected) vs. rows, within a 15 s reporting slack of `counter_last.ts`: `engine.trades` per symbol = trades; `engine.fills` per gateway = trade sides (the engine counts one per side, not per FILL message); `clearing.trades_settled` = trade_events by ingest time. `stats.events_recorded` and `audit.records` deferred (no row set to count them against yet). |
+| B8 | Each FILL's `fill_qty` and `fill_price` are the total and the VWAP (integer notional, divided once, as the engine does) of the trades its `trade_ids` names (finding X14). |
 | B7 | Loss/error counters never above 0 (`stats.records_dropped`, `stats.feed_gaps`, `audit.decode_errors`, `health.beacons_dropped`, `health.samples_rejected`, `monitor.*_invalid`, `monitor.*_errors`); `stats.feed_gaps` table empty. |
 
 ### C — Order lifecycle
@@ -190,6 +196,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C4 | Every ACKed order ends terminal, or is still resting at the cut; resting GTC orders = `gtc_orders.json`; DAY orders all EXPIRE at close. |
 | C5 | OCO: at most one leg fills; sibling cancelled with the right reason. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
 | C6 | Reject / cancel reason codes are canonical; reject-rate time series per code (spikes → H). |
+| C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
@@ -211,7 +218,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 |---|---|
 | E1 | Extract inbound commands (`order.new`, `order.cancel`, amends, `quote.*`, `order.oco`, session changes) from the audit in engine arrival order (`arrival_seq` / ULID). |
 | E2 | Replay into a fresh `OrderBook` (canonicalise ids and timestamps as in the System-Trading-Verification doc §9); diff trades, acks, rejects. A diff here means non-determinism or a hidden input (time, collar state). |
-| E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. |
+| E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. **Not built (S6 decision):** the reference has no quotes, OCO or sessions; S5's replay is the independent model on the real stream, and the reference differential stays with T3 of the matching plan. |
 | E4 | Final replayed book vs `gtc_orders.json` and the last `book.*` snapshots. |
 
 ### F — Derived data and market data
@@ -222,16 +229,18 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | F2 | `price_snapshots` best bid/ask equal the audit book at the same instant. |
 | F3 | `book.*` `last_price`/`last_qty`/`recent_trades` consistent with `trade.executed`. |
 | F4 | `book_stats.json` `prev_close` = previous day's `close_price`. |
-| F5 | Index levels recomputable from constituent prices (once R7 is fixed). |
+| F5 | Index levels recomputable from constituent prices (once R7 is fixed). **Not built (S7 decision):** the s300-sim profile defines no index (R7), so there is no data to check; build it with the first run that has indexes. |
 
 ### G — Persistence
 
 | ID | Check |
 |---|---|
-| G1 | `gtc_orders.json` contains no terminal orders; `remaining_qty` matches the last FILL; ticks match `tick_decimals`. |
+| G1 | `gtc_orders.json` contains no terminal orders; `remaining_qty` matches the last FILL; ticks match `tick_decimals`. (Built per entry; "matches the last FILL" is C4's, and E4 compares the whole book.) |
 | G2 | `run_seq` in trade ids matches `engine_run_seq.json`; on a run with a restart, no trade id reused and resting orders survive. |
 
 ### H — Ops-signal correlation and statistics
+
+H checks report **INFO** (S7 decision): a count of pointers, never a FAIL.
 
 | ID | Check |
 |---|---|
@@ -420,17 +429,223 @@ C4 FAIL 1 (X4), C6 FAIL 1 (X6). R5 decided → X3 (engine bug).
 Extend the replay `Detector` with a reconstructed book per symbol and the
 D1–D8 oracles. Needs a run made after S1.
 
+**Done 2026-10-24 (changed: no `Detector`):** `tools/sim_forensics/audit.py`
+(streaming line reader) and `checks/matching.py` (D1–D9, C7). The run of
+2026-10-24 (engine start 2026-10-23 18:29 → close 2026-10-24 16:05, one full
+session) has a complete audit: 36 × 256 MB, 14.6 M lines, first line the
+engine's `system.startup_recovery`. Result: everything PASS except **D7
+FAIL 12 (X9)**; 3.9 min for all 28 checks, ~2.5 min of it the replay.
+
+- Why not `pm-audit-replay`'s `Detector`: on one 256 MB file it builds a
+  750 MB index in a minute and then crashes (X10), so ~25 GB of index for
+  the run; and its episodes model one order's life, not a book. The replay
+  instead streams the files once: pm-audit has one SUB on the engine's PUB,
+  and the engine republishes each inbound command, so file order is engine
+  order and `chain` delimits a dispatch.
+- Model: a per-symbol book rebuilt from acks, trades, cancels and expiries,
+  plus an independent model of the matching rules — price-time priority,
+  iceberg slices refilling at the back, stop/trailing-stop checkpoints after
+  each matching step (the engine's cascade order; trailing stops ratchet at
+  every checkpoint), STOP→MARKET / STOP_LIMIT→LIMIT conversion, M2 trigger
+  on entry, the uncross equilibrium (max volume, least surplus, lowest
+  price) with the stop cascade after it. Orders removed anywhere in a
+  dispatch are excused from "who should have traded first" (the stream does
+  not order a cancel against the trades). Tick sizes and SMP defaults come
+  from `ref_data/engine_config.json`; trade counts by symbol need no stores.
+- The oracle for the model itself is the engine's full-book snapshot
+  (`book.<SYM>`, every level): **D9 compared all 4 061 328 snapshots and
+  every fill's `remaining_qty` — none differ**, over 2 551 121 dispatches,
+  563 282 trades (all), 588 uncrosses with prints, 11 195 stop triggers. So
+  every other D check ran against an exact book. D9 counts divergence
+  *episodes* (first differing snapshot per symbol), the note all differing
+  snapshots.
+- Checks: D1 crossed engine snapshot in CONTINUOUS; D2 replayed book crossed
+  after a dispatch (names the order that rested); D3 fill through the
+  aggressor's limit; D4 fill not at the resting price or a better price
+  resting; D5 an earlier order at the price passed over, or a fill size other
+  than min(aggressor left, shown slice); D6 uncross: one price, = replayed
+  equilibrium, = `auction.result`, both sides in priority, book uncrossed
+  after; D7 continuous self-trade when the aggressor's SMP is not NONE
+  (auction self-trades counted in the note: 182, X2); D8 price on the tick
+  grid; C7 a stop the engine traded or cancelled without a replay trigger,
+  and one the replay triggered that the engine left silent. Iceberg rules
+  (the C7 sketch) are D5 + D9.
+- Not covered: collars and circuit-breaker bands (none configured in this
+  run), halts/reopen auctions, amends and combos (counted in the D9 note if
+  a run has them), runs whose audit does not reach the engine start or that
+  span an engine restart (both SKIPPED: restored GTC orders are not in the
+  stream).
+- A4 changed (check wrong, run 2026-10-24: 41): a closing uncross's prints
+  trigger stops that match at once, still in CLOSING_AUCTION, as the order
+  types chapter documents. A4 now allows a non-AUCTION print in an auction
+  phase for a symbol that already printed in that phase's uncross, and
+  counts them in the note.
+- `make forensics` no longer ends in `make: *** Error 1` when a check
+  fails: exit 1 is the tool saying "findings", which the target now reports
+  in words (other exit codes still fail the target).
+- Tests: `tests/test_sim_forensics_matching.py` (23) writes small audit
+  tapes in pm-audit's line format: a consistent continuous day (stop
+  cascade, iceberg refill), an opening auction, seeds + MM quote + OCO, and
+  one planted violation per check, including the X9 shape.
+
 ### S6 — Check E
 
 Depends on the differential-fuzz work (T3 of the matching workplan), which
 builds the same OrderBook ↔ reference harness. Any divergence is shrunk
 (delta-debug on the command list) to a minimal scenario.
 
+**Done 2026-10-24 (changed: engine re-run, no reference):** decided with the
+maintainer to build E1, E2, E4 as a re-run of the whole `Engine` and leave
+E3 to T3 (see the catalogue). `tools/sim_forensics/checks/rerun.py`.
+
+- Input: the engine echoes every inbound command into the audit before
+  handling it (`Engine._echo_command`; queries and heartbeats excepted), so
+  the audit *is* the engine's input. The re-run builds an `Engine` from the
+  run's compiled `ref_data/engine_config.json` — the container engine reads
+  the compiled artifact, not the YAML; the YAML seeds the books in a
+  different symbol order — with fake sockets, runs `_restore_gtc` and
+  `_load_config` as `run()` does, and calls `_dispatch_pull_message` for
+  each echoed command. 2 550 622 commands, ~6 min.
+- Comparison per command chain, all messages but market data and replies;
+  clock fields dropped. Engine-generated order ids (seed, quote and OCO legs)
+  and trade ids are bound live ↔ re-run where first named (the trade counter
+  is global, so one extra or missing trade would otherwise shift every later
+  id); 8-hex id prefixes in reason text are mapped too. A symbol whose
+  outputs differed is one *episode* until the re-run's `book.snapshot()`
+  (levels and last price) equals the next live `book.<SYM>`. Armed stops
+  are not in a snapshot, so an episode can end early and recur: of the 15
+  HEAD episodes that are not the ack field, 11 are the X9 dispatches and 4
+  later ones in FSLR/FANG, where an OCO stop leg X9 had left armed or gone.
+- **Result with the run's own engine (v0.52.0, via a worktree on
+  `PYTHONPATH`): E1, E2, E4 PASS, twice.** The live run is fully reproducible
+  from its commands: no hidden input (no silent-gateway expiry, no timer
+  touched an order), no non-determinism in matching, and the re-run ends
+  with exactly `gtc_orders.json`. The only difference is X11 (message
+  order), which the comparison tolerates and counts.
+- With the current engine, E2 shows the code change since the run:
+  28 096 episodes, almost all the X9 fix's `smp_action` on OCO leg acks, and
+  the self-trades X9 no longer makes. So E2 doubles as a behaviour-change
+  report between releases; the note names both versions (the source commit,
+  since the package version does not move between releases) and groups
+  episodes by their first difference. For a determinism verdict, re-run with
+  the run's engine version.
+- A tool bug found on the way: a quote replacement cancels the old legs in
+  set order (X11) and a new leg not yet bound; aligning only fully-bound
+  batches cross-bound the legs in 3 of 2.5 M commands, depending on the hash
+  seed. Fixed by aligning bound ids to their live position and filling the
+  rest in order.
+- Tests: `tests/test_sim_forensics_rerun.py` (5) records a short run of a
+  real Engine on the s1-basic example as audit lines (commands echoed first)
+  and plants one violation per check.
+
 ### S7 — Checks F, G, H
+
+**Done 2026-10-24:** F2–F4 in `checks/derived.py`, G1–G2 in
+`checks/persistence.py`, H1–H3 in `checks/ops.py`. F5 not built (no index in
+the sim profile). Decided with Johan: H checks report a new **INFO** status
+(oracle `statistical`), which never fails a run.
+
+- F2 and F3 share one audit pass (`market_pass`, 37 s on the 9 GB run; a book
+  line is parsed only when a row's window or a new trade needs it). G2 reads
+  its engine starts from the same pass. `audit.Line` gained `ts`.
+- **F2**: each `price_snapshots` row equals one `book.<SYM>` message whose
+  `ts_ns` (engine publish time) falls in [row − 5 s, row + 1 s). The audit
+  line's own time is pm-audit's write time and can trail pm-stats's receipt,
+  so it only pre-selects messages. The first version keyed on it and missed
+  2 rows. `mid` and `pct_change` must follow from the row and the symbol's
+  previous row. `daily_stats` `open_bid`/`open_ask` are the date's first
+  non-empty best bid and ask; `close_bid`/`close_ask` are checked against
+  `system.eod` when the audit has one.
+- **F3**: per symbol, in publish order: `last_price`/`last_qty` = last trade;
+  `last_buy_price`/`last_sell_price` = last BUY-/SELL-aggressor trade (auction
+  prints move neither, L9; the startup values are restored, so they are taken
+  from the first snapshot); `recent_trades` = the last five trades, every
+  field. A wrong snapshot is reported once, and the replay then takes the
+  engine's values.
+- **F4**: `book_stats.json` against `trade_log`'s last trades; flags an empty
+  `prev_close` for a symbol `daily_stats` has closed before.
+- **G1** checks each persisted order (live status, quantities, the prices its
+  type needs, `tick_decimals` vs `instruments`) and combo (live, GTC).
+  Cross-store agreement stays with C4 and E4.
+- **G2**: no trade id above `engine_run_seq.json`; run_seq never falls in
+  trade-time order; trades after the audit's last engine start carry it.
+- **H1** places each failed check's first 50 samples in time from the keys
+  they carry (`ts`, `chain` ULID, `trade_id`, `order_id`). It lists metrics
+  events, clearing disconnects and log.db warnings within ±30 s, and reports
+  the share of the run that is near some event (the chance level).
+  `registry.failed_outcomes` keeps the uncapped outcomes; checks run in id
+  order, so A–G are done before H1.
+- **H2**: robust z (median/MAD) > 5 within a gateway kind (AI*, MM*, TRADER*)
+  for P&L, fill ratio, reject rate and cancel-to-fill. A jump is a
+  continuous print more than 5 % from the prevailing price (the median of
+  the symbol's last 20 trades that day), counted once per excursion, unless
+  symbol or market news came in the previous 15 min. Spread outliers across
+  symbols use the median relative spread. `market_sim_news.db` is now an
+  attached store. The catalogue's "k·σ" rule was tried first and dropped:
+  the tape is bid-ask bounce (a one-tick median move, a spread-wide move at
+  every crossing), and 10 σ flagged 19 025 ordinary crossings.
+- **H3**: per minute, the engine p99 against msgs_in, resting orders, heap
+  garbage, busy %, GC gen2 and host CPU (Spearman); spikes are > 10× the
+  median minute.
+- Tests: `tests/test_sim_forensics_market.py` (15),
+  `test_sim_forensics_persistence.py` (12), `test_sim_forensics_ops.py` (8).
+  Each plants one violation; the F tests use their own small audit tape.
+- **Results on the 2026-10-24 run** (full suite 15 min, of which the F/G
+  pass is 37 s): F1–F4, G1, G2 PASS. F2 covers 26 400 snapshot rows and
+  both days' open bid/ask; F3 covers 4 061 328 book messages. The other
+  checks are as before (C1 5161 X5, C6 1 X6, D7 12 X9, E2 28 094 with HEAD).
+  Report: the scratchpad copy of the run, not yet in `forensics/2026-10-24/`.
+  - H1 INFO 76: 366 ops events, and 20 % of the run lies within 30 s of one
+    (the chance level). Near events: C1 21 of 50 timed samples (42 %), D7 5
+    of 12, E2 50 of 50. The E2 samples are the run's first X9 OCO acks, at
+    the CONTINUOUS transition (07:30:00.4), when engine p99 thresholds fire.
+    C1 (X5) samples are near an event twice as often as chance: a hint for
+    X5's triage, not evidence.
+  - H2 INFO 123: 15 AI P&L outliers (±23–39 M against a median of −2.2 M;
+    no fill/reject/cancel-rate outlier); 86 jumps, mostly in the first half
+    hour after the open (thin books; the sim profile runs `--no-collars`),
+    none explained by the 9 news events; 22 spread outliers.
+  - H3 INFO 79: median p99 1.35 ms, 79 minutes > 13.5 ms (max 87 ms).
+    Spearman with p99: resting orders +0.54, busy +0.49, msgs_in +0.45,
+    host CPU +0.44, heap garbage +0.41, GC gen2 +0.05. Spikes also occur
+    overnight at idle (01:38, 05:30: 600 resting, 3 % busy), so load alone
+    does not explain them; this is for the perf plan.
+- Observation: `daily_stats.close_bid/close_ask` are NULL for every symbol.
+  That is correct, not a finding: the EOD books are empty because every DAY
+  order has expired by then. pm-audit stops before the engine publishes
+  `system.eod` (the audit has none), so F2 cannot check the close side on a
+  sim run.
 
 ### S8 — Triage
 
 Work the ledger; spin out fix WPs.
+
+**Done 2026-10-24.** Every open item is classified from code, docs or a
+repro on today's engine (probes against `tests/engine_harness.py`). Three
+decisions were taken with Johan (X5, X8a, X6). Each confirmed bug is a fix
+WP (S9–S13) that starts with the failing test and closes its ledger row.
+
+| ID | Verdict | Evidence | Action |
+|---|---|---|---|
+| X2 | **Expected (documented)**: closes Q2 | Operator guide, risk controls: "SMP does not apply in an auction uncross … a gateway's crossing bid and ask in the same auction trade with each other." D7 already exempts uncross prints. | Close |
+| X4 | Recorder bug, confirmed (2026-10-23) | pm-stats `_stop` clears `_running`, and the receive loop exits with messages still queued on its SUB socket (2026-10-24: "EOD received" logged after "stopped"). | S11: drain the SUB socket before closing |
+| X5 | **Engine bug** (decision: the engine follows the docs) | Participant guide, order types: "an unfillable FOK is *rejected* … rather than accepted and cancelled". The engine publishes `accepted=true` before `book.process()`, then `accepted=false`; reproduced today. | S9 |
+| X6 | Recorder gap, confirmed (decision: add `reject_code`) | `_on_order_event` drops events without an id (`quote.ack` "No active quote for symbol" has an empty `quote_id`); no `reject_code` column. | S11: record them, keyed on (gateway, symbol); add `reject_code`; fresh stats.db, no migration |
+| X7 | Recorder gap, confirmed | `oco.cancelled` is stored under `oco_id`; `cancelled_order_id` is dropped. | S11: also a CANCEL row for the cancelled leg; C4/C5 lose their inference |
+| X8a | **Engine bug** (decision: apply the refresh policy) | A quote whose bid fills on entry publishes `INACTIVE_BID_FILLED`, the fills, then `quote.ack` and `quote.status ACTIVE`, and rests the ask: against "INACTIVATE_ON_ANY_FILL: sibling leg cancelled, quote removed" (participant guide, MM quotes). Reproduced today. No check sees it. | S10: ack first; under ANY_FILL the sibling does not rest and the last status is `INACTIVE_*`; add check **C8** (no quote leg rests or trades after its quote's `INACTIVE_*`; no `ACTIVE` after `INACTIVE_*` in one dispatch) |
+| X8b | Unmeasured | Quote legs filled in an uncross are not inactivated by the X3 hook. | S13: test first |
+| X8c | Suspected | The auction stop loop prices `order.fill` at `book.last_trade_price`, not the order's own VWAP. B1 passed on both runs, so it has not happened yet. | S13: test (a stop the uncross triggers sweeps two levels) |
+| X8d | Refactor | Six near-identical publication loops. | Its own WP after S9/S10/S13, which touch them |
+| X10 | Tool bug, confirmed | `reader._hydrate` and the links query bind every id into one `IN (…)`. | S12 |
+| X11 | Fixed (5b8a5f5f) | | Confirm on the next run |
+| H1 | Pointer | C1/X5 samples sit near ops events at 2× chance. | Re-read after S9 |
+| H2 | Not a bug | P&L outliers are agent behaviour. Jumps cluster after the open in thin books, and the sim runs `--no-collars`. | None. Revisit if a run with collars still jumps |
+| H3 | Perf pointer | p99 spikes also at idle overnight (600 resting, 3 % busy) | Perf plan |
+
+Fix order: S9 and S10 (engine, small, both change what clients see), then
+S11, S12, S13. The next long sim run comes after S11, so that it starts
+with the fresh stats.db and every fix in place, and confirms X9, X11, X5,
+X8a and X4–X7 together.
 
 ## 8. Open questions
 
@@ -440,7 +655,9 @@ Work the ledger; spin out fix WPs.
   with enough space, because D1/F2/F3 use the book snapshots as the oracle.
   **Settled 2026-10-23:** configurable rotation only, no topic exclude.
 - **Q2** Does SMP apply to the auction uncross (R4)? The spec must say so
-  either way; today 123 auction self-trades happened.
+  either way; today 123 auction self-trades happened. **Settled (S8):** the
+  operator guide already says it does not (risk controls, SMP rules); X2
+  closed as expected.
 - **Q3** Tool vs product: `tools/sim_forensics` (recommended now) or a
   `pm-forensics` CLI later once the checks have stabilised?
 - **Q4** Should the checks also run continuously against a live sim (e.g. a
@@ -453,14 +670,20 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 
 | ID | Found by | Run | Count | Classification | Status |
 |---|---|---|---|---|---|
-| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (B1/B2/C2) |
-| X2 | R4 | 2026-10-23 | 123 auction self-trades | Spec question (Q2) | Open |
-| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed 2026-10-23 (uncommitted); confirm on next run (C2) |
-| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Open |
-| X5 | C1 | 2026-10-23 | 4 107 FOK orders | Engine bug or spec gap | Open |
-| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects | Recorder gap (pm-stats) + label | Open |
-| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings | Recorder gap (pm-stats) | Open |
-| X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
+| X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: B1, B2, C2 PASS |
+| X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Expected: SMP does not apply in an uncross (documented) | Closed (S8) |
+| X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: C2 PASS, D4/D5/D9 PASS |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4, A1) |
+| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C6) |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4 inferred count 0) |
+| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10); X8b/c fixed 2026-10-25 (S13, uncommitted); X8d open |
+| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
+| X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
+| X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
+| X14 | S13 | 2026-10-24 | 23 fills (B8) | Check gap: B1 does not compare a fill's price with its trades' VWAP | Fixed 2026-10-25: new check B8 (uncommitted) |
+| X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Fixed 2026-10-25 (uncommitted) |
+| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -564,3 +787,217 @@ test covered these paths.
 - Six near-identical publication loops are the reason X1 survived the
   "finding #5" fix; consolidating them on one helper (the shape of
   `_publish_amend_rematch`) is worth a WP of its own.
+
+**X9 — OCO legs trade with their owner despite SMP.** D7, run 2026-10-24:
+12 continuous self-trades, all with an OCO **STOP leg** as the aggressor
+against its owner's resting LIMIT order; every gateway involved is
+configured `CANCEL_AGGRESSOR`. Example (chain `01M5PD2ZHKE2NBR31V7PZGZQJ6`,
+MA, 07:30:31Z): AI017's buy prints 64.76, which triggers AI057's sell stop
+and then AI037's OCO stop leg `00a4435c…`, which sells 5 @ 62.15 into
+AI037's own bid `d49b804e…` (trade `000001-000015487`). Root cause:
+`_handle_new_order` (and quotes, combo legs) resolve the order's SMP action
+from the gateway default with `_resolve_smp_action`; `_handle_oco_order`
+never does, so both legs carry `smp_action=None`, which `_sweep` treats as
+`NONE`. All 12 are stop legs; a limit leg that crosses its owner's order
+on entry should be exposed the same way (not seen in this run). Next: failing
+engine test (an OCO stop leg triggered into its owner's bid must be
+cancelled `SELF_MATCH_PREVENTED`), then resolve SMP for both legs.
+
+**X9 fix (2026-10-24).** `_handle_oco_order` resolves the gateway default
+once (`_resolve_smp_action(gateway_id, None)` — no protocol carries an SMP
+field on an OCO) and creates both legs with it; the per-leg `order.ack` now
+shows it. Tests: `tests/test_engine_oco_smp.py` — the sim's case (a stop leg
+triggered by another gateway's print meets its owner's bid: cancelled
+`SELF_MATCH_PREVENTED`, no trade), the resolved action on both leg acks, a
+limit leg crossing its owner's order on entry, and the control that a
+gateway configured `NONE` still self-trades. The first three failed before
+the fix. Docs: the OCO row in the operator guide's SMP per-path table.
+
+**X10 — `pm-audit-replay` cannot read one rotated file of the sim
+profile.** `pm-audit-replay --log-file audit.log.5 anomalies` (256 MB,
+~390 k lines) builds a 750 MB episode index in about a minute and then fails
+in `reader._events_for` with `sqlite3.OperationalError: too many SQL
+variables`: `_hydrate` binds every episode id of the window into one
+`IN (…)`, beyond SQLite's limit of 32 766. With the S1 rotation (256 MB ×
+100) the tool cannot be used on a sim run's audit at all. Not needed by the
+forensics (S5 streams the files itself); a fix chunks the `IN` list.
+
+**X11 — batch cancels come out in hash order.** E2: in about 6 400 commands
+(of 2.55 M) the engine published a batch of `order.cancelled` for one gateway
+in a different order from the re-run — mostly quote replacements cancelling
+the old legs. `OrderBook.orders_for_gateway` iterates the gateway's set of
+order-id strings, whose order follows Python's per-process hash seed. The
+same orders are cancelled and the book is identical; only the message order
+differs between two runs of the same input, which makes the engine's output
+non-reproducible byte for byte (and a recording compare harder). The same
+index feeds kill switch and disconnect cancels. A fix iterates in
+arrival-seq order.
+
+*Fixed 2026-10-24.* `OrderBook._orders_by_gateway` and `QuoteIndex`'s
+`_keys_by_gateway`/`_keys_by_symbol` (which order the disconnect, kill-switch,
+halt and circuit-breaker quote cancels) are now insertion-ordered dicts used
+as sets, so a batch cancels in the order the orders came to rest (a
+re-triggered stop counts from when it rests again). This is deterministic, which is
+all reproducibility needs, and is simpler than sorting by `arrival_seq`
+at each read. The global kill switch already walked `_order_index` (a dict).
+Tests: `tests/test_engine_batch_cancel_order.py` (40 ids, so a set matching
+arrival order by chance is negligible; all three fail on the old code). On
+the next run, E2's note should report no reordered cancel batches.
+
+**X5 fix (S9, 2026-10-24).** An order the book may still reject
+(`_book_may_reject`: a FOK, or a MARKET/IOC/FOK posted while matching is off)
+is acked only after `book.process()`, and only if the book did not reject it.
+A rejected one gets the single `accepted=false` ack (`INSUFFICIENT_LIQUIDITY`)
+of the events loop. Applied at the three sites that ack before matching:
+`_handle_new_order`, combo children (`_accept_combo`) and OCO legs. In the
+new-order path the second clause never applies, because gate 8 rejects
+MARKET/IOC/FOK before the book while matching is off. Message order changes
+only for a FOK: its ack follows anything `process()` publishes itself (the
+X3 quote-leg hook, when the FOK hits a quote). A FOK cancelled by SMP
+(`CANCEL_AGGRESSOR` with a same-gateway conflict) is still accepted, then
+cancelled `SELF_MATCH_PREVENTED`, as risk controls documents. Tests:
+`tests/test_engine_fok_ack.py`: unfillable FOK, fillable FOK (ack before
+fill), the SMP cancel (control), CANCEL_RESTING shortfall, an OCO FOK leg, and
+a FOK combo child of a blocked AON combo. The four bug cases failed before
+the fix. Docs: the order-flow chapter's ACK section. The audit replay keeps
+tolerating accept-then-refuse, which older logs and converting stops hold.
+
+**X12 — book rejects outside the new-order path (seen in S9, not changed).**
+(a) A combo child posted while matching is off (symbol halted, session not
+matching, or an AON combo blocked) that the book rejects (MARKET/IOC/FOK) is
+reported with `reject_code INSUFFICIENT_LIQUIDITY`. A halted symbol should say
+`INSTRUMENT_HALTED`, as gate 8 does for ordinary orders. (b) An OCO leg the
+book rejects does not close its sibling (no `_check_oco_after_event`), whereas
+`_handle_new_order` runs it for a rejected OCO-tagged order. Both are for
+the X8d publication-loop consolidation, which removes the per-loop drift
+that causes them.
+
+**X8a fix and C8 (S10, 2026-10-25).** C8 (`checks/quotes.py`, one 34 s audit
+pass) on the 2026-10-24 run: of 272 238 quotes, **40 898 traded on entry
+and then rested their sibling**. In each case `INACTIVE_*_FILLED` came before
+the quote's ack, `ACTIVE` came after it, and the sibling was never
+cancelled. **6 212 trades** then hit such a sibling, after its owner had
+been told the quote was inactive. Cause: `_handle_quote_new` posted the bid,
+whose fill ran the X3 hook (`_on_quote_leg_filled`). The hook inactivated
+the quote and cancelled a sibling that was not in the book yet, which
+silently did nothing. The handler then posted the ask anyway, and only then
+published `quote.ack` and `ACTIVE`. Fix: `quote.ack` and `ACTIVE` are
+published before the legs reach the book, as an order is acked before it
+matches. If the bid's fill inactivated the quote, the ask is not posted: it
+gets `order.cancelled QUOTE_LEG_FILLED`, and the quote's history entry gets
+both legs' snapshots. An ask that fills on entry already cancelled the
+rested bid through the hook. Only the order of messages changed there.
+`INACTIVATE_ON_FULL_FILL` with a partial entry fill keeps the quote active,
+as before. C8 handles seeded quotes, which have no `quote.ack`, only their
+legs' `order.ack`s (learnt from `is_seed` acks), and ignores the ack of a
+quote cancel, which carries no legs. Tests:
+`tests/test_engine_quote_entry_fill.py` (5; the four behaviour cases failed
+before the fix) and `tests/test_sim_forensics_quotes.py` (4).
+`test_engine_fill_status_vocabulary` traded against the ask that X8a
+wrongly rested; it now posts a fresh quote first. Docs: participant guide,
+MM quotes (refresh policies).
+
+**X4, X6, X7 fix (S11, 2026-10-25), all in pm-stats.**
+- **X4:** after a stop, the receive loop drains what is already queued on
+  the engine SUB socket (`_drain`, at most `_DRAIN_SEC` = 0.5 s, inside
+  `run()`'s 1 s join). The 2026-10-24 log shows the case: "EOD received"
+  logged after "stopped".
+- **X6:** a `QUOTE_REJECT` with no quote id (a quote cancel for a symbol
+  with no live quote) is recorded with an empty `order_id`, identified by
+  `gateway_id` and `symbol`; every other event without an id is still
+  dropped. `order_events` gained `reject_code` (schema version 9). Older
+  stats.db files are refused, not migrated: the next sim run starts with a
+  fresh one.
+- **X7:** `oco.cancelled` also writes a `CANCEL` row for `cancelled_order_id`,
+  with the pair in `oco_group_id`.
+- C4/C5 keep their OCO_CANCEL inference for older files. On a new run it
+  should find nothing to infer.
+- Tests: `tests/test_stats_recorder_gaps.py` (6: queued at stop, bounded
+  drain, the X6 quote reject, `reject_code` kept, id-less events still
+  dropped, the X7 leg row). All failed before the change.
+  `test_service_metrics`'s mock SUB socket now reports an empty queue, as
+  a real one would once drained.
+- Docs: operator guide, statistics (schema version history, `event_type`
+  table); the generated SQLite schema chapter.
+
+**X10 fix (S12, 2026-10-25).** The four reader queries that bound a whole id
+list into one `IN (…)` (`_by_ids`, `_events_for`, `_anomalies_for`,
+`neighbours`) now run in batches sized by the connection's own
+`SQLITE_LIMIT_VARIABLE_NUMBER` (`_batches`). `neighbours` binds each id twice
+and keeps a link read from two batches once, by its primary key. `_in`
+(CLI filter values) is unchanged: it binds what a user typed. Test:
+`tests/test_audit_replay_reader_limits.py` lowers the limit to 3 on the
+kill-switch fixture's index; a window and its neighbours read the same as
+at the default limit. Both failed with the sim's `too many SQL variables`
+before the fix.
+
+On the real file (`audit.log.5`, 256 MB, copied to a scratch dir with a
+scratch `--db`), `anomalies` now completes in 1 min 41 s: 252 222 episodes,
+8 640 findings (4 errors). Before the fix it failed after the index build.
+One error is a fill naming a trade outside this one file's window, which is
+normal for a single rotated file. The other three are X13.
+
+**X13 — `pm-audit-replay` reads a rejected cancel as a rejected order.**
+`ILLEGAL_STATUS_TRANSITION … went FILLED -> REJECTED` (3 in `audit.log.5`).
+Example `70c51725…` (AI091, ABNB): filled at 12:55:55.213; at .248 its
+gateway's `order.cancel` (request_tag `CXL-AI091-4C1F`) is refused with
+`order.ack accepted=false ORDER_NOT_FOUND`, correctly. The replay's status
+ladder takes every `accepted=false` ack as the order becoming REJECTED. A
+refusal that answers a cancel or amend (it carries a `request_tag`, or
+`ORDER_NOT_FOUND` / `ORDER_ALREADY_TERMINAL`) refuses the command, not the
+order. The forensics C1/C2 grammar already makes this distinction (S4). Fix
+in `audit/replay/state.py` with a test; small, its own WP.
+
+**X8b and X8c (S13, 2026-10-25).** Measured on the 2026-10-24 audit, in
+uncross dispatches only (scratch script, 38 s):
+- X8b: 301 quote-leg fills in an uncross. Each left the quote ACTIVE and the
+  sibling leg live: the market maker cancelled 94 siblings itself later, and
+  9 were still live at the end. No trade hit one in this run. The same
+  loop also lacked the OCO sibling cancel, so a resting OCO leg filled in
+  (say) the closing auction left its sibling live; that did not occur in
+  the run.
+- X8c: of 45 fills of stops the uncross triggered, 20 were reported at the
+  last print rather than at their own VWAP.
+
+Fix in `_run_uncross`: the uncross fill loop now runs `_on_quote_leg_filled`
+and, for a FILLED OCO leg, `_check_oco_after_event`. These run after
+`execute_uncross` (whose two-sided walk must not be mutated mid-way) and
+before the stop loop, so a triggered stop cannot buy a leg the policy pulls.
+The stop loop reports `_order_fill_prices` (H6) like every other loop.
+Tests: `tests/test_engine_uncross_followups.py` (3). All failed before the
+fix; in the quote case the triggered stop bought the MM's ask.
+
+**X14 — no check compares a fill's price with its trades.** X8c's 20 wrong
+fill prices passed B1, which matches fill to trade by id and quantity only.
+Add to B1 (or a B8): each FILL's `fill_price` equals the quantity-weighted
+price of the trades it names (`trade_ids`, schema 8+).
+
+**X13 fix (2026-10-25).** `StateModel` remembers the msg ids of
+`order.cancel` and `order.amend` commands. An `order.ack accepted=false`
+whose `cause` is one of them, or (for logs without envelopes) whose
+`reject_code` only a request on an existing order can get (`ORDER_NOT_FOUND`,
+`ORDER_ALREADY_TERMINAL`, `AMEND_NOT_PERMITTED`, `NOT_OWNER`,
+`DUPLICATE_ORDER`), refuses the request. The order keeps its status. The bug
+was wider than the 3 findings showed: a refused cancel or amend of a *live*
+order silently marked it REJECTED (NEW → REJECTED is on the ladder, so
+nothing was reported). Tests in `tests/test_audit_replay_anomalies.py`:
+- the sim's FILLED case;
+- a refused amend for a code an order could also be rejected for (the
+  cause alone decides);
+- the envelope-less code rule;
+- a genuine rejection, still REJECTED (control).
+
+The first three failed before the fix. Two of the new tests first passed
+vacuously: `reconstruct()` yields its steps lazily, and the model is built
+only as they are read.
+
+**X14 fix (2026-10-25): check B8.** On the 2026-10-24 run (4 s, 937 487
+fills) B8 finds 23, all in the 14:05 closing uncross. They are the fills of
+stops the uncross triggered **and of the resting limit orders those stops
+traded with**, all reported at the last print: limit sells that executed
+at 93.82 were told 92.28. That is X8c, wider than S13's scratch count (20
+of 45, stops only). S13's fix covers both sides, since each order in the
+stop loop now gets its own VWAP; `test_x8c_…` now also pins a passive
+order's price. B8 should pass on the next run. Tests:
+`tests/test_sim_forensics_bookkeeping.py` (a wrong price, a wrong quantity).
+

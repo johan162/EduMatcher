@@ -25,7 +25,7 @@ from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
 T1, T2, T3, T4 = (t.id for t in TRADES)
-AB = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5", "B6", "B7"]
+AB = ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"]
 
 
 @pytest.fixture
@@ -108,6 +108,23 @@ def test_a4_finds_a_continuous_print_in_the_auction_and_time_going_back(
     ]
 
 
+def test_a4_allows_the_uncross_stop_cascade_but_not_another_symbol(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """A stop the opening print triggers trades at once, still inside
+    OPENING_AUCTION; a continuous print in a symbol that did not uncross is
+    still a violation."""
+    db = world / "clearing.db"
+    sql(db, "UPDATE trade_events SET ts_ns = ? WHERE id = ?", TRADES[0].ts_ns, T2)
+    sql(db, "UPDATE trade_events SET ts_ns = ? WHERE id = ?", TRADES[0].ts_ns, T3)
+    sql(db, "UPDATE trade_events SET symbol = 'MSFT' WHERE id = ?", T3)
+    out = run(open_ds, world, "A4")
+    assert out.samples == [
+        {"trade_id": T3, "aggressor_side": "SELL", "phase": "OPENING_AUCTION"}
+    ]
+    assert out.note == "1 stop-cascade prints after an uncross"
+
+
 def test_a4_is_skipped_without_phase_rows(world: Path, open_ds: OpenDataset) -> None:
     sql(world / "clearing.db", "DELETE FROM session_events")
     (result,) = run_checks(open_ds(world), [REGISTRY["A4"]], 10)
@@ -140,6 +157,23 @@ def test_b1_and_b2_find_a_trade_side_without_its_fill(
         }
     ]
     assert "total +30" in out.note
+
+
+def test_b8_finds_a_fill_reported_at_a_price_its_trades_did_not_print(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """X8c's shape: a stop's fill reported at the last print, not its VWAP."""
+    sql(world / "stats.db", "UPDATE order_events SET fill_price = 151.5 WHERE order_id = 'O3' AND event_type = 'FILL'")  # fmt: skip
+    (sample,) = run(open_ds, world, "B8").samples
+    assert (sample["order_id"], sample["fill_price"], sample["trades_vwap"]) == ("O3", 151.5, 151.0)  # fmt: skip
+
+
+def test_b8_finds_a_fill_quantity_that_is_not_its_trades_total(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    sql(world / "stats.db", "UPDATE order_events SET fill_qty = 29 WHERE order_id = 'O3' AND event_type = 'FILL'")  # fmt: skip
+    (sample,) = run(open_ds, world, "B8").samples
+    assert (sample["fill_qty"], sample["trades_qty"]) == (29, 30)
 
 
 def test_b1_finds_a_fill_naming_a_trade_its_order_is_not_in(

@@ -93,6 +93,7 @@ class TestM1ValidateSchedule:
             holidays=None,
         )
         mock_compiled.return_value.engine.locale.country = DEFAULT_COUNTRY
+        mock_compiled.return_value.engine.locale.session_timezone = "Europe/Stockholm"
 
         with patch("sys.argv", ["pm-scheduler"]):
             with pytest.raises(SystemExit) as exc:

@@ -9,7 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 #: Stores the checks may need, ATTACHed under these schema names.
-STORES = ("stats", "clearing", "metrics", "log")
+STORES = ("stats", "clearing", "metrics", "log", "market_sim_news")
 
 
 @dataclass

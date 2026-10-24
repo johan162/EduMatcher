@@ -10,6 +10,9 @@ times via a PUSH socket. It runs as a closed-loop driver:
   - After each transition it listens to the engine's ``session.state``
     broadcast to confirm the change was actually applied.
 
+Schedule dates and times use ``locale.session_timezone`` from the deployed
+configuration (default ``Europe/Stockholm``), not the host's timezone.
+
 Usage:
   poetry run pm-scheduler                  # run today's schedule once, then exit
   poetry run pm-scheduler --daily          # run continuously, once per day
@@ -69,6 +72,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Callable
+from zoneinfo import ZoneInfo
 
 import holidays
 import zmq
@@ -95,6 +99,7 @@ from edumatcher.models.message import (
 from edumatcher.engine.config_loader import (
     DAY_KEYS,
     DEFAULT_COUNTRY,
+    DEFAULT_SESSION_TIMEZONE,
     DaySchedule,
     ScheduleConfig,
 )
@@ -190,7 +195,7 @@ _next_wait_sec = 0.0
 
 
 class _Clock:
-    """Local time the schedule runs on.
+    """Session-local time the schedule runs on.
 
     By default the wall clock. Under ``--speed`` (compressed mode) a
     simulated local clock that starts at ``start`` and runs ``speed`` times
@@ -198,30 +203,44 @@ class _Clock:
     while waits and the countdown instants sent to the engine are wall time.
     """
 
-    def __init__(self, speed: float = 1.0, start: datetime | None = None) -> None:
+    def __init__(
+        self,
+        speed: float = 1.0,
+        start: datetime | None = None,
+        *,
+        session_timezone: str = DEFAULT_SESSION_TIMEZONE,
+    ) -> None:
+        self.timezone = ZoneInfo(session_timezone)
         self.speed = speed
+        if start is not None and start.tzinfo is not None:
+            start = start.astimezone(self.timezone).replace(tzinfo=None)
         self._start = start
         self._wall0 = time.time()
 
     def now(self) -> datetime:
         if self._start is None:
-            return datetime.now()
+            return datetime.now(self.timezone).replace(tzinfo=None)
         elapsed = (time.time() - self._wall0) * self.speed
         return self._start + timedelta(seconds=elapsed)
 
     def seconds_until(self, target: datetime) -> float:
         """Wall seconds until the local schedule time ``target``."""
         if self._start is None:
-            return _seconds_until_local(target)
+            return _seconds_until_local(target, self.timezone)
         return (target - self.now()).total_seconds() / self.speed
 
     def wall_instant(self, target: datetime) -> datetime:
         """The (aware) wall-clock instant at which ``target`` falls."""
         if self._start is None:
-            return target.astimezone()
-        return datetime.now().astimezone() + timedelta(
-            seconds=self.seconds_until(target)
-        )
+            return _local_instant(target, self.timezone)
+        return datetime.now(UTC) + timedelta(seconds=self.seconds_until(target))
+
+    def is_past(self, target: datetime, now: datetime) -> bool:
+        if self._start is None:
+            return _local_instant(target, self.timezone) < now.replace(
+                tzinfo=self.timezone
+            ).astimezone(UTC)
+        return target < now
 
 
 _clock = _Clock()
@@ -334,36 +353,32 @@ def _validate_schedule_config(cfg: ScheduleConfig) -> list[str]:
 def _time_today(hhmm: str) -> datetime:
     """Parse a validated ``"HH:MM"`` string into a naive datetime for today.
 
-    Used for classifying past/upcoming entries and for log labels. Wall-clock
-    wait *durations* are computed by :func:`_seconds_until_local`, which is
-    DST-aware; a naive subtraction here would only ever misclassify an entry by
-    an hour right at a DST boundary.
+    Classification, waits and countdowns resolve this local time through the
+    same DST policy rather than comparing naive wall-clock readings.
     """
     h, m = hhmm.split(":")
     now = _clock.now()
     return now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
 
 
-def _seconds_until_local(target: datetime) -> float:
-    """Seconds from now until the local wall-clock ``target`` (DST-aware).
+def _local_instant(target: datetime, timezone: ZoneInfo) -> datetime:
+    """Resolve a local schedule time to UTC using the later DST instant.
 
-    Resolves the target's wall-clock components to epoch seconds via the OS
-    timezone database (``time.mktime`` with ``tm_isdst=-1``), so the wait is
-    correct even across a daylight-saving transition. A plain naive subtraction
-    can be off by an hour on those days (review finding L1).
+    A repeated time runs only on its second occurrence. A nonexistent time
+    during the spring jump is shifted forward by the gap. For ordinary times
+    both fold values resolve to the same instant.
     """
-    tm = (
-        target.year,
-        target.month,
-        target.day,
-        target.hour,
-        target.minute,
-        target.second,
-        0,  # tm_wday (ignored by mktime)
-        0,  # tm_yday (ignored by mktime)
-        -1,  # tm_isdst = -1 → let the OS resolve DST
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=timezone)
+    return max(
+        target.replace(fold=0).astimezone(UTC),
+        target.replace(fold=1).astimezone(UTC),
     )
-    return time.mktime(tm) - time.time()
+
+
+def _seconds_until_local(target: datetime, timezone: ZoneInfo | None = None) -> float:
+    """Seconds from now until the local schedule time under the DST policy."""
+    return _local_instant(target, timezone or _clock.timezone).timestamp() - time.time()
 
 
 def _next_scheduled_day(cfg: ScheduleConfig, day: date, country: str) -> date:
@@ -762,7 +777,7 @@ def _run_scheduled(
     upcoming: list[tuple[str, str, datetime]] = []
     for hhmm, state in schedule:
         target = _time_today(hhmm)
-        if target < now:
+        if _clock.is_past(target, now):
             past.append((hhmm, state))
         else:
             upcoming.append((hhmm, state, target))
@@ -905,7 +920,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("EDUMATCHER_SCHEDULER_START") or None,
         metavar="YYYY-MM-DDTHH:MM",
         help=(
-            "Compressed mode: local time the simulated clock starts at "
+            "Compressed mode: session-local time the simulated clock starts at "
             "(default: EDUMATCHER_SCHEDULER_START, else now)"
         ),
     )
@@ -1011,17 +1026,12 @@ def main() -> None:
         log.warning("--delay is ignored outside --now mode")
     now_mode_delay = args.delay if args.delay is not None else NOW_MODE_DELAY
 
-    global _clock
+    speed = 1.0 if args.speed is None else args.speed
     if args.speed is not None or args.start is not None:
         if not args.daily:
             parser.error("--speed and --start need --daily")
-        speed = 1.0 if args.speed is None else args.speed
         if speed <= 0:
             parser.error("--speed must be > 0")
-        _clock = _Clock(speed, args.start or datetime.now())
-        log.info(
-            "compressed mode: x%g from simulated %s", speed, _clock.now().isoformat()
-        )
 
     running = True
 
@@ -1082,6 +1092,20 @@ def main() -> None:
                 sys.exit(1)
 
             engine_cfg = compiled.engine
+            global _clock
+            _clock = _Clock(session_timezone=engine_cfg.locale.session_timezone)
+            if args.speed is not None or args.start is not None:
+                _clock = _Clock(
+                    speed,
+                    args.start or _clock.now(),
+                    session_timezone=engine_cfg.locale.session_timezone,
+                )
+                log.info(
+                    "compressed mode: x%g from simulated %s",
+                    speed,
+                    _clock.now().isoformat(),
+                )
+            log.info("Using session timezone %s", _clock.timezone)
             schedule_cfg = (
                 DEFAULT_SCHEDULE if engine_cfg.schedule is None else engine_cfg.schedule
             )

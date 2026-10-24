@@ -1,0 +1,31 @@
+<div class="diagram">
+<svg viewBox="0 0 1100 260" role="img" aria-labelledby="day-t" xmlns="http://www.w3.org/2000/svg">
+  <title id="day-t">A trading day as session phases</title>
+  <text class="t-dim" x="40" y="20" font-size="11" letter-spacing="2">EXAMPLE SCHEDULE · CONFIGURABLE PER WEEKDAY</text>
+  <line x1="40" y1="150" x2="1060" y2="150" class="wire"/>
+  <!-- phases -->
+  <rect x="40"  y="112" width="130" height="76" rx="8" class="box"/>
+  <rect x="174" y="112" width="110" height="76" rx="8" fill="color-mix(in srgb, var(--amber) 22%, var(--surface-2))" stroke="var(--amber)" stroke-width="1.4"/>
+  <rect x="288" y="112" width="440" height="76" rx="8" class="box-acc"/>
+  <rect x="732" y="112" width="110" height="76" rx="8" fill="color-mix(in srgb, var(--amber) 22%, var(--surface-2))" stroke="var(--amber)" stroke-width="1.4"/>
+  <rect x="846" y="112" width="214" height="76" rx="8" class="box"/>
+  <g font-size="12" text-anchor="middle">
+    <text class="t-strong" x="105" y="146">PRE_OPEN</text><text class="t-dim" x="105" y="166" font-size="10">orders rest · no match</text>
+    <text class="t-strong" x="229" y="142">OPENING</text><text class="t-strong" x="229" y="157">AUCTION</text><text class="t-dim" x="229" y="175" font-size="10">ATO · uncross</text>
+    <text class="t-acc" x="508" y="144" font-size="15">CONTINUOUS</text><text class="t-dim" x="508" y="166" font-size="11">price-time priority · every order matches on arrival</text>
+    <text class="t-strong" x="787" y="142">CLOSING</text><text class="t-strong" x="787" y="157">AUCTION</text><text class="t-dim" x="787" y="175" font-size="10">ATC · uncross</text>
+    <text class="t-strong" x="953" y="146">CLOSED</text><text class="t-dim" x="953" y="166" font-size="10.5">orders rejected</text>
+  </g>
+  <!-- times -->
+  <g font-size="12" class="t-acc"><text x="40" y="100">09:00</text><text x="174" y="100">09:25</text><text x="288" y="100">09:30</text><text x="732" y="100">16:00</text><text x="846" y="100">16:05</text></g>
+  <!-- halt marker -->
+  <g>
+    <path d="M580 112 V70" stroke="var(--down)" stroke-width="1.6" stroke-dasharray="3 3"/>
+    <rect x="500" y="42" width="160" height="28" rx="14" fill="color-mix(in srgb, var(--down) 18%, var(--surface-2))" stroke="var(--down)"/>
+    <text x="580" y="60" text-anchor="middle" font-size="11" fill="var(--down)">circuit breaker halt</text>
+    <path d="M580 188 V218" stroke="var(--amber)" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <text x="580" y="238" text-anchor="middle" font-size="11" fill="var(--amber)">reopening auction with collar expansion</text>
+  </g>
+  <circle r="6" fill="var(--accent)"><animateMotion dur="14s" repeatCount="indefinite" path="M40 150 H1060"/></circle>
+</svg>
+</div>

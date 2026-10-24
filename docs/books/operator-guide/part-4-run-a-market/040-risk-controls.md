@@ -1596,6 +1596,7 @@ Not every order-entry path exposes its own `SMP=` field:
 | BALF `NEW_ORDER` | Yes (`smp` byte is mandatory in the fixed frame — see note below) | Always the value on the wire — see [BALF Protocol Reference — `NEW_ORDER`](../../protocols-and-clients/part-2-specifications/020-balf.md#new_order-0x10-client-server) |
 | REST `OrderRequest` / `ComboRequest` | Yes (JSON field, optional; on a `ComboRequest` it is **one top-level `smp_action` for the whole combo**, applied to every leg) | Explicit value, else gateway default, else `NONE` |
 | Market-maker `QUOTE` (both `pm-mm-bot` and the REST quoting endpoint) | **No** — quotes have no per-request SMP field | Always `participants[].smp_action`, else `NONE` |
+| OCO (`order.oco`, every gateway) | **No** — the OCO has no SMP field | Always `participants[].smp_action`, else `NONE`, applied to both legs — including a stop leg that triggers later |
 | `market_maker_combos[].legs[]` config-seeded combo | Optional `smp_action` key, settable **per leg** | Explicit per-leg value, else gateway default, else `NONE` — resolved independently per leg |
 
 !!! note "BALF's `smp` byte is mandatory, not omittable"

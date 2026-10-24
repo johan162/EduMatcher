@@ -361,7 +361,8 @@ Every gate passed. The order is now **accepted**.
 ## 6. The ACK — sent before the book ever sees the order
 
 This is the detail most people expect to be complicated and is not: the ACK
-is built and published *before* `book.process()` runs at all.
+is built and published *before* `book.process()` runs at all (for every
+order type but `FOK`, see the caveat below).
 
 ```python
 # engine/main.py — _handle_new_order (trimmed)
@@ -443,12 +444,13 @@ sequenceDiagram
 terminal prints it.
 
 One caveat: this ACK means *"the engine accepted the order for
-processing"*, not *"this is its final state"*. For `MARKET`/`FOK`/`IOC`
-orders the book can still reject afterwards (e.g. insufficient liquidity for
-a `FOK`) — a second, `accepted=False` message follows in that case. For our
-resting `LIMIT` order, this ACK is the only acknowledgement it gets; its
-fate from here is reported via `order.fill` / `order.cancelled` /
-`order.expired`.
+processing"*, not *"this is its final state"*. The exception is a `FOK`,
+which the book can still reject for want of liquidity: its ACK is sent
+*after* `book.process()` (`_book_may_reject`), so an unfillable `FOK` gets a
+single `accepted=False` ACK with `INSUFFICIENT_LIQUIDITY` and never an
+acceptance first. For our resting `LIMIT` order, this ACK is the only
+acknowledgement it gets; its fate from here is reported via `order.fill` /
+`order.cancelled` / `order.expired`.
 
 ## 7. Handing the order to the book
 

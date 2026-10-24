@@ -1,0 +1,86 @@
+{
+  "_comment": "One entry per book. 'entry' is the docs/ page (without .md) the book opens on; 'stem' is the file stem used by the docs/Makefile for PDF/EPUB artifacts (edumatcher_<stem>_a4-<version>.pdf). Add a book here and the Learn, Documentation and Download pages pick it up on the next build. 'intro' is the one book that is NOT about EduMatcher; it lives in docs-exchange-intro/, has its own version (docs-exchange-intro/version.toml) and is shown and downloaded separately from the guide books. 'read_online' is the docs/ page of its online edition.",
+  "books": [
+    {
+      "slug": "quick-start",
+      "stem": "quick_start",
+      "title": "Quick Start Guide",
+      "cover": "quick-start.jpg",
+      "entry": "books/quick-start/00-front/010-how-to-use-this-book",
+      "audience": "Everyone — start here",
+      "blurb": "Install, first trade, a full trading day and your own configuration — a checkpoint at every step."
+    },
+    {
+      "slug": "training-guide",
+      "stem": "training_guide",
+      "title": "Training Guide",
+      "cover": "training-guide.jpg",
+      "entry": "books/training-guide/index",
+      "audience": "Students & instructors",
+      "blurb": "29 hands-on chapters: order types, auctions, market making, risk, clearing, protocols."
+    },
+    {
+      "slug": "participant-guide",
+      "stem": "participant_guide",
+      "title": "Participant Guide",
+      "cover": "participant-guide.jpg",
+      "entry": "books/participant-guide/00-front/010-how-to-use-this-book",
+      "audience": "Traders & market makers",
+      "blurb": "The order book, every order type, auctions, market making, bots, P&L and the trading screens."
+    },
+    {
+      "slug": "operator-guide",
+      "stem": "operator_guide",
+      "title": "Operator's Guide",
+      "cover": "operator-guide.jpg",
+      "entry": "books/operator-guide/00-front/010-how-to-use-this-book",
+      "audience": "Exchange operators",
+      "blurb": "Install, configure, run, supervise and recover an exchange — gateways, risk, audit, persistence."
+    },
+    {
+      "slug": "protocols-and-clients",
+      "stem": "protocols_and_clients",
+      "title": "Protocols and Clients",
+      "cover": "protocols-and-clients.jpg",
+      "entry": "books/protocols-and-clients/00-front/010-how-to-use-this-book",
+      "audience": "Client developers",
+      "blurb": "ALF, BALF, CALF, RALF, LALF and REST/WebSocket — specifications, sessions and client examples."
+    },
+    {
+      "slug": "reference-manual",
+      "stem": "reference_manual",
+      "title": "Reference Manual",
+      "cover": "reference-manual.jpg",
+      "entry": "books/reference-manual/00-front/010-how-to-use-this-book",
+      "audience": "Everyone — look-ups",
+      "blurb": "Every command, port, configuration field and a finance glossary."
+    },
+    {
+      "slug": "architecture-and-development",
+      "stem": "architecture_and_development",
+      "title": "Architecture & Developer Guide",
+      "cover": "architecture-and-development.jpg",
+      "entry": "books/architecture-and-development/00-front/010-how-to-use-this-book",
+      "audience": "Contributors",
+      "blurb": "The design, the data structures, the code tour and how to change it with confidence."
+    },
+    {
+      "slug": "ai-traders",
+      "stem": "ai_traders",
+      "title": "AI Traders & Market Simulation",
+      "cover": "ai-traders.jpg",
+      "entry": "books/ai-traders/00-front/010-how-to-use-this-book",
+      "audience": "Instructors & curious minds",
+      "blurb": "An exchange that trades itself: AI traders, hidden true values, news and rumours."
+    }
+  ],
+  "intro": {
+    "slug": "exchange-intro",
+    "stem": "exchange_intro",
+    "source": "docs-exchange-intro",
+    "title": "Exchange Concepts: An Introduction",
+    "cover": "exchange-intro.jpg",
+    "read_online": "how-exchange-works",
+    "blurb": "A general introduction to how financial exchanges work: order books, matching, auctions, risk, clearing and market data."
+  }
+}

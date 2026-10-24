@@ -1,0 +1,65 @@
+---
+title: Documentation — EduMatcher
+desc: The complete EduMatcher documentation: a library of books for traders, operators, client developers and contributors, searchable and always matching the current release.
+nav: docs
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+{{> head}}
+</head>
+<body>
+{{> header}}
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Documentation</div>
+    <div class="eyebrow">Version {{VERSION}}</div>
+    <h1 class="display">The full<br><span class="accent">documentation</span></h1>
+    <p class="lede">Every book, every chapter, searchable — rebuilt from the repository's <code>docs/</code> folder for each release, so what you read always matches the version you download.</p>
+    <div class="btn-row" style="margin-top:26px"><a class="btn primary" href="docs/">Open the documentation site</a><a class="btn ghost" href="{{INTRO_URL}}">{{INTRO_TITLE}} (online)</a><a class="btn ghost" href="download.html#books">Download PDF &amp; EPUB</a></div>
+  </div>
+</section>
+
+<section class="section tight">
+  <div class="wrap">
+    <div class="card flat rv" style="display:grid;grid-template-columns:1fr auto;gap:22px;align-items:center">
+      <div><span class="tag">New here?</span><h3 style="margin:4px 0 4px">Start with the Quick Start Guide</h3><p class="muted small" style="margin:0">Install, first trade, a full trading day and your own configuration — one to three hours with a checkpoint at every step.</p></div>
+      <a class="btn primary" href="docs/books/quick-start/00-front/010-how-to-use-this-book/">Start →</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:46px"><h2 class="display">Pick your book</h2><p class="lede">Each book is written for one kind of reader and one kind of task, so most people need only two or three of them.</p></div>
+    <div class="books">{{BOOKS_CARDS}}</div>
+  </div>
+</section>
+
+<section class="section band">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:34px"><h2 class="display">I want to…</h2></div>
+    <div class="tbl-wrap rv"><table class="tbl">
+      <thead><tr><th>I want to…</th><th>Start here</th><th>Then</th></tr></thead>
+      <tbody>
+        <tr><td>understand what an exchange does</td><td><a href="{{INTRO_URL}}">{{INTRO_TITLE}}</a> <span class="muted small">(general, not EduMatcher)</span></td><td><a href="docs/books/quick-start/part-1-see-it-run/010-what-is-edumatcher/">What EduMatcher is</a></td></tr>
+        <tr><td>see EduMatcher run</td><td><a href="docs/books/quick-start/part-1-see-it-run/020-install-and-start/">Install and start</a></td><td><a href="docs/books/quick-start/part-1-see-it-run/030-your-first-trade/">Your first trade</a></td></tr>
+        <tr><td>learn by doing</td><td><a href="docs/books/training-guide/">Training Guide</a></td><td>the chapters in order</td></tr>
+        <tr><td>trade or make markets</td><td><a href="docs/books/participant-guide/part-1-trading-basics/020-the-order-book/">The order book</a></td><td><a href="docs/books/participant-guide/part-2-orders/020-order-types/">Order types</a></td></tr>
+        <tr><td>leave a simulated market running</td><td><a href="docs/books/ai-traders/part-1-start-here/020-ten-minute-start/">AI Traders: ten-minute start</a></td><td><a href="docs/books/ai-traders/part-2-how-it-works/030-the-true-value/">The true value</a></td></tr>
+        <tr><td>run an exchange for a class</td><td><a href="docs/books/operator-guide/part-1-install-and-deploy/010-installation/">Installation</a></td><td><a href="docs/books/operator-guide/part-3-run/010-running-the-exchange/">Running the exchange</a></td></tr>
+        <tr><td>connect my own program</td><td><a href="docs/books/protocols-and-clients/part-1-choosing-and-connecting/010-protocols-overview/">Protocols overview</a></td><td>the protocol's specification</td></tr>
+        <tr><td>understand or change the code</td><td><a href="docs/books/architecture-and-development/part-1-architecture/010-architecture-overview/">Architecture</a></td><td><a href="docs/books/architecture-and-development/part-4-developing/010-development-practice/">Development practice</a></td></tr>
+        <tr><td>look up a command, field or term</td><td><a href="docs/books/reference-manual/part-1-command-line/010-processes-environment-and-ports/">Reference Manual</a></td><td><a href="docs/books/reference-manual/90-backmatter/010-glossary/">Glossary</a></td></tr>
+      </tbody></table></div>
+    <p class="center muted small rv" style="margin-top:20px">Prefer the repository? The same sources are in <a href="{{REPO_URL}}/tree/main/docs" rel="noopener">docs/ on GitHub</a>.</p>
+  </div>
+</section>
+
+</main>
+{{> footer}}
+</body>
+</html>

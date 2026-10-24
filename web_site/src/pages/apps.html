@@ -1,0 +1,234 @@
+---
+title: Applications — EduMatcher
+desc: Six browser applications and a full set of terminal tools to trade, watch, operate and configure the EduMatcher exchange — with screenshots.
+nav: apps
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+{{> head}}
+</head>
+<body>
+{{> header}}
+<main id="main">
+
+<section class="page-head">
+  <canvas class="net" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div class="crumbs">EduMatcher / Applications</div>
+    <div class="eyebrow">Interfaces</div>
+    <h1 class="display">Six windows,<br><span class="accent">one exchange</span></h1>
+    <p class="lede">A trading workstation, a market wallboard, an order-book viewer, an operator dashboard, a log console and a configuration builder — all browser-based, all live. Plus the terminal tools that exchange engineers actually use.</p>
+  </div>
+</section>
+<nav class="subnav" aria-label="On this page"><div class="wrap">
+  <a href="#hub">Overview</a><a href="#trading">Trading GUI</a><a href="#tapedeck">TapeDeck</a><a href="#book">Order Book</a><a href="#dash">Dashboard</a><a href="#logs">Logs</a><a href="#config">Config</a><a href="#terminal">Terminal</a><a href="#api">REST API</a>
+</div></nav>
+
+<section class="section tight" id="hub">
+  <div class="wrap">
+    <div class="rv">{{> diagram-hub}}</div>
+    <p class="center muted small rv" style="margin-top:16px">Anything you do in one interface shows up in the others within a second. Click any screenshot on this page to enlarge it.</p>
+  </div>
+</section>
+
+<section class="wrap">
+
+<!-- ===== Trading GUI ===== -->
+<article class="app rv" id="trading">
+  <div class="head"><h2 class="display">Trading GUI</h2><div class="chips"><span class="chip hot">pm-trading-ui</span><span class="chip">localhost:8093</span><span class="chip">read / write</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">A full trading workstation in the browser. Log in with an API key and the participant's role decides what you see.</p>
+      <ul class="checks">
+        <li><b>Trading Workspace</b> — candlestick chart, 5/10/20-level depth ladder, order ticket, working-orders blotter.</li>
+        <li><b>Eight order types</b> in the ticket: market, limit, stop, stop-limit, FOK, iceberg, IOC, trailing stop.</li>
+        <li><b>Click the ladder</b> to pre-fill a ticket from a bid or an ask.</li>
+        <li><b>Market-maker view</b> — a quote-management grid with live fills per symbol.</li>
+        <li><b>Operator view</b> — session control, halts, circuit breakers and the kill switch.</li>
+        <li>Watchlist, news, positions and trade history; key held in memory only.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8093 — Trading Workspace</span></div><img src="assets/img/shots/trader-workspace.png" alt="Trading workspace with chart, depth ladder, order ticket and orders" loading="lazy"></div>
+      <div class="thumbs">
+        <figure><div class="win zoomable"><img src="assets/img/shots/trader-quotes.png" alt="Market-maker quote management grid" loading="lazy"></div><figcaption>Market-maker quotes</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/trader-orders.png" alt="Active orders blotter" loading="lazy"></div><figcaption>Active orders</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/trader-halts.png" alt="Circuit breaker controls" loading="lazy"></div><figcaption>Circuit breakers</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</article>
+
+<!-- ===== TapeDeck ===== -->
+<article class="app rv" id="tapedeck">
+  <div class="head"><h2 class="display">TapeDeck</h2><div class="chips"><span class="chip hot">pm-terminal</span><span class="chip">localhost:8090</span><span class="chip">read-only</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">The market at a glance — built for a projector at the front of the class.</p>
+      <ul class="checks">
+        <li><b>Overview</b> of every symbol: last, change, bid/ask with sizes, spread, volume, turnover.</li>
+        <li><b>Symbol detail, index, tape, movers and news</b> tabs.</li>
+        <li><b>Session board</b> — current phase, active halts with their reasons, and recent auction results with equilibrium price and imbalance.</li>
+        <li>Starred watchlist, adjustable paging and fade timers, light and dark themes.</li>
+        <li>Fed by the CALF market-data gateway, the same feed your own programs can subscribe to.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8090 — Market overview</span></div><img src="assets/img/shots/tapedeck-overview.png" alt="TapeDeck market overview for 300 symbols" loading="lazy"></div>
+      <div class="thumbs">
+        <figure><div class="win zoomable"><img src="assets/img/shots/tapedeck-session.png" alt="Session board with halts and auction results" loading="lazy"></div><figcaption>Session board — halts &amp; auctions</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/tapedeck-symbol.png" alt="Symbol detail view" loading="lazy"></div><figcaption>Symbol detail</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</article>
+
+<!-- ===== Book ===== -->
+<article class="app rv" id="book">
+  <div class="head"><h2 class="display">Order Book Viewer</h2><div class="chips"><span class="chip hot">pm-book</span><span class="chip">localhost:8094</span><span class="chip">read-only</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">One symbol, every price level — the best way to watch matching happen.</p>
+      <ul class="checks">
+        <li><b>Bids and asks</b> with order counts, quantity and cumulative depth bars.</li>
+        <li><b>Trade tape</b> with millisecond timestamps, coloured by aggressor.</li>
+        <li><b>Session statistics</b>: last, change, open/high/low/close, range, volume, spread.</li>
+        <li>Watch an iceberg refill, a stop trigger or an auction uncross in real time.</li>
+        <li>The browser companion to the terminal <code>pm-viewer</code>.</li>
+      </ul>
+    </div>
+    <div><div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8094 — MSFT</span></div><img src="assets/img/shots/book-viewer.png" alt="Order book viewer with bids, asks, depth bars and trades" loading="lazy"></div></div>
+  </div>
+</article>
+
+<!-- ===== Dashboard ===== -->
+<article class="app rv" id="dash">
+  <div class="head"><h2 class="display">Operator Dashboard</h2><div class="chips"><span class="chip hot">pm-dash</span><span class="chip">localhost:8095</span><span class="chip">read-only</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">Is the exchange healthy, and how busy is it? One screen answers both.</p>
+      <ul class="checks">
+        <li><b>Process health</b> — state, uptime, memory, CPU, event-loop age and lag for every <code>pm-*</code> process, with sparklines.</li>
+        <li><b>Host gauges</b> for CPU, memory and disk, and memory-by-process over time.</li>
+        <li><b>Trading activity</b> — orders per minute by participant, trades, traded value, reject ratio.</li>
+        <li><b>Participants</b> — who is connected, heartbeat timeouts, resting orders.</li>
+        <li>Engine P99 latency and throughput at the top.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8095 — Overview</span></div><img src="assets/img/shots/dash-overview.png" alt="Operator dashboard overview with health gauges and process table" loading="lazy"></div>
+      <div class="thumbs">
+        <figure><div class="win zoomable"><img src="assets/img/shots/dash-trading.png" alt="Trading activity charts" loading="lazy"></div><figcaption>Trading activity</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/dash-process.png" alt="Process detail drawer" loading="lazy"></div><figcaption>Process drill-down</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</article>
+
+<!-- ===== Logs ===== -->
+<article class="app rv" id="logs">
+  <div class="head"><h2 class="display">Log Operator Console</h2><div class="chips"><span class="chip hot">pm-log-ui</span><span class="chip">localhost:8091</span><span class="chip">read-only</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">Every process ships structured logs to a central server. This is where you find out <em>why</em>.</p>
+      <ul class="checks">
+        <li><b>Live tail</b> with level and text filters, a detail panel and “filter to this process”.</li>
+        <li><b>Alerts</b> you can acknowledge, with a badge in the header.</li>
+        <li><b>Dashboards</b> for events over time, error rate and top error sources.</li>
+        <li><b>Connections, diagnostics and health</b> views for the whole fleet.</li>
+        <li>Backed by the LALF protocol — your own tools can log into it too.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8091 — Logs</span></div><img src="assets/img/shots/log-explorer.png" alt="Log explorer with live log lines and detail panel" loading="lazy"></div>
+      <div class="thumbs">
+        <figure><div class="win zoomable"><img src="assets/img/shots/log-dashboard.png" alt="Log dashboard with alerts and charts" loading="lazy"></div><figcaption>Dashboard &amp; alerts</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/log-health.png" alt="Health overview" loading="lazy"></div><figcaption>Health</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</article>
+
+<!-- ===== Config ===== -->
+<article class="app rv" id="config">
+  <div class="head"><h2 class="display">Configuration Builder</h2><div class="chips"><span class="chip hot">config-gui</span><span class="chip">localhost:8092</span><span class="chip">design-time</span></div></div>
+  <div class="cols">
+    <div>
+      <p class="lede" style="font-size:18px">Design a venue without writing YAML.</p>
+      <ul class="checks">
+        <li><b>Twelve sections</b>: basics, sessions &amp; schedule, risk &amp; collars, circuit breakers, market makers, symbols, indices, combos, gateways, health, tuning, review &amp; export.</li>
+        <li><b>Live diagnostics</b> — the same checks as <code>pm-cverifier</code>, as you type.</li>
+        <li><b>Persona levels</b> that reveal more fields as you grow, with inline help on every field.</li>
+        <li>Import, review, draft restore and an export gate; light and dark themes.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="win zoomable"><div class="chrome"><i></i><i></i><i></i><span class="url">localhost:8092 — Basics</span></div><img src="assets/img/shots/config-main.png" alt="Configuration GUI, light theme" loading="lazy"></div>
+      <div class="thumbs">
+        <figure><div class="win zoomable"><img src="assets/img/shots/config-dark.png" alt="Configuration GUI, dark theme" loading="lazy"></div><figcaption>Dark theme</figcaption></figure>
+        <figure><div class="win zoomable"><img src="assets/img/shots/config-sessions.png" alt="Sessions and schedule editor" loading="lazy"></div><figcaption>Sessions &amp; schedule</figcaption></figure>
+      </div>
+    </div>
+  </div>
+</article>
+</section>
+
+<!-- ===== Terminal ===== -->
+<section class="section band" id="terminal">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:40px">
+      <div class="eyebrow">For the command line</div>
+      <h2 class="display">The terminal never went away</h2>
+      <p class="lede">Real exchange engineers live in the shell. EduMatcher ships {{N_COMMANDS}} commands — consoles, live viewers, query tools and protocol spies. Inside the container, <code>pm-help</code> lists them all.</p>
+    </div>
+    <div class="cli-grid rv">
+      <div class="c"><code>pm-alf-console</code><span>Interactive trader console: tab completion, live events, positions and P&amp;L.</span></div>
+      <div class="c"><code>pm-admin</code><span>Operator console: session control, halts, circuit breakers, kill switch.</span></div>
+      <div class="c"><code>pm-viewer</code><span>Full-screen live order book for one symbol, repainting on resize.</span></div>
+      <div class="c"><code>pm-board</code><span>Full-screen multi-symbol market board.</span></div>
+      <div class="c"><code>pm-ticker</code><span>Scrolling market ticker with headlines from the market model.</span></div>
+      <div class="c"><code>pm-orders</code><span>Order status monitor for a participant.</span></div>
+      <div class="c"><code>pm-mm-bot</code><span>Autonomous market-maker bot that quotes every symbol.</span></div>
+      <div class="c"><code>pm-ai-swarm</code><span>Launches the AI-trader swarm, AI001–AI100.</span></div>
+      <div class="c"><code>pm-stats-cli · pm-clearing-cli</code><span>Query statistics, positions and P&amp;L from the command line.</span></div>
+      <div class="c"><code>pm-audit-cli · pm-audit-replay</code><span>Query the audit trail and replay history against the engine.</span></div>
+      <div class="c"><code>pm-log-cli · pm-monitor-cli</code><span>Troubleshoot from logs and health snapshots.</span></div>
+      <div class="c"><code>pm-calf-spy · pm-ralf-spy · pm-dc-spy</code><span>Watch the market-data, post-trade and drop-copy feeds on the wire.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== REST ===== -->
+<section class="section" id="api">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:0">
+      <div class="copy-col rv">
+        <div class="eyebrow">REST &amp; WebSocket</div>
+        <h2 class="display">The whole exchange<br>over HTTP</h2>
+        <p class="lede">Everything the Trading GUI does goes through a documented API — so a script can too. Orders, cancels, quotes, history and live event streams, with interactive Swagger docs served by the gateway at <code>/docs</code>.</p>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/protocols-and-clients/part-2-specifications/060-rest-and-websocket/">API reference</a><a class="btn ghost sm" href="docs/books/training-guide/240-api-gwy/">Training chapter</a></div>
+      </div>
+      <div class="rv d1"><div class="codebox"><span class="label">http · swagger</span><button class="copy" data-copy="#api-sample">copy</button>
+<pre class="code" id="api-sample"><span class="c"># interactive API docs, once the exchange is running</span>
+<span class="k">open</span> http://localhost:8080/docs
+
+<span class="c"># the same exchange, six ways to use it</span>
+<span class="k">pm-alf-console</span>   <span class="c"># typed commands</span>
+<span class="k">pm-alf-gwy</span>       <span class="c"># :5565 text over TCP</span>
+<span class="k">pm-balf-gwy</span>      <span class="c"># :5560 binary over TCP</span>
+<span class="k">pm-api-gwy</span>       <span class="c"># :8080 REST + WebSocket</span></pre></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section tight"><div class="wrap"><div class="cta rv">
+  <h2 class="display">See it with <span class="accent">your own eyes</span></h2>
+  <p class="lede" style="margin-bottom:24px">One command starts the exchange and every application on this page.</p>
+  <div class="btn-row"><a class="btn primary" href="download.html#install">Install in one command</a><a class="btn ghost" href="docs/books/quick-start/part-1-see-it-run/040-the-browser-applications/">Read the app tour</a></div>
+</div></div></section>
+
+</main>
+{{> footer}}
+</body>
+</html>
