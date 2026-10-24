@@ -5711,6 +5711,11 @@ class Engine:
                 raise ValueError(f"{key} must be integer ticks, not display money")
             return value
 
+        # The OCO has no SMP field on any protocol, so both legs take the
+        # gateway's default -- resolved here like every other order (X9:
+        # unresolved legs swept as NONE and traded with their owner).
+        smp_action = self._resolve_smp_action(gateway_id, None)
+
         def _parse_leg(raw: dict[str, Any]) -> Order | None:
             try:
                 return Order.create(
@@ -5724,6 +5729,7 @@ class Engine:
                     price_ticks=_leg_ticks(raw, "price_ticks"),
                     stop_price_ticks=_leg_ticks(raw, "stop_price_ticks"),
                     trail_offset_ticks=_leg_ticks(raw, "trail_offset_ticks"),
+                    smp_action=smp_action,
                     client_tag=(
                         str(payload["client_tag"])
                         if payload.get("client_tag") is not None

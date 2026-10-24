@@ -520,7 +520,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open |
 | X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
-| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Open |
+| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (uncommitted); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
@@ -640,6 +640,16 @@ never does, so both legs carry `smp_action=None`, which `_sweep` treats as
 on entry should be exposed the same way (not seen in this run). Next: failing
 engine test (an OCO stop leg triggered into its owner's bid must be
 cancelled `SELF_MATCH_PREVENTED`), then resolve SMP for both legs.
+
+**X9 fix (2026-10-24).** `_handle_oco_order` resolves the gateway default
+once (`_resolve_smp_action(gateway_id, None)` — no protocol carries an SMP
+field on an OCO) and creates both legs with it; the per-leg `order.ack` now
+shows it. Tests: `tests/test_engine_oco_smp.py` — the sim's case (a stop leg
+triggered by another gateway's print meets its owner's bid: cancelled
+`SELF_MATCH_PREVENTED`, no trade), the resolved action on both leg acks, a
+limit leg crossing its owner's order on entry, and the control that a
+gateway configured `NONE` still self-trades. The first three failed before
+the fix. Docs: the OCO row in the operator guide's SMP per-path table.
 
 **X10 — `pm-audit-replay` cannot read one rotated file of the sim
 profile.** `pm-audit-replay --log-file audit.log.5 anomalies` (256 MB,
