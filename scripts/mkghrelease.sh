@@ -11,6 +11,9 @@
 #   --help          Show this help message
 #   --pre-release   Force marking the release as a pre-release
 #   --dry-run       Show commands without executing them
+#   --skip-images   Do not wait for the container image workflow to finish
+#   --skip-web      Do not build/upload the web site (web_site/)
+#   --no-web-upload Build the web site but do not upload it (scripts/mkweb.sh)
 
 set -e
 
@@ -53,6 +56,8 @@ DRY_RUN=false
 FORCE_PRE_RELEASE=false
 SHOW_HELP=false
 SKIP_IMAGES=false
+SKIP_WEB=false
+NO_WEB_UPLOAD=false
 IMAGE_WAIT_MINUTES=${IMAGE_WAIT_MINUTES:-30}
 
 while [[ $# -gt 0 ]]; do
@@ -71,6 +76,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-images)
             SKIP_IMAGES=true
+            shift
+            ;;
+        --skip-web)
+            SKIP_WEB=true
+            shift
+            ;;
+        --no-web-upload)
+            NO_WEB_UPLOAD=true
             shift
             ;;
         *)
@@ -165,6 +178,8 @@ OPTIONS:
     --pre-release   Force the release to be marked as a pre-release
                     (overrides automatic detection based on tag name)
     --skip-images   Do not wait for the container image workflow to finish
+    --skip-web      Do not build and upload the web site (web_site/)
+    --no-web-upload Build the web site, but do not upload it with mkweb.sh
     --dry-run       Show what commands would be executed without actually
                     running them
 
@@ -191,7 +206,10 @@ WHAT THIS SCRIPT DOES:
     6. Opens editor for you to review/edit release notes
     7. Validates artifacts in dist/ directory
     8. Creates GitHub release with artifacts
-    9. Cleans up temporary files
+    9. Builds the web site for this version (docs, downloads, version) and
+       uploads it with scripts/mkweb.sh (PHASE 6C; needs the TIRNEX_ADITUS_FTP_*
+       variables and 'expect' - checked up front, before anything is published)
+   10. Cleans up temporary files
 
 EXAMPLES:
     # Create a stable release (tag: v1.0.0)
@@ -209,6 +227,8 @@ EXAMPLES:
 SEE ALSO:
     - scripts/mkrelease.sh    (Run this first to create the release)
     - scripts/mkbld.sh        (Build and test the package)
+    - scripts/mkweb.sh        (Upload web_site/; run by PHASE 6C)
+    - web_site/README.md      (What the web site build derives from the release)
 
 EOF
 }
@@ -382,6 +402,32 @@ if [[ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]]; then
     exit 1
 fi
 print_success "In sync with origin/main"
+
+# 1.7: Web site prerequisites. Checked now so that a missing credential cannot
+# surface AFTER the GitHub release has been published.
+if [[ "$SKIP_WEB" == "true" ]]; then
+    print_warning "Skipping the web site (--skip-web)"
+else
+    print_sub_step "Checking web site prerequisites..."
+    if ! poetry run mkdocs --version &> /dev/null; then
+        print_error "mkdocs is not available (needed to build the web site documentation)"
+        echo "Run: poetry install --with docs"
+        exit 1
+    fi
+    if [[ "$NO_WEB_UPLOAD" != "true" ]]; then
+        for var in TIRNEX_ADITUS_FTP_SITE TIRNEX_ADITUS_FTP_USER TIRNEX_ADITUS_FTP_PWD; do
+            if [[ -z "${!var:-}" ]]; then
+                print_error "$var is not set (needed by scripts/mkweb.sh); use --no-web-upload or --skip-web to bypass"
+                exit 1
+            fi
+        done
+        if ! check_command_exists expect; then
+            echo "scripts/mkweb.sh needs 'expect' (brew install expect)"
+            exit 1
+        fi
+    fi
+    print_success "Web site prerequisites met"
+fi
 
 # =====================================
 # PHASE 2: WORKFLOW STATUS CHECK
@@ -753,6 +799,57 @@ else
 fi
 
 # =====================================
+# PHASE 6C: WEB SITE
+# =====================================
+#
+# The site (web_site/) is derived from the release: version from pyproject.toml,
+# documentation from docs/ (rebuilt with mkdocs), books from docs/dist/ and the
+# wheel/sdist from dist/ - the very files validated in PHASE 4. --strict makes
+# the build fail rather than publish a download page with holes in it.
+#
+# It runs after the GitHub release and the images exist because the site links to
+# the release (all-formats ZIPs, source archives of the tag) and tells new users to
+# install the images. A failure here leaves the release itself intact, so it only
+# needs the two commands printed below to be repeated.
+
+echo ""
+print_step_colored ""
+print_step_colored "🌐 PHASE 6C: Web site"
+print_step_colored ""
+
+fail_web_phase() {
+    print_error "$1"
+    print_info "The GitHub release is already published. Once the problem is fixed, finish with:"
+    print_info "  make web-site && ./scripts/mkweb.sh"
+    exit 1
+}
+
+if [[ "$SKIP_WEB" == "true" ]]; then
+    print_warning "Skipping the web site (--skip-web)"
+    print_info "Do it later with: make web-site && ./scripts/mkweb.sh"
+else
+    PYPROJECT_VERSION=$(poetry version --short 2>/dev/null || echo "")
+    if [[ "$PYPROJECT_VERSION" != "$FILE_VERSION_NUMBER" ]]; then
+        fail_web_phase "pyproject.toml says '$PYPROJECT_VERSION' but the release is '$FILE_VERSION_NUMBER'; the site would be built for the wrong version."
+    fi
+
+    if ! run_command "poetry run python web_site/build.py --downloads local --strict" \
+                     "Building web site for ${FILE_VERSION_NUMBER} (docs, books, wheel)"; then
+        fail_web_phase "The web site build failed."
+    fi
+
+    if [[ "$NO_WEB_UPLOAD" == "true" ]]; then
+        print_warning "Not uploading the web site (--no-web-upload)"
+        print_info "Upload it with: ./scripts/mkweb.sh"
+    else
+        if ! run_command "./scripts/mkweb.sh" "Uploading web_site/ with mkweb.sh"; then
+            fail_web_phase "The web site upload failed."
+        fi
+        print_success "Web site for ${FILE_VERSION_NUMBER} uploaded"
+    fi
+fi
+
+# =====================================
 # PHASE 7: CLEANUP
 # =====================================
 
@@ -807,7 +904,12 @@ else
     echo "     https://github.com/${GITHUB_USER}/${PROGRAMNAME}/actions"
     echo "  3. Verify the one-line container install works for a fresh user:"
     echo "     curl -fsSL https://raw.githubusercontent.com/${GITHUB_USER}/${PROGRAMNAME}/${LATEST_TAG}/deployment/curl/install.sh | bash"
-    echo "  4. Announce release to users"
+    if [[ "$SKIP_WEB" != "true" && "$NO_WEB_UPLOAD" != "true" ]]; then
+        echo "  4. Check the new version on the web site (version, /docs/, Download page and its links)"
+    else
+        echo "  4. Build/upload the web site when ready: make web-site && ./scripts/mkweb.sh"
+    fi
+    echo "  5. Announce release to users"
     echo ""
 fi
 

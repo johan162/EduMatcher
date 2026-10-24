@@ -4,7 +4,7 @@
 
 .PHONY: help install reinstall clean-venv test test-e2e mutate forensics test-container test-short test-html verify \
 check _check lint format typecheck pre-commit \
-build clean maintainer-clean docs docs-serve web-site web-site-release web-site-serve run pull-all \
+build clean maintainer-clean docs docs-serve web-site web-site-serve web-site-upload run pull-all \
 black flake8 mypy msgen-check msgen dbdocs dbdocs-check completion
 
 # Makefile itself as a dependency to ensure re-evaluation when changed.
@@ -417,16 +417,16 @@ docs-serve: ## Serve the documentation site locally with live reload
 # ============================================================================================
 # Web site (web_site/) -- landing site + embedded docs + download page, all derived from the repo
 # ============================================================================================
-web-site: ## Build the marketing web site (web_site/) incl. embedded docs; self-hosts docs/dist books and dist/ wheel
+web-site: ## Build the web site (web_site/) incl. embedded docs; self-hosts the books in docs/dist and the wheel in dist/
 	@echo -e "$(DARKYELLOW)- Building web site...$(NC)"
-	@poetry run python web_site/build.py --build-dist
+	@poetry run python web_site/build.py
 	@echo -e "$(GREEN)✓ Web site built in web_site/ (see web_site/README.md)$(NC)"
 
-web-site-release: ## Build the web site with every download linked to this version's GitHub release (what CI does)
-	@poetry run python web_site/build.py --downloads release
-
-web-site-serve: ## Build the web site pages (no docs rebuild) and serve it on http://localhost:8000
+web-site-serve: ## Fast pages-only web site build, served on http://localhost:8000
 	@poetry run python web_site/build.py --no-docs --serve
+
+web-site-upload: ## Upload the built web site via sftp (scripts/mkweb.sh; needs the TIRNEX_ADITUS_FTP_* variables)
+	@./scripts/mkweb.sh
 
 # ============================================================================================
 # Cleanup

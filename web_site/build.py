@@ -4,7 +4,8 @@
     python web_site/build.py                  # pages + embedded docs + download links
     python web_site/build.py --no-docs        # pages only (fast, for design work)
     python web_site/build.py --downloads local    # self-host books/wheels found in docs/dist and dist/
-    python web_site/build.py --downloads release  # link every download to the GitHub release
+    python web_site/build.py --downloads local --strict   # release build: every file must be self-hosted
+    python web_site/build.py --downloads release  # no self-hosting: link what the GitHub release carries
     python web_site/build.py --build-dist     # also `poetry build` the wheel/sdist if missing
     python web_site/build.py --serve          # build, then serve on http://localhost:8000
 
@@ -14,13 +15,13 @@ Everything that changes between releases is derived, never typed in by hand:
   command / test /
   code-size counts ... pyproject.toml, tests/, src/
   documentation ...... docs/ + mkdocs.yml  ->  web_site/docs/   (via mkdocs-site.yml)
-  book downloads ..... data/books.json x version  ->  release-asset URLs, or local
-                       copies from docs/dist when --downloads local|auto finds them
-  system downloads ... wheel / sdist / source archive for the same version
+  book downloads ..... data/books.json x version  ->  copies of the PDFs/EPUBs in docs/dist
+                       (self-hosted) plus a link to the all-formats ZIP on the GitHub release
+  system downloads ... wheel / sdist (self-hosted from dist/) and source archives of the tag
   benchmark figures .. data/facts.json (edit by hand after re-running benchmarks)
 
-So a release needs exactly one action: run this script (CI does it on every
-published release — see .github/workflows/website.yml).
+scripts/mkghrelease.sh runs this script (with --strict) and uploads the result with
+scripts/mkweb.sh at the end of every release — see web_site/README.md.
 """
 from __future__ import annotations
 
@@ -86,14 +87,17 @@ class Downloads:
         self.local_dir = SITE / "downloads"
         self.sums: list[tuple[str, str]] = []
         self.used_local = 0
+        self.missing: list[str] = []  # files that should be self-hosted but were not found locally
         if self.local_dir.exists():
             shutil.rmtree(self.local_dir)
 
     def release_url(self, name: str) -> str:
         return f"{REPO_URL}/releases/download/v{self.version}/{name}"
 
-    def resolve(self, name: str, *candidates: Path, group: str) -> tuple[str, str | None]:
-        """Return (href, size-or-None)."""
+    def resolve(self, name: str, *candidates: Path, group: str,
+                on_release: bool = True) -> tuple[str | None, str | None]:
+        """Return (href, size). A local copy wins; otherwise the GitHub release asset if the
+        release really carries this file (`on_release`), otherwise (None, None)."""
         if self.mode != "release":
             for c in candidates:
                 if c.is_file():
@@ -103,7 +107,8 @@ class Downloads:
                     self.sums.append((hashlib.sha256(dest.read_bytes()).hexdigest(), f"{group}/{name}"))
                     self.used_local += 1
                     return f"downloads/{group}/{name}", fmt_size(dest.stat().st_size)
-        return self.release_url(name), None
+        self.missing.append(name)
+        return (self.release_url(name), None) if on_release else (None, None)
 
     def write_sums(self) -> None:
         if self.sums:
@@ -116,7 +121,8 @@ ICON_FILE = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
              'stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>')
 
 
-def book_artifacts(book: dict, dl: Downloads) -> dict[str, tuple[str, str | None]]:
+def book_artifacts(book: dict, dl: Downloads) -> dict[str, tuple[str | None, str | None]]:
+    """Per-format files are self-hosted (the GitHub release only carries the all-formats ZIP)."""
     v, stem, dist = dl.version, book["stem"], REPO / "docs" / "dist"
     names = {
         "A4": f"edumatcher_{stem}_a4-{v}.pdf",
@@ -125,7 +131,9 @@ def book_artifacts(book: dict, dl: Downloads) -> dict[str, tuple[str, str | None
         "B5 dark": f"edumatcher_{stem}_dark_b5-{v}.pdf",
         "EPUB": f"edumatcher_{stem}-{v}.epub",
     }
-    return {k: dl.resolve(n, dist / n, group="books") for k, n in names.items()}
+    out = {k: dl.resolve(n, dist / n, group="books", on_release=False) for k, n in names.items()}
+    out["ZIP"] = (dl.release_url(f"edumatcher_{stem}_all-{v}.zip"), None)  # attached by mkghrelease.sh
+    return out
 
 
 def books_download_html(books: list[dict], dl: Downloads) -> str:
@@ -133,7 +141,8 @@ def books_download_html(books: list[dict], dl: Downloads) -> str:
     for b in books:
         links = "".join(
             f'<a href="{html.escape(h)}" download title="{html.escape(b["title"])} — {k}'
-            f'{" · " + sz if sz else ""}">{k}</a>'
+            f'{" · " + sz if sz else ""}">{k}</a>' if h else
+            f'<a class="na" title="not hosted for this build">{k}</a>'
             for k, (h, sz) in book_artifacts(b, dl).items()
         )
         rows.append(
@@ -249,6 +258,9 @@ def main() -> None:
     ap.add_argument("--downloads", choices=("auto", "local", "release"), default="auto",
                     help="auto/local: self-host files found in docs/dist and dist/ (the rest link to the "
                          "GitHub release); release: link everything to the GitHub release")
+    ap.add_argument("--strict", action="store_true",
+                    help="fail if any file that should be self-hosted (wheel, sdist, book PDFs/EPUBs) is missing "
+                         "locally; used by the release script so a half-empty download page is never published")
     ap.add_argument("--build-dist", action="store_true",
                     help="run `poetry build` first if the wheel/sdist for this version are missing from dist/")
     ap.add_argument("--serve", action="store_true", help="serve web_site/ on :8000 after building")
@@ -279,6 +291,8 @@ def main() -> None:
         SUMS_LINK=('<a href="downloads/SHA256SUMS.txt">SHA256SUMS.txt</a>' if dl.sums
                    else "the checksums attached to the GitHub release"),
     )
+    if a.strict and dl.missing:
+        sys.exit("--strict: not found locally (build them first, see web_site/README.md):\n  " + "\n  ".join(dl.missing))
     dl.write_sums()
     pages = render_pages(f)
     if not a.no_docs:
