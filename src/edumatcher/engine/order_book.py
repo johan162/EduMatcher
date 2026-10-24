@@ -181,7 +181,10 @@ class OrderBook:
         #            triggered order goes on to rest again — so a single
         #            stop order is discarded and (re-)added at most once
         #            per trigger, never double-counted).
-        self._orders_by_gateway: dict[str, set[str]] = {}
+        # An insertion-ordered dict, not a set (X11): batch cancels walk it,
+        # and a set of id strings would emit them in the per-process hash
+        # order, so two runs of the same input would publish differently.
+        self._orders_by_gateway: dict[str, dict[str, None]] = {}
 
         self.last_trade_price: Optional[int] = None
         self.last_trade_qty: Optional[int] = None
@@ -1187,7 +1190,7 @@ class OrderBook:
         ), "Trailing stop must have a positive trail_offset"
         self._trailing_stops.append(order)
         self._order_index[order.id] = order
-        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
         self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
@@ -1243,7 +1246,7 @@ class OrderBook:
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
-        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
         self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
@@ -1568,7 +1571,7 @@ class OrderBook:
         """
         gateway_orders = self._orders_by_gateway.get(order.gateway_id)
         if gateway_orders is not None:
-            gateway_orders.discard(order.id)
+            gateway_orders.pop(order.id, None)
             if not gateway_orders:
                 del self._orders_by_gateway[order.gateway_id]
 
@@ -1617,7 +1620,7 @@ class OrderBook:
         heapq.heappush(heap, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
-        self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment."""

@@ -266,7 +266,7 @@ class OrderBook:
         "_ask_qty",    # dict[price → total qty at that price level]
         "_order_index",  # dict[order_id → Order] — for O(1) cancel lookup
         "_entry_index",  # dict[order_id → _HeapEntry] — for lazy deletion
-        "_orders_by_gateway",  # dict[gateway_id → set[order_id]] — for per-gateway cancel
+        "_orders_by_gateway",  # dict[gateway_id → ordered order_ids] — for per-gateway cancel
         "last_trade_price",  # most recent fill price — used by stop trigger checks
         "last_trade_qty",    # quantity of the most recent fill
         "last_buy_price",    # most recent price where the aggressor was a buyer
@@ -1413,8 +1413,8 @@ one entry per `(gateway_id, symbol)`:
 class QuoteIndex:
     def __init__(self, history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN) -> None:
         self._index: dict[tuple[str, str], QuoteEntry] = {}
-        self._keys_by_gateway: dict[str, set[tuple[str, str]]] = {}
-        self._keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+        self._keys_by_gateway: dict[str, dict[tuple[str, str], None]] = {}
+        self._keys_by_symbol: dict[str, dict[tuple[str, str], None]] = {}
         self._history: dict[str, deque[QuoteHistoryEntry]] = {}
 ```
 
@@ -1427,7 +1427,10 @@ secondary indexes over the same key space, so "cancel everything this gateway
 has quoted" (`cancel_all_for_gateway`, used by gateway disconnect and kill switch)
 and "cancel every quote on this symbol" (`cancel_all_for_symbol`, used by circuit
 breakers and symbol halts) are O(k) in the number of that gateway's/symbol's
-active quotes, not a scan of every quote in the engine.
+active quotes, not a scan of every quote in the engine. They are
+insertion-ordered dicts used as sets, so a batch cancel publishes in the order
+the quotes arrived: a plain `set` of string keys iterates in the per-process
+hash order, and two runs of the same input would publish differently.
 
 `QuoteIndex` answers exactly one question well: *"what are the two order ids for
 gateway G's current quote on symbol S?"* It does not know whether those two
@@ -1447,10 +1450,11 @@ for exactly this:
 
 ```python
 # engine/order_book.py
-self._orders_by_gateway: dict[str, set[str]] = {}
+self._orders_by_gateway: dict[str, dict[str, None]] = {}
 ```
 
-`gateway_id → set of order_ids`, scoped to this one symbol's book, holding every
+`gateway_id → order_ids` (an insertion-ordered dict used as a set, for the
+same reason as `QuoteIndex`'s keys), scoped to this one symbol's book, holding every
 order — any origin, any type — that is currently resting there. It started life
 scoped to `origin == OrderOrigin.QUOTE` only, built for exactly the quote-reissue
 question this section opens with; it was broadened to cover every resting order
@@ -1466,14 +1470,14 @@ from Section 5:
 # _rest() — plain and quote-leg LIMIT orders
 self._order_index[order.id] = order
 self._entry_index[order.id] = entry
-self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 ```
 
 ```python
 # _add_stop() / _add_trailing_stop() — STOP, STOP_LIMIT, TRAILING_STOP
 # (a separate insertion funnel from _rest(), see Section 7)
 self._order_index[order.id] = order
-self._orders_by_gateway.setdefault(order.gateway_id, set()).add(order.id)
+self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 ```
 
 ```python

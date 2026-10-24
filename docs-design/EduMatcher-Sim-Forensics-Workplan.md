@@ -564,9 +564,9 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open |
 | X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
-| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (uncommitted); confirm on next run (D7) |
+| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open |
-| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Open |
+| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (uncommitted); confirm on next run (E2, no reordered batches) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -715,3 +715,14 @@ differs between two runs of the same input, which makes the engine's output
 non-reproducible byte for byte (and a recording compare harder). The same
 index feeds kill switch and disconnect cancels. A fix iterates in
 arrival-seq order.
+
+*Fixed 2026-10-24.* `OrderBook._orders_by_gateway` and `QuoteIndex`'s
+`_keys_by_gateway`/`_keys_by_symbol` (which order the disconnect, kill-switch,
+halt and circuit-breaker quote cancels) are now insertion-ordered dicts used
+as sets, so a batch cancels in the order the orders came to rest (a
+re-triggered stop counts from when it rests again). This is deterministic, which is
+all reproducibility needs, and is simpler than sorting by `arrival_seq`
+at each read. The global kill switch already walked `_order_index` (a dict).
+Tests: `tests/test_engine_batch_cancel_order.py` (40 ids, so a set matching
+arrival order by chance is negligible; all three fail on the old code). On
+the next run, E2's note should report no reordered cancel batches.
