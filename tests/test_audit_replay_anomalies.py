@@ -715,9 +715,10 @@ class TestTheEngineSPublicationShape:
         assert PRICE_THROUGH_LIMIT in log.codes()
 
     def test_an_acceptance_then_a_refusal_is_not_a_duplicate(self) -> None:
-        """The engine acks a FOK and then rejects it when the book cannot fill
-        it whole; a triggered stop is acked again when it converts. Both are
-        two acks for one order and neither is a duplicate acceptance."""
+        """Engines before the X5 fix acked an unfillable FOK and then rejected
+        it, and old logs hold that; a triggered stop is acked again when it
+        converts. Both are two acks for one order and neither is a duplicate
+        acceptance."""
         log = Log().line("order.new", _submitted(order_type="FOK"))
         log.line("order.ack." + GATEWAY, _ack())
         log.line(

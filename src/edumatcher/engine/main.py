@@ -305,6 +305,20 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
+
+def _book_may_reject(order: Order, do_match: bool) -> bool:
+    """True when ``book.process(order, match=do_match)`` may finalise the
+    order as REJECTED: a FOK short of liquidity, or an order that cannot
+    rest posted while matching is off. Such an order is acked only after
+    the book has decided, so a rejected one gets a single ``accepted=false``
+    ack, never ``accepted=true`` first (X5; participant guide, order types).
+    """
+    return order.order_type is OrderType.FOK or (
+        not do_match
+        and order.order_type in (OrderType.MARKET, OrderType.IOC, OrderType.FOK)
+    )
+
+
 #: How often the resting book is checkpointed to disk while the session runs.
 #: This is the upper bound on what an abrupt termination can lose. Five
 #: seconds keeps the write volume negligible next to the 200 ms poll tick
@@ -1782,10 +1796,10 @@ class Engine:
         # NOTE: accepted=True is published here, BEFORE book.process() runs.
         # This is the "gateway ACK" — it confirms the engine accepted the order
         # for processing (symbol valid, session open, gateway authenticated).
-        # For MARKET, FOK, and IOC orders that the book subsequently rejects
-        # (e.g. FOK with insufficient liquidity), a second accepted=False ACK
-        # follows in the events loop below.  Clients must treat the second ACK
-        # as authoritative for these order types.
+        # The exception is an order the book may still reject (a FOK short of
+        # liquidity, _book_may_reject): its ACK is sent after process(), and
+        # only if the book did not reject it -- a rejected FOK gets the one
+        # accepted=False ACK of the events loop below (X5).
         #
         # Hot path: the ACK is built inline (bypassing make_ack_msg) with
         # pre-cached per-gateway topic bytes and hot attributes bound to locals
@@ -1835,32 +1849,36 @@ class Engine:
         # a few lines above, by the _resolve_smp_action() call this hot path
         # shares with every other order-entry point.
         _ack_smp_action = order.smp_action.value
-        _pub.send_multipart(
-            [
-                ack_topic,
-                dumps(
-                    {
-                        "order_id": order.id,
-                        "accepted": True,
-                        "reason": "",
-                        "symbol": order.symbol,
-                        "side": _side_v,
-                        "order_type": _ot_v,
-                        "tif": _tif_v,
-                        "qty": order.quantity,
-                        "price": _ack_price,
-                        "stop_price": _ack_stop_price,
-                        "visible_qty": order.visible_qty,
-                        "trail_offset": _ack_trail_offset,
-                        "smp_action": _ack_smp_action,
-                        "client_tag": order.client_tag,
-                    }
-                ),
-            ]
-        )
-        self._dbg_count("new_order_accepted")
+        _ack_frames = [
+            ack_topic,
+            dumps(
+                {
+                    "order_id": order.id,
+                    "accepted": True,
+                    "reason": "",
+                    "symbol": order.symbol,
+                    "side": _side_v,
+                    "order_type": _ot_v,
+                    "tif": _tif_v,
+                    "qty": order.quantity,
+                    "price": _ack_price,
+                    "stop_price": _ack_stop_price,
+                    "visible_qty": order.visible_qty,
+                    "trail_offset": _ack_trail_offset,
+                    "smp_action": _ack_smp_action,
+                    "client_tag": order.client_tag,
+                }
+            ),
+        ]
+        _defer_ack = _book_may_reject(order, do_match)
+        if not _defer_ack:
+            _pub.send_multipart(_ack_frames)
+            self._dbg_count("new_order_accepted")
 
         trades, events = book.process(order, match=do_match, now=now)
+        if _defer_ack and order.status is not OrderStatus.REJECTED:
+            _pub.send_multipart(_ack_frames)
+            self._dbg_count("new_order_accepted")
         self._dbg_count("new_order_events", len(events))
         self._dbg_count("new_order_trades", len(trades))
 
@@ -5006,16 +5024,9 @@ class Engine:
             # side, price or qty until it is cancelled -- and order.cancelled
             # deliberately does not carry them either. Publish the same ACK
             # shape every other order-creation path uses, before matching,
-            # for every leg -- live or config-seeded.
-            self.pub_sock.send_multipart(
-                self._order_ack(
-                    combo.gateway_id,
-                    child.id,
-                    accepted=True,
-                    order=order_to_display_dict(child),
-                )
-            )
-
+            # for every leg -- live or config-seeded. A leg the book may
+            # still reject is acked after process(), and only if it was not
+            # rejected (X5, _book_may_reject).
             book = self._book(leg.symbol)
             # H9: combo children respect the session's matching state and the
             # per-symbol halt, exactly like ordinary orders — no continuous
@@ -5026,7 +5037,18 @@ class Engine:
                 and not self._halted_symbols.get(leg.symbol)
                 and not aon_blocked
             )
+            ack = self._order_ack(
+                combo.gateway_id,
+                child.id,
+                accepted=True,
+                order=order_to_display_dict(child),
+            )
+            defer_ack = _book_may_reject(child, do_match)
+            if not defer_ack:
+                self.pub_sock.send_multipart(ack)
             trades, events = book.process(child, match=do_match)
+            if defer_ack and child.status is not OrderStatus.REJECTED:
+                self.pub_sock.send_multipart(ack)
 
             # H5: dedup fills/terminals — a child sweeping k levels appears k
             # times in `events` with the final cumulative qty on every copy.
@@ -5840,27 +5862,31 @@ class Engine:
                     else:
                         leg.stop_price_ticks = book.last_trade_price + leg.trail_offset_ticks  # type: ignore[operator]
 
-            # ACK each leg individually so the gateway can track them
-            self.pub_sock.send_multipart(
-                self._order_ack(
-                    gateway_id,
-                    leg.id,
-                    accepted=True,
-                    # order_to_display_dict(leg) is the full order record
-                    # (mirrors the combo leg ack below) rather than a
-                    # hand-picked subset — it's what carries oco_group_id
-                    # (H1, so "Cancel group" can find this leg) and
-                    # stop_price/visible_qty/trail_offset/smp_action (C3, so
-                    # Replace and power-user Undo have the fields those order
-                    # types need), docs-design/reviews/
-                    # EduMatcher-Trader-GUI-Review.md. Safe to call here,
-                    # before book.process(leg, ...) below: remaining_qty
-                    # still equals quantity at this pre-match moment.
-                    order=order_to_display_dict(leg),
-                )
+            # ACK each leg individually so the gateway can track them -- a
+            # leg the book may still reject only after process(), and only if
+            # it was not rejected (X5, _book_may_reject).
+            ack = self._order_ack(
+                gateway_id,
+                leg.id,
+                accepted=True,
+                # order_to_display_dict(leg) is the full order record
+                # (mirrors the combo leg ack below) rather than a
+                # hand-picked subset — it's what carries oco_group_id
+                # (H1, so "Cancel group" can find this leg) and
+                # stop_price/visible_qty/trail_offset/smp_action (C3, so
+                # Replace and power-user Undo have the fields those order
+                # types need), docs-design/reviews/
+                # EduMatcher-Trader-GUI-Review.md. Safe to call here,
+                # before book.process(leg, ...) below: remaining_qty
+                # still equals quantity at this pre-match moment.
+                order=order_to_display_dict(leg),
             )
-
+            defer_ack = _book_may_reject(leg, do_match)
+            if not defer_ack:
+                self.pub_sock.send_multipart(ack)
             trades, events = book.process(leg, match=do_match)
+            if defer_ack and leg.status is not OrderStatus.REJECTED:
+                self.pub_sock.send_multipart(ack)
 
             # H5: dedup fills/terminals — a leg sweeping k levels appears k
             # times in `events` with the final cumulative qty on every copy.

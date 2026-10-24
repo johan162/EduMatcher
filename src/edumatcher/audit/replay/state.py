@@ -375,10 +375,11 @@ class StateModel:
         order = self._order(order_id, fact)
         accepted = fact.payload.get("accepted") is not False
         # Two *acceptances* are a duplicate. An acceptance followed by a
-        # refusal is not: the engine acks a FOK and then rejects it when the
-        # book cannot fill it whole, and a triggered stop is acked again when
-        # it converts. Both are the engine doing its job, and reporting them
-        # as errors was thirty-six findings on a healthy log.
+        # refusal is not: a triggered stop is acked again when it converts,
+        # and engines before the X5 fix (sim forensics) acked an unfillable
+        # FOK before rejecting it, which logs of that time still hold.
+        # Reporting either as an error was thirty-six findings on a healthy
+        # log.
         if order.acked and accepted:
             found.append(
                 _anomaly(
