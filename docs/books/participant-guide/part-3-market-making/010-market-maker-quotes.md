@@ -238,6 +238,13 @@ When inactivation is triggered, the engine cancels the opposite leg and emits
 before anything else that order causes is matched: a stop order the fill
 triggers cannot trade against it.
 
+The same holds for a quote that crosses the book when it arrives. Its
+`quote.ack` and `quote.status ACTIVE` come first, then the fills. If the
+bid's fill inactivates the quote, the ask never reaches the book: it is
+reported as `order.cancelled` with `QUOTE_LEG_FILLED`, and the quote's last
+status is `INACTIVE_BID_FILLED`. If the ask fills, the bid that has already
+rested is cancelled the same way.
+
 MM obligation enforcement is optional and configured per gateway:
 
 - `enforce_mm_obligation: false` (default): quote spread/size checks are skipped

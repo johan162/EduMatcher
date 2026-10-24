@@ -31,7 +31,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☑ | 2026-10-24 |
 | 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☑ | 2026-10-24 |
 | 9 | S9 | Fix X5: an unfillable FOK gets one rejecting ack | S8 | 0.5 d | ☑ | 2026-10-24 |
-| 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☐ | |
+| 10 | S10 | Fix X8a: a quote that trades on entry follows its refresh policy; new check C8 | S8 | 1 d | ☑ | 2026-10-25 |
 | 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☐ | |
 | 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☐ | |
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☐ | |
@@ -195,6 +195,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C4 | Every ACKed order ends terminal, or is still resting at the cut; resting GTC orders = `gtc_orders.json`; DAY orders all EXPIRE at close. |
 | C5 | OCO: at most one leg fills; sibling cancelled with the right reason. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
 | C6 | Reject / cancel reason codes are canonical; reject-rate time series per code (spikes → H). |
+| C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
@@ -675,7 +676,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Open → S11 |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Open → S11 |
-| X8 | X1/X3 fix review | — | — | X8a engine bug (repro 2026-10-24); X8b/c unmeasured; X8d refactor | Open → S10 (a), S13 (b, c) |
+| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a engine bug; X8b/c unmeasured; X8d refactor | X8a fixed 2026-10-25 (S10, uncommitted; confirm C8 on next run); S13 (b, c) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open → S12 |
 | X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
@@ -867,4 +868,29 @@ book rejects does not close its sibling (no `_check_oco_after_event`), whereas
 `_handle_new_order` runs it for a rejected OCO-tagged order. Both are for
 the X8d publication-loop consolidation, which removes the per-loop drift
 that causes them.
+
+**X8a fix and C8 (S10, 2026-10-25).** C8 (`checks/quotes.py`, one 34 s audit
+pass) on the 2026-10-24 run: of 272 238 quotes, **40 898 traded on entry
+and then rested their sibling**. In each case `INACTIVE_*_FILLED` came before
+the quote's ack, `ACTIVE` came after it, and the sibling was never
+cancelled. **6 212 trades** then hit such a sibling, after its owner had
+been told the quote was inactive. Cause: `_handle_quote_new` posted the bid,
+whose fill ran the X3 hook (`_on_quote_leg_filled`). The hook inactivated
+the quote and cancelled a sibling that was not in the book yet, which
+silently did nothing. The handler then posted the ask anyway, and only then
+published `quote.ack` and `ACTIVE`. Fix: `quote.ack` and `ACTIVE` are
+published before the legs reach the book, as an order is acked before it
+matches. If the bid's fill inactivated the quote, the ask is not posted: it
+gets `order.cancelled QUOTE_LEG_FILLED`, and the quote's history entry gets
+both legs' snapshots. An ask that fills on entry already cancelled the
+rested bid through the hook. Only the order of messages changed there.
+`INACTIVATE_ON_FULL_FILL` with a partial entry fill keeps the quote active,
+as before. C8 handles seeded quotes, which have no `quote.ack`, only their
+legs' `order.ack`s (learnt from `is_seed` acks), and ignores the ack of a
+quote cancel, which carries no legs. Tests:
+`tests/test_engine_quote_entry_fill.py` (5; the four behaviour cases failed
+before the fix) and `tests/test_sim_forensics_quotes.py` (4).
+`test_engine_fill_status_vocabulary` traded against the ask that X8a
+wrongly rested; it now posts a fresh quote first. Docs: participant guide,
+MM quotes (refresh policies).
 

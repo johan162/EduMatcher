@@ -3821,12 +3821,58 @@ class Engine:
         )
         self._quote_index.put(entry)
 
+        # X8a: the quote is accepted and live before its legs reach the book,
+        # as an order is acked before it matches -- so a fill on entry, and
+        # the refresh policy's INACTIVE_* it triggers, follow these two
+        # messages instead of preceding an ACTIVE that is no longer true.
+        self.pub_sock.send_multipart(
+            self._quote_ack(
+                gateway_id,
+                quote_id,
+                True,
+                bid_order_id=bid.id,
+                ask_order_id=ask.id,
+                symbol=symbol,
+            )
+        )
+        self._dbg_count("quote_accepted")
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
+        )
+
         now = now_ns()
         book = self._book(symbol)
         # #16: only match continuously in CONTINUOUS session state; in auction
         # phases (PRE_OPEN etc.) quote legs rest and cross at the uncross.
         do_match = is_matching_enabled(self._session_state)
         for quote_order in (bid, ask):
+            if (
+                quote_order is ask
+                and self._quote_index.get(gateway_id, symbol) is not entry
+            ):
+                # X8a: the bid's fill on entry inactivated the quote, and the
+                # policy's sibling cancel ran before the ask existed in the
+                # book. The ask never rests; its owner learns it the way a
+                # resting sibling's owner does.
+                ask.status = OrderStatus.CANCELLED
+                ask.cancel_reason = "QUOTE_LEG_FILLED"
+                self._order_symbol.pop(ask.id, None)
+                self.pub_sock.send_multipart(
+                    make_cancelled_msg(
+                        gateway_id,
+                        ask.id,
+                        order=ask.to_dict(),
+                        cancel_reason="QUOTE_LEG_FILLED",
+                    )
+                )
+                # The hook's history entry was recorded without the ask.
+                self._quote_index.attach_leg_snapshots(
+                    gateway_id,
+                    quote_id,
+                    self._snapshot_quote_leg(bid),
+                    self._snapshot_quote_leg(ask),
+                )
+                break
             trades, events = book.process(quote_order, match=do_match, now=now)
             # H5: dedup fills — an order sweeping k levels appears k times in
             # `events`, each reflecting the FINAL cumulative qty; publishing all
@@ -3883,20 +3929,6 @@ class Engine:
                 self._publish_trade(trade)
 
         self._mark_dirty(symbol)
-        self.pub_sock.send_multipart(
-            self._quote_ack(
-                gateway_id,
-                quote_id,
-                True,
-                bid_order_id=bid.id,
-                ask_order_id=ask.id,
-                symbol=symbol,
-            )
-        )
-        self._dbg_count("quote_accepted")
-        self.pub_sock.send_multipart(
-            make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
-        )
 
     def _handle_quote_cancel(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()

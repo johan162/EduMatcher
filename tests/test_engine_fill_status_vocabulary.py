@@ -97,7 +97,10 @@ class TestEveryPathAgrees:
         assert leg_fills, "the quote leg should have crossed the resting sell"
         assert {f["status"] for f in leg_fills} == {"PARTIAL"}
 
-        # And an ordinary aggressor, which is the hot path.
+        # And an ordinary aggressor, which is the hot path. The bid's fill
+        # inactivated that quote and kept its ask off the book
+        # (INACTIVATE_ON_ANY_FILL, X8a), so the buy meets a fresh quote.
+        submit_quote(engine, "MM01", bid_price=99.0, ask_price=101.0, quote_id="Q2")
         engine._handle_new_order(_buy(150, 101.0))
         taker = [f for f in fills(pub_sock, "TRADER01") if f["remaining_qty"] > 0]
         assert taker, "the buy should have partially filled against the quote's ask"
