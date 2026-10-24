@@ -24,6 +24,8 @@ class Line(NamedTuple):
     chain: str
     #: The JSON payload, not yet parsed.
     body: str
+    #: When pm-audit wrote the line (ISO, millisecond precision).
+    ts: str
 
 
 def audit_files(data_dir: Path) -> list[Path]:
@@ -44,4 +46,4 @@ def lines(files: list[Path]) -> Iterator[Line]:
                     continue
                 meta = raw[b + 3 : c]
                 chain = meta[meta.rfind("chain=") + 6 :]
-                yield Line(raw[a + 3 : b], chain, raw[c + 2 :])
+                yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a])

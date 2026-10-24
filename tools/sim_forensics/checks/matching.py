@@ -36,7 +36,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import Line, audit_files, lines
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
@@ -241,10 +241,10 @@ class _Replay:
 
     # --- driving ---------------------------------------------------------
 
-    def run(self, stream: Iterable[tuple[str, str, str]]) -> None:
+    def run(self, stream: Iterable[Line]) -> None:
         pending: list[tuple[str, str, dict[str, Any]]] = []
         chain = ""
-        for topic, line_chain, body in stream:
+        for topic, line_chain, body, _ in stream:
             kind = _EXACT.get(topic) or _PREFIX.get(topic[: topic.rfind(".") + 1])
             if kind is None:
                 if topic.startswith(_UNMODELLED):

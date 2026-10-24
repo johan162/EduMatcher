@@ -20,7 +20,9 @@ ORACLES = (
     "statistical",
 )
 
-Status = Literal["PASS", "FAIL", "SKIPPED", "ERROR"]
+#: INFO is the status of every "statistical" check: its count and samples
+#: are pointers to look at, not violations, so they never fail a run.
+Status = Literal["PASS", "FAIL", "INFO", "SKIPPED", "ERROR"]
 Sample = dict[str, object]
 
 
@@ -80,6 +82,14 @@ def run_checks(ds: Dataset, checks: Iterable[Check], max_samples: int) -> list[R
     return [_run_one(ds, c, max_samples) for c in checks]
 
 
+def failed_outcomes(ds: Dataset) -> dict[str, Outcome]:
+    """The uncapped outcome of every check that has failed so far, by id
+    (H1 reads them; checks run in id order, so A-G come before it)."""
+    failed = ds.cache.setdefault("failed", {})
+    assert isinstance(failed, dict)
+    return failed
+
+
 def _run_one(ds: Dataset, c: Check, max_samples: int) -> Result:
     missing = [s for s in c.needs if s not in ds.stores]
     if missing:
@@ -96,6 +106,10 @@ def _run_one(ds: Dataset, c: Check, max_samples: int) -> Result:
             c, "ERROR", 0, [], traceback.format_exc(), time.monotonic() - start
         )
     status: Status = "FAIL" if out.violations else "PASS"
+    if c.oracle == "statistical":
+        status = "INFO"
+    elif out.violations:
+        failed_outcomes(ds)[c.id] = out
     return Result(
         c,
         status,

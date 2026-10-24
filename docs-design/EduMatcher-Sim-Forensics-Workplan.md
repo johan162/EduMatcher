@@ -28,7 +28,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☑ | 2026-10-23 |
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☑ | 2026-10-24 |
 | 6 | S6 | Check E: full replay differential (engine re-run; reference part covered by S5) | S5 | 2–3 d | ☑ | 2026-10-24 |
-| 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☐ | |
+| 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☑ | 2026-10-24 |
 | 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
@@ -222,16 +222,18 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | F2 | `price_snapshots` best bid/ask equal the audit book at the same instant. |
 | F3 | `book.*` `last_price`/`last_qty`/`recent_trades` consistent with `trade.executed`. |
 | F4 | `book_stats.json` `prev_close` = previous day's `close_price`. |
-| F5 | Index levels recomputable from constituent prices (once R7 is fixed). |
+| F5 | Index levels recomputable from constituent prices (once R7 is fixed). **Not built (S7 decision):** the s300-sim profile defines no index (R7), so there is no data to check; build it with the first run that has indexes. |
 
 ### G — Persistence
 
 | ID | Check |
 |---|---|
-| G1 | `gtc_orders.json` contains no terminal orders; `remaining_qty` matches the last FILL; ticks match `tick_decimals`. |
+| G1 | `gtc_orders.json` contains no terminal orders; `remaining_qty` matches the last FILL; ticks match `tick_decimals`. (Built per entry; "matches the last FILL" is C4's, and E4 compares the whole book.) |
 | G2 | `run_seq` in trade ids matches `engine_run_seq.json`; on a run with a restart, no trade id reused and resting orders survive. |
 
 ### H — Ops-signal correlation and statistics
+
+H checks report **INFO** (S7 decision): a count of pointers, never a FAIL.
 
 | ID | Check |
 |---|---|
@@ -530,6 +532,82 @@ E3 to T3 (see the catalogue). `tools/sim_forensics/checks/rerun.py`.
   and plants one violation per check.
 
 ### S7 — Checks F, G, H
+
+**Done 2026-10-24:** F2–F4 in `checks/derived.py`, G1–G2 in
+`checks/persistence.py`, H1–H3 in `checks/ops.py`. F5 not built (no index in
+the sim profile). Decided with Johan: H checks report a new **INFO** status
+(oracle `statistical`), which never fails a run.
+
+- F2 and F3 share one audit pass (`market_pass`, 37 s on the 9 GB run; a book
+  line is parsed only when a row's window or a new trade needs it). G2 reads
+  its engine starts from the same pass. `audit.Line` gained `ts`.
+- **F2**: each `price_snapshots` row equals one `book.<SYM>` message whose
+  `ts_ns` (engine publish time) falls in [row − 5 s, row + 1 s). The audit
+  line's own time is pm-audit's write time and can trail pm-stats's receipt,
+  so it only pre-selects messages. The first version keyed on it and missed
+  2 rows. `mid` and `pct_change` must follow from the row and the symbol's
+  previous row. `daily_stats` `open_bid`/`open_ask` are the date's first
+  non-empty best bid and ask; `close_bid`/`close_ask` are checked against
+  `system.eod` when the audit has one.
+- **F3**: per symbol, in publish order: `last_price`/`last_qty` = last trade;
+  `last_buy_price`/`last_sell_price` = last BUY-/SELL-aggressor trade (auction
+  prints move neither, L9; the startup values are restored, so they are taken
+  from the first snapshot); `recent_trades` = the last five trades, every
+  field. A wrong snapshot is reported once, and the replay then takes the
+  engine's values.
+- **F4**: `book_stats.json` against `trade_log`'s last trades; flags an empty
+  `prev_close` for a symbol `daily_stats` has closed before.
+- **G1** checks each persisted order (live status, quantities, the prices its
+  type needs, `tick_decimals` vs `instruments`) and combo (live, GTC).
+  Cross-store agreement stays with C4 and E4.
+- **G2**: no trade id above `engine_run_seq.json`; run_seq never falls in
+  trade-time order; trades after the audit's last engine start carry it.
+- **H1** places each failed check's first 50 samples in time from the keys
+  they carry (`ts`, `chain` ULID, `trade_id`, `order_id`). It lists metrics
+  events, clearing disconnects and log.db warnings within ±30 s, and reports
+  the share of the run that is near some event (the chance level).
+  `registry.failed_outcomes` keeps the uncapped outcomes; checks run in id
+  order, so A–G are done before H1.
+- **H2**: robust z (median/MAD) > 5 within a gateway kind (AI*, MM*, TRADER*)
+  for P&L, fill ratio, reject rate and cancel-to-fill. A jump is a
+  continuous print more than 5 % from the prevailing price (the median of
+  the symbol's last 20 trades that day), counted once per excursion, unless
+  symbol or market news came in the previous 15 min. Spread outliers across
+  symbols use the median relative spread. `market_sim_news.db` is now an
+  attached store. The catalogue's "k·σ" rule was tried first and dropped:
+  the tape is bid-ask bounce (a one-tick median move, a spread-wide move at
+  every crossing), and 10 σ flagged 19 025 ordinary crossings.
+- **H3**: per minute, the engine p99 against msgs_in, resting orders, heap
+  garbage, busy %, GC gen2 and host CPU (Spearman); spikes are > 10× the
+  median minute.
+- Tests: `tests/test_sim_forensics_market.py` (15),
+  `test_sim_forensics_persistence.py` (12), `test_sim_forensics_ops.py` (8).
+  Each plants one violation; the F tests use their own small audit tape.
+- **Results on the 2026-10-24 run** (full suite 15 min, of which the F/G
+  pass is 37 s): F1–F4, G1, G2 PASS. F2 covers 26 400 snapshot rows and
+  both days' open bid/ask; F3 covers 4 061 328 book messages. The other
+  checks are as before (C1 5161 X5, C6 1 X6, D7 12 X9, E2 28 094 with HEAD).
+  Report: the scratchpad copy of the run, not yet in `forensics/2026-10-24/`.
+  - H1 INFO 76: 366 ops events, and 20 % of the run lies within 30 s of one
+    (the chance level). Near events: C1 21 of 50 timed samples (42 %), D7 5
+    of 12, E2 50 of 50. The E2 samples are the run's first X9 OCO acks, at
+    the CONTINUOUS transition (07:30:00.4), when engine p99 thresholds fire.
+    C1 (X5) samples are near an event twice as often as chance: a hint for
+    X5's triage, not evidence.
+  - H2 INFO 123: 15 AI P&L outliers (±23–39 M against a median of −2.2 M;
+    no fill/reject/cancel-rate outlier); 86 jumps, mostly in the first half
+    hour after the open (thin books; the sim profile runs `--no-collars`),
+    none explained by the 9 news events; 22 spread outliers.
+  - H3 INFO 79: median p99 1.35 ms, 79 minutes > 13.5 ms (max 87 ms).
+    Spearman with p99: resting orders +0.54, busy +0.49, msgs_in +0.45,
+    host CPU +0.44, heap garbage +0.41, GC gen2 +0.05. Spikes also occur
+    overnight at idle (01:38, 05:30: 600 resting, 3 % busy), so load alone
+    does not explain them; this is for the perf plan.
+- Observation: `daily_stats.close_bid/close_ask` are NULL for every symbol.
+  That is correct, not a finding: the EOD books are empty because every DAY
+  order has expired by then. pm-audit stops before the engine publishes
+  `system.eod` (the audit has none), so F2 cannot check the close side on a
+  sim run.
 
 ### S8 — Triage
 
