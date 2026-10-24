@@ -27,7 +27,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | S3 | Checks A + B: cross-store trade identity, double-entry book-keeping | S2 | 1 d | ☑ | 2026-10-23 |
 | 4 | S4 | Checks C: order lifecycle legality | S2 | 1 d | ☑ | 2026-10-23 |
 | 5 | S5 | Checks D: matching correctness from audit episodes (missed / illegal matches) | S1, S2 | 2 d | ☑ | 2026-10-24 |
-| 6 | S6 | Check E: full replay differential (engine + reference matcher) | S5, T3 of matching plan | 2–3 d | ☐ | |
+| 6 | S6 | Check E: full replay differential (engine re-run; reference part covered by S5) | S5 | 2–3 d | ☑ | 2026-10-24 |
 | 7 | S7 | Checks F–H: derived data, persistence, ops-signal correlation | S2 | 1.5 d | ☐ | |
 | 8 | S8 | Triage of all findings; each confirmed bug → regression test + fix WP | S3–S7 | open | ☐ | |
 
@@ -211,7 +211,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 |---|---|
 | E1 | Extract inbound commands (`order.new`, `order.cancel`, amends, `quote.*`, `order.oco`, session changes) from the audit in engine arrival order (`arrival_seq` / ULID). |
 | E2 | Replay into a fresh `OrderBook` (canonicalise ids and timestamps as in the System-Trading-Verification doc §9); diff trades, acks, rejects. A diff here means non-determinism or a hidden input (time, collar state). |
-| E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. |
+| E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. **Not built (S6 decision):** the reference has no quotes, OCO or sessions; S5's replay is the independent model on the real stream, and the reference differential stays with T3 of the matching plan. |
 | E4 | Final replayed book vs `gtc_orders.json` and the last `book.*` snapshots. |
 
 ### F — Derived data and market data
@@ -485,6 +485,50 @@ Depends on the differential-fuzz work (T3 of the matching workplan), which
 builds the same OrderBook ↔ reference harness. Any divergence is shrunk
 (delta-debug on the command list) to a minimal scenario.
 
+**Done 2026-10-24 (changed: engine re-run, no reference):** decided with the
+maintainer to build E1, E2, E4 as a re-run of the whole `Engine` and leave
+E3 to T3 (see the catalogue). `tools/sim_forensics/checks/rerun.py`.
+
+- Input: the engine echoes every inbound command into the audit before
+  handling it (`Engine._echo_command`; queries and heartbeats excepted), so
+  the audit *is* the engine's input. The re-run builds an `Engine` from the
+  run's compiled `ref_data/engine_config.json` — the container engine reads
+  the compiled artifact, not the YAML; the YAML seeds the books in a
+  different symbol order — with fake sockets, runs `_restore_gtc` and
+  `_load_config` as `run()` does, and calls `_dispatch_pull_message` for
+  each echoed command. 2 550 622 commands, ~6 min.
+- Comparison per command chain, all messages but market data and replies;
+  clock fields dropped. Engine-generated order ids (seed, quote and OCO legs)
+  and trade ids are bound live ↔ re-run where first named (the trade counter
+  is global, so one extra or missing trade would otherwise shift every later
+  id); 8-hex id prefixes in reason text are mapped too. A symbol whose
+  outputs differed is one *episode* until the re-run's `book.snapshot()`
+  (levels and last price) equals the next live `book.<SYM>`. Armed stops
+  are not in a snapshot, so an episode can end early and recur: of the 15
+  HEAD episodes that are not the ack field, 11 are the X9 dispatches and 4
+  later ones in FSLR/FANG, where an OCO stop leg X9 had left armed or gone.
+- **Result with the run's own engine (v0.52.0, via a worktree on
+  `PYTHONPATH`): E1, E2, E4 PASS, twice.** The live run is fully reproducible
+  from its commands: no hidden input (no silent-gateway expiry, no timer
+  touched an order), no non-determinism in matching, and the re-run ends
+  with exactly `gtc_orders.json`. The only difference is X11 (message
+  order), which the comparison tolerates and counts.
+- With the current engine, E2 shows the code change since the run:
+  28 096 episodes, almost all the X9 fix's `smp_action` on OCO leg acks, and
+  the self-trades X9 no longer makes. So E2 doubles as a behaviour-change
+  report between releases; the note names both versions (the source commit,
+  since the package version does not move between releases) and groups
+  episodes by their first difference. For a determinism verdict, re-run with
+  the run's engine version.
+- A tool bug found on the way: a quote replacement cancels the old legs in
+  set order (X11) and a new leg not yet bound; aligning only fully-bound
+  batches cross-bound the legs in 3 of 2.5 M commands, depending on the hash
+  seed. Fixed by aligning bound ids to their live position and filling the
+  rest in order.
+- Tests: `tests/test_sim_forensics_rerun.py` (5) records a short run of a
+  real Engine on the s1-basic example as audit lines (commands echoed first)
+  and plants one violation per check.
+
 ### S7 — Checks F, G, H
 
 ### S8 — Triage
@@ -522,6 +566,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X8 | X1/X3 fix review | — | — | Engine oddities, not yet measured | Open (see below) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (uncommitted); confirm on next run (D7) |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Open |
+| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Open |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -659,3 +704,14 @@ variables`: `_hydrate` binds every episode id of the window into one
 `IN (…)`, beyond SQLite's limit of 32 766. With the S1 rotation (256 MB ×
 100) the tool cannot be used on a sim run's audit at all. Not needed by the
 forensics (S5 streams the files itself); a fix chunks the `IN` list.
+
+**X11 — batch cancels come out in hash order.** E2: in about 6 400 commands
+(of 2.55 M) the engine published a batch of `order.cancelled` for one gateway
+in a different order from the re-run — mostly quote replacements cancelling
+the old legs. `OrderBook.orders_for_gateway` iterates the gateway's set of
+order-id strings, whose order follows Python's per-process hash seed. The
+same orders are cancelled and the book is identical; only the message order
+differs between two runs of the same input, which makes the engine's output
+non-reproducible byte for byte (and a recording compare harder). The same
+index feeds kill switch and disconnect cancels. A fix iterates in
+arrival-seq order.

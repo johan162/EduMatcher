@@ -5,5 +5,6 @@ from sim_forensics.checks import (  # noqa: F401
     derived,
     lifecycle,
     matching,
+    rerun,
     trades,
 )
