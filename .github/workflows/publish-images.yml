@@ -80,14 +80,14 @@ jobs:
         with:
           ref: ${{ steps.ref.outputs.tag }}
 
-      # ubuntu-24.04 ships Python 3.12; pyproject requires ^3.14, and Poetry
+      # ubuntu-24.04 ships Python 3.12; pyproject requires ^3.13, and Poetry
       # refuses to build against an interpreter the project excludes. Same
       # step, same version, as publish-to-pypi.yml.
       - name: Set up Python
         if: matrix.image.wheel_dir != ''
         uses: actions/setup-python@v6
         with:
-          python-version: '3.14'
+          python-version: '3.13'
 
       # The backend and log-gui images install from .wheel/ when a wheel is
       # present and fall back to PyPI otherwise. Build the wheel from *this
