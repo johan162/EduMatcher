@@ -20,7 +20,7 @@ import { SessionTimetable } from "../components/SessionTimetable.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
 import { api } from "../lib/api.js";
 import { auctionHelp, haltHelp } from "../lib/help.js";
-import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../lib/format.js";
+import { ABSENT, clockInTimezone, elapsed, price, qty, resumeAt } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
 import { useNow } from "../lib/staleness.js";
 import { sendControl } from "../lib/useTerminalStream.js";
@@ -62,7 +62,7 @@ export function SessionView() {
           <span className="text-2xl font-semibold tracking-tight">{sessionPhase ?? "AWAITING SESSION"}</span>
           <SessionBadge phase={sessionPhase} />
           <span className="text-sm text-fg-subtle">
-            {sessionSince ? `since ${clockUtc(sessionSince)} UTC` : "no transition observed yet"}
+            {sessionSince ? `since ${clockInTimezone(sessionSince, sessionTimezone)}` : "no transition observed yet"}
             {sessionPrev ? ` · prev ${sessionPrev}` : ""}
           </span>
         </div>
@@ -117,6 +117,7 @@ export function SessionView() {
                   key={entry.sym}
                   entry={entry}
                   rowClass={rowClass}
+                  timeZone={sessionTimezone}
                 />
               ))}
             </tbody>
@@ -181,7 +182,7 @@ export function SessionView() {
                       <span className="text-fg-faint">{ABSENT}</span>
                     )}
                   </td>
-                  <td className="tabular text-fg-subtle">{clockUtc(auction.ts)}</td>
+                  <td className="tabular text-fg-subtle">{clockInTimezone(auction.ts, sessionTimezone)}</td>
                 </tr>
               ))}
             </tbody>
@@ -203,7 +204,17 @@ export function SessionView() {
  * `haltSource` and `resumeAt` are independent axes and are shown as such —
  * who halted the symbol, and whether it comes back by itself.
  */
-function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass: string; decimals: number }) {
+function HaltRow({
+  entry,
+  rowClass,
+  decimals,
+  timeZone,
+}: {
+  entry: HaltedSymbol;
+  rowClass: string;
+  decimals: number;
+  timeZone: string;
+}) {
   const cb = entry.context;
   const source = cb?.haltSource;
 
@@ -226,7 +237,7 @@ function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass:
         </span>
       </td>
       <td className="tabular text-fg-subtle">
-        {clockUtc(entry.since)}
+        {clockInTimezone(entry.since, timeZone)}
         <span className="ml-2 text-fg-faint">{elapsed(entry.since)}</span>
       </td>
     </tr>

@@ -99,6 +99,8 @@ describe("session phase", () => {
 
     expect(screen.getByText("CONTINUOUS")).toBeDefined();
     expect(screen.getByText(/prev OPENING_AUCTION/)).toBeDefined();
+    // 09:30:00Z is 11:30:00 in Stockholm summer time, the store's default zone.
+    expect(screen.getByText(/since 11:30:00/)).toBeDefined();
   });
 
   it("admits when it has not seen a session transition yet", () => {
@@ -125,6 +127,8 @@ describe("active halts", () => {
     expect(screen.getByText("L2")).toBeDefined();
     expect(screen.getByText("261.40")).toBeDefined();
     expect(screen.getByText("248.00")).toBeDefined();
+    // The halt began at 11:02:17Z: 13:02:17 in Stockholm summer time.
+    expect(screen.getByText("13:02:17")).toBeDefined();
   });
 
   it("shows dashes for an operator halt, which carries no trigger price", () => {
@@ -188,6 +192,8 @@ describe("recent auction results", () => {
     expect(screen.getByText("149.85")).toBeDefined();
     expect(screen.getByText("12,400")).toBeDefined();
     expect(screen.getByText("BUY 1,400")).toBeDefined();
+    // 09:30:02Z is 11:30:02 in Stockholm summer time, the store's default zone.
+    expect(screen.getByText("11:30:02")).toBeDefined();
   });
 
   it("labels a no-cross auction rather than showing a blank price", () => {

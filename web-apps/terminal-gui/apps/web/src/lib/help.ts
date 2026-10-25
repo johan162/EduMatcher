@@ -60,7 +60,7 @@ const HALT: Record<string, string> = {
   Trigger: "The price that tripped the circuit breaker. Blank for an operator halt.",
   Reference: "The price the move was measured from. Blank for an operator halt.",
   Resumes: "Who halted it (CB: circuit breaker, ADMIN: operator), then the earliest time the reopening auction can end, with a countdown. It ends at a random point after that, or later if the price is outside its corridor. Manual: only an operator ends it.",
-  Since: "When the halt began, in UTC, and how long ago that was.",
+  Since: "When the halt began, in the exchange's time zone, and how long ago that was.",
 };
 
 /** The Session view's recent-auction-results table. */
@@ -70,7 +70,7 @@ const AUCTION: Record<string, string> = {
   Qty: "The quantity matched at the equilibrium price.",
   Trades: "The number of trades the uncross printed.",
   Imbalance: "The quantity left unmatched at the equilibrium price and the side it was on. Blank when both sides matched fully.",
-  Time: "When the auction uncrossed, in UTC.",
+  Time: "When the auction uncrossed, in the exchange's time zone.",
 };
 
 /** The Session view's timetable, by heading. */
