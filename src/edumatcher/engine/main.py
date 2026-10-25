@@ -114,9 +114,9 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDERS_REQUEST,
     TOPIC_PRICE_LEVEL_ORDERS_REQUEST,
     OrderFillLiquidityFlag,
+    make_order_cancelled_unchecked,
+    make_order_fill_unchecked,
     topic_order_ack,
-    topic_order_cancelled,
-    topic_order_fill,
 )
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
@@ -133,7 +133,6 @@ from edumatcher.models.message import (
     make_eod_msg,
     make_expired_msg,
     fill_status,
-    make_fill_msg,
     make_gateway_auth_msg,
     make_gateway_bye_msg,
     make_circuit_breaker_halt_all_ack_msg,
@@ -310,10 +309,38 @@ def _weekly_schedule_wire(
 _CLIENT_NAME = "pm-engine"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
-# Pre-built fill-status set — a small hot-path allocation avoided (see
+# Pre-built status set — a small hot-path allocation avoided (see
 # docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
 # now lives in the generated binding, which pre-encodes it the same way.
-_FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
+_ENDED_STATUSES = frozenset(
+    {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED}
+)
+
+#: What an order the book rejected is told when matching was on: only a FOK
+#: short of liquidity gets there (see ``Engine._book_reject``).
+_NO_LIQUIDITY: tuple[RejectCode, str] = (
+    "INSUFFICIENT_LIQUIDITY",
+    "Insufficient liquidity",
+)
+
+
+class _Execution:
+    """What one order executed in one dispatch: the sum of its trades.
+
+    One ``order.fill`` reports all of them (H5), at the order's own VWAP (H6),
+    with the ids of the trades behind it and the order's MAKER/TAKER side
+    (G9). An order is the aggressor of all its trades in a dispatch or of
+    none, so the first trade settles the flag.
+    """
+
+    __slots__ = ("qty", "notional", "trade_ids", "flag")
+
+    def __init__(self, flag: OrderFillLiquidityFlag) -> None:
+        self.qty = 0
+        self.notional = 0  # ticks x shares, divided once (H6)
+        self.trade_ids: list[str] = []
+        self.flag: OrderFillLiquidityFlag = flag
+
 
 #: The topics timed as order entry (engine.handle_us_*); every other PULL
 #: message -- heartbeats, connects, queries, admin -- is engine.other_us_*.
@@ -588,10 +615,6 @@ class Engine:
             {}
         )  # oco_group_id → [order_id_1, order_id_2]
         self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
-        # The OCO whose legs _handle_oco_order is posting: it checks them
-        # itself once both are in the book (finding #6), so the book's
-        # mid-dispatch hook leaves this one group alone.
-        self._oco_entering: str | None = None
 
         # Per-gateway position ledger — updated on every fill; keyed by
         # uppercase gateway_id → symbol → value.  Allows bots to resync
@@ -946,10 +969,10 @@ class Engine:
         if symbol not in self.books:
             book = OrderBook(symbol, recent_trades_maxlen=self.recent_trades_maxlen)
             # X3: inactivate a quote at the fill itself, inside the dispatch;
-            # the publication loops' later calls find it already done.
+            # _publish_dispatch's later call finds it already done.
             book.on_quote_leg_fill = self._on_quote_leg_filled
             # X15: the same for an OCO leg's sibling.
-            book.on_oco_leg_done = self._on_oco_leg_done
+            book.on_oco_leg_done = self._check_oco_after_event
             self.books[symbol] = book
         return self.books[symbol]
 
@@ -1203,60 +1226,7 @@ class Engine:
                     trades, events = book.process(
                         quote_order, match=seed_do_match, now=now
                     )
-                    # H5: dedup fills — a seeded quote sweeping k levels appears
-                    # k times in `events` with the final cumulative qty.
-                    # H6: report each order's own VWAP execution price.
-                    _seed_fill_px = self._order_fill_prices(trades)
-                    _seed_matched = self._order_matched_qty(trades)
-                    _seed_fill_ids: set[str] = set()
-                    _seed_cancel_ids: set[str] = set()
-                    for evt in events:
-                        # X1: fill by what executed, not by final status.
-                        if _seed_matched.get(evt.id, 0) > 0:
-                            if evt.id not in _seed_fill_ids:
-                                _seed_fill_ids.add(evt.id)
-                                self._fills_published += 1
-                                self.pub_sock.send_multipart(
-                                    make_fill_msg(
-                                        evt.gateway_id,
-                                        evt.id,
-                                        fill_qty=_seed_matched.get(evt.id, 0),
-                                        fill_price=_seed_fill_px.get(
-                                            evt.id,
-                                            (
-                                                from_ticks(
-                                                    book.last_trade_price, evt.symbol
-                                                )
-                                                if book.last_trade_price is not None
-                                                else 0.0
-                                            ),
-                                        ),
-                                        remaining_qty=evt.remaining_qty,
-                                        status=fill_status(evt.remaining_qty),
-                                        order=evt.to_dict(),
-                                        trade_ids=self._order_trade_ids(trades).get(
-                                            evt.id, []
-                                        ),
-                                        liquidity_flag=self._order_liquidity_flags(
-                                            trades
-                                        ).get(evt.id),
-                                    )
-                                )
-                                if evt.quote_id:
-                                    self._on_quote_leg_filled(evt)
-                        if evt.status == OrderStatus.CANCELLED:
-                            if evt.id not in _seed_cancel_ids:
-                                _seed_cancel_ids.add(evt.id)
-                                self.pub_sock.send_multipart(
-                                    make_cancelled_msg(
-                                        evt.gateway_id,
-                                        evt.id,
-                                        order=evt.to_dict(),
-                                        cancel_reason=self._cancel_reason_of(evt),
-                                    )
-                                )
-                    for trade in trades:
-                        self._publish_trade(trade)
+                    self._publish_dispatch(trades, events)
 
                 self._mark_dirty(sym)
                 n_mm_quotes += 1
@@ -1833,7 +1803,7 @@ class Engine:
         # The exception is an order the book may still reject (a FOK short of
         # liquidity, _book_may_reject): its ACK is sent after process(), and
         # only if the book did not reject it -- a rejected FOK gets the one
-        # accepted=False ACK of the events loop below (X5).
+        # accepted=False ACK of _publish_dispatch below (X5).
         #
         # Hot path: the ACK is built inline (bypassing make_ack_msg) with
         # pre-cached per-gateway topic bytes and hot attributes bound to locals
@@ -1842,23 +1812,18 @@ class Engine:
         _tc = self._topic_cache
         ack_topic = _tc.get(_gw)
         if ack_topic is None:
-            # First order from this gateway — populate the three hot topics
-            _tc[_gw] = topic_order_ack(_gw).encode()
-            _tc[f"fill.{_gw}"] = topic_order_fill(_gw).encode()
-            _tc[f"cancel.{_gw}"] = topic_order_cancelled(_gw).encode()
-            ack_topic = _tc[_gw]
+            # First order from this gateway
+            ack_topic = _tc[_gw] = topic_order_ack(_gw).encode()
         _pub = self.pub_sock
-        _fill_topic = _tc[f"fill.{_gw}"]  # guaranteed set by ack-topic setup above
-        _ptrade = self._publish_trade
         _side_v: str = payload["side"]
         _ot_v: str = payload["order_type"]
         _tif_v: str = payload["tif"]
         # order.new carries the limit price in ticks; order.ack.price and
         # order.fill.price are both declared display_price. Every other ack and
-        # fill path converts (order_to_display_dict, and the passive branch of
-        # the fill below) -- this hot path echoed the tick value straight
-        # through, so a 46.78 limit acked and filled as 4700 on the aggressor
-        # side while the passive leg of the same match reported 46.78.
+        # the fill (order_to_display_dict, _fill_frames) convert -- this hot
+        # path echoed the tick value straight through, so a 46.78 limit acked
+        # and filled as 4700 on the aggressor side while the passive leg of
+        # the same match reported 46.78.
         _tick_px = payload.get("price_ticks")  # None for MARKET orders
         _ack_price = (
             from_ticks(_tick_px, order.symbol) if _tick_px is not None else None
@@ -1917,228 +1882,11 @@ class Engine:
         self._dbg_count("new_order_trades", len(trades))
 
         # M8: register the routing entry only now that the book has accepted the
-        # order.  The fill-publication loop below may prune it again if the
-        # order fully filled (H7), so this must precede that loop.
+        # order.  _publish_dispatch below drops it again if the order ended
+        # (H7), so this must precede it.
         self._order_symbol[order.id] = order.symbol
 
-        # H6: each order's fill message must carry ITS OWN execution price
-        # (per-order VWAP over the trades it participated in), not the sweep's
-        # last trade price.  Fall back to last_trade_price only if an order is
-        # somehow missing from the trade map.
-        _order_fill_px = self._order_fill_prices(trades)
-        _order_matched_map = self._order_matched_qty(trades)
-        _order_trade_ids_map = self._order_trade_ids(trades)
-        _order_liquidity_flags_map = self._order_liquidity_flags(trades)
-        _fill_px = (
-            from_ticks(book.last_trade_price, order.symbol)
-            if trades and book.last_trade_price is not None
-            else None
-        )
-
-        # Publish fills / cancels
-        # Guard against duplicate fill events: when an aggressive order sweeps
-        # multiple resting price levels, _apply_fill appends the SAME order
-        # object to `events` once per fill.  By the time this loop runs the
-        # object reflects only the FINAL state, so iterating it N times would
-        # emit N identical fill messages (wrong fill_qty and fill_price for the
-        # first N-1 occurrences, and N× overcounting in position trackers).
-        # Using a seen-set ensures exactly ONE fill message per order per
-        # process() call — reporting the correct total fill quantity and final
-        # remaining_qty.  Combo/OCO side-effect checks are idempotent so they
-        # run unconditionally and are safe to call on every occurrence.
-        _published_fill_ids: set[str] = set()
-        _published_terminal_ids: set[str] = set()
-        for evt in events:
-            # ----------------------------------------------------------------
-            # Fill notification (finding #5)
-            # ----------------------------------------------------------------
-            # Publish a fill whenever the order EXECUTED any quantity here,
-            # keyed off what this dispatch matched — NOT off the order's final
-            # status.  `events` holds repeated references to the same live
-            # Order, and an IOC/MARKET/SMP-cancelled aggressor fills and is then
-            # mutated to CANCELLED on that same object.  Branching on the final
-            # status alone (the old `if evt.status in _FILL_STATUSES`) dropped
-            # the fill entirely while still emitting a cancel — the owner saw
-            # order.cancelled and no order.fill despite a real execution having
-            # printed.
-            _matched_qty = _order_matched_map.get(evt.id, 0)
-            if _matched_qty > 0 and evt.id not in _published_fill_ids:
-                _published_fill_ids.add(evt.id)
-                self._fills_published += 1
-                # Hot path: fill payload built inline with pre-cached topic
-                # bytes; for the aggressor (evt is order) canonical string values
-                # from the payload are reused (see docs-design/perf-notes.md).
-                _is_agg = evt is order
-                _pub.send_multipart(
-                    [
-                        (
-                            _fill_topic
-                            if evt.gateway_id == _gw
-                            else (
-                                _tc.get(f"fill.{evt.gateway_id}")
-                                or topic_order_fill(evt.gateway_id).encode()
-                            )
-                        ),
-                        dumps(
-                            {
-                                "order_id": evt.id,
-                                "fill_qty": _matched_qty,
-                                "fill_price": _order_fill_px.get(evt.id, _fill_px),
-                                "remaining_qty": evt.remaining_qty,
-                                "status": fill_status(evt.remaining_qty),
-                                "trade_ids": _order_trade_ids_map.get(evt.id, []),
-                                **(
-                                    {
-                                        "liquidity_flag": _order_liquidity_flags_map[
-                                            evt.id
-                                        ]
-                                    }
-                                    if evt.id in _order_liquidity_flags_map
-                                    else {}
-                                ),
-                                "symbol": evt.symbol,
-                                # evt.side / evt.order_type are `str, Enum`
-                                # members -- passed straight to the JSON
-                                # encoder (both orjson and the stdlib
-                                # fallback serialize them as their string
-                                # value) instead of calling `.value`, which
-                                # is a descriptor call
-                                # (docs-design/EduMatcher-Perf-Analysis.md
-                                # §8: ~90 ns/call measured).
-                                "side": _side_v if _is_agg else evt.side,
-                                "order_type": (_ot_v if _is_agg else evt.order_type),
-                                "qty": evt.quantity,
-                                "price": (
-                                    _ack_price
-                                    if _is_agg
-                                    else (
-                                        from_ticks(evt.price_ticks, evt.symbol)
-                                        if evt.price_ticks is not None
-                                        else None
-                                    )
-                                ),
-                                "client_tag": evt.client_tag,
-                                # Group ids travel with the fill so a consumer
-                                # can attribute a combo leg or an OCO side
-                                # without joining against its own record of the
-                                # parent — which it may not have after a
-                                # reconnect. Built inline rather than via
-                                # group_ids() because this is the hot path and
-                                # the fields are already in scope.
-                                **(
-                                    {"oco_group_id": evt.oco_group_id}
-                                    if evt.oco_group_id is not None
-                                    else {}
-                                ),
-                                **(
-                                    {"combo_parent_id": evt.combo_parent_id}
-                                    if evt.combo_parent_id is not None
-                                    else {}
-                                ),
-                                **(
-                                    {"quote_id": evt.quote_id}
-                                    if evt.quote_id is not None
-                                    else {}
-                                ),
-                                **(
-                                    {"leg_index": evt.leg_index}
-                                    if evt.leg_index is not None
-                                    else {}
-                                ),
-                            }
-                        ),
-                    ]
-                )
-                # Drop copy is published centrally in _publish_trade (#11,#30 so
-                # every flow's fills reach the clearing/risk feed uniformly —
-                # no per-flow drop-copy call is needed here.
-
-            # Combo / OCO side-effects on fill (idempotent — safe every occurrence)
-            if evt.status in _FILL_STATUSES:
-                if evt.combo_parent_id:
-                    self._check_combo_after_child_event(evt)
-                if evt.status == OrderStatus.FILLED and evt.oco_group_id:
-                    self._check_oco_after_event(evt)
-                # MM quote leg inactivation: a resting quote leg can be filled
-                # here by an independent, later-arriving taker order — not
-                # just by the quote's own submission sweeping the book (that
-                # path is handled separately in _handle_quote_submit's match
-                # loop). Without this call, a quote hit by a later order was
-                # never inactivated or had its sibling leg cancelled, and its
-                # removal was never recorded in QuoteIndex's RECENT history.
-                if evt.quote_id:
-                    self._on_quote_leg_filled(evt)
-                # H7: a fully filled order is terminal — drop its engine-level
-                # order→symbol routing entry (the book already purged its own
-                # indexes).  A partially filled order that rests keeps it.
-                if evt.status == OrderStatus.FILLED:
-                    self._order_symbol.pop(evt.id, None)
-
-            # ----------------------------------------------------------------
-            # Terminal status notification (deduped per order id)
-            # ----------------------------------------------------------------
-            if (
-                evt.status == OrderStatus.REJECTED
-                and evt.id not in _published_terminal_ids
-            ):
-                _published_terminal_ids.add(evt.id)
-                self._reject(
-                    gateway_id=evt.gateway_id,
-                    order_id=evt.id,
-                    code="INSUFFICIENT_LIQUIDITY",
-                    reason="Insufficient liquidity",
-                    client_tag=evt.client_tag,
-                    request_tag=None,
-                )
-                # REJECTED event carrying an oco_group_id → cancel the other leg
-                if evt.oco_group_id:
-                    self._check_oco_after_event(evt)
-                # H7: rejected order is terminal — drop its routing entry.
-                self._order_symbol.pop(evt.id, None)
-            elif (
-                evt.status == OrderStatus.CANCELLED
-                and evt.id not in _published_terminal_ids
-            ):
-                _published_terminal_ids.add(evt.id)
-                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify
-                # owner. This is the hot path, so the frame is built by hand
-                # rather than through make_cancelled_msg; cancel_reason
-                # follows the spec's omit_when_none, so it's added only when
-                # set. symbol (AR-0.2) is set unconditionally: Order.symbol
-                # is a plain `str`, never None, on every Order this engine
-                # constructs -- the wire field is nullable/omit_when_none
-                # for *other* producers, not this one. (pyright previously
-                # flagged the old `if evt.symbol is not None:` guard here as
-                # dead code for exactly this reason.)
-                _cancelled: dict[str, Any] = {
-                    "order_id": evt.id,
-                    "client_tag": evt.client_tag,
-                    "symbol": evt.symbol,
-                }
-                if evt.cancel_reason is not None:
-                    _cancelled["cancel_reason"] = evt.cancel_reason
-                _pub.send_multipart(
-                    [
-                        _tc.get(f"cancel.{evt.gateway_id}")
-                        or topic_order_cancelled(evt.gateway_id).encode(),
-                        dumps(_cancelled),
-                    ]
-                )
-                if evt.combo_parent_id:
-                    self._check_combo_after_child_event(evt)
-                if evt.oco_group_id:
-                    self._check_oco_after_event(evt)
-                # H7: cancelled order is terminal — drop its routing entry.
-                self._order_symbol.pop(evt.id, None)
-                log.info(f"CANCEL {evt.id[:8]} ({evt.gateway_id})")
-
-        # Publish trades — _publish_trade updates both position ledgers (H3).
-        for trade in trades:
-            log.info(
-                f"TRADE {trade.id[:8]} {trade.symbol} "
-                f"qty={trade.quantity} @{trade.price}"
-            )
-            _ptrade(trade)
+        self._publish_dispatch(trades, events)
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
@@ -3227,83 +2975,164 @@ class Engine:
                 self._check_circuit_breaker(trade.symbol, trade.price, trade.ts_ns)
 
     @staticmethod
-    def _order_fill_prices(trades: list[Any]) -> dict[str, float]:
-        """Per-order volume-weighted execution price (display) from *trades*.
-
-        H6: a fill message must report the price the order ACTUALLY executed
-        at, not ``book.last_trade_price`` (the last level of the whole sweep).
-        For an order that fills across multiple levels this is its VWAP; for a
-        passive order filled at a single level it is exactly that level's price.
-        The notional is summed in integer ticks and divided once, by quantity
-        times the tick scale, so the result is the correctly rounded VWAP:
-        summed in display floats, 23 @ 108.67 came back as 108.66999999999999.
-        """
-        # order_id -> (qty, notional in ticks, symbol)
-        agg: dict[str, tuple[int, int, str]] = {}
-        for t in trades:
-            for oid in (t.buy_order_id, t.sell_order_id):
-                qty, notional, _ = agg.get(oid, (0, 0, t.symbol))
-                agg[oid] = (qty + t.quantity, notional + t.price * t.quantity, t.symbol)
-        return {
-            oid: (n / (q * 10 ** get_tick_decimals(sym)) if q else 0.0)
-            for oid, (q, n, sym) in agg.items()
-        }
-
-    @staticmethod
-    def _order_matched_qty(trades: list[Any]) -> dict[str, int]:
-        """Per-order quantity matched in THIS dispatch, from *trades*.
+    def _executions(trades: list[Trade]) -> dict[str, _Execution]:
+        """Each order's execution in THIS dispatch, from *trades*, in one pass.
 
         ``order.fill.fill_qty`` is specified as "quantity matched in this
-        event, not cumulatively" (spec/messages/order.yaml). The obvious
-        ``evt.quantity - evt.remaining_qty`` is the order's running total,
-        which is the same number only on its first fill: a resting order hit
-        a second time reported the total again, so a consumer summing
-        fill_qty double-counted everything but the first event.
-
-        The increment is the trades of this dispatch that touched the order,
-        which is what "matched in this event" means; it needs no before-state.
+        event, not cumulatively" (spec/messages/order.yaml): the trades of
+        this dispatch that touched the order, which needs no before-state --
+        ``quantity - remaining_qty`` is the running total, and a resting order
+        hit a second time reported it again. The notional is summed in integer
+        ticks and divided once, so the VWAP is correctly rounded: summed in
+        display floats, 23 @ 108.67 came back as 108.66999999999999. The trade
+        ids, in match order, let a consumer join a private fill to the public
+        tape. The flag is the drop copy's derivation (M13): the aggressor side
+        of a trade is TAKER.
         """
-        matched: dict[str, int] = {}
-        for t in trades:
-            for oid in (t.buy_order_id, t.sell_order_id):
-                matched[oid] = matched.get(oid, 0) + t.quantity
-        return matched
-
-    @staticmethod
-    def _order_trade_ids(trades: list[Any]) -> dict[str, list[str]]:
-        """Per-order list of the public trade ids that composed its fill.
-
-        Mirrors ``_order_fill_prices``: because one private ``order.fill``
-        coalesces an order's executions across levels (H5/H6), a consumer that
-        wants the trade ids behind that fill needs them all, in match order and
-        deduplicated. Lets the fills panel link a private fill to the public
-        trade tape without re-deriving the join.
-        """
-        ids: dict[str, list[str]] = {}
-        for t in trades:
-            for oid in (t.buy_order_id, t.sell_order_id):
-                bucket = ids.setdefault(oid, [])
-                if t.id not in bucket:
-                    bucket.append(t.id)
-        return ids
-
-    @staticmethod
-    def _order_liquidity_flags(trades: list[Any]) -> dict[str, OrderFillLiquidityFlag]:
-        """Per-order MAKER/TAKER attribution, mirroring ``_order_trade_ids`` (G9).
-
-        Same derivation the drop-copy path (M13) already uses: the aggressor
-        side of a trade is TAKER, the resting side is MAKER. An order's side
-        (BUY/SELL) is constant across every trade that composes its fill, so
-        the first trade touching an order id settles its flag; a coalesced
-        multi-level sweep cannot disagree with itself because the order is
-        the aggressor for all of its own trades or for none of them.
-        """
-        flags: dict[str, OrderFillLiquidityFlag] = {}
+        out: dict[str, _Execution] = {}
         for t in trades:
             agg = t.aggressor_side
             for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
-                flags.setdefault(oid, "TAKER" if side == agg else "MAKER")
-        return flags
+                ex = out.get(oid)
+                if ex is None:
+                    ex = out[oid] = _Execution("TAKER" if side == agg else "MAKER")
+                ex.qty += t.quantity
+                ex.notional += t.price * t.quantity
+                ex.trade_ids.append(t.id)
+        return out
+
+    def _book_reject(self, symbol: str, do_match: bool) -> tuple[RejectCode, str]:
+        """Code and reason for an order ``book.process(match=do_match)`` rejects.
+
+        With matching on, only a FOK short of liquidity is rejected. With it
+        off, a MARKET/IOC/FOK cannot rest, and the reason is why matching is
+        off -- as gate 8 and the phase gate of ``_handle_new_order`` say for
+        an ordinary order (X12a). An AON combo blocked by a short leg is the
+        remaining case: a liquidity shortfall again.
+        """
+        if not do_match:
+            if self._halted_symbols.get(symbol):
+                return self._halt_reject_code(symbol), f"{symbol} is halted"
+            if not is_matching_enabled(self._session_state):
+                return (
+                    "SESSION_NOT_PERMITTED",
+                    f"Orders that cannot rest are not accepted during "
+                    f"{self._session_state.value}",
+                )
+        return _NO_LIQUIDITY
+
+    def _publish_dispatch(
+        self,
+        trades: list[Trade],
+        events: list[Order],
+        reject: tuple[RejectCode, str] = _NO_LIQUIDITY,
+    ) -> None:
+        """Publish what one ``book.process()`` -- or an uncross -- did.
+
+        Every path that matches calls this, so none can drift from the others
+        again (X8d: seven copies had, each missing a different follow-up).
+        ``events`` repeats an order once per level it swept, every copy in
+        its final state, so each order is handled once:
+
+        - an ``order.fill`` if it executed here, whatever its final status
+          (X1: an IOC can fill and then be cancelled), then the quote refresh
+          policy (X3; the uncross's only call, X8b);
+        - ``order.cancelled``, or the reject *reject* (X12a), if it ended so;
+        - the combo follow-up, and for an order that ended the OCO follow-up
+          and the drop of its routing entry (H7). The book has already pulled
+          an OCO sibling inside the dispatch (X15); here it is a no-op unless
+          nothing in the book saw the end.
+
+        Then the trades, which update both positions (H3).
+        """
+        executed = self._executions(trades)
+        send = self.pub_sock.send_multipart
+        seen: set[str] = set()
+        for evt in events:
+            oid = evt.id
+            if oid in seen:
+                continue
+            seen.add(oid)
+            status = evt.status
+            ex = executed.get(oid)
+            if ex is not None:
+                self._fills_published += 1
+                send(self._fill_frames(evt, ex))
+                if evt.quote_id is not None:
+                    self._on_quote_leg_filled(evt)
+            if status is OrderStatus.CANCELLED:
+                send(
+                    make_order_cancelled_unchecked(
+                        gateway_id=evt.gateway_id,
+                        order_id=oid,
+                        symbol=evt.symbol,
+                        client_tag=evt.client_tag,
+                        cancel_reason=self._cancel_reason_of(evt),
+                        oco_group_id=evt.oco_group_id,
+                        combo_parent_id=evt.combo_parent_id,
+                        quote_id=evt.quote_id,
+                        leg_index=evt.leg_index,
+                    )
+                )
+                log.info(f"CANCEL {oid[:8]} ({evt.gateway_id})")
+            elif status is OrderStatus.REJECTED:
+                self._reject(
+                    gateway_id=evt.gateway_id,
+                    order_id=oid,
+                    code=reject[0],
+                    reason=reject[1],
+                    client_tag=evt.client_tag,
+                    request_tag=None,
+                )
+            if evt.combo_parent_id is not None and status is not OrderStatus.NEW:
+                self._check_combo_after_child_event(evt)
+            if status in _ENDED_STATUSES:
+                if evt.oco_group_id is not None:
+                    self._check_oco_after_event(evt)
+                self._order_symbol.pop(oid, None)
+
+        for trade in trades:
+            log.info(
+                f"TRADE {trade.id[:8]} {trade.symbol} "
+                f"qty={trade.quantity} @{trade.price}"
+            )
+            self._publish_trade(trade)
+
+    @staticmethod
+    def _fill_frames(order: Order, ex: _Execution) -> list[bytes]:
+        """``order.fill`` for *order*'s execution *ex*: one shape for all paths.
+
+        Built from the order itself rather than ``Order.to_dict()``, which
+        has no display ``price`` (every path but the new-order one lost it)
+        and costs a dict of 25 fields per fill.
+        """
+        symbol = order.symbol
+        return make_order_fill_unchecked(
+            gateway_id=order.gateway_id,
+            order_id=order.id,
+            fill_qty=ex.qty,
+            fill_price=ex.notional / (ex.qty * 10 ** get_tick_decimals(symbol)),
+            remaining_qty=order.remaining_qty,
+            status=fill_status(order.remaining_qty),
+            symbol=symbol,
+            side=order.side.value,
+            order_type=order.order_type.value,
+            tif=order.tif.value,
+            qty=order.quantity,
+            price=(
+                from_ticks(order.price_ticks, symbol)
+                if order.price_ticks is not None
+                else None
+            ),
+            client_tag=order.client_tag,
+            oco_group_id=order.oco_group_id,
+            combo_parent_id=order.combo_parent_id,
+            quote_id=order.quote_id,
+            leg_index=order.leg_index,
+            is_seed=order.is_seed,
+            trade_ids=ex.trade_ids,
+            liquidity_flag=ex.flag,
+        )
 
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
         """
@@ -3910,59 +3739,7 @@ class Engine:
                 )
                 break
             trades, events = book.process(quote_order, match=do_match, now=now)
-            # H5: dedup fills — an order sweeping k levels appears k times in
-            # `events`, each reflecting the FINAL cumulative qty; publishing all
-            # k would overcount for consumers summing fill_qty.
-            # H6: report each order's own VWAP execution price.
-            _q_fill_px = self._order_fill_prices(trades)
-            _q_matched = self._order_matched_qty(trades)
-            _pub_fill_ids: set[str] = set()
-            _pub_cancel_ids: set[str] = set()
-            for evt in events:
-                # X1: a fill whenever the order executed here, whatever its
-                # final status -- a stop this leg triggers can fill part and
-                # be cancelled for the rest, and its owner must hear both.
-                if _q_matched.get(evt.id, 0) > 0:
-                    if evt.id not in _pub_fill_ids:
-                        _pub_fill_ids.add(evt.id)
-                        self._fills_published += 1
-                        self.pub_sock.send_multipart(
-                            make_fill_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                fill_qty=_q_matched.get(evt.id, 0),
-                                fill_price=_q_fill_px.get(
-                                    evt.id,
-                                    (
-                                        from_ticks(book.last_trade_price, evt.symbol)
-                                        if book.last_trade_price is not None
-                                        else 0.0
-                                    ),
-                                ),
-                                remaining_qty=evt.remaining_qty,
-                                status=fill_status(evt.remaining_qty),
-                                order=evt.to_dict(),
-                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
-                                liquidity_flag=self._order_liquidity_flags(trades).get(
-                                    evt.id
-                                ),
-                            )
-                        )
-                        if evt.quote_id:
-                            self._on_quote_leg_filled(evt)
-                if evt.status == OrderStatus.CANCELLED:
-                    if evt.id not in _pub_cancel_ids:
-                        _pub_cancel_ids.add(evt.id)
-                        self.pub_sock.send_multipart(
-                            make_cancelled_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                order=evt.to_dict(),
-                                cancel_reason=self._cancel_reason_of(evt),
-                            )
-                        )
-            for trade in trades:
-                self._publish_trade(trade)
+            self._publish_dispatch(trades, events)
 
         self._mark_dirty(symbol)
 
@@ -5117,71 +4894,11 @@ class Engine:
             trades, events = book.process(child, match=do_match)
             if defer_ack and child.status is not OrderStatus.REJECTED:
                 self.pub_sock.send_multipart(ack)
-
-            # H5: dedup fills/terminals — a child sweeping k levels appears k
-            # times in `events` with the final cumulative qty on every copy.
-            # H6: report each order's own VWAP execution price.
-            _c_fill_px = self._order_fill_prices(trades)
-            _c_matched = self._order_matched_qty(trades)
-            _pub_fill_ids: set[str] = set()
-            _pub_terminal_ids: set[str] = set()
-            for evt in events:
-                # X1: fill by what executed, not by final status.
-                if _c_matched.get(evt.id, 0) > 0:
-                    if evt.id not in _pub_fill_ids:
-                        _pub_fill_ids.add(evt.id)
-                        self._fills_published += 1
-                        self.pub_sock.send_multipart(
-                            make_fill_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                fill_qty=_c_matched.get(evt.id, 0),
-                                fill_price=_c_fill_px.get(
-                                    evt.id,
-                                    (
-                                        from_ticks(book.last_trade_price, evt.symbol)
-                                        if book.last_trade_price is not None
-                                        else 0.0
-                                    ),
-                                ),
-                                remaining_qty=evt.remaining_qty,
-                                status=fill_status(evt.remaining_qty),
-                                order=evt.to_dict(),
-                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
-                                liquidity_flag=self._order_liquidity_flags(trades).get(
-                                    evt.id
-                                ),
-                            )
-                        )
-                    if evt.combo_parent_id and evt.id != child.id:
-                        self._check_combo_after_child_event(evt)
-                if evt.status == OrderStatus.REJECTED:
-                    if evt.id not in _pub_terminal_ids:
-                        _pub_terminal_ids.add(evt.id)
-                        self._reject(
-                            gateway_id=evt.gateway_id,
-                            order_id=evt.id,
-                            code="INSUFFICIENT_LIQUIDITY",
-                            reason="Insufficient liquidity",
-                            client_tag=evt.client_tag,
-                            request_tag=None,
-                        )
-                elif evt.status == OrderStatus.CANCELLED:
-                    if evt.id not in _pub_terminal_ids:
-                        _pub_terminal_ids.add(evt.id)
-                        self.pub_sock.send_multipart(
-                            make_cancelled_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                order=evt.to_dict(),
-                                cancel_reason=self._cancel_reason_of(evt),
-                            )
-                        )
-                    if evt.combo_parent_id and evt.id != child.id:
-                        self._check_combo_after_child_event(evt)
-
-            for trade in trades:
-                self._publish_trade(trade)
+            # This combo is registered only after the loop, so the follow-ups
+            # of its own children are no-ops here; the status below covers them.
+            self._publish_dispatch(
+                trades, events, self._book_reject(leg.symbol, do_match)
+            )
 
             self._mark_dirty(leg.symbol)
             combo.leg_statuses[i] = child.status.value
@@ -5634,47 +5351,11 @@ class Engine:
                         imbalance_side=result.imbalance_side,
                     )
 
-                # H5: dedup fills — an order that crosses multiple counterparties
-                # in the uncross appears once per fill in `events`, each with the
-                # final cumulative qty.
-                _uncross_matched = self._order_matched_qty(trades)
-                _pub_fill_ids: set[str] = set()
-                for evt in events:
-                    if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
-                        if evt.id not in _pub_fill_ids:
-                            _pub_fill_ids.add(evt.id)
-                            self._fills_published += 1
-                            self.pub_sock.send_multipart(
-                                make_fill_msg(
-                                    evt.gateway_id,
-                                    evt.id,
-                                    fill_qty=_uncross_matched.get(evt.id, 0),
-                                    fill_price=from_ticks(fill_px, symbol),
-                                    remaining_qty=evt.remaining_qty,
-                                    status=fill_status(evt.remaining_qty),
-                                    order=evt.to_dict(),
-                                    trade_ids=self._order_trade_ids(trades).get(
-                                        evt.id, []
-                                    ),
-                                    liquidity_flag=self._order_liquidity_flags(
-                                        trades
-                                    ).get(evt.id),
-                                )
-                            )
-                        if evt.combo_parent_id:
-                            self._check_combo_after_child_event(evt)
-                        # X8b: the follow-ups every continuous fill runs. The
-                        # quote hook is not called inside execute_uncross
-                        # (its two-sided walk must not be mutated mid-way),
-                        # so it runs here -- before the stops below, which
-                        # must not trade with a leg the policy pulls.
-                        if evt.quote_id:
-                            self._on_quote_leg_filled(evt)
-                        if evt.status == OrderStatus.FILLED and evt.oco_group_id:
-                            self._check_oco_after_event(evt)
-
-                for trade in trades:
-                    self._publish_trade(trade)  # updates positions (H3)
+                # X8b: the book's quote and OCO hooks are not called inside
+                # execute_uncross (its two-sided walk must not be mutated
+                # mid-way), so their follow-ups run here -- before the stops
+                # below, which must not trade with a leg they pull.
+                self._publish_dispatch(trades, events)
 
             # Trigger stop and trailing-stop orders whose stop price is now
             # reached by the equilibrium price.  execute_uncross() sets
@@ -5685,71 +5366,7 @@ class Engine:
                 triggered = book.trigger_stops(now_stop)
                 for stop_order in triggered:
                     sub_trades, sub_events = book.process(stop_order, now=now_stop)
-                    _stop_matched = self._order_matched_qty(sub_trades)
-                    # H6 / X8c: each order's own VWAP, as every other loop.
-                    _stop_fill_px = self._order_fill_prices(sub_trades)
-                    published_stop_ids: set[str] = set()
-                    cancelled_stop_ids: set[str] = set()
-                    for sub_evt in sub_events:
-                        # X1: fill by what executed, not by final status.
-                        if _stop_matched.get(sub_evt.id, 0) > 0:
-                            if sub_evt.id not in published_stop_ids:
-                                published_stop_ids.add(sub_evt.id)
-                                self._fills_published += 1
-                                self.pub_sock.send_multipart(
-                                    make_fill_msg(
-                                        sub_evt.gateway_id,
-                                        sub_evt.id,
-                                        fill_qty=_stop_matched.get(sub_evt.id, 0),
-                                        fill_price=_stop_fill_px.get(
-                                            sub_evt.id,
-                                            (
-                                                from_ticks(
-                                                    book.last_trade_price, symbol
-                                                )
-                                                if book.last_trade_price is not None
-                                                else 0.0
-                                            ),
-                                        ),
-                                        remaining_qty=sub_evt.remaining_qty,
-                                        status=fill_status(sub_evt.remaining_qty),
-                                        order=sub_evt.to_dict(),
-                                        trade_ids=self._order_trade_ids(sub_trades).get(
-                                            sub_evt.id, []
-                                        ),
-                                        liquidity_flag=self._order_liquidity_flags(
-                                            sub_trades
-                                        ).get(sub_evt.id),
-                                    )
-                                )
-                                if sub_evt.combo_parent_id:
-                                    self._check_combo_after_child_event(sub_evt)
-                                if (
-                                    sub_evt.status == OrderStatus.FILLED
-                                    and sub_evt.oco_group_id
-                                ):
-                                    self._check_oco_after_event(sub_evt)
-                        # A triggered stop converts to MARKET; what it cannot
-                        # fill is cancelled, and this loop never said so.
-                        if (
-                            sub_evt.status == OrderStatus.CANCELLED
-                            and sub_evt.id not in cancelled_stop_ids
-                        ):
-                            cancelled_stop_ids.add(sub_evt.id)
-                            self.pub_sock.send_multipart(
-                                make_cancelled_msg(
-                                    sub_evt.gateway_id,
-                                    sub_evt.id,
-                                    order=sub_evt.to_dict(),
-                                    cancel_reason=self._cancel_reason_of(sub_evt),
-                                )
-                            )
-                            if sub_evt.combo_parent_id:
-                                self._check_combo_after_child_event(sub_evt)
-                            if sub_evt.oco_group_id:
-                                self._check_oco_after_event(sub_evt)
-                    for sub_trade in sub_trades:
-                        self._publish_trade(sub_trade)  # updates positions (H3)
+                    self._publish_dispatch(sub_trades, sub_events)
 
                 log.info(
                     f"UNCROSS {symbol}: {len(trades)} trade(s) "
@@ -5955,16 +5572,14 @@ class Engine:
             )
         )
 
-        do_match = is_matching_enabled(self._session_state)
+        # X18: a halted symbol's legs rest without matching, as an ordinary
+        # order's do (gate 8); a leg that cannot rest is rejected by the book.
+        do_match = is_matching_enabled(
+            self._session_state
+        ) and not self._halted_symbols.get(symbol)
+        reject = self._book_reject(symbol, do_match)
         book = self._book(symbol)
 
-        # Defer OCO fill/cancel checks until BOTH legs have been posted.
-        # Running _check_oco_after_event mid-loop (when leg 1 fills on entry)
-        # unregisters the group and pops leg 2's routing entries *before* leg 2
-        # is posted — leg 2 then rests unlinked and uncancellable (finding #6).
-        _oco_pending_checks: list[Order] = []
-
-        self._oco_entering = oco_id
         for leg in (leg1, leg2):
             # Resolve trailing stop initial price if needed
             if (
@@ -5996,14 +5611,12 @@ class Engine:
                 # still equals quantity at this pre-match moment.
                 order=order_to_display_dict(leg),
             )
-            if leg is leg2 and leg1.status in (
-                OrderStatus.FILLED,
-                OrderStatus.CANCELLED,
-            ):
-                # X17: leg 1 ended on entry, so leg 2 never reaches the book,
-                # where it could trade at once (a stop already breached).
-                # Its owner hears what a resting sibling's owner would; the
-                # check of leg 1 below unregisters the group.
+            if leg is leg2 and leg1.status in _ENDED_STATUSES:
+                # X17: leg 1 ended on entry -- filled, cancelled or rejected
+                # (X12b) -- so leg 2 never reaches the book, where it could
+                # trade at once (a stop already breached). The book's hook
+                # has unregistered the group; leg 2's owner hears what a
+                # resting sibling's owner would.
                 self.pub_sock.send_multipart(ack)
                 leg2.status = OrderStatus.CANCELLED
                 self.pub_sock.send_multipart(
@@ -6021,79 +5634,11 @@ class Engine:
             trades, events = book.process(leg, match=do_match)
             if defer_ack and leg.status is not OrderStatus.REJECTED:
                 self.pub_sock.send_multipart(ack)
-
-            # H5: dedup fills/terminals — a leg sweeping k levels appears k
-            # times in `events` with the final cumulative qty on every copy.
-            # H6: report each order's own VWAP execution price.
-            _o_fill_px = self._order_fill_prices(trades)
-            _o_matched = self._order_matched_qty(trades)
-            _pub_fill_ids: set[str] = set()
-            _pub_terminal_ids: set[str] = set()
-            for evt in events:
-                # X1: fill by what executed, not by final status.
-                if _o_matched.get(evt.id, 0) > 0:
-                    if evt.id not in _pub_fill_ids:
-                        _pub_fill_ids.add(evt.id)
-                        self._fills_published += 1
-                        self.pub_sock.send_multipart(
-                            make_fill_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                fill_qty=_o_matched.get(evt.id, 0),
-                                fill_price=_o_fill_px.get(
-                                    evt.id,
-                                    (
-                                        from_ticks(book.last_trade_price, evt.symbol)
-                                        if book.last_trade_price is not None
-                                        else 0.0
-                                    ),
-                                ),
-                                remaining_qty=evt.remaining_qty,
-                                status=fill_status(evt.remaining_qty),
-                                order=evt.to_dict(),
-                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
-                                liquidity_flag=self._order_liquidity_flags(trades).get(
-                                    evt.id
-                                ),
-                            )
-                        )
-                        if evt.status == OrderStatus.FILLED and evt.oco_group_id:
-                            _oco_pending_checks.append(evt)
-                if evt.status == OrderStatus.CANCELLED:
-                    if evt.id not in _pub_terminal_ids:
-                        _pub_terminal_ids.add(evt.id)
-                        self.pub_sock.send_multipart(
-                            make_cancelled_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                order=evt.to_dict(),
-                                cancel_reason=self._cancel_reason_of(evt),
-                            )
-                        )
-                        if evt.oco_group_id:
-                            _oco_pending_checks.append(evt)
-                elif evt.status == OrderStatus.REJECTED:
-                    if evt.id not in _pub_terminal_ids:
-                        _pub_terminal_ids.add(evt.id)
-                        self._reject(
-                            gateway_id=evt.gateway_id,
-                            order_id=evt.id,
-                            code="INSUFFICIENT_LIQUIDITY",
-                            reason="Insufficient liquidity",
-                            client_tag=evt.client_tag,
-                            request_tag=None,
-                        )
-
-            for trade in trades:
-                self._publish_trade(trade)
-
+            # The book pulls the other leg the moment this one ends, even in
+            # the cascade it triggers (X15): leg 1 before leg 2 is posted
+            # (X17 above), leg 2's sibling at once (no deferral, X8d).
+            self._publish_dispatch(trades, events, reject)
             self._mark_dirty(symbol)
-        self._oco_entering = None
-
-        # Both legs are now on the book — safe to resolve OCO terminal events.
-        # The sibling can be found and cancelled instead of being orphaned.
-        for evt in _oco_pending_checks:
-            self._check_oco_after_event(evt)
 
         log.info(f"OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
 
@@ -6134,11 +5679,6 @@ class Engine:
         self._oco_groups.pop(oco_id, None)
 
         log.info(f"OCO {oco_id} cancelled by {gateway_id}")
-
-    def _on_oco_leg_done(self, order: Order) -> None:
-        """The book's hook: an OCO leg ended inside ``book.process()``."""
-        if order.oco_group_id != self._oco_entering:
-            self._check_oco_after_event(order)
 
     def _check_oco_after_event(self, order: Order) -> None:
         """
@@ -6529,78 +6069,8 @@ class Engine:
                 book.cancel_order(order_id)
                 amended.status = OrderStatus.NEW
                 trades, events = book.process(amended, match=True, now=now)
-                self._publish_amend_rematch(book, amended, trades, events)
-
-    def _publish_amend_rematch(
-        self,
-        book: "OrderBook",
-        aggressor: Order,
-        trades: list[Trade],
-        events: list[Order],
-    ) -> None:
-        """Publish fills / terminal events / trades for an amend cancel-replace.
-
-        Mirrors the new-order publication contract (C4: a fill is published
-        whenever an order executed any quantity, regardless of final status)
-        and updates both counterparties' positions for every trade (H3).
-        """
-        # H6: report each order's own VWAP execution price, not the sweep's last.
-        order_fill_px = self._order_fill_prices(trades)
-        order_matched = self._order_matched_qty(trades)
-        fill_px = (
-            from_ticks(book.last_trade_price, aggressor.symbol)
-            if book.last_trade_price is not None
-            else 0.0
-        )
-        published_fill_ids: set[str] = set()
-        published_terminal_ids: set[str] = set()
-        for evt in events:
-            matched = order_matched.get(evt.id, 0)
-            if matched > 0 and evt.id not in published_fill_ids:
-                published_fill_ids.add(evt.id)
-                self._fills_published += 1
-                self.pub_sock.send_multipart(
-                    make_fill_msg(
-                        evt.gateway_id,
-                        evt.id,
-                        fill_qty=matched,
-                        fill_price=order_fill_px.get(evt.id, fill_px),
-                        remaining_qty=evt.remaining_qty,
-                        status=fill_status(evt.remaining_qty),
-                        order=evt.to_dict(),
-                        trade_ids=self._order_trade_ids(trades).get(evt.id, []),
-                        liquidity_flag=self._order_liquidity_flags(trades).get(evt.id),
-                    )
-                )
-            if (
-                evt.status == OrderStatus.CANCELLED
-                and evt.id not in published_terminal_ids
-            ):
-                published_terminal_ids.add(evt.id)
-                self.pub_sock.send_multipart(
-                    make_cancelled_msg(
-                        evt.gateway_id,
-                        evt.id,
-                        order=evt.to_dict(),
-                        cancel_reason=self._cancel_reason_of(evt),
-                    )
-                )
-            elif (
-                evt.status == OrderStatus.REJECTED
-                and evt.id not in published_terminal_ids
-            ):
-                published_terminal_ids.add(evt.id)
-                self._reject(
-                    gateway_id=evt.gateway_id,
-                    order_id=evt.id,
-                    code="INSUFFICIENT_LIQUIDITY",
-                    reason="Insufficient liquidity",
-                    client_tag=evt.client_tag,
-                    request_tag=None,
-                )
-        for trade in trades:
-            self._publish_trade(trade)  # updates positions (H3)
-        self._mark_dirty(aggressor.symbol)
+                self._publish_dispatch(trades, events)
+                self._mark_dirty(amended.symbol)
 
     # ------------------------------------------------------------------
     # Shutdown

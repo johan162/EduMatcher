@@ -38,6 +38,9 @@ the only thing this project writes anywhere.
 
 ### Container
 
+The image uses Python 3.14 for the bundled `pm-log-cli`, alongside Node 22
+and npm copied from the frontend build stage.
+
 ```bash
 make up     # detects podman or docker, builds image, starts on http://localhost:8091
 make down   # stop and remove

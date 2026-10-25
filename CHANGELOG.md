@@ -1,4 +1,4 @@
-## [v0.60.1] - 2026-10-25
+## [v0.60.2] - 2026-10-25
 
 Release Type: major
 
@@ -29,6 +29,7 @@ This release adds a detailed session timetable to the Terminal GUI and improves 
 ### 🛠 Internal
 - Added regression coverage for session scheduling, timetable behavior, latency metrics, and dashboard reporting
 - Updated Poetry dependencies and regenerated lock data, message models, and documentation
+- Refactor pull-loop into a shared structure for 8 instances
 
 ## [v0.53.0] - 2026-10-25
 

@@ -578,36 +578,35 @@ happens to them next.
 
 ## 8. Publishing what happened
 
-Back in `_handle_new_order`, the `events` list (every order whose status
-just changed) drives the publish loop. The important subtlety is
-deduplication: a single aggressive order that sweeps several price levels
-appears **once per level** in `events`, each occurrence carrying the same
-order object with its *final*, cumulative state — so a naive loop would
-publish the same fill several times with the wrong quantity split. A
-seen-set fixes it:
+Back in `_handle_new_order`, `trades` and `events` (every order whose status
+just changed) go to `_publish_dispatch`. Every path that matches calls the
+same method -- a quote, a combo child, an OCO leg, an amend that crosses, an
+auction uncross -- so what a participant is told cannot depend on how the
+order that hit them arrived. The important subtlety is deduplication: a
+single aggressive order that sweeps several price levels appears **once per
+level** in `events`, each occurrence carrying the same order object with its
+*final*, cumulative state — so a naive loop would publish the same fill
+several times with the wrong quantity split. Each order is handled once:
 
 ```python
-# engine/main.py — _handle_new_order (trimmed)
-order_matched_map = self._order_matched_qty(trades)   # order_id -> qty matched
-                                                        # in THIS dispatch only
-published_fill_ids: set[str] = set()
+# engine/main.py — _publish_dispatch (trimmed)
+executed = self._executions(trades)   # order_id -> qty, VWAP, trade ids, flag
+                                      # in THIS dispatch only
+seen: set[str] = set()
 for evt in events:
-    matched_qty = order_matched_map.get(evt.id, 0)
-    if matched_qty > 0 and evt.id not in published_fill_ids:
-        published_fill_ids.add(evt.id)
-        self.pub_sock.send_multipart([
-            topic_order_fill(evt.gateway_id).encode(),   # cached in practice
-            dumps({
-                "order_id": evt.id,
-                "fill_qty": matched_qty,
-                "fill_price": ...,
-                "remaining_qty": evt.remaining_qty,
-                "status": fill_status(evt.remaining_qty),  # PARTIAL | FILLED
-                ...
-            }),
-        ])
+    if evt.id in seen:
+        continue
+    seen.add(evt.id)
+    ex = executed.get(evt.id)
+    if ex is not None:                # it traded here, whatever its status now
+        send(self._fill_frames(evt, ex))
+    if evt.status is OrderStatus.CANCELLED:
+        send(...)                     # order.cancelled with its cancel_reason
+    elif evt.status is OrderStatus.REJECTED:
+        self._reject(...)             # e.g. a FOK short of liquidity
+    ...                               # combo / OCO / quote follow-ups
 for trade in trades:
-    self._publish_trade(trade)     # trade.executed + both sides' positions
+    self._publish_trade(trade)        # trade.executed + both sides' positions
 ```
 
 **`fill_qty` is "matched in this dispatch," not `evt.quantity - evt.remaining_qty`.**
@@ -615,7 +614,7 @@ The obvious formula is the order's *cumulative* fill since it first rested — c
 only the first time an order fills, and silently wrong (reporting the running total
 again) the second time a resting order is hit. `order.fill.fill_qty` is specified as
 quantity matched in *this* event, not cumulatively (`spec/messages/order.yaml`), so
-`_order_matched_qty(trades)` builds the per-order increment directly from this
+`_executions(trades)` builds the per-order increment directly from this
 dispatch's own `trades` list instead — the sum of every trade in `trades` that named
 this order as either side. This needs no "before" state and is correct for a first
 fill, a second hit on a still-resting order, and everything in between.
