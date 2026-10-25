@@ -95,7 +95,10 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
-from edumatcher.models.generated.session import TOPIC_SESSION_TRANSITION
+from edumatcher.models.generated.session import (
+    TOPIC_SESSION_NEXT,
+    TOPIC_SESSION_TRANSITION,
+)
 from edumatcher.models.generated.order import (
     TOPIC_ORDER_AMEND,
     TOPIC_ORDER_CANCEL,
@@ -572,7 +575,8 @@ class Engine:
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
         # The next scheduled transition, as told by whoever drove the last
-        # one. Empty unless the scheduler supplied it -- see
+        # one, or as the scheduler announced it (`session.next`). Empty
+        # unless the scheduler supplied it -- see
         # `_handle_session_transition` for why a manual transition clears it.
         self._next_session_state: str = ""
         self._next_session_at: str = ""
@@ -2366,6 +2370,8 @@ class Engine:
                 gateway_id,
                 self._session_state.value,
                 self._sessions_enabled,
+                next_state=self._next_session_state,
+                next_at=self._next_session_at,
             )
         )
 
@@ -5475,6 +5481,36 @@ class Engine:
         self._reply_session_transition(payload, True, to_state=to_state.value)
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
+    def _handle_session_next(self, payload: dict[str, Any]) -> None:
+        """Adopt the scheduler's announcement of the next transition.
+
+        Stored, not broadcast: callers read it back through the session-state
+        query. An announcement the session machine could not follow from the
+        current state is stale or misdirected, and is ignored rather than
+        advertised as a countdown nobody will complete.
+        """
+        if not self._sessions_enabled:
+            return
+        upcoming = payload.get("next") or {}
+        try:
+            next_state = SessionState(str(upcoming.get("state", "")))
+        except ValueError:
+            log.warning("Invalid session announcement: %s", upcoming)
+            return
+        next_at = str(upcoming.get("at", ""))
+        if not next_at or next_state not in VALID_TRANSITIONS.get(
+            self._session_state, set()
+        ):
+            log.warning(
+                "Ignoring announced transition %s → %s at %r",
+                self._session_state.value,
+                next_state.value,
+                next_at,
+            )
+            return
+        self._next_session_state = next_state.value
+        self._next_session_at = next_at
+
     def _expire_tif(self, tif: TIF) -> None:
         """Expire all resting orders with the given TIF."""
         for book in self.books.values():
@@ -6769,6 +6805,8 @@ class Engine:
                 self._handle_force_uncross(payload)
             elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)
+            elif topic == TOPIC_SESSION_NEXT:
+                self._handle_session_next(payload)
             elif topic == TOPIC_SESSION_STATE_REQUEST:
                 self._handle_session_state_request(payload)
             elif topic == TOPIC_SESSION_SCHEDULE_REQUEST:

@@ -897,9 +897,16 @@ class MarketDataGateway:
 
                 if topic == self._session_status_topic:
                     self._dbg_count("session_status_topics")
+                    before = self._normaliser.session_state
                     change = self._normaliser.apply_session_status(payload)
-                    if change is not None:
+                    if change is None:
+                        continue
+                    if self._normaliser.session_state != before:
                         self._emit_session_change(change, now_seconds)
+                    else:
+                        # Only the next transition moved: no symbol changed
+                        # phase, and the timetable rides the wildcard alone.
+                        self._emit_stream_event("STATE", "STATE", *change, now_seconds)
                     continue
 
                 if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):

@@ -429,6 +429,119 @@ class TestSessionTransitions:
         fill_topics = [t for t in topics if "fill" in t]
         assert fill_topics == []
 
+    @staticmethod
+    def _status(engine: Engine, pub_sock: _DummySocket) -> dict:
+        pub_sock.sent.clear()
+        engine._handle_session_state_request({"gateway_id": "MD-GWY01"})
+        topic, msg = decode(pub_sock.sent[-1])
+        assert topic == "system.session_status.MD-GWY01"
+        return msg
+
+    def test_status_carries_the_target_the_last_transition_set(
+        self, session_engine
+    ) -> None:
+        """How a gateway that missed the close still counts down to the open."""
+        engine, pub_sock = session_engine
+        engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
+        engine._handle_session_transition(
+            {
+                "to_state": "CLOSED",
+                "next": {"state": "PRE_OPEN", "at": "2026-10-26T08:00:00.000Z"},
+            }
+        )
+
+        assert self._status(engine, pub_sock)["next"] == {
+            "state": "PRE_OPEN",
+            "at": "2026-10-26T08:00:00.000Z",
+        }
+
+    def test_status_carries_no_target_when_none_is_held(self, session_engine) -> None:
+        engine, pub_sock = session_engine
+        assert "next" not in self._status(engine, pub_sock)
+
+    def test_an_announced_target_is_stored_but_not_broadcast(
+        self, session_engine
+    ) -> None:
+        """A re-sent session.state would read as a transition to everyone."""
+        engine, pub_sock = session_engine
+        engine._session_state = SessionState.CLOSED
+
+        engine._handle_session_next(
+            {"next": {"state": "PRE_OPEN", "at": "2026-10-26T08:00:00.000Z"}}
+        )
+
+        assert pub_sock.sent == []
+        assert self._status(engine, pub_sock)["next"]["state"] == "PRE_OPEN"
+
+    def test_an_announcement_the_session_cannot_follow_is_ignored(
+        self, session_engine
+    ) -> None:
+        engine, pub_sock = session_engine
+        engine._session_state = SessionState.CONTINUOUS
+
+        engine._handle_session_next(
+            {"next": {"state": "PRE_OPEN", "at": "2026-10-26T08:00:00.000Z"}}
+        )
+
+        assert "next" not in self._status(engine, pub_sock)
+
+    def test_announcements_are_ignored_without_sessions(self, session_engine) -> None:
+        engine, pub_sock = session_engine
+        engine._sessions_enabled = False
+        engine._session_state = SessionState.CLOSED
+
+        engine._handle_session_next(
+            {"next": {"state": "PRE_OPEN", "at": "2026-10-26T08:00:00.000Z"}}
+        )
+
+        assert engine._next_session_state == ""
+
+    def test_session_next_is_dispatched_from_the_pull_socket(
+        self, session_engine
+    ) -> None:
+        from edumatcher.models.message import make_session_next_msg
+
+        engine, _pub_sock = session_engine
+        engine._session_state = SessionState.CLOSED
+        topic, payload = decode(
+            make_session_next_msg("PRE_OPEN", "2026-10-26T08:00:00.000Z")
+        )
+
+        engine._dispatch_pull_message(topic, payload)
+
+        assert engine._next_session_state == "PRE_OPEN"
+        assert engine._next_session_at == "2026-10-26T08:00:00.000Z"
+
+    def test_an_announced_open_reaches_a_calf_client(
+        self, session_engine, monkeypatch
+    ) -> None:
+        """Scheduler frame in, engine status reply out, CALF STATE fields last."""
+        from datetime import datetime
+        from unittest.mock import MagicMock
+
+        import edumatcher.scheduler.main as sched
+        from edumatcher.md_gateway.normaliser import EngineNormaliser
+
+        engine, pub_sock = session_engine
+        engine._session_state = SessionState.CLOSED
+        push = MagicMock()
+        monkeypatch.setattr(sched, "_clock", sched._Clock())
+
+        sched._announce_next(push, "PRE_OPEN", datetime(2026, 11, 9, 9, 0))
+        engine._dispatch_pull_message(*decode(push.send_multipart.call_args.args[0]))
+        pub_sock.sent.clear()
+        engine._handle_session_state_request({"gateway_id": "MD-GWY01"})
+        _, status = decode(pub_sock.sent[-1])
+
+        assert EngineNormaliser().apply_session_status(status) == (
+            "*",
+            {
+                "SESSION": "CLOSED",
+                "NEXTPHASE": "PRE_OPEN",
+                "NEXTAT": "2026-11-09T08:00:00.000Z",
+            },
+        )
+
 
 # ---------------------------------------------------------------
 # ATO / ATC TIF tests

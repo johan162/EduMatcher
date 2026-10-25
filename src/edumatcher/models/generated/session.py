@@ -388,6 +388,102 @@ def describe_session_transition() -> tuple[dict[str, Any], ...]:
     return _SESSION_TRANSITION_FIELDS
 
 
+TOPIC_SESSION_NEXT = "session.next"
+_TOPIC_SESSION_NEXT_BYTES = "session.next".encode()
+
+
+_SESSION_NEXT_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "next",
+        "type": "nested",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class SessionNext:
+    """Scheduler to engine: announce the next transition without performing one. A
+    `session.transition` can only describe the transition after itself, so a
+    scheduler that starts while the exchange is closed, or before the day's first
+    transition, would otherwise leave the engine with no countdown target until
+    that transition fires -- possibly many hours away.
+
+    Not broadcast: the engine only stores the target, and a caller reads it back from
+    `system.session_status`. Re-publishing `session.state` for a session that has not
+    changed would look like a transition to every subscriber. The engine ignores an
+    announcement whose state is not a legal transition from its current one.
+    """
+
+    next: NextTransition
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        self.next.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "SessionNext":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            next=NextTransition.from_dict(p["next"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "next": self.next.to_dict(),
+        }
+
+
+def is_session_next(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_SESSION_NEXT
+
+
+def make_session_next(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = SessionNext.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_SESSION_NEXT, obj.to_dict())
+
+
+def parse_session_next(frames: list[bytes]) -> "SessionNext":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = SessionNext.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_session_next() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _SESSION_NEXT_FIELDS
+
+
 TOPIC_SESSION_TRANSITION_ACK = "session.transition_ack.{gateway_id}"
 PREFIX_SESSION_TRANSITION_ACK = "session.transition_ack."
 _SESSION_TRANSITION_ACK_RE = re.compile(
@@ -595,5 +691,6 @@ def describe_session_transition_ack() -> tuple[dict[str, Any], ...]:
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_SESSION_STATE,
     TOPIC_SESSION_TRANSITION,
+    TOPIC_SESSION_NEXT,
     TOPIC_SESSION_TRANSITION_ACK,
 )

@@ -680,6 +680,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": (),
         "fields": _session.describe_session_transition(),
     },
+    _session.TOPIC_SESSION_NEXT: {
+        "family": "session",
+        "message": "session_next",
+        "prefix": _session.TOPIC_SESSION_NEXT,
+        "transport": ("engine_push",),
+        "params": (),
+        "fields": _session.describe_session_next(),
+    },
     _session.TOPIC_SESSION_TRANSITION_ACK: {
         "family": "session",
         "message": "session_transition_ack",

@@ -619,6 +619,7 @@ Every topic in the system, and which process puts it on the wire.
 | `risk.symbol_halt_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.symbol_resume` | `risk` | `admin`, `api_gateway` |
 | `risk.symbol_resume_ack.{gateway_id}` | `risk` | `engine` |
+| `session.next` | `session` | `scheduler` |
 | `session.state` | `session` | `engine` |
 | `session.transition` | `session` | `scheduler` |
 | `session.transition_ack.{gateway_id}` | `session` | `engine` |
@@ -3267,6 +3268,30 @@ Scheduler or operator to engine: request a state change.
 
 **See also:** `session.transition_ack.{GW_ID}`, `session.state`
 
+### `session.next`
+
+**Published by:** `scheduler`
+
+**Transport:** `engine_push`
+
+**Since:** 1.2
+
+Scheduler to engine: announce the next transition without performing one. A `session.transition` can only describe the transition after itself, so a scheduler that starts while the exchange is closed, or before the day's first transition, would otherwise leave the engine with no countdown target until that transition fires -- possibly many hours away.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `next` | [`NextTransition`](#nexttransition) | required | — |  |
+
+!!! note
+
+    Not broadcast: the engine only stores the target, and a caller reads it back from `system.session_status`.
+
+    Re-publishing `session.state` for a session that has not changed would look like a transition to every subscriber.
+
+    The engine ignores an announcement whose state is not a legal transition from its current one.
+
+**See also:** `session.transition`, `system.session_status.{GW_ID}`
+
 ### `session.transition_ack.{gateway_id}`
 
 **Published by:** `engine`
@@ -3625,6 +3650,15 @@ The trading day's clock, as five wall-clock times. Carried by `system.session_sc
 | `continuous_start` | `string` | `null` when unset | max_len 32 |  |
 | `closing_auction_start` | `string` | `null` when unset | max_len 32 |  |
 | `closing_auction_end` | `string` | `null` when unset | max_len 32 |  |
+
+#### `NextTransition`
+
+The next session transition: what the session moves to, and when. The same record as `session`'s NextTransition, declared again because a type cannot be shared across families; the wire shape is identical.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `state` | `string` | required | max_len 32 |  |
+| `at` | `string` | required | max_len 32 | UTC ISO-8601 instant of the transition. |
 
 #### `WeeklySchedule`
 
@@ -4196,6 +4230,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `state` | `string` | required | max_len 32 | Same values as `session.state.state`. |
 | `sessions_enabled` | `bool` | required | — | False when the deployment runs continuously with no session schedule at all, which makes `state` advisory. |
+| `next` | [`NextTransition`](#nexttransition) | omitted when unset | — | The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one. |
 
 !!! note
 

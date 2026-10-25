@@ -508,6 +508,26 @@ while the scheduler is waiting is picked up within 30 seconds, rather than
 only being noticed after a long sleep computed under now-stale assumptions
 finally elapses.
 
+### Countdown to the next transition
+
+Each transition the scheduler sends also names the one after it, and the
+engine publishes that as the countdown target the GUIs and CALF clients show
+(`Closed → Pre-Open in 15:42:10`). There are two further cases:
+
+- **The close.** Under `--daily` the close names the next trading day's
+  pre-open, skipping weekends and bank holidays, so a closed exchange counts
+  down to its reopening. A single-shot run's close names nothing, because the
+  scheduler will have exited before then.
+- **Startup.** A scheduler that starts with nothing to catch up announces
+  the transition it is about to wait for (`session.next`). That covers a
+  start before the open, between phases, after the close, or on a closed day
+  (`--daily` only, for the last two).
+
+The engine keeps the target and returns it from its session-state query, so a
+`pm-md-gwy` that restarts while the market is closed shows the countdown again
+within a couple of seconds. A manual transition clears the target until the
+scheduler sends its next transition or is restarted.
+
 ### Built-in default schedule
 
 If no config file provides a `schedule` section, `pm-scheduler` uses these
