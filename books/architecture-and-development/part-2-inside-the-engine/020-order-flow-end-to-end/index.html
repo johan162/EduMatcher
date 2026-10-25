@@ -7993,41 +7993,40 @@ and is now down to 150, still resting with <code>status=PARTIAL</code>.</p>
 aggressor and the partially-filled resting order) — Section 8 covers what
 happens to them next.</p>
 <h2 id="8-publishing-what-happened">8. Publishing what happened<a class="headerlink" href="#8-publishing-what-happened" title="Permanent link">&para;</a></h2>
-<p>Back in <code>_handle_new_order</code>, the <code>events</code> list (every order whose status
-just changed) drives the publish loop. The important subtlety is
-deduplication: a single aggressive order that sweeps several price levels
-appears <strong>once per level</strong> in <code>events</code>, each occurrence carrying the same
-order object with its <em>final</em>, cumulative state — so a naive loop would
-publish the same fill several times with the wrong quantity split. A
-seen-set fixes it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># engine/main.py — _handle_new_order (trimmed)</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">order_matched_map</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_matched_qty</span><span class="p">(</span><span class="n">trades</span><span class="p">)</span>   <span class="c1"># order_id -&gt; qty matched</span>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>                                                        <span class="c1"># in THIS dispatch only</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">published_fill_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<p>Back in <code>_handle_new_order</code>, <code>trades</code> and <code>events</code> (every order whose status
+just changed) go to <code>_publish_dispatch</code>. Every path that matches calls the
+same method -- a quote, a combo child, an OCO leg, an amend that crosses, an
+auction uncross -- so what a participant is told cannot depend on how the
+order that hit them arrived. The important subtlety is deduplication: a
+single aggressive order that sweeps several price levels appears <strong>once per
+level</strong> in <code>events</code>, each occurrence carrying the same order object with its
+<em>final</em>, cumulative state — so a naive loop would publish the same fill
+several times with the wrong quantity split. Each order is handled once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># engine/main.py — _publish_dispatch (trimmed)</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">executed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_executions</span><span class="p">(</span><span class="n">trades</span><span class="p">)</span>   <span class="c1"># order_id -&gt; qty, VWAP, trade ids, flag</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>                                      <span class="c1"># in THIS dispatch only</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 <a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">for</span> <span class="n">evt</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="n">matched_qty</span> <span class="o">=</span> <span class="n">order_matched_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    <span class="k">if</span> <span class="n">matched_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">published_fill_ids</span><span class="p">:</span>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>        <span class="n">published_fill_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>            <span class="n">topic_order_fill</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>   <span class="c1"># cached in practice</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>            <span class="n">dumps</span><span class="p">({</span>
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>                <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>                <span class="s2">"fill_qty"</span><span class="p">:</span> <span class="n">matched_qty</span><span class="p">,</span>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>                <span class="s2">"fill_price"</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>                <span class="s2">"remaining_qty"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>                <span class="s2">"status"</span><span class="p">:</span> <span class="n">fill_status</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">),</span>  <span class="c1"># PARTIAL | FILLED</span>
-<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>                <span class="o">...</span>
-<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>            <span class="p">}),</span>
-<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>        <span class="p">])</span>
-<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a><span class="k">for</span> <span class="n">trade</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">:</span>
-<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_publish_trade</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>     <span class="c1"># trade.executed + both sides' positions</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="k">if</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="k">continue</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>    <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>    <span class="n">ex</span> <span class="o">=</span> <span class="n">executed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>    <span class="k">if</span> <span class="n">ex</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>                <span class="c1"># it traded here, whatever its status now</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        <span class="n">send</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fill_frames</span><span class="p">(</span><span class="n">evt</span><span class="p">,</span> <span class="n">ex</span><span class="p">))</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>    <span class="k">if</span> <span class="n">evt</span><span class="o">.</span><span class="n">status</span> <span class="ow">is</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span><span class="p">:</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>        <span class="n">send</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>                     <span class="c1"># order.cancelled with its cancel_reason</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>    <span class="k">elif</span> <span class="n">evt</span><span class="o">.</span><span class="n">status</span> <span class="ow">is</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">REJECTED</span><span class="p">:</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_reject</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>             <span class="c1"># e.g. a FOK short of liquidity</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    <span class="o">...</span>                               <span class="c1"># combo / OCO / quote follow-ups</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="k">for</span> <span class="n">trade</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">:</span>
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_publish_trade</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>        <span class="c1"># trade.executed + both sides' positions</span>
 </code></pre></div>
 <p><strong><code>fill_qty</code> is "matched in this dispatch," not <code>evt.quantity - evt.remaining_qty</code>.</strong>
 The obvious formula is the order's <em>cumulative</em> fill since it first rested — correct
 only the first time an order fills, and silently wrong (reporting the running total
 again) the second time a resting order is hit. <code>order.fill.fill_qty</code> is specified as
 quantity matched in <em>this</em> event, not cumulatively (<code>spec/messages/order.yaml</code>), so
-<code>_order_matched_qty(trades)</code> builds the per-order increment directly from this
+<code>_executions(trades)</code> builds the per-order increment directly from this
 dispatch's own <code>trades</code> list instead — the sum of every trade in <code>trades</code> that named
 this order as either side. This needs no "before" state and is correct for a first
 fill, a second hit on a still-resting order, and everything in between.</p>

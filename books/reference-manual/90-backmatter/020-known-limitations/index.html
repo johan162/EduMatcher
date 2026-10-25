@@ -7586,7 +7586,7 @@ works today.</p>
     ENG-&gt;&gt;FEED: Trade 1  100 @ 10.00
     ENG-&gt;&gt;FEED: Trade 2  100 @ 10.01
     ENG-&gt;&gt;FEED: Trade 3  100 @ 10.02
-    Note over ENG: aggressor object appended 3x,&lt;br/&gt;holds only FINAL state (qty 300) —&lt;br/&gt;but _order_fill_prices() derives the&lt;br/&gt;VWAP (10.01) from the 3 Trade records
+    Note over ENG: aggressor object appended 3x,&lt;br/&gt;holds only FINAL state (qty 300) —&lt;br/&gt;but _executions() derives the&lt;br/&gt;VWAP (10.01) from the 3 Trade records
     ENG--&gt;&gt;GW: order.fill  qty=300  price=10.01  (ONE message)
     Note over GW: books 300 @ 10.01&lt;br/&gt;avg_cost = 10.01 ✓</code></pre>
 <p>The same idea as plain ASCII:</p>
@@ -7605,38 +7605,36 @@ level only)</code> — the trade prints and the per-level book walk were identic
 only the number handed to the gateway was wrong.</p>
 <hr />
 <h2 id="how-it-was-fixed">How it was fixed<a class="headerlink" href="#how-it-was-fixed" title="Permanent link">&para;</a></h2>
-<p>The aggregation lives in the engine's hottest code path (<code>_handle_new_order</code>
-and its siblings for seeded quotes, combo legs, OCO legs, and auctions), so a
-fix that is correct but still cheap on that path mattered. The engine does
+<p>The aggregation lives in the engine's hottest code path: <code>_publish_dispatch</code>,
+which every path that matches (new orders, quotes, combo children, OCO legs,
+amends, auctions) calls with the result of one <code>process()</code>. A fix that is
+correct but still cheap on that path mattered. The engine does
 <strong>not</strong> split the aggregated message into one-per-level (which would double
 or triple outbound message volume for every sweep); instead it keeps sending
 exactly one <code>order.fill</code> per order per <code>process()</code> call, and computes that
 message's price from the <code>Trade</code> records the book already produced:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nd">@staticmethod</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_order_fill_prices</span><span class="p">(</span><span class="n">trades</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="sd">"""Per-order volume-weighted execution price (display) from *trades*.</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="sd">    H6: a fill message must report the price the order ACTUALLY executed</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="sd">    at, not ``book.last_trade_price`` (the last level of the whole sweep).</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="sd">    For an order that fills across multiple levels this is its VWAP; for a</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="sd">    passive order filled at a single level it is exactly that level's price.</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="sd">    """</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">agg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># order_id -&gt; (qty, notional)</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">:</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="n">px</span> <span class="o">=</span> <span class="n">from_ticks</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="k">for</span> <span class="n">oid</span> <span class="ow">in</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">buy_order_id</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">sell_order_id</span><span class="p">):</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>            <span class="n">qty</span><span class="p">,</span> <span class="n">notional</span> <span class="o">=</span> <span class="n">agg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">oid</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>            <span class="n">agg</span><span class="p">[</span><span class="n">oid</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">qty</span> <span class="o">+</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span><span class="p">,</span> <span class="n">notional</span> <span class="o">+</span> <span class="n">px</span> <span class="o">*</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span><span class="p">)</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="k">return</span> <span class="p">{</span><span class="n">oid</span><span class="p">:</span> <span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="n">q</span> <span class="k">if</span> <span class="n">q</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">)</span> <span class="k">for</span> <span class="n">oid</span><span class="p">,</span> <span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="ow">in</span> <span class="n">agg</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_executions</span><span class="p">(</span><span class="n">trades</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Trade</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Execution</span><span class="p">]:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="sd">"""Each order's execution in THIS dispatch, from *trades*, in one pass."""</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">out</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_Execution</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">trades</span><span class="p">:</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">agg</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">aggressor_side</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="k">for</span> <span class="n">oid</span><span class="p">,</span> <span class="n">side</span> <span class="ow">in</span> <span class="p">((</span><span class="n">t</span><span class="o">.</span><span class="n">buy_order_id</span><span class="p">,</span> <span class="s2">"BUY"</span><span class="p">),</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">sell_order_id</span><span class="p">,</span> <span class="s2">"SELL"</span><span class="p">)):</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            <span class="n">ex</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">oid</span><span class="p">)</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>            <span class="k">if</span> <span class="n">ex</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>                <span class="n">ex</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="n">oid</span><span class="p">]</span> <span class="o">=</span> <span class="n">_Execution</span><span class="p">(</span><span class="s2">"TAKER"</span> <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">agg</span> <span class="k">else</span> <span class="s2">"MAKER"</span><span class="p">)</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">qty</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">notional</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="n">t</span><span class="o">.</span><span class="n">quantity</span>   <span class="c1"># integer ticks</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>            <span class="n">ex</span><span class="o">.</span><span class="n">trade_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="k">return</span> <span class="n">out</span>
 </code></pre></div>
-<p>Every fill-publishing site calls this once per <code>process()</code> result and looks up
-each order's own VWAP by its id, falling back to <code>last_trade_price</code> only for
-the (normally impossible) case of an order with no matching trade record:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">fill_price</span><span class="o">=</span><span class="n">_order_fill_px</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">_fill_px</span><span class="p">)</span>
-</code></pre></div>
+<p>The fill then reports <code>notional / (qty * 10 ** tick_decimals)</code>: the notional is
+summed in integer ticks and divided once, so the VWAP is correctly rounded. An
+order gets an <code>order.fill</code> only if it has an entry here, so there is no
+fallback price to reach for.</p>
 <p>This is cheaper than it looks: <code>trades</code> for a single dispatch is small (one
 entry per price level swept, rarely more than a handful), so building the
-per-order VWAP map costs one extra pass over data the book already produced —
+per-order map costs one pass over data the book already produced —
 no additional allocation on the matching path itself, and <strong>no change</strong> to
 how many messages a gateway receives per order. The dedup guard (H5) that
 ensures exactly one <code>order.fill</code> per order is unchanged; only the <em>price</em> it
