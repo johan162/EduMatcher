@@ -9,7 +9,7 @@
 # The image deliberately mirrors the Multipass runtime VM (deployment/vm/): a dedicated
 # venv under /opt/edumatcher/.venv with every pm-* command on PATH.
 
-ARG PYTHON_VERSION=3.13
+ARG PYTHON_VERSION=3.14
 
 # ---------------------------------------------------------------------------
 # Stage 1 — build the runtime venv

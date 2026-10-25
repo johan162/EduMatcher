@@ -1285,9 +1285,10 @@ CANCEL|OCO_ID=TPS
 | STOP leg missing `LEG1_STOP=` or `LEG2_STOP=`    | **REJECTED**                                                                           |
 | Partial fill of one leg                          | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
 | Both legs fill simultaneously                    | First fill to be processed cancels the second; race resolved by event order            |
-| A leg ends inside a stop cascade                 | The sibling is pulled at once, before any later stop in the cascade can trade with it — even a stop leg already triggered and waiting its turn. So `oco.cancelled` can arrive *before* the `order.fill` of the leg that caused it |
+| A leg ends while an order is matching            | Filled, cancelled by self-match prevention, an IOC leg's unfilled rest, or a stop leg short of liquidity: the sibling is pulled at once, before any stop that order triggers can trade with it — even a stop leg already triggered and waiting its turn. So `oco.cancelled` can arrive *before* the leg's own `order.fill` or `order.cancelled` |
 | A `FOK` meets both legs of a pair                | Only the first leg it meets counts as available: once that leg fills, the other is gone |
-| Leg 1 fills (or is cancelled) on entry           | Leg 2 is acknowledged, then cancelled with `oco.cancelled`; it never reaches the book  |
+| Leg 1 fills, is cancelled or rejected on entry   | Leg 2 is acknowledged, then cancelled with `oco.cancelled`; it never reaches the book  |
+| Symbol halted                                    | Legs rest without matching, as ordinary limit orders do. A `MARKET`, `IOC` or `FOK` leg cannot rest and is rejected with `INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`); outside continuous trading, with `SESSION_NOT_PERMITTED` |
 | GTC OCO across sessions                          | Both legs persist with their TIF; if GTC they survive session reset                    |
 
 ## See also

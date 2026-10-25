@@ -221,11 +221,12 @@ class OrderBook:
         self.on_quote_leg_fill: Optional[Callable[[Order], None]] = None
 
         # Called when an OCO leg (an order with an oco_group_id) ends while
-        # the dispatch is still running -- filled, or a triggered stop leg
-        # cancelled for want of liquidity -- so the engine can pull the
-        # sibling before a later stop in the cascade trades with it (finding
-        # X15, the OCO twin of X3). Not called for an uncross's own prints,
-        # whose follow-ups the engine runs after execute_uncross (X8b).
+        # the dispatch is still running -- filled, cancelled (SMP, an IOC's
+        # rest, a triggered stop leg short of liquidity) or rejected -- so the
+        # engine can pull the sibling before a later stop in the cascade
+        # trades with it (findings X15, X8d; the OCO twin of X3). Not called
+        # for an uncross's own prints, whose follow-ups the engine runs after
+        # execute_uncross (X8b).
         self.on_oco_leg_done: Optional[Callable[[Order], None]] = None
 
         # Stops the running cascade (or an uncross) has triggered and queued
@@ -333,6 +334,7 @@ class OrderBook:
             if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
                 order.status = OrderStatus.REJECTED
                 events.append(order)
+                self._oco_leg_ended(order)
                 return trades, events
             if order.order_type in (OrderType.STOP, OrderType.STOP_LIMIT):
                 self._add_stop(order, events)
@@ -383,6 +385,10 @@ class OrderBook:
             else:
                 self._add_trailing_stop(order, events)
 
+        # The order's own end (an IOC's rest, an SMP or FOK refusal) pulls its
+        # OCO sibling before the cascade below can trade with it.
+        self._oco_leg_ended(order)
+
         # After any trade, check if stop orders should trigger.
         # #23: drive the cascade (stop → trade → stop → …) with an explicit work
         # queue instead of recursion, so a long chain cannot exhaust Python's
@@ -397,19 +403,20 @@ class OrderBook:
                 )
                 trades.extend(sub_trades)
                 events.extend(sub_events)
-                # X15: a stop leg the cascade cancelled ends its sibling
-                # before the next stop runs (a filled one did in _apply_fill).
-                if (
-                    t_order.oco_group_id is not None
-                    and t_order.status in _DEAD_STATUSES
-                    and self.on_oco_leg_done is not None
-                ):
-                    self.on_oco_leg_done(t_order)
                 if sub_trades and self._has_stops:
                     pending.extend(self._check_stops(now))
                     pending.extend(self._check_trailing_stops(now))
 
         return trades, events
+
+    def _oco_leg_ended(self, order: Order) -> None:
+        """Report an OCO leg that is now dead to ``on_oco_leg_done``."""
+        if (
+            order.oco_group_id is not None
+            and order.status in _DEAD_STATUSES
+            and self.on_oco_leg_done is not None
+        ):
+            self.on_oco_leg_done(order)
 
     def get_order(self, order_id: str) -> Optional[Order]:
         """Return the resting Order with *order_id*, or None if not found."""
@@ -1327,6 +1334,7 @@ class OrderBook:
         # Routing through _purge_from_indexes fixes both.
         self._purge_from_indexes(order)
         events.append(order)
+        self._oco_leg_ended(order)
 
     def _sweep(
         self,

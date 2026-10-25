@@ -36,6 +36,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☑ | 2026-10-25 |
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☑ | 2026-10-25 |
 | 14 | S14 | Run 2026-10-25 (C5, C6 FAIL): X15 engine OCO sibling inside a cascade; X16 C5/C6 check fixes; X17 OCO entry | S13 | 0.5 d | ☑ | 2026-10-25 |
+| 15 | S15 | X8d: one publisher for every `book.process()` result; X12, X18–X20 | S14 | 1 d | ☑ | 2026-10-25 |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -678,16 +679,20 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9); confirmed 2026-10-25: C1 PASS |
 | X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11); confirmed 2026-10-25: C6's reject reconciliation finds nothing |
 | X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11); confirmed 2026-10-25: C4/C5 infer 0. Its rows tripped C6 (X16) |
-| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10), X8b/c (S13); confirmed 2026-10-25: C8, B8 PASS. X8d open (X15 is one more symptom) |
+| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10), X8b/c (S13); confirmed 2026-10-25: C8, B8 PASS. X8d done 2026-10-25 (S15, uncommitted) |
 | X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirmed 2026-10-25: D7 PASS |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
-| X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
+| X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Fixed 2026-10-25 (S15, uncommitted) |
 | X14 | S13 | 2026-10-24 | 23 fills (B8) | Check gap: B1 does not compare a fill's price with its trades' VWAP | Fixed 2026-10-25: new check B8; 2026-10-25 run: PASS, 933 670 fills |
 | X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Fixed 2026-10-25 (uncommitted) |
 | X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirmed 2026-10-25: E2 0 reordered batches |
 | X15 | C5, E2 | 2026-10-25 | 196 OCO groups (10 traded both legs) | Engine bug: an OCO sibling pulled only after `book.process()`, and never from the quote-submit loop | Fixed 2026-10-25 (S14, uncommitted); confirm on next run (C5) |
 | X16 | C6, X15 | 2026-10-25 | 4 622 rows (C6) | Check gaps: C6 read X7 rows' free text as cancel reasons; C5 checked only a FILLED sibling | Fixed 2026-10-25 (S14, uncommitted) |
 | X17 | X15 review (probe) | — | not in a run | Engine bug: leg 2 of an OCO is posted after leg 1 filled on entry, and a breached stop leg trades at once | Fixed 2026-10-25 (S14, uncommitted) |
+| X18 | S15 (probe) | — | not in a run | Engine bug: the OCO path ignores a symbol halt and matches its legs | Fixed 2026-10-25 (S15, uncommitted) |
+| X19 | S15 (probe) | — | not in a run | Engine bug: an OCO's own group was exempt from the book hook while posting, so a cascade from leg 2's fill on entry could fill leg 1 | Fixed 2026-10-25 (S15, uncommitted) |
+| X20 | S15 | every run | every non-new-order fill | Engine drift: `order.fill` lacked `price` outside the new-order path, and `tif`/`is_seed` on it | Fixed 2026-10-25 (S15, uncommitted) |
+| X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Open: needs a decision (see S15) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1116,3 +1121,81 @@ no combo follow-up (`_check_combo_after_child_event`) for orders their
 cascade fills or cancels. The book hook does not cover an OCO leg that
 SMP cancels while resting, and only the new-order, OCO and uncross loops
 handle that case. Neither gap has shown up in a run.
+
+### S15 — X8d: one publisher for every match
+
+**Done 2026-10-25.** Seven loops published what `book.process()` returned:
+seed quote, new order, quote, combo child, uncross (and its stops), OCO
+leg, amend. Each was a copy of the others with a different subset of the
+follow-ups, and each fix since S9 had to find them all. They are now one
+method, `Engine._publish_dispatch(trades, events, reject)`, which every
+path calls. For each order in `events`, once:
+
+- `order.fill` if it traded in this dispatch (X1), from one pass over the
+  trades (`_executions`: quantity, VWAP in integer ticks, trade ids,
+  MAKER/TAKER), then the quote refresh policy;
+- `order.cancelled`, or the rejection *reject*;
+- the combo follow-up; for an order that ended, the OCO follow-up and the
+  drop of its routing entry (H7).
+
+Then the trades. The new-order hot path keeps its inline ack; its fill now
+comes from the same builder as everyone else's. The perf tests show no
+regression: TPS 25.2–25.9 k against 24.4 k before, latency unchanged
+within noise.
+
+The book's OCO hook (X15) now also fires for a leg cancelled by SMP while
+resting, for an order that ends in its own match (an IOC's rest, an SMP or
+FOK refusal), and for a leg rejected while matching is off, so the OCO
+follow-up no longer depends on which loop ran. `_handle_oco_order` no
+longer exempts its own group from the hook (`_oco_entering`, the finding #6
+deferral): with X17, leg 2 is never posted after leg 1 ended, so nothing is
+left to defer.
+
+What the drift had hidden, each now a test in
+`tests/test_engine_dispatch_publication.py` (all ten failed before):
+
+- **X12a.** A combo child or OCO leg the book rejected because matching
+  was off was reported as `INSUFFICIENT_LIQUIDITY`. Now it gets the code
+  an ordinary order of that type would: the halt's code
+  (`INSTRUMENT_HALTED` or `CIRCUIT_BREAKER_ACTIVE`), or
+  `SESSION_NOT_PERMITTED` outside continuous trading
+  (`Engine._book_reject`). A leg of a blocked AON combo stays
+  `INSUFFICIENT_LIQUIDITY`.
+- **X12b.** A rejected OCO leg ends its sibling, as the participant guide
+  says (OCO, example 4). On entry, a rejected leg 1 keeps leg 2 out of the
+  book the way a filled one does (X17).
+- **X18.** `_handle_oco_order` ignored the halt flag: on a halted symbol
+  its legs matched continuously. They now rest, as ordinary orders do.
+- **X19.** Leg 2 that filled on entry triggered a stop that sold into
+  leg 1, which the deferral had kept live: both legs filled.
+- **SMP.** An amend whose SMP `CANCEL_RESTING` pulled a resting OCO leg
+  left its sibling live and the group registered (the amend loop had no
+  OCO follow-up).
+- **Combo follow-ups.** An amend, and a quote's cascade, that filled a
+  combo child left the combo `PENDING`.
+- **X20.** `order.fill` had two shapes. The new-order path built it by
+  hand without `tif` and `is_seed`; every other path built it from
+  `Order.to_dict()`, which has no display `price`, so their fills lost the
+  order's limit price. One builder (`_fill_frames`) now sends all fields.
+  `order.cancelled` from the new-order path likewise gains the group ids
+  the other paths sent.
+
+Wire changes: `order.fill` gains `tif`/`is_seed` (new-order path) and
+`price` (other paths); `oco.cancelled` can now precede the leg's own
+`order.cancelled` or rejection, as it already preceded its fill (X15).
+Docs: the participant guide's OCO edge-case table (a leg ending while an
+order matches; a rejected leg 1; a halted symbol) and the combo chapter
+(reject codes of a leg that cannot rest); the order-flow chapter's §8 and
+the VWAP section of the known limitations now show `_publish_dispatch`
+and `_executions`.
+
+**X21 — open, needs a decision.** A combo registers only after all its
+children are posted, so the combo follow-up of a child that ends during
+acceptance is a no-op. Reachable today: an AON combo blocked by a short
+leg posts its IOC/FOK/MARKET legs with matching off, the book rejects
+them, and the combo stays `PENDING` while its other legs rest. (A
+remainder cancelled by SMP gets there too.) The guide says a cancelled or
+expired leg fails the combo, but says nothing about a rejected one. Both
+the rule (should a rejected leg fail the combo?) and the order of
+`combo.ack` relative to a `FAILED` status need a decision, so it is left
+out of S15.

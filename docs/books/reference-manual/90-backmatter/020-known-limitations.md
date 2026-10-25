@@ -199,7 +199,7 @@ sequenceDiagram
     ENG->>FEED: Trade 1  100 @ 10.00
     ENG->>FEED: Trade 2  100 @ 10.01
     ENG->>FEED: Trade 3  100 @ 10.02
-    Note over ENG: aggressor object appended 3x,<br/>holds only FINAL state (qty 300) —<br/>but _order_fill_prices() derives the<br/>VWAP (10.01) from the 3 Trade records
+    Note over ENG: aggressor object appended 3x,<br/>holds only FINAL state (qty 300) —<br/>but _executions() derives the<br/>VWAP (10.01) from the 3 Trade records
     ENG-->>GW: order.fill  qty=300  price=10.01  (ONE message)
     Note over GW: books 300 @ 10.01<br/>avg_cost = 10.01 ✓
 ```
@@ -226,9 +226,10 @@ only the number handed to the gateway was wrong.
 
 ## How it was fixed
 
-The aggregation lives in the engine's hottest code path (`_handle_new_order`
-and its siblings for seeded quotes, combo legs, OCO legs, and auctions), so a
-fix that is correct but still cheap on that path mattered. The engine does
+The aggregation lives in the engine's hottest code path: `_publish_dispatch`,
+which every path that matches (new orders, quotes, combo children, OCO legs,
+amends, auctions) calls with the result of one `process()`. A fix that is
+correct but still cheap on that path mattered. The engine does
 **not** split the aggregated message into one-per-level (which would double
 or triple outbound message volume for every sweep); instead it keeps sending
 exactly one `order.fill` per order per `process()` call, and computes that
@@ -236,34 +237,29 @@ message's price from the `Trade` records the book already produced:
 
 ```python
 @staticmethod
-def _order_fill_prices(trades: list[Any]) -> dict[str, float]:
-    """Per-order volume-weighted execution price (display) from *trades*.
-
-    H6: a fill message must report the price the order ACTUALLY executed
-    at, not ``book.last_trade_price`` (the last level of the whole sweep).
-    For an order that fills across multiple levels this is its VWAP; for a
-    passive order filled at a single level it is exactly that level's price.
-    """
-    agg: dict[str, tuple[int, float]] = {}  # order_id -> (qty, notional)
+def _executions(trades: list[Trade]) -> dict[str, _Execution]:
+    """Each order's execution in THIS dispatch, from *trades*, in one pass."""
+    out: dict[str, _Execution] = {}
     for t in trades:
-        px = from_ticks(t.price, t.symbol)
-        for oid in (t.buy_order_id, t.sell_order_id):
-            qty, notional = agg.get(oid, (0, 0.0))
-            agg[oid] = (qty + t.quantity, notional + px * t.quantity)
-    return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+        agg = t.aggressor_side
+        for oid, side in ((t.buy_order_id, "BUY"), (t.sell_order_id, "SELL")):
+            ex = out.get(oid)
+            if ex is None:
+                ex = out[oid] = _Execution("TAKER" if side == agg else "MAKER")
+            ex.qty += t.quantity
+            ex.notional += t.price * t.quantity   # integer ticks
+            ex.trade_ids.append(t.id)
+    return out
 ```
 
-Every fill-publishing site calls this once per `process()` result and looks up
-each order's own VWAP by its id, falling back to `last_trade_price` only for
-the (normally impossible) case of an order with no matching trade record:
-
-```python
-fill_price=_order_fill_px.get(evt.id, _fill_px)
-```
+The fill then reports `notional / (qty * 10 ** tick_decimals)`: the notional is
+summed in integer ticks and divided once, so the VWAP is correctly rounded. An
+order gets an `order.fill` only if it has an entry here, so there is no
+fallback price to reach for.
 
 This is cheaper than it looks: `trades` for a single dispatch is small (one
 entry per price level swept, rarely more than a handful), so building the
-per-order VWAP map costs one extra pass over data the book already produced —
+per-order map costs one pass over data the book already produced —
 no additional allocation on the matching path itself, and **no change** to
 how many messages a gateway receives per order. The dedup guard (H5) that
 ensures exactly one `order.fill` per order is unchanged; only the *price* it

@@ -33,13 +33,16 @@ RUN npm run build --workspace @edumatcher/log-web
 RUN npm prune --omit=dev
 
 # ---- runtime stage -----------------------------------------------------------
-FROM node:22-trixie-slim AS runtime
+FROM python:3.14-slim-trixie AS runtime
 ARG WEB_PORT=8091
 
 # The Diagnostics view shells out to pm-log-cli rather than reimplementing the
 # seven heuristics in TypeScript, so the image needs the Python package too.
-# Debian trixie's python3 is 3.14, which is what edumatcher requires.
+# Use Python 3.14 explicitly; Debian trixie's python3 is still 3.13.
 ARG EDUMATCHER_VERSION=""
+
+COPY --from=build /usr/local/bin/node /usr/local/bin/node
+COPY --from=build /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -55,8 +58,9 @@ ENV NODE_ENV=production \
 # exactly as in deployment/docker/Dockerfile.
 COPY .wheel/ /tmp/wheel/
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 python3-venv && \
+    apt-get install -y --no-install-recommends libstdc++6 && \
     rm -rf /var/lib/apt/lists/* && \
+    ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     python3 -m venv /opt/edumatcher/.venv && \
     if ls /tmp/wheel/*.whl >/dev/null 2>&1; then \
         echo "Installing local wheel: $(ls /tmp/wheel/*.whl)" && \
