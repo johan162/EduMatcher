@@ -588,6 +588,10 @@ class Engine:
             {}
         )  # oco_group_id → [order_id_1, order_id_2]
         self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
+        # The OCO whose legs _handle_oco_order is posting: it checks them
+        # itself once both are in the book (finding #6), so the book's
+        # mid-dispatch hook leaves this one group alone.
+        self._oco_entering: str | None = None
 
         # Per-gateway position ledger — updated on every fill; keyed by
         # uppercase gateway_id → symbol → value.  Allows bots to resync
@@ -944,6 +948,8 @@ class Engine:
             # X3: inactivate a quote at the fill itself, inside the dispatch;
             # the publication loops' later calls find it already done.
             book.on_quote_leg_fill = self._on_quote_leg_filled
+            # X15: the same for an OCO leg's sibling.
+            book.on_oco_leg_done = self._on_oco_leg_done
             self.books[symbol] = book
         return self.books[symbol]
 
@@ -5958,6 +5964,7 @@ class Engine:
         # is posted — leg 2 then rests unlinked and uncancellable (finding #6).
         _oco_pending_checks: list[Order] = []
 
+        self._oco_entering = oco_id
         for leg in (leg1, leg2):
             # Resolve trailing stop initial price if needed
             if (
@@ -5989,6 +5996,25 @@ class Engine:
                 # still equals quantity at this pre-match moment.
                 order=order_to_display_dict(leg),
             )
+            if leg is leg2 and leg1.status in (
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+            ):
+                # X17: leg 1 ended on entry, so leg 2 never reaches the book,
+                # where it could trade at once (a stop already breached).
+                # Its owner hears what a resting sibling's owner would; the
+                # check of leg 1 below unregisters the group.
+                self.pub_sock.send_multipart(ack)
+                leg2.status = OrderStatus.CANCELLED
+                self.pub_sock.send_multipart(
+                    make_oco_cancelled_msg(
+                        gateway_id,
+                        oco_id,
+                        leg2.id,
+                        reason=f"OCO sibling {leg1.id[:8]} reached {leg1.status.value}",
+                    )
+                )
+                break
             defer_ack = _book_may_reject(leg, do_match)
             if not defer_ack:
                 self.pub_sock.send_multipart(ack)
@@ -6062,6 +6088,7 @@ class Engine:
                 self._publish_trade(trade)
 
             self._mark_dirty(symbol)
+        self._oco_entering = None
 
         # Both legs are now on the book — safe to resolve OCO terminal events.
         # The sibling can be found and cancelled instead of being orphaned.
@@ -6107,6 +6134,11 @@ class Engine:
         self._oco_groups.pop(oco_id, None)
 
         log.info(f"OCO {oco_id} cancelled by {gateway_id}")
+
+    def _on_oco_leg_done(self, order: Order) -> None:
+        """The book's hook: an OCO leg ended inside ``book.process()``."""
+        if order.oco_group_id != self._oco_entering:
+            self._check_oco_after_event(order)
 
     def _check_oco_after_event(self, order: Order) -> None:
         """

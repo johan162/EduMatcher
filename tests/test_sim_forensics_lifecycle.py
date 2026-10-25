@@ -294,6 +294,48 @@ def test_c5_finds_a_fill_after_the_sibling_filled(
     assert errors(run(open_ds, world, "C5")) == [("B", "fill after sibling FILLED")]
 
 
+def oco_rule_cancel(data: Path, leg: str, reason: str) -> None:
+    """oco.cancelled as pm-stats records it: the OCO_CANCEL row, then the
+    leg's own CANCEL row (X7)."""
+    event(data, "OCO_CANCEL", "G", "GW1", reason=reason)
+    event(data, "CANCEL", leg, "GW1", reason=reason, oco_group_id="G")
+
+
+def test_c5_finds_a_fill_after_the_sibling_was_cancelled(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """The sim's second shape (X15): a stop leg the cascade cancelled, its
+    limit sibling left live and filled later."""
+    oco(world, "A", "B")
+    event(world, "CANCEL", "A", "GW1", reason="INSUFFICIENT_LIQUIDITY", oco_group_id="G")  # fmt: skip
+    fill(world, "B", 10, 0)
+    assert errors(run(open_ds, world, "C5")) == [("B", "fill after sibling CANCELLED")]  # fmt: skip
+
+
+def test_c5_finds_a_sibling_that_outlived_its_filled_leg(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """X15 in the quote path: the sibling of a leg a quote filled was never
+    pulled; its owner cancelled it later, so it did not end live."""
+    oco(world, "A", "B")
+    fill(world, "A", 10, 0)
+    event(world, "CANCEL", "B", "GW1", oco_group_id="G")
+    assert errors(run(open_ds, world, "C5")) == [("B", "CANCEL after sibling FILLED")]  # fmt: skip
+
+
+def test_c5_accepts_the_sibling_pulled_before_the_legs_fill_is_published(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """Since X15 the engine pulls the sibling inside the dispatch, so its
+    cancel comes before the fill that caused it."""
+    oco(world, "A", "B")
+    oco_rule_cancel(world, "B", "OCO sibling A reached FILLED")
+    fill(world, "A", 10, 0)
+    out = run(open_ds, world, "C5")
+    assert out.violations == 0
+    assert "0 siblings closed only by OCO_CANCEL" in out.note
+
+
 def test_c5_finds_a_group_without_two_legs(world: Path, open_ds: OpenDataset) -> None:
     oco(world, "A", "B", "C")
     assert run(open_ds, world, "C5").samples == [
@@ -311,6 +353,22 @@ def test_c6_finds_a_cancel_reason_outside_the_spec(
     assert run(open_ds, world, "C6").samples == [
         {"cancel_reason": "BECAUSE", "count": 1}
     ]
+
+
+def test_c6_leaves_the_oco_sibling_rows_free_text_alone(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    """The 2026-10-25 run's 4 622 C6 failures: pm-stats's X7 row carries
+    oco.cancelled's reason, which no spec code list covers. The same text on
+    a CANCEL that no OCO_CANCEL row precedes is still reported."""
+    oco(world, "A", "B")
+    oco_rule_cancel(world, "B", "OCO sibling A reached FILLED")
+    event(world, "CANCEL", "O9", "GW3", reason="OCO sibling A reached FILLED")
+    out = run(open_ds, world, "C6")
+    assert out.samples == [
+        {"cancel_reason": "OCO sibling A reached FILLED", "count": 1}
+    ]
+    assert out.note.startswith("1 OCO sibling cancels")
 
 
 def test_c6_finds_rejects_the_engine_did_not_count(

@@ -38,6 +38,15 @@ from edumatcher.models.generated.order import OrderCancelledCancelReason
 _TERMINAL = {"FILLED", "CANCELLED", "EXPIRED", "REJECTED"}
 _REJECT_TYPES = ("REJECT", "QUOTE_REJECT", "OCO_REJECT", "COMBO_REJECT")
 _CANCEL_REASONS = frozenset(get_args(OrderCancelledCancelReason))
+#: The CANCEL rows pm-stats writes for an OCO sibling (X7): each right after
+#: the OCO_CANCEL row it comes from, with that row's OCO id. They record the
+#: OCO rule ending a leg, and carry oco.cancelled's free-text reason.
+_OCO_RULE_CANCELS = (
+    "SELECT c.seq FROM stats.order_events c "
+    "JOIN stats.order_events o ON o.seq = c.seq - 1 "
+    "WHERE c.event_type = 'CANCEL' AND o.event_type = 'OCO_CANCEL' "
+    "AND c.oco_group_id = o.order_id"
+)
 
 
 @dataclass
@@ -70,6 +79,8 @@ class _Scan:
     #: OCO id without its cancelled_order_id (X7), so the leg it closed is
     #: inferred: the group's leg still live.
     oco_cancelled: set[str] = field(default_factory=set)
+    #: Seqs of the _OCO_RULE_CANCELS rows.
+    oco_rule: set[int] = field(default_factory=set)
     orders: int = 0
     no_ack_checked: bool = True
 
@@ -120,6 +131,7 @@ def _scan(ds: Dataset) -> _Scan:
             "WHERE event_type = 'OCO_CANCEL'"
         )
     }
+    scan.oco_rule = {seq for (seq,) in ds.conn.execute(_OCO_RULE_CANCELS)}
     rows = ds.conn.execute(
         "SELECT order_id, seq, event_type, gateway_id, quantity, remaining_qty, "
         "status, fill_qty, oco_group_id FROM stats.order_events "
@@ -358,10 +370,15 @@ def live_orders_are_the_book(ds: Dataset) -> Outcome:
 @check(
     "C5",
     "lifecycle",
-    "OCO: two legs; none fills after its sibling FILLED; a done leg ends its sibling",
+    "OCO: two legs; none fills after its sibling ended; a done leg ends its sibling",
     needs=("stats",),
 )
 def oco_pairs(ds: Dataset) -> Outcome:
+    """A leg ends when it fills or is cancelled for a reason of its own; its
+    sibling must not fill after that, and after a fill must end by the OCO
+    rule, not by its owner's cancel or an expiry. The sibling's cancel by the OCO
+    rule may come first in the stream: since X15 the engine pulls it inside
+    the dispatch, before it publishes the leg's fill."""
     scan = _scan(ds)
     samples: list[Sample] = []
     both_partial = inferred = 0
@@ -376,17 +393,46 @@ def oco_pairs(ds: Dataset) -> Outcome:
             ((a, ea), (b, eb)),
             ((b, eb), (a, ea)),
         ):
-            filled_at = next((s for s, _et, st in events if st == "FILLED"), None)
-            if filled_at is not None and any(
-                et == "FILL" and s > filled_at for s, et, _st in sib_events
+            ended = next(
+                (
+                    (s, st)
+                    for s, et, st in events
+                    if (et, st) == ("FILL", "FILLED")
+                    or (et == "CANCEL" and s not in scan.oco_rule)
+                ),
+                None,
+            )
+            if ended is not None and any(
+                et == "FILL" and s > ended[0] for s, et, _st in sib_events
             ):
                 samples.append(
                     {
                         "oco_group_id": group,
                         "order_id": sib,
-                        "error": "fill after sibling FILLED",
+                        "error": f"fill after sibling {ended[1]}",
                     }
                 )
+            elif ended is not None and ended[1] == "FILLED":
+                # The OCO rule pulls the sibling of a filled leg at once; one
+                # its owner cancelled, or that expired, later had outlived it.
+                late = next(
+                    (
+                        et
+                        for s, et, _st in sib_events
+                        if s > ended[0]
+                        and et in ("CANCEL", "EXPIRE")
+                        and s not in scan.oco_rule
+                    ),
+                    None,
+                )
+                if late is not None:
+                    samples.append(
+                        {
+                            "oco_group_id": group,
+                            "order_id": sib,
+                            "error": f"{late} after sibling FILLED",
+                        }
+                    )
             done = events[-1][2] in ("FILLED", "CANCELLED")
             if done and sib_events[-1][2] not in _TERMINAL:
                 if group in scan.oco_cancelled:
@@ -419,11 +465,17 @@ def reasons_and_rejects(ds: Dataset) -> Outcome:
         for reason, n in ds.conn.execute(
             "SELECT reason, count(*) FROM stats.order_events "
             "WHERE event_type = 'CANCEL' AND reason IS NOT NULL AND reason <> '' "
-            f"AND reason NOT IN ({marks}) GROUP BY reason",
+            f"AND reason NOT IN ({marks}) AND seq NOT IN ({_OCO_RULE_CANCELS}) "
+            "GROUP BY reason",
             tuple(sorted(_CANCEL_REASONS)),
         )
     ]
-    note = ""
+    (siblings,) = ds.conn.execute(
+        f"SELECT count(*) FROM ({_OCO_RULE_CANCELS})"
+    ).fetchone()
+    note = (
+        f"{siblings} OCO sibling cancels carry oco.cancelled's free text, not checked"
+    )
     if "metrics" in ds.stores:
         types = ", ".join(f"'{t}'" for t in _REJECT_TYPES)
         rows = (
@@ -435,5 +487,5 @@ def reasons_and_rejects(ds: Dataset) -> Outcome:
         )
         samples += counter_mismatches(ds, "engine.rejects", "pm-engine", rows)
     else:
-        note = "no metrics.db: reject counts not reconciled"
+        note += "; no metrics.db: reject counts not reconciled"
     return Outcome(len(samples), samples, note)
