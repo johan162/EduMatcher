@@ -314,6 +314,22 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
 # now lives in the generated binding, which pre-encodes it the same way.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
+
+#: The topics timed as order entry (engine.handle_us_*); every other PULL
+#: message -- heartbeats, connects, queries, admin -- is engine.other_us_*.
+_ORDER_ENTRY_TOPICS = frozenset(
+    {
+        TOPIC_ORDER_NEW,
+        TOPIC_ORDER_CANCEL,
+        TOPIC_ORDER_AMEND,
+        TOPIC_ORDER_COMBO,
+        TOPIC_ORDER_COMBO_CANCEL,
+        TOPIC_ORDER_OCO,
+        TOPIC_ORDER_OCO_CANCEL,
+        TOPIC_QUOTE_NEW,
+        TOPIC_QUOTE_CANCEL,
+    }
+)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
@@ -7119,6 +7135,7 @@ class Engine:
         tick = self._reporter.tick if self._reporter is not None else None
         msg_count = 0
         pass_count = 0
+        metrics.watch_gc()
 
         while self._running:
             if tick is not None:
@@ -7192,13 +7209,20 @@ class Engine:
                     self.pub_sock.set_cause(cause if recorded else None)
                     msg_count += 1
                     sampled = not msg_count & SAMPLE_MASK or metrics.sample_next
+                    gc_before = metrics.gc_ns if sampled else 0
                     started_ns = clock_ns() if sampled else 0
                     try:
                         self._dispatch_pull_message(topic, payload)
                     finally:
                         self.pub_sock.clear_cause()
                         if sampled:
-                            metrics.record_dispatch(clock_ns() - started_ns, msg_count)
+                            metrics.record_dispatch(
+                                clock_ns() - started_ns,
+                                msg_count,
+                                started_ns=started_ns,
+                                gc_ns=metrics.gc_ns - gc_before,
+                                order=topic in _ORDER_ENTRY_TOPICS,
+                            )
             pass_count += 1
             if pass_count & SAMPLE_MASK:
                 self._run_maintenance()
@@ -7209,6 +7233,7 @@ class Engine:
                     clock_ns() - started_ns, pass_count, msg_count
                 )
 
+        metrics.unwatch_gc()
         self._flush_debug_summary(force=True)
         self._shutdown()
 

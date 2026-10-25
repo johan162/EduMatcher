@@ -161,6 +161,20 @@ describe("/api/series", () => {
     expect(r).toMatchObject({ resolution: "raw", bucketSec: 10 });
   });
 
+  it("several metrics of one process, on the same bucket starts", async () => {
+    const r = await get<MultiSeriesResponse>(
+      `/api/series/multi?names=proc.rss_bytes,engine.handle_us_p99&source=pm-engine@h1&from=${iso(T0)}&to=${iso(T0 + 10 * MIN)}`,
+    );
+    expect(r.name).toBe("proc.rss_bytes,engine.handle_us_p99");
+    expect(r.series.map((s) => [s.name, s.source])).toEqual([
+      ["proc.rss_bytes", "pm-engine@h1"],
+      ["engine.handle_us_p99", "pm-engine@h1"],
+    ]);
+    expect(r.series[0]!.points[0]![1]).toBe(1_000_000);
+    expect(r.series[1]!.points[0]![1]).toBe(100);
+    expect(r.series[0]!.points.map(([t]) => t)).toEqual(r.series[1]!.points.map(([t]) => t));
+  });
+
   it("if one process needs the minute table, every series of the chart is read from it", () => {
     // h2's raw rows thinned by retention: h1 alone could be raw, h2 cannot.
     const file = variant((w) =>
@@ -333,6 +347,9 @@ describe("validation", () => {
     ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=a&labels=b", "bad_param"],
     ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=a&source=b", "bad_param"],
     ["/api/series/multi?name=proc.rss_bytes&range=1h&sources=,", "missing_param"],
+    ["/api/series/multi?names=proc.rss_bytes&name=proc.rss_bytes&range=1h", "bad_param"],
+    ["/api/series/multi?names=,&range=1h", "missing_param"],
+    ["/api/series/multi?names=no.such_metric&range=1h", "unknown_metric"],
     ["/api/rate?name=engine.orders_in&range=1h&bucket=5m", "bad_bucket"],
     ["/api/rate?name=engine.orders_in&range=7d&bucket=1m", "too_many_points"],
     ["/api/rate?name=engine.orders_in&names=engine.rejects&range=1h", "bad_param"],

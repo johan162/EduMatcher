@@ -1187,8 +1187,13 @@ Exchange-wide trading activity, summed over gateways and symbols.
 | `trades` | [`RateStats`](#ratestats) | required | — |  |
 | `traded_value_today` | `float` | required | ge 0, unit `money` |  |
 | `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none. |
-| `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` |  |
-| `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` |  |
+| `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last minute. |
+| `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99, over the same samples. |
+| `handle_p99_ex_gc_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99_ex_gc: the same p99 with each sample's garbage-collection time taken out. |
+| `handle_samples` | `int` | required | ge 0, unit `dimensionless` | engine.handle_samples: how many samples the percentiles stand on; below 100 the p99 is their maximum. |
+| `other_p99_us` | `float` | required | ge 0, unit `duration_micros` | engine.other_us_p99: every message but order entry -- heartbeats, connects, queries, admin. |
+| `gc_pause_max_us` | `float` | required | ge 0, unit `duration_micros` | engine.gc_pause_us_max: the engine's longest garbage collection in the last minute, sampled or not. |
+| `gc_time_pct` | `float` | required | ge 0, unit `percent` | engine.gc_time_pct: share of the engine's last beacon interval spent collecting garbage. |
 | `busy_pct` | `float` | required | ge 0, unit `percent` | Engine share of wall time spent handling; near 100 means saturated. |
 | `rejects_by_code` | list of [`RejectCount`](#rejectcount) | required | — | Today's rejects (engine.rejects_by_code) by reason, most first: what makes reject_pct_5m actionable. |
 

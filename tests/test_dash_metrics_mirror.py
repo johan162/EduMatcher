@@ -54,6 +54,16 @@ def test_every_gauge_is_an_engine_gauge() -> None:
         assert emitted.get(name) == GAUGE, name
 
 
+def test_every_latency_figure_is_an_unlabelled_engine_gauge() -> None:
+    """Unlabelled, so pm-monitor stores it at raw resolution (I123)."""
+    names = re.findall(r'"(engine\.\w+)"', _block("LATENCY"))
+    emitted = _emitted("pm-engine")
+    assert len(names) == 4
+    for name in names:
+        assert emitted.get(name) == GAUGE, name
+        assert name not in STORED_ENGINE_LABELLED, name
+
+
 def test_the_requests_are_pm_monitors() -> None:
     assert set(re.findall(r'"([\w.]+)"', _block("REQUEST_COUNTERS"))) == set(
         REQUEST_COUNTERS

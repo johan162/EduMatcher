@@ -91,6 +91,32 @@ describe("row 1, overview (D3.2)", () => {
   });
 });
 
+describe("engine latency row", () => {
+  it("shows order entry, other messages and garbage collection apart", async () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(fixtureSnapshot()));
+    const r = row("Engine latency");
+    expect(tile("Order p99")).toBe("23 µs");
+    expect(tile("Other messages p99")).toBe("41 µs");
+    expect(tile("Longest GC pause")).toBe("813 µs");
+    // The captured engine had timed three order messages: too few for a p99.
+    expect(r.textContent).toContain("3 samples: p99 is the maximum");
+    const latency = () => bridge.calls.find((c) => c.startsWith("/api/series/multi?names="));
+    await waitFor(() => expect(latency()).toBeDefined());
+    const call = decodeURIComponent(latency()!);
+    expect(call).toContain("engine.handle_us_p50,engine.handle_us_p99,engine.handle_us_p99_ex_gc,engine.gc_pause_us_max");
+    expect(call).toContain("source=pm-engine@kappa1");
+  });
+
+  it("drops the warning once the p99 stands on enough samples", () => {
+    const socket = renderAt();
+    const trading = { ...CAPTURED.trading, handle_samples: 640 };
+    socket.deliver(hello, frame(fixtureSnapshot({ trading })));
+    expect(row("Engine latency").textContent).not.toContain("p99 is the maximum");
+    expect(within(screen.getByRole("region", { name: "Order p99" })).getByText("640 samples")).toBeDefined();
+  });
+});
+
 describe("row 2, processes (D3.3)", () => {
   it("renders each of the seven states with its glyph and word", () => {
     const states: [ProcessState, string][] = [
@@ -222,7 +248,7 @@ describe("history wiring (D3.5)", () => {
   it("one request per panel; switching range refetches each once", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
-    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2)); // memory and CPU
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3)); // memory, CPU, engine latency
     expect(bridge.count("/api/rate/by-label")).toBe(1);
     expect(bridge.count("/api/rate?")).toBe(4); // trades, value, rejects, requests
     expect(bridge.count("/api/series?")).toBe(0); // the drawers' charts, none open
@@ -230,9 +256,9 @@ describe("history wiring (D3.5)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Time range:/ }));
     fireEvent.click(within(screen.getByRole("listbox", { name: "Time range" })).getByText("Last 6 hours"));
-    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(4));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(6));
     await new Promise((r) => setTimeout(r, 50));
-    expect(bridge.count("/api/series/multi")).toBe(4); // once, not more
+    expect(bridge.count("/api/series/multi")).toBe(6); // once, not more
     expect(bridge.count("/api/rate/by-label")).toBe(2);
     expect(bridge.calls.filter((c) => c.startsWith("/api/series/multi")).slice(-1)[0]).toContain("range=6h");
   });
@@ -240,7 +266,7 @@ describe("history wiring (D3.5)", () => {
   it("live snapshots add no request", async () => {
     const socket = renderAt();
     socket.deliver(hello, frame(CAPTURED));
-    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3));
     const before = bridge.calls.length;
     for (let i = 1; i <= 30; i++) socket.deliver(frame(fixtureSnapshot({ seq: i, ts: new Date(NOW + i * 1000).toISOString() })));
     await new Promise((r) => setTimeout(r, 50));

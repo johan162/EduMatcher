@@ -49,15 +49,16 @@ export interface SeriesResponse {
 
 /** `GET /api/series/multi` */
 /**
- * `GET /api/series/multi`: several series of one metric -- its labels
- * (`labels=`), or one label across processes (`sources=`) -- all at one
- * resolution and on the same bucket starts, so they line up in one chart.
+ * `GET /api/series/multi`: several series -- one metric's labels
+ * (`labels=`), one label across processes (`sources=`), or several metrics
+ * of one process (`names=`) -- all at one resolution and on the same bucket
+ * starts, so they line up in one chart. `name` is the metrics joined by ",".
  */
 export interface MultiSeriesResponse {
   name: string;
   resolution: Resolution;
   bucketSec: number;
-  series: { label: string; source: string; points: Point[] }[];
+  series: { name: string; label: string; source: string; points: Point[] }[];
 }
 
 /**

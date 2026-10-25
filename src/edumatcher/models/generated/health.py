@@ -617,6 +617,11 @@ class TradingStats:
     reject_pct_5m: float  # unit: percent
     handle_p50_us: float  # unit: duration_micros
     handle_p99_us: float  # unit: duration_micros
+    handle_p99_ex_gc_us: float  # unit: duration_micros
+    handle_samples: int  # unit: dimensionless
+    other_p99_us: float  # unit: duration_micros
+    gc_pause_max_us: float  # unit: duration_micros
+    gc_time_pct: float  # unit: percent
     busy_pct: float  # unit: percent
     rejects_by_code: list[RejectCount]
 
@@ -645,6 +650,26 @@ class TradingStats:
             raise MessageValidationError(
                 f"handle_p99_us: {self.handle_p99_us!r} must be >= 0"
             )
+        if self.handle_p99_ex_gc_us < 0:
+            raise MessageValidationError(
+                f"handle_p99_ex_gc_us: {self.handle_p99_ex_gc_us!r} must be >= 0"
+            )
+        if self.handle_samples < 0:
+            raise MessageValidationError(
+                f"handle_samples: {self.handle_samples!r} must be >= 0"
+            )
+        if self.other_p99_us < 0:
+            raise MessageValidationError(
+                f"other_p99_us: {self.other_p99_us!r} must be >= 0"
+            )
+        if self.gc_pause_max_us < 0:
+            raise MessageValidationError(
+                f"gc_pause_max_us: {self.gc_pause_max_us!r} must be >= 0"
+            )
+        if self.gc_time_pct < 0:
+            raise MessageValidationError(
+                f"gc_time_pct: {self.gc_time_pct!r} must be >= 0"
+            )
         if self.busy_pct < 0:
             raise MessageValidationError(f"busy_pct: {self.busy_pct!r} must be >= 0")
         for rejects_by_code_item in self.rejects_by_code:
@@ -665,6 +690,11 @@ class TradingStats:
             reject_pct_5m=float(p["reject_pct_5m"]),
             handle_p50_us=float(p["handle_p50_us"]),
             handle_p99_us=float(p["handle_p99_us"]),
+            handle_p99_ex_gc_us=float(p["handle_p99_ex_gc_us"]),
+            handle_samples=int(p["handle_samples"]),
+            other_p99_us=float(p["other_p99_us"]),
+            gc_pause_max_us=float(p["gc_pause_max_us"]),
+            gc_time_pct=float(p["gc_time_pct"]),
             busy_pct=float(p["busy_pct"]),
             rejects_by_code=(
                 [RejectCount.from_dict(item) for item in p["rejects_by_code"]]
@@ -680,6 +710,11 @@ class TradingStats:
             "reject_pct_5m": self.reject_pct_5m,
             "handle_p50_us": self.handle_p50_us,
             "handle_p99_us": self.handle_p99_us,
+            "handle_p99_ex_gc_us": self.handle_p99_ex_gc_us,
+            "handle_samples": self.handle_samples,
+            "other_p99_us": self.other_p99_us,
+            "gc_pause_max_us": self.gc_pause_max_us,
+            "gc_time_pct": self.gc_time_pct,
             "busy_pct": self.busy_pct,
             "rejects_by_code": [item.to_dict() for item in self.rejects_by_code],
         }

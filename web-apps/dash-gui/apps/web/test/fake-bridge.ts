@@ -57,13 +57,18 @@ export function fakeBridge(links: CrossAppLinks = { logGui: null, bookGui: null 
           bucketSec: 10,
           points: [[NOW - 20_000, 1], [NOW - 10_000, 2]],
         });
-      case "/api/series/multi":
+      case "/api/series/multi": {
+        const points = [[NOW - 20_000, 1], [NOW - 10_000, 2]];
+        const names = q.get("names");
         return json({
-          name: q.get("name"),
+          name: names ?? q.get("name"),
           resolution: "raw",
           bucketSec: 10,
-          series: (q.get("sources") ?? "").split(",").map((source) => ({ label: "", source, points: [[NOW - 20_000, 1], [NOW - 10_000, 2]] })),
+          series: names
+            ? names.split(",").map((name) => ({ name, label: "", source: q.get("source") ?? "", points }))
+            : (q.get("sources") ?? "").split(",").map((source) => ({ name: q.get("name"), label: "", source, points })),
         });
+      }
       case "/api/rate/by-label":
         return json({ name: q.get("name"), bucket: "1m", series: [{ label: "TRADER01", points: [[NOW - 60_000, 8]] }, { label: "TRADER02", points: [[NOW - 60_000, 3]] }] });
       case "/api/rate":

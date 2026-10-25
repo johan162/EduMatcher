@@ -102,8 +102,19 @@ export interface TradingStats {
   trades: RateStats;
   traded_value_today: number;
   reject_pct_5m: number;
+  /** Order entry, sampled 1 in 16, over the last minute. */
   handle_p50_us: number;
   handle_p99_us: number;
+  /** The same p99 with each sample's garbage-collection time taken out. */
+  handle_p99_ex_gc_us: number;
+  /** Samples behind the percentiles; below 100 the p99 is their maximum. */
+  handle_samples: number;
+  /** Every message but order entry: heartbeats, connects, queries, admin. */
+  other_p99_us: number;
+  /** The engine's longest garbage collection in the last minute. */
+  gc_pause_max_us: number;
+  /** Share of the engine's last beacon interval spent collecting garbage. */
+  gc_time_pct: number;
   busy_pct: number;
   /** Today's rejects by reason, most first. */
   rejects_by_code: RejectCount[];

@@ -24,6 +24,7 @@ import edumatcher.engine.main as _engine_main
 from edumatcher.engine.metrics import (
     ENTRY_BYTES,
     GATEWAY_COUNTERS,
+    LATENCY_HORIZON_NS,
     LATENCY_RING,
     MAX_DYNAMIC_LABELS,
     SAMPLE_EVERY,
@@ -465,11 +466,25 @@ class TestProcessingMetrics:
         assert _value(samples, "engine.handle_us_max") == 100
         assert m.msgs_in == 100 * SAMPLE_EVERY  # exact, from the loop's count
 
-    def test_each_interval_starts_empty(self) -> None:
+    def test_percentiles_cover_the_horizon_not_one_window(self) -> None:
+        """A beacon window holds too few samples for a p99 (it was the
+        window's maximum); the last minute's samples stay in."""
         m = EngineMetrics()
         m.record_dispatch(5_000_000, msgs_total=1)
         m.timing_samples()
-        assert _value(m.timing_samples(), "engine.handle_us_max") == 0
+        assert _value(m.timing_samples(), "engine.handle_us_max") == 5_000
+        assert _value(m.timing_samples(), "engine.handle_samples") == 1
+
+    def test_samples_older_than_the_horizon_drop_out(self) -> None:
+        m = EngineMetrics()
+        m.record_dispatch(5_000_000, msgs_total=1, started_ns=1_000)
+        m.record_dispatch(2_000, msgs_total=2, started_ns=1_000 + LATENCY_HORIZON_NS)
+        now = 1_000 + LATENCY_HORIZON_NS
+        samples = m.timing_samples(now_ns=now)
+        assert _value(samples, "engine.handle_us_max") == 5_000
+        samples = m.timing_samples(now_ns=now + 1)
+        assert _value(samples, "engine.handle_us_max") == 2
+        assert _value(samples, "engine.handle_samples") == 1
 
     def test_only_the_last_ring_full_counts(self) -> None:
         m = EngineMetrics()
@@ -478,6 +493,51 @@ class TestProcessingMetrics:
         for i in range(LATENCY_RING):
             m.record_dispatch(1_000, msgs_total=LATENCY_RING + i)
         assert _value(m.timing_samples(), "engine.handle_us_max") == 1
+
+    def test_other_messages_are_kept_apart_from_order_entry(self) -> None:
+        """A book snapshot request is not matching latency."""
+        m = EngineMetrics()
+        m.record_dispatch(20_000, msgs_total=1)
+        m.record_dispatch(3_000_000, msgs_total=2, order=False)
+        samples = m.timing_samples()
+        assert _value(samples, "engine.handle_us_max") == 20
+        assert _value(samples, "engine.handle_samples") == 1
+        assert _value(samples, "engine.other_us_p99") == 3_000
+        assert _value(samples, "engine.other_us_max") == 3_000
+
+    def test_gc_time_inside_a_dispatch_is_taken_out_of_ex_gc(self) -> None:
+        m = EngineMetrics()
+        for i in range(99):
+            m.record_dispatch(30_000, msgs_total=i)
+        m.record_dispatch(9_030_000, msgs_total=99, gc_ns=9_000_000)
+        samples = m.timing_samples()
+        assert _value(samples, "engine.handle_us_max") == 9_030
+        assert _value(samples, "engine.handle_us_p99_ex_gc") == 30
+
+    def test_collections_are_timed(self) -> None:
+        m = EngineMetrics()
+        m.on_gc("start", {"generation": 2})
+        # on_gc reads the clock itself; fake a 4 ms pause by moving the start.
+        m._gc_started_ns = time.perf_counter_ns() - 4_000_000
+        m.on_gc("stop", {"generation": 2})
+        samples = m.timing_samples()
+        assert _value(samples, "engine.gc_pause_us_max") >= 4_000
+        assert _value(samples, "engine.gc_collections") == 1
+        assert _value(samples, "engine.gc_time_pct") > 0
+        # A share of the window: the next window has none.
+        assert _value(m.timing_samples(), "engine.gc_time_pct") == 0
+
+    def test_watch_gc_hooks_real_collections_once(self) -> None:
+        m = EngineMetrics()
+        m.watch_gc()
+        m.watch_gc()
+        try:
+            assert gc.callbacks.count(m.on_gc) == 1
+            gc.collect()
+            assert m.gc_collections >= 1 and m.gc_ns > 0
+        finally:
+            m.unwatch_gc()
+        assert m.on_gc not in gc.callbacks
 
     def test_busy_is_estimated_from_the_samples(self) -> None:
         """Mean sampled duration x messages, plus the same for maintenance."""
@@ -518,6 +578,15 @@ class TestProcessingMetrics:
         m.timing_samples()
         assert m.sample_next is True
 
+    def test_other_messages_do_not_use_up_the_forced_order_sample(self) -> None:
+        """At a few orders a minute, a heartbeat must not take the window's
+        one guaranteed sample from the orders."""
+        m = EngineMetrics()
+        m.record_dispatch(1_000, msgs_total=1, order=False)
+        assert m.sample_next is True
+        m.record_dispatch(1_000, msgs_total=2)
+        assert m.sample_next is False
+
     def test_percentile_edges(self) -> None:
         assert percentile([], 99) == 0.0
         assert percentile([7], 50) == 7.0
@@ -539,7 +608,10 @@ class TestTheRunLoopSamples:
         from edumatcher.models.message import encode
 
         n_msgs, idle_passes = 100, 3 * SAMPLE_EVERY
-        frames = encode(em.TOPIC_GATEWAYS_REQUEST, {"gateway_id": "GW01"})
+        frames = encode(
+            em.TOPIC_ORDER_NEW,
+            order_payload(Side.BUY, OrderType.LIMIT, 10, "GW01", price=99.0),
+        )
 
         class Pull:
             def recv_multipart(self) -> list[bytes]:
@@ -576,8 +648,9 @@ class TestTheRunLoopSamples:
         m = engine.metrics
         assert m.msgs_in == n_msgs  # exact: idle passes synced the count
         # message 1 (forced: first of the window) + every 16th
-        assert m._ring_count == 1 + n_msgs // SAMPLE_EVERY
+        assert len(m._orders.since(0)) == 1 + n_msgs // SAMPLE_EVERY
         assert _value(m.timing_samples(), "engine.handle_us_max") > 0
+        assert m.on_gc not in gc.callbacks  # unhooked when the loop ends
 
 
 class _DueReporter:
@@ -709,7 +782,14 @@ def test_the_beacon_carries_every_metric_of_the_design(engine: Any) -> None:
         "engine.handle_us_p50",
         "engine.handle_us_p99",
         "engine.handle_us_max",
+        "engine.handle_us_p99_ex_gc",
+        "engine.handle_samples",
+        "engine.other_us_p99",
+        "engine.other_us_max",
         "engine.busy_pct",
+        "engine.gc_pause_us_max",
+        "engine.gc_time_pct",
+        "engine.gc_collections",
         "engine.participants_connected",
         "engine.participant_connected",
         "engine.resting_orders",
