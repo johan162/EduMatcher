@@ -73,6 +73,16 @@ const AUCTION: Record<string, string> = {
   Time: "When the auction uncrossed, in UTC.",
 };
 
+/** The Session view's timetable, by heading. */
+const TIMETABLE: Record<string, string> = {
+  "This week":
+    "Each day's hours this week, from pre-open to the end of the closing auction, in the exchange's time zone. Dashed: the exchange is closed that day. A bank holiday is named under its hours.",
+  Timetable:
+    "The trading day's phases in order, with the time each transition is scheduled for. NOW marks the phase the feed reports. The bar below is the day to scale, 00 to 24, with the exchange's current time on it. When today does not trade, the next trading day is shown.",
+  "Next bank holiday":
+    "The next bank holiday that falls on a day the exchange would otherwise trade, and whether it closes or runs on holiday hours. Holidays on days that are closed anyway are left out.",
+};
+
 /** The order-book drawer's figures, by label; the rest fall back to VALUE. */
 const BOOK: Record<string, string> = {
   State: "HALTED, or the trading phase the exchange is in.",
@@ -118,6 +128,7 @@ export const tapeHelp = (heading: string): string | undefined => TAPE[heading];
 export const newsHelp = (heading: string): string | undefined => NEWS[heading];
 export const haltHelp = (heading: string): string | undefined => HALT[heading];
 export const auctionHelp = (heading: string): string | undefined => AUCTION[heading];
-export const bookHelp = (label: string): string | undefined => BOOK[label] ?? VALUE[label];
+export const timetableHelp = (heading: string): string | undefined => TIMETABLE[heading];
+export const bookHelp =(label: string): string | undefined => BOOK[label] ?? VALUE[label];
 export const valueHelp = (label: string): string | undefined => VALUE[label];
 export const indexHelp = (label: string): string | undefined => INDEX[label];

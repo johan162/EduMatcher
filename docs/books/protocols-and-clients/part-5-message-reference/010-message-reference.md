@@ -3660,9 +3660,18 @@ The next session transition: what the session moves to, and when. The same recor
 | `state` | `string` | required | max_len 32 |  |
 | `at` | `string` | required | max_len 32 | UTC ISO-8601 instant of the transition. |
 
+#### `Holiday`
+
+One bank holiday in the exchange's holiday calendar.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `date` | `string` | required | max_len 10 | ISO-8601 calendar date, in the session timezone. |
+| `name` | `string` | required | max_len 64 | The holiday's name as python-holidays gives it. |
+
 #### `WeeklySchedule`
 
-A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot.
+A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot. `upcoming_holidays` answers the next question, "when is the exchange next on its holiday schedule", the same way. It is computed when the record is built and covers a year, so a client picks the first entry on or after its own today rather than trusting the list to start there.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -3676,6 +3685,7 @@ A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..s
 | `holidays` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | Applied instead of the weekday's own entry on a bank holiday. Null means CLOSED on holidays. |
 | `today` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | The entry actually in effect today (holidays entry if today is a bank holiday, else today's weekday entry). Null means CLOSED today. |
 | `today_is_holiday` | `bool` | required | — | True only when `today` came from the holidays entry rather than the weekday's own entry. |
+| `upcoming_holidays` | list of [`Holiday`](#holiday) | required | max_items 64 | Bank holidays for the configured country from the session date the record was built on, through the following 365 days, ascending. Each one runs on the `holidays` entry. |
 
 #### `ReferenceSchedule`
 

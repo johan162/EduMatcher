@@ -891,7 +891,7 @@ class TestSessionSchedule:
             "closing_auction_start": "16:00",
             "closing_auction_end": "16:15",
         }
-        sched = {
+        sched: dict[str, object] = {
             "mon": mon,
             "tue": mon,
             "wed": mon,
@@ -902,6 +902,7 @@ class TestSessionSchedule:
             "holidays": None,
             "today": mon,
             "today_is_holiday": False,
+            "upcoming_holidays": [],
         }
         ack = make_session_schedule_msg("GW_ADMIN", True, sched)
         client, push = _client(recv_queue=_q(ack))

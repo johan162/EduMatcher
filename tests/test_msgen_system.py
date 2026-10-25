@@ -205,6 +205,7 @@ class TestTheScheduleRecordIsDeclaredOnce:
         "holidays": None,
         "today": MON,
         "today_is_holiday": False,
+        "upcoming_holidays": [{"date": "2026-12-25", "name": "Juldagen"}],
     }
 
     def test_both_messages_carry_the_same_record(self) -> None:

@@ -638,6 +638,50 @@ class NextTransition:
 
 
 @dataclass(frozen=True, slots=True)
+class Holiday:
+    """One bank holiday in the exchange's holiday calendar."""
+
+    date: str
+    name: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.date) > 10:
+            raise MessageValidationError(
+                f"date: length {len(self.date)} exceeds max_len 10"
+            )
+        if len(self.name) > 64:
+            raise MessageValidationError(
+                f"name: length {len(self.name)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Holiday":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            date=str(p["date"]),
+            name=str(p["name"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "date": self.date,
+            "name": self.name,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class WeeklySchedule:
     """A fully-resolved weekly session schedule: one `SessionTimes` per weekday
     (mon..sun, any of which may be null for CLOSED) plus a separate holidays
@@ -650,10 +694,14 @@ class WeeklySchedule:
     the answer, rather than making every client (in particular a browser) carry
     its own holiday calendar just to answer that one question. `today` is still
     `SessionTimes | null` -- null means CLOSED today, exactly like any other day
-    slot.
+    slot. `upcoming_holidays` answers the next question, "when is the exchange
+    next on its holiday schedule", the same way. It is computed when the record is
+    built and covers a year, so a client picks the first entry on or after its own
+    today rather than trusting the list to start there.
     """
 
     today_is_holiday: bool
+    upcoming_holidays: list[Holiday]
     mon: SessionTimes | None = None
     tue: SessionTimes | None = None
     wed: SessionTimes | None = None
@@ -689,6 +737,10 @@ class WeeklySchedule:
             self.holidays.validate()
         if self.today is not None:
             self.today.validate()
+        if len(self.upcoming_holidays) > 64:
+            raise MessageValidationError("upcoming_holidays: more than 64 item(s)")
+        for upcoming_holidays_item in self.upcoming_holidays:
+            upcoming_holidays_item.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "WeeklySchedule":
@@ -715,6 +767,9 @@ class WeeklySchedule:
                 None if p.get("today") is None else SessionTimes.from_dict(p["today"])
             ),
             today_is_holiday=bool(p["today_is_holiday"]),
+            upcoming_holidays=(
+                [Holiday.from_dict(item) for item in p["upcoming_holidays"]]
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -730,6 +785,7 @@ class WeeklySchedule:
             "holidays": None if self.holidays is None else self.holidays.to_dict(),
             "today": None if self.today is None else self.today.to_dict(),
             "today_is_holiday": self.today_is_holiday,
+            "upcoming_holidays": [item.to_dict() for item in self.upcoming_holidays],
         }
 
 

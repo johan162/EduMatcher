@@ -65,7 +65,11 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
-from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
+from edumatcher.engine.schedule_resolve import (
+    is_bank_holiday,
+    resolve_day,
+    upcoming_holidays,
+)
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.metrics import (
@@ -296,6 +300,10 @@ def _weekly_schedule_wire(
     result["holidays"] = _day(schedule.holidays)
     result["today"] = _day(resolve_day(schedule, today, country))
     result["today_is_holiday"] = is_bank_holiday(today, country)
+    result["upcoming_holidays"] = [
+        {"date": day.isoformat(), "name": name[:64]}
+        for day, name in upcoming_holidays(country, today)[:64]
+    ]
     return result
 
 

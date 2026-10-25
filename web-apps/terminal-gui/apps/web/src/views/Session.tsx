@@ -1,9 +1,9 @@
 /**
  * Session & Halt Status Board (design §13).
  *
- * Three panels: the exchange's current session phase, every symbol currently
- * halted with its circuit-breaker detail, and the auctions that have uncrossed
- * since this tab opened.
+ * Three panels: the exchange's current session phase within its timetable,
+ * every symbol currently halted with its circuit-breaker detail, and the
+ * auctions that have uncrossed since this tab opened.
  *
  * Mounting this view declares the halt board open to the bridge, which is the
  * second of `CB`'s two subscription triggers (§13.2). `CB` refuses `SYM=*`, so
@@ -12,13 +12,17 @@
  * open. Unmounting releases all of them.
  */
 
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { SessionBadge } from "../components/Badge.js";
 import { EmptyState, Panel } from "../components/Panel.js";
+import { SessionTimetable } from "../components/SessionTimetable.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
+import { api } from "../lib/api.js";
 import { auctionHelp, haltHelp } from "../lib/help.js";
 import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
+import { useNow } from "../lib/staleness.js";
 import { sendControl } from "../lib/useTerminalStream.js";
 import { sortHalted, useLiveStore } from "../store/useLiveStore.js";
 import type { HaltedSymbol } from "../store/useLiveStore.js";
@@ -36,6 +40,15 @@ export function SessionView() {
   const rowClass = DENSITY_ROW_CLASS[usePrefsStore((s) => s.density)];
   // Both boards list several instruments at once, each with its own tick size.
   const tickDecimals = useTickDecimals();
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
+  // The timetable changes only on a config reload; the poll picks one up.
+  const schedule = useQuery({
+    queryKey: ["reference", "schedule"],
+    queryFn: api.schedule,
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+  const now = useNow(10_000);
 
   useEffect(() => {
     sendControl({ t: "halt_board", open: true });
@@ -53,6 +66,14 @@ export function SessionView() {
             {sessionPrev ? ` · prev ${sessionPrev}` : ""}
           </span>
         </div>
+        <SessionTimetable
+          info={schedule.data}
+          failed={schedule.isError}
+          phase={sessionPhase}
+          prev={sessionPrev ?? null}
+          timeZone={sessionTimezone}
+          now={now}
+        />
       </Panel>
 
       <Panel

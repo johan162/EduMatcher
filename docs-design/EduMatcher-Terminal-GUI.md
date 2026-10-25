@@ -1493,7 +1493,20 @@ reference-counting logic (§6.4, §6.5), not a new mechanism.
 WS  bridge → state           (CH=STATE, SYM=* for session phase, per-symbol for halts)
 WS  bridge → halt_context    (CH=CB, per currently-halted symbol — bridge subscribes on STATE=HALTED, §6.4/§6.5 reference-counting extended to cover this view) → LEVEL/TRIGGER/REFERENCE/RESUMES columns
 WS  bridge → auction_result  (CH=AUCTION, SYM=* — one bridge-side wildcard subscription, all symbols) → RECENT AUCTION RESULTS panel
+REST /api/reference/schedule (pm-api-gwy, proxied like the history endpoints, polled every 10 min) → SESSION STATUS timetable
 ```
+
+The Session status panel draws the timetable under the phase line: this
+week's hours per day, the day's six phases as a flow with the transition
+times on the arrows and the current phase lit, the day to scale with a
+"now" marker, and the next bank holiday that falls on a trading day.
+Today's entry is resolved in the browser from the weekly table and the
+record's `upcoming_holidays`, in the session timezone, rather than taken
+from `today`, which the engine computes once at config load. The feed's
+phase always decides which step is lit. The clock only picks which of the
+two CLOSED steps it is, and the "now" marker shows only while the clock
+and the feed agree, since an operator can move the session by hand and
+`pm-scheduler --speed` runs the exchange's day faster than wall time.
 
 The `state`- and `auction_result`-sourced parts of this view are a
 re-render of data already required elsewhere (§8.4, §9.6) — no new
@@ -2072,7 +2085,7 @@ terminal_bridge:
     client_id: "pm-terminal-bridge"
   api_gateway:
     base_url: "http://127.0.0.1:8080"
-    api_key: "${PM_TERMINAL_API_KEY}"   # env var, never checked in; read-only (gateway_id: null); REST history only, §17.2
+    api_key: "${PM_TERMINAL_API_KEY}"   # env var, never checked in; read-only (gateway_id: null); REST history, news and schedule only, §17.2
   server:
     bind_address: "0.0.0.0"
     port: 8090

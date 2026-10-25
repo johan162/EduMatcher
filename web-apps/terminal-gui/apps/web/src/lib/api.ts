@@ -11,6 +11,7 @@ import type {
   IndexSnapshotRow,
   NewsSnapshot,
   PriceSnapshotRow,
+  ReferenceSchedule,
   TradeRow,
 } from "@edumatcher/terminal-types";
 
@@ -115,4 +116,7 @@ export const api = {
 
   /** pm-market-sim's latest headlines, oldest first (WP-E5). */
   news: () => getJson<NewsSnapshot>("/api/news?limit=200"),
+
+  /** The weekly session table and the coming year's bank holidays. */
+  schedule: () => getJson<ReferenceSchedule>("/api/reference/schedule"),
 };
