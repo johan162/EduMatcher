@@ -189,3 +189,35 @@ describe("recent auction results", () => {
     expect(screen.getByText("(no cross)")).toBeDefined();
   });
 });
+
+describe("column help", () => {
+  it("explains every column of both tables", () => {
+    apply(halt("TSLA"), cb("TSLA", { level: "L2" }), {
+      type: "auction_result",
+      sym: "AAPL",
+      seq: 1,
+      ts: "2026-07-30T09:30:02.000Z",
+      eqQty: 0,
+      tradesCount: 0,
+      imbalanceQty: 0,
+    });
+    render(<SessionView />);
+
+    for (const heading of [
+      "Level",
+      "Trigger",
+      "Reference",
+      "Resumes",
+      "Since",
+      "Eq. price",
+      "Trades",
+      "Imbalance",
+    ]) {
+      expect(screen.getByRole("button", { name: `${heading} help` })).toBeDefined();
+    }
+    // Symbol heads both tables; Qty and Time only the auctions.
+    expect(screen.getAllByRole("button", { name: "Symbol help" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Qty help" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Time help" })).toBeDefined();
+  });
+});

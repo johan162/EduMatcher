@@ -15,6 +15,8 @@
 import { useEffect, useMemo } from "react";
 import { SessionBadge } from "../components/Badge.js";
 import { EmptyState, Panel } from "../components/Panel.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
+import { auctionHelp, haltHelp } from "../lib/help.js";
 import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
 import { sendControl } from "../lib/useTerminalStream.js";
@@ -67,12 +69,24 @@ export function SessionView() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                <th className="py-1 font-medium">Symbol</th>
-                <th className="py-1 font-medium">Level</th>
-                <th className="py-1 text-right font-medium">Trigger</th>
-                <th className="py-1 text-right font-medium">Reference</th>
-                <th className="py-1 font-medium">Resumes</th>
-                <th className="py-1 font-medium">Since</th>
+                <th className="py-1 font-medium">
+                  Symbol <InfoTip label="Symbol" help={haltHelp("Symbol")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Level <InfoTip label="Level" help={haltHelp("Level")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Trigger <InfoTip label="Trigger" help={haltHelp("Trigger")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Reference <InfoTip label="Reference" help={haltHelp("Reference")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Resumes <InfoTip label="Resumes" help={haltHelp("Resumes")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Since <InfoTip label="Since" help={haltHelp("Since")!} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -96,12 +110,24 @@ export function SessionView() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                <th className="py-1 font-medium">Symbol</th>
-                <th className="py-1 text-right font-medium">Eq. price</th>
-                <th className="py-1 text-right font-medium">Qty</th>
-                <th className="py-1 text-right font-medium">Trades</th>
-                <th className="py-1 font-medium">Imbalance</th>
-                <th className="py-1 font-medium">Time</th>
+                <th className="py-1 font-medium">
+                  Symbol <InfoTip label="Symbol" help={auctionHelp("Symbol")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Eq. price <InfoTip label="Eq. price" help={auctionHelp("Eq. price")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Qty <InfoTip label="Qty" help={auctionHelp("Qty")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Trades <InfoTip label="Trades" help={auctionHelp("Trades")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Imbalance <InfoTip label="Imbalance" help={auctionHelp("Imbalance")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Time <InfoTip label="Time" help={auctionHelp("Time")!} />
+                </th>
               </tr>
             </thead>
             <tbody>

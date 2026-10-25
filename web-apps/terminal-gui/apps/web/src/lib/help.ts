@@ -53,6 +53,33 @@ const NEWS: Record<string, string> = {
   Headline: "The text of the item. Green leans positive for prices, red negative.",
 };
 
+/** The Session view's active-halts table. */
+const HALT: Record<string, string> = {
+  Symbol: "The halted instrument.",
+  Level: "The circuit-breaker level that tripped. ADMIN_SYMBOL or ADMIN_ALL means an operator halted it, not a price move.",
+  Trigger: "The price that tripped the circuit breaker. Blank for an operator halt.",
+  Reference: "The price the move was measured from. Blank for an operator halt.",
+  Resumes: "Who halted it (CB: circuit breaker, ADMIN: operator), then the earliest time the reopening auction can end, with a countdown. It ends at a random point after that, or later if the price is outside its corridor. Manual: only an operator ends it.",
+  Since: "When the halt began, in UTC, and how long ago that was.",
+};
+
+/** The Session view's recent-auction-results table. */
+const AUCTION: Record<string, string> = {
+  Symbol: "The instrument that uncrossed.",
+  "Eq. price": "The equilibrium price: the single price the auction matched at. (no cross): bids and offers did not overlap, so nothing traded.",
+  Qty: "The quantity matched at the equilibrium price.",
+  Trades: "The number of trades the uncross printed.",
+  Imbalance: "The quantity left unmatched at the equilibrium price and the side it was on. Blank when both sides matched fully.",
+  Time: "When the auction uncrossed, in UTC.",
+};
+
+/** The order-book drawer's figures, by label; the rest fall back to VALUE. */
+const BOOK: Record<string, string> = {
+  State: "HALTED, or the trading phase the exchange is in.",
+  Spread: "Best ask minus best bid: what an immediate round trip costs.",
+  "Trades today": "The number of trades today.",
+};
+
 /** Rows of the symbol and index detail panels, by label. */
 const VALUE: Record<string, string> = {
   Bid: "The best bid and the quantity at it.",
@@ -89,5 +116,8 @@ export const moversHelp = (heading: string): string | undefined => MOVERS[headin
 export const depthHelp = (heading: string): string | undefined => DEPTH[heading];
 export const tapeHelp = (heading: string): string | undefined => TAPE[heading];
 export const newsHelp = (heading: string): string | undefined => NEWS[heading];
+export const haltHelp = (heading: string): string | undefined => HALT[heading];
+export const auctionHelp = (heading: string): string | undefined => AUCTION[heading];
+export const bookHelp = (label: string): string | undefined => BOOK[label] ?? VALUE[label];
 export const valueHelp = (label: string): string | undefined => VALUE[label];
 export const indexHelp = (label: string): string | undefined => INDEX[label];
