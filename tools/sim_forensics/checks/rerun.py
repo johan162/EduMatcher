@@ -397,7 +397,7 @@ def _engine_version() -> str:
             timeout=10,
             check=True,
         ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return version("edumatcher")
     return f"{version('edumatcher')} ({commit})"
 
