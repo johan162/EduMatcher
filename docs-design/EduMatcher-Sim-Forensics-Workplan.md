@@ -35,6 +35,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 11 | S11 | pm-stats recorder fixes X4, X6, X7 (+ `reject_code` column, fresh stats.db) | S8 | 1 d | ☑ | 2026-10-25 |
 | 12 | S12 | Fix X10: `pm-audit-replay` chunks its `IN` lists | S8 | 0.25 d | ☑ | 2026-10-25 |
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☑ | 2026-10-25 |
+| 14 | S14 | Run 2026-10-25 (C5, C6 FAIL): X15 engine OCO sibling inside a cascade; X16 C5/C6 check fixes; X17 OCO entry | S13 | 0.5 d | ☑ | 2026-10-25 |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -194,8 +195,8 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C2 | Nothing after a terminal event (FILLED, CANCELLED, EXPIRED, REJECTED). |
 | C3 | `remaining_qty = qty − cumulative fill` at every FILL; final status consistent with remaining. |
 | C4 | Every ACKed order ends terminal, or is still resting at the cut; resting GTC orders = `gtc_orders.json`; DAY orders all EXPIRE at close. |
-| C5 | OCO: at most one leg fills; sibling cancelled with the right reason. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
-| C6 | Reject / cancel reason codes are canonical; reject-rate time series per code (spikes → H). |
+| C5 | OCO: no leg fills after its sibling ended (filled, or cancelled for a reason of its own — not the OCO rule's X7 row); a done leg ends its sibling. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
+| C6 | Reject / cancel reason codes are canonical (not the X7 OCO sibling rows, which carry `oco.cancelled`'s free text); reject-rate time series per code (spikes → H). |
 | C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
 
@@ -673,17 +674,20 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X1 | B2 | 2026-10-23 | 749 orders, 95 132 qty | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: B1, B2, C2 PASS |
 | X2 | R4 | 2026-10-23 | 123 auction self-trades (2026-10-24: 182) | Expected: SMP does not apply in an uncross (documented) | Closed (S8) |
 | X3 | C2 (R5) | 2026-10-23 | 365 quote legs | Engine bug | Fixed (v0.52.0); confirmed 2026-10-24: C2 PASS, D4/D5/D9 PASS |
-| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4, A1) |
-| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9, uncommitted); confirm on next run (C1) |
-| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C6) |
-| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11, uncommitted); confirm on next run (C4 inferred count 0) |
-| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10); X8b/c fixed 2026-10-25 (S13, uncommitted); X8d open |
-| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirm on next run (D7) |
+| X4 | R9, C4 | 2026-10-23 | 1 trade, 1 order | Recorder bug (pm-stats shutdown flush) | Fixed 2026-10-25 (S11); confirmed 2026-10-25: A1 nothing beyond the cut, C4 PASS |
+| X5 | C1 | 2026-10-23 | 4 107 FOK orders (2026-10-24: 5 161) | Engine bug (against the participant guide) | Fixed 2026-10-24 (S9); confirmed 2026-10-25: C1 PASS |
+| X6 | C6 | 2026-10-23 | 31 678 MM01 rejects (2026-10-24: 41 095, all of them) | Recorder gap (pm-stats) + label | Fixed 2026-10-25 (S11); confirmed 2026-10-25: C6's reject reconciliation finds nothing |
+| X7 | C4, C5 | 2026-10-23 | 3 423 OCO siblings (2026-10-24: 4 248) | Recorder gap (pm-stats) | Fixed 2026-10-25 (S11); confirmed 2026-10-25: C4/C5 infer 0. Its rows tripped C6 (X16) |
+| X8 | X1/X3 fix review | 2026-10-24 (C8) | X8a: 40 898 quotes, 6 212 trades against a dead sibling | X8a/b/c engine bugs; X8d refactor | X8a fixed (S10), X8b/c (S13); confirmed 2026-10-25: C8, B8 PASS. X8d open (X15 is one more symptom) |
+| X9 | D7 | 2026-10-24 | 12 self-trades | Engine bug: OCO legs have no SMP action | Fixed 2026-10-24 (4fa2b4be); confirmed 2026-10-25: D7 PASS |
 | X10 | S5 | 2026-10-24 | — | Tool bug: `pm-audit-replay` fails on a 256 MB log | Fixed 2026-10-25 (S12, uncommitted) |
 | X12 | S9 review | — | — | Engine: book rejects of combo children / OCO legs (code, sibling) | Open (see below) |
-| X14 | S13 | 2026-10-24 | 23 fills (B8) | Check gap: B1 does not compare a fill's price with its trades' VWAP | Fixed 2026-10-25: new check B8 (uncommitted) |
+| X14 | S13 | 2026-10-24 | 23 fills (B8) | Check gap: B1 does not compare a fill's price with its trades' VWAP | Fixed 2026-10-25: new check B8; 2026-10-25 run: PASS, 933 670 fills |
 | X13 | S12 run of `pm-audit-replay` | 2026-10-24 | 3 in `audit.log.5` | Tool bug: a rejected cancel read as the order turning REJECTED | Fixed 2026-10-25 (uncommitted) |
-| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirm on next run (E2, no reordered batches) |
+| X11 | E2 | 2026-10-24 | ~6 400 cancel batches | Engine non-determinism (message order only) | Fixed 2026-10-24 (5b8a5f5f); confirmed 2026-10-25: E2 0 reordered batches |
+| X15 | C5, E2 | 2026-10-25 | 196 OCO groups (10 traded both legs) | Engine bug: an OCO sibling pulled only after `book.process()`, and never from the quote-submit loop | Fixed 2026-10-25 (S14, uncommitted); confirm on next run (C5) |
+| X16 | C6, X15 | 2026-10-25 | 4 622 rows (C6) | Check gaps: C6 read X7 rows' free text as cancel reasons; C5 checked only a FILLED sibling | Fixed 2026-10-25 (S14, uncommitted) |
+| X17 | X15 review (probe) | — | not in a run | Engine bug: leg 2 of an OCO is posted after leg 1 filled on entry, and a breached stop leg trades at once | Fixed 2026-10-25 (S14, uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1001,3 +1005,114 @@ stop loop now gets its own VWAP; `test_x8c_…` now also pins a passive
 order's price. B8 should pass on the next run. Tests:
 `tests/test_sim_forensics_bookkeeping.py` (a wrong price, a wrong quantity).
 
+
+### S14 — Run 2026-10-25: X15 and X16
+
+**The run.** 993 minutes, 560 408 trades, 2.5 M audited commands, every fix
+through S13 in the engine (E2 PASS at HEAD: the run reproduces exactly).
+It confirms X4–X11 and X14: A1–B8, C1–C4, C7, C8, D1–D9, E1–E4, F1–F4 and
+G1–G2 all PASS. C5 FAIL 2 and C6 FAIL 4 622 are new. H1–H3 are INFO:
+- H1 puts one C5 sample near an ops event; 30 % of the run is near one.
+- H2: the P&L outliers are agent behaviour, as in S8. AI023's reject rate
+  of 0.66 is the `block-taker` preset's FOKs, which are now rejected
+  outright (X5). 148 price jumps (`--no-collars`).
+- H3: p99 spikes co-occur with 58–73 % book heap garbage. That is for the
+  latency plan, not a finding.
+
+**X15 — an OCO sibling trades after its leg ended.** C5's two groups
+(AI037-2B1F, AI077-164C) share one shape. The audit shows it for
+AI037-2B1F, in a single MM01 `quote.new` dispatch:
+1. The quote's ask trades at 242.87 and triggers AI037's buy stop leg.
+2. The stop leg buys from the ask at 240.10 and is FILLED.
+3. That print triggers AI057's sell stop, which sells into AI037's limit
+   leg at 220.96: the leg's sibling.
+
+The engine pulled a sibling only from the publication loops, after
+`book.process()` returned, but the stop cascade runs inside `process()`.
+The same mechanism as X3, for OCO legs.
+
+Widening C5 (X16) found 194 more groups: 186 siblings of a leg a quote filled, never pulled until their owner cancelled them, and eight more traded ones. In each, a stop leg was triggered
+in a quote's cascade and cancelled `INSUFFICIENT_LIQUIDITY`, and its limit
+sibling stayed live and filled later (AI055-AEC: 3.8 s later). All eight
+are MM01 `quote.new` dispatches. The quote-submit loop, like the seed-quote,
+combo-child and amend loops, runs no OCO follow-up at all: the X8d drift.
+
+Fix, in the book and so in every path:
+- `OrderBook.on_oco_leg_done` is called from `_apply_fill` when an OCO leg
+  fills, and from the cascade loop when a triggered stop leg ends
+  otherwise. The engine sets it to `_check_oco_after_event`, which is
+  idempotent, so the loops' later calls are no-ops. It skips the group
+  that `_handle_oco_order` is still posting (`_oco_entering`), which checks
+  its legs itself once both are in the book (finding #6).
+- `_check_stops`/`_check_trailing_stops` keep triggered stops in
+  `_triggered` until `process()` takes them up. `cancel_order` finds them
+  there, and a stop cancelled while it waited does nothing. Otherwise a
+  sibling triggered in the same cascade but queued behind the order that
+  fills its leg would still trade.
+- `_fok_available_qty` counts one leg per OCO group. Once the first leg
+  fills, the second leaves the book mid-sweep, so counting both would let
+  a FOK fill in part.
+
+Message order changes as it did for X3: `oco.cancelled` for the sibling now
+precedes the leg's `order.fill`. The forensics replay already treats an
+`OCO_SIBLING` death in the dispatch as dying, and C5 now allows for it.
+Tests: `tests/test_engine_oco_cascade.py` (4, all failed before the fix):
+- the sim's FILLED case;
+- the cascade-cancelled stop leg (quote path);
+- a triggered sibling still queued;
+- the FOK pre-check.
+
+Docs: participant guide, order types (OCO edge cases).
+
+**X16 — two check gaps.**
+- C6 read the CANCEL rows pm-stats writes for an OCO sibling (X7) as
+  cancel reasons. They carry `oco.cancelled`'s free text ("OCO sibling …
+  reached FILLED"), not an `order.cancelled` code. They are recognised
+  structurally, as the row right after their OCO_CANCEL row with its OCO
+  id (`_OCO_RULE_CANCELS`), not by text. C6 skips them and counts them in
+  its note.
+- C5 flagged a sibling's fill only after the leg was FILLED, and checked
+  "a done leg ends its sibling" only at the end. A sibling that filled
+  after its leg was cancelled, or that its owner cancelled (or that
+  expired) after its leg filled, ended terminal and passed. Now a leg ends
+  when it fills, or is cancelled for a reason of its own (not by the OCO
+  rule's row, which since X15 can precede the fill that caused it). After
+  that the sibling must not fill, and after a fill it must end by the OCO
+  rule's row.
+
+On this run: C6 PASS (4 622 sibling rows skipped), C5 FAIL 196:
+- 2 fills after the sibling FILLED;
+- 8 fills after the sibling was CANCELLED;
+- 186 siblings that outlived their filled leg until their owner cancelled
+  them (the quote-submit loop's missing follow-up, with no trade).
+
+E2 at HEAD (all samples kept) agrees. 3 534 of its 3 813 differing
+dispatches differ only in message order (`oco.cancelled` now before the
+fills). The rest are X15's change:
+- 162 `quote.new` publish 194 sibling cancels the live engine did not;
+- 106 later `order.oco_cancel` commands find the group already closed;
+- about 10 are the trading cases and their after-effects on that symbol.
+
+Tests: `tests/test_sim_forensics_lifecycle.py` (4). The cancelled case,
+the outlived case and the C6 rows failed before; the pulled-before-fill
+order is a guard.
+
+**X17 — leg 2 of an OCO is posted after leg 1 ended on entry.** Seen
+while reading `_handle_oco_order` for X15, and confirmed with a probe. It
+was not in this run: C5 found no such pair. Finding #6 defers the legs'
+OCO checks until both are posted, so leg 2 is posted even when leg 1
+already filled. A buy stop leg at 99, posted after a buy limit leg filled
+at 99, is already breached (M2): it triggers on entry and buys at 100, and
+both legs are filled. Fix: if leg 1 is FILLED or CANCELLED after
+`process()`, leg 2 is acked, then gets `oco.cancelled`, and is never
+posted. Its owner hears what a resting sibling's owner would. The deferred
+check of leg 1 unregisters the group. A REJECTED leg 1 still does not end
+its sibling (X12b, unchanged). Test: the fifth case in
+`tests/test_engine_oco_cascade.py` (failed before). Docs: the same OCO
+edge-case table.
+
+**Left for X8d.** The seed-quote, quote-submit and amend loops still run
+no combo follow-up (`_check_combo_after_child_event`) for orders their
+cascade fills or cancels. The book hook does not cover an OCO leg that
+SMP cancels while resting, and only the new-order, OCO and uncross loops
+handle that case. Neither gap has shown up in a run.

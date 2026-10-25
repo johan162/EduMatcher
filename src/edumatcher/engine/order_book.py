@@ -132,6 +132,8 @@ class OrderBook:
         "daily_trades",
         "_has_stops",
         "on_quote_leg_fill",
+        "on_oco_leg_done",
+        "_triggered",
         "_arrival_seq",
     )
 
@@ -218,6 +220,19 @@ class OrderBook:
         # both sides are resting and the auction walks both heaps.
         self.on_quote_leg_fill: Optional[Callable[[Order], None]] = None
 
+        # Called when an OCO leg (an order with an oco_group_id) ends while
+        # the dispatch is still running -- filled, or a triggered stop leg
+        # cancelled for want of liquidity -- so the engine can pull the
+        # sibling before a later stop in the cascade trades with it (finding
+        # X15, the OCO twin of X3). Not called for an uncross's own prints,
+        # whose follow-ups the engine runs after execute_uncross (X8b).
+        self.on_oco_leg_done: Optional[Callable[[Order], None]] = None
+
+        # Stops the running cascade (or an uncross) has triggered and queued
+        # to match: out of every index, but still cancellable until their
+        # turn, so an OCO sibling cancel reaches them (X15).
+        self._triggered: dict[str, Order] = {}
+
         # Monotonic arrival sequence for time priority (finding H1).  Assigned
         # by the book when an order is placed on a heap, so queue position is
         # determined by engine arrival order — never by the client-supplied
@@ -300,6 +315,15 @@ class OrderBook:
         trades: list[Trade] = []
         events: list[Order] = []
 
+        # A triggered stop leaves the queue here; one cancelled while it
+        # waited (its OCO sibling filled first, X15) does nothing at all.
+        if (
+            self._triggered
+            and self._triggered.pop(order.id, None) is not None
+            and order.status == OrderStatus.CANCELLED
+        ):
+            return trades, events
+
         # Compute the batch timestamp once if the caller did not provide one.
         if now is None:
             now = now_ns()
@@ -373,6 +397,14 @@ class OrderBook:
                 )
                 trades.extend(sub_trades)
                 events.extend(sub_events)
+                # X15: a stop leg the cascade cancelled ends its sibling
+                # before the next stop runs (a filled one did in _apply_fill).
+                if (
+                    t_order.oco_group_id is not None
+                    and t_order.status in _DEAD_STATUSES
+                    and self.on_oco_leg_done is not None
+                ):
+                    self.on_oco_leg_done(t_order)
                 if sub_trades and self._has_stops:
                     pending.extend(self._check_stops(now))
                     pending.extend(self._check_trailing_stops(now))
@@ -388,7 +420,7 @@ class OrderBook:
         Cancel a resting order.  Returns the Order if found and cancellable,
         else None.
         """
-        order = self._order_index.get(order_id)
+        order = self._order_index.get(order_id) or self._triggered.get(order_id)
         if order is None:
             return None
         if order.status in (
@@ -1091,6 +1123,7 @@ class OrderBook:
         total = 0
         level_price: Optional[int] = None
         level_hidden = 0  # hidden iceberg qty queued at the back of this level
+        oco_seen: set[str] = set()
         for entry in live:
             o = entry.order
             price = o.price_ticks
@@ -1109,6 +1142,13 @@ class OrderBook:
                 if stops_sweep:
                     return total
                 continue
+            # X15: the first leg of an OCO pair the sweep fills pulls the
+            # other, and a FOK that takes only part of it is done before
+            # reaching the other: only the first leg met can count.
+            if o.oco_group_id is not None:
+                if o.oco_group_id in oco_seen:
+                    continue
+                oco_seen.add(o.oco_group_id)
             shown = (
                 o.displayed_qty
                 if o.order_type == OrderType.ICEBERG and o.displayed_qty is not None
@@ -1520,6 +1560,17 @@ class OrderBook:
                 self.on_quote_leg_fill(passive)
             if aggressor.quote_id is not None:
                 self.on_quote_leg_fill(aggressor)
+        if not both_resting and self.on_oco_leg_done is not None:
+            if (
+                passive.oco_group_id is not None
+                and passive.status == OrderStatus.FILLED
+            ):
+                self.on_oco_leg_done(passive)
+            if (
+                aggressor.oco_group_id is not None
+                and aggressor.status == OrderStatus.FILLED
+            ):
+                self.on_oco_leg_done(aggressor)
 
     def _purge_from_indexes(self, order: Order) -> None:
         """Remove a terminal order from the id→order and id→entry maps and
@@ -1770,6 +1821,8 @@ class OrderBook:
         if not self._buy_stops and not self._sell_stops and not self._trailing_stops:
             self._has_stops = False
 
+        for stop_order in triggered:
+            self._triggered[stop_order.id] = stop_order
         return triggered
 
     def _check_trailing_stops(self, now: int) -> list[Order]:
@@ -1876,6 +1929,8 @@ class OrderBook:
         self._trailing_stops = still_active
         if not self._trailing_stops and not self._buy_stops and not self._sell_stops:
             self._has_stops = False
+        for order in triggered:
+            self._triggered[order.id] = order
         return triggered
 
     def trigger_stops(self, now: int) -> list[Order]:

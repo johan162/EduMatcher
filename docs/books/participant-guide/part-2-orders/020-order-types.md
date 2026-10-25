@@ -1285,6 +1285,9 @@ CANCEL|OCO_ID=TPS
 | STOP leg missing `LEG1_STOP=` or `LEG2_STOP=`    | **REJECTED**                                                                           |
 | Partial fill of one leg                          | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
 | Both legs fill simultaneously                    | First fill to be processed cancels the second; race resolved by event order            |
+| A leg ends inside a stop cascade                 | The sibling is pulled at once, before any later stop in the cascade can trade with it — even a stop leg already triggered and waiting its turn. So `oco.cancelled` can arrive *before* the `order.fill` of the leg that caused it |
+| A `FOK` meets both legs of a pair                | Only the first leg it meets counts as available: once that leg fills, the other is gone |
+| Leg 1 fills (or is cancelled) on entry           | Leg 2 is acknowledged, then cancelled with `oco.cancelled`; it never reaches the book  |
 | GTC OCO across sessions                          | Both legs persist with their TIF; if GTC they survive session reset                    |
 
 ## See also
