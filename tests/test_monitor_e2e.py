@@ -1014,7 +1014,7 @@ def _count(n: int) -> str:
     return f"{n:,}".replace(",", "\u2009")
 
 
-def test_all_seven_rows_show_the_live_exchange(
+def test_all_eight_rows_show_the_live_exchange(
     exchange: Exchange, feed: Feed, bridge: Bridge, page: Page | None
 ) -> None:
     """WP-D3's done-when: against the running stack every row shows live
@@ -1024,12 +1024,13 @@ def test_all_seven_rows_show_the_live_exchange(
         pytest.skip("no Chrome to drive")
     page.goto(f"http://127.0.0.1:{bridge.port}/")
     rows = page.wait(
-        "document.querySelectorAll('[data-widget=row]').length === 7 && "
+        "document.querySelectorAll('[data-widget=row]').length === 8 && "
         "[...document.querySelectorAll('[data-widget=row]')].map(r => r.getAttribute('aria-label'))",
-        "the seven rows",
+        "the eight rows",
     )
     assert rows == [
         "Overview row",
+        "Engine latency row",
         "Processes row",
         "Trading activity row",
         "Participants row",
@@ -1050,6 +1051,15 @@ def test_all_seven_rows_show_the_live_exchange(
     )
     live = [p for p in s["processes"] if p["group"] == "EXCHANGE" and p["host"]]
     assert page.js(tile.format("Processes")) == f"{len(live)} / {len(live)}"
+    # Engine latency: the trader's orders were timed, as order entry; its
+    # history chart drew p50, p99 and p99 without GC.
+    assert page.js(tile.format("Order p99")) not in (None, "—")
+    assert s["trading"]["handle_samples"] > 0
+    page.wait(
+        "[...document.querySelectorAll('figure[aria-label=\"Order latency\"] .recharts-line-curve')].length === 3",
+        "the order latency history drawn",
+        30,
+    )
     # Row 2: a row per process, each in its state.
     table = "document.querySelector('table[aria-label=Processes]')"
     assert page.js(f"{table}.querySelectorAll('[data-row]').length") == len(

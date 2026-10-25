@@ -591,6 +591,97 @@ class SessionTimes:
 
 
 @dataclass(frozen=True, slots=True)
+class NextTransition:
+    """The next session transition: what the session moves to, and when. The same
+    record as `session`'s NextTransition, declared again because a type cannot be
+    shared across families; the wire shape is identical.
+    """
+
+    state: str
+    at: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.state) > 32:
+            raise MessageValidationError(
+                f"state: length {len(self.state)} exceeds max_len 32"
+            )
+        if len(self.at) > 32:
+            raise MessageValidationError(
+                f"at: length {len(self.at)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "NextTransition":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            state=str(p["state"]),
+            at=str(p["at"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "state": self.state,
+            "at": self.at,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Holiday:
+    """One bank holiday in the exchange's holiday calendar."""
+
+    date: str
+    name: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.date) > 10:
+            raise MessageValidationError(
+                f"date: length {len(self.date)} exceeds max_len 10"
+            )
+        if len(self.name) > 64:
+            raise MessageValidationError(
+                f"name: length {len(self.name)} exceeds max_len 64"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Holiday":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            date=str(p["date"]),
+            name=str(p["name"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "date": self.date,
+            "name": self.name,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class WeeklySchedule:
     """A fully-resolved weekly session schedule: one `SessionTimes` per weekday
     (mon..sun, any of which may be null for CLOSED) plus a separate holidays
@@ -603,10 +694,14 @@ class WeeklySchedule:
     the answer, rather than making every client (in particular a browser) carry
     its own holiday calendar just to answer that one question. `today` is still
     `SessionTimes | null` -- null means CLOSED today, exactly like any other day
-    slot.
+    slot. `upcoming_holidays` answers the next question, "when is the exchange
+    next on its holiday schedule", the same way. It is computed when the record is
+    built and covers a year, so a client picks the first entry on or after its own
+    today rather than trusting the list to start there.
     """
 
     today_is_holiday: bool
+    upcoming_holidays: list[Holiday]
     mon: SessionTimes | None = None
     tue: SessionTimes | None = None
     wed: SessionTimes | None = None
@@ -642,6 +737,10 @@ class WeeklySchedule:
             self.holidays.validate()
         if self.today is not None:
             self.today.validate()
+        if len(self.upcoming_holidays) > 64:
+            raise MessageValidationError("upcoming_holidays: more than 64 item(s)")
+        for upcoming_holidays_item in self.upcoming_holidays:
+            upcoming_holidays_item.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "WeeklySchedule":
@@ -668,6 +767,9 @@ class WeeklySchedule:
                 None if p.get("today") is None else SessionTimes.from_dict(p["today"])
             ),
             today_is_holiday=bool(p["today_is_holiday"]),
+            upcoming_holidays=(
+                [Holiday.from_dict(item) for item in p["upcoming_holidays"]]
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -683,6 +785,7 @@ class WeeklySchedule:
             "holidays": None if self.holidays is None else self.holidays.to_dict(),
             "today": None if self.today is None else self.today.to_dict(),
             "today_is_holiday": self.today_is_holiday,
+            "upcoming_holidays": [item.to_dict() for item in self.upcoming_holidays],
         }
 
 
@@ -4131,6 +4234,13 @@ _SESSION_STATUS_FIELDS: tuple[dict[str, Any], ...] = (
         "required": True,
         "doc": "False when the deployment runs continuously with no session schedule at all, which makes `state` advisory.",
     },
+    {
+        "name": "next",
+        "type": "nested",
+        "unit": None,
+        "required": False,
+        "doc": "The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one.",
+    },
 )
 
 
@@ -4148,6 +4258,7 @@ class SessionStatus:
     gateway_id: str
     state: str
     sessions_enabled: bool
+    next: NextTransition | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -4164,6 +4275,8 @@ class SessionStatus:
             raise MessageValidationError(
                 f"state: length {len(self.state)} exceeds max_len 32"
             )
+        if self.next is not None:
+            self.next.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "SessionStatus":
@@ -4177,14 +4290,18 @@ class SessionStatus:
             gateway_id=str(p.get("gateway_id", "")),
             state=str(p["state"]),
             sessions_enabled=bool(p["sessions_enabled"]),
+            next=None if p.get("next") is None else NextTransition.from_dict(p["next"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "state": self.state,
             "sessions_enabled": self.sessions_enabled,
         }
+        if self.next is not None:
+            payload["next"] = self.next.to_dict()
+        return payload
 
 
 def topic_session_status(gateway_id: str) -> str:
@@ -4211,33 +4328,6 @@ def make_session_status(**kw: Any) -> list[bytes]:
     obj = SessionStatus.from_dict(kw)
     obj.validate()
     return _msg.encode(topic_session_status(obj.gateway_id), obj.to_dict())
-
-
-def make_session_status_unchecked(
-    *,
-    gateway_id: str,
-    state: str,
-    sessions_enabled: bool,
-) -> list[bytes]:
-    """Identical frames to ``make_session_status``, without ``validate()``.
-
-    For measured hot paths only; every other caller should use the validating
-    constructor. Builds the payload directly rather than via the dataclass, which is
-    what makes it cheap enough to be worth having — see the generator's _unchecked_block
-    docstring for the measurements.
-
-    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
-    frames.
-    """
-    return [
-        topic_session_status(gateway_id).encode(),
-        _msg.dumps(
-            {
-                "state": str(state),
-                "sessions_enabled": bool(sessions_enabled),
-            }
-        ),
-    ]
 
 
 def parse_session_status(frames: list[bytes]) -> "SessionStatus":

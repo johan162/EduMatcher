@@ -168,7 +168,7 @@ def test_fill_event_relayed_to_matching_gateway_id(
             try:
                 cli.settimeout(0.3)
                 frame = parse_line(_recv_line(cli, timeout=0.3))
-            except (TimeoutError, RuntimeError):
+            except TimeoutError, RuntimeError:
                 continue
             if frame.msg_type == "DC_FILL" and frame.fields.get("ORDER_ID") == "ord-1":
                 assert frame.fields["SYMBOL"] == "AAPL"
@@ -285,7 +285,7 @@ def test_two_clients_same_gateway_id_both_receive(
                 try:
                     sock_obj.settimeout(0.3)
                     frame = parse_line(_recv_line(sock_obj, timeout=0.3))
-                except (TimeoutError, RuntimeError):
+                except TimeoutError, RuntimeError:
                     continue
                 if (
                     frame.msg_type == "DC_FILL"

@@ -783,7 +783,7 @@ class OrderMonitor:
                 while self._running:
                     try:
                         ready, _, _ = select.select([fd], [], [], 0.1)
-                    except (OSError, ValueError):
+                    except OSError, ValueError:
                         break
                     if not ready:
                         continue

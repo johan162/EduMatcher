@@ -242,7 +242,7 @@ Installs EduMatcher for students and instructors using `pipx`, without requiring
 ```
 
 **What it does:**
-1. Checks for Python 3.13 or later
+1. Checks for Python 3.14 or later
 2. Ensures `pipx` is installed, installing it when possible
 3. Installs or upgrades `edumatcher` from PyPI via `pipx`
 4. Runs `pm-setup` to initialize the runtime data/config environment
@@ -259,7 +259,7 @@ Installs EduMatcher for students and instructors using `pipx`, without requiring
   everything together.
 
 **Requirements:**
-- Python 3.13 or later
+- Python 3.14 or later
 - Network access to install from PyPI
 - `pipx`, or a platform where the script can install `pipx`
 

@@ -649,7 +649,8 @@ alpha-2 country code reported in outbound reference messages, and it uses
 the same `python-holidays` lookup `pm-scheduler` does to resolve the `today`/
 `today_is_holiday` convenience fields on `system.reference` and
 `system.session_schedule` (§4.7, §5.9) — which of `holidays` or the
-calendar day's own entry applies right now. `pm-scheduler` uses
+calendar day's own entry applies right now — and to list the coming year's
+bank holidays in `upcoming_holidays`. `pm-scheduler` uses
 `locale.country` for the same bank-holiday lookup to decide which block of
 the resolved `schedule` (§5.9) — if any — to run today — see
 [Session Scheduling → Bank holidays and weekends](../../operator-guide/part-4-run-a-market/030-sessions-and-scheduling.md#bank-holidays-and-weekends).

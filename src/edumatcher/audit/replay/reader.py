@@ -303,7 +303,7 @@ def _ordinal(sort_key: str) -> int:
     parts = sort_key.split(_PACK_SEP)
     try:
         return int(parts[-1])
-    except (IndexError, ValueError):
+    except IndexError, ValueError:
         return 0
 
 

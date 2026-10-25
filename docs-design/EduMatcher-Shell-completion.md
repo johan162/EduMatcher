@@ -93,7 +93,7 @@ Two supporting decisions:
 
 ## 4. What the Tree Looks Like Today
 
-Measured against the working tree (v0.39.1), with a Python 3.13
+Measured against the working tree (v0.39.1), with a Python 3.14
 venv and shtab 1.12.1.
 
 ### 4.1 Parser factories

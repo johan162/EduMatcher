@@ -437,7 +437,7 @@ class AlfGateway:
 
             try:
                 chunk = session.sock.recv(4096)
-            except (BlockingIOError, OSError):
+            except BlockingIOError, OSError:
                 continue
 
             if not chunk:
@@ -514,7 +514,7 @@ class AlfGateway:
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except (BlockingIOError, OSError):
+                except BlockingIOError, OSError:
                     break
 
                 if sent <= 0:
@@ -2179,7 +2179,7 @@ class AlfGateway:
         fileno = session.sock.fileno()
         try:
             self._selector.unregister(session.sock)
-        except (KeyError, ValueError):
+        except KeyError, ValueError:
             pass
         self._dirty.discard(fileno)
         session.close()

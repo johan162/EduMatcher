@@ -29,8 +29,8 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 | **Containers, one command** | Running a venue: classroom, demo, self-study | Podman or Docker | The exchange **and** all six web GUIs | `./edumatcher.sh start` |
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
 | **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
-| **pipx** | Students running processes by hand, one per terminal | Python 3.13, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
-| **Poetry checkout** | Developing, running the test suite | Python 3.13, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
+| **pipx** | Students running processes by hand, one per terminal | Python 3.14, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
+| **Poetry checkout** | Developing, running the test suite | Python 3.14, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
 the six browser applications — with one command. The pipx and Poetry modes
@@ -118,7 +118,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.53.0
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.60.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -354,7 +354,7 @@ The backend image (`deployment/docker/Dockerfile`):
 
 | Argument | Default | Purpose |
 |---|---|---|
-| `PYTHON_VERSION` | `3.13` | Base image tag for both build and runtime stages |
+| `PYTHON_VERSION` | `3.14` | Base image tag for both build and runtime stages |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI version to install when no local wheel is present |
 | `PIP_INDEX_URL` | *(empty)* | Point pip at an internal index such as Artifactory |
 | `WITH_SSH` | `1` | Set to `0` for a smaller image with no `openssh-server` |
@@ -636,7 +636,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.53.0 --snapshot
+    bash -s -- --version 0.60.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -659,7 +659,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.53.0 --snapshot
+bash curl_setup_vm.sh --version 0.60.0 --snapshot
 ```
 
 
@@ -670,7 +670,7 @@ is how most of this guide is written.
 
 | Requirement | Notes |
 |---|---|
-| Python 3.13 or later | Check with `python --version` |
+| Python 3.14 or later | Check with `python --version` |
 | `pipx` | Installs command-line applications into isolated environments |
 | Several terminals | Or `tmux` / `screen`; one process per pane is normal |
 

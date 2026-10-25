@@ -306,7 +306,7 @@ class MarketDataGateway:
 
             try:
                 chunk = session.sock.recv(4096)
-            except (BlockingIOError, OSError):
+            except BlockingIOError, OSError:
                 continue
 
             if not chunk:
@@ -380,7 +380,7 @@ class MarketDataGateway:
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except (BlockingIOError, OSError):
+                except BlockingIOError, OSError:
                     break
 
                 if sent <= 0:
@@ -602,7 +602,7 @@ class MarketDataGateway:
         last_seq_raw = fields.get("LASTSEQ", "")
         try:
             last_seq = int(last_seq_raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             self._queue_line(
                 session,
                 "ERR",
@@ -897,9 +897,16 @@ class MarketDataGateway:
 
                 if topic == self._session_status_topic:
                     self._dbg_count("session_status_topics")
+                    before = self._normaliser.session_state
                     change = self._normaliser.apply_session_status(payload)
-                    if change is not None:
+                    if change is None:
+                        continue
+                    if self._normaliser.session_state != before:
                         self._emit_session_change(change, now_seconds)
+                    else:
+                        # Only the next transition moved: no symbol changed
+                        # phase, and the timetable rides the wildcard alone.
+                        self._emit_stream_event("STATE", "STATE", *change, now_seconds)
                     continue
 
                 if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
@@ -1142,12 +1149,12 @@ def _extract_ts(payload: dict[str, Any]) -> float:
     if raw_ns is not None:
         try:
             return int(raw_ns) / 1_000_000_000
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return time.time()
     raw = payload.get("timestamp")
     if raw is None:
         return time.time()
     try:
         return float(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return time.time()

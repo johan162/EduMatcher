@@ -1,9 +1,9 @@
 /**
  * Session & Halt Status Board (design §13).
  *
- * Three panels: the exchange's current session phase, every symbol currently
- * halted with its circuit-breaker detail, and the auctions that have uncrossed
- * since this tab opened.
+ * Three panels: the exchange's current session phase within its timetable,
+ * every symbol currently halted with its circuit-breaker detail, and the
+ * auctions that have uncrossed since this tab opened.
  *
  * Mounting this view declares the halt board open to the bridge, which is the
  * second of `CB`'s two subscription triggers (§13.2). `CB` refuses `SYM=*`, so
@@ -12,11 +12,17 @@
  * open. Unmounting releases all of them.
  */
 
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { SessionBadge } from "../components/Badge.js";
 import { EmptyState, Panel } from "../components/Panel.js";
-import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../lib/format.js";
+import { SessionTimetable } from "../components/SessionTimetable.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
+import { api } from "../lib/api.js";
+import { auctionHelp, haltHelp } from "../lib/help.js";
+import { ABSENT, clockInTimezone, elapsed, price, qty, resumeAt } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
+import { useNow } from "../lib/staleness.js";
 import { sendControl } from "../lib/useTerminalStream.js";
 import { sortHalted, useLiveStore } from "../store/useLiveStore.js";
 import type { HaltedSymbol } from "../store/useLiveStore.js";
@@ -34,6 +40,15 @@ export function SessionView() {
   const rowClass = DENSITY_ROW_CLASS[usePrefsStore((s) => s.density)];
   // Both boards list several instruments at once, each with its own tick size.
   const tickDecimals = useTickDecimals();
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
+  // The timetable changes only on a config reload; the poll picks one up.
+  const schedule = useQuery({
+    queryKey: ["reference", "schedule"],
+    queryFn: api.schedule,
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+  const now = useNow(10_000);
 
   useEffect(() => {
     sendControl({ t: "halt_board", open: true });
@@ -47,10 +62,18 @@ export function SessionView() {
           <span className="text-2xl font-semibold tracking-tight">{sessionPhase ?? "AWAITING SESSION"}</span>
           <SessionBadge phase={sessionPhase} />
           <span className="text-sm text-fg-subtle">
-            {sessionSince ? `since ${clockUtc(sessionSince)} UTC` : "no transition observed yet"}
+            {sessionSince ? `since ${clockInTimezone(sessionSince, sessionTimezone)}` : "no transition observed yet"}
             {sessionPrev ? ` · prev ${sessionPrev}` : ""}
           </span>
         </div>
+        <SessionTimetable
+          info={schedule.data}
+          failed={schedule.isError}
+          phase={sessionPhase}
+          prev={sessionPrev ?? null}
+          timeZone={sessionTimezone}
+          now={now}
+        />
       </Panel>
 
       <Panel
@@ -67,12 +90,24 @@ export function SessionView() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                <th className="py-1 font-medium">Symbol</th>
-                <th className="py-1 font-medium">Level</th>
-                <th className="py-1 text-right font-medium">Trigger</th>
-                <th className="py-1 text-right font-medium">Reference</th>
-                <th className="py-1 font-medium">Resumes</th>
-                <th className="py-1 font-medium">Since</th>
+                <th className="py-1 font-medium">
+                  Symbol <InfoTip label="Symbol" help={haltHelp("Symbol")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Level <InfoTip label="Level" help={haltHelp("Level")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Trigger <InfoTip label="Trigger" help={haltHelp("Trigger")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Reference <InfoTip label="Reference" help={haltHelp("Reference")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Resumes <InfoTip label="Resumes" help={haltHelp("Resumes")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Since <InfoTip label="Since" help={haltHelp("Since")!} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -82,6 +117,7 @@ export function SessionView() {
                   key={entry.sym}
                   entry={entry}
                   rowClass={rowClass}
+                  timeZone={sessionTimezone}
                 />
               ))}
             </tbody>
@@ -96,12 +132,24 @@ export function SessionView() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                <th className="py-1 font-medium">Symbol</th>
-                <th className="py-1 text-right font-medium">Eq. price</th>
-                <th className="py-1 text-right font-medium">Qty</th>
-                <th className="py-1 text-right font-medium">Trades</th>
-                <th className="py-1 font-medium">Imbalance</th>
-                <th className="py-1 font-medium">Time</th>
+                <th className="py-1 font-medium">
+                  Symbol <InfoTip label="Symbol" help={auctionHelp("Symbol")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Eq. price <InfoTip label="Eq. price" help={auctionHelp("Eq. price")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Qty <InfoTip label="Qty" help={auctionHelp("Qty")!} />
+                </th>
+                <th className="py-1 text-right font-medium">
+                  Trades <InfoTip label="Trades" help={auctionHelp("Trades")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Imbalance <InfoTip label="Imbalance" help={auctionHelp("Imbalance")!} />
+                </th>
+                <th className="py-1 font-medium">
+                  Time <InfoTip label="Time" help={auctionHelp("Time")!} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -134,7 +182,7 @@ export function SessionView() {
                       <span className="text-fg-faint">{ABSENT}</span>
                     )}
                   </td>
-                  <td className="tabular text-fg-subtle">{clockUtc(auction.ts)}</td>
+                  <td className="tabular text-fg-subtle">{clockInTimezone(auction.ts, sessionTimezone)}</td>
                 </tr>
               ))}
             </tbody>
@@ -156,7 +204,17 @@ export function SessionView() {
  * `haltSource` and `resumeAt` are independent axes and are shown as such —
  * who halted the symbol, and whether it comes back by itself.
  */
-function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass: string; decimals: number }) {
+function HaltRow({
+  entry,
+  rowClass,
+  decimals,
+  timeZone,
+}: {
+  entry: HaltedSymbol;
+  rowClass: string;
+  decimals: number;
+  timeZone: string;
+}) {
   const cb = entry.context;
   const source = cb?.haltSource;
 
@@ -179,7 +237,7 @@ function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass:
         </span>
       </td>
       <td className="tabular text-fg-subtle">
-        {clockUtc(entry.since)}
+        {clockInTimezone(entry.since, timeZone)}
         <span className="ml-2 text-fg-faint">{elapsed(entry.since)}</span>
       </td>
     </tr>

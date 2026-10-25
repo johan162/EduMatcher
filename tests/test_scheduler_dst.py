@@ -213,17 +213,23 @@ def test_main_loads_session_timezone(
     assert len(captured) == 1
     clock = captured[0]
     assert str(clock.timezone) == timezone
+    # The start point, not clock.now(): at --speed 60 every wall millisecond
+    # main() spends after building the clock (the first holiday-calendar load
+    # alone is ~70 ms) moves now() 60 ms, which made a tolerance on now() flaky.
+    if mode != "wall":
+        assert clock.speed == 60
     if mode == "offset-start":
         expected = (
             datetime.fromisoformat("2026-10-25T00:30+00:00")
             .astimezone(ZoneInfo(timezone))
             .replace(tzinfo=None)
         )
-        assert abs((clock.now() - expected).total_seconds()) < 5
+        assert clock._start == expected
     elif mode == "naive-start":
-        assert abs((clock.now() - datetime(2026, 10, 25, 0, 30)).total_seconds()) < 5
+        assert clock._start == datetime(2026, 10, 25, 0, 30)
     elif mode == "current-start":
-        assert abs((clock.now() - before).total_seconds()) < 5
+        assert clock._start is not None
+        assert abs((clock._start - before).total_seconds()) < 5
     else:
         target = datetime(2026, 10, 25, 9)
         expected_utc = target.replace(tzinfo=ZoneInfo(timezone)).astimezone(UTC)

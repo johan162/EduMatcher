@@ -65,7 +65,11 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
-from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
+from edumatcher.engine.schedule_resolve import (
+    is_bank_holiday,
+    resolve_day,
+    upcoming_holidays,
+)
 from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.metrics import (
@@ -95,7 +99,10 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
-from edumatcher.models.generated.session import TOPIC_SESSION_TRANSITION
+from edumatcher.models.generated.session import (
+    TOPIC_SESSION_NEXT,
+    TOPIC_SESSION_TRANSITION,
+)
 from edumatcher.models.generated.order import (
     TOPIC_ORDER_AMEND,
     TOPIC_ORDER_CANCEL,
@@ -293,6 +300,10 @@ def _weekly_schedule_wire(
     result["holidays"] = _day(schedule.holidays)
     result["today"] = _day(resolve_day(schedule, today, country))
     result["today_is_holiday"] = is_bank_holiday(today, country)
+    result["upcoming_holidays"] = [
+        {"date": day.isoformat(), "name": name[:64]}
+        for day, name in upcoming_holidays(country, today)[:64]
+    ]
     return result
 
 
@@ -303,6 +314,22 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
 # now lives in the generated binding, which pre-encodes it the same way.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
+
+#: The topics timed as order entry (engine.handle_us_*); every other PULL
+#: message -- heartbeats, connects, queries, admin -- is engine.other_us_*.
+_ORDER_ENTRY_TOPICS = frozenset(
+    {
+        TOPIC_ORDER_NEW,
+        TOPIC_ORDER_CANCEL,
+        TOPIC_ORDER_AMEND,
+        TOPIC_ORDER_COMBO,
+        TOPIC_ORDER_COMBO_CANCEL,
+        TOPIC_ORDER_OCO,
+        TOPIC_ORDER_OCO_CANCEL,
+        TOPIC_QUOTE_NEW,
+        TOPIC_QUOTE_CANCEL,
+    }
+)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
@@ -572,7 +599,8 @@ class Engine:
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
         # The next scheduled transition, as told by whoever drove the last
-        # one. Empty unless the scheduler supplied it -- see
+        # one, or as the scheduler announced it (`session.next`). Empty
+        # unless the scheduler supplied it -- see
         # `_handle_session_transition` for why a manual transition clears it.
         self._next_session_state: str = ""
         self._next_session_at: str = ""
@@ -2366,6 +2394,8 @@ class Engine:
                 gateway_id,
                 self._session_state.value,
                 self._sessions_enabled,
+                next_state=self._next_session_state,
+                next_at=self._next_session_at,
             )
         )
 
@@ -3657,7 +3687,7 @@ class Engine:
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 self._quote_ack(
@@ -4853,7 +4883,7 @@ class Engine:
         if price_raw is not None:
             try:
                 price_val = float(price_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 _reject(f"Invalid price: {price_raw!r}")
                 return
             if price_val <= 0:
@@ -5475,6 +5505,36 @@ class Engine:
         self._reply_session_transition(payload, True, to_state=to_state.value)
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
+    def _handle_session_next(self, payload: dict[str, Any]) -> None:
+        """Adopt the scheduler's announcement of the next transition.
+
+        Stored, not broadcast: callers read it back through the session-state
+        query. An announcement the session machine could not follow from the
+        current state is stale or misdirected, and is ignored rather than
+        advertised as a countdown nobody will complete.
+        """
+        if not self._sessions_enabled:
+            return
+        upcoming = payload.get("next") or {}
+        try:
+            next_state = SessionState(str(upcoming.get("state", "")))
+        except ValueError:
+            log.warning("Invalid session announcement: %s", upcoming)
+            return
+        next_at = str(upcoming.get("at", ""))
+        if not next_at or next_state not in VALID_TRANSITIONS.get(
+            self._session_state, set()
+        ):
+            log.warning(
+                "Ignoring announced transition %s → %s at %r",
+                self._session_state.value,
+                next_state.value,
+                next_at,
+            )
+            return
+        self._next_session_state = next_state.value
+        self._next_session_at = next_at
+
     def _expire_tif(self, tif: TIF) -> None:
         """Expire all resting orders with the given TIF."""
         for book in self.books.values():
@@ -5806,7 +5866,7 @@ class Engine:
                         else None
                     ),
                 )
-            except (KeyError, ValueError):
+            except KeyError, ValueError:
                 return None
 
         leg1 = _parse_leg(leg1_raw)
@@ -6175,7 +6235,7 @@ class Engine:
         if new_qty is not None:
             try:
                 new_qty = int(new_qty)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 self._dbg_count("amend_reject_payload")
                 self._reject(
                     gateway_id=gateway_id,
@@ -6769,6 +6829,8 @@ class Engine:
                 self._handle_force_uncross(payload)
             elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)
+            elif topic == TOPIC_SESSION_NEXT:
+                self._handle_session_next(payload)
             elif topic == TOPIC_SESSION_STATE_REQUEST:
                 self._handle_session_state_request(payload)
             elif topic == TOPIC_SESSION_SCHEDULE_REQUEST:
@@ -7073,6 +7135,7 @@ class Engine:
         tick = self._reporter.tick if self._reporter is not None else None
         msg_count = 0
         pass_count = 0
+        metrics.watch_gc()
 
         while self._running:
             if tick is not None:
@@ -7146,13 +7209,20 @@ class Engine:
                     self.pub_sock.set_cause(cause if recorded else None)
                     msg_count += 1
                     sampled = not msg_count & SAMPLE_MASK or metrics.sample_next
+                    gc_before = metrics.gc_ns if sampled else 0
                     started_ns = clock_ns() if sampled else 0
                     try:
                         self._dispatch_pull_message(topic, payload)
                     finally:
                         self.pub_sock.clear_cause()
                         if sampled:
-                            metrics.record_dispatch(clock_ns() - started_ns, msg_count)
+                            metrics.record_dispatch(
+                                clock_ns() - started_ns,
+                                msg_count,
+                                started_ns=started_ns,
+                                gc_ns=metrics.gc_ns - gc_before,
+                                order=topic in _ORDER_ENTRY_TOPICS,
+                            )
             pass_count += 1
             if pass_count & SAMPLE_MASK:
                 self._run_maintenance()
@@ -7163,6 +7233,7 @@ class Engine:
                     clock_ns() - started_ns, pass_count, msg_count
                 )
 
+        metrics.unwatch_gc()
         self._flush_debug_summary(force=True)
         self._shutdown()
 

@@ -18,6 +18,8 @@ hours, as pm-monitor records beacons:
   fifth sample (6 a minute).
 * ``proc.rss_bytes`` from ``pm-engine@h1`` and ``pm-engine@h2`` (gauges):
   the same name from two sources, for the ambiguity rule.
+* ``engine.handle_us_p99`` (``pm-engine@h1``, gauge): 100 + the minute index
+  mod 10, a second metric of that source for ``names=``.
 
 Daily totals: the two hours' increments into 2026-10-19, plus 1000 (GW01)
 and 2000 (GW02) on each of 2026-10-17 and 2026-10-18.
@@ -46,6 +48,7 @@ REJ = ("pm-engine@h1", "engine.rejects", "GW01")
 CPU = ("host", "host.cpu_pct", "")
 RSS1 = ("pm-engine@h1", "proc.rss_bytes", "")
 RSS2 = ("pm-engine@h2", "proc.rss_bytes", "")
+P99 = ("pm-engine@h1", "engine.handle_us_p99", "")
 EVENTS = [
     ("CONNECT", "INFO", "GW01", ""),
     ("DISCONNECT", "WARN", "GW02", "heartbeat_timeout"),
@@ -66,6 +69,7 @@ def main(out: Path) -> None:
         store.record(CPU, 10.0 + minute % 10, now, counter=False)
         store.record(RSS1, 1_000_000.0, now, counter=False)
         store.record(RSS2, 2_000_000.0, now, counter=False)
+        store.record(P99, 100.0 + minute % 10, now, counter=False)
         gw01 += 1
         gw02 += 2
         store.record(GW01, gw01, now, counter=True)

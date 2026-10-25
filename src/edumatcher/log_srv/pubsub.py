@@ -779,7 +779,7 @@ class LogPubSubHub:
     ) -> None:
         try:
             minutes = int(minutes_raw)  # type: ignore[call-overload]
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             self._error(sub_id, ERR_INVALID_WINDOW, "minutes must be an integer")
             return
         if minutes <= 0:
@@ -1058,7 +1058,7 @@ class LogPubSubHub:
             return self._lease_sec
         try:
             requested = float(raw)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return self._lease_sec
         if requested <= 0:
             return self._lease_sec
@@ -1069,7 +1069,7 @@ class LogPubSubHub:
             return self._notify_interval_sec
         try:
             requested_ms = float(raw)  # type: ignore[arg-type]
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return self._notify_interval_sec
         if requested_ms <= 0:
             return self._notify_interval_sec

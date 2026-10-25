@@ -9,7 +9,7 @@
     - Make your own variant of the simulation — other symbols, other traders,
       another market model — and run it
 
-    **Prerequisites**: Python 3.13 and `pipx`
+    **Prerequisites**: Python 3.14 and `pipx`
     ([Quick Start: Install and Start](../../quick-start/part-1-see-it-run/020-install-and-start.md)
     covers installing them).
 

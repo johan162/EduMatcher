@@ -14,7 +14,7 @@ prevent for the rest of the config tree (see `config_artifact.py`).
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import holidays
 
@@ -31,6 +31,19 @@ def is_bank_holiday(day: date, country: str) -> bool:
     in :func:`resolve_day`.
     """
     return day in holidays.country_holidays(country)
+
+
+def upcoming_holidays(
+    country: str, start: date, days: int = 365
+) -> list[tuple[date, str]]:
+    """Return the bank holidays for ``country`` from ``start`` through the
+    following ``days`` days, ascending, with their names.
+    """
+    end = start + timedelta(days=days)
+    calendar = holidays.country_holidays(country, years=range(start.year, end.year + 1))
+    return sorted(
+        (day, str(name)) for day, name in calendar.items() if start <= day <= end
+    )
 
 
 def resolve_day(cfg: ScheduleConfig, day: date, country: str) -> DaySchedule | None:

@@ -208,7 +208,7 @@ def load_sectors(path: Path) -> dict[str, frozenset[str]]:
     one): which symbols a SECTOR headline is about. Nothing secret."""
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError):
+    except OSError, yaml.YAMLError:
         return {}
     out: dict[str, set[str]] = {}
     symbols = raw.get("symbols") if isinstance(raw, dict) else None

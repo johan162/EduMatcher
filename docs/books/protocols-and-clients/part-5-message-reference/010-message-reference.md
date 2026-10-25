@@ -619,6 +619,7 @@ Every topic in the system, and which process puts it on the wire.
 | `risk.symbol_halt_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.symbol_resume` | `risk` | `admin`, `api_gateway` |
 | `risk.symbol_resume_ack.{gateway_id}` | `risk` | `engine` |
+| `session.next` | `session` | `scheduler` |
 | `session.state` | `session` | `engine` |
 | `session.transition` | `session` | `scheduler` |
 | `session.transition_ack.{gateway_id}` | `session` | `engine` |
@@ -1186,8 +1187,13 @@ Exchange-wide trading activity, summed over gateways and symbols.
 | `trades` | [`RateStats`](#ratestats) | required | — |  |
 | `traded_value_today` | `float` | required | ge 0, unit `money` |  |
 | `reject_pct_5m` | `float` | required | ge 0, unit `percent` | Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none. |
-| `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` |  |
-| `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` |  |
+| `handle_p50_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last minute. |
+| `handle_p99_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99, over the same samples. |
+| `handle_p99_ex_gc_us` | `float` | required | ge 0, unit `duration_micros` | engine.handle_us_p99_ex_gc: the same p99 with each sample's garbage-collection time taken out. |
+| `handle_samples` | `int` | required | ge 0, unit `dimensionless` | engine.handle_samples: how many samples the percentiles stand on; below 100 the p99 is their maximum. |
+| `other_p99_us` | `float` | required | ge 0, unit `duration_micros` | engine.other_us_p99: every message but order entry -- heartbeats, connects, queries, admin. |
+| `gc_pause_max_us` | `float` | required | ge 0, unit `duration_micros` | engine.gc_pause_us_max: the engine's longest garbage collection in the last minute, sampled or not. |
+| `gc_time_pct` | `float` | required | ge 0, unit `percent` | engine.gc_time_pct: share of the engine's last beacon interval spent collecting garbage. |
 | `busy_pct` | `float` | required | ge 0, unit `percent` | Engine share of wall time spent handling; near 100 means saturated. |
 | `rejects_by_code` | list of [`RejectCount`](#rejectcount) | required | — | Today's rejects (engine.rejects_by_code) by reason, most first: what makes reject_pct_5m actionable. |
 
@@ -3267,6 +3273,30 @@ Scheduler or operator to engine: request a state change.
 
 **See also:** `session.transition_ack.{GW_ID}`, `session.state`
 
+### `session.next`
+
+**Published by:** `scheduler`
+
+**Transport:** `engine_push`
+
+**Since:** 1.2
+
+Scheduler to engine: announce the next transition without performing one. A `session.transition` can only describe the transition after itself, so a scheduler that starts while the exchange is closed, or before the day's first transition, would otherwise leave the engine with no countdown target until that transition fires -- possibly many hours away.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `next` | [`NextTransition`](#nexttransition) | required | — |  |
+
+!!! note
+
+    Not broadcast: the engine only stores the target, and a caller reads it back from `system.session_status`.
+
+    Re-publishing `session.state` for a session that has not changed would look like a transition to every subscriber.
+
+    The engine ignores an announcement whose state is not a legal transition from its current one.
+
+**See also:** `session.transition`, `system.session_status.{GW_ID}`
+
 ### `session.transition_ack.{gateway_id}`
 
 **Published by:** `engine`
@@ -3626,9 +3656,27 @@ The trading day's clock, as five wall-clock times. Carried by `system.session_sc
 | `closing_auction_start` | `string` | `null` when unset | max_len 32 |  |
 | `closing_auction_end` | `string` | `null` when unset | max_len 32 |  |
 
+#### `NextTransition`
+
+The next session transition: what the session moves to, and when. The same record as `session`'s NextTransition, declared again because a type cannot be shared across families; the wire shape is identical.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `state` | `string` | required | max_len 32 |  |
+| `at` | `string` | required | max_len 32 | UTC ISO-8601 instant of the transition. |
+
+#### `Holiday`
+
+One bank holiday in the exchange's holiday calendar.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `date` | `string` | required | max_len 10 | ISO-8601 calendar date, in the session timezone. |
+| `name` | `string` | required | max_len 64 | The holiday's name as python-holidays gives it. |
+
 #### `WeeklySchedule`
 
-A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot.
+A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..sun, any of which may be null for CLOSED) plus a separate holidays entry, mirroring `edumatcher.engine.config_loader.ScheduleConfig`. The `weekdays`/ `weekend` shortcuts and per-day overrides in the YAML are already resolved by the time this is built -- every field here is one concrete day, never a shortcut. `today`/`today_is_holiday` are a server-computed convenience: the engine already runs the same `python-holidays` lookup for pm-scheduler, so it resolves "which entry applies right now" once and publishes the answer, rather than making every client (in particular a browser) carry its own holiday calendar just to answer that one question. `today` is still `SessionTimes \| null` -- null means CLOSED today, exactly like any other day slot. `upcoming_holidays` answers the next question, "when is the exchange next on its holiday schedule", the same way. It is computed when the record is built and covers a year, so a client picks the first entry on or after its own today rather than trusting the list to start there.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -3642,6 +3690,7 @@ A fully-resolved weekly session schedule: one `SessionTimes` per weekday (mon..s
 | `holidays` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | Applied instead of the weekday's own entry on a bank holiday. Null means CLOSED on holidays. |
 | `today` | [`SessionTimes`](#sessiontimes) | `null` when unset | — | The entry actually in effect today (holidays entry if today is a bank holiday, else today's weekday entry). Null means CLOSED today. |
 | `today_is_holiday` | `bool` | required | — | True only when `today` came from the holidays entry rather than the weekday's own entry. |
+| `upcoming_holidays` | list of [`Holiday`](#holiday) | required | max_items 64 | Bank holidays for the configured country from the session date the record was built on, through the following 365 days, ascending. Each one runs on the `holidays` entry. |
 
 #### `ReferenceSchedule`
 
@@ -4196,6 +4245,7 @@ Engine to caller: the current session state, on request. The polled answer to th
 | `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
 | `state` | `string` | required | max_len 32 | Same values as `session.state.state`. |
 | `sessions_enabled` | `bool` | required | — | False when the deployment runs continuously with no session schedule at all, which makes `state` advisory. |
+| `next` | [`NextTransition`](#nexttransition) | omitted when unset | — | The countdown target the engine holds, as `session.state.next` last carried it or `session.next` announced it. Lets a caller that missed the last transition still count down to the next one. |
 
 !!! note
 

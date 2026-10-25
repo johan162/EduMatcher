@@ -108,7 +108,7 @@ def decode_sequence(frames: list[bytes]) -> int | None:
         return None
     try:
         return int(frames[2])
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -688,10 +688,20 @@ def make_session_status_msg(
     gateway_id: str,
     state: str,
     sessions_enabled: bool,
+    next_state: str = "",
+    next_at: str = "",
 ) -> list[bytes]:
-    """Engine → operator: reply with the current session state."""
+    """Engine → operator: reply with the current session state.
+
+    ``next_state``/``next_at`` are the countdown target the engine holds,
+    both or neither, so a caller that missed the last transition can still
+    count down to the next one.
+    """
     return _gen_system.make_session_status(
-        gateway_id=gateway_id, state=state, sessions_enabled=sessions_enabled
+        gateway_id=gateway_id,
+        state=state,
+        sessions_enabled=sessions_enabled,
+        next=({"state": next_state, "at": next_at} if next_state and next_at else None),
     )
 
 
@@ -983,6 +993,16 @@ def make_session_transition_ack_msg(
         to_state=to_state,
         reason=reason,
     )
+
+
+def make_session_next_msg(next_state: str, next_at: str) -> list[bytes]:
+    """Scheduler → engine: announce the next transition without performing one.
+
+    For a scheduler about to wait on a transition it has not been able to
+    describe in a ``session.transition`` -- the first of the day, or the next
+    day's open while the exchange is closed.
+    """
+    return _gen_session.make_session_next(next={"state": next_state, "at": next_at})
 
 
 def make_session_state_msg(

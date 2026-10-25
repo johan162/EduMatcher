@@ -299,6 +299,24 @@ types:
       - { name: closing_auction_end, type: string, required: false,
           nullable: true, validate: { max_len: 32 } }
 
+  NextTransition:
+    doc: >
+      The next session transition: what the session moves to, and when. The
+      same record as `session`'s NextTransition, declared again because a
+      type cannot be shared across families; the wire shape is identical.
+    fields:
+      - { name: state, type: string, validate: { max_len: 32 } }
+      - { name: at, type: string, validate: { max_len: 32 },
+          doc: "UTC ISO-8601 instant of the transition." }
+
+  Holiday:
+    doc: One bank holiday in the exchange's holiday calendar.
+    fields:
+      - { name: date, type: string, validate: { max_len: 10 },
+          doc: "ISO-8601 calendar date, in the session timezone." }
+      - { name: name, type: string, validate: { max_len: 64 },
+          doc: "The holiday's name as python-holidays gives it." }
+
   WeeklySchedule:
     doc: >
       A fully-resolved weekly session schedule: one `SessionTimes` per
@@ -316,6 +334,12 @@ types:
       a browser) carry its own holiday calendar just to answer that one
       question. `today` is still `SessionTimes | null` -- null means CLOSED
       today, exactly like any other day slot.
+
+      `upcoming_holidays` answers the next question, "when is the exchange
+      next on its holiday schedule", the same way. It is computed when the
+      record is built and covers a year, so a client picks the first entry
+      on or after its own today rather than trusting the list to start
+      there.
     fields:
       - { name: mon, type: nested, ref: SessionTimes, required: false, nullable: true }
       - { name: tue, type: nested, ref: SessionTimes, required: false, nullable: true }
@@ -336,6 +360,11 @@ types:
       - { name: today_is_holiday, type: bool,
           doc: "True only when `today` came from the holidays entry rather
                 than the weekday's own entry." }
+      - { name: upcoming_holidays, type: list, ref: Holiday,
+          validate: { max_items: 64 },
+          doc: "Bank holidays for the configured country from the session
+                date the record was built on, through the following 365
+                days, ascending. Each one runs on the `holidays` entry." }
 
   ReferenceSchedule:
     doc: >
@@ -1140,6 +1169,16 @@ messages:
       - { name: sessions_enabled, type: bool,
           doc: "False when the deployment runs continuously with no session
                 schedule at all, which makes `state` advisory." }
+      - name: next
+        type: nested
+        ref: NextTransition
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The countdown target the engine holds, as `session.state.next`
+          last carried it or `session.next` announced it. Lets a caller
+          that missed the last transition still count down to the next one.
     encoding:
       engine_pub: { frames: [topic, json_payload] }
 

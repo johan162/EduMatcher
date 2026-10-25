@@ -10,8 +10,10 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Drawer } from "../components/layout/Drawer.js";
 import { MinuteBars } from "../components/MinuteBars.js";
+import { InfoTip } from "../components/shared/InfoTip.js";
 import { api } from "../lib/api.js";
 import { ABSENT, compact, price, qty } from "../lib/format.js";
+import { bookHelp } from "../lib/help.js";
 import { perMinute } from "../lib/minute-buckets.js";
 import type { OverviewRow } from "../lib/overview-rows.js";
 import { timeframeSpec } from "../lib/timeframe.js";
@@ -24,7 +26,10 @@ function Facts({ label, items }: { label: string; items: readonly (readonly [str
     <dl aria-label={label} className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
       {items.map(([name, value]) => (
         <div key={name} className="min-w-0">
-          <dt className="truncate text-[11px] uppercase tracking-wide text-fg-faint">{name}</dt>
+          <dt className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-fg-faint">
+            <span className="truncate">{name}</span>
+            {bookHelp(name) && <InfoTip label={name} help={bookHelp(name)!} />}
+          </dt>
           <dd className="m-0 truncate tabular text-fg">{value}</dd>
         </div>
       ))}

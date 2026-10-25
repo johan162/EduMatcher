@@ -163,19 +163,32 @@ export function registerHistoryRoutes(
   );
 
   // Several series for one chart: a metric's labels (labels=, all of them by
-  // default) from one source, or one label from several processes
-  // (sources=: CPU per process). One resolution for the whole chart: if any
+  // default) from one source, one label from several processes (sources=:
+  // CPU per process), or several metrics of one process (names=: the
+  // engine's latency figures). One resolution for the whole chart: if any
   // series had to fall back to the minute table, every one is read from it,
   // so they share bucket starts and line up (TimeSeries' data contract).
   app.get("/api/series/multi", (request, reply) =>
     send(reply, (): MultiSeriesResponse => {
       const q = query(request.query);
-      const name = requireName(q);
       const range = parseRange(q, now())!;
       const offsetSec = offsetFor(range);
       const list = (raw: string) => [...new Set(raw.split(","))].filter((x) => x !== "");
-      let wanted: { label: string; source: string | undefined }[];
-      if (q.sources !== undefined) {
+      let wanted: { name: string; label: string; source: string | undefined }[];
+      if (q.names !== undefined) {
+        if (q.name !== undefined || q.labels !== undefined || q.sources !== undefined) {
+          throw bad("bad_param", "names= takes the place of name=, labels= and sources=");
+        }
+        const names = list(q.names);
+        if (names.length === 0) throw bad("missing_param", "names= names no metric");
+        if (names.length > MAX_LABELS) throw bad("too_many_series", `at most ${MAX_LABELS} series per request`);
+        if (names.some((n) => n.length > 64)) throw bad("bad_name", "a name is at most 64 characters");
+        const label = optionalText(q, "label", 32) ?? "";
+        const source = optionalText(q, "source", 200);
+        names.forEach((n) => knownMetric(db, n));
+        wanted = names.map((name) => ({ name, label, source }));
+      } else if (q.sources !== undefined) {
+        const name = requireName(q);
         if (q.labels !== undefined || q.source !== undefined) {
           throw bad("bad_param", "sources= takes the place of labels= and source=");
         }
@@ -185,26 +198,27 @@ export function registerHistoryRoutes(
         if (sources.length > MAX_LABELS) throw bad("too_many_series", `at most ${MAX_LABELS} series per request`);
         if (sources.some((s) => s.length > 200)) throw bad("bad_source", "a source is at most 200 characters");
         knownMetric(db, name);
-        wanted = sources.map((source) => ({ label, source }));
+        wanted = sources.map((source) => ({ name, label, source }));
       } else {
+        const name = requireName(q);
         const source = optionalText(q, "source", 200);
         knownMetric(db, name);
         const labels = q.labels !== undefined && q.labels !== "" ? list(q.labels) : db.labels(name, MAX_LABELS + 1);
         if (labels.length > MAX_LABELS) throw bad("too_many_series", `at most ${MAX_LABELS} series per request`);
         if (labels.some((l) => l.length > 32)) throw bad("bad_label", "a label is at most 32 characters");
-        wanted = labels.map((label) => ({ label, source }));
+        wanted = labels.map((label) => ({ name, label, source }));
       }
       const read = (only?: "1m") =>
-        wanted.map(({ label, source }) => ({ label, ...db.series(name, label, source, range, offsetSec, only) }));
+        wanted.map(({ name, label, source }) => ({ name, label, ...db.series(name, label, source, range, offsetSec, only) }));
       let results = read();
       if (results.some((r) => r.resolution === "1m") && results.some((r) => r.resolution === "raw")) {
         results = read("1m");
       }
       return {
-        name,
+        name: [...new Set(wanted.map((w) => w.name))].join(","),
         resolution: results[0]?.resolution ?? "raw",
         bucketSec: results[0]?.bucketSec ?? 0,
-        series: results.map((r) => ({ label: r.label, source: r.source, points: r.points })),
+        series: results.map((r) => ({ name: r.name, label: r.label, source: r.source, points: r.points })),
       };
     }),
   );

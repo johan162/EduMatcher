@@ -221,7 +221,7 @@ def _to_utc(nanos_or_seconds: float, unit: str) -> datetime | None:
     )
     try:
         return datetime.fromtimestamp(seconds, tz=timezone.utc)
-    except (OverflowError, OSError, ValueError):
+    except OverflowError, OSError, ValueError:
         # A corrupt or absurd epoch value. The tool is reached for *when* the
         # system is misbehaving, so this drops the field rather than the line.
         return None

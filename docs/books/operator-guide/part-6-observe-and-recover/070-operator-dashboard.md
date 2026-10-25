@@ -5,7 +5,7 @@
 
     - What the Operator Dashboard is for, and how it relates to `pm-monitor`
     - How to start it with the rest of the exchange, on its own, or for development
-    - What each of the seven rows shows, and how to read its colours
+    - What each of the eight rows shows, and how to read its colours
     - How the time picker, the refresh setting and the session clock work
     - How to open a process, participant or order book in detail, and share that view
     - How to configure it, and what to do when it shows nothing
@@ -179,19 +179,44 @@ which: *now* (the last 60 seconds), *avg / min* (the last 60 minutes),
 "0.70 /min" beside "3.78 /h" is not a contradiction: the last hour was
 quieter than the day.
 
-### The seven rows
+### The eight rows
 
 Each row folds away with its title; the browser remembers which are folded.
 
 | Row | What it shows |
 |---|---|
-| **Overview** | Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range |
+| **Overview** | Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency (order entry) with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range |
+| **Engine latency** | How long the matching engine takes per message over the last minute: order p50 and p99 with the number of samples behind them, the p99 with garbage-collection time taken out, the p99 of every other message, the longest GC pause and the share of time in GC. Below, the order latency and the longest GC pause over the range. See [Reading engine latency](#reading-engine-latency) |
 | **Processes** | Every process: state, uptime, memory and CPU with their recent trend, loop age and lag. Participant bots are listed after the exchange's own and never affect its status. Memory per process, and CPU per process over the range |
 | **Trading activity** | Orders per minute by participant (the top eight and "other"), trades and traded value per minute, the order averages, the reject ratio as `pm-monitor` judges it, and today's rejects by reason — what the engine said no to (`ORDER_NOT_FOUND`, `MARKET_CLOSED`, `MM_MAX_SPREAD` …) |
 | **Participants** | A lane per participant: when it was connected, with heartbeat timeouts marked. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today. "avg/day" shows "—" until there is a full day of history |
 | **Order books** | The number of books and their estimated memory; per symbol: resting and stop orders, price levels, memory, heap garbage, trades today, and whether it is halted |
 | **Gateways & infrastructure** | Clients per gateway against its limit, API WebSocket sessions and dropped events, slow-client disconnects, log server intake, feed gaps, the data files' sizes, and the engine's internal diagnostics |
 | **Event log** | Every health event, newest first, filterable by kind: connects and disconnects, state changes, threshold breaches, session changes, halts |
+
+### Reading engine latency
+
+The engine times **1 message in 16** and reports percentiles over the
+**last minute**, at most 1024 timed messages. Three things keep the figures
+honest:
+
+- **Order entry is timed apart from everything else.** New orders, cancels,
+  amends, quotes, combos and OCOs are *order latency*. Heartbeats, connects,
+  queries and admin commands are *other messages*: a book snapshot of a deep
+  book can take milliseconds, and mixed in it would make the order p99 look
+  like matching is slow.
+- **The p99 shows how many samples it stands on.** Below 100 samples a p99 is
+  simply the slowest of them; the row header then says so. At a few orders a
+  minute this is normal.
+- **Garbage collection is timed separately.** Every collection is timed, not
+  only the sampled messages, so *Longest GC pause* never misses a stall.
+  *p99 without GC* is the order p99 with the collection time inside each
+  message taken out: when it sits far below the order p99, the slow messages
+  were slow because Python was collecting garbage, not because of matching.
+
+The maximum is the slowest *timed* message, so it can miss outliers that
+were not sampled; the longest GC pause and the process's loop lag cover the
+worst stalls.
 
 ![The trading activity and participants rows.](../../../assets/dash-gui/dashboard-trading.png)
 

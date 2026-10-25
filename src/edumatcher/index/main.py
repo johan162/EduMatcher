@@ -245,7 +245,7 @@ class IndexProcess:
             for symbol, price in last_prices_raw.items():
                 try:
                     last_prices[str(symbol).upper()] = float(price)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     continue
         return divisor, last_prices
 
@@ -383,7 +383,7 @@ class IndexProcess:
             return
         try:
             price = float(price_raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return
         symbol = symbol_raw.upper()
         target_indices = self._constituent_to_indices.get(symbol, set())
@@ -716,7 +716,7 @@ class IndexProcess:
                 return
             try:
                 new_shares = int(entry["new_shares_outstanding"])
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 _reject(f"updates[{i}].new_shares_outstanding must be an integer")
                 return
             if new_shares <= 0:

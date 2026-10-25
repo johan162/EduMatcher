@@ -900,6 +900,51 @@ def test_session_status_reply_corrects_the_session_without_a_transition(
     assert unit_gateway._normaliser.state_snapshot_fields("*") == {"SESSION": "CLOSED"}
 
 
+def test_a_status_reply_with_only_a_new_target_emits_no_symbol_transition(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scheduler announced tomorrow's open while the exchange stays closed.
+
+    The timetable rides the wildcard; repeating it per symbol would announce
+    phase changes no instrument made.
+    """
+    status_topic = unit_gateway._session_status_topic
+    upcoming = {"state": "PRE_OPEN", "at": "2026-07-31T07:00:00.000Z"}
+    fake = _FakeSubscriber(
+        [(status_topic, {"state": "CLOSED", "sessions_enabled": True})]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+    unit_gateway._poll_engine_events()
+
+    seen: list[tuple[str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((sym, fields)),
+    )
+    # A symbol first seen after the close: implicitly CLOSED, not in the
+    # phase before it.
+    unit_gateway._known_symbols.add("MSFT")
+    fake._events.append(
+        (status_topic, {"state": "CLOSED", "sessions_enabled": True, "next": upcoming})
+    )
+    unit_gateway._poll_engine_events()
+
+    assert seen == [
+        (
+            "*",
+            {
+                "SESSION": "CLOSED",
+                "NEXTPHASE": "PRE_OPEN",
+                "NEXTAT": "2026-07-31T07:00:00.000Z",
+            },
+        )
+    ]
+
+
 def _replace_push(
     gw: MarketDataGateway,
     monkeypatch: pytest.MonkeyPatch,

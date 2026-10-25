@@ -127,7 +127,7 @@ six GUIs in one file.
 
 | Image | Built from | Listens on (in the container) | Contains |
 |---|---|---|---|
-| `edumatcher` | `deployment/docker/Dockerfile`, stage `runtime` | All exchange ports (see [Ports](#ports-and-why-each-one-exists)) | Python 3.13 and the `edumatcher` package with every `pm-*` command |
+| `edumatcher` | `deployment/docker/Dockerfile`, stage `runtime` | All exchange ports (see [Ports](#ports-and-why-each-one-exists)) | Python 3.14 and the `edumatcher` package with every `pm-*` command |
 | `edumatcher-ai-sim` | same Dockerfile, stage `ai-sim` | same | The `runtime` image with different defaults: `s300-sim`, the `ai-sim` profile, Stockholm time |
 | `edumatcher-terminal-gui` | `web-apps/terminal-gui/Dockerfile` | 8090 | TapeDeck: a React front end served by a small Node server (the *bridge*) |
 | `edumatcher-log-gui` | `web-apps/log-gui/Dockerfile` | 8091 | The Log Operator Console, plus a Python copy of `edumatcher` for its diagnostics view |
@@ -185,12 +185,12 @@ tools, pip caches and temporary files therefore never reach the image you run.
 ```mermaid
 flowchart LR
     subgraph s1["Stage 1: builder"]
-        B1["python:3.13-slim-bookworm"] --> B2["COPY .wheel/"]
+        B1["python:3.14-slim-bookworm"] --> B2["COPY .wheel/"]
         B2 --> B3["python -m venv /opt/edumatcher/.venv"]
         B3 --> B4["pip install edumatcher\n(wheel, pinned or latest)"]
     end
     subgraph s2["Stage 2: runtime (image edumatcher)"]
-        R1["python:3.13-slim-bookworm"] --> R2["apt: ca-certificates, curl,\nprocps, tini, tzdata\n(+ openssh-server)"]
+        R1["python:3.14-slim-bookworm"] --> R2["apt: ca-certificates, curl,\nprocps, tini, tzdata\n(+ openssh-server)"]
         R2 --> R3["COPY --from=builder\n/opt/edumatcher/.venv"]
         R3 --> R4["ENV PATH, EDUMATCHER_DATA_DIR=/data"]
         R4 --> R5["shell profile + bash completion"]
@@ -265,7 +265,7 @@ affect what goes into the image, not how it runs.
 
 | Argument | Default | Effect |
 |---|---|---|
-| `PYTHON_VERSION` | `3.13` | Tag of the `python:*-slim-bookworm` base image, for both stages |
+| `PYTHON_VERSION` | `3.14` | Tag of the `python:*-slim-bookworm` base image, for both stages |
 | `EDUMATCHER_VERSION` | *(empty)* | PyPI release to install when `.wheel/` holds no wheel. Empty means the newest |
 | `PIP_INDEX_URL` | *(empty)* | A PyPI mirror, such as a corporate Artifactory, for builds behind a firewall |
 | `WITH_SSH` | `1` | `0` leaves out `openssh-server` for a smaller image |

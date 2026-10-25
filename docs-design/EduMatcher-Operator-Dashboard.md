@@ -573,12 +573,37 @@ engine memory", which is the operationally useful number.
 | Metric | K | Label | Source |
 |---|---|---|---|
 | `engine.msgs_in` | C | | Every PULL message dispatched |
-| `engine.handle_us_p50` / `_p99` / `_max` | G | | Per-interval: `time.perf_counter_ns()` around the dispatch of **1 message in 16** (plus the first of each window) into a fixed 1024-slot ring, percentiles computed at publish time (A4.10 decision) |
+| `engine.handle_us_p50` / `_p99` / `_max` | G | | **Order entry** (new, cancel, amend, quote, combo, OCO) only: `time.perf_counter_ns()` around the dispatch of **1 message in 16** (plus every message until an order is timed in a window), percentiles over the samples of the **last 60 s**, at most 1024 (A4.10 decision; revised, see below) |
+| `engine.handle_us_p99_ex_gc` | G | | The same p99 with each sample's GC time (from `gc.callbacks`) taken out |
+| `engine.handle_samples` | G | | Samples behind the percentiles; under 100 the nearest-rank p99 is their maximum |
+| `engine.other_us_p99` / `_max` | G | | Every other PULL message: heartbeats, connects, queries (book snapshots, order lists), admin |
+| `engine.gc_pause_us_max` | G | | Longest single collection in the last 60 s, every collection timed via `gc.callbacks` |
+| `engine.gc_time_pct` | G | | Share of the beacon interval spent in GC |
+| `engine.gc_collections` | C | | Collections since process start |
 | `engine.busy_pct` | G | | Share of wall time in the interval spent inside `_dispatch_pull_message` + `_run_maintenance`. The engine receives **exactly one** message per poll iteration (`run()`), so a "batch size" does not exist; ZeroMQ does not expose PULL-queue depth either. Busy % approaching 100 is the saturation signal: messages are arriving faster than they are handled (F3) |
 | `engine.diagnostics` | C | component | The existing `_error_count`, `_unknown_topic_count`, `_undecodable_count`, `_flush_error_count` — published even when zero (G17) |
 | `engine.session_state` | G | | Enum ordinal of `_session_state`; `pm-monitor` maps it back to the name |
 | `engine.halted_symbols` | G | | `len(_halted_symbols)` |
 | `engine.gtc_flush_ms` | G | | Duration of the last `_flush_persistence` call that actually wrote |
+
+**Revision 2026-10-25 — trustworthy latency.** The figures above replaced
+per-beacon-window percentiles over all PULL messages, which misled in two
+ways, both measured against timing every message (20 000 resting orders, a
+mix of adds, cancels, aggressive orders, heartbeats and 2 % book snapshot
+requests):
+
+- A 2 s window at classroom rates holds a few dozen samples, and the
+  nearest-rank p99 of fewer than 100 is their maximum: the "p99" was the
+  worst message of each window.
+- Mixing topics: a book snapshot request on a 20 000-order book costs
+  ≈ 2.2 ms against ≈ 25 µs for an add or cancel, so 2 % of them put the mixed
+  p99 at 2.2 ms while the order-entry p99 was 130 µs.
+
+With the order-entry split and the 60 s horizon, the sampled p50/p99 agreed
+with timing every order message within a few percent (29.9 / 126.6 µs vs
+28.9 / 130.2 µs). The sampled maximum cannot (213 µs vs 1.6 ms true); the
+GC metrics catch the largest stalls regardless (a 70 ms gen-2 collection
+that no sampled message hit).
 
 The engine metrics are assembled by a new `_flush_metrics` entry in the
 `_run_maintenance` flush tuple. That gives it the existing per-flush guard

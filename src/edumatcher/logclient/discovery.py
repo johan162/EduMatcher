@@ -60,7 +60,7 @@ def _probe_server(
             return False
         parse_welcome(fields)
         return True
-    except (OSError, LalfProtocolError, ValueError):
+    except OSError, LalfProtocolError, ValueError:
         return False
 
 

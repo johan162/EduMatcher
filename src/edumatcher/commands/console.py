@@ -1206,7 +1206,7 @@ class AdminConsole:
                 while True:
                     try:
                         line = session.prompt(prompt_str)  # type: ignore[arg-type]
-                    except (EOFError, KeyboardInterrupt):
+                    except EOFError, KeyboardInterrupt:
                         break
                     line = line.strip()
                     if not line:

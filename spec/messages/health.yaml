@@ -161,8 +161,20 @@ types:
       - { name: traded_value_today, type: float, unit: money, validate: { ge: 0 } }
       - { name: reject_pct_5m, type: float, unit: percent, validate: { ge: 0 },
           doc: "Rejected acks over inbound requests (new orders, combos, OCOs, cancels, amends, quotes) in the last 5 minutes, the same set engine.rejects counts; 0 when none." }
-      - { name: handle_p50_us, type: float, unit: duration_micros, validate: { ge: 0 } }
-      - { name: handle_p99_us, type: float, unit: duration_micros, validate: { ge: 0 } }
+      - { name: handle_p50_us, type: float, unit: duration_micros, validate: { ge: 0 },
+          doc: "engine.handle_us_p50: order-entry messages, sampled 1 in 16, over the last minute." }
+      - { name: handle_p99_us, type: float, unit: duration_micros, validate: { ge: 0 },
+          doc: "engine.handle_us_p99, over the same samples." }
+      - { name: handle_p99_ex_gc_us, type: float, unit: duration_micros, validate: { ge: 0 },
+          doc: "engine.handle_us_p99_ex_gc: the same p99 with each sample's garbage-collection time taken out." }
+      - { name: handle_samples, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "engine.handle_samples: how many samples the percentiles stand on; below 100 the p99 is their maximum." }
+      - { name: other_p99_us, type: float, unit: duration_micros, validate: { ge: 0 },
+          doc: "engine.other_us_p99: every message but order entry -- heartbeats, connects, queries, admin." }
+      - { name: gc_pause_max_us, type: float, unit: duration_micros, validate: { ge: 0 },
+          doc: "engine.gc_pause_us_max: the engine's longest garbage collection in the last minute, sampled or not." }
+      - { name: gc_time_pct, type: float, unit: percent, validate: { ge: 0 },
+          doc: "engine.gc_time_pct: share of the engine's last beacon interval spent collecting garbage." }
       - { name: busy_pct, type: float, unit: percent, validate: { ge: 0 },
           doc: "Engine share of wall time spent handling; near 100 means saturated." }
       - { name: rejects_by_code, type: list, ref: RejectCount,

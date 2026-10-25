@@ -44,7 +44,7 @@ def _is_positive_int(val: Any) -> bool:
         return False
     try:
         return int(val) > 0
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
 
 
@@ -147,7 +147,7 @@ def _tick_decimals_of(cfg: dict[str, Any]) -> int | None:
         return None
     try:
         td_int = int(td)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return td_int if 0 <= td_int <= 8 else None
 
@@ -172,7 +172,7 @@ def _check_price_on_grid(
     """
     try:
         price = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return
     try:
         to_ticks_exact_at(price, tick_decimals, symbol)
@@ -233,7 +233,7 @@ def _check_symbol_tick_decimals(
         td_int = int(td)
         if not (0 <= td_int <= 8):
             raise ValueError("out of range")
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         results.append(
             CheckResult(
                 code="S010",
@@ -261,7 +261,7 @@ def _check_symbol_prices(
             continue
         try:
             float(val)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S011",
@@ -441,7 +441,7 @@ def _check_symbol_mm_quotes(
                             path=f"symbols.{sym}.market_maker_quotes[{i}]",
                         )
                     )
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
 
         _check_mm_quote_validity(sym, i, quote, _tick_decimals_of(cfg), results)
@@ -463,7 +463,7 @@ def _check_mm_quote_validity(
             continue
         try:
             float(val)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             problems.append(f"{price_field} must be numeric (got '{val}')")
             continue
         if tick_decimals is not None:
@@ -482,7 +482,7 @@ def _check_mm_quote_validity(
             continue
         try:
             qty = int(val)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             problems.append(f"{qty_field} must be a positive integer (got '{val}')")
             continue
         if qty <= 0:
@@ -545,7 +545,7 @@ def _check_symbol_collar(
             sbp_f = float(sbp)
             if not (0 < sbp_f < 1):
                 raise ValueError("out of range")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S037",
@@ -564,7 +564,7 @@ def _check_symbol_collar(
             dbp_f = float(dbp)
             if not (0 < dbp_f < 1):
                 raise ValueError("out of range")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S038",
@@ -614,7 +614,7 @@ def _check_symbol_order_limits(
             qty_i = int(qty)
             if qty_i != qty or qty_i <= 0:
                 raise ValueError("out of range")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S115",
@@ -635,7 +635,7 @@ def _check_symbol_order_limits(
                 raise ValueError("not a number")
             if float(value) <= 0:
                 raise ValueError("out of range")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S116",
@@ -725,7 +725,7 @@ def _check_symbol_circuit_breaker(
                 psp_f = float(psp)
                 if not (0 < psp_f < 1):
                     raise ValueError("out of range")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S067",
@@ -745,7 +745,7 @@ def _check_symbol_circuit_breaker(
                 hd_i = int(hd)
                 if hd_i <= 0:
                     raise ValueError("must be positive")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S068",
@@ -1205,7 +1205,7 @@ def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) 
 
             try:
                 parsed_leg = ComboLeg.from_dict(payload)
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S059",
@@ -1481,7 +1481,7 @@ def _check_reopening(
             band = float(reopening["initial_band_pct"])
             if not (0 < band < 1):
                 raise ValueError("out of range")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S106",
@@ -1500,7 +1500,7 @@ def _check_reopening(
             tail = int(reopening["random_end_max_ns"])
             if tail < 0:
                 raise ValueError("negative")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S111",
@@ -1580,7 +1580,7 @@ def _check_reopening(
             widen = float(rung["widen_pct"])
             if not (0 < widen < 1):
                 raise ValueError("out of range")
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S108",
@@ -1596,7 +1596,7 @@ def _check_reopening(
             dur = int(rung["min_duration_ns"])
             if dur <= 0:
                 raise ValueError("not positive")
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S109",
@@ -1676,7 +1676,7 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 if not (0 < psp_f < 1):
                     raise ValueError("out of range")
                 thresholds.append((str(name), psp_f))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S032",
@@ -1696,7 +1696,7 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 hd_i = int(hd)
                 if hd_i <= 0:
                     raise ValueError("must be positive")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S033",
@@ -1818,7 +1818,7 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
                 sbp_f = float(sbp)
                 if not (0 < sbp_f < 1):
                     raise ValueError("out of range")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S041",
@@ -1838,7 +1838,7 @@ def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> Non
                 dbp_f = float(dbp)
                 if not (0 < dbp_f < 1):
                     raise ValueError("out of range")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S042",
@@ -1895,7 +1895,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             snap = float(snapshot_interval)
             if snap <= 0:
                 raise ValueError
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code="S061",
@@ -2062,7 +2062,7 @@ def _check_mm_obligation_defaults_schema(
             parsed = int(val)
             if parsed <= 0:
                 raise ValueError
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             results.append(
                 CheckResult(
                     code=code,
@@ -2134,7 +2134,7 @@ def _check_mm_obligation_defaults_schema(
                 parsed = int(val)
                 if parsed <= 0:
                     raise ValueError
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S077",
@@ -2243,7 +2243,7 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                 fval = float(val)
                 if fval <= 0:
                     raise ValueError
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 local.append(
                     CheckResult(
                         code="S053",
@@ -2480,7 +2480,7 @@ def _check_dc_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 fval = float(val)
                 if fval <= 0:
                     raise ValueError("non-positive")
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 results.append(
                     CheckResult(
                         code="S094",

@@ -111,7 +111,7 @@ class KeyReader:
             return False  # pragma: no cover - POSIX terminals only
         try:
             return self._stream.isatty() and self._stream.fileno() >= 0
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return False
 
     def fileno(self) -> int:
@@ -123,7 +123,7 @@ class KeyReader:
             try:
                 self._saved = termios.tcgetattr(fd)
                 tty.setcbreak(fd)
-            except (termios.error, OSError):
+            except termios.error, OSError:
                 self._saved = None
                 return self
             self._fd = fd
@@ -138,7 +138,7 @@ class KeyReader:
         if self._saved is not None:
             try:
                 termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved)
-            except (termios.error, OSError):
+            except termios.error, OSError:
                 # The terminal went away (SIGHUP, closed tty). There is
                 # nothing left to restore, and failing here would replace the
                 # real exit reason with a cleanup traceback.

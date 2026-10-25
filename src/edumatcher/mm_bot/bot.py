@@ -915,7 +915,7 @@ class MMBot:
                     if "mm_max_spread_ticks" in meta:
                         try:
                             st.mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])
-                        except (TypeError, ValueError):
+                        except TypeError, ValueError:
                             st.mm_max_spread_ticks = None
                 return symbols
             if topic == TOPIC_SESSION_STATE:

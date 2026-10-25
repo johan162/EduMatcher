@@ -205,11 +205,11 @@ For a lesson, script the news in a file and play it:
 ```bash
 # From the host
 docker exec edumatcher-sim pm-news --id OPS01 play \
-    /opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
+    /opt/edumatcher/.venv/lib/python3.14/site-packages/docs/examples/news/earnings-surprise.yaml
 
 # From within the container
 pm-news --id OPS01 play \
-    /opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/earnings-surprise.yaml
+    /opt/edumatcher/.venv/lib/python3.14/site-packages/docs/examples/news/earnings-surprise.yaml
 ```
 
 Three scenarios ship with EduMatcher — `earnings-surprise`,

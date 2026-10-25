@@ -286,7 +286,8 @@ def test_next_transition_survives_the_real_engine_encoding() -> None:
     assert fields["NEXTAT"] == "2026-07-30T16:25:00.000Z"
 
 
-def test_a_changed_status_answer_drops_the_stale_timetable() -> None:
+def test_a_status_answer_replaces_the_timetable() -> None:
+    """The answer carries what the engine holds now, so it wins wholesale."""
     norm = EngineNormaliser()
     norm.normalise_session_state(
         {
@@ -295,11 +296,44 @@ def test_a_changed_status_answer_drops_the_stale_timetable() -> None:
         }
     )
 
-    assert norm.apply_session_status({"state": "CONTINUOUS"}) is None
-    assert "NEXTPHASE" in norm.state_snapshot_fields("*")
-
     assert norm.apply_session_status({"state": "CLOSED"}) == (
         "*",
         {"SESSION": "CLOSED"},
     )
     assert norm.state_snapshot_fields("*") == {"SESSION": "CLOSED"}
+
+
+def test_an_unchanged_status_answer_is_not_an_event() -> None:
+    norm = EngineNormaliser()
+    status = {
+        "state": "CLOSED",
+        "next": {"state": "PRE_OPEN", "at": "2026-07-31T07:00:00.000Z"},
+    }
+
+    assert norm.apply_session_status(status) is not None
+    assert norm.apply_session_status(status) is None
+
+
+def test_a_status_answer_with_only_a_new_target_reaches_clients() -> None:
+    """How an announced open, with no transition to carry it, gets out."""
+    norm = EngineNormaliser()
+    norm.apply_session_status({"state": "CLOSED"})
+    prior = norm.prior_session_state
+
+    change = norm.apply_session_status(
+        {
+            "state": "CLOSED",
+            "next": {"state": "PRE_OPEN", "at": "2026-07-31T07:00:00.000Z"},
+        }
+    )
+
+    assert change == (
+        "*",
+        {
+            "SESSION": "CLOSED",
+            "NEXTPHASE": "PRE_OPEN",
+            "NEXTAT": "2026-07-31T07:00:00.000Z",
+        },
+    )
+    assert norm.prior_session_state == prior
+    assert norm.state_snapshot_fields("*")["NEXTPHASE"] == "PRE_OPEN"

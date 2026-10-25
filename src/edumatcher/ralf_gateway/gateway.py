@@ -221,7 +221,7 @@ class RalfGateway:
                 continue
             try:
                 chunk = sess.sock.recv(4096)
-            except (BlockingIOError, OSError):
+            except BlockingIOError, OSError:
                 continue
             if not chunk:
                 self._disconnect(sess, reason="peer_closed")
@@ -248,7 +248,7 @@ class RalfGateway:
                 unsent = payload[sess.out_offset :]
                 try:
                     sent = sess.sock.send(unsent)
-                except (BlockingIOError, OSError):
+                except BlockingIOError, OSError:
                     break
                 if sent <= 0:
                     break

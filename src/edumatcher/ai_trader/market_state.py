@@ -45,7 +45,7 @@ def _as_float(value: Any) -> float | None:
         return None
     try:
         out = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return out if math.isfinite(out) and out > 0 else None
 
@@ -54,7 +54,7 @@ def _signed(value: Any, default: float) -> float:
     """A finite float of any sign (``_as_float`` is for prices: positive only)."""
     try:
         out = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return out if math.isfinite(out) else default
 
@@ -405,7 +405,7 @@ class MarketState:
             st.microprice = st.ticks(micro)
         try:
             st.imbalance = _clip(float(payload.get("imbalance") or 0.0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             st.imbalance = 0.0
         st.updated_at = now
 

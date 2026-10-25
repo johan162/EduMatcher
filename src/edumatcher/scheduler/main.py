@@ -93,6 +93,7 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
+    make_session_next_msg,
     make_session_state_request_msg,
     make_session_transition_msg,
 )
@@ -401,6 +402,22 @@ def _next_scheduled_day(cfg: ScheduleConfig, day: date, country: str) -> date:
     return candidate
 
 
+def _next_open(cfg: ScheduleConfig, day: date, country: str) -> datetime | None:
+    """The pre-open of the next scheduled day after ``day``, local time.
+
+    None when no day within a year has a schedule (every day CLOSED): there
+    is no open to count down to.
+    """
+    next_day = _next_scheduled_day(cfg, day, country)
+    resolved = resolve_day(cfg, next_day, country)
+    if resolved is None:
+        return None
+    h, m = resolved.pre_open.split(":")
+    return datetime.combine(next_day, datetime.min.time()).replace(
+        hour=int(h), minute=int(m)
+    )
+
+
 def _sleep_until_wallclock(
     remaining_seconds: Callable[[], float],
     is_running: Callable[[], bool],
@@ -509,6 +526,18 @@ def _send_transition(
     except zmq.ZMQError as exc:
         log.error("failed to send transition to %s: %s", state, exc)
         return False
+
+
+def _announce_next(push_sock: PushSocket, state: str, at: datetime) -> None:
+    """Tell the engine the next transition without performing one.
+
+    For a wait no transition has described: the day's first, or the next
+    day's open while the exchange is closed. Best-effort, like every send.
+    """
+    try:
+        push_sock.send_multipart(make_session_next_msg(state, _to_utc_iso(at)))
+    except zmq.ZMQError as exc:
+        log.warning("could not announce the next transition (%s): %s", state, exc)
 
 
 def _poll_live(
@@ -647,17 +676,26 @@ def _run_transitions(
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
     steps: list[_Step],
+    after: _Step | None = None,
 ) -> bool:
     """Drive a sequence of transition steps through one interruptible loop.
 
     Shared by every run mode so there is a single, tested execution path
     (review finding A1). Returns ``True`` if all steps completed, or ``False``
     if the run was interrupted.
+
+    ``after`` is the transition that follows the last step -- not driven
+    here, only advertised as its countdown target.
     """
     for index, step in enumerate(steps):
         if not is_running():
             log.info("Interrupted")
             return False
+
+        # Nothing sent this run has described the first step, so the engine
+        # would have no countdown target for the whole wait.
+        if index == 0 and step.at is not None:
+            _announce_next(push_sock, step.state, step.at)
 
         label = step.label or step.state
         wait = step.wait()
@@ -674,9 +712,9 @@ def _run_transitions(
                 return False
 
         # The step after this one is what the engine will publish as the
-        # countdown target. The last step of the day has no successor, and
-        # sends nothing rather than inventing one.
-        following = steps[index + 1] if index + 1 < len(steps) else None
+        # countdown target. The last step of the day has a successor only
+        # when ``after`` names one, and sends nothing rather than invent one.
+        following = steps[index + 1] if index + 1 < len(steps) else after
         next_state = following.state if following and following.at else ""
         next_at = _to_utc_iso(following.at) if following and following.at else ""
 
@@ -724,6 +762,7 @@ def _run_scheduled(
     is_running: Callable[[], bool] | None = None,
     gateway_id: str = SCHEDULER_GATEWAY_ID,
     country: str = DEFAULT_COUNTRY,
+    daily: bool = False,
 ) -> None:
     """Run one day's schedule: catch up to the current phase, then time the rest.
 
@@ -737,6 +776,10 @@ def _run_scheduled(
     Does nothing (no transitions sent) if today resolves to no schedule at
     all under ``schedule_cfg`` (a CLOSED weekday entry, or a bank holiday for
     ``country`` with no ``holidays:`` entry) — the exchange does not open.
+
+    ``daily`` says this scheduler will also drive the next scheduled day, so
+    the close may name that day's open as its countdown target. A single-shot
+    run will not be there to perform it, and names nothing.
     """
     running = is_running or (lambda: True)
 
@@ -801,7 +844,16 @@ def _run_scheduled(
             _Step(state, _wait_until(target), label=f"{state} (at {hhmm})", at=target)
         )
 
-    if _run_transitions(push_sock, confirm_sock, running, steps):
+    after = (
+        _Step(
+            SessionState.PRE_OPEN.value,
+            _no_wait,
+            at=_next_open(schedule_cfg, today, country),
+        )
+        if daily
+        else None
+    )  # an `after` with no `at` names nothing, like a single-shot close
+    if _run_transitions(push_sock, confirm_sock, running, steps, after):
         log.info("All transitions sent for today.")
 
 
@@ -831,11 +883,18 @@ def _run_forever(
             confirm_sock=confirm_sock,
             is_running=is_running,
             country=country,
+            daily=True,
         )
         if not is_running():
             break
 
         target_day = _next_scheduled_day(schedule_cfg, _clock.now().date(), country)
+        # Covers a start after the close or on a CLOSED day, when no close
+        # was sent to carry it; after a normal close it repeats the target
+        # the close already set, which the engine adopts unchanged.
+        next_open = _next_open(schedule_cfg, _clock.now().date(), country)
+        if next_open is not None:
+            _announce_next(push_sock, SessionState.PRE_OPEN.value, next_open)
         target_midnight = datetime.combine(target_day, datetime.min.time())
         log.info(
             "Day complete; sleeping until the next scheduled day (%s)",

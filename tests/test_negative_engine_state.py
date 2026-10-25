@@ -604,7 +604,7 @@ class TestSessionStateCorruption:
         before = engine._session_state
         try:
             engine._handle_session_transition({})
-        except (KeyError, AttributeError):
+        except KeyError, AttributeError:
             pytest.fail("_handle_session_transition() must not raise on missing key")
         assert engine._session_state == before
 

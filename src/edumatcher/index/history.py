@@ -119,7 +119,7 @@ class IndexHistory:
                         continue
                     try:
                         ts_i = int(ts)
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         warnings.append("ignored record with invalid timestamp")
                         continue
 

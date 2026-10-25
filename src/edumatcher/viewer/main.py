@@ -426,7 +426,7 @@ class _SessionStats:
         self.low = px if self.low is None else min(self.low, px)
         try:
             self.volume += int(trade.get("quantity", 0) or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass
 
         self.tape.append(trade)
@@ -690,7 +690,7 @@ def _trades_table(
                 ts = datetime.fromtimestamp(ts_raw / 1_000_000_000, tz).strftime(
                     "%H:%M:%S.%f"
                 )[:-3]
-            except (ValueError, OSError):
+            except ValueError, OSError:
                 ts = "—"
         else:
             ts = "—"

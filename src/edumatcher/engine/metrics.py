@@ -25,6 +25,7 @@ a client inventing ids.
 
 from __future__ import annotations
 
+import gc
 import sys
 import time
 from collections.abc import Iterable
@@ -55,10 +56,21 @@ MAX_LABEL_LEN = 32
 #: Raw-id -> label cache bound; ids beyond it are resolved on each call.
 _LABEL_CACHE_MAX = 4096
 
-#: Sampled dispatch durations kept for the per-interval percentiles. A power of two so
-#: the index wraps with a mask; the ring is preallocated and never resized.
+#: Sampled dispatch durations kept per message class. A power of two so the
+#: index wraps with a mask; the ring is preallocated and never resized.
 LATENCY_RING = 1024
 _RING_MASK = LATENCY_RING - 1
+
+#: The percentiles cover the sampled messages of the last minute, at most
+#: LATENCY_RING of them. They used to cover one beacon window (2 s): at
+#: classroom rates that is a few dozen samples, and nearest-rank p99 of fewer
+#: than 100 samples is simply their maximum -- the dashboard's "p99" was the
+#: worst message of each 2 s.
+LATENCY_HORIZON_NS = 60_000_000_000
+
+#: Garbage collections remembered for engine.gc_pause_us_max.
+GC_RING = 1024
+_GC_MASK = GC_RING - 1
 
 #: The run loop times one message (and one maintenance pass) in this many --
 #: a power of two, tested with a mask. Timing every message cost about 1 % of
@@ -84,6 +96,34 @@ GATEWAY_COUNTERS: tuple[str, ...] = (
     "disconnects",
     "heartbeat_timeouts",
 )
+
+
+class _LatencyRing:
+    """The last LATENCY_RING sampled durations of one message class, each
+    with when it started and how much of it was garbage collection."""
+
+    __slots__ = ("duration", "started", "gc", "pos")
+
+    def __init__(self) -> None:
+        self.duration = [0] * LATENCY_RING
+        self.started = [0] * LATENCY_RING
+        self.gc = [0] * LATENCY_RING
+        self.pos = 0
+
+    def add(self, started_ns: int, duration_ns: int, gc_ns: int) -> None:
+        i = self.pos & _RING_MASK
+        self.duration[i] = duration_ns
+        self.started[i] = started_ns
+        self.gc[i] = gc_ns
+        self.pos += 1
+
+    def since(self, since_ns: int) -> list[tuple[int, int]]:
+        """(duration, gc) of every sample started at or after ``since_ns``."""
+        return [
+            (self.duration[i], self.gc[i])
+            for i in range(min(self.pos, LATENCY_RING))
+            if self.started[i] >= since_ns
+        ]
 
 
 class EngineMetrics:
@@ -122,10 +162,11 @@ class EngineMetrics:
         self._dynamic: set[str] = set()
         self._labels: dict[str, str] = {}
 
-        # Sampled timing (I31): durations of 1 message in SAMPLE_EVERY.
-        self._ring = [0] * LATENCY_RING
-        self._ring_pos = 0
-        self._ring_count = 0  # sampled durations since the last window
+        # Sampled timing (I31): durations of 1 message in SAMPLE_EVERY, order
+        # entry apart from everything else -- heartbeats, connects, queries,
+        # admin -- so a book snapshot request does not count as matching.
+        self._orders = _LatencyRing()
+        self._other = _LatencyRing()
         self._dispatch_ns = 0
         self._dispatch_samples = 0
         self._maint_ns = 0
@@ -134,9 +175,23 @@ class EngineMetrics:
         self._window_msgs = 0
         self._window_iterations = 0
         self._window_start_ns = time.perf_counter_ns()
-        #: True until a message has been timed in the current window, so even a
-        #: quiet engine reports a latency rather than zeros. Read by the loop.
+        #: True until an order-entry message has been timed in the current
+        #: window, so even a quiet engine reports an order latency rather than
+        #: zeros: at a few orders a minute, 1 in 16 of all messages could
+        #: miss every one of them. Other messages are timed meanwhile, which
+        #: costs nothing at the rates where it happens. Read by the loop.
         self.sample_next = True
+
+        # Garbage collection, timed by on_gc. gc_ns only grows: the loop
+        # reads it either side of a sampled dispatch to learn how much of
+        # that dispatch was collection.
+        self.gc_ns = 0
+        self.gc_collections = 0
+        self._gc_started_ns = 0
+        self._gc_window_ns = 0
+        self._gc_pause = [0] * GC_RING
+        self._gc_at = [0] * GC_RING
+        self._gc_pos = 0
 
     # ------------------------------------------------------------------
     # labels
@@ -205,7 +260,7 @@ class EngineMetrics:
         """
         try:
             label = self._labels[gateway]  # type: ignore[index]
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             label = self.label(gateway)
         counter_[label] = counter_.get(label, 0) + 1
 
@@ -214,7 +269,7 @@ class EngineMetrics:
         inbound order, so it skips the counter argument (perf gate, A4.10)."""
         try:
             label = self._labels[gateway]  # type: ignore[index]
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             label = self.label(gateway)
         orders_in = self.orders_in
         orders_in[label] = orders_in.get(label, 0) + 1
@@ -223,21 +278,55 @@ class EngineMetrics:
     # timing
     # ------------------------------------------------------------------
 
-    def record_dispatch(self, duration_ns: int, msgs_total: int) -> None:
+    def record_dispatch(
+        self,
+        duration_ns: int,
+        msgs_total: int,
+        *,
+        started_ns: int | None = None,
+        gc_ns: int = 0,
+        order: bool = True,
+    ) -> None:
         """One *sampled* PULL message (design A4.10, I31).
 
-        The run loop times one message in ``SAMPLE_EVERY`` -- plus the first
-        after every beacon window, see ``sample_next`` -- and passes its own
+        The run loop times one message in ``SAMPLE_EVERY`` -- plus every one
+        until an order message is timed in a beacon window, see
+        ``sample_next`` -- and passes its own
         running message count, so ``msgs_in`` stays exact without an
-        attribute update on every message.
+        attribute update on every message. ``gc_ns`` is the collection time
+        inside the dispatch; ``order`` is False for anything but order entry.
         """
         self.msgs_in = msgs_total
-        self.sample_next = False
-        self._ring[self._ring_pos & _RING_MASK] = duration_ns
-        self._ring_pos += 1
-        self._ring_count += 1
+        if order:
+            self.sample_next = False
+        if started_ns is None:
+            started_ns = time.perf_counter_ns()
+        (self._orders if order else self._other).add(started_ns, duration_ns, gc_ns)
         self._dispatch_ns += duration_ns
         self._dispatch_samples += 1
+
+    def on_gc(self, phase: str, info: dict[str, int]) -> None:
+        """A ``gc.callbacks`` hook: times every collection."""
+        now = time.perf_counter_ns()
+        if phase == "start":
+            self._gc_started_ns = now
+            return
+        pause = now - self._gc_started_ns
+        self.gc_ns += pause
+        self.gc_collections += 1
+        i = self._gc_pos & _GC_MASK
+        self._gc_pause[i] = pause
+        self._gc_at[i] = now
+        self._gc_pos += 1
+
+    def watch_gc(self) -> None:
+        """Start timing collections; the engine's run loop calls this."""
+        if self.on_gc not in gc.callbacks:
+            gc.callbacks.append(self.on_gc)
+
+    def unwatch_gc(self) -> None:
+        if self.on_gc in gc.callbacks:
+            gc.callbacks.remove(self.on_gc)
 
     def record_maintenance(
         self, duration_ns: int, iterations_total: int, msgs_total: int
@@ -255,18 +344,24 @@ class EngineMetrics:
         self._maint_samples += 1
 
     def timing_samples(self, now_ns: int | None = None) -> list[MetricSample]:
-        """Percentiles and busy share for the interval since the last call,
-        which starts a new interval.
+        """Latency over the last LATENCY_HORIZON_NS, and busy and GC share
+        for the interval since the last call, which starts a new interval.
 
         Percentiles and max are over the *sampled* messages; busy time is
         estimated as mean sampled duration x count, separately for message
         handling and for maintenance passes.
         """
         now_ns = time.perf_counter_ns() if now_ns is None else now_ns
-        n = min(self._ring_count, LATENCY_RING)
-        recent = sorted(
-            self._ring[(self._ring_pos - i - 1) & _RING_MASK] for i in range(n)
-        )
+        since = now_ns - LATENCY_HORIZON_NS
+        orders = self._orders.since(since)
+        recent = sorted(d for d, _ in orders)
+        ex_gc = sorted(d - g for d, g in orders)
+        other = sorted(d for d, _ in self._other.since(since))
+        pauses = [
+            self._gc_pause[i]
+            for i in range(min(self._gc_pos, GC_RING))
+            if self._gc_at[i] >= since
+        ]
         busy_ns = 0.0
         if self._dispatch_samples:
             msgs = self.msgs_in - self._window_msgs
@@ -276,19 +371,28 @@ class EngineMetrics:
             busy_ns += self._maint_ns / self._maint_samples * passes
         elapsed = now_ns - self._window_start_ns
         busy_pct = min(100.0, 100.0 * busy_ns / elapsed) if elapsed > 0 else 0.0
+        gc_window = self.gc_ns - self._gc_window_ns
+        gc_pct = min(100.0, 100.0 * gc_window / elapsed) if elapsed > 0 else 0.0
 
-        self._ring_count = 0
         self._dispatch_ns = self._dispatch_samples = 0
         self._maint_ns = self._maint_samples = 0
         self._window_msgs = self.msgs_in
         self._window_iterations = self._iterations
         self._window_start_ns = now_ns
+        self._gc_window_ns = self.gc_ns
         self.sample_next = True
         return [
             gauge("engine.handle_us_p50", percentile(recent, 50) / 1000.0),
             gauge("engine.handle_us_p99", percentile(recent, 99) / 1000.0),
             gauge("engine.handle_us_max", (recent[-1] if recent else 0) / 1000.0),
+            gauge("engine.handle_us_p99_ex_gc", percentile(ex_gc, 99) / 1000.0),
+            gauge("engine.handle_samples", len(recent)),
+            gauge("engine.other_us_p99", percentile(other, 99) / 1000.0),
+            gauge("engine.other_us_max", (other[-1] if other else 0) / 1000.0),
             gauge("engine.busy_pct", busy_pct),
+            gauge("engine.gc_pause_us_max", max(pauses, default=0) / 1000.0),
+            gauge("engine.gc_time_pct", gc_pct),
+            counter("engine.gc_collections", self.gc_collections),
         ]
 
     # ------------------------------------------------------------------

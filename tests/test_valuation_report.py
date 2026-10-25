@@ -569,6 +569,6 @@ def test_random_companies_fail_only_with_explanations() -> None:
             answers[spec.key] = int(value) if whole else value
         try:
             result = run(answers, PRESETS)
-        except (InvalidAnswers, CannotValue):
+        except InvalidAnswers, CannotValue:
             continue
         render_markdown(build_report(result, PRESETS))

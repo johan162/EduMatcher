@@ -678,9 +678,10 @@ running. The engine announces its phase only on a transition, and one started
 outside trading hours makes none, so the gateway asks the engine directly
 instead of assuming. A client should show `UNKNOWN` as "not known yet" rather
 than as either trading or closed. When the answer arrives (or a later one shows
-that a transition was missed, for example after an engine restart), the
-gateway publishes it as an ordinary `STATE` line with no `PREV`, `NEXTPHASE`
-or `NEXTAT`.
+that a transition was missed, for example after an engine restart, or that the
+next scheduled transition has changed), the gateway publishes it as an
+ordinary `SYM=*` `STATE` line with no `PREV`. It carries `NEXTPHASE` and
+`NEXTAT` when the engine holds a next transition.
 
 ```text
 STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
@@ -690,11 +691,16 @@ STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CO
 
 **`NEXTPHASE`/`NEXTAT`: the next scheduled transition.**
 
-Both appear on the `SYM=*` stream only, and only when the transition that
-produced this state was driven by the session scheduler — the one component
-that knows the day's timetable. They are what lets a client show a countdown
-to the open, the closing auction, or the close, which is otherwise the
-most-glanced number on a trading screen and the one CALF could not answer.
+Both appear on the `SYM=*` stream only, and only when the session scheduler
+(the one component that knows the day's timetable) has named the next
+transition. It does so with each transition it drives, and also when it
+starts and has no transition to send yet: before the day's first one, or while
+the exchange is closed. A `pm-scheduler --daily` close names the next trading
+day's pre-open, so a closed exchange counts down to its reopening; a
+single-shot run's close names nothing, since no scheduler will be there to
+open. These fields are what lets a client show a countdown to the open, the
+closing auction, or the close, which is otherwise the most-glanced number on a
+trading screen and the one CALF could not answer.
 
 They are sent together or not at all. A phase with no time cannot be counted
 down to, and a time with no phase does not say what happens when it arrives.

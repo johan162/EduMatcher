@@ -12,7 +12,9 @@
  *
  * `/api/news` (pm-market-sim's headlines, WP-E5) rides the same proxy: live
  * rather than history, but likewise absent from CALF and readable with the
- * same read-only key. The frontend polls it.
+ * same read-only key. The frontend polls it. So does
+ * `/api/reference/schedule`, the weekly session table and holiday calendar
+ * the Session view draws.
  *
  * `GET /symbols` is deliberately absent. It requires a *trading* credential
  * (`require_trading` in `api_gateway/routers/reference.py`), which would mean
@@ -43,6 +45,7 @@ const HISTORY_ENDPOINTS = [
 const ROUTES: readonly (readonly [string, string])[] = [
   ...HISTORY_ENDPOINTS.map((e) => [`/api/history/${e}`, `/api/v1/history/${e}`] as const),
   ["/api/news", "/api/v1/news"],
+  ["/api/reference/schedule", "/api/v1/reference/schedule"],
 ];
 
 export interface HistoryProxyOptions {

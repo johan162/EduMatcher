@@ -22,7 +22,11 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
-from edumatcher.engine.schedule_resolve import is_bank_holiday, resolve_day
+from edumatcher.engine.schedule_resolve import (
+    is_bank_holiday,
+    resolve_day,
+    upcoming_holidays,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -341,3 +345,17 @@ class TestResolveDay:
         christmas = date(2026, 12, 25)
         assert christmas.weekday() == 4
         assert resolve_day(cfg, christmas, "Sweden") == self._HOLIDAY
+
+
+class TestUpcomingHolidays:
+    def test_lists_a_years_holidays_in_order_across_the_new_year(self) -> None:
+        listed = upcoming_holidays("Sweden", date(2026, 12, 1))
+        assert listed[0] == (date(2026, 12, 25), "Juldagen")
+        assert (date(2027, 1, 1), "Nyårsdagen") in listed
+        assert [day for day, _ in listed] == sorted(day for day, _ in listed)
+        assert all(date(2026, 12, 1) <= day <= date(2027, 12, 1) for day, _ in listed)
+
+    def test_includes_the_start_date(self) -> None:
+        assert upcoming_holidays("Sweden", date(2026, 12, 25), days=0) == [
+            (date(2026, 12, 25), "Juldagen")
+        ]

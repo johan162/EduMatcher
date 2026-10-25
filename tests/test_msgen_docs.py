@@ -94,9 +94,12 @@ class TestTheAppendixDocumentsEveryMessage:
         121 -> 124: the health family (health.beacon, health.snapshot,
         health.event) for the operator dashboard -- see
         docs-design/EduMatcher-Operator-Dashboard.md WP-A1.
+
+        124 -> 125: session.next, the scheduler announcing a countdown
+        target it has no transition to carry it on.
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 124, total
+        assert total == 125, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

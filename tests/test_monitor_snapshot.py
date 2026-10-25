@@ -80,6 +80,11 @@ def _engine(
         _g("engine.resting_orders", 4, "GW1"),
         _g("engine.handle_us_p50", 12.0),
         _g("engine.handle_us_p99", 80.0),
+        _g("engine.handle_us_p99_ex_gc", 70.0),
+        _g("engine.handle_samples", 640),
+        _g("engine.other_us_p99", 2_200.0),
+        _g("engine.gc_pause_us_max", 9_000.0),
+        _g("engine.gc_time_pct", 0.5),
         _g("engine.busy_pct", 3.5),
         _g("engine.session_state", 2),  # CONTINUOUS
         _g("engine.book_resting_orders", 9, "AAA"),
@@ -128,6 +133,12 @@ def test_a_scripted_engine_stream(mon: Monitor, clocks: _Clocks) -> None:
     assert t.traded_value_today == pytest.approx(2900.0)
     assert t.reject_pct_5m == pytest.approx(100.0 * 14 / (6 * 29))
     assert (t.handle_p50_us, t.handle_p99_us, t.busy_pct) == (12.0, 80.0, 3.5)
+    assert (t.handle_p99_ex_gc_us, t.handle_samples, t.other_p99_us) == (
+        70.0,
+        640,
+        2_200.0,
+    )
+    assert (t.gc_pause_max_us, t.gc_time_pct) == (9_000.0, 0.5)
     assert snap.exchange.session_state == "CONTINUOUS"
     assert snap.exchange.trading_date == "2026-10-19"
 
@@ -400,6 +411,7 @@ def test_a_stopped_engine_has_no_connections_or_latency(
     assert [p.state for p in stopped.processes] == ["STOPPED"]
     assert stopped.exchange.status == "DOWN"
     assert (stopped.trading.handle_p99_us, stopped.trading.busy_pct) == (0.0, 0.0)
+    assert (stopped.trading.handle_samples, stopped.trading.gc_pause_max_us) == (0, 0.0)
     assert not any(p.connected for p in stopped.participants)
     assert all(p.connected_since is None for p in stopped.participants)
     assert stopped.trading.orders.today == 6  # the day's counts stay

@@ -720,7 +720,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
         try:
             tick_decimals = int(tick_decimals)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             raise ValueError(f"Symbol '{sym}': tick_decimals must be an integer")
         if not (0 <= tick_decimals <= 8):
             raise ValueError(f"Symbol '{sym}': tick_decimals must be in range 0..8")
@@ -728,7 +728,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         if lbp is not None:
             try:
                 lbp = float(lbp)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise ValueError(f"Symbol '{sym}': last_buy_price must be a number")
             # Converted only to reject a price the symbol's grid cannot
             # represent; the value kept is the display price.
@@ -736,14 +736,14 @@ def load_engine_config(path: Path) -> EngineConfig:
         if lsp is not None:
             try:
                 lsp = float(lsp)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise ValueError(f"Symbol '{sym}': last_sell_price must be a number")
             _config_ticks(lsp, tick_decimals, sym, f"Symbol '{sym}': last_sell_price")
         outstanding_shares: int | None = None
         if outstanding_shares_raw is not None:
             try:
                 outstanding_shares = int(outstanding_shares_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': outstanding_shares must be a positive integer"
                 )
@@ -876,7 +876,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         if max_qty_raw is not None:
             try:
                 max_qty = int(max_qty_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': order_limits.max_order_qty must be an integer"
                 )
@@ -890,7 +890,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         if max_value_raw is not None:
             try:
                 max_value = float(max_value_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 raise ValueError(
                     f"Symbol '{sym}': order_limits.max_order_value must be a number"
                 )
@@ -1165,7 +1165,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                     continue
                 try:
                     leg_price = float(leg_price)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     raise ValueError(
                         f"market_maker_combos[{i}].legs[{j}].{yaml_key} must be a number"
                     )
@@ -1487,7 +1487,7 @@ def load_engine_config(path: Path) -> EngineConfig:
     )
     try:
         auction_indicative_interval_sec = float(auction_indicative_raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise ValueError(
             "Engine config 'auction_indicative_interval_sec' must be numeric"
         )

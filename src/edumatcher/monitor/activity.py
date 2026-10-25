@@ -436,6 +436,11 @@ class Activity:
             "reject_pct_5m": self.reject_pct_5m(now),
             "handle_p50_us": max(0.0, g.get("engine.handle_us_p50", 0.0)),
             "handle_p99_us": max(0.0, g.get("engine.handle_us_p99", 0.0)),
+            "handle_p99_ex_gc_us": max(0.0, g.get("engine.handle_us_p99_ex_gc", 0.0)),
+            "handle_samples": max(0, int(g.get("engine.handle_samples", 0.0))),
+            "other_p99_us": max(0.0, g.get("engine.other_us_p99", 0.0)),
+            "gc_pause_max_us": max(0.0, g.get("engine.gc_pause_us_max", 0.0)),
+            "gc_time_pct": max(0.0, g.get("engine.gc_time_pct", 0.0)),
             "busy_pct": max(0.0, g.get("engine.busy_pct", 0.0)),
             "rejects_by_code": [
                 {"code": code[:32], "count": int(round(n))}

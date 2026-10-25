@@ -330,5 +330,5 @@ def index_is_available(db_path: Path) -> bool:
         conn.execute("SELECT 1 FROM audit_events LIMIT 1")
         conn.close()
         return True
-    except (sqlite3.Error, FileNotFoundError):
+    except sqlite3.Error, FileNotFoundError:
         return False

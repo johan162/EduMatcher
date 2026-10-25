@@ -266,21 +266,32 @@ class EngineNormaliser:
         """Adopt the engine's answer to a session-state query.
 
         Returns ``STATE`` fields only when the answer differs from what this
-        gateway believed -- the query is repeated, and an unchanged answer is
-        not an event. A changed answer means a transition was missed, so the
-        cached next transition belonged to a phase that is over and is
-        dropped; the status reply carries no timetable to replace it with.
-        ``PREV`` is omitted for the same reason: the old value is this
-        gateway's stale belief, not the engine's previous phase.
+        gateway believed, in the session or in its next transition -- the
+        query is repeated, and an unchanged answer is not an event. The next
+        transition is replaced wholesale, as on a broadcast: it is what the
+        engine holds now, which is how a gateway that missed the last
+        transition, or a target the scheduler announced without one, reaches
+        clients. ``PREV`` is omitted: the old value is this gateway's stale
+        belief, not the engine's previous phase.
         """
         session = str(payload.get("state", "")).upper()
-        if not session or session == self.session_state:
+        if not session:
             return None
-        self.prior_session_state = self.session_state
-        self.session_state = session
-        self.next_session_state = ""
-        self.next_session_at = ""
-        return "*", {"SESSION": session}
+        upcoming = payload.get("next") or {}
+        next_state = str(upcoming.get("state", "")).upper()
+        next_at = str(upcoming.get("at", ""))
+        if (session, next_state, next_at) == (
+            self.session_state,
+            self.next_session_state,
+            self.next_session_at,
+        ):
+            return None
+        if session != self.session_state:
+            self.prior_session_state = self.session_state
+            self.session_state = session
+        self.next_session_state = next_state
+        self.next_session_at = next_at
+        return "*", {"SESSION": session, **self._next_transition_fields()}
 
     def _next_transition_fields(self) -> dict[str, str]:
         """``NEXTPHASE``/``NEXTAT``, or nothing when no transition is scheduled.
@@ -436,7 +447,7 @@ class EngineNormaliser:
                     )
                     fields["CHG"] = f"{delta:+.2f}"
                     fields["PCTCHG"] = f"{pct:+.2f}"
-                except (TypeError, ValueError, ZeroDivisionError):
+                except TypeError, ValueError, ZeroDivisionError:
                     pass
         if day_high is not None:
             high_text = _as_decimal(day_high)
@@ -653,7 +664,7 @@ def _as_int_text(raw: Any) -> str | None:
         return None
     try:
         return str(int(raw))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -715,7 +726,7 @@ def _ns_to_iso(raw_ns: Any) -> str:
         return ""
     try:
         return iso_utc(int(raw_ns) / 1_000_000_000)
-    except (TypeError, ValueError, OverflowError, OSError):
+    except TypeError, ValueError, OverflowError, OSError:
         return ""
 
 

@@ -105,7 +105,7 @@ describe("routes (D4.1)", () => {
 
   it("clicking a row opens its drawer, keeps the range, and does not reload the dashboard", async () => {
     renderAt("/?from=now-6h");
-    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(2));
+    await waitFor(() => expect(bridge.count("/api/series/multi")).toBe(3));
     const rows = bridge.calls.length;
     fireEvent.click(screen.getByRole("table", { name: "Processes" }).querySelector(`[data-row="${API}"]`)!);
     expect(where).toBe(`${drawerPath("process", API)}?from=now-6h`);

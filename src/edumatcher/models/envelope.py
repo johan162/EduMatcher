@@ -165,7 +165,7 @@ class Envelope:
         """
         try:
             parts = frame.decode("ascii").split(_SEP)
-        except (UnicodeDecodeError, AttributeError):
+        except UnicodeDecodeError, AttributeError:
             return None
         if len(parts) != 3 or len(parts[0]) != _ULID_LEN:
             return None

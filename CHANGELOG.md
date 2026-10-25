@@ -1,3 +1,35 @@
+## [v0.60.0] - 2026-10-25
+
+Release Type: major
+
+### 📋 Summary
+This release adds a detailed session timetable to the Terminal GUI and improves engine-latency reporting by separating garbage-collection time. It also raises the minimum supported Python version to 3.14.
+
+### ⚠️ Breaking Changes
+- Dropped Python 3.13 support; Python 3.14 is now the minimum supported version
+- Raised the minimum FastAPI dependency version from 0.157.0 to 0.162.0
+
+### ✨ Additions
+- Added a Terminal GUI session timetable showing weekly trading days, session phases, current time, next transitions, and bank holidays
+- Added countdowns for the next session opening or transition while the market is closed
+- Added separate order-entry and other-message latency metrics, with garbage-collection time measured independently
+- Added an engine-latency dashboard view and expanded engine health metrics
+
+### 🚀 Improvements
+- Added contextual help and tooltips across Terminal GUI tables and fields
+- Improved session-status and schedule handling across generated message models, gateways, and the scheduler
+
+### 🐛 Bug Fixes
+- Fixed Terminal GUI auction and session times displaying in UTC instead of the configured session timezone
+
+### 📚 Documentation
+- Expanded Terminal GUI, operator-dashboard, message-protocol, and health-metric documentation
+- Added a Zstandard audit design document
+
+### 🛠 Internal
+- Added regression coverage for session scheduling, timetable behavior, latency metrics, and dashboard reporting
+- Updated Poetry dependencies and regenerated lock data, message models, and documentation
+
 ## [v0.53.0] - 2026-10-25
 
 Release Type: major

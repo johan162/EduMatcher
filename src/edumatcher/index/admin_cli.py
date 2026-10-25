@@ -72,7 +72,7 @@ def _report(result: dict[str, Any], accepted_message: str, fmt: str) -> bool:
 def _fmt_int(value: Any) -> str:
     try:
         return f"{int(value):,}"
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return str(value)
 
 
@@ -446,7 +446,7 @@ def _resolve_delta(
                 continue
             try:
                 shares = int(raw_shares)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 shares = None
         elif rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
             try:

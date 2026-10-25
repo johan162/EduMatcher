@@ -9,6 +9,7 @@
 
 import { Outlet } from "react-router-dom";
 import { BooksRow } from "./rows/BooksRow.js";
+import { EngineLatencyRow } from "./rows/EngineLatencyRow.js";
 import { EventsRow } from "./rows/EventsRow.js";
 import { GatewaysRow } from "./rows/GatewaysRow.js";
 import { OverviewRow } from "./rows/OverviewRow.js";
@@ -23,6 +24,7 @@ export function DashboardView() {
     <>
       <section aria-label="Dashboard" className="flex min-h-0 flex-col gap-4 overflow-y-auto pb-4">
         <OverviewRow />
+        <EngineLatencyRow />
         <ProcessesRow />
         <TradingRow />
         <ParticipantsRow />

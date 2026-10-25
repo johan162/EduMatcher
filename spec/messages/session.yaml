@@ -140,6 +140,31 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
+  - name: session_next
+    topic: "session.next"
+    transport: [engine_push]
+    doc:
+      motivation: >
+        Scheduler to engine: announce the next transition without performing
+        one. A `session.transition` can only describe the transition after
+        itself, so a scheduler that starts while the exchange is closed, or
+        before the day's first transition, would otherwise leave the engine
+        with no countdown target until that transition fires -- possibly
+        many hours away.
+      published_by: [scheduler]
+      since: "1.2"
+      see_also: ["session.transition", "system.session_status.{GW_ID}"]
+      example_note: >
+        Not broadcast: the engine only stores the target, and a caller reads
+        it back from `system.session_status`. Re-publishing `session.state`
+        for a session that has not changed would look like a transition to
+        every subscriber. The engine ignores an announcement whose state is
+        not a legal transition from its current one.
+    fields:
+      - { name: next, type: nested, ref: NextTransition }
+    encoding:
+      engine_push: { frames: [topic, json_payload] }
+
   - name: session_transition_ack
     topic: "session.transition_ack.{gateway_id}"
     transport: [engine_pub]

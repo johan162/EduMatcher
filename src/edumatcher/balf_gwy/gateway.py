@@ -388,7 +388,7 @@ class BalfGateway:
                 continue
             try:
                 chunk = session.sock.recv(8192)
-            except (BlockingIOError, OSError):
+            except BlockingIOError, OSError:
                 continue
 
             if not chunk:
@@ -465,7 +465,7 @@ class BalfGateway:
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except (BlockingIOError, OSError):
+                except BlockingIOError, OSError:
                     break
                 if sent <= 0:
                     break

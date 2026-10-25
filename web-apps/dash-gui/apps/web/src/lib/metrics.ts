@@ -45,6 +45,14 @@ export const GAUGE = {
   bookHeapGarbage: "engine.book_heap_garbage_pct",
 } as const;
 
+/** The engine's latency gauges in metrics.db, unlabelled, read through /api/series/multi?names=. */
+export const LATENCY = {
+  p50: "engine.handle_us_p50",
+  p99: "engine.handle_us_p99",
+  p99ExGc: "engine.handle_us_p99_ex_gc",
+  gcPauseMax: "engine.gc_pause_us_max",
+} as const;
+
 /**
  * The requests a reject is counted against: pm-monitor's REQUEST_COUNTERS
  * (monitor/activity.py), so the chart's ratio is the one it judges.

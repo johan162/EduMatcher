@@ -16,7 +16,7 @@ There are two ways in. Both give you the same exchange.
 
 | | **Containers** (recommended) | **Python package** (`pipx`) |
 |---|---|---|
-| You need | Podman or Docker, with Compose | Python 3.13 and `pipx` |
+| You need | Podman or Docker, with Compose | Python 3.14 and `pipx` |
 | Time to a running exchange | one command | a few commands |
 | Browser applications | six, ready to use | not included |
 | Where `pm-*` commands run | inside the container, after `./edumatcher.sh shell` | in your own terminal |

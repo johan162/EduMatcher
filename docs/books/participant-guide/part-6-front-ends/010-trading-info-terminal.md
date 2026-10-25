@@ -617,6 +617,21 @@ opening auction's results, newest first: the equilibrium price, the matched
 quantity, the number of trades and the residual imbalance per symbol, and
 `(no cross)` where nothing could match.*
 
+- **Session status** names the current phase and places it in the
+  exchange's timetable, all in the exchange's time zone:
+    - *This week*: each day's hours from pre-open to the close, with closed
+      days dashed and bank holidays named.
+    - *Timetable*: the day's phases in order (Closed, Pre-Open, Opening
+      Auction, Continuous, Closing Auction, Closed), each arrow labelled
+      with the time of that transition. The current phase is filled in the
+      top bar's colour and marked NOW. When today does not trade, the next
+      trading day is shown instead.
+    - A bar of the whole day from 00 to 24, with a marker at the exchange's
+      current time. The marker is hidden while the session is off its
+      timetable, for example after an operator moved it by hand, or when
+      `pm-scheduler` runs a compressed simulation clock.
+    - *Next bank holiday*: the next holiday that falls on a normal trading
+      day, and whether the exchange closes or runs holiday hours.
 - **Active halts** shows, per halted symbol: circuit-breaker level, trigger
   and reference price (blank for an operator-initiated halt, which carries
   neither), how and when it resumes (a converted wall-clock time for a timed

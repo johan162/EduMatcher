@@ -399,7 +399,7 @@ def _payload_tick_decimals(payload: dict[str, Any]) -> int:
     """
     try:
         return int(payload.get("tick_decimals", DEFAULT_TICK_DECIMALS))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return DEFAULT_TICK_DECIMALS
 
 
@@ -843,7 +843,7 @@ def _open_db(
     # Everything from here on can reject the file. Close the connection before
     # letting that escape: the caller only ever sees the exception, so it has
     # no handle to close, and the orphan lingers until GC (which on Python
-    # 3.13+ also raises a "unclosed database" ResourceWarning).
+    # 3.14+ also raises a "unclosed database" ResourceWarning).
     try:
         conn.executescript(_PRAGMAS)
         is_new = _check_schema_version(conn, resolved_path)
@@ -1132,7 +1132,7 @@ class StatsProcess:
         try:
             run_text, suffix_text = raw_id.split("-", 1)
             received = (int(run_text), int(suffix_text))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # Not the engine's durable counter — a synthetic or legacy id.
             # Sequence checking does not apply; say so once, not per trade.
             if not self._trade_seq_disabled:

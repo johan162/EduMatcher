@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.53.0"
+version = "0.60.0"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -27,13 +27,13 @@ license = "MIT"
 repository = "https://github.com/johan162/EduMatcher"
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.14"
 pyzmq = "^27.2.0"
 rich = "^15.0.0"
 prompt_toolkit = "^3.0"
 pyyaml = "^6.0.3"
 orjson = "^3.12.0"
-fastapi = ">=0.157.0"
+fastapi = ">=0.162.0"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
 holidays = ">=0.107"
 reportlab = ">=4.2"
@@ -41,7 +41,7 @@ psutil = "^7.2.2"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
-mkdocs-material = "^9.0"
+mkdocs-material = "^9.8.0"
 pytest = "^9.1.1"
 types-PyYAML = "^6.0.12.20260518"
 pytest-cov = "^7.1.0"
@@ -155,13 +155,13 @@ exclude_lines = [
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py314"]
 
 [tool.mypy]
 # tests/test_engine_dataset_smoke.py imports the verification generator
 # from tools/, so the type checker needs to know where that lives.
 mypy_path = "tools"
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -204,7 +204,7 @@ disable_error_code = ["assignment", "call-overload", "type-arg"]
 
 
 [tool.pyright]
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"

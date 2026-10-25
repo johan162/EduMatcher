@@ -207,7 +207,7 @@ def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) ->
     )
     try:
         snap_f = float(snap)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return
 
     if math.isclose(snap_f, _DEFAULT_SNAPSHOT_INTERVAL_SEC, rel_tol=0.0, abs_tol=1e-9):
