@@ -9794,6 +9794,18 @@ Always use a unique label per OCO pair.</p>
 <td>First fill to be processed cancels the second; race resolved by event order</td>
 </tr>
 <tr>
+<td>A leg ends inside a stop cascade</td>
+<td>The sibling is pulled at once, before any later stop in the cascade can trade with it — even a stop leg already triggered and waiting its turn. So <code>oco.cancelled</code> can arrive <em>before</em> the <code>order.fill</code> of the leg that caused it</td>
+</tr>
+<tr>
+<td>A <code>FOK</code> meets both legs of a pair</td>
+<td>Only the first leg it meets counts as available: once that leg fills, the other is gone</td>
+</tr>
+<tr>
+<td>Leg 1 fills (or is cancelled) on entry</td>
+<td>Leg 2 is acknowledged, then cancelled with <code>oco.cancelled</code>; it never reaches the book</td>
+</tr>
+<tr>
 <td>GTC OCO across sessions</td>
 <td>Both legs persist with their TIF; if GTC they survive session reset</td>
 </tr>
