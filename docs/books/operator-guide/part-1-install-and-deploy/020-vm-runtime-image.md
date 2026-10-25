@@ -107,7 +107,7 @@ temporary directory and forwards everything after `--` to `mknode.sh`. Set
 ```mermaid
 flowchart TD
     A["multipass launch\nimage, cpus, memory, disk"] --> B["transfer install_edumatcher.sh\ninto the VM"]
-    B --> C["install Python and prerequisites\nprefers python3.13, falls back"]
+    B --> C["install Python and prerequisites\nprefers python3.14, falls back"]
     C --> D["create /opt/edumatcher/.venv"]
     D --> E{"which source?"}
     E -->|"--version x.y.z"| F["pip install edumatcher==x.y.z"]

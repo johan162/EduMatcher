@@ -155,13 +155,13 @@ exclude_lines = [
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py314"]
 
 [tool.mypy]
 # tests/test_engine_dataset_smoke.py imports the verification generator
 # from tools/, so the type checker needs to know where that lives.
 mypy_path = "tools"
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -204,7 +204,7 @@ disable_error_code = ["assignment", "call-overload", "type-arg"]
 
 
 [tool.pyright]
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "strict"

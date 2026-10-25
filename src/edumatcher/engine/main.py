@@ -3687,7 +3687,7 @@ class Engine:
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 self._quote_ack(
@@ -4883,7 +4883,7 @@ class Engine:
         if price_raw is not None:
             try:
                 price_val = float(price_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 _reject(f"Invalid price: {price_raw!r}")
                 return
             if price_val <= 0:
@@ -5866,7 +5866,7 @@ class Engine:
                         else None
                     ),
                 )
-            except (KeyError, ValueError):
+            except KeyError, ValueError:
                 return None
 
         leg1 = _parse_leg(leg1_raw)
@@ -6235,7 +6235,7 @@ class Engine:
         if new_qty is not None:
             try:
                 new_qty = int(new_qty)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 self._dbg_count("amend_reject_payload")
                 self._reject(
                     gateway_id=gateway_id,

@@ -36,7 +36,7 @@ def engine_running() -> str | None:
             timeout=2,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return "pgrep is unavailable, so a running pm-engine cannot be ruled out"
     pids = [pid for pid in result.stdout.split() if pid.isdigit()]
     return f"pm-engine is running (pid {', '.join(pids)})" if pids else None
@@ -45,7 +45,7 @@ def engine_running() -> str | None:
 def _load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None  # the engine treats an unreadable file as empty too
 
 

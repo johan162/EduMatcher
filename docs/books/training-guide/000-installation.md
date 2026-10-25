@@ -33,9 +33,9 @@ in action.
 | Route | You need | You get | Best for |
 |---|---|---|---|
 | **A — Containers (recommended)** | Podman or Docker | The exchange **and six web applications**, in one command | Most students: no Python to install, the fastest path to a live market, and works through every chapter that follows |
-| **B — pipx** | Python 3.13 | `pm-*` commands on your PATH | You would rather work outside a container, or Podman/Docker is not available to you |
+| **B — pipx** | Python 3.14 | `pm-*` commands on your PATH | You would rather work outside a container, or Podman/Docker is not available to you |
 | **C — Multipass VM** | Multipass | A Linux VM with `pm-*` inside it | Workshops; keeping your own machine untouched; a snapshot you can reset |
-| **D — Poetry checkout** | Python 3.13, Git | The repository plus dev dependencies | Changing EduMatcher itself |
+| **D — Poetry checkout** | Python 3.14, Git | The repository plus dev dependencies | Changing EduMatcher itself |
 
 !!! warning "How this affects the rest of the training"
     From Chapter 01 onward you start and stop **individual processes by hand**,
@@ -202,7 +202,7 @@ available to you.
 
 | Requirement | Notes |
 |---|---|
-| Python 3.13 or later | Check with `python --version` |
+| Python 3.14 or later | Check with `python --version` |
 | `pipx` | Installs command-line applications into isolated environments |
 | Several terminals | Or `tmux` / `screen`; one process per pane is normal |
 

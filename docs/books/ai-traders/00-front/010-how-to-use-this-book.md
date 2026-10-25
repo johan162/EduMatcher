@@ -9,7 +9,7 @@ behaves.
 | | |
 |---|---|
 | **Who it is for** | Instructors who want a live market for a class; students who want a market to trade in; anyone curious how prices form |
-| **What you need** | A computer with Docker or Podman for the container route, or Python 3.13 and `pipx` for the hand-built route; a terminal and a browser |
+| **What you need** | A computer with Docker or Podman for the container route, or Python 3.14 and `pipx` for the hand-built route; a terminal and a browser |
 | **What you do not need** | Any finance background, any Python, or a copy of the source code |
 | **Time** | Ten minutes to a running market (Part I); an afternoon to understand and tune it (Part II) |
 
@@ -57,7 +57,7 @@ you need a flag or a file. Part IV is for the days and weeks after.
     [Tuning the Traders](../part-2-how-it-works/060-tuning-the-traders.md#the-market-maker)
     shows rather than with Ctrl+C: the container would restart it. Scenario
     files are in the image under
-    `/opt/edumatcher/.venv/lib/python3.13/site-packages/docs/examples/news/`.
+    `/opt/edumatcher/.venv/lib/python3.14/site-packages/docs/examples/news/`.
 
 ## The set-up this book runs
 

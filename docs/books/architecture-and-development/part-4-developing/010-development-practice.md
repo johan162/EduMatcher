@@ -45,8 +45,8 @@ If you are new to the code base, start by reading these pages in order:
 
 ### Recommended Python version
 
-`pyproject.toml` requires Python `^3.13`, and the type-checking and formatting
-configuration targets the same version — so **Python 3.13 is the development
+`pyproject.toml` requires Python `^3.14`, and the type-checking and formatting
+configuration targets the same version — so **Python 3.14 is the development
 target**, not merely the safest one. An earlier `^3.11` floor was raised; code
 in the tree now uses 3.12+ syntax (PEP 701 nested f-strings, for one), so an
 older interpreter fails at import rather than at runtime.
@@ -85,7 +85,7 @@ You should have these available locally:
 
 | Tool | Why you need it |
 |---|---|
-| Python 3.13 | Matches the repo's linting and typing targets |
+| Python 3.14 | Matches the repo's linting and typing targets |
 | Poetry | Dependency and virtualenv management |
 | Git | Branching, release, and tag workflow |
 | `gh` | Used by the GitHub release script |

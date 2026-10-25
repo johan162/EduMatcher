@@ -142,7 +142,7 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
     raw = payload.get("tick_decimals", 2)
     try:
         parsed = int(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 2
     return parsed if 0 <= parsed <= 8 else 2
 
@@ -540,7 +540,7 @@ class ClearingProcess:
         try:
             run_text, seq_text = trade.id.split("-", 1)
             current = (int(run_text), int(seq_text))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             self._last_seq = None
             return
 

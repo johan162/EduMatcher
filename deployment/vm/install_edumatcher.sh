@@ -72,11 +72,11 @@ if [[ "$UPDATE" == "true" ]]; then
   apt-get upgrade -y
 fi
 
-for candidate in python3.13 python3.14 python3.15 python3; do
+for candidate in python3.14 python3.15 python3; do
   if command -v "$candidate" >/dev/null 2>&1; then
     if "$candidate" - <<'PY'
 import sys
-sys.exit(0 if sys.version_info >= (3, 13) else 1)
+sys.exit(0 if sys.version_info >= (3, 14) else 1)
 PY
     then
       PYTHON_BIN="$candidate"
@@ -86,7 +86,7 @@ PY
 done
 
 if [[ -z "$PYTHON_BIN" ]]; then
-  echo "Python >= 3.13 is required but was not found in this VM image." >&2
+  echo "Python >= 3.14 is required but was not found in this VM image." >&2
   echo "Use a newer Multipass image (for example 'lts' or '26.04')." >&2
   exit 1
 fi

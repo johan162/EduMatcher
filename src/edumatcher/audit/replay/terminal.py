@@ -120,7 +120,7 @@ def palette_for(
         return PLAIN
     try:
         interactive = bool(stream.isatty())
-    except (AttributeError, ValueError):
+    except AttributeError, ValueError:
         # A closed or exotic stream is not a terminal, which is the answer
         # this needs; it is not a reason to fail a report.
         interactive = False

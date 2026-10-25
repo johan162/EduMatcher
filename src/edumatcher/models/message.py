@@ -108,7 +108,7 @@ def decode_sequence(frames: list[bytes]) -> int | None:
         return None
     try:
         return int(frames[2])
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 

@@ -257,7 +257,7 @@ class MarketSim:
         if self.news_history_path is not None:
             try:
                 append_news_event(self.news_history_path, event)
-            except (OSError, sqlite3.Error):
+            except OSError, sqlite3.Error:
                 log.exception("could not append news event %s to history", event["id"])
         log.info(
             "news %s %s %s: %s",

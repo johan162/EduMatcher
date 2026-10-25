@@ -469,7 +469,7 @@ class Worker:
         for fd in set(known) - set(current):
             try:
                 sel.unregister(fd)
-            except (KeyError, ValueError):
+            except KeyError, ValueError:
                 pass
             del known[fd]
         for fd, (gw, conn) in current.items():

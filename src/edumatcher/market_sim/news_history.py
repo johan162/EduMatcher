@@ -92,7 +92,7 @@ def _import_legacy(conn: sqlite3.Connection, path: Path) -> None:
                 event = json.loads(line)
                 if isinstance(event, dict):
                     _insert_event(conn, event)
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            except json.JSONDecodeError, KeyError, TypeError, ValueError:
                 continue
 
 

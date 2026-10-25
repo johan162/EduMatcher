@@ -305,7 +305,7 @@ class LogServer:
 
             try:
                 chunk = session.sock.recv(4096)
-            except (BlockingIOError, OSError):
+            except BlockingIOError, OSError:
                 continue
 
             if not chunk:
@@ -343,7 +343,7 @@ class LogServer:
                 unsent = payload[session.out_offset :]
                 try:
                     sent = session.sock.send(unsent)
-                except (BlockingIOError, OSError):
+                except BlockingIOError, OSError:
                     break
 
                 if sent <= 0:
@@ -434,7 +434,7 @@ class LogServer:
 
         try:
             pid = int(pid_raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             self._queue_line(
                 session,
                 "ERR",
@@ -499,7 +499,7 @@ class LogServer:
 
         try:
             seq = int(fields["SEQ"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             seq = 0
         if seq and session.last_seq and seq != session.last_seq + 1:
             log.debug(
@@ -543,7 +543,7 @@ class LogServer:
         if line_raw is not None:
             try:
                 line_no = int(line_raw)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 line_no = None
 
         row = LogEventRow(

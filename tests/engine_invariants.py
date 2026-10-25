@@ -215,7 +215,7 @@ class RejectTallyingSocket:
         if frames and frames[0].startswith(_REJECT_ACK_PREFIXES):
             try:
                 accepted = json.loads(frames[1]).get("accepted", True)
-            except (ValueError, IndexError, AttributeError):
+            except ValueError, IndexError, AttributeError:
                 accepted = True
             if accepted is False:
                 object.__setattr__(

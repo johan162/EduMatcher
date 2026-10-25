@@ -122,7 +122,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     if isinstance(mm_obligation_defaults, dict) and mm_obligation_defaults:
         try:
             mm_max_spread = int(mm_obligation_defaults.get("mm_max_spread_ticks", 20))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             mm_max_spread = 10
 
     for sym_raw, cfg in symbols.items():
@@ -221,7 +221,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                     path=f"symbols.{sym}.market_maker_quotes[{i}]",
                                 )
                             )
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         pass
 
 
@@ -898,7 +898,7 @@ def _check_balf_gateway_semantic(
                         path="balf_gateway.heartbeat_timeout_sec",
                     )
                 )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass  # type errors already reported by layer 2
 
 

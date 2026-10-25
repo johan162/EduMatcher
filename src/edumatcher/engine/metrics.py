@@ -260,7 +260,7 @@ class EngineMetrics:
         """
         try:
             label = self._labels[gateway]  # type: ignore[index]
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             label = self.label(gateway)
         counter_[label] = counter_.get(label, 0) + 1
 
@@ -269,7 +269,7 @@ class EngineMetrics:
         inbound order, so it skips the counter argument (perf gate, A4.10)."""
         try:
             label = self._labels[gateway]  # type: ignore[index]
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             label = self.label(gateway)
         orders_in = self.orders_in
         orders_in[label] = orders_in.get(label, 0) + 1

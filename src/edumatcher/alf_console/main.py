@@ -957,7 +957,7 @@ class Gateway:
                     ts_str = datetime.fromtimestamp(
                         float(raw_ts_ns) / 1_000_000_000
                     ).strftime("%H:%M:%S")
-                except (ValueError, OSError):
+                except ValueError, OSError:
                     ts_str = "?"
                 if oid in self.order_cache:
                     # Sync mutable fields from the engine's authoritative snapshot
@@ -1937,7 +1937,7 @@ class Gateway:
                 while self._running:
                     try:
                         line = session.prompt(prompt_str)  # type: ignore[arg-type]
-                    except (EOFError, KeyboardInterrupt):
+                    except EOFError, KeyboardInterrupt:
                         break
                     if line.strip():
                         self._parse_and_send(line)

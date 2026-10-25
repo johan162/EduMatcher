@@ -83,7 +83,7 @@ class ReferenceData:
             return "-"
         try:
             return f"{float(raw):.{self.decimals(symbol)}f}"
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return str(raw)
 
     def as_dict(self) -> dict[str, int]:

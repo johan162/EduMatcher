@@ -689,7 +689,7 @@ def ensure_index(
     if not args.rebuild:
         try:
             conn = episode_index.open_readonly(db)
-        except (FileNotFoundError, episode_index.StaleIndexError):
+        except FileNotFoundError, episode_index.StaleIndexError:
             conn = None
         if conn is not None:
             if episode_index.is_current(conn, log_files) and (

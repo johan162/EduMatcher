@@ -447,7 +447,7 @@ class EngineNormaliser:
                     )
                     fields["CHG"] = f"{delta:+.2f}"
                     fields["PCTCHG"] = f"{pct:+.2f}"
-                except (TypeError, ValueError, ZeroDivisionError):
+                except TypeError, ValueError, ZeroDivisionError:
                     pass
         if day_high is not None:
             high_text = _as_decimal(day_high)
@@ -664,7 +664,7 @@ def _as_int_text(raw: Any) -> str | None:
         return None
     try:
         return str(int(raw))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -726,7 +726,7 @@ def _ns_to_iso(raw_ns: Any) -> str:
         return ""
     try:
         return iso_utc(int(raw_ns) / 1_000_000_000)
-    except (TypeError, ValueError, OverflowError, OSError):
+    except TypeError, ValueError, OverflowError, OSError:
         return ""
 
 

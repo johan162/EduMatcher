@@ -571,7 +571,7 @@ def validate_processes(
 def read_pid(name: str) -> int | None:
     try:
         pid = int(pid_path(name).read_text(encoding="ascii").strip())
-    except (FileNotFoundError, ValueError):
+    except FileNotFoundError, ValueError:
         return None
     try:
         os.kill(pid, 0)
@@ -592,7 +592,7 @@ def pgrep_pids(program: str) -> list[int]:
             timeout=HEALTHCHECK_TIMEOUT_SEC,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return []
     return [int(line) for line in result.stdout.split() if line.isdigit()]
 
@@ -606,7 +606,7 @@ def command_line(pid: int) -> str:
             timeout=HEALTHCHECK_TIMEOUT_SEC,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return ""
     return result.stdout.strip()
 
@@ -769,7 +769,7 @@ def process_stats(pid: int) -> tuple[float | None, float | None]:
             timeout=HEALTHCHECK_TIMEOUT_SEC,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None, None
     fields = result.stdout.split()
     if len(fields) != 2:

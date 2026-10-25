@@ -207,7 +207,7 @@ async def private_events(websocket: WebSocket) -> None:
                 await websocket.send_json(event)
         finally:
             websocket.app.state.engine.remove_sink(gateway_id, queue)
-    except (WebSocketDisconnect, TimeoutError):
+    except WebSocketDisconnect, TimeoutError:
         return
 
 
@@ -258,7 +258,7 @@ async def admin_monitor(websocket: WebSocket) -> None:
                 await websocket.send_json(event)
         finally:
             engine.remove_admin_sink(queue)
-    except (WebSocketDisconnect, TimeoutError):
+    except WebSocketDisconnect, TimeoutError:
         return
 
 
@@ -291,7 +291,7 @@ async def admin_sim(websocket: WebSocket) -> None:
                 await websocket.send_json(await queue.get())
         finally:
             sim.remove_sink(queue)
-    except (WebSocketDisconnect, TimeoutError):
+    except WebSocketDisconnect, TimeoutError:
         return
 
 
@@ -374,7 +374,7 @@ async def market_data(websocket: WebSocket) -> None:
         finally:
             websocket.app.state.engine.remove_market_data_sink(queue)
             websocket.app.state.sim.remove_news_sink(queue)
-    except (WebSocketDisconnect, TimeoutError):
+    except WebSocketDisconnect, TimeoutError:
         return
 
 

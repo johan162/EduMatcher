@@ -38,7 +38,7 @@ ARG WEB_PORT=8091
 
 # The Diagnostics view shells out to pm-log-cli rather than reimplementing the
 # seven heuristics in TypeScript, so the image needs the Python package too.
-# Debian trixie's python3 is 3.13, which is what edumatcher requires.
+# Debian trixie's python3 is 3.14, which is what edumatcher requires.
 ARG EDUMATCHER_VERSION=""
 
 WORKDIR /app

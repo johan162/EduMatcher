@@ -272,7 +272,7 @@ def _read_jsonl(
                 continue
             try:
                 ts_ns = int(rec["ts_ns"])
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 continue
             if from_ts_ns <= ts_ns <= to_ts_ns:
                 records.append(rec)

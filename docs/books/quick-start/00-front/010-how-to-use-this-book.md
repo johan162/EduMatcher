@@ -7,7 +7,7 @@ next. It is meant to be finished in a single sitting.
 | | |
 |---|---|
 | **Who it is for** | Anyone new to EduMatcher: students, instructors trying the system, developers |
-| **What you need** | A computer with Podman or Docker (or Python 3.13 and `pipx`), and a terminal |
+| **What you need** | A computer with Podman or Docker (or Python 3.14 and `pipx`), and a terminal |
 | **What you do not need** | Any finance background, Python knowledge or a copy of the source code |
 | **Time** | About 15 minutes to a running exchange, about an hour to finish Part I |
 

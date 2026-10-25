@@ -312,5 +312,5 @@ class TcpLogHandler(logging.Handler):
                 return None, _DEFAULT_HBINT_SEC
             welcome = parse_welcome(fields)
             return sock, welcome.hbint
-        except (OSError, LalfProtocolError, ValueError):
+        except OSError, LalfProtocolError, ValueError:
             return None, _DEFAULT_HBINT_SEC

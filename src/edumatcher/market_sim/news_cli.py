@@ -144,7 +144,7 @@ def format_event(
             stamp = datetime.fromtimestamp(
                 timestamp / 1e9, ZoneInfo(timezone_name)
             ).isoformat(timespec="seconds")
-        except (KeyError, OSError, OverflowError, ValueError):
+        except KeyError, OSError, OverflowError, ValueError:
             pass
     extra = ""
     if p.get("status") == "RUMOUR" and p.get("credibility") is not None:

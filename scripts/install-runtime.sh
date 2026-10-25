@@ -2,7 +2,7 @@
 # install-runtime.sh — Install EduMatcher for end users (students / instructors).
 #
 # What this script does:
-#   1. Checks that Python 3.13+ is available.
+#   1. Checks that Python 3.14+ is available.
 #   2. Ensures pipx is installed (installs it automatically on macOS/Linux).
 #   3. Installs (or upgrades) EduMatcher from PyPI via pipx.
 #   4. Runs pm-setup to create the data directory and copy a sample config.

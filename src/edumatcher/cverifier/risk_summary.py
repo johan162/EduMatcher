@@ -87,12 +87,12 @@ def build(raw: dict[str, Any]) -> RiskSummary:
                         if sbp is not None:
                             try:
                                 parts.append(f"static={float(sbp):.0%}")
-                            except (TypeError, ValueError):
+                            except TypeError, ValueError:
                                 pass
                         if dbp is not None:
                             try:
                                 parts.append(f"dynamic={float(dbp):.0%}")
-                            except (TypeError, ValueError):
+                            except TypeError, ValueError:
                                 pass
                         if parts:
                             collar_descs.append(f"{level_name}: {', '.join(parts)}")
@@ -147,7 +147,7 @@ def build(raw: dict[str, Any]) -> RiskSummary:
         hd = level_cfg.get("halt_duration_ns")
         try:
             psp_str = f"{float(psp):.0%}" if psp is not None else "?"
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             psp_str = str(psp)
         if hd is None:
             dur_str = "rest-of-day"
@@ -155,7 +155,7 @@ def build(raw: dict[str, Any]) -> RiskSummary:
             try:
                 mins = int(hd) // _NS_PER_MIN
                 dur_str = f"{mins} min"
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 dur_str = str(hd)
         cb_parts.append(f"{level_name}={psp_str} ({dur_str})")
 
