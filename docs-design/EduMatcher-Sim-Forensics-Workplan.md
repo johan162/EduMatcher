@@ -1181,13 +1181,23 @@ What the drift had hidden, each now a test in
   the other paths sent.
 
 Wire changes: `order.fill` gains `tif`/`is_seed` (new-order path) and
-`price` (other paths); `oco.cancelled` can now precede the leg's own
+`price` (other paths), and omits a null `client_tag`/`price` the hot path sent as `null`; `oco.cancelled` can now precede the leg's own
 `order.cancelled` or rejection, as it already preceded its fill (X15).
 Docs: the participant guide's OCO edge-case table (a leg ending while an
 order matches; a rejected leg 1; a halted symbol) and the combo chapter
 (reject codes of a leg that cannot rest); the order-flow chapter's §8 and
 the VWAP section of the known limitations now show `_publish_dispatch`
 and `_executions`.
+
+**E2 on the 2026-10-25 run.** Re-run at v0.60.2 (all samples kept), E2
+flags 315 165 dispatches, nearly all the field changes above. A fill
+built by `_fill_frames` also omits a null `client_tag` and a MARKET
+order's null `price`, which the hand-built hot path sent as `null`: the
+spec's omit-when-none rule, invisible to readers using `.get`. With those
+field differences masked, E2 equals the X15 baseline exactly: the same
+3 813 dispatches with the same differences, 146 later commands on a
+diverged symbol, and nothing new. On this run, X8d changes no message
+order, no topic and no trade.
 
 **X21 — open, needs a decision.** A combo registers only after all its
 children are posted, so the combo follow-up of a child that ends during
