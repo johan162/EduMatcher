@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -8194,6 +8194,23 @@ opening auction's results, newest first: the equilibrium price, the matched
 quantity, the number of trades and the residual imbalance per symbol, and
 <code>(no cross)</code> where nothing could match.</em></p>
 <ul>
+<li><strong>Session status</strong> names the current phase and places it in the
+  exchange's timetable, all in the exchange's time zone:<ul>
+<li><em>This week</em>: each day's hours from pre-open to the close, with closed
+  days dashed and bank holidays named.</li>
+<li><em>Timetable</em>: the day's phases in order (Closed, Pre-Open, Opening
+  Auction, Continuous, Closing Auction, Closed), each arrow labelled
+  with the time of that transition. The current phase is filled in the
+  top bar's colour and marked NOW. When today does not trade, the next
+  trading day is shown instead.</li>
+<li>A bar of the whole day from 00 to 24, with a marker at the exchange's
+  current time. The marker is hidden while the session is off its
+  timetable, for example after an operator moved it by hand, or when
+  <code>pm-scheduler</code> runs a compressed simulation clock.</li>
+<li><em>Next bank holiday</em>: the next holiday that falls on a normal trading
+  day, and whether the exchange closes or runs holiday hours.</li>
+</ul>
+</li>
 <li><strong>Active halts</strong> shows, per halted symbol: circuit-breaker level, trigger
   and reference price (blank for an operator-initiated halt, which carries
   neither), how and when it resumes (a converted wall-clock time for a timed
@@ -8465,10 +8482,10 @@ default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <c
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../../../javascripts/mathjax.js"></script>
       

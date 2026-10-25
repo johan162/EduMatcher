@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -8972,8 +8972,8 @@ reference data changes only when an admin reloads it.</p>
 </tr>
 <tr>
 <td><code>GET /reference/schedule</code></td>
-<td><code>{ "sessions_enabled":..., "country"?:..., "schedule": {mon, tue, wed, thu, fri, sat, sun, holidays: {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, today: {...} \| null, today_is_holiday: bool} \| null, "config_version":... }</code></td>
-<td>The resolved weekly table is nested under <code>schedule</code>, which is the same record <code>system.session_schedule</code> carries; each day (or <code>holidays</code>) is <code>null</code> for CLOSED. <code>today</code>/<code>today_is_holiday</code> are the engine's own resolution of which entry applies right now, so a client never needs its own holiday calendar. <code>schedule: null</code> means no <code>schedule:</code> block is configured</td>
+<td><code>{ "sessions_enabled":..., "country"?:..., "schedule": {mon, tue, wed, thu, fri, sat, sun, holidays: {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, today: {...} \| null, today_is_holiday: bool, upcoming_holidays: [{date, name}]} \| null, "config_version":... }</code></td>
+<td>The resolved weekly table is nested under <code>schedule</code>, which is the same record <code>system.session_schedule</code> carries; each day (or <code>holidays</code>) is <code>null</code> for CLOSED. <code>today</code>/<code>today_is_holiday</code> are the engine's own resolution of which entry applies right now, so a client never needs its own holiday calendar. <code>upcoming_holidays</code> lists the bank holidays from the day the engine loaded its config through a year on, ascending; each runs on the <code>holidays</code> entry. <code>schedule: null</code> means no <code>schedule:</code> block is configured</td>
 </tr>
 </tbody>
 </table>
@@ -11040,10 +11040,10 @@ MARKET_MAKER key for <code>/bootstrap/mm</code>; ADMIN role for <code>/bootstrap
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../../../javascripts/mathjax.js"></script>
       

@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -8125,7 +8125,7 @@ six GUIs in one file.</p>
 <td><code>edumatcher</code></td>
 <td><code>deployment/docker/Dockerfile</code>, stage <code>runtime</code></td>
 <td>All exchange ports (see <a href="#ports-and-why-each-one-exists">Ports</a>)</td>
-<td>Python 3.13 and the <code>edumatcher</code> package with every <code>pm-*</code> command</td>
+<td>Python 3.14 and the <code>edumatcher</code> package with every <code>pm-*</code> command</td>
 </tr>
 <tr>
 <td><code>edumatcher-ai-sim</code></td>
@@ -8209,12 +8209,12 @@ and a later stage copies only the results it needs out of an earlier one. Build
 tools, pip caches and temporary files therefore never reach the image you run.</p>
 <pre class="mermaid"><code>flowchart LR
     subgraph s1["Stage 1: builder"]
-        B1["python:3.13-slim-bookworm"] --&gt; B2["COPY .wheel/"]
+        B1["python:3.14-slim-bookworm"] --&gt; B2["COPY .wheel/"]
         B2 --&gt; B3["python -m venv /opt/edumatcher/.venv"]
         B3 --&gt; B4["pip install edumatcher\n(wheel, pinned or latest)"]
     end
     subgraph s2["Stage 2: runtime (image edumatcher)"]
-        R1["python:3.13-slim-bookworm"] --&gt; R2["apt: ca-certificates, curl,\nprocps, tini, tzdata\n(+ openssh-server)"]
+        R1["python:3.14-slim-bookworm"] --&gt; R2["apt: ca-certificates, curl,\nprocps, tini, tzdata\n(+ openssh-server)"]
         R2 --&gt; R3["COPY --from=builder\n/opt/edumatcher/.venv"]
         R3 --&gt; R4["ENV PATH, EDUMATCHER_DATA_DIR=/data"]
         R4 --&gt; R5["shell profile + bash completion"]
@@ -8308,7 +8308,7 @@ affect what goes into the image, not how it runs.</p>
 <tbody>
 <tr>
 <td><code>PYTHON_VERSION</code></td>
-<td><code>3.13</code></td>
+<td><code>3.14</code></td>
 <td>Tag of the <code>python:*-slim-bookworm</code> base image, for both stages</td>
 </tr>
 <tr>
@@ -10028,10 +10028,10 @@ go deeper, including how to test a connection from inside a GUI container.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../../../javascripts/mathjax.js"></script>
       

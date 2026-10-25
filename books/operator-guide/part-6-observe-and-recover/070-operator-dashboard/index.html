@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -3409,10 +3409,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#the-seven-rows" class="md-nav__link">
+  <a href="#the-eight-rows" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The seven rows
+        The eight rows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-engine-latency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading engine latency
       
     </span>
   </a>
@@ -7500,7 +7511,7 @@
 <ul>
 <li>What the Operator Dashboard is for, and how it relates to <code>pm-monitor</code></li>
 <li>How to start it with the rest of the exchange, on its own, or for development</li>
-<li>What each of the seven rows shows, and how to read its colours</li>
+<li>What each of the eight rows shows, and how to read its colours</li>
 <li>How the time picker, the refresh setting and the session clock work</li>
 <li>How to open a process, participant or order book in detail, and share that view</li>
 <li>How to configure it, and what to do when it shows nothing</li>
@@ -7660,7 +7671,7 @@ which: <em>now</em> (the last 60 seconds), <em>avg / min</em> (the last 60 minut
 <em>avg / day</em> (the last 7 trading days). They answer different questions, so
 "0.70 /min" beside "3.78 /h" is not a contradiction: the last hour was
 quieter than the day.</p>
-<h3 id="the-seven-rows">The seven rows<a class="headerlink" href="#the-seven-rows" title="Permanent link">&para;</a></h3>
+<h3 id="the-eight-rows">The eight rows<a class="headerlink" href="#the-eight-rows" title="Permanent link">&para;</a></h3>
 <p>Each row folds away with its title; the browser remembers which are folded.</p>
 <table>
 <thead>
@@ -7672,7 +7683,11 @@ quieter than the day.</p>
 <tbody>
 <tr>
 <td><strong>Overview</strong></td>
-<td>Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range</td>
+<td>Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency (order entry) with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range</td>
+</tr>
+<tr>
+<td><strong>Engine latency</strong></td>
+<td>How long the matching engine takes per message over the last minute: order p50 and p99 with the number of samples behind them, the p99 with garbage-collection time taken out, the p99 of every other message, the longest GC pause and the share of time in GC. Below, the order latency and the longest GC pause over the range. See <a href="#reading-engine-latency">Reading engine latency</a></td>
 </tr>
 <tr>
 <td><strong>Processes</strong></td>
@@ -7700,6 +7715,28 @@ quieter than the day.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="reading-engine-latency">Reading engine latency<a class="headerlink" href="#reading-engine-latency" title="Permanent link">&para;</a></h3>
+<p>The engine times <strong>1 message in 16</strong> and reports percentiles over the
+<strong>last minute</strong>, at most 1024 timed messages. Three things keep the figures
+honest:</p>
+<ul>
+<li><strong>Order entry is timed apart from everything else.</strong> New orders, cancels,
+  amends, quotes, combos and OCOs are <em>order latency</em>. Heartbeats, connects,
+  queries and admin commands are <em>other messages</em>: a book snapshot of a deep
+  book can take milliseconds, and mixed in it would make the order p99 look
+  like matching is slow.</li>
+<li><strong>The p99 shows how many samples it stands on.</strong> Below 100 samples a p99 is
+  simply the slowest of them; the row header then says so. At a few orders a
+  minute this is normal.</li>
+<li><strong>Garbage collection is timed separately.</strong> Every collection is timed, not
+  only the sampled messages, so <em>Longest GC pause</em> never misses a stall.
+  <em>p99 without GC</em> is the order p99 with the collection time inside each
+  message taken out: when it sits far below the order p99, the slow messages
+  were slow because Python was collecting garbage, not because of matching.</li>
+</ul>
+<p>The maximum is the slowest <em>timed</em> message, so it can miss outliers that
+were not sampled; the longest GC pause and the process's loop lag cover the
+worst stalls.</p>
 <p><img alt="The trading activity and participants rows." src="../../../../assets/dash-gui/dashboard-trading.png" /></p>
 <p><em>Per-minute bars count a minute once it is over, so the current minute
 appears at the next refresh after it closes.</em></p>
@@ -7939,10 +7976,10 @@ needed when you open the GUIs from another machine.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../../../javascripts/mathjax.js"></script>
       

@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -9050,19 +9050,25 @@ running. The engine announces its phase only on a transition, and one started
 outside trading hours makes none, so the gateway asks the engine directly
 instead of assuming. A client should show <code>UNKNOWN</code> as "not known yet" rather
 than as either trading or closed. When the answer arrives (or a later one shows
-that a transition was missed, for example after an engine restart), the
-gateway publishes it as an ordinary <code>STATE</code> line with no <code>PREV</code>, <code>NEXTPHASE</code>
-or <code>NEXTAT</code>.</p>
+that a transition was missed, for example after an engine restart, or that the
+next scheduled transition has changed), the gateway publishes it as an
+ordinary <code>SYM=*</code> <code>STATE</code> line with no <code>PREV</code>. It carries <code>NEXTPHASE</code> and
+<code>NEXTAT</code> when the engine holds a next transition.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 </code></pre></div>
 <p><strong><code>NEXTPHASE</code>/<code>NEXTAT</code>: the next scheduled transition.</strong></p>
-<p>Both appear on the <code>SYM=*</code> stream only, and only when the transition that
-produced this state was driven by the session scheduler — the one component
-that knows the day's timetable. They are what lets a client show a countdown
-to the open, the closing auction, or the close, which is otherwise the
-most-glanced number on a trading screen and the one CALF could not answer.</p>
+<p>Both appear on the <code>SYM=*</code> stream only, and only when the session scheduler
+(the one component that knows the day's timetable) has named the next
+transition. It does so with each transition it drives, and also when it
+starts and has no transition to send yet: before the day's first one, or while
+the exchange is closed. A <code>pm-scheduler --daily</code> close names the next trading
+day's pre-open, so a closed exchange counts down to its reopening; a
+single-shot run's close names nothing, since no scheduler will be there to
+open. These fields are what lets a client show a countdown to the open, the
+closing auction, or the close, which is otherwise the most-glanced number on a
+trading screen and the one CALF could not answer.</p>
 <p>They are sent together or not at all. A phase with no time cannot be counted
 down to, and a time with no phase does not say what happens when it arrives.</p>
 <p><strong>Their absence is information.</strong> A manual or admin-driven transition carries
@@ -10144,10 +10150,10 @@ it wants that it has no sequence position for.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../../../javascripts/mathjax.js"></script>
       
