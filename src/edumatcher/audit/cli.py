@@ -28,6 +28,7 @@ Commands
   stats       Show summary statistics about log files
   index       Build or update the optional SQLite index
   health      Check the pm-audit process (and, with --extended, its log file)
+  archive     Compress closed days' parts into one verified .zst per day
 
 ``events`` and ``timeline`` accept ``-f``/``--follow`` to keep printing new
 entries as they are appended to the log, polling every ``--interval``
@@ -40,10 +41,22 @@ import argparse
 import json
 import sys
 import time
+from compression import zstd
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.audit.archive import (
+    DEFAULT_LEVEL,
+    ArchiveBusy,
+    ArchiveError,
+    apply_retention,
+    archive_day,
+    archive_lock,
+    pending_days,
+    session_timezone,
+    today_in,
+)
 from edumatcher.audit.formatters import render, render_stats
 from edumatcher.audit.indexer import (
     build_index,
@@ -423,6 +436,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Add only new entries since last index",
     )
 
+    # ----------------------------------------------------------------- archive
+    ar = sub.add_parser(
+        "archive",
+        help="Compress closed days' parts into one verified .zst archive per day",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    which = ar.add_mutually_exclusive_group(required=True)
+    which.add_argument(
+        "--date", metavar="YYYY-MM-DD", help="Archive this day (must be before today)"
+    )
+    which.add_argument(
+        "--pending",
+        action="store_true",
+        help="Archive every closed day that still has parts, oldest first",
+    )
+    ar.add_argument(
+        "--level",
+        type=int,
+        default=DEFAULT_LEVEL,
+        metavar="N",
+        help=f"zstd compression level (default: {DEFAULT_LEVEL})",
+    )
+    ar.add_argument(
+        "--keep-days",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Afterwards delete archives older than N days (default: 0 = keep all)",
+    )
+
     # ------------------------------------------------------------------ health
     health = sub.add_parser(
         "health",
@@ -479,6 +522,13 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError("--interval must be > 0")
         if getattr(args, "reverse", False):
             raise ValueError("--follow and --reverse are mutually exclusive")
+
+    if args.command == "archive":
+        if args.keep_days < 0:
+            raise ValueError("--keep-days must be >= 0")
+        low, high = zstd.CompressionParameter.compression_level.bounds()
+        if not low <= args.level <= high:
+            raise ValueError(f"--level must be between {low} and {high}")
 
     if args.command == "index":
         days = getattr(args, "days", None)
@@ -977,6 +1027,41 @@ def _handle_health(
 # ---------------------------------------------------------------------------
 
 
+def _handle_archive(args: argparse.Namespace, audit_dir: Path) -> int:
+    """Run ``archive``; the exit code is 0 unless an archive failed."""
+    failed = 0
+    try:
+        today = today_in(session_timezone())
+        with archive_lock(audit_dir):
+            days = pending_days(audit_dir, today) if args.pending else [args.date]
+            for day in days:
+                try:
+                    result = archive_day(audit_dir, day, today=today, level=args.level)
+                except ArchiveError as exc:
+                    print(f"[ERROR] {exc}", file=sys.stderr)
+                    failed += 1
+                    continue
+                if result is None:
+                    print(f"{day}: no parts to archive")
+                else:
+                    print(
+                        f"{day}: {result.parts} part(s), "
+                        f"{format_bytes(result.bytes_in)} -> "
+                        f"{format_bytes(result.bytes_out)} "
+                        f"({result.ratio:.1f}:1)"
+                    )
+            if args.keep_days > 0:
+                for path in apply_retention(audit_dir, args.keep_days, today):
+                    print(f"removed {path.name} (older than {args.keep_days} days)")
+    except ArchiveBusy as exc:
+        print(f"[archive] {exc}; nothing done")
+        return 0
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 1
+    return 1 if failed else 0
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -989,6 +1074,10 @@ def main() -> None:
 
     log_file = Path(args.log_file).expanduser()
     log_dir = Path(args.log_dir).expanduser() if args.log_dir else None
+
+    if args.command == "archive":
+        search_dir = log_dir if log_dir is not None else log_file.parent
+        raise SystemExit(_handle_archive(args, search_dir / "audit"))
 
     # health reports a missing log file itself (under --extended) rather than
     # refusing to run, and needs none of the log discovery below.

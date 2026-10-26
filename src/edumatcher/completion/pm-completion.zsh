@@ -776,6 +776,7 @@ fi
 
 _shtab_pm_audit_cli_commands() {
   local _commands=(
+    archive:'Compress closed days'"'"' parts into one verified .zst archive per day'
     events:'Search log entries by topic, gateway, symbol, and time range'
     gateways:'List gateways and summarise their audit trail activity'
     health:'Check the pm-audit process and audit log file health'
@@ -801,6 +802,17 @@ _shtab_pm_audit_cli_options=(
 
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_cli_defaults_added=0
+
+_shtab_pm_audit_cli_archive_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--date[Archive this day (must be before today)]:YYYY-MM-DD:"
+  "--pending[Archive every closed day that still has parts, oldest first]"
+  "--level[zstd compression level (default\: 9)]:N:"
+  "--keep-days[Afterwards delete archives older than N days (default\: 0 \= keep all)]:N:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_cli_archive_defaults_added=0
 
 _shtab_pm_audit_cli_events_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
@@ -940,6 +952,7 @@ _shtab_pm_audit_cli() {
       (( CURRENT += 1 ))
       curcontext="${curcontext%:*:*}:_shtab_pm_audit_cli-$line[1]:"
       case $line[1] in
+        archive) _arguments -C -s $_shtab_pm_audit_cli_archive_options ;;
         events) _arguments -C -s $_shtab_pm_audit_cli_events_options ;;
         gateways) _arguments -C -s $_shtab_pm_audit_cli_gateways_options ;;
         health) _arguments -C -s $_shtab_pm_audit_cli_health_options ;;

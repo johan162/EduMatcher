@@ -1373,6 +1373,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 args="[--output PATH]",
                 purpose="Build or update the optional SQLite index for faster queries",
             ),
+            Subcommand(
+                "archive",
+                args="(--date D | --pending) [--level N] [--keep-days N]",
+                purpose="Compress closed days' parts into one verified audit-D.log.zst",
+            ),
         ),
         related=("pm-audit", "pm-stats-cli", "pm-clearing-cli"),
         doc_anchor="pm-audit-cli-audit-log-query-cli",

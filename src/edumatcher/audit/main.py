@@ -55,6 +55,7 @@ import zmq
 
 from edumatcher.health import HealthReporter, counter
 from edumatcher.models.generated.health import MetricSample
+from edumatcher.audit.archive import session_timezone
 from edumatcher.audit.writer import AuditFile
 from edumatcher.config import AUDIT_HEALTH_BIND_ADDR, AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
@@ -507,22 +508,10 @@ def main() -> None:
     if args.max_file_mb < 1:
         parser.error("--max-file-mb must be at least 1")
 
-    from edumatcher.config_artifact import load_compiled_config
-    from edumatcher.engine.config_loader import DEFAULT_SESSION_TIMEZONE
-    from edumatcher.stats.trading_day import resolve_timezone
-
-    compiled = load_compiled_config()
-    session_tz_name = (
-        DEFAULT_SESSION_TIMEZONE
-        if compiled is None
-        else compiled.engine.locale.session_timezone
-    )
-    session_tz = resolve_timezone(session_tz_name)
-    if session_tz is None:
-        parser.error(
-            f"engine config locale.session_timezone: unknown timezone {session_tz_name!r}"
-        )
-
+    try:
+        session_tz = session_timezone()
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         process = AuditProcess(
             Path(args.audit_log_file),

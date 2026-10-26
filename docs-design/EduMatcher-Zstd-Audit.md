@@ -22,7 +22,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 |---|---|---|---|---|---|---|
 | 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; stdlib `compression.zstd` | — | 0.5 d | ☑ | 2026-10-26 |
 | 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☑ | 2026-10-26 |
-| 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☐ | |
+| 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☑ | 2026-10-26 |
 | 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☐ | |
 | 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☐ | |
 | 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☐ | |
@@ -337,3 +337,37 @@ e2e passes.
   completions. Operator/reference docs still mention it: Z6.
 - `tools/verify_audit_trail.sh` now clears and counts `audit/audit-*.log`.
   Verified end to end: 36510 lines, no findings.
+
+**Z3 (2026-10-26).**
+- **Level measurement** on three real 256 MB parts from `~/.edumatcher-sim/data`
+  (oldest, middle, newest; ~380–410 k lines each; single core, in memory):
+
+  | level | ratio | compress | decompress |
+  |---|---|---|---|
+  | 1 | 7.5:1 | ~610 MB/s | ~750 MB/s |
+  | 3 | 9.5:1 | ~475 MB/s | ~780 MB/s |
+  | 9 | 13.4:1 | ~140 MB/s | ~885 MB/s |
+  | 12 | 13.7:1 | ~70 MB/s | ~910 MB/s |
+
+  Level 12 buys 2 % over 9 for half the speed, so **`--level` defaults to 9**.
+  A 14 GB day then takes ≈ 100 s to compress. End to end through
+  `archive_day` (read, hash, compress, verify): 512 MB → 37.7 MB (13.6:1) in
+  8 s, i.e. ≈ 16 s/GB, well inside the ~1 min/GB aim. The external `zstd`
+  CLI decodes the archive to the same bytes. A day of ~10–14 GB becomes
+  ≈ 1 GB.
+- The 25 % free-space rule is therefore very conservative (needs ~8 %); kept
+  as is.
+- Logic is in `audit/archive.py`; the CLI is a thin wrapper. Crash tests use an
+  `on_step` hook that raises after "compressed", "verified", "renamed",
+  "deleted".
+- An archive found next to parts is re-verified against them; if it does not
+  match (stale or truncated) it is deleted and made again from the parts,
+  which are the source of truth.
+- A held lock makes `archive` print a note and exit 0 (the other run does the
+  work); a failed day exits 1. `--pending` carries on with the next day after
+  a failure.
+- `session_timezone()` moved into `archive.py`; `pm-audit` uses it too, so the
+  config lookup now exists once in the audit package (pm-stats still has its
+  own copy).
+- Z4: `ArchiveResult.ratio` feeds `audit.archive_ratio`; spawn
+  `pm-audit-cli archive --pending --keep-days N`.
