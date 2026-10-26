@@ -3,7 +3,9 @@
 ``archive_day`` turns the closed parts ``audit-D.N.log`` of one day into one
 verified ``audit-D.log.zst``.  Every step is crash-safe: a crash leaves the
 parts (before the rename) or the archive plus the parts (between the rename
-and the delete), never neither, and a re-run finishes the job.
+and the delete), never neither, and a re-run finishes the job.  Parts found
+beside an archive that are not its tail (the day was reopened after it was
+archived) are appended to it, so no archived line is ever dropped.
 """
 
 from __future__ import annotations
@@ -13,11 +15,12 @@ import hashlib
 import os
 import re
 import shutil
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
+from typing import BinaryIO, cast
 
 from compression import zstd
 
@@ -104,20 +107,38 @@ def _parts_of(audit_dir: Path, day: str) -> list[Path]:
     return [p for _, p in sorted(found)]
 
 
-def _digest_parts(parts: list[Path]) -> tuple[str, int, int]:
-    """SHA-256, line count and byte count of the parts read as one stream."""
+def _open_source(path: Path) -> BinaryIO:
+    """A part, or an existing archive's decompressed content."""
+    if path.suffix == ".zst":
+        return cast(BinaryIO, zstd.ZstdFile(path, "rb"))
+    return path.open("rb")
+
+
+def _chunks(sources: list[Path], skip: int = 0) -> Iterator[bytes]:
+    """The sources read as one stream, without its first ``skip`` bytes."""
+    for source in sources:
+        with _open_source(source) as fh:
+            while chunk := fh.read(_CHUNK):
+                if skip >= len(chunk):
+                    skip -= len(chunk)
+                    continue
+                yield chunk[skip:]
+                skip = 0
+
+
+def _digest(sources: list[Path], skip: int = 0) -> tuple[str, int, int]:
+    """SHA-256, line count and byte count of the sources read as one stream."""
     sha = hashlib.sha256()
     lines = size = 0
-    for part in parts:
-        with part.open("rb") as fh:
-            while chunk := fh.read(_CHUNK):
-                sha.update(chunk)
-                lines += chunk.count(b"\n")
-                size += len(chunk)
+    for chunk in _chunks(sources, skip):
+        sha.update(chunk)
+        lines += chunk.count(b"\n")
+        size += len(chunk)
     return sha.hexdigest(), lines, size
 
 
 def _digest_archive(archive: Path) -> tuple[str, int]:
+    """SHA-256 and line count of a zstd file's content (any file name)."""
     sha = hashlib.sha256()
     lines = 0
     with zstd.ZstdFile(archive, "rb") as fh:
@@ -125,6 +146,18 @@ def _digest_archive(archive: Path) -> tuple[str, int]:
             sha.update(chunk)
             lines += chunk.count(b"\n")
     return sha.hexdigest(), lines
+
+
+def _archive_ends_with(archive: Path, parts_size: int, parts_sha: str) -> bool:
+    """True when the archive's content ends with the parts' bytes.
+
+    That is a crash during the parts' deletion: the archive was verified
+    against every part before any was deleted, so what is left is its tail.
+    """
+    total = _digest([archive])[2]
+    if total < parts_size:
+        return False
+    return _digest([archive], skip=total - parts_size)[0] == parts_sha
 
 
 def archive_content_size(archive: Path) -> int | None:
@@ -167,12 +200,13 @@ def archive_day(
 ) -> ArchiveResult | None:
     """Archive ``day``'s parts; None when there is nothing left to do.
 
+    ``today`` is the first day not yet closed: days before it are archivable.
     ``on_step`` is called after each step ("compressed", "verified",
     "renamed", "deleted"); tests raise from it to simulate a crash there.
     The caller holds ``archive_lock``.
     """
     if day >= today:
-        raise ArchiveError(f"{day} is not before today ({today}): only closed days")
+        raise ArchiveError(f"{day} is not closed yet: only days before {today} are")
     parts = _parts_of(audit_dir, day)
     archive = audit_dir / f"audit-{day}.log.zst"
     tmp = archive.with_name(archive.name + ".part")
@@ -180,21 +214,28 @@ def archive_day(
     if not parts:
         return None
 
-    sha, lines, size = _digest_parts(parts)
-
+    # An archive is never deleted here: once renamed into place it holds
+    # verified lines that may exist nowhere else.
+    sources = parts
     if archive.exists():
-        # Crash between rename and delete: trust the archive only if it
-        # still matches the parts, otherwise make it again from them.
+        parts_sha, _, parts_size = _digest(parts)
         try:
-            same = _digest_archive(archive) == (sha, lines)
-        except zstd.ZstdError, EOFError:
-            same = False
-        if same:
-            out = archive.stat().st_size
+            leftover = _archive_ends_with(archive, parts_size, parts_sha)
+        except (zstd.ZstdError, EOFError) as exc:
+            raise ArchiveError(
+                f"{archive.name} is unreadable ({exc}); it and the parts of {day} "
+                "are left for an operator"
+            ) from exc
+        if leftover:
+            # A crash while deleting the parts: finish the deletion.
             _delete(parts)
             on_step("deleted")
-            return ArchiveResult(day, len(parts), size, out)
-        archive.unlink()
+            return ArchiveResult(day, len(parts), parts_size, archive.stat().st_size)
+        # Parts written after the day was archived: the new archive is the
+        # old one's content followed by them.
+        sources = [archive, *parts]
+
+    sha, lines, size = _digest(sources)
 
     free = shutil.disk_usage(audit_dir).free
     if free < size * MIN_FREE_SHARE:
@@ -207,19 +248,19 @@ def archive_day(
     # `archive_content_size` can report the ratio without decompressing.
     compressor = zstd.ZstdCompressor(level=level)
     compressor.set_pledged_input_size(size)
-    with tmp.open("wb") as raw:
-        for part in parts:
-            with part.open("rb") as fh:
-                while chunk := fh.read(_CHUNK):
-                    raw.write(compressor.compress(chunk))
-        raw.write(compressor.flush(zstd.ZstdCompressor.FLUSH_FRAME))
-        raw.flush()
-        os.fsync(raw.fileno())
-    on_step("compressed")
-
-    if _digest_archive(tmp) != (sha, lines):
-        tmp.unlink()
-        raise ArchiveError(f"verification of the archive for {day} failed")
+    try:
+        with tmp.open("wb") as raw:
+            for chunk in _chunks(sources):
+                raw.write(compressor.compress(chunk))
+            raw.write(compressor.flush(zstd.ZstdCompressor.FLUSH_FRAME))
+            raw.flush()
+            os.fsync(raw.fileno())
+        on_step("compressed")
+        if _digest_archive(tmp) != (sha, lines):
+            raise ArchiveError(f"verification of the archive for {day} failed")
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
     on_step("verified")
 
     out = tmp.stat().st_size

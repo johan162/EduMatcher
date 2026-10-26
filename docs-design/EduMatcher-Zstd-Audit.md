@@ -160,9 +160,12 @@ the day. A tar would add member boundaries nobody needs.
 6. Delete the parts.
 
 A crash leaves the parts (before 5) or the archive plus parts (between 5 and
-6); a re-run sees the archive, re-verifies it against the parts if any are
-left, and deletes them. Never neither. A leftover `.part` is deleted and
-redone.
+6, possibly some already deleted); a re-run sees the archive, checks that the
+remaining parts are its tail, and deletes them. Never neither. Parts that are
+not its tail (the day reopened after archiving) are appended to it; an
+archive is never deleted by a run, and an unreadable one is refused. A
+leftover `.part` is deleted and redone. A day `audit.log` still holds is not
+closed and is not archived.
 
 **Level and speed.** ai-swarm writes ≈ 1.2 GB an hour, ≈ 10–14 GB a day.
 zstd level 3 compresses JSON at several hundred MB/s on one core, so a day
@@ -456,3 +459,35 @@ e2e passes.
   but the "left running across a real midnight" check of Z4 has only the faked
   version. Worth one real overnight `ai-sim` run, which is also the next
   measurement of archive time on a ~10 GB day.
+
+**Holistic review (2026-10-26, after Z6).** Fixed:
+- **Data loss on a crash mid-deletion.** Parts are deleted one at a time; a
+  crash after the first left parts 2..k beside a good archive, and the re-run
+  deleted the archive as "not matching" and remade it from 2..k. The archive
+  is now authoritative: remaining parts that are its tail are deleted, other
+  parts are appended (merge), an unreadable archive is refused, and a run
+  never deletes an archive. (Z3's crash hook only fired after *all* parts
+  were gone, so the tests missed it.)
+- A manual `archive` while `pm-audit` was down across midnight archived a day
+  whose last part was still `audit.log`; days on or after `audit.log`'s day
+  now count as not closed.
+- Shutdown closed `AuditFile` before joining the receive thread (Z2
+  regression: the old logging handler stayed open), losing late lines; it now
+  joins first.
+- A failing roll (mkdir/rename) left the writer closed: every later write
+  raised and the buffer grew without bound. A roll failure now logs an ERROR
+  and keeps appending to `audit.log`; the next write retries.
+- The archiver's output went to pipes read only after it exited; a child
+  outliving pm-audit died of a broken pipe on its result line. Now unlinked
+  temp files.
+- `archive --pending` stopped at an `OSError`/`ZstdError` and left the
+  `.part`; each day now fails on its own and the `.part` is removed.
+- The once-a-second day check flushed the buffer every time, capping
+  `--flush-interval` at 1 s; it now flushes only when the buffer holds an
+  ended day.
+
+Not fixed (low or pre-existing): the optional SQLite index keeps archived
+days while the default read excludes them; `--follow` re-reads the whole live
+trail every poll (up to a ~14 GB day under ai-swarm); an archiver that finds
+the lock busy exits 0, so other pending days wait for the next day close or
+restart.

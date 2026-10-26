@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import pytest
 from compression import zstd
@@ -12,6 +12,7 @@ from compression import zstd
 from edumatcher.audit.archive import (
     ArchiveBusy,
     ArchiveError,
+    ArchiveResult,
     apply_retention,
     archive_day,
     archive_lock,
@@ -71,7 +72,7 @@ class TestArchiveDay:
 
     def test_refuses_today_and_the_future(self, tmp_path: Path) -> None:
         _make_parts(tmp_path, TODAY)
-        with pytest.raises(ArchiveError, match="not before today"):
+        with pytest.raises(ArchiveError, match="not closed yet"):
             archive_day(tmp_path, TODAY, today=TODAY)
         assert len(_names(tmp_path)) == 3
 
@@ -113,19 +114,69 @@ class TestArchiveDay:
         assert _archive_bytes(tmp_path) == whole
         assert _names(tmp_path) == [f"audit-{DAY}.log.zst"]
 
-    def test_an_archive_that_does_not_match_the_parts_is_remade(
+    def test_a_crash_midway_through_deleting_the_parts_loses_nothing(
         self, tmp_path: Path
     ) -> None:
         whole = _make_parts(tmp_path)
-        (tmp_path / f"audit-{DAY}.log.zst").write_bytes(zstd.compress(b"stale\n"))
-        archive_day(tmp_path, DAY, today=TODAY)
+
+        def crash(step: str) -> None:
+            if step == "renamed":
+                raise KeyboardInterrupt
+
+        with pytest.raises(KeyboardInterrupt):
+            archive_day(tmp_path, DAY, today=TODAY, on_step=crash)
+        (tmp_path / f"audit-{DAY}.1.log").unlink()  # the first part was deleted
+
+        result = archive_day(tmp_path, DAY, today=TODAY)
+
+        assert result is not None and result.parts == 2
+        assert _names(tmp_path) == [f"audit-{DAY}.log.zst"]
         assert _archive_bytes(tmp_path) == whole
 
-    def test_a_truncated_archive_next_to_parts_is_remade(self, tmp_path: Path) -> None:
+    def test_parts_written_after_the_archive_are_appended_to_it(
+        self, tmp_path: Path
+    ) -> None:
         whole = _make_parts(tmp_path)
-        (tmp_path / f"audit-{DAY}.log.zst").write_bytes(zstd.compress(whole)[:20])
         archive_day(tmp_path, DAY, today=TODAY)
-        assert _archive_bytes(tmp_path) == whole
+        late = _line(7).encode()
+        (tmp_path / f"audit-{DAY}.1.log").write_bytes(late)  # the day reopened
+
+        archive_day(tmp_path, DAY, today=TODAY)
+
+        assert _names(tmp_path) == [f"audit-{DAY}.log.zst"]
+        assert _archive_bytes(tmp_path) == whole + late
+
+    def test_an_archive_that_does_not_hold_the_parts_is_kept_not_remade(
+        self, tmp_path: Path
+    ) -> None:
+        whole = _make_parts(tmp_path)
+        (tmp_path / f"audit-{DAY}.log.zst").write_bytes(zstd.compress(b"earlier\n"))
+        archive_day(tmp_path, DAY, today=TODAY)
+        assert _archive_bytes(tmp_path) == b"earlier\n" + whole
+
+    def test_an_unreadable_archive_next_to_parts_is_refused_and_both_are_kept(
+        self, tmp_path: Path
+    ) -> None:
+        whole = _make_parts(tmp_path)
+        broken = zstd.compress(whole)[:20]
+        (tmp_path / f"audit-{DAY}.log.zst").write_bytes(broken)
+        with pytest.raises(ArchiveError, match="unreadable"):
+            archive_day(tmp_path, DAY, today=TODAY)
+        assert (tmp_path / f"audit-{DAY}.log.zst").read_bytes() == broken
+        assert len(_names(tmp_path)) == 4
+
+    def test_a_write_error_while_compressing_drops_the_temp_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_parts(tmp_path)
+
+        def no_space(_fd: int) -> None:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr("edumatcher.audit.archive.os.fsync", no_space)
+        with pytest.raises(OSError):
+            archive_day(tmp_path, DAY, today=TODAY)
+        assert _names(tmp_path) == [f"audit-{DAY}.{n}.log" for n in (1, 2, 3)]
 
     def test_low_free_space_refuses_and_keeps_the_parts(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -242,7 +293,38 @@ class TestCli:
     ) -> None:
         _make_parts(tmp_path / "audit", TODAY, 1)
         assert self._run(monkeypatch, tmp_path, "archive", "--date", TODAY) == 1
-        assert "not before today" in capsys.readouterr().err
+        assert "not closed yet" in capsys.readouterr().err
+
+    def test_a_day_the_active_log_still_holds_is_not_archived(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """pm-audit was down at midnight: audit.log is still DAY's last part."""
+        _make_parts(tmp_path / "audit")
+        (tmp_path / "audit.log").write_text(_line(999))
+        assert self._run(monkeypatch, tmp_path, "archive", "--pending") == 0
+        assert self._run(monkeypatch, tmp_path, "archive", "--date", DAY) == 1
+        assert "not closed yet" in capsys.readouterr().err
+        assert len(_names(tmp_path / "audit")) == 3
+
+    def test_an_os_error_on_one_day_does_not_stop_the_next(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        audit = tmp_path / "audit"
+        _make_parts(audit, "2026-10-22", 1)
+        _make_parts(audit, "2026-10-23", 1)
+        real = archive_day
+
+        def flaky(audit_dir: Path, day: str, **kw: Any) -> ArchiveResult | None:
+            if day == "2026-10-22":
+                raise PermissionError(13, "Permission denied")
+            return real(audit_dir, day, **kw)
+
+        monkeypatch.setattr("edumatcher.audit.cli.archive_day", flaky)
+        assert self._run(monkeypatch, tmp_path, "archive", "--pending") == 1
+        assert _names(audit) == ["audit-2026-10-22.1.log", "audit-2026-10-23.log.zst"]
 
     def test_a_second_run_while_locked_exits_cleanly(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

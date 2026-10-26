@@ -60,6 +60,7 @@ from edumatcher.audit.archive import (
     today_in,
 )
 from edumatcher.audit.formatters import render, render_stats
+from edumatcher.audit.writer import file_day
 from edumatcher.audit.indexer import (
     build_index,
     index_is_available,
@@ -1082,18 +1083,29 @@ def _handle_health(
 # ---------------------------------------------------------------------------
 
 
-def _handle_archive(args: argparse.Namespace, audit_dir: Path) -> int:
+def _handle_archive(args: argparse.Namespace, log_file: Path, audit_dir: Path) -> int:
     """Run ``archive``; the exit code is 0 unless an archive failed."""
     failed = 0
     try:
-        today = today_in(session_timezone())
+        tz = session_timezone()
+        today = today_in(tz)
+        # A day audit.log still holds is not closed yet (pm-audit was down at
+        # midnight and closes it at its next start): archiving it now would
+        # leave that part outside the archive.
+        open_day = file_day(log_file, tz)
+        closed_before = min(today, open_day) if open_day is not None else today
         with archive_lock(audit_dir):
-            days = pending_days(audit_dir, today) if args.pending else [args.date]
+            days = (
+                pending_days(audit_dir, closed_before) if args.pending else [args.date]
+            )
             for day in days:
                 try:
-                    result = archive_day(audit_dir, day, today=today, level=args.level)
-                except ArchiveError as exc:
-                    print(f"[ERROR] {exc}", file=sys.stderr)
+                    result = archive_day(
+                        audit_dir, day, today=closed_before, level=args.level
+                    )
+                except (ArchiveError, OSError, zstd.ZstdError) as exc:
+                    # Parts stay in the live trail; carry on with the next day.
+                    print(f"[ERROR] {day}: {exc}", file=sys.stderr)
                     failed += 1
                     continue
                 if result is None:
@@ -1135,7 +1147,7 @@ def main() -> None:
 
     if args.command == "archive":
         search_dir = log_dir if log_dir is not None else log_file.parent
-        raise SystemExit(_handle_archive(args, search_dir / "audit"))
+        raise SystemExit(_handle_archive(args, log_file, search_dir / "audit"))
 
     # health reports a missing log file itself (under --extended) rather than
     # refusing to run, and needs none of the log discovery below.

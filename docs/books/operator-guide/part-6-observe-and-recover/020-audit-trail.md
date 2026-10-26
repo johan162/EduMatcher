@@ -235,7 +235,16 @@ pm-audit-cli archive --pending --level 12 --keep-days 30
 ```
 
 Two runs never overlap; a second one exits at once with a note. A leftover
-`audit-D.log.zst.part` file is deleted and redone.
+`audit-D.log.zst.part` file is deleted and redone. A day that `audit.log`
+still holds (`pm-audit` was down at midnight) is not archived until
+`pm-audit` has closed it at its next start.
+
+An archive is never deleted by a run. Parts found beside it are either what a
+crash left while deleting them (they are the archive's tail, and are deleted)
+or lines of that day written after it was archived (they are appended to it).
+If the archive itself cannot be decompressed, the run refuses that day and
+leaves both: check it with `zstd -t audit-D.log.zst`, and only if it is
+damaged and the parts are known to be the whole day, move it aside and re-run.
 
 ### Subscribed topics
 

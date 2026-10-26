@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from unittest.mock import patch
@@ -90,6 +91,29 @@ class TestAuditFile:
         assert discover_log_files(log) == [log]
         assert _lines(log)[-1] == "next"
 
+    def test_a_failing_roll_keeps_every_line_and_is_retried(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "audit").write_text("")  # a file, so the parts dir cannot be made
+        called: list[int] = []
+        f = AuditFile(
+            tmp_path / "audit.log",
+            1 << 20,
+            timezone.utc,
+            on_day_closed=lambda: called.append(1),
+        )
+        f.write("2026-10-24", ["a"])
+        f.write("2026-10-25", ["b"])  # the day close fails: appended instead
+        f.close_days_before("2026-10-26")  # fails again, does not raise
+        assert _lines(tmp_path / "audit.log") == ["a", "b"] and called == []
+
+        (tmp_path / "audit").unlink()
+        f.write("2026-10-25", ["c"])
+        f.close()
+        assert called == [1]
+        assert _lines(tmp_path / "audit" / "audit-2026-10-24.1.log") == ["a", "b"]
+        assert _lines(tmp_path / "audit.log") == ["c"]
+
 
 def _process(root: Path, tz: tzinfo, clock: list[datetime]) -> AuditProcess:
     with (
@@ -133,6 +157,35 @@ class TestAuditProcessDay:
         proc._file.close()
         assert _parts(tmp_path) == ["audit-2026-10-24.1.log"]
         assert (tmp_path / "audit.log").read_text() == ""
+
+    def test_the_day_check_leaves_todays_buffer_to_the_flush_settings(
+        self, tmp_path: Path
+    ) -> None:
+        clock = [datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)]
+        proc = _process(tmp_path, STOCKHOLM, clock)
+        _record(proc, 1)
+        proc._close_ended_day()
+        assert (tmp_path / "audit.log").read_text() == ""
+        assert len(proc._buffer) == 1
+        proc._flush_buffer()
+        proc._file.close()
+
+    def test_shutdown_writes_a_line_received_while_stopping(
+        self, tmp_path: Path
+    ) -> None:
+        clock = [datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)]
+        proc = _process(tmp_path, timezone.utc, clock)
+
+        def receive() -> None:
+            while proc._running:
+                time.sleep(0.01)
+            time.sleep(0.2)  # still finishing the message in hand
+            _record(proc, 1)
+
+        proc._receive = receive
+        threading.Timer(0.1, proc._stop).start()
+        proc.run()
+        assert _lines(tmp_path / "audit.log")[0].endswith("n=1")
 
     def test_start_up_closes_a_day_that_ended_while_down(self, tmp_path: Path) -> None:
         (tmp_path / "audit.log").write_text("[2026-10-23T10:00:00.000+00:00] [x] {}\n")

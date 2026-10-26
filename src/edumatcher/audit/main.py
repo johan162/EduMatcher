@@ -49,11 +49,12 @@ import logging
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import Callable
+from typing import IO, Callable
 
 import zmq
 
@@ -268,6 +269,8 @@ class AuditProcess:
         # GIL and CPU and a crash in it cannot take the recorder down.
         self._archive_wanted = False
         self._archiver: subprocess.Popen[str] | None = None
+        #: The running archiver's (stdout, stderr).
+        self._archiver_output: tuple[IO[str], IO[str]] | None = None
         self._archives = 0
         self._archive_errors = 0
         self._archive_ratio = 0.0
@@ -387,8 +390,12 @@ class AuditProcess:
         split in ``AuditFile.write``.
         """
         with self._buffer_lock:
-            self._flush_locked()
             today = self._now().astimezone(self._session_tz).date().isoformat()
+            # The ended day's buffered lines go out first, or they would
+            # reopen it in the new audit.log.  Otherwise the buffer is left to
+            # --buffer-size / --flush-interval.
+            if self._buffer and self._buffer[0][0] < today:
+                self._flush_locked()
             self._file.close_days_before(today)
 
     def _want_archive(self) -> None:
@@ -422,8 +429,10 @@ class AuditProcess:
         if child is not None:
             if child.poll() is None:
                 return
-            out, err = child.communicate()
+            assert self._archiver_output is not None
+            out, err = (self._read_archiver_output(fh) for fh in self._archiver_output)
             self._archiver = None
+            self._archiver_output = None
             if child.returncode != 0:
                 self._archive_errors += 1
                 log.error("audit archiver exited %s: %s", child.returncode, err.strip())
@@ -434,16 +443,32 @@ class AuditProcess:
                     log.info("audit archive: %s", line.strip())
         if self._archive_wanted and self._archiver is None:
             self._archive_wanted = False
+            # Unlinked temp files, not pipes: a child that outlives this
+            # process (shutdown does not stop it) can still print its result,
+            # and its output is read only once it has exited.
+            self._archiver_output = (
+                tempfile.TemporaryFile("w+"),
+                tempfile.TemporaryFile("w+"),
+            )
             try:
                 self._archiver = subprocess.Popen(
                     self._archiver_command(),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=self._archiver_output[0],
+                    stderr=self._archiver_output[1],
                     text=True,
                 )
             except OSError as exc:
+                for fh in self._archiver_output:
+                    fh.close()
+                self._archiver_output = None
                 self._archive_errors += 1
                 log.error("cannot start the audit archiver: %s", exc)
+
+    @staticmethod
+    def _read_archiver_output(fh: IO[str]) -> str:
+        with fh:
+            fh.seek(0)
+            return fh.read()
 
     def _schedule_flush(self) -> None:
         """Schedule a flush after flush_interval seconds."""
@@ -537,13 +562,14 @@ class AuditProcess:
             while self._running:
                 t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms
         finally:
-            # Flush any remaining messages before exiting
+            # The receive loop stops first, so no line arrives after the last
+            # flush or is written to the closed file.
+            t.join(timeout=1.0)
             if self._flush_timer is not None:
                 self._flush_timer.cancel()
             self._flush_buffer()
             self._file.close()
             self._flush_debug_summary(force=True)
-            t.join(timeout=1.0)
             if self._reporter is not None:
                 self._reporter.stop()
             self.sub.close()
