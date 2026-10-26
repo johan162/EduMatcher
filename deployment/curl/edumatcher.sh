@@ -158,6 +158,7 @@ cmd_start() {
         export API_GATEWAY_URL="http://edumatcher:$1"
         export PM_TERMINAL_API_KEY="$2"
         export PM_BOOK_API_KEY="$2"
+        export PM_DASH_API_KEY="$2"
         ok "Read-only API key resolved from the deployed configuration (port $1)"
     else
         warn "No read-only credential (gateway_id: null) in the deployed configuration."

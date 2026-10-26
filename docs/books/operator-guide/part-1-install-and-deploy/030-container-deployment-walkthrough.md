@@ -582,7 +582,7 @@ flowchart LR
 | `log-gui` | `pm-log-srv` LALF-PS (5601 PUB, 5602 PULL), `pm-md-gwy` (CALF, 5570) | `LOG_SRV_HOST`, `LOG_SRV_PUB_PORT`, `LOG_SRV_PULL_PORT`, `CALF_HOST`, `LOG_DB_PATH`, `ACK_STORE_PATH` | `./data` read-only at `/backend-data`; named volume `log-gui-acks` |
 | `trader-gui` | `pm-api-gwy` desk (8080) | `API_PROXY_TARGET` | none |
 | `book-gui` | `pm-api-gwy` dashboards (8081), `pm-md-gwy` (CALF, 5570), `pm-log-srv` (5600) | `API_GATEWAY_URL`, `PM_BOOK_API_KEY`, `CALF_HOST`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | named volume `book-gui-logs` |
-| `dash-gui` | `pm-monitor` (5611 PUB), `pm-md-gwy` (CALF, 5570), `pm-log-srv` (5600) | `MONITOR_HOST`/`MONITOR_PUB_PORT`, `CALF_HOST`, `METRICS_DB_PATH`, `CONFIG_ARTIFACT_PATH`, `LOG_GUI_URL`/`BOOK_GUI_URL`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | `./data` read-only at `/backend-data`; named volume `dash-gui-logs` |
+| `dash-gui` | `pm-monitor` (5611 PUB), `pm-md-gwy` (CALF, 5570), `pm-api-gwy` dashboards (8081), `pm-log-srv` (5600) | `MONITOR_HOST`/`MONITOR_PUB_PORT`, `CALF_HOST`, `API_GATEWAY_URL`, `PM_DASH_API_KEY`, `METRICS_DB_PATH`, `CONFIG_ARTIFACT_PATH`, `LOG_GUI_URL`/`BOOK_GUI_URL`, `LOG_SRV_HOST`/`LOG_SRV_PORT` | `./data` read-only at `/backend-data`; named volume `dash-gui-logs` |
 
 Every GUI also gets `HOST=0.0.0.0` (listen on the container's interface),
 `PORT` (its own port) and `CORS_ORIGIN`. `depends_on: edumatcher` only
@@ -910,7 +910,7 @@ Read from your shell when set, with no `.env` entry: `CORS_ORIGIN`,
 `MAX_WS_CLIENTS`, `CALF_CLIENT_ID`, `INDEX_IDS` and `LOG_SRV_ENABLED` for the
 GUIs.
 
-`API_GATEWAY_URL`, `PM_TERMINAL_API_KEY` and `PM_BOOK_API_KEY` are also
+`API_GATEWAY_URL`, `PM_TERMINAL_API_KEY`, `PM_BOOK_API_KEY` and `PM_DASH_API_KEY` are also
 variables of `compose.guis.yaml`, but **leave them unset**: `make up-all`
 resolves them from the deployed configuration at every start (see
 [the two-phase start](#make-up-all-step-by-step)).
@@ -1007,7 +1007,7 @@ sequenceDiagram
     end
     M->>E: python3: find the read-only credential<br/>(gateway_id: null) in the deployed config
     E-->>M: port and API key
-    M->>M: export API_GATEWAY_URL=http://edumatcher:<port>,<br/>PM_TERMINAL_API_KEY, PM_BOOK_API_KEY
+    M->>M: export API_GATEWAY_URL=http://edumatcher:<port>,<br/>PM_TERMINAL_API_KEY, PM_BOOK_API_KEY, PM_DASH_API_KEY
     M->>C: up -d (phase 2: everything)
     C->>G: start GUIs with the key in their environment
     M-->>You: the URLs
@@ -1179,6 +1179,7 @@ for gw in cfg.get("api_gateways", {}).values():
 export API_GATEWAY_URL=http://edumatcher:8081
 export PM_TERMINAL_API_KEY=key-readonly-xxxxxx
 export PM_BOOK_API_KEY=$PM_TERMINAL_API_KEY
+export PM_DASH_API_KEY=$PM_TERMINAL_API_KEY
 podman-compose -f compose.yaml -f compose.guis.yaml up -d
 ```
 

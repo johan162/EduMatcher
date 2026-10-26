@@ -101,6 +101,18 @@ const GATEWAY: Record<string, string> = {
   DC: "Clients connected to the drop-copy gateway, which mirrors every execution",
 };
 
+/** The Session schedule row's timetable, by heading (pm-terminal's text). */
+const TIMETABLE: Record<string, string> = {
+  "This week":
+    "Each day's hours this week, from pre-open to the end of the closing auction, in the exchange's time zone. Dashed: the exchange is closed that day. A bank holiday is named under its hours.",
+  Timetable:
+    "The trading day's phases in order, with the time each transition is scheduled for. NOW marks the phase the feed reports. The bar below is the day to scale, 00 to 24, with the exchange's current time on it. When today does not trade, the next trading day is shown.",
+  "Next bank holiday":
+    "The next bank holiday that falls on a day the exchange would otherwise trade, and whether it closes or runs on holiday hours. Holidays on days that are closed anyway are left out.",
+};
+
+export const timetableHelp = (heading: string): string | undefined => TIMETABLE[heading];
+
 export function columnHelp(table: string, id: string): string | undefined {
   return COLUMN[table]?.[id];
 }

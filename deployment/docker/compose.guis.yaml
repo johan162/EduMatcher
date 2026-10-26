@@ -157,6 +157,11 @@ services:
       # LOG_GUI_URL / BOOK_GUI_URL in .env when that is not localhost.
       LOG_GUI_URL: "${LOG_GUI_URL:-http://localhost:${LOG_GUI_PORT:-8091}}"
       BOOK_GUI_URL: "${BOOK_GUI_URL:-http://localhost:${BOOK_GUI_PORT:-8094}}"
+      # The session timetable, from pm-api-gwy with the read-only key (as
+      # terminal-gui and book-gui), resolved from the deployed config by
+      # `make up-all`. Without it only the Session schedule row is empty.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://edumatcher:8081}"
+      PM_DASH_API_KEY: "${PM_DASH_API_KEY:-}"
       LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
       CALF_HOST: "edumatcher"
       LOG_SRV_HOST: "edumatcher"

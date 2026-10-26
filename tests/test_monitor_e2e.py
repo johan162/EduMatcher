@@ -419,10 +419,19 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
     )
     assert built.returncode == 0, f"web build failed: {built.stdout}{built.stderr}"
     (port,) = free_ports(1)
+    # The mini profile runs pm-api-gwy's desk instance only, not the
+    # dashboards one holding the read-only key; any of desk's keys may read
+    # the session schedule.
+    compiled = json.loads(
+        (exchange.data_dir / "ref_data" / "engine_config.json").read_text()
+    )
+    desk = compiled["api_gateways"]["desk"]
     env = {
         **os.environ,
         "HOST": "127.0.0.1",
         "PORT": str(port),
+        "API_GATEWAY_URL": f"http://127.0.0.1:{desk['port']}",
+        "PM_DASH_API_KEY": desk["credentials"][0]["api_key"],
         "MONITOR_HOST": "127.0.0.1",
         "METRICS_DB_PATH": str(exchange.data_dir / "metrics.db"),
         "LOG_SRV_ENABLED": "false",
@@ -1014,7 +1023,7 @@ def _count(n: int) -> str:
     return f"{n:,}".replace(",", "\u2009")
 
 
-def test_all_eight_rows_show_the_live_exchange(
+def test_all_nine_rows_show_the_live_exchange(
     exchange: Exchange, feed: Feed, bridge: Bridge, page: Page | None
 ) -> None:
     """WP-D3's done-when: against the running stack every row shows live
@@ -1024,12 +1033,13 @@ def test_all_eight_rows_show_the_live_exchange(
         pytest.skip("no Chrome to drive")
     page.goto(f"http://127.0.0.1:{bridge.port}/")
     rows = page.wait(
-        "document.querySelectorAll('[data-widget=row]').length === 8 && "
+        "document.querySelectorAll('[data-widget=row]').length === 9 && "
         "[...document.querySelectorAll('[data-widget=row]')].map(r => r.getAttribute('aria-label'))",
-        "the eight rows",
+        "the nine rows",
     )
     assert rows == [
         "Overview row",
+        "Session schedule row",
         "Engine latency row",
         "Processes row",
         "Trading activity row",
@@ -1103,6 +1113,23 @@ def test_all_eight_rows_show_the_live_exchange(
     assert json.loads(page.js(OVERFLOW)) == []
     assert page.js(
         "document.querySelector('[aria-label=Dashboard]').scrollWidth <= document.querySelector('[aria-label=Dashboard]').clientWidth"
+    )
+
+
+def test_the_session_schedule_row_shows_pm_api_gwys_timetable(
+    exchange: Exchange, bridge: Bridge, page: Page | None
+) -> None:
+    """The bridge passes pm-api-gwy's schedule through, and the row draws
+    what it says: s10-basic trades without a timetable."""
+    info = bridge.get("/api/reference/schedule")
+    assert info["sessions_enabled"] is False
+    if page is None:
+        pytest.skip("no Chrome to drive")
+    page.goto(f"http://127.0.0.1:{bridge.port}/")
+    page.wait(
+        "document.querySelector('[aria-label=\"Session schedule row\"]')?.textContent"
+        ".includes('Sessions are disabled')",
+        "the Session schedule row reporting sessions disabled",
     )
 
 

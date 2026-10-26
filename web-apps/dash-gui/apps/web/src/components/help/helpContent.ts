@@ -16,7 +16,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
-        "heading": "The seven rows",
+        "heading": "The rows",
         "paragraphs": [
           "The page is a stack of rows. Click a row title to collapse it; the choice is remembered."
         ],
@@ -24,6 +24,10 @@ export const HELP_TOPICS: HelpTopic[] = [
           {
             "term": "Overview",
             "text": "The headline: processes up, participants connected, orders and trades today, order rate, engine latency, host CPU, memory and disk."
+          },
+          {
+            "term": "Session schedule",
+            "text": "The week's trading hours, today's phases with the current one lit and the time on the day, and the next bank holiday. Needs the read-only API key (PM_DASH_API_KEY)."
           },
           {
             "term": "Processes",

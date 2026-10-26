@@ -15,6 +15,7 @@ import { GatewaysRow } from "./rows/GatewaysRow.js";
 import { OverviewRow } from "./rows/OverviewRow.js";
 import { ParticipantsRow } from "./rows/ParticipantsRow.js";
 import { ProcessesRow } from "./rows/ProcessesRow.js";
+import { SessionRow } from "./rows/SessionRow.js";
 import { TradingRow } from "./rows/TradingRow.js";
 import { useDashboardLoads } from "./rows/common.js";
 
@@ -24,6 +25,7 @@ export function DashboardView() {
     <>
       <section aria-label="Dashboard" className="flex min-h-0 flex-col gap-4 overflow-y-auto pb-4">
         <OverviewRow />
+        <SessionRow />
         <EngineLatencyRow />
         <ProcessesRow />
         <TradingRow />

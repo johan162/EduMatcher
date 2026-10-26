@@ -177,12 +177,13 @@ Everything else is a plain edit followed by `./edumatcher.sh restart`.
 #### Values you will not find in `.env`
 
 TapeDeck needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`, and the
-order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY` — the same read-only
+order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY`, and the operator
+dashboard `API_GATEWAY_URL` and `PM_DASH_API_KEY` — the same read-only
 key. Those are **resolved at startup and injected**, not stored: the read-only
 API key is generated per engine configuration — a different one in each
 bundled example — and lives on a different gateway instance than the trading
 credentials. `./edumatcher.sh start` reads the deployed configuration and
-passes them to both applications. Setting them in `.env` would only go stale the
+passes them to all three applications. Setting them in `.env` would only go stale the
 next time you switched configuration.
 
 ### Everyday commands
