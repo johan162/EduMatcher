@@ -1293,7 +1293,7 @@ complete -o bashdefault -F _shtab_pm_api_gwy pm-api-gwy
 
 
 
-_shtab_pm_audit_option_strings=(-h --help --version --audit-log-file --terminal -t --buffer-size --flush-interval --max-file-mb --backup-count --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
+_shtab_pm_audit_option_strings=(-h --help --version --audit-log-file --terminal -t --buffer-size --flush-interval --max-file-mb --log-level -v --verbose -q --quiet --log-target --log-file --log-failover-timeout)
 
 
 

@@ -96,7 +96,6 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     # A whole session of audit trail survives for post-run forensics.
     audit = processes["audit"]["command"]
     assert audit[audit.index("--max-file-mb") + 1] == "256"
-    assert audit[audit.index("--backup-count") + 1] == "100"
     mm = processes["mm-bot"]["command"]
     assert mm[mm.index("--strategy") + 1] == "symmetric"
     assert mm[mm.index("--anchor-sim") + 1] == "0.3"

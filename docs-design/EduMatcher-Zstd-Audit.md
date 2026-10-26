@@ -21,7 +21,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
 | 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; stdlib `compression.zstd` | — | 0.5 d | ☑ | 2026-10-26 |
-| 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☐ | |
+| 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☑ | 2026-10-26 |
 | 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☐ | |
 | 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☐ | |
 | 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☐ | |
@@ -317,3 +317,23 @@ e2e passes.
   yet; Z5 must make `--date D` feed the archive to the indexer.
 - `cli.py:_collect_log_stats` still counts non-active files as "rotated
   backups"; Z5 rewrites it.
+
+**Z2 (2026-10-26).**
+- Q1–Q4 taken as the recommended answers (Johan: "cont.").
+- `AuditFile` lives in `audit/writer.py`, not `main.py`. It is a binary
+  append-only writer that tracks its own size; `AuditProcess` owns the
+  buffer of `(date, line)` and the session timezone (default UTC for
+  tests; `main()` passes the compiled config's, as `pm-stats` does).
+- The idle-midnight close runs from the receive loop once a second
+  (`_close_ended_day`), not from the flush timer: the timer exists only while
+  lines are buffered, so it never fires on a silent exchange. The same method
+  runs at start-up. Z4 hooks the archiver spawn onto `AuditFile.roll` /
+  `_close_ended_day`.
+- The size check is after a batch write, so a part can exceed `--max-file-mb`
+  by up to one flush (≤ `--buffer-size` lines).
+- A line whose date is *earlier* than the file's (wall clock stepped back) is
+  appended to the current file; only a later date closes it.
+- `--backup-count` removed from `pm-audit`, emo profiles, `pm_help` and
+  completions. Operator/reference docs still mention it: Z6.
+- `tools/verify_audit_trail.sh` now clears and counts `audit/audit-*.log`.
+  Verified end to end: 36510 lines, no findings.

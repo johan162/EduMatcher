@@ -70,11 +70,12 @@ Steps:
 The trail:
   Written to <DATA_DIR>/audit.log, where DATA_DIR is what config.py reports --
   src/data in a source checkout, ~/.local/share/edumatcher when installed, or
-  whatever EDUMATCHER_DATA_DIR says. pm-audit rotates at 10 MiB and a
-  10 000-order run is about 28 MB, so it leaves audit.log.1 and audit.log.2
-  beside it, and pm-audit-replay reads the whole rotated set.
+  whatever EDUMATCHER_DATA_DIR says. pm-audit closes the active file as a day
+  part at 10 MiB and a 10 000-order run is about 28 MB, so it leaves
+  audit/audit-<date>.1.log and .2.log beside it, and pm-audit-replay reads the
+  whole live trail.
 
-  STEP A therefore deletes the active file AND its rotated segments. Anything
+  STEP A therefore deletes the active file AND the closed day parts. Anything
   left there from a previous run would otherwise be replayed alongside this
   one, and because the dataset is seeded both runs carry the same order ids:
   every order looks accepted twice and its fills look doubled.
@@ -149,16 +150,15 @@ mkdir -p "$DATA_DIR"
 # Start from an empty trail, or the findings below would be about whatever
 # some previous run left behind.
 #
-# The ROTATED segments have to go too. pm-audit writes through a
-# RotatingFileHandler (10 MiB, 5 backups) and a 10 000-order run is about
-# 28 MB, so one run leaves audit.log plus audit.log.1 and audit.log.2 — while
-# pm-audit-replay reads the whole rotated set, not just the active file
-# (`discover_log_files`). Truncating audit.log alone therefore left the
+# The closed day parts have to go too. pm-audit closes audit.log as a part at
+# 10 MiB and a 10 000-order run is about 28 MB, so one run leaves audit.log
+# plus audit/audit-<date>.1.log and .2.log — while pm-audit-replay reads the
+# whole live trail, not just the active file (`discover_log_files`). Truncating audit.log alone therefore left the
 # previous run's first 22 000 lines in place to be replayed alongside this
 # one's. The dataset is seeded, so both runs carry the SAME order ids: every
 # one of them looked accepted twice and its fills looked doubled. 1073
 # findings, none of them real.
-rm -f "$AUDIT_LOG" "$AUDIT_LOG".*
+rm -f "$AUDIT_LOG" "$(dirname "$AUDIT_LOG")"/audit/audit-*.log
 echo "[AUDIT] Trail: $AUDIT_LOG"
 poetry run pm-audit --audit-log-file "$AUDIT_LOG" &
 AUDIT_PID=$!
@@ -176,10 +176,10 @@ header "STEP C — Stop the recorder and flush"
 kill -TERM "$AUDIT_PID" 2>/dev/null || true
 wait "$AUDIT_PID" 2>/dev/null || true
 AUDIT_PID=""
-# Across every segment, for the same reason STEP A deletes them all: this is
+# Across every part, for the same reason STEP A deletes them all: this is
 # what STEP D is about to read, and counting only the active file under-reports
 # a rotated run by several times.
-LINES="$(cat "$AUDIT_LOG" "$AUDIT_LOG".* 2>/dev/null | wc -l | tr -d ' ')"
+LINES="$(cat "$AUDIT_LOG" "$(dirname "$AUDIT_LOG")"/audit/audit-*.log 2>/dev/null | wc -l | tr -d ' ')"
 echo "[AUDIT] Recorded $LINES line(s)."
 if [[ "$LINES" -eq 0 ]]; then
   echo "[AUDIT] ERROR: the trail is empty — pm-audit recorded nothing."

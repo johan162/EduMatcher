@@ -983,7 +983,7 @@ class TestAuditProcess:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
-        assert proc.logger is not None
+        assert proc._file is not None
         assert proc._to_terminal is False
 
     def test_init_with_terminal_flag(self, tmp_path: Path) -> None:
@@ -995,7 +995,7 @@ class TestAuditProcess:
             patch("edumatcher.audit.main.make_replier"),
         ):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
-        assert proc.logger is not None
+        assert proc._file is not None
         assert proc._to_terminal is True
 
     def test_stop_sets_running_false(self, tmp_path: Path) -> None:

@@ -395,8 +395,6 @@ _AI_SIM_COMMANDS = {
         "--verbose",
         "--max-file-mb",
         "256",
-        "--backup-count",
-        "100",
     ],
     "stats": [
         "pm-stats",
