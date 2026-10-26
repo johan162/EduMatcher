@@ -421,17 +421,19 @@ def bridge(exchange: Exchange) -> Iterator[Bridge]:
     (port,) = free_ports(1)
     # The mini profile runs pm-api-gwy's desk instance only, not the
     # dashboards one holding the read-only key; any of desk's keys may read
-    # the session schedule.
+    # the session schedule. Not a trader's: pm-api-gwy logs that gateway on
+    # to the engine, which then refuses the trader's own ALF logon.
     compiled = json.loads(
         (exchange.data_dir / "ref_data" / "engine_config.json").read_text()
     )
     desk = compiled["api_gateways"]["desk"]
+    (ops,) = [c for c in desk["credentials"] if c["gateway_id"] == "OPS01"]
     env = {
         **os.environ,
         "HOST": "127.0.0.1",
         "PORT": str(port),
         "API_GATEWAY_URL": f"http://127.0.0.1:{desk['port']}",
-        "PM_DASH_API_KEY": desk["credentials"][0]["api_key"],
+        "PM_DASH_API_KEY": ops["api_key"],
         "MONITOR_HOST": "127.0.0.1",
         "METRICS_DB_PATH": str(exchange.data_dir / "metrics.db"),
         "LOG_SRV_ENABLED": "false",
