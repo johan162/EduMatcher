@@ -1,3 +1,35 @@
+## [v0.62.0] - 2026-10-26
+
+Release Type: minor
+
+### 📋 Summary
+Focus for this release is the market simulation and how the automated traders iteracts with the book. The model extends to deepens simulated order books with patient liquidity and improves visibility into trading sessions and participant connections. It also records simulated value jumps and uses them to distinguish expected price responses from unexplained movements in simulation forensics.
+
+### ✨ Additions
+- Added the `patient-liquidity` AI-trader preset and `execution.offset_max` for randomized passive-order placement across multiple price levels
+- Added a dashboard session-detail row with weekly trading days, phase timings, current-time indication, and upcoming bank holidays
+- Added a dashboard participant-detail row with connected counts, connection-history lanes, order rates, rejects, resting orders, and connection-event totals
+- Added persistent value-model jump history and forensic measurements of price responses after 60 and 300 seconds
+
+### 🚀 Improvements
+- Distributed symbols within each AI-trader preset group so each group covers distinct symbols before reusing them
+- Improved price-jump forensics to count sustained moves rather than brief excursions and account for news and same-direction value-model jumps
+- Added the read-only dashboard API key to the curl installer's displayed credentials
+
+### 🐛 Bug Fixes
+- Fixed forensic matching replay processing triggered stops out of the engine's FIFO order
+
+### 📚 Documentation
+- Expanded matching-engine explanations covering price-time priority, auctions, icebergs, stops, and event handling
+- Corrected stale fill-or-kill and queue-priority descriptions in the books
+- Documented dashboard session and participant views, patient-liquidity simulation settings, and value-jump forensics
+- Added website information about IPO valuation and deployment guidance for the read-only dashboard key
+
+### 🛠 Internal
+- Added regression coverage for deeper simulation books, value-jump recording, forensic checks, and dashboard views
+- Fixed a duplicate trader identifier in test coverage
+- Added an automatically created `value_jumps` table to the market-simulation news database without requiring manual migration
+
 ## [v0.61.0] - 2026-10-26
 
 Release Type: major
