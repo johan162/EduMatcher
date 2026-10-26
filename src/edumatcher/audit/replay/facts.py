@@ -180,7 +180,7 @@ class Fact:
     topic_seq: int | None
     #: Position in the stream as read. The tie-break that makes the canonical
     #: sort total and stable (design section 5.2.2); ``line_no`` cannot serve,
-    #: because it restarts at every rotated file.
+    #: because it restarts at every day part.
     ordinal: int
     file: str | None
     line_no: int

@@ -162,7 +162,7 @@ def build_index(
     log_file:
         Primary ``audit.log`` path.
     log_dir:
-        Directory for rotated backups (defaults to ``log_file.parent``).
+        Directory holding ``audit/`` day parts (defaults to ``log_file.parent``).
     from_dt / to_dt:
         Restrict indexing to a time window.
     days:

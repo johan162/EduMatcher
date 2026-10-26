@@ -359,9 +359,10 @@ AI_SWARM_PROCESSES: list[dict[str, Any]] = [
 
 # ai-swarm on the s300-sim example, set up to run for weeks: the example's
 # swarm file (AI001-AI100, 30 symbols each); the engine without --verbose, which
-# logs every order at INFO and would fill log.db; pm-audit rotating 256 MB
-# files and keeping 100 of them (~25 GB, about two trading days at ~1.2 GB an
-# hour) so a whole session can be checked afterwards; pm-stats keeping a week
+# logs every order at INFO and would fill log.db; pm-audit closing 256 MB
+# day parts (never deleted; ~1.2 GB an hour) that it compresses to one ~13:1
+# archive per day, kept for a week, so whole sessions can be checked
+# afterwards; pm-stats keeping a week
 # of trades and two days of order events, which are nearly all of stats.db
 # under a swarm (~1.2 GB a trading day; daily rollups are kept for good);
 # pm-clearing keeping a week of raw
@@ -395,6 +396,8 @@ _AI_SIM_COMMANDS = {
         "--verbose",
         "--max-file-mb",
         "256",
+        "--keep-days",
+        "7",
     ],
     "stats": [
         "pm-stats",
@@ -1011,6 +1014,7 @@ STATE_PATHS: tuple[Path, ...] = (
 # work; ref_data/ is excluded — see the module note above.
 NON_STATE_PATHS: tuple[Path, ...] = (
     AUDIT_LOG_FILE,
+    AUDIT_LOG_FILE.parent / "audit",
     AUDIT_INDEX_DB_FILE,
     LOG_DB_FILE,
     METRICS_DB_FILE,

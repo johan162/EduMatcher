@@ -4,7 +4,7 @@
     After reading this page you will understand:
 
     - Why a full event log matters for an exchange and what `pm-audit` records
-    - The JSONL log format and how log rotation works
+    - The JSONL log format, how `pm-audit` closes each day and how days are archived
     - All `pm-audit` startup options including write buffering
     - How to query audit logs from the command line using every `pm-audit-cli` verb
     - When to use the optional SQLite index for faster queries
@@ -23,7 +23,7 @@ The audit system has two independent components:
 
 | Component | Role | Type |
 |---|---|---|
-| **`pm-audit`** | Subscriber — records every event to a rotating JSONL log file | Long-running process |
+| **`pm-audit`** | Subscriber — records every event to a JSONL log file, closed day by day | Long-running process |
 | **`pm-audit-cli`** | Query tool — reads audit logs and prints structured output | One-shot CLI |
 
 The recorder and the query tool are completely independent. `pm-audit-cli`
@@ -35,7 +35,7 @@ flowchart TB
     subgraph Runtime
         ENG["pm-engine\n(ZMQ PUB :5556)"]
         AUD["pm-audit\nSUB :5556"]
-        LOG[("data/audit.log\n+ rotated backups")]
+        LOG[("data/audit.log\n+ audit/ day parts\n+ audit/*.log.zst")]
         ENG -- "all topics" --> AUD
         AUD -- "buffered JSONL writes" --> LOG
     end
@@ -98,8 +98,8 @@ pm-audit [options]
 | `--terminal` / `-t` | off | Also print each entry to stdout (useful during demos) |
 | `--buffer-size N` | `100` | Number of messages to buffer in memory before flushing to disk |
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
-| `--max-file-mb MB` | `10` | Rotate the audit log when it reaches this size — see [Log rotation](#log-rotation) |
-| `--backup-count N` | `5` | Rotated audit log files to keep |
+| `--max-file-mb MB` | `10` | Close the audit log as a day part when it reaches this size — see [Day parts and archives](#day-parts-and-archives) |
+| `--keep-days N` | `0` | Delete daily archives older than N days; `0` keeps them all |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
@@ -182,29 +182,60 @@ chronologically monotonic by receipt time — but note that receipt order across
 several publishers is not causal order. `cause` and `chain` are what establish
 causality; the timestamp only establishes when `pm-audit` saw it.
 
-### Log rotation
+### Day parts and archives
 
-By default log files rotate at **10 MB** with **5 backups** kept
-(`--max-file-mb`, `--backup-count`):
+`audit.log` always holds **one trading day**: the day is midnight to midnight
+in the exchange's `locale.session_timezone` (as in `pm-stats`), judged by each
+line's receive time. At the date change, or when it reaches `--max-file-mb`,
+`pm-audit` closes it as a numbered part of its day. Parts are never renamed
+again and **nothing is ever deleted** by the recorder:
 
 ```
-data/audit.log       ← active, current writes
-data/audit.log.1     ← previous
-data/audit.log.2     ← older
-...
-data/audit.log.5     ← oldest kept
+data/audit.log                          ← active: today's lines, being written
+data/audit/audit-2026-10-25.1.log       ← closed parts of a day, in write order
+data/audit/audit-2026-10-25.2.log
+data/audit/audit-2026-10-24.log.zst     ← one archive per past day
 ```
 
-When `audit.log` reaches the size limit the Python `RotatingFileHandler`
-renames it to `audit.log.1` (shifting existing backups up) and opens a fresh
-`audit.log`; the oldest backup beyond `--backup-count` is deleted.
+A line received at 23:59:59.990 and flushed at 00:00:05 still lands in the
+old day's part, so every line in `audit-D.*` was received on day D. A day that
+ends while the exchange is idle, or while `pm-audit` is down, is closed when
+`pm-audit` next starts.
 
-Size the two options for the retention you need. The default 60 MB is
-minutes, not days, under load: a 100-trader AI simulation writes about
-1.2 GB an hour, which is why the `ai-sim` emo profile runs
-`pm-audit --max-file-mb 256 --backup-count 100` (~25 GB, about two trading
-days). Rotated files may also be compressed externally; `pm-audit-cli`
-reads `.gz` files transparently.
+**Archives.** Right after closing a day, and once at start-up, `pm-audit`
+starts a low-priority child process, `pm-audit-cli archive --pending`. It
+concatenates the day's parts into one zstd stream, `audit-D.log.zst`
+(≈ 13:1 on this data, ~140 MB/s at the default level 9), checks it by
+decompressing and comparing a SHA-256 and the line count, renames it into
+place and only then deletes the parts. A crash at any point leaves the parts,
+or the archive and the parts, never neither; the next run finishes the job.
+`zstdcat audit-2026-10-24.log.zst | grep …` works, since the archive is the
+day's log byte for byte.
+
+A 100-trader AI simulation writes about 1.2 GB an hour, so a day is 10–14 GB
+as parts and about 1 GB as an archive. Disk use is governed by `--keep-days`:
+
+```bash
+pm-audit --max-file-mb 256 --keep-days 7    # what the ai-sim emo profile runs
+```
+
+Only archives are ever deleted, and only those older than `--keep-days` days.
+
+**Recovering a failed archive by hand.** A failed archive leaves the day's
+parts in place, where they are still read as part of the live trail, and logs
+an ERROR (`pm-log-srv`) and counts `audit.archive_errors`, which pm-monitor
+shows as an `audit_archive_errors` WARN. Free the cause (usually disk space:
+the archive needs about a tenth of the parts' size, but the run refuses below
+25 %) and run it yourself:
+
+```bash
+pm-audit-cli archive --date 2026-10-24      # one day, must be before today
+pm-audit-cli archive --pending              # every closed day that has parts
+pm-audit-cli archive --pending --level 12 --keep-days 30
+```
+
+Two runs never overlap; a second one exits at once with a note. A leftover
+`audit-D.log.zst.part` file is deleted and redone.
 
 ### Subscribed topics
 
@@ -289,7 +320,7 @@ These flags are parsed once, before the subcommand:
 | Flag | Default | Description |
 |---|---|---|
 | `--log-file PATH` | `data/audit.log` | Primary audit log file to read |
-| `--log-dir PATH` | (parent of `--log-file`) | Directory containing rotated log backups; when set, rotated files are discovered automatically |
+| `--log-dir PATH` | (parent of `--log-file`) | Directory holding the `audit/` day parts and archives |
 | `--format table\|json\|csv` | `table` | Output format |
 | `--no-header` | off | Suppress CSV header row |
 | `--use-index PATH` | (auto) | Path to SQLite index file; auto-detected as `<the directory containing --log-file>/audit_index.db` when present |
@@ -325,20 +356,21 @@ These flags are parsed once, before the subcommand:
 Exit code is always `0` when a query succeeds with no results. Non-zero only
 on argument errors (exit `2`) or I/O failures (exit `1`).
 
-### Rotated log discovery
+### Which files are read
 
-When `--log-dir` is set (or defaulted from `--log-file`), `pm-audit-cli`
-automatically discovers rotated backup files:
+By default `pm-audit-cli` reads the **live trail**: every closed day part that
+is not yet archived, oldest first, then `audit.log`. That is today, plus any
+day that has not been archived yet. Archives are not read unless you ask:
 
-```
-logs/audit.log.2.gz   ← oldest, read first
-logs/audit.log.1      ← middle
-logs/audit.log        ← newest, read last
-```
+| You give | It reads |
+|---|---|
+| nothing | the live trail |
+| `--date 2026-10-24` | that trading day (session timezone): its archive, or its parts if not archived yet, plus `audit.log` if it still holds that day |
+| `--log-file data/audit/audit-2026-10-24.log.zst` | exactly that archive (a day part path works too) |
 
-All results are returned in chronological order across all files.
-
-
+`--date` selects a day's *files*, not a time window, and cannot be combined
+with an archive `--log-file` or with `--follow`. Results are chronological
+across all files.
 
 ### `events` — General event search
 
@@ -356,7 +388,7 @@ pm-audit-cli events [options]
 | `--topic PREFIX` | (all) | Filter by topic prefix, e.g. `order.fill` or `trade.` |
 | `--gateway GW_ID` | (all) | Filter by gateway ID appearing in the payload |
 | `--symbol SYMBOL` | (all) | Filter by instrument symbol |
-| `--date YYYY-MM-DD` | (all) | Shorthand for a full trading day |
+| `--date YYYY-MM-DD` | (live trail) | Read this trading day's archive or parts — see [Which files are read](#which-files-are-read) |
 | `--from ISO_TS` | (none) | Start of time range (inclusive) |
 | `--to ISO_TS` | (none) | End of time range (inclusive) |
 | `--limit N` | `100` | Maximum rows returned |
@@ -452,11 +484,10 @@ A few things behave differently in follow mode:
   usable SQLite index exists at the resolved `--use-index` path. The index
   is a point-in-time snapshot and is never refreshed by a running query, so
   follow mode bypasses it rather than showing stale data.
-- **Log rotation is handled automatically.** Each poll re-discovers the log
-  file set (the same discovery `--log-dir` uses), so a rotation that
-  happens while `--follow` is running — a fresh `audit.log` starting up
-  after the previous one becomes `audit.log.1` — is picked up on the next
-  poll without needing to restart the command.
+- **Closing a day is handled automatically.** Each poll re-discovers the
+  live trail, so the midnight close — `audit.log` becoming a day part and a
+  fresh `audit.log` starting — is picked up on the next poll without
+  restarting the command, and no line is printed twice.
 - **No `seq` requirement.** Resuming after each poll is based on the
   entries' timestamps, not the optional `seq=` field in the log line's
   metadata section — so `--follow` works identically whether or not
@@ -488,7 +519,7 @@ pm-audit-cli orders [options]
 | `--id ORDER_ID` | (none) | Order ID to find (repeatable; searches `order_id` and `id` fields in payload) |
 | `--gateway GW_ID` | (all) | Filter by gateway ID |
 | `--symbol SYMBOL` | (all) | Filter by symbol |
-| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--date YYYY-MM-DD` | (live trail) | Read this trading day — see [Which files are read](#which-files-are-read) |
 | `--from ISO_TS` | (none) | Start of time range |
 | `--to ISO_TS` | (none) | End of time range |
 | `--limit N` | `100` | Maximum rows |
@@ -552,7 +583,7 @@ pm-audit-cli trades [options]
 | `--min-price PRICE` | (none) | Minimum trade price (inclusive) |
 | `--max-price PRICE` | (none) | Maximum trade price (inclusive) |
 | `--min-qty QTY` | (none) | Minimum trade quantity (inclusive) |
-| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--date YYYY-MM-DD` | (live trail) | Read this trading day — see [Which files are read](#which-files-are-read) |
 | `--from ISO_TS` | (none) | Start of time range |
 | `--to ISO_TS` | (none) | End of time range |
 | `--limit N` | `100` | Maximum rows |
@@ -612,7 +643,7 @@ pm-audit-cli topics [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--date YYYY-MM-DD` | (all) | Restrict to a trading date |
+| `--date YYYY-MM-DD` | (live trail) | Read this trading day — see [Which files are read](#which-files-are-read) |
 | `--from ISO_TS` | (none) | Start of time range |
 | `--to ISO_TS` | (none) | End of time range |
 | `--prefix PREFIX` | (all) | Filter topics by prefix, e.g. `order.` |
@@ -663,7 +694,7 @@ pm-audit-cli gateways [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--date YYYY-MM-DD` | (all) | Trading date |
+| `--date YYYY-MM-DD` | (live trail) | Read this trading day — see [Which files are read](#which-files-are-read) |
 | `--from ISO_TS` | (none) | Start of time range |
 | `--to ISO_TS` | (none) | End of time range |
 | `--min-events N` | (none) | Only show gateways with at least N events |
@@ -821,8 +852,8 @@ Audit Log Statistics
   Gateways seen:      5
 
   Per-file breakdown:
-    data/audit.log.2  12,000 events  4.1 MB
-    data/audit.log.1  18,234 events  6.2 MB
+    data/audit/audit-2026-07-07.1.log  12,000 events  4.1 MB
+    data/audit/audit-2026-07-07.2.log  18,234 events  6.2 MB
     data/audit.log     15,444 events  2.1 MB
 ```
 
@@ -835,8 +866,8 @@ pm-audit-cli stats
 # Full breakdown including per-file stats
 pm-audit-cli stats --verbose
 
-# Check a specific log file location
-pm-audit-cli --log-file /mnt/archive/2026-07-01/audit.log stats
+# An archived day, by path
+pm-audit-cli --log-file data/audit/audit-2026-07-01.log.zst stats
 ```
 
 
@@ -966,12 +997,12 @@ health: OK
 | Option | Description |
 |---|---|
 | `--extended` | Also check the audit log file is readable, writable and ends in a well-formed entry (up to 15 s) |
-| `-v`, `--verbose` | List exactly which checks ran; with `--extended`, also print the log size, rotated backups and last entry time |
+| `-v`, `--verbose` | List exactly which checks ran; with `--extended`, also print the log size, day parts, archives (with the compression ratio) and last entry time |
 | `-q`, `--quiet` | Print nothing; report only through the exit code |
 
 With `--extended --verbose` the report ends with the checks performed and the
-log file figures. Rotated backups are found the same way as for the query
-commands, so `--log-dir` applies:
+log file figures. Day parts and archives are found under `<dir>/audit/`, so
+`--log-dir` applies:
 
 ```text
 Checks performed:
@@ -982,8 +1013,9 @@ Checks performed:
 Log file stats:
   path: data/audit.log
   size: 2.1MB
-  rotated backups: 2
-  total size: 12.4MB
+  day parts: 2 (10.3MB)
+  archives: 3 (2.1MB, 13.4:1)
+  total size: 14.5MB
   last entry: 2026-07-08T16:29:59.874+00:00
 ```
 
@@ -1064,12 +1096,18 @@ pm-audit-cli --format json events --topic order. --gateway GW01 \
   --date 2026-07-08 --limit 50000 > gw01_orders.json
 ```
 
-### Filter across rotated log backups
+### Look at an archived day
 
 ```bash
-# Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.
-pm-audit-cli --log-dir data/ \
-  trades --symbol AAPL --from 2026-07-01 --to 2026-07-08 --limit 10000
+# The live trail (unarchived parts + audit.log) is the default
+pm-audit-cli trades --symbol AAPL --limit 10000
+
+# One past day, read from its archive (or its parts, if not archived yet)
+pm-audit-cli trades --symbol AAPL --date 2026-07-07 --limit 10000
+
+# A single archive by path, or straight from the shell
+pm-audit-cli --log-file data/audit/audit-2026-07-07.log.zst trades --symbol AAPL
+zstdcat data/audit/audit-2026-07-07.log.zst | grep '\[trade\.executed\]'
 ```
 
 ### Watch a live training session

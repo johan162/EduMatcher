@@ -25,7 +25,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☑ | 2026-10-26 |
 | 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☑ | 2026-10-26 |
 | 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☑ | 2026-10-26 |
-| 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☐ | |
+| 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☑ | 2026-10-26 |
 
 Total ≈ 4 d. Z1 comes first so every reader understands archives before
 anything writes one; Z2 before Z3 because only closed day parts can be
@@ -427,3 +427,32 @@ e2e passes.
   `pm-audit-cli` says "No audit data for D".
 - Docs for all of this: Z6 (`030-audit-replay.md` still calls `--date` a UTC
   day).
+
+**Z6 (2026-10-26).**
+- emo: the `ai-swarm`/`ai-sim` audit entry is `--max-file-mb 256 --keep-days 7`
+  (a week of archives, ≈ 7 GB, against the ~25 GB of the old 100 × 256 MB
+  ring); the default profile's `pm-audit --verbose` is unchanged.
+  `NON_STATE_PATHS` gained `<data>/audit/`, so `emo clean --all` removes parts
+  and archives (state-only `clean` keeps them, like `audit.log`).
+- Deployments: the docker `./data:/data` mount already covers `audit/` (README
+  tree updated); the archiver child needs `nice` (coreutils) and the same
+  interpreter, both present in the image; the VM and curl installers keep the
+  trail in the data directory and need no change. A container restart across
+  midnight closes the old day at start-up and archives it.
+- Docs updated: operator guide `020-audit-trail.md` (day parts, archives,
+  retention, manual recovery, which files are read, `--date`), `030-audit-replay.md`,
+  `010-persistence.md`, `060-health-monitor.md` (`audit_archive_errors`),
+  reference manual (`pm-audit`, `pm-audit-cli archive`), architecture
+  `030-file-formats.md`, the AI-trader setup table and the Operator Dashboard
+  design's fixed-rule list. `mkdocs build` is clean.
+- e2e: `tests/test_audit_e2e.py` runs a real `AuditProcess` on a real ZeroMQ
+  PUB/SUB pair with a faked clock across midnight; the real archiver child
+  turns day D into one `.zst`, and `pm-audit-cli --date`, the default read and
+  `pm-audit-replay --date` see exactly the right lines. It uses free ports, so
+  it does not need the exchange's fixed ones. A real `pm-audit` process cannot
+  be made to cross midnight without a clock hook in product code, which was
+  deliberately not added.
+- **Open (not done):** `tools/verify_audit_trail.sh` and `make test-e2e` pass,
+  but the "left running across a real midnight" check of Z4 has only the faked
+  version. Worth one real overnight `ai-sim` run, which is also the next
+  measurement of archive time on a ~10 GB day.

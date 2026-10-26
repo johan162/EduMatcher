@@ -851,8 +851,9 @@ A breach or clear produces a `THRESHOLD` event and a single `WARNING` /
 so `log-gui` alerting already covers notification. No second alerting system.
 
 As implemented in B3 (`monitor/thresholds.py`, I62–I65): rule names are
-the configuration keys, plus four fixed ones — `loop_age_ms` (warn only),
-`slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (any
+the configuration keys, plus five fixed ones — `loop_age_ms` (warn only), `audit_archive_errors`,
+`slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps`, and
+`audit_archive_errors` (pm-audit's archiver failed; Zstd-Audit Z4) (any
 increase in 5 min). A level rises at once and eases after three
 consecutive lower seconds, to the highest level of that run; a reading that
 stops arriving counts as OK. Log lines read `threshold host_cpu_pct WARN 81
@@ -2715,7 +2716,7 @@ carries only active breaches, so the rows take the rules from
 `lib/thresholds.ts` `fromRule()`. The endpoint returns every rule
 `ActiveBreach.rule` can name, each `{warn, crit, invert, configurable}`:
 - **The seven configurable rules:** from the deployed artifact's `monitor.thresholds`, which is what pm-monitor read when it started. With no artifact deployed they are pm-monitor's built-in defaults, which is what it then runs on.
-- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `stats_feed_gaps` and `slow_client_disconnects` (any increase over 5 min).
+- **Rules fixed in pm-monitor's code:** `loop_age_ms` (WARN above 1 s), and `api_dropped_events`, `stats_feed_gaps`, `audit_archive_errors` and `slow_client_disconnects` (any increase over 5 min).
 - **The bridge's own copy:** of the defaults, inverted rules and fixed rules, pinned to the Python by `tests/test_dash_thresholds_mirror.py`.
 - **A broken artifact:** an artifact that is there but cannot be used is a 503 `thresholds_unavailable`, never a quiet fallback to defaults.
 - **A redeployed artifact:** shows at once, but pm-monitor uses the new values only after its restart, as for every process.

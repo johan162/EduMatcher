@@ -810,10 +810,10 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 
 ## pm-audit - Event Logger
 
-Records every message on the bus to a rotating log file.
+Records every message on the bus to a day-closing log file; closed days are compressed to one zstd archive each.
 
 ```bash
-pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--backup-count 5] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--max-file-mb 10] [--keep-days 0] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -824,8 +824,8 @@ pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--f
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
-| `--max-file-mb`       | 10               | Rotate the audit log when it reaches this size in MB         |
-| `--backup-count`      | 5                | Rotated audit log files to keep                              |
+| `--max-file-mb`       | 10               | Close the audit log as a day part when it reaches this size in MB |
+| `--keep-days`         | 0                | Delete daily archives older than N days (0 keeps all)        |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
@@ -898,8 +898,8 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 
 | Flag | Default | Description |
 |---|---|---|
-| `--log-file PATH` | `data/audit.log` | Primary audit log file |
-| `--log-dir PATH` | directory of `--log-file` | Directory containing rotated log backups |
+| `--log-file PATH` | `data/audit.log` | Primary audit log file; reads the live trail (unarchived day parts, then this file). An archive or day part named here is read alone |
+| `--log-dir PATH` | directory of `--log-file` | Directory holding the `audit/` day parts and archives |
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
 | `--no-header` | off | Suppress header row in CSV output |
 | `--use-index PATH` | auto-detected | Path to SQLite index file (auto-detected from `--log-dir` when not specified; ignored for commands that don't support it) |
@@ -917,6 +917,7 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
 | `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
 | `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+| `archive`  | —    | Compress closed days' parts into one verified `audit-D.log.zst` per day | `--date D` or `--pending`, `--level N` (default 9), `--keep-days N` |
 | `health`   | —    | Check the `pm-audit` process and ping its health socket; `--extended` adds the audit log read/write and last-entry check | `--extended`, `-v`/`--verbose`, `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
 
 **No-row behaviour:**

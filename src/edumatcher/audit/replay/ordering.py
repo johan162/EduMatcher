@@ -89,7 +89,7 @@ def sort_key(fact: Fact) -> SortKey:
     socket in one thread -- so within a millisecond it *is* the order the
     exchange published in, which is the strongest signal available and the one
     the ULID tail was standing in for. ``line_no`` cannot serve, because it
-    restarts at every rotated file.
+    restarts at every day part.
     """
     return (mint_millis(fact), fact.receipt_ts, fact.ordinal)
 

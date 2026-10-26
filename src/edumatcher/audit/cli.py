@@ -769,8 +769,8 @@ def _follow_fetch(
 ) -> list[dict[str, Any]]:
     """Re-discover log files and fetch rows newer than (after_ts, after_skip).
 
-    Called on every --follow poll, so a rotation that happens between polls
-    (a fresh ``audit.log.1`` appearing, or the active file being replaced) is
+    Called on every --follow poll, so a day close that happens between polls
+    (a new day part appearing, or the active file being replaced) is
     picked up automatically — ``discover_log_files`` is just a directory
     listing, which is cheap enough to repeat every tick.
     """

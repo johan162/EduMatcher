@@ -109,7 +109,7 @@ Everything lives under `$EDUMATCHER_DATA_DIR` (`/data` in the container,
 | `market_sim_news.db` | Published news and rumour events queried by `pm-news past`, and the model's value jumps | grows with each event |
 | `emo/` | `pm-opctl` PID files and each process's console output (`<name>.log`) | slowly |
 | `log.db` | Every process's log | up to 30 days, then flat |
-| `audit.log`, `audit.log.1`–`.5` | The audit trail, rotated at 10 MB | capped at 60 MB |
+| `audit.log`, `audit/` | The audit trail: today in `audit.log`, closed day parts and one zstd archive per past day in `audit/` | parts never deleted; archives forever unless `pm-audit --keep-days N` |
 | `stats.db` | Daily statistics; trades, order events, snapshots | rollups forever, trades and snapshots 7 days, order events about an hour |
 | `clearing.db` | Clearing events and positions | trades 7 days, daily summaries and positions for good |
 | `ai_swarm/<date>-<worker>.jsonl` | Each AI trader's results, one line per trader per day | about 50 KB a day |

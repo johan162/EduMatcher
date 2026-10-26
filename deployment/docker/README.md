@@ -354,7 +354,8 @@ data/
 ├── emo/                       pm-opctl-cli PID files and per-process logs
 │   ├── engine.log
 │   └── ...
-├── audit.log                  the audit trail
+├── audit.log                  the audit trail: today's lines, being written
+├── audit/                     closed day parts and one audit-YYYY-MM-DD.log.zst per past day
 ├── clearing.db  stats.db  log.db
 ├── gtc_orders.json  gtc_combos.json  book_stats.json
 └── ssh-hostkeys/              only when SSH=1 has been used
