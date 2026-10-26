@@ -53,6 +53,7 @@ from edumatcher.audit.archive import (
     apply_retention,
     archive_day,
     archive_lock,
+    format_result,
     pending_days,
     session_timezone,
     today_in,
@@ -1045,10 +1046,13 @@ def _handle_archive(args: argparse.Namespace, audit_dir: Path) -> int:
                     print(f"{day}: no parts to archive")
                 else:
                     print(
-                        f"{day}: {result.parts} part(s), "
-                        f"{format_bytes(result.bytes_in)} -> "
-                        f"{format_bytes(result.bytes_out)} "
-                        f"({result.ratio:.1f}:1)"
+                        format_result(
+                            result,
+                            (
+                                format_bytes(result.bytes_in),
+                                format_bytes(result.bytes_out),
+                            ),
+                        )
                     )
             if args.keep_days > 0:
                 for path in apply_retention(audit_dir, args.keep_days, today):

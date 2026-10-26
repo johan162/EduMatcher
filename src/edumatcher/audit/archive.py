@@ -51,6 +51,27 @@ class ArchiveResult:
         return self.bytes_in / self.bytes_out if self.bytes_out else 0.0
 
 
+_RESULT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}: .*\((\d+(?:\.\d+)?):1\)$")
+
+
+def format_result(result: ArchiveResult, human: tuple[str, str]) -> str:
+    """The one line ``pm-audit-cli archive`` prints per archived day.
+
+    ``human`` is the formatted (input, output) size.  ``parse_ratio`` reads the
+    line back, which is how pm-audit learns the ratio from its child process.
+    """
+    return (
+        f"{result.day}: {result.parts} part(s), {human[0]} -> {human[1]} "
+        f"({result.ratio:.1f}:1)"
+    )
+
+
+def parse_ratio(line: str) -> float | None:
+    """The ratio on a ``format_result`` line, or None for any other line."""
+    m = _RESULT_RE.match(line.strip())
+    return float(m.group(1)) if m else None
+
+
 def session_timezone() -> tzinfo:
     """The engine config's ``locale.session_timezone`` (as pm-stats reads it)."""
     from edumatcher.config_artifact import load_compiled_config

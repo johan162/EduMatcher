@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from datetime import datetime, tzinfo
 from pathlib import Path
 
@@ -22,7 +23,15 @@ class AuditFile:
     Not thread-safe: the caller serialises ``write`` and the close calls.
     """
 
-    def __init__(self, path: Path, max_bytes: int, tz: tzinfo) -> None:
+    def __init__(
+        self,
+        path: Path,
+        max_bytes: int,
+        tz: tzinfo,
+        on_day_closed: Callable[[], None] = lambda: None,
+    ) -> None:
+        #: Called when a roll closes a day that has ended (not on a size roll).
+        self._on_day_closed = on_day_closed
         self._path = path
         self._parts_dir = path.parent / "audit"
         self._max_bytes = max_bytes
@@ -53,6 +62,7 @@ class AuditFile:
         """Append ``lines``, all received on ``day``; closes an earlier day first."""
         if self._day is not None and day > self._day:
             self.roll()
+            self._on_day_closed()
         if self._day is None:
             self._day = day
         data = ("\n".join(lines) + "\n").encode("utf-8")
@@ -66,6 +76,7 @@ class AuditFile:
         """Close ``audit.log`` if it holds a day before ``today`` (idle midnight)."""
         if self._day is not None and self._day < today:
             self.roll()
+            self._on_day_closed()
 
     def roll(self) -> None:
         """Close ``audit.log`` as the next part of its day and start a new one."""

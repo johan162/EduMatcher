@@ -490,7 +490,7 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         synopsis=(
             "pm-audit [--audit-log-file data/audit.log] [--terminal]",
             "         [--buffer-size 100] [--flush-interval 10]",
-            "         [--max-file-mb 10]",
+            "         [--max-file-mb 10] [--keep-days 0]",
         ),
         description=(
             "Subscribes to everything published on :5556 with an empty topic prefix "
@@ -520,6 +520,11 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
                 "--max-file-mb MB",
                 "10",
                 "Close the audit log as a day part when it reaches this size",
+            ),
+            Option(
+                "--keep-days N",
+                "0",
+                "Delete daily archives older than N days (0 keeps all)",
             ),
         ),
         has_common_log_options=True,

@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; stdlib `compression.zstd` | — | 0.5 d | ☑ | 2026-10-26 |
 | 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☑ | 2026-10-26 |
 | 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☑ | 2026-10-26 |
-| 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☐ | |
+| 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☑ | 2026-10-26 |
 | 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☐ | |
 | 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☐ | |
 
@@ -371,3 +371,30 @@ e2e passes.
   own copy).
 - Z4: `ArchiveResult.ratio` feeds `audit.archive_ratio`; spawn
   `pm-audit-cli archive --pending --keep-days N`.
+
+**Z4 (2026-10-26).**
+- `AuditFile` takes an `on_day_closed` callback, fired only when a roll closes
+  an *ended day* (a later-dated line, or the idle/start-up close), not on a
+  size roll: parts of today are not archivable. `AuditProcess` only sets a flag
+  from it (it runs under the buffer lock, possibly on the timer thread); the
+  **receive thread** spawns and reaps, in the once-a-second day check, so the
+  child is never started from a foreign thread.
+- Start-up catch-up is requested in `run()`, not `__init__`, so constructing an
+  `AuditProcess` in tests never starts a process.
+- One archiver at a time. A day that closes while one runs sets the flag again;
+  the run after it picks the day up, since `--pending` takes every closed day.
+- The child is `nice -n 10 python -m edumatcher.audit.cli --log-file <log>
+  archive --pending --keep-days N` (`sys.executable`, so the venv is used).
+  `preexec_fn` was avoided: pm-audit has timer threads.
+- The ratio reaches pm-audit through the child's result line:
+  `archive.format_result` writes it, `parse_ratio` reads it back. A non-zero
+  exit counts one `audit.archive_errors` and is logged at ERROR with the child's
+  stderr; a child that cannot be started counts the same.
+- A pm-audit shutdown does not kill a running archiver: it is crash-safe and
+  finishes (or the next start-up re-runs it).
+- Monitor: `audit.archive_errors` is in `WATCHED_INCREASES`
+  (`audit_archive_errors`), mirrored in dash-gui's `FIXED_RULES`; the health
+  contract test now lists pm-audit as its owner. Docs for the new rule:
+  Z6 (operator guide `060-health-monitor.md`, dashboard design).
+- `make test-e2e` target name: it exists; the earlier failure was run from
+  the wrong directory after a vitest call.

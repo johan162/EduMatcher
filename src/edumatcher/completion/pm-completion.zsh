@@ -717,6 +717,7 @@ _shtab_pm_audit_options=(
   "--buffer-size[Number of messages to buffer before writing to disk (default\: 100)]:N:"
   "--flush-interval[Maximum seconds to wait before flushing buffer (default\: 10.0)]:SECONDS:"
   "--max-file-mb[Close the audit log as a day part at this size (default\: 10)]:MB:"
+  "--keep-days[Delete archives older than N days (default\: 0 \= keep all)]:N:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"
