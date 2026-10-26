@@ -4818,6 +4818,14 @@ class Engine:
             f"COMBO {combo.combo_id} accepted "
             f"({len(combo.legs)} legs) from {combo.gateway_id}"
         )
+        if publish_ack:
+            self.pub_sock.send_multipart(
+                self._combo_ack(combo.gateway_id, combo.combo_id, True)
+            )
+        # Registered before any child is posted, so a child's own dispatch
+        # runs the combo follow-up: a leg ending on entry fails the combo
+        # (X21), and its fills move the combo's status.
+        self._combos[combo.id] = combo
 
         # M5: all-or-none combos must not execute ANY leg unless EVERY leg can
         # fully fill simultaneously.  Pre-check each leg's fillability; if any
@@ -4894,24 +4902,14 @@ class Engine:
             trades, events = book.process(child, match=do_match)
             if defer_ack and child.status is not OrderStatus.REJECTED:
                 self.pub_sock.send_multipart(ack)
-            # This combo is registered only after the loop, so the follow-ups
-            # of its own children are no-ops here; the status below covers them.
             self._publish_dispatch(
                 trades, events, self._book_reject(leg.symbol, do_match)
             )
-
             self._mark_dirty(leg.symbol)
-            combo.leg_statuses[i] = child.status.value
-            combo.leg_fill_qty[i] = child.quantity - child.remaining_qty
-
-        self._combos[combo.id] = combo
-
-        if publish_ack:
-            self.pub_sock.send_multipart(
-                self._combo_ack(combo.gateway_id, combo.combo_id, True)
-            )
-
-        self._update_combo_status(combo)
+            # A failed combo posts no further legs: they could only be acked
+            # and cancelled at once.
+            if combo.status is ComboStatus.FAILED:
+                break
         return True
 
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
@@ -4974,7 +4972,7 @@ class Engine:
         self._cascade_cancel_combo(combo, ComboStatus.CANCELLED)
 
     def _check_combo_after_child_event(self, child_order: Order) -> None:
-        """Called after any child order fill/cancel/expire to update combo state."""
+        """Called after any child order fill/cancel/expire/reject to update combo state."""
         combo_id = self._order_to_combo.get(child_order.id)
         if not combo_id:
             return
@@ -4995,7 +4993,11 @@ class Engine:
         combo.leg_statuses[idx] = child_order.status.value
         combo.leg_fill_qty[idx] = child_order.quantity - child_order.remaining_qty
 
-        if child_order.status in (OrderStatus.CANCELLED, OrderStatus.EXPIRED):
+        if child_order.status in (
+            OrderStatus.CANCELLED,
+            OrderStatus.EXPIRED,
+            OrderStatus.REJECTED,
+        ):
             self._cascade_cancel_combo(
                 combo,
                 ComboStatus.FAILED,

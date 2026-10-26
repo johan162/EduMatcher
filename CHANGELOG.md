@@ -1,3 +1,29 @@
+## [v0.61.0] - 2026-10-26
+
+Release Type: major
+
+### 📋 Summary
+This release corrects combo-order failure handling during entry and makes website uploads reliable for large download directories. It also checks release-tool prerequisites before development-environment setup continues.
+
+### ⚠️ Breaking Changes
+- The ACK from any combo order submisson will always be sent first if the combo order reaches the matching 
+engine. Any FAILED/PARTIAL et,c will come next. 
+
+### 🚀 Improvements
+- Added setup checks for Python 3.14 or newer, Expect, and Zstandard, with installation guidance and optional installation of missing Expect and Zstandard tools
+
+### 🐛 Bug Fixes
+- Fixed combo orders remaining active when a child leg is rejected, cancelled, or expires during entry; already-posted siblings are now cancelled and later legs are not posted
+- Fixed combo acknowledgements and registration occurring after child-leg processing instead of before it
+- Fixed website cleanup failing on non-empty download directories when long SFTP listings exceeded Expect's output buffer
+
+### 📚 Documentation
+- Updated architecture, participant, and training guides to explain combo failure propagation and child-leg posting order
+- Updated the simulation-forensics workplan with investigation findings
+
+### 🛠 Internal
+- Added regression coverage for combo entry failures, oversized SFTP listings, and setup prerequisite detection
+
 ## [v0.60.2] - 2026-10-25
 
 Release Type: major

@@ -30,7 +30,7 @@ treats as a unit:
 
 - All legs are submitted together.
 - If the market cannot fill all of them, none fill.
-- If any leg is later cancelled or expires, the exchange automatically cancels
+- If any leg is cancelled, rejected or expires, the exchange automatically cancels
   all the remaining legs for you.
 
 ### Three real-world situations where combos matter
@@ -108,7 +108,7 @@ This is called **leg risk** (or execution risk).
 | Single-leg problem | Combo solution |
 |----|-----|
 | Leg risk — one side fills, the other doesn't | Both legs submitted atomically in one message |
-| Manual cancellation — if one leg fails you must remember to cancel the other | Cascade-cancel: if any leg is cancelled or expires, all siblings are cancelled automatically |
+| Manual cancellation — if one leg fails you must remember to cancel the other | Cascade-cancel: if any leg is cancelled, rejected or expires, all siblings are cancelled automatically |
 | State tracking — you mentally track which orders belong together | The engine tracks the parent combo and its children as a unit |
 | Strategy intent — the engine doesn't know your two orders are related | The engine understands the relationship and can report combo-level status |
 
@@ -211,8 +211,8 @@ stateDiagram-v2
     PENDING --> PARTIALLY_MATCHED : first leg fill
     PARTIALLY_MATCHED --> MATCHED : all legs fully filled
     PENDING --> MATCHED : all legs fill immediately (e.g. both legs cross resting liquidity at submission)
-    PENDING --> FAILED : cascade-cancel on a leg cancelled or expired
-    PARTIALLY_MATCHED --> FAILED : cascade-cancel on a leg cancelled or expired
+    PENDING --> FAILED : cascade-cancel on a leg cancelled, rejected or expired
+    PARTIALLY_MATCHED --> FAILED : cascade-cancel on a leg cancelled, rejected or expired
     PENDING --> CANCELLED : explicit CANCEL|COMBO_ID=
     PARTIALLY_MATCHED --> CANCELLED : explicit CANCEL|COMBO_ID=
     FAILED --> [*]
@@ -225,7 +225,7 @@ occurs.
 
 ### Cascade Cancellation
 
-If one leg of a combo is cancelled or expires, the remaining legs must be
+If one leg of a combo is cancelled, rejected or expires, the remaining legs must be
 **automatically cancelled**. This is non-trivial:
 
 - The cancelled leg might be on a different book than its siblings.
@@ -303,21 +303,26 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 
 1. The engine validates the combo (symbols allowed, no duplicates, valid quantities).
 2. If valid, the engine sends a **combo ACK** back to your gateway.
-3. The engine creates **child orders** — one per leg — and posts them to the
-   respective order books.
+3. The engine creates **child orders** — one per leg, in leg order — and posts
+   them to the respective order books. Every leg event and `combo.status`
+   therefore follows the `combo.ack`.
 4. Child orders match and rest like normal orders. Each fill is reported to you as a
    standard `order.fill` event.
 5. When **all legs are fully filled**, the engine publishes a `combo.status(MATCHED)`
    event.
-6. If any leg is **cancelled or expires** before all legs fill, the engine
-   cascade-cancels the remaining legs and publishes `combo.status(FAILED)`.
+6. If any leg is **cancelled, rejected or expires** before all legs fill, the
+   engine cascade-cancels the remaining legs and publishes
+   `combo.status(FAILED)`. This holds on entry too: a leg rejected or
+   cancelled as it is posted fails the combo at once, the legs already
+   posted are cancelled, and the legs after it are never posted.
 
 A `MARKET`, `IOC` or `FOK` leg cannot rest, so while its symbol is not
 matching it is rejected, with the code an ordinary order of that type would
 get: `INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`) on a halted symbol,
 `SESSION_NOT_PERMITTED` outside continuous trading. A leg of an all-or-none
 combo held back because another leg cannot fill is rejected with
-`INSUFFICIENT_LIQUIDITY`, as is a `FOK` leg short of liquidity.
+`INSUFFICIENT_LIQUIDITY`, as is a `FOK` leg short of liquidity. Either
+way the combo fails (step 6).
 
 ### Cancelling a Combo
 

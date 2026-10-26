@@ -448,12 +448,12 @@ class TestMarketMakerComboSeeds:
 class TestComboValidation:
 
     def test_combo_accepted_with_valid_legs(self, combo_engine) -> None:
-        """Each child leg gets its own order.ack before the parent combo.ack.
+        """The parent combo.ack, then each child leg's own order.ack.
 
         No combo leg used to publish order.ack at all -- see
         ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md and Engine._accept_combo's leg-creation
-        loop. The two leg acks come first because they are published as each
-        leg is created, before the parent combo.ack that follows the loop.
+        loop. The combo.ack comes first (X21), so every leg event and combo
+        status follows it.
         """
         engine, pub_sock = combo_engine
         payload = _two_leg_combo()
@@ -461,19 +461,19 @@ class TestComboValidation:
 
         assert len(pub_sock.sent) == 3
 
-        leg0_topic, leg0_msg = decode(pub_sock.sent[0])
+        topic, msg = decode(pub_sock.sent[0])
+        assert topic == "combo.ack.TRADER01"
+        assert msg["accepted"] is True
+
+        leg0_topic, leg0_msg = decode(pub_sock.sent[1])
         assert leg0_topic == "order.ack.TRADER01"
         assert leg0_msg["accepted"] is True
         assert leg0_msg["symbol"] == "AAPL"
 
-        leg1_topic, leg1_msg = decode(pub_sock.sent[1])
+        leg1_topic, leg1_msg = decode(pub_sock.sent[2])
         assert leg1_topic == "order.ack.TRADER01"
         assert leg1_msg["accepted"] is True
         assert leg1_msg["symbol"] == "MSFT"
-
-        topic, msg = decode(pub_sock.sent[2])
-        assert topic == "combo.ack.TRADER01"
-        assert msg["accepted"] is True
 
     def test_combo_rejected_gateway_not_connected(self, combo_engine) -> None:
         engine, pub_sock = combo_engine
