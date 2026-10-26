@@ -60,7 +60,8 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry nodejs npm pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex texlive-latex-extra texlive-pictures"
+    echo "  sudo apt install poetry nodejs npm expect zstd pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex texlive-latex-extra texlive-pictures"
+    echo "  Install Python 3.14 or newer if your distribution's default Python is older."
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
@@ -167,6 +168,62 @@ pandoc_version() {
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
 echo ""
+
+# Check Python separately from Poetry's own interpreter.
+PYTHON_BIN=""
+for candidate in python3.14 python3.15 python3 python; do
+    if command -v "${candidate}" >/dev/null 2>&1 && \
+        "${candidate}" -c 'import sys; sys.exit(sys.version_info < (3, 14))'; then
+        PYTHON_BIN="${candidate}"
+        break
+    fi
+done
+if [ -z "${PYTHON_BIN}" ]; then
+    echo "❌ Python 3.14 or newer is required but was not found on PATH"
+    echo "   Install Python 3.14+ and re-run this script."
+    echo "   Fedora: sudo dnf install python3.14"
+    echo "   Debian/Ubuntu: install python3.14 from a distribution/repository that provides it."
+    echo "   macOS: brew install python@3.14"
+    exit 1
+fi
+echo "✅ Python is available: $("${PYTHON_BIN}" --version) (${PYTHON_BIN})"
+
+# Release web-site uploads require Expect; audit logs require zstd.
+for tool in expect zstd; do
+    if ! command -v "${tool}" >/dev/null 2>&1; then
+        echo "❌ ${tool} not found"
+        install_command=()
+        if is_fedora; then
+            install_command=(sudo dnf install -y "${tool}")
+        elif is_ubuntu_based; then
+            install_command=(sudo apt install -y "${tool}")
+        elif [ "${OS_KERNEL}" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+            install_command=(brew install "${tool}")
+        fi
+        if [ ${#install_command[@]} -eq 0 ]; then
+            echo "   Install ${tool} with your system package manager, then re-run this script."
+            exit 1
+        fi
+        if confirm_action "Would you like to install ${tool} now (${install_command[*]})?"; then
+            if is_ubuntu_based; then
+                run_apt_bootstrap_once
+            fi
+            "${install_command[@]}"
+        else
+            echo "❌ ${tool} is required to continue"
+            echo "   Install with: ${install_command[*]}"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    fi
+    if ! command -v "${tool}" >/dev/null 2>&1; then
+        echo "❌ ${tool} is still unavailable after installation"
+        exit 1
+    fi
+    echo "✅ ${tool} is available"
+done
 
 # Ensure Poetry is available.
 if ! command -v poetry &> /dev/null; then
@@ -864,4 +921,3 @@ echo "Download EduMatcher by cloning the repository and running `poetry install`
 echo "See development.md for more information on how to contribute and run tests."
 
 # End of script
-
