@@ -102,9 +102,17 @@ expect {
 
 # Run one sftp command and return what it printed (minus the echoed command).
 proc cmd {c} {
+    set out ""
     send -- "$c\r"
     expect {
-        -re "(.*)sftp> " { return $expect_out(1,string) }
+        full_buffer {
+            append out $expect_out(buffer)
+            exp_continue
+        }
+        -re "(.*)sftp> " {
+            append out $expect_out(1,string)
+            return $out
+        }
         timeout { puts stderr "✗ Timed out running: $c"; exit 1 }
         eof { puts stderr "✗ sftp ended while running: $c"; exit 1 }
     }
