@@ -14,9 +14,10 @@ from __future__ import annotations
 import json
 import re
 from compression import zstd
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Iterator, cast
+from edumatcher.audit.writer import file_day
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
 from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
@@ -191,15 +192,51 @@ _PART_RE = re.compile(r"^audit-(\d{4}-\d{2}-\d{2})\.(\d+)\.log$")
 _ARCHIVE_RE = re.compile(r"^audit-(\d{4}-\d{2}-\d{2})\.log\.zst$")
 
 
+def is_explicit_file(log_file: Path) -> bool:
+    """True when ``log_file`` names one archive or day part, not the active log."""
+    return bool(_ARCHIVE_RE.match(log_file.name) or _PART_RE.match(log_file.name))
+
+
+def discover_day_files(
+    log_file: Path, day: str, tz: tzinfo, log_dir: Path | None = None
+) -> list[Path]:
+    """The files holding trading day ``day`` (session timezone), oldest first.
+
+    Its archive if there is one, else its parts, then ``audit.log`` if that
+    holds the day too (today, or a day pm-audit has not yet closed).
+    """
+    search_dir = log_dir if log_dir is not None else log_file.parent
+    parts_dir = search_dir / "audit"
+    archive = parts_dir / f"audit-{day}.log.zst"
+    if archive.exists():
+        files = [archive]
+    elif parts_dir.is_dir():
+        found = [
+            (int(m.group(2)), p)
+            for p in parts_dir.iterdir()
+            if (m := _PART_RE.match(p.name)) and m.group(1) == day
+        ]
+        files = [p for _, p in sorted(found)]
+    else:
+        files = []
+    if log_file.exists() and file_day(log_file, tz) == day:
+        files.append(log_file)
+    return files
+
+
 def discover_log_files(log_file: Path, log_dir: Path | None = None) -> list[Path]:
     """Return the live trail in chronological order (oldest first).
 
     That is every closed day part not yet archived, ordered by (date, part
     number), then the active log.  Archives are not included: they are read
-    by explicit path.  A day that has an archive but still has parts (a crash
-    between the archive's rename and the parts' deletion) is read from its
-    archive only, so no line appears twice.
+    by explicit path (which is returned alone) or by ``discover_day_files``.
+    A day that has an archive but still has parts (a crash between the
+    archive's rename and the parts' deletion) is read from its archive only,
+    so no line appears twice.
     """
+    if is_explicit_file(log_file):
+        return [log_file] if log_file.exists() else []
+
     search_dir = log_dir if log_dir is not None else log_file.parent
     parts_dir = search_dir / "audit"
 

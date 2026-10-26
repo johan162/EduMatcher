@@ -36,9 +36,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+from edumatcher.audit.archive import session_timezone
 from edumatcher.audit.query import (
-    date_to_range,
+    discover_day_files,
     discover_log_files,
+    is_explicit_file,
     iter_entries,
     parse_ts,
     validate_date,
@@ -184,7 +186,8 @@ def _option_groups(
         default=default(str(AUDIT_LOG_FILE)),
         help=(
             f"Audit log to read (default: {AUDIT_LOG_FILE}).\n"
-            "Rotated .1, .2.gz ... siblings are discovered automatically."
+            "Reads the live trail: unarchived day parts, then this file.\n"
+            "An archive or day part named here is read alone."
         ),
     )
     source.add_argument(
@@ -228,7 +231,10 @@ def _option_groups(
         type=_date,
         metavar="YYYY-MM-DD",
         default=default(None),
-        help="Shorthand for a whole UTC day",
+        help=(
+            "Read this trading day (session timezone): its archive, or its "
+            "parts before it is archived"
+        ),
     )
     window.add_argument(
         "--last",
@@ -546,8 +552,6 @@ def window_bounds(args: argparse.Namespace) -> tuple[datetime | None, datetime |
     ``validate_args`` has already rejected every combination of these, so the
     branches here are exclusive by the time this runs.
     """
-    if args.date:
-        return date_to_range(args.date)
     if args.last is not None:
         now = datetime.now(timezone.utc)
         return now - timedelta(seconds=args.last), now
@@ -614,7 +618,14 @@ DEFAULT_STORY_DEPTH = 2
 
 
 def _log_files(args: argparse.Namespace) -> list[Path]:
-    return discover_log_files(Path(args.log_file))
+    """The live trail, or with ``--date`` that trading day's archive or parts.
+
+    A day is its files (session timezone), so ``--date`` sets no time window.
+    """
+    log_file = Path(args.log_file)
+    if args.date:
+        return discover_day_files(log_file, args.date, session_timezone())
+    return discover_log_files(log_file)
 
 
 def detection_key(args: argparse.Namespace) -> str:
@@ -1059,7 +1070,7 @@ def _not_found(args: argparse.Namespace, label: str, value: str) -> int:
 
 
 def _run_stats(args: argparse.Namespace) -> int:
-    log_files = discover_log_files(Path(args.log_file))
+    log_files = _log_files(args)
     if not log_files:
         print(f"pm-audit-replay: no audit log at {args.log_file}", file=sys.stderr)
         return 1
@@ -1080,6 +1091,8 @@ def detail_level(args: argparse.Namespace) -> int:
 
 def validate_args(args: argparse.Namespace) -> str | None:
     """Return an error message for a combination argparse cannot reject."""
+    if args.date and is_explicit_file(Path(args.log_file)):
+        return "--date cannot be combined with an archive --log-file"
     if args.date and (args.from_ts or args.to_ts):
         return "--date cannot be combined with --from/--to"
     if args.last is not None and (args.from_ts or args.to_ts or args.date):

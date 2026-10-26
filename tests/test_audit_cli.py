@@ -2408,7 +2408,8 @@ class TestCliHealth:
         assert "Checks performed:" in output
         assert "Log file read/write/entry:     yes" in output
         assert "Log file stats:" in output
-        assert "rotated backups: 1" in output
+        assert "day parts: 1" in output
+        assert "archives: 0" in output
         assert f"last entry: {_TS4}" in output
 
     def test_health_verbose_without_extended_notes_log_file_was_skipped(

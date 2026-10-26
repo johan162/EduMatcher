@@ -127,6 +127,16 @@ def _digest_archive(archive: Path) -> tuple[str, int]:
     return sha.hexdigest(), lines
 
 
+def archive_content_size(archive: Path) -> int | None:
+    """Uncompressed size from the frame header, or None if it does not say."""
+    with archive.open("rb") as fh:
+        head = fh.read(18)
+    try:
+        return zstd.get_frame_info(head).decompressed_size
+    except zstd.ZstdError:
+        return None
+
+
 def _fsync_dir(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY)
     try:
@@ -193,11 +203,16 @@ def archive_day(
             f"{int(size * MIN_FREE_SHARE)} needed"
         )
 
+    # The pledged size puts the uncompressed size in the frame header, so
+    # `archive_content_size` can report the ratio without decompressing.
+    compressor = zstd.ZstdCompressor(level=level)
+    compressor.set_pledged_input_size(size)
     with tmp.open("wb") as raw:
-        with zstd.ZstdFile(raw, "wb", level=level) as zf:
-            for part in parts:
-                with part.open("rb") as fh:
-                    shutil.copyfileobj(fh, zf, _CHUNK)
+        for part in parts:
+            with part.open("rb") as fh:
+                while chunk := fh.read(_CHUNK):
+                    raw.write(compressor.compress(chunk))
+        raw.write(compressor.flush(zstd.ZstdCompressor.FLUSH_FRAME))
         raw.flush()
         os.fsync(raw.fileno())
     on_step("compressed")

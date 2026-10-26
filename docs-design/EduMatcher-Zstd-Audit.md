@@ -24,7 +24,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☑ | 2026-10-26 |
 | 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☑ | 2026-10-26 |
 | 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☑ | 2026-10-26 |
-| 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☐ | |
+| 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☑ | 2026-10-26 |
 | 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☐ | |
 
 Total ≈ 4 d. Z1 comes first so every reader understands archives before
@@ -398,3 +398,32 @@ e2e passes.
   Z6 (operator guide `060-health-monitor.md`, dashboard design).
 - `make test-e2e` target name: it exists; the earlier failure was run from
   the wrong directory after a vitest call.
+
+**Z5 (2026-10-26).**
+- **`--date` changed meaning.** Both CLIs already had `--date` as a *UTC* time
+  window over the live trail. It now selects the trading day's *files*
+  (session timezone) and sets no time window: the day is its files, and a
+  UTC window on top would drop the evening lines of a session day. No
+  backwards compatibility kept (per the standing rule). `window_bounds` in
+  `pm-audit-replay` no longer reads `--date`.
+- `query.discover_day_files(log_file, day, tz, log_dir)`: the archive if there
+  is one, else the day's parts, plus `audit.log` when its first line is on
+  that day (`writer.file_day`, shared with `AuditFile`).
+- An archive or part named as `--log-file` is read alone
+  (`discover_log_files`); combining it with `--date` is refused in both CLIs.
+  `--date` with `--follow` is refused in `pm-audit-cli` (follow is the live
+  trail).
+- `pm-audit-cli --date` skips the SQLite events index (it covers only the live
+  trail). The replay index needed no change: `_log_files` feeds it the day's
+  files, so archiving changes the fingerprint and it rebuilds; episodes are
+  identical before and after (tested).
+- The archiver now pledges the input size (`ZstdCompressor.set_pledged_input_size`),
+  so the frame header carries the uncompressed size and
+  `archive_content_size` gives the ratio for `health --extended --verbose`
+  without decompressing: "day parts: N (size)", "archives: N (size, R:1)".
+- `--follow` across a rollover needed no new mechanism, as designed; a test
+  renames `audit.log` to a part mid-follow and asserts every line prints once.
+- Replay `--date` on a day with no files reports "no audit log at ..." (exit 1);
+  `pm-audit-cli` says "No audit data for D".
+- Docs for all of this: Z6 (`030-audit-replay.md` still calls `--date` a UTC
+  day).

@@ -17,6 +17,26 @@ from pathlib import Path
 _PART_NUMBER_RE = re.compile(r"\.(\d+)\.log$")
 
 
+def file_day(path: Path, tz: tzinfo) -> str | None:
+    """Session date of an audit file, from its first line's stamp (None if empty).
+
+    Every line of ``audit.log`` was received on one day, so the first line
+    names it.
+    """
+    try:
+        with path.open("rb") as fh:
+            first = fh.readline().decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        return None
+    if not first:
+        return None
+    try:
+        stamp = datetime.fromisoformat(first[1 : first.index("]")])
+    except ValueError:
+        stamp = datetime.fromtimestamp(path.stat().st_mtime, tz)
+    return stamp.astimezone(tz).date().isoformat()
+
+
 class AuditFile:
     """Append-only writer with size and date rollover.
 
@@ -39,24 +59,9 @@ class AuditFile:
         path.parent.mkdir(parents=True, exist_ok=True)
         #: The date every line in ``audit.log`` was received on, or None when
         #: the file is empty.
-        self._day = self._day_of_existing_file()
+        self._day = file_day(path, tz)
         self._fh = path.open("ab")
         self._size = path.stat().st_size
-
-    def _day_of_existing_file(self) -> str | None:
-        """Date of a file left by an earlier run, from its first line's stamp."""
-        try:
-            with self._path.open("rb") as fh:
-                first = fh.readline().decode("utf-8", errors="replace")
-        except FileNotFoundError:
-            return None
-        if not first:
-            return None
-        try:
-            stamp = datetime.fromisoformat(first[1 : first.index("]")])
-        except ValueError:
-            stamp = datetime.fromtimestamp(self._path.stat().st_mtime, self._tz)
-        return stamp.astimezone(self._tz).date().isoformat()
 
     def write(self, day: str, lines: list[str]) -> None:
         """Append ``lines``, all received on ``day``; closes an earlier day first."""
