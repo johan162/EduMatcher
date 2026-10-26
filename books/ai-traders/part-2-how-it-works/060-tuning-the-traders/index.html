@@ -7578,7 +7578,7 @@ it move:</p>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nt">symbols</span><span class="p">:</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">per_agent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">       </span><span class="c1"># each agent trades 30 of the 300 symbols</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nt">composition</span><span class="p">:</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">noise-retail</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">25</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">noise-retail</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">value-investor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">22</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">news-trader</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">institutional</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
@@ -7589,6 +7589,7 @@ it move:</p>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="nt">market-taker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">  </span><span class="nt">block-taker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">  </span><span class="nt">auction-player</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="nt">patient-liquidity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </code></pre></div>
 <table>
 <thead>
@@ -7668,6 +7669,10 @@ institutional, 5 news); 65 trade on prices alone.</p>
 <tr>
 <td><code>noise-retail</code></td>
 <td>More volume and depth near the touch; prices that wander further from the values</td>
+</tr>
+<tr>
+<td><code>patient-liquidity</code></td>
+<td>Deeper books: more price levels behind the best prices, and moves that run into resting size</td>
 </tr>
 <tr>
 <td><code>trend-follower</code>, <code>scalper</code></td>
@@ -7787,6 +7792,10 @@ the file's path in the composition instead of the built-in name:</p>
 <tr>
 <td><code>offset_ticks</code></td>
 <td>rests further from the touch: more depth behind the best price, fewer fills</td>
+</tr>
+<tr>
+<td><code>offset_max</code></td>
+<td>spreads its resting orders over more price levels, from <code>offset_ticks</code> out to this, most of them near the touch</td>
 </tr>
 <tr>
 <td><code>cross_ticks</code></td>

@@ -3409,10 +3409,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#the-eight-rows" class="md-nav__link">
+  <a href="#the-nine-rows" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The eight rows
+        The nine rows
       
     </span>
   </a>
@@ -7671,7 +7671,7 @@ which: <em>now</em> (the last 60 seconds), <em>avg / min</em> (the last 60 minut
 <em>avg / day</em> (the last 7 trading days). They answer different questions, so
 "0.70 /min" beside "3.78 /h" is not a contradiction: the last hour was
 quieter than the day.</p>
-<h3 id="the-eight-rows">The eight rows<a class="headerlink" href="#the-eight-rows" title="Permanent link">&para;</a></h3>
+<h3 id="the-nine-rows">The nine rows<a class="headerlink" href="#the-nine-rows" title="Permanent link">&para;</a></h3>
 <p>Each row folds away with its title; the browser remembers which are folded.</p>
 <table>
 <thead>
@@ -7684,6 +7684,10 @@ quieter than the day.</p>
 <tr>
 <td><strong>Overview</strong></td>
 <td>Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency (order entry) with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range</td>
+</tr>
+<tr>
+<td><strong>Session schedule</strong></td>
+<td>The same timetable as TapeDeck's Session view: this week's hours with bank holidays, today's phases with the current one lit and the exchange's time on the day, and the next bank holiday that closes the exchange or shortens its hours. Read from <code>pm-api-gwy</code> with the read-only key (<code>PM_DASH_API_KEY</code>); without one the row says the timetable is unavailable</td>
 </tr>
 <tr>
 <td><strong>Engine latency</strong></td>
@@ -7699,7 +7703,7 @@ quieter than the day.</p>
 </tr>
 <tr>
 <td><strong>Participants</strong></td>
-<td>A lane per participant: when it was connected, with heartbeat timeouts marked. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today. "avg/day" shows "—" until there is a full day of history</td>
+<td>How many participants were connected over the range, with heartbeat timeouts as red lines: a drop of many at once points at a gateway or the network. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today, and the participant's own connection lane over the range (sort that column to bring the most disconnected to the top). "avg/day" shows "—" until there is a full day of history</td>
 </tr>
 <tr>
 <td><strong>Order books</strong></td>
@@ -7805,6 +7809,16 @@ these are already set; you need them only for Option 2 or 3.</p>
 <td><code>pm-md-gwy</code>, for the session phase in the top bar</td>
 </tr>
 <tr>
+<td><code>API_GATEWAY_URL</code></td>
+<td><code>http://127.0.0.1:8081</code></td>
+<td><code>pm-api-gwy</code>'s dashboards instance, for the Session schedule row</td>
+</tr>
+<tr>
+<td><code>PM_DASH_API_KEY</code></td>
+<td>unset</td>
+<td>The read-only API key (the credential with <code>gateway_id: null</code>); the stacks resolve it at start</td>
+</tr>
+<tr>
 <td><code>METRICS_DB_PATH</code></td>
 <td><code>&lt;data dir&gt;/metrics.db</code></td>
 <td><code>pm-monitor</code>'s history, opened read-only</td>
@@ -7846,6 +7860,8 @@ needed when you open the GUIs from another machine.</p>
 <li>The stacks publish it on <code>127.0.0.1</code> only. Setting <code>BIND_ADDR=0.0.0.0</code>
   opens it — with every other GUI — to your network; do that only on a
   network you control, and set <code>CORS_ORIGIN</code> to the dashboard's own address.</li>
+<li>The bridge holds the read-only API key for the Session schedule row; it
+  never sends it to the browser.</li>
 <li><code>pm-monitor</code>'s ports are not published by the stacks; the dashboard
   reaches it over the container network. <code>ZMQ=1</code> (or <code>EM_ZMQ=1</code>) publishes
   the snapshot feed (5611) for tools on the host, never the beacon intake
@@ -7880,6 +7896,11 @@ needed when you open the GUIs from another machine.</p>
 <td>Per-minute bars stay empty</td>
 <td>The minute is not over yet, or refresh is off</td>
 <td>Wait for the minute to close, or set refresh to 10 s</td>
+</tr>
+<tr>
+<td>Session schedule row says "Timetable unavailable"</td>
+<td>No read-only key, or <code>pm-api-gwy</code> not reachable at <code>API_GATEWAY_URL</code></td>
+<td><code>curl localhost:8095/api/reference/schedule</code> shows the gateway's answer; set <code>PM_DASH_API_KEY</code> (the stacks do it for you)</td>
 </tr>
 <tr>
 <td>Bands differ from <code>monitor.thresholds</code></td>

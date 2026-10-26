@@ -7464,7 +7464,10 @@ GUIs show them; what a headline does to the value is not.</p>
 <li><code>β_m</code> and <code>β_s</code> load each symbol on a market factor and its sector's factor,
   so symbols of one sector move together: two of them correlate by about
   <code>β_m² + β_s²</code>.</li>
-<li>Jumps arrive at <code>jump_rate</code> per day with normally distributed log size.</li>
+<li>Jumps arrive at <code>jump_rate</code> per day with normally distributed log size.
+  No news announces them. Each one is logged (<code>value jump AAPL +4.10% to
+  83.97</code>) and recorded in <code>market_sim_news.db</code>'s <code>value_jumps</code> table, so
+  you can see afterwards how the market followed it.</li>
 <li>When the exchange reopens after a close, one extra move with
   <code>overnight_fraction</code> of a day's variance is applied.</li>
 </ul>
