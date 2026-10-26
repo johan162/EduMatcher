@@ -29,6 +29,7 @@ const COLUMN: Record<string, Record<string, string>> = {
     rej: "Share of the participant's requests the exchange rejected, in percent. A high value points at a client with a bug or bad limits, for example orders outside the price collar.",
     rest: "Orders from this participant resting in the books right now, waiting for a counterparty.",
     cdh: "Today's connects / disconnects / heartbeat timeouts. Many connects or any heartbeat timeouts mean an unstable client or network.",
+    lane: "When the participant was connected over the picked range (green), with its heartbeat timeouts as red ticks. Hover for the times. Sort it to bring the participants that were disconnected longest to the top.",
   },
   "Order books": {
     symbol: "The instrument the book belongs to. Click a row for its detail.",
@@ -71,6 +72,7 @@ const WIDGET: Record<string, string> = {
   "Exchange memory by process": "Resident memory of each exchange process over the selected range, stacked so the top line is the total.",
   "Memory per process": "Resident memory of each running exchange process right now, largest first.",
   "CPU per process": "CPU use of each exchange process over the selected range.",
+  "Participants connected": "How many participants were connected over the picked range, from their connects and disconnects. Red lines are heartbeat timeouts. A sudden drop of many at once points at a gateway or the network rather than one client; the table below shows each participant's own lane.",
   "Orders per minute by participant": "Orders sent per minute, one colour per participant, over the selected range.",
   "Trades per minute": "Trades executed per minute over the selected range.",
   "Traded value per minute": "The money value of the trades executed per minute (price × quantity, summed) over the selected range.",

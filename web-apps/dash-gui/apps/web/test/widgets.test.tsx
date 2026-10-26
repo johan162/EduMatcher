@@ -9,7 +9,7 @@ import { EventLog, windowOf } from "../src/components/widgets/EventLog.js";
 import { HealthTable, ProcessStateBadge, sortRows, type Column } from "../src/components/widgets/HealthTable.js";
 import { RateBars } from "../src/components/widgets/RateBars.js";
 import { Row } from "../src/components/widgets/Row.js";
-import { MARK_WIDTH, markX, MIN_SEGMENT, segmentBox, StateTimeline, xOf } from "../src/components/widgets/StateTimeline.js";
+import { LaneBar, MARK_WIDTH, markX, MIN_SEGMENT, segmentBox, StateTimeline, xOf } from "../src/components/widgets/StateTimeline.js";
 import { TimeSeries } from "../src/components/widgets/TimeSeries.js";
 import { formatBytes } from "../src/lib/format.js";
 import { useRowStore } from "../src/store/useRowStore.js";
@@ -87,6 +87,27 @@ describe("StateTimeline", () => {
     expect(marks[0]!.getAttribute("x")).toBe(String(600 - MARK_WIDTH));
     expect(document.querySelectorAll("[data-lane]")).toHaveLength(2);
     expect(screen.getByRole("figure", { name: "Connections" }).textContent).toContain("heartbeat timeout");
+  });
+});
+
+describe("LaneBar", () => {
+  it("draws one lane at a fixed size, with the same segments, marks and tooltips", () => {
+    render(
+      <LaneBar
+        lane={{ id: "MM01", segments: [{ from: T0, to: T0 + 30 * MIN, state: "CONNECTED" }], marks: [{ ts: T0 + 30 * MIN, kind: "HB" }] }}
+        range={RANGE}
+        states={{ CONNECTED: { label: "connected", color: "var(--ok)" } }}
+        marks={{ HB: { label: "heartbeat timeout", color: "var(--crit)" } }}
+        tz="Europe/Stockholm"
+        width={120}
+      />,
+    );
+    const svg = screen.getByRole("img", { name: "MM01 over the range" });
+    expect([svg.getAttribute("width"), svg.getAttribute("height")]).toEqual(["120", "14"]);
+    const seg = svg.querySelector("[data-segment=CONNECTED]")!;
+    expect([seg.getAttribute("x"), seg.getAttribute("width")]).toEqual(["0", "60"]);
+    expect(seg.querySelector("title")!.textContent).toBe("MM01: connected 10:00:00–10:30:00");
+    expect(svg.querySelector("[data-mark=HB] title")!.textContent).toBe("MM01: heartbeat timeout at 10:30:00");
   });
 });
 

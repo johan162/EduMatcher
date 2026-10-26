@@ -3,7 +3,19 @@
 import { describe, expect, it } from "vitest";
 import type { HealthEvent, ParticipantStats, Point, ProcessHealth } from "@edumatcher/dash-types";
 import { appendLive } from "../src/hooks/history.js";
-import { beaconing, breachLevel, CONNECTED, connectionLanes, HEARTBEAT, rejectRatio, shortKey, stateSummary } from "../src/views/rows/common.js";
+import {
+  beaconing,
+  breachLevel,
+  CONNECTED,
+  connectedCount,
+  connectionLanes,
+  disconnectedMs,
+  HEARTBEAT,
+  heartbeatTimes,
+  rejectRatio,
+  shortKey,
+  stateSummary,
+} from "../src/views/rows/common.js";
 import { liveValues } from "../src/views/rows/ProcessSeriesChart.js";
 import { CAPTURED } from "./fixtures/snapshots.js";
 
@@ -48,6 +60,49 @@ describe("connection lanes", () => {
   it("a last CONNECT the snapshot no longer believes (it disconnected since) is not drawn to now", () => {
     const [lane] = connectionLanes([participant("T1", false)], [ev(1, "CONNECT", "T1", 5)], RANGE, T0 + 50 * MIN);
     expect(lane!.segments).toEqual([]);
+  });
+});
+
+describe("connected count and time disconnected", () => {
+  const NOW = T0 + 50 * MIN;
+  const seg = (from: number, to: number) => ({ from: T0 + from * MIN, to: T0 + to * MIN, state: CONNECTED });
+  const lanes = [
+    { id: "A", segments: [seg(-10, 20), seg(30, 50)], marks: [{ ts: T0 + 20 * MIN, kind: HEARTBEAT }] },
+    { id: "B", segments: [seg(10, 50)], marks: [{ ts: T0 - MIN, kind: HEARTBEAT }] },
+    { id: "C", segments: [] },
+  ];
+
+  it("steps at each change, from the range's start to the held step; a lane still connected does not drop at now", () => {
+    expect(connectedCount(lanes, RANGE, NOW, NOW)).toEqual([
+      [T0, 1],
+      [T0 + 10 * MIN, 2],
+      [T0 + 20 * MIN, 1],
+      [T0 + 30 * MIN, 2],
+      [NOW, 2],
+    ]);
+  });
+
+  it("nobody connected: zero across the range so far", () => {
+    expect(connectedCount([], RANGE, NOW, NOW)).toEqual([
+      [T0, 0],
+      [NOW, 0],
+    ]);
+  });
+
+  it("a change after the held step still shows; then nothing is held past it", () => {
+    const late = [{ id: "A", segments: [seg(0, 50.5)] }];
+    expect(connectedCount(late, RANGE, NOW + MIN, NOW)).toEqual([
+      [T0, 1],
+      [T0 + 50.5 * MIN, 0],
+    ]);
+  });
+
+  it("time disconnected counts up to now, within the range", () => {
+    expect(lanes.map((l) => disconnectedMs(l, RANGE, NOW))).toEqual([10 * MIN, 10 * MIN, 50 * MIN]);
+  });
+
+  it("heartbeat timeouts of every lane inside the range, in time order", () => {
+    expect(heartbeatTimes(lanes, RANGE)).toEqual([T0 + 20 * MIN]);
   });
 });
 

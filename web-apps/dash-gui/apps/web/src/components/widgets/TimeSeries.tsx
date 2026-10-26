@@ -18,6 +18,9 @@
  *   own, so a moving pointer re-renders that line, not every chart's points.
  * - Series 1-8 take the eight series colours; 9-16 repeat them dashed and
  *   17-24 dotted, so no colour ever stands for two series alone.
+ * - `step` draws a count that holds until it changes (participants
+ *   connected); `marks` are moments drawn as vertical lines and named in the
+ *   legend (heartbeat timeouts).
  */
 
 import { memo, useMemo } from "react";
@@ -28,13 +31,14 @@ import {
   Line,
   LineChart,
   ReferenceArea,
+  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { Point } from "@edumatcher/dash-types";
 import { AXIS_TICK, ChartBox, oneLine, seriesColor, TOOLTIP_STYLE } from "./ChartBox.js";
-import type { TimeRangeMs } from "./StateTimeline.js";
+import { MARK_WIDTH, type TimeRangeMs } from "./StateTimeline.js";
 import { LEVEL } from "../../lib/status.js";
 import type { Thresholds } from "../../lib/thresholds.js";
 import { formatAxisTime, formatDateTime } from "../../lib/time.js";
@@ -44,6 +48,13 @@ import { PanelTitle } from "./PanelTitle.js";
 export interface TimeSeriesLine {
   label: string;
   points: readonly Point[];
+}
+
+/** Moments of one kind, as vertical lines in `color`, named `label` in the legend. */
+export interface TimeMarks {
+  ts: readonly number[];
+  label: string;
+  color: string;
 }
 
 export interface TimeSeriesProps {
@@ -56,6 +67,9 @@ export interface TimeSeriesProps {
   stacked?: boolean;
   /** Whole-number values (counts): no fractional axis ticks. */
   integer?: boolean;
+  /** A value holds until the next point (a line chart's steps). */
+  step?: boolean;
+  marks?: TimeMarks;
   height?: number;
   /** Fixed width (tests); the panel's width otherwise. */
   width?: number;
@@ -148,13 +162,15 @@ interface BodyProps {
   thresholds?: Thresholds;
   stacked: boolean;
   integer: boolean;
+  step: boolean;
+  marks?: TimeMarks;
   /** Injected by ResponsiveContainer (its direct child), or given in tests. */
   width?: number;
   height?: number;
 }
 
 /** The chart itself; memoised, so the crosshair's moves do not redraw it. */
-const Body = memo(function Body({ rows, series, range, tz, format, thresholds, stacked, integer, width, height }: BodyProps) {
+const Body = memo(function Body({ rows, series, range, tz, format, thresholds, stacked, integer, step, marks, width, height }: BodyProps) {
   const setCrosshair = useCrosshair((s) => s.setTs);
   const span = range.toMs - range.fromMs;
   const [lo, hi] = yDomain(rows, series.length, stacked, thresholds);
@@ -194,6 +210,7 @@ const Body = memo(function Body({ rows, series, range, tz, format, thresholds, s
         thresholdBands(thresholds, lo, hi).map((b, i) => (
           <ReferenceArea key={i} y1={b.y1} y2={b.y2} fill={b.color} fillOpacity={0.08} ifOverflow="hidden" />
         ))}
+      {marks?.ts.map((ts, i) => <ReferenceLine key={`m${i}`} x={ts} stroke={marks.color} strokeWidth={MARK_WIDTH} ifOverflow="hidden" />)}
       <Tooltip
         contentStyle={TOOLTIP_STYLE}
         labelFormatter={(ts: number) => formatDateTime(ts, tz)}
@@ -204,7 +221,7 @@ const Body = memo(function Body({ rows, series, range, tz, format, thresholds, s
         return stacked ? (
           <Area key={i} dataKey={`s${i}`} name={s.label} stackId="stack" stroke={color} strokeDasharray={dash} fill={color} fillOpacity={0.35} isAnimationActive={false} />
         ) : (
-          <Line key={i} dataKey={`s${i}`} name={s.label} stroke={color} strokeDasharray={dash} dot={false} strokeWidth={1.5} isAnimationActive={false} />
+          <Line key={i} type={step ? "stepAfter" : "linear"} dataKey={`s${i}`} name={s.label} stroke={color} strokeDasharray={dash} dot={false} strokeWidth={1.5} isAnimationActive={false} />
         );
       })}
     </Chart>
@@ -241,6 +258,8 @@ export function TimeSeries({
   thresholds,
   stacked = false,
   integer = false,
+  step = false,
+  marks,
   height = 180,
   width,
 }: TimeSeriesProps) {
@@ -254,7 +273,7 @@ export function TimeSeries({
         <ChartBox width={width} height={height}>
           {(size) => (
             // ResponsiveContainer sizes its direct child through width/height props.
-            <Body rows={rows} series={series} range={range} tz={tz} format={format} thresholds={thresholds} stacked={stacked} integer={integer} {...size} />
+            <Body rows={rows} series={series} range={range} tz={tz} format={format} thresholds={thresholds} stacked={stacked} integer={integer} step={step} marks={marks} {...size} />
           )}
         </ChartBox>
         <Crosshair range={range} height={height} />
@@ -262,7 +281,7 @@ export function TimeSeries({
           <p className="pointer-events-none absolute inset-0 m-0 flex items-center justify-center text-xs text-fg-faint">No data in this range</p>
         )}
       </div>
-      {series.length > 1 && (
+      {(series.length > 1 || marks) && (
         <figcaption className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-fg-subtle">
           {series.map((s, i) => {
             const { color, dash } = seriesStyle(i);
@@ -277,6 +296,12 @@ export function TimeSeries({
               </span>
             );
           })}
+          {marks && (
+            <span className="flex items-center gap-1">
+              <span aria-hidden="true" className="inline-block h-2 w-0.5" style={{ background: marks.color }} />
+              {marks.label}
+            </span>
+          )}
         </figcaption>
       )}
     </figure>

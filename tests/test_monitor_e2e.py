@@ -1106,10 +1106,14 @@ def test_all_nine_rows_show_the_live_exchange(
         "the memory and CPU history drawn",
         30,
     )
-    # The participants' timeline has a lane each.
+    # Each participant's row has its lane; the count chart drew its line.
     assert page.js(
-        "document.querySelectorAll('[data-widget=state-timeline] [data-lane]').length"
+        "document.querySelectorAll('table[aria-label=Participants] [data-row] svg[data-lane]').length"
     ) == len(s["participants"])
+    page.wait(
+        "document.querySelectorAll('figure[aria-label=\"Participants connected\"] .recharts-line-curve').length === 1",
+        "the participants connected chart drawn",
+    )
     assert json.loads(page.js(OVERFLOW)) == []
     assert page.js(
         "document.querySelector('[aria-label=Dashboard]').scrollWidth <= document.querySelector('[aria-label=Dashboard]').clientWidth"

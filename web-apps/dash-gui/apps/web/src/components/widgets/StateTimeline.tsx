@@ -11,6 +11,8 @@
  * wide, so a short disconnect in a 7-day range still shows; one that ends
  * before it starts is not drawn. Lane ids longer than the label column are
  * cut with an ellipsis (the full id is in every tooltip).
+ *
+ * LaneBar draws one lane alone, for a table cell.
  */
 
 import { useRef } from "react";
@@ -87,12 +89,78 @@ export interface StateTimelineProps {
   labelWidth?: number;
 }
 
+/** A time on the session clock, with the date past a day's range. */
+function timeOf(range: TimeRangeMs, tz: string): (ts: number) => string {
+  const long = range.toMs - range.fromMs > 24 * 3600_000;
+  return (ts) => (long ? formatDateTime(ts, tz) : formatTime(ts, tz));
+}
+
+interface LaneShapesProps {
+  lane: Lane;
+  range: TimeRangeMs;
+  width: number;
+  height: number;
+  states: Record<string, Look>;
+  marks: Record<string, Look>;
+  at: (ts: number) => string;
+}
+
+/** One lane's background, segments and marks, at the origin; a mark reaches 2 px above and below it. */
+function LaneShapes({ lane, range, width, height, states, marks, at }: LaneShapesProps) {
+  return (
+    <>
+      <rect width={width} height={height} fill="var(--bg-inset)" />
+      {lane.segments.map((seg, j) => {
+        const segBox = segmentBox(seg, range, width);
+        if (!segBox) return null;
+        const look = states[seg.state];
+        return (
+          <rect key={j} data-segment={seg.state} x={segBox.x} width={segBox.width} height={height} fill={look?.color ?? "var(--stopped)"}>
+            <title>{`${lane.id}: ${look?.label ?? seg.state} ${at(Math.max(seg.from, range.fromMs))}–${at(Math.min(seg.to, range.toMs))}`}</title>
+          </rect>
+        );
+      })}
+      {(lane.marks ?? [])
+        .filter((m) => m.ts >= range.fromMs && m.ts <= range.toMs)
+        .map((m, j) => (
+          <rect key={j} data-mark={m.kind} x={markX(m.ts, range, width)} y={-2} width={MARK_WIDTH} height={height + 4} fill={marks[m.kind]?.color ?? "var(--crit)"}>
+            <title>{`${lane.id}: ${marks[m.kind]?.label ?? m.kind} at ${at(m.ts)}`}</title>
+          </rect>
+        ))}
+    </>
+  );
+}
+
+export interface LaneBarProps {
+  lane: Lane;
+  range: TimeRangeMs;
+  states: Record<string, Look>;
+  marks?: Record<string, Look>;
+  tz: string;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * A single lane at a fixed size, without its id or legend: a table cell's
+ * history (the participants table). Same segments, marks and tooltips as
+ * a StateTimeline lane; the legend is the caller's.
+ */
+export function LaneBar({ lane, range, states, marks = {}, tz, width = 160, height = 10 }: LaneBarProps) {
+  return (
+    <svg width={width} height={height + 4} role="img" aria-label={`${lane.id} over the range`} data-lane={lane.id} className="block">
+      <g transform="translate(0 2)">
+        <LaneShapes lane={lane} range={range} width={width} height={height} states={states} marks={marks} at={timeOf(range, tz)} />
+      </g>
+    </svg>
+  );
+}
+
 export function StateTimeline({ label, lanes, range, states, marks = {}, tz, width: fixed, laneHeight = 14, labelWidth = 96 }: StateTimelineProps) {
   const box = useRef<HTMLElement>(null);
   const width = useElementWidth(box, fixed);
   const plot = Math.max(0, width - labelWidth);
-  const long = range.toMs - range.fromMs > 24 * 3600_000;
-  const at = (ts: number) => (long ? formatDateTime(ts, tz) : formatTime(ts, tz));
+  const at = timeOf(range, tz);
   const legend = [...Object.values(states), ...Object.values(marks)];
 
   return (
@@ -110,24 +178,7 @@ export function StateTimeline({ label, lanes, range, states, marks = {}, tz, wid
                 <title>{lane.id}</title>
               </text>
               <g transform={`translate(${labelWidth} ${y})`}>
-                <rect width={plot} height={laneHeight} fill="var(--bg-inset)" />
-                {lane.segments.map((seg, j) => {
-                  const segBox = segmentBox(seg, range, plot);
-                  if (!segBox) return null;
-                  const look = states[seg.state];
-                  return (
-                    <rect key={j} data-segment={seg.state} x={segBox.x} width={segBox.width} height={laneHeight} fill={look?.color ?? "var(--stopped)"}>
-                      <title>{`${lane.id}: ${look?.label ?? seg.state} ${at(Math.max(seg.from, range.fromMs))}–${at(Math.min(seg.to, range.toMs))}`}</title>
-                    </rect>
-                  );
-                })}
-                {(lane.marks ?? [])
-                  .filter((m) => m.ts >= range.fromMs && m.ts <= range.toMs)
-                  .map((m, j) => (
-                    <rect key={j} data-mark={m.kind} x={markX(m.ts, range, plot)} y={-2} width={MARK_WIDTH} height={laneHeight + 4} fill={marks[m.kind]?.color ?? "var(--crit)"}>
-                      <title>{`${lane.id}: ${marks[m.kind]?.label ?? m.kind} at ${at(m.ts)}`}</title>
-                    </rect>
-                  ))}
+                <LaneShapes lane={lane} range={range} width={plot} height={laneHeight} states={states} marks={marks} at={at} />
               </g>
             </g>
           );
