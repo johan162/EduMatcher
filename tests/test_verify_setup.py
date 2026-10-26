@@ -29,7 +29,14 @@ def test_release_prerequisites(
         Path(__file__).resolve().parents[1] / "scripts/verify_setup.sh"
     ).read_text()
     script = tmp_path / "verify_setup.sh"
-    script.write_text(source.split("# Ensure Poetry is available.", 1)[0])
+    # Fake an Ubuntu host so the result does not depend on the real /etc/os-release.
+    os_release = tmp_path / "os-release"
+    os_release.write_text("ID=ubuntu\n")
+    script.write_text(
+        source.split("# Ensure Poetry is available.", 1)[0].replace(
+            "/etc/os-release", str(os_release)
+        )
+    )
     tools = tmp_path / "bin"
     tools.mkdir()
     for name, body in {

@@ -198,7 +198,9 @@ class TestNoPeer:
         t0 = time.monotonic()
         rep.stop()
         assert time.monotonic() - t0 < 1.0
-        assert worst < 0.01
+        # A blocking send to an absent peer would stall indefinitely; the
+        # bound only needs to absorb OS scheduling jitter under xdist load.
+        assert worst < 0.25
 
     def test_drops_are_counted_once_the_queue_is_full(
         self, collector: Collector
