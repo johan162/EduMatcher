@@ -694,6 +694,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X19 | S15 (probe) | — | not in a run | Engine bug: an OCO's own group was exempt from the book hook while posting, so a cascade from leg 2's fill on entry could fill leg 1 | Fixed 2026-10-25 (S15, uncommitted) |
 | X20 | S15 | every run | every non-new-order fill | Engine drift: `order.fill` lacked `price` outside the new-order path, and `tif`/`is_seed` on it | Fixed 2026-10-25 (S15, uncommitted) |
 | X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Fixed 2026-10-26 (S16, uncommitted) |
+| X22 | D9 | 2026-10-26 | 2 dispatches (4 rows) | Check bug: the replay's stop cascade ran the next trade's aggressor first, not the engine's FIFO order, so a triggered stop-limit that only rested was missing when a later stop traded into it | Fixed 2026-10-26 (uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1241,3 +1242,20 @@ test now expects `combo.ack` first.
 
 Wire change: `combo.ack` precedes the legs' `order.ack`s on every combo, so
 E2 on an earlier run will show every accepted combo as reordered.
+
+### Run 2026-10-26: X22
+
+Every check passed but D9 (4 rows, 2 dispatches on CSCO and CME). Both
+are one pattern: an MM quote's leg trades, the print releases several
+stops, among them AI073's buy `STOP_LIMIT`, which finds no ask and rests;
+a sell stop released later in the same cascade then trades into it. The
+engine is right (E2 passes; `OrderBook.process` pops `pending` first in,
+first out). The replay picked from `pending` the next trade's aggressor
+first, so it ran the sell stop before the stop-limit had rested, found
+no resting order for the trade, and its book kept the stop-limit's full
+quantity (`BUY 17812: engine (1868, 1) replay (2468, 1)`).
+
+Fix: the cascade in `checks/matching.py` pops `pending` FIFO, as the
+engine does (`_pick` stays for the dispatch's own commands).
+`test_a_cascade_runs_its_stops_in_release_order` failed before. The run's
+C7 and D1–D9 all PASS after the fix.

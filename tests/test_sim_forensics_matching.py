@@ -501,6 +501,27 @@ def test_c7_ratchets_a_trailing_stop(tmp_path: Path, open_ds: OpenDataset) -> No
     assert violations(open_ds, data) == {}
 
 
+def test_a_cascade_runs_its_stops_in_release_order(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    """One print releases a buy stop-limit and a sell stop. The engine runs
+    them first-in first-out: the stop-limit trades nothing and rests, then
+    the sell stop trades into it -- the next trade's aggressor is not the
+    next stop to run."""
+    t = Tape()
+    t.phase("CONTINUOUS")
+    t.order("B1", "BUY", 10, 10100, gw="GW2")
+    t.order("SL", "BUY", 50, 10200, kind="STOP_LIMIT", stop=10050)
+    t.order("SS", "SELL", 20, kind="STOP", gw="GW2", stop=10100)
+    t.order("A1", "SELL", 10, 10100, rests=False)
+    t.trade("A1", "B1", 10, 10100, agg_side="SELL", gws=("GW1", "GW2"))
+    t.book["SL"] = ["BUY", 10200, 50, None, 50]
+    t.trade("SS", "SL", 20, 10200, agg_side="SELL", gws=("GW2", "GW1"))
+    t.snapshot()
+    data = t.write(tmp_path / "data")
+    assert violations(open_ds, data) == {}
+
+
 def quoting_day() -> Tape:
     """Seed quotes at startup, an OCO, and an MM quote whose ask is hit and
     whose bid the engine pulls in the same dispatch."""
