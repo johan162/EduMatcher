@@ -12,6 +12,7 @@ reported rather than guessed at.
 from __future__ import annotations
 
 import json
+from compression import zstd
 from datetime import timezone
 from pathlib import Path
 from typing import Any
@@ -269,6 +270,23 @@ class TestNormaliseStream:
         facts = list(normalise(iter_entries([first, second])))
         assert [f.ordinal for f in facts] == [0, 1]
         assert [f.line_no for f in facts] == [1, 1]
+
+    def test_a_zst_archive_normalises_like_plain_parts(self, tmp_path: Path) -> None:
+        lines = [log_line("order.new", {"id": c}) + "\n" for c in "ABC"]
+        plain = tmp_path / "plain.log"
+        plain.write_text("".join(lines), encoding="utf-8")
+        archive = tmp_path / "audit-2026-10-24.log.zst"
+        with zstd.open(archive, "wt", encoding="utf-8") as fh:
+            fh.write("".join(lines[:2]))
+        active = tmp_path / "audit.log"
+        active.write_text(lines[2], encoding="utf-8")
+
+        def key(files: list[Path]) -> list[tuple[int, str]]:
+            return [
+                (f.ordinal, f.payload["id"]) for f in normalise(iter_entries(files))
+            ]
+
+        assert key([archive, active]) == key([plain])
 
     def test_one_line_is_enough_to_resolve_its_own_prices(self, tmp_path: Path) -> None:
         """A window holding a single order and nothing else.

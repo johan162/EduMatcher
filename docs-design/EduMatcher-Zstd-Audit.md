@@ -20,7 +20,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
-| 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; `backports.zstd` on 3.13 | — | 0.5 d | ☐ | |
+| 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; stdlib `compression.zstd` | — | 0.5 d | ☑ | 2026-10-26 |
 | 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☐ | |
 | 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☐ | |
 | 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☐ | |
@@ -305,3 +305,15 @@ e2e passes.
 ## Insights log
 
 *(Append per WP: measurements, surprises, changes to later WPs.)*
+
+**Z1 (2026-10-26).**
+- Python 3.14 is now mandatory (`pyproject.toml` `^3.14`), so the
+  `backports.zstd` shim and dependency are dropped everywhere: `query.py`
+  imports `compression.zstd` directly. Z-WPs below need no 3.13 path.
+- `discover_log_files` also skips the parts of a day that already has an
+  archive (crash between rename and delete), so the live trail never repeats
+  a line. Archives themselves are read by explicit path until Z5 adds `--date`.
+- The indexer builds from the live trail only, so it does not index archives
+  yet; Z5 must make `--date D` feed the archive to the indexer.
+- `cli.py:_collect_log_stats` still counts non-active files as "rotated
+  backups"; Z5 rewrites it.
