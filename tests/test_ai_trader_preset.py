@@ -45,6 +45,7 @@ def test_builtins_load_and_build_agents() -> None:
         "iceberg-seller",
         "market-taker",
         "block-taker",
+        "patient-liquidity",
     } <= set(presets)
     for preset in presets.values():
         Agent("AI001", preset, ["AAPL"], seed=1, now=0.0)
@@ -69,6 +70,15 @@ def test_builtins_cover_every_order_type_and_protection() -> None:
     }
     assert any(p.execution.tif == "GTC" for p in presets)
     assert len(list(OrderType)) == 8  # if the engine grows a type, cover it here
+
+
+def test_patient_liquidity_keeps_its_deepest_orders() -> None:
+    p = get_preset("patient-liquidity")
+    assert p.execution.offset_max > p.execution.offset_ticks
+    # An order placed at the deepest offset must not be stale on arrival.
+    assert p.risk.stale_price_ticks is not None
+    assert p.risk.stale_price_ticks > p.execution.offset_max
+    assert p.strategy_params["urgency"] < p.execution.urgency_cross
 
 
 def test_unknown_preset_name() -> None:
@@ -105,6 +115,10 @@ def test_inline_tempo() -> None:
         ({"execution": {"sweep_type": "LIMIT"}}, "execution.sweep_type"),
         ({"execution": {"offset_ticks": True}}, "offset_ticks must be an integer"),
         ({"execution": {"child_style": "sweep"}}, "execution.child_style"),
+        (
+            {"execution": {"offset_ticks": 3, "offset_max": 2}},
+            "offset_max must not be below offset_ticks",
+        ),
         ({"tempo": "glacial"}, "tempo='glacial'"),
         (
             {"tempo": {"decisions_per_min": 1, "size_min": 5}},

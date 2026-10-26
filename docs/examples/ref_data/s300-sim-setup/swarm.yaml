@@ -10,7 +10,7 @@ seed: 1000
 symbols:
   per_agent: 30
 composition:          # preset: weight; value-investor, institutional, news-trader need pm-market-sim
-  noise-retail: 25
+  noise-retail: 15
   value-investor: 22
   news-trader: 5
   institutional: 8
@@ -21,3 +21,4 @@ composition:          # preset: weight; value-investor, institutional, news-trad
   market-taker: 4
   block-taker: 2
   auction-player: 2
+  patient-liquidity: 10   # depth: one agent per symbol, orders 3-15 ticks deep

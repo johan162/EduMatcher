@@ -80,7 +80,7 @@ flowchart LR
 | The clock | `pm-scheduler` | Opens and closes the market: pre-open at 09:00, opening auction, continuous trading 09:30–16:00, closing auction, closed at 16:05; weekends and Swedish holidays off |
 | The market model | `pm-market-sim` | Keeps the hidden true values, moves them during trading, publishes news and rumours |
 | The market maker | `pm-mm-bot` as `MM01` | Quotes a buy and a sell price in every symbol, around a price it moves part of the way toward the true value every second |
-| The AI traders | `pm-ai-swarm` as `AI001`–`AI100` | A hundred traders of eleven kinds, each trading 30 of the 300 symbols |
+| The AI traders | `pm-ai-swarm` as `AI001`–`AI100` | A hundred traders of twelve kinds, each trading 30 of the 300 symbols |
 | The windows | the GUIs and `pm-*` tools | Show the books, the trades, the news, the logs; let people trade |
 
 Everything else — the audit trail, clearing, statistics, the API — is the
@@ -90,7 +90,7 @@ orders and receive fills through the same gateway a student's trading
 program uses. Their orders are in the books you look at, their trades in
 the tape.
 
-## The eleven kinds of trader
+## The twelve kinds of trader
 
 Each AI trader follows a *preset*: a strategy (what to trade), an execution
 style (how), a tempo (how often, how big) and risk limits. The hundred
@@ -98,7 +98,7 @@ traders are a mix:
 
 | Preset | How many | What it does |
 |---|---|---|
-| `noise-retail` | 25 | Small random orders resting near the best prices — the background flow |
+| `noise-retail` | 15 | Small random orders resting near the best prices — the background flow |
 | `value-investor` | 22 | Buys below its view of the true value, sells above it |
 | `trend-follower` | 10 | Buys what is rising, sells what is falling |
 | `contrarian` | 10 | The opposite: fades moves, patiently |
@@ -109,6 +109,7 @@ traders are a mix:
 | `market-taker` | 4 | Impatient: takes liquidity with market orders |
 | `block-taker` | 2 | Takes whole blocks with fill-or-kill orders |
 | `auction-player` | 2 | Trades mostly in the opening and closing auctions |
+| `patient-liquidity` | 10 | Small orders waiting deep in the book — the depth behind the best prices |
 
 Only the value, institutional and news traders know anything about the true
 value or the news. Everyone else trades on prices alone — and that is what

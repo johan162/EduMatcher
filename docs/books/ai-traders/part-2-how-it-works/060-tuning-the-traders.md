@@ -66,7 +66,7 @@ seed: 1000
 symbols:
   per_agent: 30       # each agent trades 30 of the 300 symbols
 composition:
-  noise-retail: 25
+  noise-retail: 15
   value-investor: 22
   news-trader: 5
   institutional: 8
@@ -77,6 +77,7 @@ composition:
   market-taker: 4
   block-taker: 2
   auction-player: 2
+  patient-liquidity: 10
 ```
 
 | Setting | What it does | Raise it | Lower it |
@@ -105,6 +106,7 @@ institutional, 5 news); 65 trade on prices alone.
 | `value-investor`, `institutional` | Prices closer to the values; quicker recovery after noise; less volatility than the values themselves |
 | `news-trader` | Faster, sharper reactions to headlines — including rumours that turn out false |
 | `noise-retail` | More volume and depth near the touch; prices that wander further from the values |
+| `patient-liquidity` | Deeper books: more price levels behind the best prices, and moves that run into resting size |
 | `trend-follower`, `scalper` | Momentum: moves run further than the value justifies, then snap back; fatter tails |
 | `contrarian` | Mean reversion: moves get faded, prices stickier, short-term volatility lower |
 | `market-taker`, `block-taker` | The spread crossed more often; more trades, more volatility, thinner books |
@@ -155,6 +157,7 @@ What each lever does:
 | Parameter | Raise it and the trader… |
 |---|---|
 | `offset_ticks` | rests further from the touch: more depth behind the best price, fewer fills |
+| `offset_max` | spreads its resting orders over more price levels, from `offset_ticks` out to this, most of them near the touch |
 | `cross_ticks` | pays further through the touch when it crosses |
 | `urgency_cross` | crosses less often (it crosses when urgency reaches this) |
 | `visible_fraction` (iceberg) | shows more of its order |

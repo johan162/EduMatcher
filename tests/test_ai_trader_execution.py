@@ -110,6 +110,45 @@ class TestContinuous:
         )
         assert o.price_ticks == 999
 
+    def test_random_offset_spans_the_range_skewed_to_the_touch(self) -> None:
+        ex = Executor(ExecutionSpec(style="passive", offset_ticks=3, offset_max=15))
+        rng = random.Random(7)
+        offsets = []
+        for side in ("BUY", "SELL") * 1000:
+            [o] = ex.orders_for(
+                Intent("AAPL", side, 0.1),
+                _st(),
+                100,
+                "CONTINUOUS",
+                0.0,
+                rng,
+                TagFactory("AI001"),
+            )
+            assert o.price_ticks is not None
+            offsets.append(
+                990 - o.price_ticks if side == "BUY" else o.price_ticks - 1010
+            )
+        assert set(offsets) == set(range(3, 16))
+        near = sum(1 for x in offsets if x <= 5)
+        far = sum(1 for x in offsets if x >= 13)
+        assert near > 2 * far
+
+    def test_random_offset_never_crosses(self) -> None:
+        # A one-tick spread and a random offset still rest behind the touch.
+        ex = Executor(ExecutionSpec(style="passive", offset_ticks=0, offset_max=5))
+        rng = random.Random(3)
+        for _ in range(200):
+            [o] = ex.orders_for(
+                Intent("AAPL", "BUY", 0.1),
+                _st(bid=None, ask=1000),
+                100,
+                "CONTINUOUS",
+                0.0,
+                rng,
+                TagFactory("AI001"),
+            )
+            assert o.price_ticks is not None and o.price_ticks <= 999
+
     def test_marketable_crosses(self) -> None:
         _, [o] = _orders(ExecutionSpec(style="marketable", cross_ticks=2))
         assert (o.order_type, o.price_ticks) == (OrderType.LIMIT, 1012)

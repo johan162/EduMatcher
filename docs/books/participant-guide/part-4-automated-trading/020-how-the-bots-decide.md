@@ -83,7 +83,7 @@ other way, as large as the rumour was believable.
 
 | Style | Sends | Parameters |
 |---|---|---|
-| `passive` | A LIMIT `offset_ticks` behind the touch (0 joins it) | `offset_ticks`, `tif` |
+| `passive` | A LIMIT `offset_ticks` behind the touch (0 joins it), or a random depth up to `offset_max`, most of them near the touch | `offset_ticks`, `offset_max`, `tif` |
 | `marketable` | A LIMIT `cross_ticks` through the touch; what does not fill rests | `cross_ticks`, `tif` |
 | `sweep` | A MARKET, IOC or FOK order against the other side | `sweep_type`, `cross_ticks` |
 | `iceberg` | An ICEBERG behind the touch showing `visible_fraction` of its size | `offset_ticks`, `visible_fraction` |

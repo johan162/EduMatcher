@@ -1,6 +1,7 @@
 """Execution styles: *how* an intent becomes orders.
 
-``passive``     LIMIT behind the touch (``offset_ticks``; 0 joins the touch)
+``passive``     LIMIT behind the touch (``offset_ticks``; 0 joins the touch),
+                or a random depth up to ``offset_max``, skewed toward the touch
 ``marketable``  LIMIT through the touch (``cross_ticks`` past it); rests if not filled
 ``sweep``       MARKET, IOC or FOK (``sweep_type``) against the opposite side
 ``iceberg``     ICEBERG behind the touch showing ``visible_fraction``
@@ -38,6 +39,9 @@ SWEEP_TYPES = {"MARKET": OrderType.MARKET, "IOC": OrderType.IOC, "FOK": OrderTyp
 class ExecutionSpec:
     style: str = "passive"
     offset_ticks: int = 1
+    #: Above ``offset_ticks``: each resting order draws its offset from
+    #: ``offset_ticks..offset_max``, most of them near the touch.
+    offset_max: int = 0
     cross_ticks: int = 0
     sweep_type: str = "MARKET"
     visible_fraction: float = 0.2
@@ -112,6 +116,7 @@ class Executor:
             st,
             qty,
             phase,
+            rng,
             new_tag,
             limit=intent.limit,
         )
@@ -140,6 +145,7 @@ class Executor:
                 st,
                 child_qty,
                 phase,
+                rng,
                 new_tag,
                 limit=None,
             )
@@ -164,6 +170,7 @@ class Executor:
         st: SymbolState,
         qty: int,
         phase: str,
+        rng: random.Random,
         new_tag: "TagFactory",
         limit: int | None,
     ) -> NewOrder | None:
@@ -199,7 +206,11 @@ class Executor:
         base = touch if touch is not None else st.reference()
         if base is None:
             return None
-        price = base - spec.offset_ticks if buy else base + spec.offset_ticks
+        offset = spec.offset_ticks
+        if spec.offset_max > offset:
+            span = spec.offset_max - offset + 1
+            offset += min(span - 1, int(span * rng.random() ** 2.0))
+        price = base - offset if buy else base + offset
         if far is not None:  # never cross by accident when the book is one-sided
             price = min(price, far - 1) if buy else max(price, far + 1)
         if style == "iceberg" and qty >= 2:

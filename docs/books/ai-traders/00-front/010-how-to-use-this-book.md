@@ -67,7 +67,7 @@ profile, `ai-sim`:
 | | |
 |---|---|
 | **Symbols** | 300 shares in 11 industry sectors |
-| **AI traders** | `AI001`–`AI100`, eleven kinds (presets), each trading 30 symbols |
+| **AI traders** | `AI001`–`AI100`, twelve kinds (presets), each trading 30 symbols |
 | **Market maker** | `MM01`, a bot quoting every symbol, nudged toward the true values |
 | **People** | `TRADER01`–`TRADER10` (desks for students), `OPS01` (the instructor) |
 | **Market model** | A hidden true value per share, with random news and rumours |

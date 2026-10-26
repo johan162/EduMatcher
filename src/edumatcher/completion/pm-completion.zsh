@@ -425,7 +425,7 @@ _shtab_pm_ai_trader_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
   "--id[Participant id, e.g. AI001]:id:"
-  "--preset[Built-in preset (default\: noise-retail)\; see --list-presets]:preset:(auction-player block-taker contrarian iceberg-seller institutional market-taker news-trader noise-retail scalper trend-follower value-investor)"
+  "--preset[Built-in preset (default\: noise-retail)\; see --list-presets]:preset:(auction-player block-taker contrarian iceberg-seller institutional market-taker news-trader noise-retail patient-liquidity scalper trend-follower value-investor)"
   "--preset-file[Preset YAML file]:PATH:"
   "--list-presets[List the built-in presets and exit]"
   "--symbols[Comma-separated symbols to trade (default\: every symbol)]:symbols:"

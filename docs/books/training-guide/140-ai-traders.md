@@ -45,6 +45,7 @@ them all:
 | Preset | Trades on | Character |
 |---|---|---|
 | `noise-retail` | nothing in particular | Small random orders resting near the touch |
+| `patient-liquidity` | nothing in particular | Small orders waiting deep in the book, giving it depth |
 | `market-taker`, `iceberg-seller` | nothing in particular | Takes liquidity with MARKET orders; hides size behind icebergs |
 | `scalper`, `trend-follower`, `block-taker` | momentum | Buys what has been rising, with IOC, marketable or fill-or-kill orders and protective stops |
 | `contrarian`, `auction-player` | reversion | Fades moves; trades the opening and closing auctions |

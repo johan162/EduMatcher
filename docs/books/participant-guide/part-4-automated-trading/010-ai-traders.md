@@ -61,6 +61,7 @@ detail. The built-in presets (`pm-ai-trader --list-presets`):
 | `noise-retail` | noise | passive | many-small | — | Uninformed retail flow: small random orders resting near the touch |
 | `market-taker` | noise | sweep (MARKET) | cautious | — | Impatient noise trader that takes liquidity |
 | `iceberg-seller` | noise | iceberg | few-large | — | Large orders showing a fifth of their size |
+| `patient-liquidity` | noise | passive (3-15 ticks deep) | own | — | Small orders waiting deep in the book for up to half an hour: book depth |
 | `scalper` | trend | sweep (IOC) | aggressive | trailing stop | Fast momentum trader |
 | `trend-follower` | trend | marketable | cautious | stop | Follows momentum with marketable limits |
 | `block-taker` | trend | sweep (FOK) | few-large | stop-limit | Takes whole blocks or nothing |
