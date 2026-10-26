@@ -19,8 +19,8 @@
       scan for triggered stops, and why each heap uses a different sort direction
     - **The three "last price" fields** — why `last_trade_price`, `last_buy_price`, and
       `last_sell_price` are three distinct fields serving three distinct purposes
-    - **The iceberg FOK undercount** — a concrete limitation of the visible-only quantity
-      index and what it means for Fill-Or-Kill availability checks
+    - **The visible-only quantity index** — why icebergs are undercounted in `_bid_qty` /
+      `_ask_qty`, and why the Fill-Or-Kill check therefore walks the orders instead
         - **Snapshot output semantics** — exactly which fields the current `snapshot()`
             method publishes (and which it does not)
     - **The synchronisation invariant** — the four data structures that must always be
@@ -424,30 +424,19 @@ are maintained in parallel with the heaps and kept exactly in sync.
 
 They answer: **"How much total quantity is available at price X?"**
 
-Used for two things:
+Used for:
 
-**FOK pre-check** — a Fill-Or-Kill order must be fully fillable before any fills
-execute. The check scans this index to add up all available quantity at or better
-than the FOK's limit price. Without this index, checking availability requires
-scanning the entire heap. With this index, it is O(P) where P is the number of
-distinct price levels — much faster.
-
-```python
-def _available_qty(self, heap, price_limit, side) -> int:
-    qty_index = self._ask_qty if side == Side.BUY else self._bid_qty
-    total = 0
-    for price, qty in qty_index.items():
-        if side == Side.BUY  and price <= price_limit: total += qty
-        if side == Side.SELL and price >= price_limit: total += qty
-    return total
-```
-
-`qty_index` is chosen based on which side is being checked: a BUY order needs to
-know how much sell-side liquidity is available, so it reads `_ask_qty`. The price
-filter then checks whether each level is within the order's limit price.
+**Best bid / best offer** — `best_bid_ticks()` and `best_ask_ticks()` take the
+highest / lowest price present in the index, in O(P) where P is the number of
+distinct price levels.
 
 **Depth snapshots** — computing the available depth at a range of prices iterates
 this index rather than the heap, avoiding the O(n) cost of scanning all heap entries.
+
+It is deliberately **not** used by the Fill-Or-Kill pre-check, and it plays no part
+in the sweep itself (which walks the heaps). The index holds only *visible*
+quantity, which is the right thing to publish but the wrong thing to check a FOK
+against; see the next sections.
 
 
 
@@ -498,10 +487,10 @@ symbol's `OrderBook` regardless (a gateway can rest orders on many symbols at
 once), so the index lives at the same granularity as `_order_index` and
 `_entry_index` right next to it, not duplicated globally.
 
-### Iceberg Orders and the FOK Undercount
+### Iceberg Orders and the Visible-Only Index
 
-There is an important limitation: `_bid_qty` and `_ask_qty` track only the
-**visible** quantity of iceberg orders, not their hidden reserve.
+There is an important property to keep in mind: `_bid_qty` and `_ask_qty` track
+only the **visible** quantity of iceberg orders, not their hidden reserve.
 
 When an iceberg order is placed via `_rest()`, the code adds only `displayed_qty`
 (the visible peak) to the quantity index:
@@ -515,25 +504,35 @@ qty = (
 self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + qty
 ```
 
-This means `_available_qty()` — which the FOK check calls — will **undercount**
-available liquidity whenever icebergs are present at price levels within the FOK's
-range.
+So the index **undercounts** the liquidity that is really available whenever
+icebergs rest at a level. That is exactly right for what the index is used for
+(best bid/offer and public depth: an iceberg is supposed to hide its reserve),
+but it would be wrong for a Fill-Or-Kill pre-check.
 
 **Concrete example:** Suppose a FOK BUY order for 2,500 shares arrives at $150.30.
 At that price level there are:
 - One regular LIMIT order for 800 shares
 - One ICEBERG order with 300 visible and 2,700 hidden (3,000 total)
 
-`_bid_qty[150.30]` = 800 + 300 = 1,100 (only visible counted)
+`_ask_qty[150.30]` = 800 + 300 = 1,100 (only visible counted). Checked against the
+index, the FOK would be rejected for lack of liquidity even though the iceberg
+could fill it.
 
-`_available_qty()` returns 1,100 — less than the 2,500 needed — so the FOK is
-rejected. But the iceberg could actually fill 3,000 shares; if regular orders were
-also present at better prices the aggregate might reach 2,500 easily.
+**This is why the FOK check does not use the index.** An earlier version did, and
+the undercount was an accepted simplification. It no longer is: `_match_fok` calls
+`_fok_available_qty`, which walks the live resting orders in price-time priority
+up to the FOK's limit price and counts each iceberg's hidden reserve. The
+reserve is counted only *behind* the visible orders at its level, because a
+replenished slice joins the back of the queue. The walk also:
 
-This is a known, intentional design simplification in EduMatcher. Correct iceberg-
-aware FOK checking would require scanning the heap entries at each relevant price
-level (to sum visible + hidden), which trades O(P) for O(n) on the FOK path. For
-an educational system, the visible-only approximation is acceptable.
+- skips same-gateway orders when self-match prevention is active (the sweep would
+  skip or cancel them, so they cannot be used to fill the FOK), and stops at the
+  first one under `CANCEL_AGGRESSOR` / `CANCEL_BOTH`;
+- counts only the first leg met of an OCO pair, because filling it cancels the other.
+
+The price is complexity: the check is O(n log n) in the resting orders instead of
+O(P), acceptable because FOK orders are rare. The answer is exact, so a FOK
+either fills completely or is rejected before a single fill happens.
 
 ### The Synchronisation Invariant
 
@@ -549,8 +548,8 @@ structures** together, or the book becomes inconsistent:
 | iceberg replenish | invalidate old, `heappush` new | no change | update to new entry | `+= new_peak` |
 
 Missing any one of these in any code path causes a silent bug that may not manifest
-immediately. For example, leaving a stale entry in `_bid_qty` would cause the FOK
-check to see phantom liquidity that has already been cancelled. In the current
+immediately. For example, leaving a stale entry in `_bid_qty` would make the best bid
+and the depth view show phantom liquidity that has already been cancelled. In the current
 implementation, filled/cancelled orders can remain indexed and are guarded by status
 checks, so correctness depends on status + heap-entry validity + qty-index updates
 staying in sync.
@@ -1193,7 +1192,7 @@ When an order rests on the book, six things happen in the same function call:
 3. The entry is pushed onto the appropriate heap
 4. The order is registered in `_order_index` (for cancel/amend lookup)
 5. The entry is registered in `_entry_index` (for lazy deletion on cancel)
-6. The quantity is added to `_bid_qty` or `_ask_qty` (for FOK and depth checks)
+6. The quantity is added to `_bid_qty` or `_ask_qty` (for best bid/offer and depth statistics)
 
 All six data structures/fields are updated within the same function call to stay in
 sync. This is the discipline that keeps the book consistent — every operation that
@@ -1541,7 +1540,7 @@ Note that `snapshot()` shows only `displayed_qty` for icebergs — the same visi
 portion that `_bid_qty` tracks. A market participant viewing the snapshot sees 300
 shares at a price level where an iceberg has 3,000 hidden shares. This is
 intentional: icebergs are supposed to be hidden. But it means the public depth view
-has the same undercount as the FOK check.
+undercounts hidden reserve in the same way as the quantity index.
 
 For high-frequency market data publishing, use the `_bid_qty` / `_ask_qty` price-
 level index instead — it gives total visible quantity per price level in O(P) without
@@ -1562,8 +1561,8 @@ state.
 | `_trailing_stops` | List | — | `Order` | Trailing stop ratchet updates |
 | `_order_index` | Dict | `order_id` | `Order` | O(1) order lookup by ID |
 | `_entry_index` | Dict | `order_id` | `_HeapEntry` | O(1) lazy deletion |
-| `_bid_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
-| `_ask_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
+| `_bid_qty` | Dict | `price_ticks` | `int` | O(P) depth / best bid |
+| `_ask_qty` | Dict | `price_ticks` | `int` | O(P) depth / best ask |
 | `_orders_by_gateway` | Dict | `gateway_id` | `set[order_id]` | O(k) resting orders for one gateway (quote reissue, disconnect/kill-switch cancel) |
 | `recent_trades` | Deque | — | `Trade` | Rolling last-20-trades window (snapshot currently publishes last 5) |
 
@@ -1578,7 +1577,7 @@ state.
 | Cancel order | O(1) | two dict lookups + `valid=False` |
 | Amend order (price change or qty increase) | O(log n) | invalidate old entry + re-insert |
 | Amend order (qty decrease, same price) | O(1) | preserve priority (`arrival_seq` unchanged), update qty index only |
-| FOK availability check | O(P) | iterate `_bid_qty` / `_ask_qty` |
+| FOK availability check | O(n log n) | sort live heap entries, walk in priority order (`_fok_available_qty`) |
 | Full book snapshot | O(n) | iterate all heap entries |
 | Depth metrics | O(P) | iterate qty index only |
 | Stop trigger check | O(1) amortised | heap peek + early break when top hasn't triggered |

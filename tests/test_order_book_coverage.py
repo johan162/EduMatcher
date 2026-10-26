@@ -7,7 +7,7 @@ Additional order_book tests targeting uncovered lines:
   - cancel_order
   - resting_orders / restore_stats
   - snapshot with icebergs and cancelled entries
-  - FOK _available_qty with price filter
+  - FOK _fok_available_qty with price filter
   - quote_orders_for_gateway / orders_for_gateway / _orders_by_gateway index
 """
 
