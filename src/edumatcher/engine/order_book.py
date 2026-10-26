@@ -331,9 +331,8 @@ class OrderBook:
         # _handle_cancel_symbol, and ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md
         # §10 for the rationale.
         # Maintained by every funnel that can make an order resting or stop
-        # it resting, since — unlike _order_index/_entry_index, which only
-        # plain/quote orders populate via _rest() — stop and trailing-stop
-        # orders live here too:
+        # it resting — the same funnels that maintain _order_index
+        # (_entry_index skips trailing stops, which have no heap entry):
         #   added:   _rest() (plain + quote LIMIT orders), _add_stop()
         #            (STOP/STOP_LIMIT), _add_trailing_stop() (TRAILING_STOP)
         #   removed: _purge_from_indexes() (cancel, full fill, SMP-cancel —
@@ -2019,9 +2018,9 @@ class OrderBook:
         """Place a resting order on the appropriate heap and update the qty index.
 
         This is the ONLY way a LIMIT / ICEBERG order becomes visible on the
-        book.  Four structures are updated together (miss one and the book
+        book.  Five structures are updated together (miss one and the book
         silently corrupts): the heap, the price-level qty index, the
-        id -> Order index and id -> entry index, and the per-gateway index.
+        id -> Order index, the id -> entry index, and the per-gateway index.
         """
         assert order.price_ticks is not None, "Resting order must have a price"
         # L7: bind the narrowed price to a local so mypy keeps the non-None
