@@ -257,21 +257,28 @@ def _explained(news: dict[str, list[int]], symbol: str, at: int) -> bool:
     return False
 
 
-def _jumps(ds: Dataset) -> tuple[list[Sample], int]:
+def _jumps(ds: Dataset) -> tuple[list[Sample], int, int]:
     """Continuous prints more than _JUMP_PCT from the prevailing price (the
     median of the symbol's last _PREVAILING continuous trades that day), one
-    per excursion; and how many such excursions news explains.
+    per excursion, that last: the median of the jump's print and the next
+    _PREVAILING - 1 prints that day is still more than _JUMP_PCT off. Also
+    how many lasting jumps news explains, and how many jumps reverted. A jump
+    in the day's last _PREVAILING - 1 prints cannot last and is not counted.
 
     Not trade-to-trade sigmas: the tape is dominated by bid-ask bounce (a
     one-tick median move, a spread-wide move whenever an order crosses), so
     "10 sigma" flagged ~19 000 ordinary spread crossings on the 2026-10-24 run.
+    Only lasting jumps: on the 2026-10-26 run 126 of 148 were one print into
+    a thin book (mostly an OCO take-profit leg) that the next trades undid.
     """
     news = _news(ds)
     out: list[Sample] = []
-    explained = 0
+    explained = reverted = 0
     recent: dict[str, deque[int]] = {}
     away: dict[str, bool] = {}
     day_of: dict[str, str] = {}
+    #: The symbol's jumps still collecting prints: (sample, prevailing, prints).
+    pending: list[tuple[Sample, float, list[int]]] = []
     for symbol, trade_id, ts, price in ds.conn.execute(
         "SELECT symbol, trade_id, ts, price FROM stats.trade_log "
         "WHERE aggressor_side != 'AUCTION' ORDER BY symbol, trade_id"
@@ -279,6 +286,7 @@ def _jumps(ds: Dataset) -> tuple[list[Sample], int]:
         if day_of.get(symbol) != ts[:10]:
             day_of[symbol], away[symbol] = ts[:10], False
             recent[symbol] = deque(maxlen=_PREVAILING)
+            pending = []
         window = recent[symbol]
         if len(window) == _PREVAILING:
             prevailing = statistics.median(window)
@@ -287,14 +295,23 @@ def _jumps(ds: Dataset) -> tuple[list[Sample], int]:
                 away[symbol] = False
             elif not away[symbol]:
                 away[symbol] = True
-                if _explained(news, symbol, iso_ns(ts)):
-                    explained += 1
-                else:
-                    out.append(
-                        {"kind": "jump", "symbol": symbol, "trade_id": trade_id, "ts": ts, "move_pct": round(move * 100, 2), "prevailing": prevailing}  # fmt: skip
-                    )
+                pending.append(
+                    ({"kind": "jump", "symbol": symbol, "trade_id": trade_id, "ts": ts, "move_pct": round(move * 100, 2), "prevailing": prevailing}, prevailing, [])  # fmt: skip
+                )
         window.append(price)
-    return out, explained
+        for _, _, prints in pending:
+            prints.append(price)
+        while pending and len(pending[0][2]) == _PREVAILING:
+            sample, before, prints = pending.pop(0)
+            level = statistics.median(prints) / before - 1
+            if abs(level) <= _JUMP_PCT / 100:
+                reverted += 1
+            elif _explained(news, symbol, iso_ns(str(sample["ts"]))):
+                explained += 1
+            else:
+                sample["lasting_pct"] = round(level * 100, 2)
+                out.append(sample)
+    return out, explained, reverted
 
 
 def _spread_outliers(ds: Dataset) -> list[Sample]:
@@ -322,17 +339,18 @@ def outliers(ds: Dataset) -> Outcome:
     """Gateways are compared within their kind (AI*, MM*, TRADER*) by robust
     z-score (> 5); a continuous print more than 5 % from the prevailing
     price, with no news on the symbol or the market in the 15 min before,
-    starts a jump; symbols are compared by median relative spread in
-    price_snapshots."""
+    starts a jump, counted if the next 20 prints stay that far off; symbols
+    are compared by median relative spread in price_snapshots."""
     gateways = _gateway_outliers(ds)
-    jumps, explained = _jumps(ds)
+    jumps, explained, reverted = _jumps(ds)
     spreads = _spread_outliers(ds)
     by_size = sorted(jumps, key=lambda s: -abs(float(str(s["move_pct"]))))
     samples = gateways + by_size + spreads
     note = (
-        f"{len(gateways)} gateway outliers, {len(jumps)} unexplained jumps "
-        f"(> {_JUMP_PCT:g} % off the prevailing price; {explained} more after "
-        f"news), {len(spreads)} spread outliers"
+        f"{len(gateways)} gateway outliers, {len(jumps)} unexplained lasting "
+        f"jumps (> {_JUMP_PCT:g} % off the prevailing price over "
+        f"{_PREVAILING} prints; {explained} more after news, {reverted} "
+        f"reverted), {len(spreads)} spread outliers"
     )
     if "market_sim_news" not in ds.stores:
         note += "; no market_sim_news.db: no jump is explained by news"

@@ -587,6 +587,12 @@ the sim profile). Decided with Johan: H checks report a new **INFO** status
   attached store. The catalogue's "k·σ" rule was tried first and dropped:
   the tape is bid-ask bounce (a one-tick median move, a spread-wide move at
   every crossing), and 10 σ flagged 19 025 ordinary crossings.
+  Since 2026-10-26 a jump counts only if it lasts: the median of its print
+  and the next 19 that day is still more than 5 % off (reverted jumps are
+  only counted in the note). On the 2026-10-26 run 127 of 148 reverted:
+  one print into a thin book, mostly an AI agent's OCO take-profit leg
+  resting 5–10 % away, hit by a LIMIT/IOC at that price or a triggered stop,
+  120 of them in the first 10 min after the open; 21 lasted.
 - **H3**: per minute, the engine p99 against msgs_in, resting orders, heap
   garbage, busy %, GC gen2 and host CPU (Spearman); spikes are > 10× the
   median minute.

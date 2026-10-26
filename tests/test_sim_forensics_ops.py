@@ -152,18 +152,22 @@ def h2_world(data: Path) -> None:
             "VALUES ('2026-06-15T08:00:00Z', ?, 'O', ?, 'AAPL', ?, ?)",
             [(et, gw, q, f) for et, q, f in rows],
         )
-    # AAPL wanders by a tick, then prints 10 % up twice (one excursion);
-    # MSFT does the same just after news on MSFT.
-    for symbol, news_at in (("AAPL", None), ("MSFT", ns("08:20:00"))):
-        prices = [10000, 10001, 10000, 10002, 10001] * 5 + [11000, 11000]
+    # AAPL wanders by a tick, then trades 10 % up and stays there (one
+    # excursion); MSFT does the same just after news on MSFT; TSLA prints
+    # 10 % up once and goes straight back.
+    wander = [10000, 10001, 10000, 10002, 10001] * 5
+    for symbol, news_at, after in (
+        ("AAPL", None, [11000] * 20),
+        ("MSFT", ns("08:20:00"), [11000] * 20),
+        ("TSLA", None, [11000] + [10001] * 19),
+    ):
         conn.executemany(
             "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity, "
             "aggressor_side) VALUES (?, ?, ?, ?, 1, 'BUY')",
             [
                 (iso(ns("08:00:00") + k * 60 * SEC), f"{symbol}-{k:09d}", symbol, p)
-                for k, p in enumerate(prices[:-1])
-            ]
-            + [(iso(ns("09:00:00")), f"{symbol}-999999999", symbol, prices[-1])],
+                for k, p in enumerate(wander + after)
+            ],
         )
         if news_at is not None:
             news = sqlite3.connect(data / "market_sim_news.db")
@@ -197,7 +201,29 @@ def test_h2_reports_outliers_as_info(tmp_path: Path, open_ds: OpenDataset) -> No
     ]
     assert kinds == [("gateway", "AI006"), ("jump", "AAPL"), ("spread", "ZS")]
     assert result.samples[0]["figure"] == "reject_rate"
-    assert "1 unexplained jumps (> 5 % off the prevailing price; 1 more after news)" in result.note  # fmt: skip
+    assert result.samples[1]["lasting_pct"] == 9.99  # off the median 100.01
+    assert "1 unexplained lasting jumps (> 5 % off the prevailing price over 20 prints; 1 more after news, 1 reverted)" in result.note  # fmt: skip
+
+
+def test_h2_cannot_confirm_a_jump_at_the_end_of_the_day(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = tmp_path / "data"
+    conn = stats_db(data)
+    prices = [10000, 10001, 10000, 10002, 10001] * 4 + [11000] * 19
+    conn.executemany(
+        "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity, "
+        "aggressor_side) VALUES (?, ?, 'AAPL', ?, 1, 'BUY')",
+        [
+            (iso(ns("08:00:00") + k * 60 * SEC), f"AAPL-{k:09d}", p)
+            for k, p in enumerate(prices)
+        ],
+    )
+    conn.commit()
+    conn.close()
+    (result,) = run_checks(open_ds(data), [REGISTRY["H2"]], 10)
+    assert "0 unexplained lasting jumps" in result.note
+    assert "0 reverted" in result.note
 
 
 def test_h2_does_not_fail_the_run(tmp_path: Path) -> None:
