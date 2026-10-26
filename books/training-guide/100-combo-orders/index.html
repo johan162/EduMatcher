@@ -7463,7 +7463,7 @@ leg filled, the others still resting. <strong>You have leg risk again.</strong><
 half-filled position at submission. It can still <em>end up</em> half-filled while it
 rests. Exercises 2 and 3 show both halves of that.</p>
 <p>The combo's lifecycle states are <code>PENDING</code>, <code>PARTIALLY_MATCHED</code>, <code>MATCHED</code>,
-<code>FAILED</code> (a leg was cancelled or expired, so the siblings cascade-cancel),
+<code>FAILED</code> (a leg was cancelled, rejected or expired, so the siblings cascade-cancel),
 <code>CANCELLED</code> and <code>REJECTED</code>.</p>
 <h2 id="exercise-1-simple-two-leg-combo">Exercise 1: Simple Two-Leg Combo<a class="headerlink" href="#exercise-1-simple-two-leg-combo" title="Permanent link">&para;</a></h2>
 <p>To see the combo <strong>fill atomically</strong>, first guarantee liquidity on both legs

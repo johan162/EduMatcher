@@ -7760,7 +7760,7 @@ treats as a unit:</p>
 <ul>
 <li>All legs are submitted together.</li>
 <li>If the market cannot fill all of them, none fill.</li>
-<li>If any leg is later cancelled or expires, the exchange automatically cancels
+<li>If any leg is cancelled, rejected or expires, the exchange automatically cancels
   all the remaining legs for you.</li>
 </ul>
 <h3 id="three-real-world-situations-where-combos-matter">Three real-world situations where combos matter<a class="headerlink" href="#three-real-world-situations-where-combos-matter" title="Permanent link">&para;</a></h3>
@@ -7827,7 +7827,7 @@ This is called <strong>leg risk</strong> (or execution risk).</p>
 </tr>
 <tr>
 <td>Manual cancellation — if one leg fails you must remember to cancel the other</td>
-<td>Cascade-cancel: if any leg is cancelled or expires, all siblings are cancelled automatically</td>
+<td>Cascade-cancel: if any leg is cancelled, rejected or expires, all siblings are cancelled automatically</td>
 </tr>
 <tr>
 <td>State tracking — you mentally track which orders belong together</td>
@@ -7900,8 +7900,8 @@ EXPIRED). Combos add a <strong>second layer</strong>:</p>
     PENDING --&gt; PARTIALLY_MATCHED : first leg fill
     PARTIALLY_MATCHED --&gt; MATCHED : all legs fully filled
     PENDING --&gt; MATCHED : all legs fill immediately (e.g. both legs cross resting liquidity at submission)
-    PENDING --&gt; FAILED : cascade-cancel on a leg cancelled or expired
-    PARTIALLY_MATCHED --&gt; FAILED : cascade-cancel on a leg cancelled or expired
+    PENDING --&gt; FAILED : cascade-cancel on a leg cancelled, rejected or expired
+    PARTIALLY_MATCHED --&gt; FAILED : cascade-cancel on a leg cancelled, rejected or expired
     PENDING --&gt; CANCELLED : explicit CANCEL|COMBO_ID=
     PARTIALLY_MATCHED --&gt; CANCELLED : explicit CANCEL|COMBO_ID=
     FAILED --&gt; [*]
@@ -7910,7 +7910,7 @@ EXPIRED). Combos add a <strong>second layer</strong>:</p>
 <p>The engine must detect transitions at the combo level whenever a child-level event
 occurs.</p>
 <h3 id="cascade-cancellation">Cascade Cancellation<a class="headerlink" href="#cascade-cancellation" title="Permanent link">&para;</a></h3>
-<p>If one leg of a combo is cancelled or expires, the remaining legs must be
+<p>If one leg of a combo is cancelled, rejected or expires, the remaining legs must be
 <strong>automatically cancelled</strong>. This is non-trivial:</p>
 <ul>
 <li>The cancelled leg might be on a different book than its siblings.</li>
@@ -8019,21 +8019,26 @@ accept an inconsistent leg.</p>
 <ol>
 <li>The engine validates the combo (symbols allowed, no duplicates, valid quantities).</li>
 <li>If valid, the engine sends a <strong>combo ACK</strong> back to your gateway.</li>
-<li>The engine creates <strong>child orders</strong> — one per leg — and posts them to the
-   respective order books.</li>
+<li>The engine creates <strong>child orders</strong> — one per leg, in leg order — and posts
+   them to the respective order books. Every leg event and <code>combo.status</code>
+   therefore follows the <code>combo.ack</code>.</li>
 <li>Child orders match and rest like normal orders. Each fill is reported to you as a
    standard <code>order.fill</code> event.</li>
 <li>When <strong>all legs are fully filled</strong>, the engine publishes a <code>combo.status(MATCHED)</code>
    event.</li>
-<li>If any leg is <strong>cancelled or expires</strong> before all legs fill, the engine
-   cascade-cancels the remaining legs and publishes <code>combo.status(FAILED)</code>.</li>
+<li>If any leg is <strong>cancelled, rejected or expires</strong> before all legs fill, the
+   engine cascade-cancels the remaining legs and publishes
+   <code>combo.status(FAILED)</code>. This holds on entry too: a leg rejected or
+   cancelled as it is posted fails the combo at once, the legs already
+   posted are cancelled, and the legs after it are never posted.</li>
 </ol>
 <p>A <code>MARKET</code>, <code>IOC</code> or <code>FOK</code> leg cannot rest, so while its symbol is not
 matching it is rejected, with the code an ordinary order of that type would
 get: <code>INSTRUMENT_HALTED</code> (or <code>CIRCUIT_BREAKER_ACTIVE</code>) on a halted symbol,
 <code>SESSION_NOT_PERMITTED</code> outside continuous trading. A leg of an all-or-none
 combo held back because another leg cannot fill is rejected with
-<code>INSUFFICIENT_LIQUIDITY</code>, as is a <code>FOK</code> leg short of liquidity.</p>
+<code>INSUFFICIENT_LIQUIDITY</code>, as is a <code>FOK</code> leg short of liquidity. Either
+way the combo fails (step 6).</p>
 <h3 id="cancelling-a-combo">Cancelling a Combo<a class="headerlink" href="#cancelling-a-combo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|COMBO_ID=PAIR-001
 </code></pre></div>
