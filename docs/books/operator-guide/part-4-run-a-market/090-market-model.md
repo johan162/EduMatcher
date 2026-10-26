@@ -53,6 +53,9 @@ For each symbol, one step of trading time Δ (in days) moves the log value by
   so symbols of one sector move together: two of them correlate by about
   `β_m² + β_s²`.
 - Jumps arrive at `jump_rate` per day with normally distributed log size.
+  No news announces them. Each one is logged (`value jump AAPL +4.10% to
+  83.97`) and recorded in `market_sim_news.db`'s `value_jumps` table, so
+  you can see afterwards how the market followed it.
 - When the exchange reopens after a close, one extra move with
   `overnight_fraction` of a day's variance is applied.
 

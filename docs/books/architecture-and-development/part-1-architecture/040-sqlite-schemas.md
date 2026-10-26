@@ -973,7 +973,7 @@ CREATE INDEX idx_ev_ts ON events(ts)
 ## `market_sim_news.db`
 
 **Owner:** pm-market-sim  
-**Purpose:** Generated and instructor-published news events.  
+**Purpose:** Generated and instructor-published news events, and the value model's jumps.  
 **Schema source:** `src/edumatcher/market_sim/news_history.py`
 
 ### Fields
@@ -991,6 +991,10 @@ CREATE INDEX idx_ev_ts ON events(ts)
 | `table: news_events` | `sentiment` | `REAL` | yes |  |  |
 | `table: news_events` | `credibility` | `REAL` | no |  |  |
 | `table: news_events` | `related_id` | `TEXT` | yes |  |  |
+| `table: value_jumps` | `ts_ns` | `INTEGER` | yes |  |  |
+| `table: value_jumps` | `symbol` | `TEXT` | yes |  |  |
+| `table: value_jumps` | `log_jump` | `REAL` | yes |  |  |
+| `table: value_jumps` | `value` | `REAL` | yes |  |  |
 
 ### DDL
 
@@ -1012,6 +1016,17 @@ CREATE TABLE news_events (
         )
 ```
 
+#### `table value_jumps`
+
+```sql
+CREATE TABLE value_jumps (
+            ts_ns INTEGER NOT NULL,
+            symbol TEXT NOT NULL,
+            log_jump REAL NOT NULL,
+            value REAL NOT NULL
+        )
+```
+
 #### `index news_events_status`
 
 ```sql
@@ -1022,6 +1037,12 @@ CREATE INDEX news_events_status ON news_events(status)
 
 ```sql
 CREATE INDEX news_events_ts ON news_events(ts_ns DESC)
+```
+
+#### `index value_jumps_ts`
+
+```sql
+CREATE INDEX value_jumps_ts ON value_jumps(ts_ns)
 ```
 
 ## `log-ui-acks.db`

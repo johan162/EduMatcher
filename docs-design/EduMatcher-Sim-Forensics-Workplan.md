@@ -250,6 +250,7 @@ H checks report **INFO** (S7 decision): a count of pointers, never a FAIL.
 | H1 | For every finding from A–G, list ops events within ±30 s (metrics `events`: thresholds, process status, connects; `gateway_sessions` disconnects; log.db WARN/ERROR). Clusters point at load-related bugs. |
 | H2 | Per-agent outliers: P&L, fill ratio, reject rate, cancel-to-fill; per-symbol: spread, price jumps > k·σ without a news event (`market_sim_news.db`). |
 | H3 | Latency (`engine.handle_us_*`) vs book size / garbage — not a correctness check, but feeds the perf plan. |
+| H4 | How far and how fast prices follow the value model's jumps (`market_sim_news.value_jumps`, added 2026-10-26). |
 
 ## 6. Triage workflow (S8)
 
@@ -592,7 +593,13 @@ the sim profile). Decided with Johan: H checks report a new **INFO** status
   only counted in the note). On the 2026-10-26 run 127 of 148 reverted:
   one print into a thin book, mostly an AI agent's OCO take-profit leg
   resting 5–10 % away, hit by a LIMIT/IOC at that price or a triggered stop,
-  120 of them in the first 10 min after the open; 21 lasted.
+  120 of them in the first 10 min after the open; 21 lasted. Of those, 16
+  are the opening minutes' whipsaw: 20 prints span seconds there, and most
+  return the price to the opening auction's after the first trades drifted
+  off it. The other 5 (BABA, CRWD, TSLA, HUBB, MCO) are new levels that
+  MM01 quotes into (7–14 of the next 20 prints) and that the market sim's
+  end-of-day true value confirms: unannounced jumps of its value model
+  (0.05/day/symbol, σ 4 %: ~3 jumps > 5 % a day expected over 300 symbols).
 - **H3**: per minute, the engine p99 against msgs_in, resting orders, heap
   garbage, busy %, GC gen2 and host CPU (Spearman); spikes are > 10× the
   median minute.
@@ -1265,3 +1272,21 @@ Fix: the cascade in `checks/matching.py` pops `pending` FIFO, as the
 engine does (`_pick` stays for the dispatch's own commands).
 `test_a_cascade_runs_its_stops_in_release_order` failed before. The run's
 C7 and D1–D9 all PASS after the fix.
+
+### Value jumps recorded; H4 (2026-10-26)
+
+The H2 triage could not tell a lasting price jump that followed the value
+model from one that did not: pm-market-sim kept no value history and its
+jumps are never announced. Now `ValueModel.step` returns each step's jumps
+(symbol → log size), and `MarketSim.step` logs each one at INFO and appends
+it to `market_sim_news.db`'s new `value_jumps` table (`ts_ns`, `symbol`,
+`log_jump`, `value` after the step).
+
+- **H2** counts a lasting jump as explained by the model when a value jump
+  on the symbol, in the price's direction, came in the 15 min before (the
+  news window); the note gives that count beside news.
+- **H4** (new, INFO): for each value jump of at least 1 %, the share of it
+  the price shows 60 s and 300 s later: the median of the first 20 prints
+  from then, against the median of the 20 before the jump, the same day.
+  Samples are the jumps followed by less than half after 300 s, largest
+  first. SKIPPED on a run whose pm-market-sim did not record jumps.

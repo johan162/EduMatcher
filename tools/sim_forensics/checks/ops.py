@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import bisect
 import json
+import math
 import statistics
 from collections import defaultdict, deque
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from sim_forensics.dataset import Dataset, iso_ns
@@ -27,8 +29,13 @@ _Z = 5.0
 #: last _PREVAILING continuous trades) is a jump (H2) ...
 _JUMP_PCT = 5.0
 _PREVAILING = 20
-#: ... unless news on the symbol (or the market) came this long before it.
+#: ... unless news on the symbol (or the market), or a value-model jump in
+#: its direction, came this long before it.
 _NEWS_BEFORE_S = 15 * 60
+#: Value jumps H4 measures (smaller ones drown in the spread), and how long
+#: after one it reads the price.
+_FOLLOW_MIN_PCT = 1.0
+_RESPONSE_S = (60, 300)
 #: An engine p99 this many times the run's median minute is a spike (H3).
 _SPIKE = 10.0
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -257,12 +264,47 @@ def _explained(news: dict[str, list[int]], symbol: str, at: int) -> bool:
     return False
 
 
-def _jumps(ds: Dataset) -> tuple[list[Sample], int, int]:
+def _value_jumps(ds: Dataset) -> dict[str, list[tuple[int, float]]] | None:
+    """Symbol → (ns, log size) of each jump of its true value, in time order;
+    None for a run whose pm-market-sim did not record them."""
+    if (
+        "market_sim_news" not in ds.stores
+        or not ds.conn.execute(
+            "SELECT 1 FROM market_sim_news.sqlite_master "
+            "WHERE type = 'table' AND name = 'value_jumps'"
+        ).fetchone()
+    ):
+        return None
+    out: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    for ts_ns, symbol, log_jump in ds.conn.execute(
+        "SELECT ts_ns, symbol, log_jump FROM market_sim_news.value_jumps "
+        "ORDER BY ts_ns"
+    ):
+        out[symbol].append((ts_ns, log_jump))
+    return out
+
+
+def _valued(
+    jumps: dict[str, list[tuple[int, float]]], symbol: str, at: int, move: float
+) -> bool:
+    """A value jump on *symbol* in *move*'s direction came shortly before."""
+    for ts_ns, log_jump in reversed(jumps.get(symbol, [])):
+        if ts_ns > at:
+            continue
+        if at - ts_ns > _NEWS_BEFORE_S * SEC:
+            return False
+        if log_jump * move > 0:
+            return True
+    return False
+
+
+def _jumps(ds: Dataset) -> tuple[list[Sample], int, int, int]:
     """Continuous prints more than _JUMP_PCT from the prevailing price (the
     median of the symbol's last _PREVAILING continuous trades that day), one
     per excursion, that last: the median of the jump's print and the next
     _PREVAILING - 1 prints that day is still more than _JUMP_PCT off. Also
-    how many lasting jumps news explains, and how many jumps reverted. A jump
+    how many lasting jumps news explains, how many a value-model jump does,
+    and how many jumps reverted. A jump
     in the day's last _PREVAILING - 1 prints cannot last and is not counted.
 
     Not trade-to-trade sigmas: the tape is dominated by bid-ask bounce (a
@@ -272,8 +314,9 @@ def _jumps(ds: Dataset) -> tuple[list[Sample], int, int]:
     a thin book (mostly an OCO take-profit leg) that the next trades undid.
     """
     news = _news(ds)
+    value_jumps = _value_jumps(ds) or {}
     out: list[Sample] = []
-    explained = reverted = 0
+    explained = valued = reverted = 0
     recent: dict[str, deque[int]] = {}
     away: dict[str, bool] = {}
     day_of: dict[str, str] = {}
@@ -308,10 +351,12 @@ def _jumps(ds: Dataset) -> tuple[list[Sample], int, int]:
                 reverted += 1
             elif _explained(news, symbol, iso_ns(str(sample["ts"]))):
                 explained += 1
+            elif _valued(value_jumps, symbol, iso_ns(str(sample["ts"])), level):
+                valued += 1
             else:
                 sample["lasting_pct"] = round(level * 100, 2)
                 out.append(sample)
-    return out, explained, reverted
+    return out, explained, valued, reverted
 
 
 def _spread_outliers(ds: Dataset) -> list[Sample]:
@@ -338,22 +383,25 @@ def _spread_outliers(ds: Dataset) -> list[Sample]:
 def outliers(ds: Dataset) -> Outcome:
     """Gateways are compared within their kind (AI*, MM*, TRADER*) by robust
     z-score (> 5); a continuous print more than 5 % from the prevailing
-    price, with no news on the symbol or the market in the 15 min before,
-    starts a jump, counted if the next 20 prints stay that far off; symbols
-    are compared by median relative spread in price_snapshots."""
+    price, with no news on the symbol or the market and no value-model jump
+    its way in the 15 min before, starts a jump, counted if the next 20
+    prints stay that far off; symbols are compared by median relative spread
+    in price_snapshots."""
     gateways = _gateway_outliers(ds)
-    jumps, explained, reverted = _jumps(ds)
+    jumps, explained, valued, reverted = _jumps(ds)
     spreads = _spread_outliers(ds)
     by_size = sorted(jumps, key=lambda s: -abs(float(str(s["move_pct"]))))
     samples = gateways + by_size + spreads
     note = (
         f"{len(gateways)} gateway outliers, {len(jumps)} unexplained lasting "
         f"jumps (> {_JUMP_PCT:g} % off the prevailing price over "
-        f"{_PREVAILING} prints; {explained} more after news, {reverted} "
-        f"reverted), {len(spreads)} spread outliers"
+        f"{_PREVAILING} prints; {explained} more after news, {valued} after a "
+        f"value jump, {reverted} reverted), {len(spreads)} spread outliers"
     )
     if "market_sim_news" not in ds.stores:
         note += "; no market_sim_news.db: no jump is explained by news"
+    elif _value_jumps(ds) is None:
+        note += "; no value_jumps in market_sim_news.db: none by a value jump"
     return Outcome(len(samples), samples, note)
 
 
@@ -450,6 +498,92 @@ def latency_vs_load(ds: Dataset) -> Outcome:
         f"{len(spikes)} spikes (> {_SPIKE:g}x); Spearman with p99: {', '.join(parts)}"
     )
     return Outcome(len(samples), samples, note)
+
+
+# ---------------------------------------------------------------------------
+# H4
+# ---------------------------------------------------------------------------
+
+
+@check(
+    "H4",
+    "statistical",
+    "How far and how fast prices follow the value model's jumps",
+    needs=("stats", "market_sim_news"),
+)
+def value_jump_response(ds: Dataset) -> Outcome:
+    """For each value jump of at least 1 %: the prevailing price before it
+    (the median of the symbol's last 20 continuous prints that day) and the
+    median of the first 20 prints from 1 min and from 5 min after it, the
+    same day; the share of the jump the price moved by. A jump without 20
+    prints before it or a print 5 min after is not measured. Samples: the
+    jumps the price followed by less than half after 5 min, largest first."""
+    value_jumps = _value_jumps(ds)
+    if value_jumps is None:
+        raise Skipped(
+            "market_sim_news.db has no value_jumps: pm-market-sim did not "
+            "record its jumps in this run"
+        )
+    big = {
+        symbol: [(t, j) for t, j in jumps if abs(j) >= _log_pct(_FOLLOW_MIN_PCT)]
+        for symbol, jumps in value_jumps.items()
+    }
+    tape: dict[str, tuple[list[int], list[int], list[str]]] = {}
+    for symbol, ts, price in ds.conn.execute(
+        "SELECT symbol, ts, price FROM stats.trade_log "
+        "WHERE aggressor_side != 'AUCTION' ORDER BY symbol, trade_id"
+    ):
+        if big.get(symbol):
+            times, prices, days = tape.setdefault(symbol, ([], [], []))
+            times.append(iso_ns(ts))
+            prices.append(price)
+            days.append(ts[:10])
+    shares: dict[int, list[float]] = {h: [] for h in _RESPONSE_S}
+    samples: list[Sample] = []
+    total = sum(len(v) for v in value_jumps.values())
+    measured = 0
+    for symbol, jumps in sorted(big.items()):
+        times, prices, days = tape.get(symbol, ([], [], []))
+        for at, log_jump in jumps:
+            i = bisect.bisect_left(times, at)
+            if i < _PREVAILING or days[i - _PREVAILING] != days[i - 1]:
+                continue
+            day = days[i - 1]
+            before = statistics.median(prices[i - _PREVAILING : i])
+            share: dict[int, float] = {}
+            for h in _RESPONSE_S:
+                k = bisect.bisect_left(times, at + h * SEC)
+                after = [p for p, d in zip(prices[k : k + _PREVAILING], days[k:]) if d == day]  # fmt: skip
+                if after:
+                    share[h] = math.log(statistics.median(after) / before) / log_jump
+            if len(share) < len(_RESPONSE_S):
+                continue
+            measured += 1
+            for h, v in share.items():
+                shares[h].append(v)
+            if share[_RESPONSE_S[-1]] < 0.5:
+                samples.append(
+                    {"kind": "value_jump", "symbol": symbol, "ts": _iso(at), "jump_pct": round(math.expm1(log_jump) * 100, 2), "prevailing": before, **{f"share_{h}s": round(v, 2) for h, v in share.items()}}  # fmt: skip
+                )
+    samples.sort(key=lambda s: -abs(float(str(s["jump_pct"]))))
+    parts = [f"after {h} s {statistics.median(v):.0%}" for h, v in shares.items() if v]
+    note = (
+        f"{total} value jumps, {sum(len(v) for v in big.values())} of "
+        f">= {_FOLLOW_MIN_PCT:g} %, {measured} measured"
+    )
+    if parts:
+        note += f"; median share of the jump in the price {', '.join(parts)}"
+    note += f"; {len(samples)} followed by less than half after {_RESPONSE_S[-1]} s"
+    return Outcome(len(samples), samples, note)
+
+
+def _log_pct(pct: float) -> float:
+    return math.log1p(pct / 100)
+
+
+def _iso(ns: int) -> str:
+    moment = datetime.fromtimestamp(ns // SEC, timezone.utc)
+    return moment.replace(microsecond=ns % SEC // 1000).isoformat()
 
 
 def _round(v: Any) -> Any:

@@ -80,16 +80,20 @@ class ValueModel:
         self._jumps = {s: stream(f"jump:{s}") for s in self.params}
 
     # --- stepping -------------------------------------------------------------
-    def step(self, dt_days: float, day_fraction: float | None = None) -> None:
-        """Advance every symbol by ``dt_days`` of trading time."""
+    def step(
+        self, dt_days: float, day_fraction: float | None = None
+    ) -> dict[str, float]:
+        """Advance every symbol by ``dt_days`` of trading time; returns the
+        step's jumps, symbol -> log size (most steps have none)."""
         u = 1.0 if day_fraction is None else intraday_variance(day_fraction)
-        self._advance(dt_days, u)
+        return self._advance(dt_days, u)
 
     def overnight(self) -> None:
         """The move between yesterday's close and today's open."""
         self._advance(self.overnight_fraction, 1.0, jumps=False)
 
-    def _advance(self, dt: float, u: float, jumps: bool = True) -> None:
+    def _advance(self, dt: float, u: float, jumps: bool = True) -> dict[str, float]:
+        jumped: dict[str, float] = {}
         z_market = self._market.gauss(0.0, 1.0)
         z_sector = {name: r.gauss(0.0, 1.0) for name, r in self._sectors.items()}
         for sym, p in self.params.items():
@@ -104,8 +108,12 @@ class ValueModel:
                 var * dt
             ) * z
             if jumps and p.jump_rate > 0:
-                move += self._jump(sym, p, dt)
+                jump = self._jump(sym, p, dt)
+                if jump:
+                    jumped[sym] = jump
+                move += jump
             self.log_values[sym] += move
+        return jumped
 
     def _jump(self, sym: str, p: SymbolParams, dt: float) -> float:
         r = self._jumps[sym]

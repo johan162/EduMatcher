@@ -106,7 +106,7 @@ Everything lives under `$EDUMATCHER_DATA_DIR` (`/data` in the container,
 | `ref_data/engine_config.yaml`, `engine_config.json` | The deployed configuration (source and compiled) | no |
 | `ref_data/market_sim.yaml` | The deployed market model | no |
 | `market_sim_state.json` | The model's current values, saved every 10 s | no |
-| `market_sim_news.db` | Published news and rumour events queried by `pm-news past` | grows with each event |
+| `market_sim_news.db` | Published news and rumour events queried by `pm-news past`, and the model's value jumps | grows with each event |
 | `emo/` | `pm-opctl` PID files and each process's console output (`<name>.log`) | slowly |
 | `log.db` | Every process's log | up to 30 days, then flat |
 | `audit.log`, `audit.log.1`–`.5` | The audit trail, rotated at 10 MB | capped at 60 MB |
