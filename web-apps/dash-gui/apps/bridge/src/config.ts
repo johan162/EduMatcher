@@ -40,6 +40,12 @@ export interface BridgeConfig {
     clientId: string;
   };
 
+  /** pm-api-gwy, for the session timetable (/api/reference/schedule), with a read-only key. */
+  apiGateway: {
+    baseUrl: string;
+    apiKey: string;
+  };
+
   /** pm-monitor's history, opened read-only. */
   metricsDbPath: string;
   /** The deployed configuration artifact: `monitor.thresholds` (/api/thresholds). */
@@ -129,6 +135,12 @@ export function loadBridgeConfig(): BridgeConfig {
       host: process.env["CALF_HOST"] ?? "127.0.0.1",
       port: intFromEnv("CALF_PORT", 5570),
       clientId: process.env["CALF_CLIENT_ID"] ?? "pm-dash-bridge",
+    },
+
+    apiGateway: {
+      // The dashboards instance, where the read-only credential lives.
+      baseUrl: process.env["API_GATEWAY_URL"] ?? "http://127.0.0.1:8081",
+      apiKey: process.env["PM_DASH_API_KEY"] ?? "",
     },
 
     metricsDbPath: process.env["METRICS_DB_PATH"] ?? join(dataDir, "metrics.db"),

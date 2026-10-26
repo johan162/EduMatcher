@@ -70,7 +70,11 @@ from edumatcher.messaging.bus import (
     make_pusher,
 )
 from edumatcher.market_sim.news import NewsDesk, Rumour
-from edumatcher.market_sim.news_history import NEWS_HISTORY_DB, append_news_event
+from edumatcher.market_sim.news_history import (
+    NEWS_HISTORY_DB,
+    append_news_event,
+    append_value_jumps,
+)
 from edumatcher.models.generated import news as N
 from edumatcher.models.generated import sim as G
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
@@ -246,11 +250,33 @@ class MarketSim:
         dt = min(now - self._last_step, 5 * self.cfg.step_sec)
         self._last_step = now
         span, fraction = self._day(now)
-        self.model.step(dt / span, fraction)
+        jumps = self.model.step(dt / span, fraction)
+        if jumps:
+            self._record_jumps(jumps, now)
         out = [self._news_out(e, m) for e, m in self.news.tick(dt / span, now)]
         self.seq += 1
         out.append(self._values_frames(now))
         return out
+
+    def _record_jumps(self, jumps: dict[str, float], now: float) -> None:
+        """Keep the model's jumps, which no news announces, so a run's
+        forensics can tell a market that followed its value from one that
+        moved on its own."""
+        values = {s: self.model.value(s) for s in jumps}
+        if self.news_history_path is not None:
+            try:
+                append_value_jumps(
+                    self.news_history_path, int(now * 1e9), jumps, values
+                )
+            except OSError, sqlite3.Error:
+                log.exception("could not append value jumps to history")
+        for sym, jump in sorted(jumps.items()):
+            log.info(
+                "value jump %s %+.2f%% to %.4f",
+                sym,
+                math.expm1(jump) * 100,
+                values[sym],
+            )
 
     def _news_out(self, event: dict[str, Any], moves: dict[str, float]) -> list[bytes]:
         self.model.shock(moves)

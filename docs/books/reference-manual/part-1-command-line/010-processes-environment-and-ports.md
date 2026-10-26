@@ -1595,7 +1595,7 @@ pm-ai-trader --list-presets
 | Flag | Default | Description |
 |---|---|---|
 | `--id` | required | Participant ID to log on as (e.g. `AI001`); must be a `TRADER` in the deployed configuration |
-| `--preset` | `noise-retail` | Built-in preset: `auction-player`, `block-taker`, `contrarian`, `iceberg-seller`, `institutional`, `market-taker`, `news-trader`, `noise-retail`, `scalper`, `trend-follower`, `value-investor` |
+| `--preset` | `noise-retail` | Built-in preset: `auction-player`, `block-taker`, `contrarian`, `iceberg-seller`, `institutional`, `market-taker`, `news-trader`, `noise-retail`, `patient-liquidity`, `scalper`, `trend-follower`, `value-investor` |
 | `--preset-file` | none | Preset YAML file instead of a built-in |
 | `--list-presets` | — | Print the built-in presets (strategy, execution, protection, description) and exit |
 | `--symbols` | every deployed symbol | Comma-separated symbols to trade |

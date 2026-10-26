@@ -21,6 +21,7 @@ import { registerHistoryRoutes } from "./history-routes.js";
 import type { Logger } from "./logging/logger.js";
 import { MetricsDb, QueryError } from "./metrics-db.js";
 import { MonitorUplink } from "./monitor-uplink.js";
+import { registerScheduleRoute } from "./schedule-proxy.js";
 import { knownTimeZone } from "./session-time.js";
 import { ThresholdSource } from "./thresholds.js";
 import { WsHub } from "./ws-fanout.js";
@@ -157,6 +158,7 @@ export async function buildBridge(config: BridgeConfig, log: Logger, opts: Build
   );
 
   registerHistoryRoutes(app, db, sessionTz, opts.now);
+  registerScheduleRoute(app, config.apiGateway);
 
   // The rules pm-monitor judges by: the widgets' bands while nothing is in breach (I113).
   const thresholds = new ThresholdSource(config.configArtifactPath);

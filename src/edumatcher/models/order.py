@@ -116,6 +116,34 @@ _ORIGIN_MAP: dict[str, OrderOrigin] = {v.value: v for v in OrderOrigin}
 # ---------------------------------------------------------------------------
 @dataclass(slots=True)
 class Order:
+    """One order, from the moment it arrives until it is filled or cancelled.
+
+    The matching engine mutates this object IN PLACE as the order trades:
+    the book changes ``remaining_qty`` and ``status`` and passes the very
+    same object back to the engine to be reported.  Fields that matter most
+    when reading ``engine/order_book.py``:
+
+    * ``quantity``         the original size; never changes by trading.
+    * ``remaining_qty``    what is still unfilled.  Hits 0 -> status FILLED.
+    * ``status``           NEW -> PARTIAL -> FILLED, or CANCELLED / REJECTED.
+                           Note a CANCELLED order usually still has
+                           ``remaining_qty > 0``: always test ``status``.
+    * ``price_ticks``      limit price as an INTEGER number of ticks (never a
+                           float: no rounding error, exact dict keys).  None
+                           for MARKET orders and plain stops.
+    * ``stop_price_ticks`` the trigger price of a stop; see ``OrderBook``.
+    * ``visible_qty`` / ``displayed_qty``  iceberg only: the fixed slice size
+                           chosen by the client, and how much of the current
+                           slice is still showing.
+    * ``arrival_seq``      the engine-assigned queue position (time priority);
+                           NOT the client's ``ts_ns``.
+    * ``gateway_id``       the participant; the unit for self-match prevention.
+
+    ``order_type`` is mutable on purpose: when a stop triggers it is
+    rewritten to the order type it becomes (STOP -> MARKET, STOP_LIMIT ->
+    LIMIT) and then matched like a new order.
+    """
+
     id: str
     symbol: str
     side: Side

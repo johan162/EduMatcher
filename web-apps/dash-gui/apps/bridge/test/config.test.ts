@@ -18,6 +18,15 @@ describe("loadBridgeConfig", () => {
     expect(cfg.logServer.clientId).toBe("pm-dash-bridge");
   });
 
+  it("pm-api-gwy: the dashboards instance with no key unless set", () => {
+    delete process.env["API_GATEWAY_URL"];
+    delete process.env["PM_DASH_API_KEY"];
+    expect(loadBridgeConfig().apiGateway).toEqual({ baseUrl: "http://127.0.0.1:8081", apiKey: "" });
+    process.env["API_GATEWAY_URL"] = "http://edumatcher:8081";
+    process.env["PM_DASH_API_KEY"] = "key-readonly-x";
+    expect(loadBridgeConfig().apiGateway).toEqual({ baseUrl: "http://edumatcher:8081", apiKey: "key-readonly-x" });
+  });
+
   it("reads overrides from the environment and ignores garbage numbers", () => {
     process.env["PORT"] = "8095";
     process.env["MONITOR_HOST"] = "edumatcher";

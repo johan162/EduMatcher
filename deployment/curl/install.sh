@@ -201,6 +201,7 @@ The first five API keys and the Admin key are:
 | TRADER04    | student desk | key-trader04-3etdg0 |
 | TRADER05    | student desk | key-trader05-k0c8fm |
 | OPS01       | (ADMIN)      | key-ops01-3e34rs    |
+| RDASHBOARD  | DASHBOARD    | key-readonly-b60r77 |
 ====================================================
 
 You can find the full list of API keys in the simulation configuration in the "Ten Minute Start" chapter in 

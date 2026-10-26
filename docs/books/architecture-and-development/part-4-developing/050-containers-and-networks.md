@@ -473,7 +473,7 @@ continues and warns. The live CALF feed needs no key; only history does.
 ## Part 5 — The release process
 
 One git tag produces a wheel and seven multi-architecture images, all carrying
-the same version. That coupling is what lets `install.sh --version 0.61.0`
+the same version. That coupling is what lets `install.sh --version 0.62.0`
 pin an entire system with one number.
 
 ```mermaid

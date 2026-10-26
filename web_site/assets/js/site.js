@@ -108,7 +108,7 @@
 
   /* ---------- Exchange network canvas (the book-cover constellation) ---------- */
   var EX = [
-    ["NYSE", .185, .50, 6.2], ["NASDAQ", .215, .36, 5.4], ["CME", .125, .60, 4.8], ["TSX", .195, .23, 3.8], ["B3", .245, .815, 3.4],
+    ["NYSE", .140, .555, 5.2], ["NASDAQ", .215, .36, 5.4], ["CME", .125, .60, 4.8], ["TSX", .195, .23, 3.8], ["B3", .245, .815, 3.4],
     ["LSE", .462, .30, 5.8], ["Euronext", .492, .365, 4], ["Eurex", .535, .41, 4.2], ["DFM", .605, .50, 3.2], ["JPX", .825, .36, 5.2],
     ["HKEX", .775, .52, 5.6], ["SGX", .735, .665, 4], ["ASX", .80, .815, 3.6], ["OMX", .50, .20, 3.6], ["NSE", .66, .62, 3.4]
   ];
@@ -122,14 +122,27 @@
     var idx = {}; EX.forEach(function (e, i) { idx[e[0]] = i; });
     var pulses = RT.map(function (r) { return { a: idx[r[0]], b: idx[r[1]], c: r[2], major: r[3], t: Math.random(), v: (r[3] ? .0016 : .0009) * rand(.8, 1.5) }; });
     var mx = 0, my = 0, ok = visible(canvas, {});
+    /* EX x-fractions are laid out on a 1920 px screen, where the .wrap text column spans 370–1550.
+       Stars inside the column scale with it; stars in a gutter keep their distance from the column edge
+       (clamped to the screen), so they never drift behind the text. */
+    var DW = 1920, DL = 370, DC = 1180, M = 14, BX = [], CL = 0, CR = 0;
     function size() {
       var r = canvas.getBoundingClientRect(); W = r.width; H = r.height;
       canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var cw = Math.min(DC, W - 40); CL = (W - cw) / 2; CR = CL + cw;
+      BX = EX.map(function (e) {
+        var xd = e[1] * DW;
+        if (xd < DL) return Math.max(M, CL - (DL - xd));
+        if (xd > DL + DC) return Math.min(W - M, CR + (xd - DL - DC));
+        return CL + (xd - DL) / DC * cw;
+      });
     }
     size(); window.addEventListener("resize", size);
     var wide = function () { return W > 640; };
     window.addEventListener("pointermove", function (e) { mx = (e.clientX / innerWidth - .5); my = (e.clientY / innerHeight - .5); }, { passive: true });
-    function P(i) { var e = EX[i]; return { x: e[1] * W + mx * -14 * (e[3] / 5), y: e[2] * H + my * -10 * (e[3] / 5) }; }
+    function P(i) { var e = EX[i]; return { x: BX[i] + mx * -14 * (e[3] / 5), y: e[2] * H + my * -10 * (e[3] / 5) }; }
+    /* a gutter star's label is drawn only where it fits beside the column */
+    function labelFits(i, x0, w) { return BX[i] >= CL && BX[i] <= CR || (BX[i] < CL ? x0 + w <= CL - 6 : x0 + w <= W - 4); }
     function ctrl(p, q, c) { return { x: (p.x + q.x) / 2 - (q.y - p.y) * c, y: (p.y + q.y) / 2 + (q.x - p.x) * c }; }
     function bez(p, k, q, t) { var u = 1 - t; return { x: u * u * p.x + 2 * u * t * k.x + t * t * q.x, y: u * u * p.y + 2 * u * t * k.y + t * t * q.y }; }
 
@@ -175,7 +188,7 @@
         ctx.fillStyle = dot; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.3); ctx.fill();
         if (wide()) {
           ctx.font = "500 " + Math.max(11, Math.round(W * .0105)) + "px 'DM Mono', monospace"; ctx.fillStyle = C.label;
-          ctx.fillText(e[0], q.x + r + 7, q.y + 4);
+          if (labelFits(i, q.x + r + 7, ctx.measureText(e[0]).width)) ctx.fillText(e[0], q.x + r + 7, q.y + 4);
         }
       });
     }

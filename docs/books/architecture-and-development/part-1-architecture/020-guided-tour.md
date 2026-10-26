@@ -149,7 +149,7 @@ class Order:
     remaining_qty: int         # shares not yet filled (starts equal to quantity)
     price:        Optional[float]  # the limit price — None for market orders
     gateway_id:   str          # which participant submitted this
-    timestamp:    float        # when it arrived (seconds since epoch)
+    timestamp:    float        # when it was submitted (not the queue position — see arrival_seq)
     status:       OrderStatus  # NEW → PARTIAL → FILLED (or CANCELLED, REJECTED, EXPIRED)
 ```
 
@@ -475,15 +475,17 @@ first) we negate the price:
 
 ```python
 # For asks: price goes in directly — lowest ask stays at heap[0]
-key = (order.price, order.timestamp)
+key = (order.price, order.arrival_seq)
 
 # For bids: negate price so highest bid sorts first
-key = (-order.price, order.timestamp)
+key = (-order.price, order.arrival_seq)
 ```
 
-Using a tuple `(price, timestamp)` as the key encodes **price-time priority** for
+Using a tuple `(price, arrival_seq)` as the key encodes **price-time priority** for
 free: Python compares tuples element-by-element, so same-price orders are broken by
-arrival time automatically.
+arrival order automatically. `arrival_seq` is a counter the book increments each
+time it admits an order — deliberately *not* the order's own `timestamp`, which the
+client supplies and could back-date to jump the queue (see Section 6).
 
 ### The `_HeapEntry` Wrapper
 
@@ -495,7 +497,7 @@ class _HeapEntry:
     __slots__ = ("key", "order", "valid")
 
     def __init__(self, key, order, valid=True):
-        self.key   = key    # (±price, timestamp) — the sort key
+        self.key   = key    # (±price, arrival_seq) — the sort key
         self.order = order  # the Order object — never compared
         self.valid = valid  # False when cancelled or filled
 
@@ -596,7 +598,7 @@ With it, cancel is two O(1) dict lookups plus setting a boolean.
 
 That last line is important: when the last resting order at a price level is
 cancelled or filled, the price level entry is deleted from `_bid_qty` (or
-`_ask_qty`). This keeps the dict compact and ensures the FOK availability check and
+`_ask_qty`). This keeps the dict compact and ensures best bid/ask and the
 depth snapshot only see price levels that actually have live orders at them.
 
 ### The Price-Level Quantity Index
@@ -609,26 +611,7 @@ self._ask_qty: dict[int, int]  # price_ticks → total qty at that ask level
 This index is maintained in sync with the heap and answers: *“How much total
 quantity is available at price X?”*
 
-It enables two expensive operations to become cheap:
-
-**FOK pre-check** — a Fill-Or-Kill order must verify full fillability before any
-fills execute. Without this index, checking would require scanning all heap entries
-— O(n). With it:
-
-```python
-def _available_qty(self, heap, price_limit, side) -> int:
-    qty_index = self._ask_qty if side == Side.BUY else self._bid_qty
-    total = 0
-    for price, qty in qty_index.items():
-        if side == Side.BUY  and price <= price_limit: total += qty
-        if side == Side.SELL and price >= price_limit: total += qty
-    return total
-    # O(P) where P = distinct price levels, typically << n
-```
-
-`qty_index` is chosen based on which side is being checked: a BUY order needs to
-know how much sell-side liquidity is available, so it reads `_ask_qty`. The price
-filter then checks whether each price level is within the order’s limit.
+It makes depth statistics and best bid/ask cheap:
 
 **Depth metrics** — computing how much volume sits within 1% of mid price doesn’t
 require iterating all resting orders, just the price-level dict.
@@ -641,7 +624,7 @@ require iterating all resting orders, just the price-level dict.
 |Insert new resting order|O(log n)      |heappush                 |
 |Cancel order            |O(1)          |dict lookup + valid=False|
 |Amend (price change)    |O(log n)      |invalidate + new heappush|
-|FOK availability check  |O(P)          |price-level dict         |
+|FOK availability check  |O(n log n)    |sorted walk of live heap |
 |Depth metrics           |O(P)          |price-level dict         |
 |Full book snapshot      |O(n)          |iterate heap             |
 
@@ -689,7 +672,7 @@ class Order:
 
     # --- Execution context ---
     gateway_id:   str       # which participant submitted this
-    timestamp:    float     # arrival time (used for price-time priority)
+    timestamp:    float     # client-supplied submission time (display/audit only)
     status:       OrderStatus  # NEW → PARTIAL → FILLED or CANCELLED/REJECTED/EXPIRED
     arrival_seq:  int       # engine-assigned monotonic arrival sequence — this, not
                              # the client-supplied timestamp, is what price-time
@@ -854,7 +837,7 @@ entire order is rejected. No partial fills, no resting.
 ```python
 def _match_fok(self, order, trades, events, now):
     opposite = self._asks if order.side == Side.BUY else self._bids
-    available = self._available_qty(opposite, order.price, order.side)
+    available = self._fok_available_qty(order, opposite)
     if available < order.quantity:
         order.status = OrderStatus.REJECTED
         events.append(order)
@@ -862,10 +845,13 @@ def _match_fok(self, order, trades, events, now):
     self._sweep(order, opposite, price_limit=order.price, ...)
 ```
 
-Note the pre-check using `_available_qty`. This uses the `_bid_qty`/`_ask_qty`
-price-level index — O(P) rather than O(n) — before any fills are attempted. This
-is important for correctness: if the check fails, zero fills have occurred, so
-there is no partial state to unwind.
+Note the pre-check (`_fok_available_qty` in the real code; the snippet above is
+simplified). It walks the live resting orders in priority order up to the limit
+price — counting an iceberg's hidden reserve and excluding liquidity that
+self-match prevention would skip — *before* any fills are attempted. The
+`_bid_qty`/`_ask_qty` index is not used here because it holds only visible
+quantity. This is important for correctness: if the check fails, zero fills have
+occurred, so there is no partial state to unwind.
 
 ### Stop Orders
 
@@ -880,8 +866,8 @@ limit order) when the market price reaches the stop price.
 Stop orders rest in separate heaps, not the bid/ask book:
 
 ```python
-self._buy_stops:  list[_HeapEntry]  # min-heap keyed by (stop_price, timestamp)
-self._sell_stops: list[_HeapEntry]  # max-heap keyed by (-stop_price, timestamp)
+self._buy_stops:  list[_HeapEntry]  # min-heap keyed by (stop_price, arrival_seq)
+self._sell_stops: list[_HeapEntry]  # max-heap keyed by (-stop_price, arrival_seq)
 ```
 
 After every fill, the engine checks whether any stops should trigger:
@@ -985,7 +971,7 @@ better prices.
 `visible_qty=100`. In the book, only 100 shares are visible. A sell order arrives
 and fills those 100 shares. The iceberg replenishes: a new 100-share peak is
 created from the remaining 900 hidden shares. This continues until either all
-1,000 shares fill or the order is cancelled. Each replenishment resets the timestamp,
+1,000 shares fill or the order is cancelled. Each replenishment assigns a fresh `arrival_seq`,
 putting the iceberg at the back of its price level’s queue.
 
 ```python
@@ -2204,9 +2190,9 @@ trades, events = book.process(order, match=do_match, now=now)
 `now_ns()` is a wrapper around `time.time_ns()` that guarantees strictly
 increasing values even when the system clock steps backward (e.g. due to NTP
 adjustments on a virtual machine). Each call costs ~300-500ns on macOS/Linux. An
-aggressive order that triggers stop orders can recurse through `process()` several
-times. Without this optimisation, each level of recursion would call `now_ns()`
-independently. With it: one call, threaded through as a parameter.
+aggressive order that triggers stop orders calls `process()` again for each
+released stop (an iterative work queue, not recursion). Without this optimisation,
+each of those calls would call `now_ns()` independently. With it: one call, threaded through as a parameter.
 
 **Why do triggered stops need the same `now` as the original order?**
 
@@ -2409,22 +2395,16 @@ except ImportError:
 2-4 encode calls per order on the hot path, this saves 4-7µs per order at typical
 trade rates.
 
-### FOK Pre-Check with Price-Level Index
+### FOK Pre-Check
 
-```python
-def _available_qty(self, heap, price_limit, side) -> int:
-    qty_index = self._ask_qty if side == Side.BUY else self._bid_qty
-    total = 0
-    for price, qty in qty_index.items():
-        if side == Side.BUY  and price <= price_limit: total += qty
-        if side == Side.SELL and price >= price_limit: total += qty
-    return total
-```
-
-For a FOK order that cannot be filled, without this index the engine would start
-filling orders (generating events), realise partway through it cannot complete, and
-would need to reverse those fills — extremely complex. With the index, the check is
-O(P) price levels before any fills are attempted, and rejection is clean.
+For a FOK order that cannot be filled, a naive engine would start filling orders
+(generating events), realise partway through it cannot complete, and need to
+reverse those fills — extremely complex. Instead `_fok_available_qty` computes,
+before any fill, how much the order could really execute against: the live
+resting orders in price-time order up to the limit price, including iceberg
+reserve, minus what self-match prevention would skip. Rejection is therefore
+clean. (The `_bid_qty` / `_ask_qty` price-level index is cheaper, O(P), but holds
+only visible quantity, so it is used for depth and best bid/offer, not for this.)
 
 
 

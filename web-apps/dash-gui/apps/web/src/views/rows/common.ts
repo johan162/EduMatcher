@@ -1,7 +1,7 @@
 /**
  * What the dashboard rows share (design §12.3, D3): the dashboard-wide
  * loads (threshold rules, the event log's catch-up), threshold lookup, and the pure computations behind two panels --
- * the connection timeline and the reject ratio -- kept here so they are
+ * the connection lanes and count, and the reject ratio -- kept here so they are
  * tested on their own.
  */
 
@@ -171,6 +171,51 @@ export function connectionLanes(
       if (since !== null && p.connected) segments.push({ from: since, to: nowMs, state: CONNECTED });
       return { id: p.id, segments, marks };
     });
+}
+
+/** The part of `range` up to `nowMs` during which `lane` was not connected, in ms. */
+export function disconnectedMs(lane: Lane, range: TimeRangeMs, nowMs: number): number {
+  const end = Math.min(nowMs, range.toMs);
+  let up = 0;
+  for (const seg of lane.segments) up += Math.max(0, Math.min(seg.to, end) - Math.max(seg.from, range.fromMs));
+  return Math.max(0, end - range.fromMs - up);
+}
+
+/**
+ * How many of `lanes` were connected over `range` up to `nowMs`, as steps: a
+ * point at the range's start and one at each change (a lane still connected
+ * ends its segment at `nowMs`, which is no change), then the count held to
+ * `holdTo` when that is later. Holding to a whole step rather than to now
+ * keeps the points the same between changes, so the chart is not redrawn by
+ * every snapshot (I118).
+ */
+export function connectedCount(lanes: readonly Lane[], range: TimeRangeMs, nowMs: number, holdTo: number): Point[] {
+  const end = Math.min(nowMs, range.toMs);
+  const delta = new Map<number, number>([[range.fromMs, 0]]);
+  for (const lane of lanes) {
+    for (const seg of lane.segments) {
+      const from = Math.max(seg.from, range.fromMs);
+      if (!(seg.to > from) || from >= end) continue;
+      delta.set(from, (delta.get(from) ?? 0) + 1);
+      if (seg.to < end) delta.set(seg.to, (delta.get(seg.to) ?? 0) - 1);
+    }
+  }
+  const out: Point[] = [];
+  let n = 0;
+  for (const ts of [...delta.keys()].sort((x, y) => x - y)) {
+    n += delta.get(ts)!;
+    out.push([ts, n]);
+  }
+  const hold = Math.min(holdTo, end);
+  if (hold > out.at(-1)![0]) out.push([hold, n]);
+  return out;
+}
+
+/** When `lanes` had a heartbeat timeout within `range`, in time order. */
+export function heartbeatTimes(lanes: readonly Lane[], range: TimeRangeMs): number[] {
+  return lanes
+    .flatMap((l) => (l.marks ?? []).filter((m) => m.kind === HEARTBEAT && m.ts >= range.fromMs && m.ts <= range.toMs).map((m) => m.ts))
+    .sort((x, y) => x - y);
 }
 
 /**

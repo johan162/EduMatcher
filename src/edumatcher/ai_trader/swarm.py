@@ -148,13 +148,22 @@ def select_symbols(
 def build_specs(
     gateway_ids: list[str],
     composition: dict[str, tuple[Preset, float]],
-    symbols_by_gw: dict[str, list[str]],
+    symbols: list[str],
+    per_agent: int,
     seed_base: int,
 ) -> list[AgentSpec]:
-    """One agent per id; presets in exact proportion, evenly interleaved."""
+    """One agent per id; presets in exact proportion, evenly interleaved.
+
+    Symbols are dealt to one preset's agents after another, so each preset
+    covers as many distinct symbols as its agents can, however few they are.
+    """
     entries = list(composition.values())
     counts = composition_counts([w for _, w in entries], len(gateway_ids))
     order = interleave(counts)
+    by_preset = sorted(range(len(gateway_ids)), key=lambda i: order[i])
+    symbols_by_gw = assign_symbols(
+        [gateway_ids[i] for i in by_preset], symbols, per_agent
+    )
     return [
         AgentSpec(gw, entries[order[i]][0], symbols_by_gw[gw], seed_base + i)
         for i, gw in enumerate(gateway_ids)
@@ -535,7 +544,8 @@ def main() -> None:
     specs = build_specs(
         gateway_ids,
         composition,
-        assign_symbols(gateway_ids, symbols, int(args.symbols_per_agent)),
+        symbols,
+        int(args.symbols_per_agent),
         int(args.seed_base),
     )
     workers = int(args.workers) or default_worker_count(len(specs))

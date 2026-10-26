@@ -8,8 +8,9 @@
 # Everything this container talks to runs outside this compose file:
 # pm-monitor for the live health snapshot and events (ZeroMQ SUB to its PUB
 # port, 5611), its metrics.db for history, pm-md-gwy for the session phase
-# (CALF, 5570), and optionally pm-log-srv for operational logging. Point
-# MONITOR_HOST/CALF_HOST/LOG_SRV_HOST at wherever those are
+# (CALF, 5570), pm-api-gwy for the session timetable (8081, read-only key in
+# PM_DASH_API_KEY), and optionally pm-log-srv for operational logging. Point
+# MONITOR_HOST/CALF_HOST/API_GATEWAY_URL/LOG_SRV_HOST at wherever those are
 # reachable from inside the container (host.containers.internal on Podman),
 # and mount the directory holding metrics.db (the backend's data directory)
 # at /backend-data. pm-monitor binds 127.0.0.1 unless
@@ -52,6 +53,11 @@ services:
       # them (e.g. http://127.0.0.1:8091); empty: no links.
       LOG_GUI_URL: "${LOG_GUI_URL:-}"
       BOOK_GUI_URL: "${BOOK_GUI_URL:-}"
+      # pm-api-gwy's dashboards instance and its read-only key, for the
+      # Session schedule row (/api/reference/schedule); without a key that
+      # row says the timetable is unavailable.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://host.docker.internal:8081}"
+      PM_DASH_API_KEY: "${PM_DASH_API_KEY:-}"
 
       # Operational logging. An unreachable pm-log-srv is a normal condition:
       # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if

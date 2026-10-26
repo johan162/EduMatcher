@@ -3,20 +3,131 @@ OrderBook — per-symbol limit order book with matching engine.
 
 Supports: MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC, TRAILING_STOP
 
+This file is the heart of the exchange.  If you read only one file to
+understand how a trade happens, read this one -- top to bottom, in the order
+set out below.
+
+Where this file sits
+--------------------
+The engine process (``engine/main.py``) owns the network side; this class owns
+the *rules of matching* and knows nothing about ZeroMQ::
+
+    gateway --PUSH--> Engine.run()                   (receive + decode)
+                      Engine._dispatch_pull_message  (route by topic)
+                      Engine._handle_new_order       (validate, ACK, gate on session)
+                      OrderBook.process(order)       <== YOU ARE HERE
+                          |  returns (trades, events)
+                      Engine._publish_dispatch       (order.fill / order.cancelled /
+                                                      reject, then trade.executed)
+                      --PUB--> gateways, market data, clearing, audit ...
+
+``OrderBook`` is a plain, synchronous, single-threaded Python object.  It
+never publishes anything; it *mutates* orders and *returns* what happened, and
+the engine turns that into bus messages.  That separation is what makes the
+matching rules unit-testable without a network.
+
+The life of one incoming order
+------------------------------
+``process(order)`` is the single entry point.  For a LIMIT order it goes:
+
+1. ``process``            picks the matcher for the order type (``_match_limit``).
+2. ``_match_limit``       calls ``_sweep`` against the OPPOSITE side's heap.
+3. ``_sweep``             loops: look at the best opposite order (``_peek``),
+                          stop if its price is worse than our limit, apply
+                          self-match prevention, then take
+                          ``min(our remaining, their available)``.
+4. ``_apply_fill``        for each such step: builds a ``Trade``, updates both
+                          orders' ``remaining_qty`` / ``status``, updates the
+                          price-level index, and appends *both* orders to
+                          ``events``.
+5. back in ``_match_limit``  whatever is left over RESTS on our own side
+                          (``_rest``) -- that is the difference between LIMIT
+                          and IOC/MARKET, which discard the remainder.
+6. back in ``process``    every trade moved ``last_trade_price``, so resting
+                          stops may now trigger (``_check_stops``); each
+                          triggered stop is itself processed as a new order.
+7. return ``(trades, events)`` to the engine.
+
+The *aggressor* (a.k.a. taker) is the incoming order; the *passive* order (a.k.a.
+maker) is the one already resting.  A trade always happens at the PASSIVE
+order's price, never the aggressor's: a buy limit at 101 that meets a resting
+ask at 100 trades at 100 -- the aggressor gets price improvement.
+
 Data structures
 ---------------
-  _bids  max-heap: list of (-price, arrival_seq, order)
-  _asks  min-heap: list of ( price, arrival_seq, order)
-  _buy_stops  min-heap of (stop_price, arrival_seq, order)  — BUY STOP/STOP_LIMIT
-  _sell_stops max-heap of (-stop_price, arrival_seq, order) — SELL STOP/STOP_LIMIT
-  _order_index : dict[order_id, Order]  — fast lookup for cancels
-  _bid_qty / _ask_qty : dict[price, int]  — price-level qty index for O(1) FOK checks
+Per side there is one *heap* of ``_HeapEntry`` objects (not of bare orders --
+see ``_HeapEntry``)::
 
-Heap entries use (±price, arrival_seq) so that heapq always pops the
-best-priced, earliest-admitted order first (price-time priority). arrival_seq
-is a monotonic counter this book assigns on admission (finding H1) — never the
-client-supplied `timestamp`, which a participant could back-date to jump the
-queue.
+  _bids        max-heap on price:  key = (-price, arrival_seq)
+  _asks        min-heap on price:  key = ( price, arrival_seq)
+  _buy_stops   min-heap on trigger price: key = ( stop_price, arrival_seq)
+  _sell_stops  max-heap on trigger price: key = (-stop_price, arrival_seq)
+  _trailing_stops  plain list (their trigger price moves, so a heap is useless)
+
+Python's ``heapq`` is a *min*-heap, so the best bid (the HIGHEST price) is
+obtained by storing the price negated: the smallest ``-price`` is the largest
+price.  The second key component, ``arrival_seq``, breaks ties between equal
+prices: the lower number arrived first and so is served first.  Together this
+is exactly *price-time priority*: ``heap[0]`` is always the order that must be
+matched next.  ``arrival_seq`` is a monotonic counter this book assigns on
+admission (finding H1) -- never the client-supplied ``timestamp``, which a
+participant could back-date to jump the queue.
+
+Why a heap and not one sorted list per price level?  Pushing and popping the
+best order are both O(log n), and matching only ever needs "the best one".  The
+price of that choice is that a heap cannot remove an order from the *middle*
+cheaply, which is what the next paragraph is about.
+
+Lazy deletion (the thing that looks strange at first)
+-----------------------------------------------------
+Cancelling an order that sits deep in a heap would cost O(n).  Instead the
+book does not remove it: it sets ``entry.valid = False`` and leaves the dead
+entry where it is.  Whoever next looks at the top of the heap (``_peek``)
+pops and discards dead entries until it finds a live one.  Two consequences
+every reader must keep in mind:
+
+* ``len(self._bids)`` is NOT the number of resting bids; it includes garbage.
+* Garbage deep in the heap would otherwise accumulate forever, so
+  ``_compact_heaps`` rebuilds the heaps when garbage outnumbers live entries.
+
+Side indexes (kept in lock-step with the heaps)
+-----------------------------------------------
+  _order_index : order_id -> Order       resting orders, incl. stops (cancel/amend lookup)
+  _entry_index : order_id -> _HeapEntry  the live heap entry of a resting order,
+                                         so cancel can flip ``valid`` in O(1)
+  _orders_by_gateway : gateway_id -> {order_id}   "everything gateway X has here"
+  _bid_qty / _ask_qty : price -> visible qty      total shown quantity per level
+
+``_bid_qty`` / ``_ask_qty`` are the aggregate *display* depth per price: they
+count an iceberg's shown slice only, not its hidden remainder.  They feed the
+best bid/offer and depth statistics, not the matching itself (the sweep walks
+the heaps).  Every code path that adds or removes quantity from a heap MUST
+make the matching change to these dicts, which is the most common source of
+bugs when this file is edited -- see ``_rest``, ``_apply_fill``,
+``_deduct_qty_index``.
+
+Order lifecycle (``OrderStatus``)
+---------------------------------
+  NEW --fill--> PARTIAL --fill--> FILLED          (terminal)
+  NEW/PARTIAL --cancel / SMP / unfilled MARKET or IOC remainder--> CANCELLED
+  NEW --FOK short of liquidity / cannot rest in this session phase--> REJECTED
+  A terminal order is purged from every index (``_purge_from_indexes``).
+
+Corner cases worth knowing before you read the code
+---------------------------------------------------
+* Iceberg orders: only ``displayed_qty`` is matchable per pass; when the
+  slice is used up a fresh slice is created and queued at the BACK of its
+  price level (it loses time priority).  See ``_apply_fill`` and
+  ``_reinsert_iceberg``.
+* Self-match prevention (SMP): an order from gateway G may not trade with a
+  resting order from the same G.  Four policies, see ``SmpAction``.
+* Stops are not "in the book": they wait in separate heaps and only become
+  real MARKET/LIMIT orders when a trade price crosses their trigger.
+* The *same* ``Order`` object appears in ``events`` once per fill it took
+  part in, always in its final state; the engine de-duplicates.
+* Two matching modes: continuous (``match=True``) and call/auction phases
+  (``match=False``: orders only queue; ``engine/auction.py`` later crosses the
+  book at one price using ``_apply_fill(both_resting=True)``).
 """
 
 from __future__ import annotations
@@ -44,9 +155,15 @@ from edumatcher.models.trade import Trade
 log = logging.getLogger(__name__)
 
 # L9: neutral aggressor flag for auction (uncross) prints, where both orders
-# are resting and there is no true aggressor.
+# are resting and there is no true aggressor.  It takes the place of "BUY" /
+# "SELL" in Trade.aggressor_side, so consumers must expect a third value.
 _AUCTION_AGGRESSOR = "AUCTION"
 
+# The "terminal" statuses: an order in one of these is finished and must never
+# match again.  _peek() uses it to recognise dead heap entries (see "Lazy
+# deletion" in the module docstring) and most other checks use it to ask "is
+# this order still alive?".
+#
 # Module-level frozenset avoids allocating a temporary tuple inside _peek()
 # on every heap operation (called O(N) times per aggressive order).
 _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
@@ -86,7 +203,8 @@ class BookStats:
 
 
 #: Rebuild the heaps once they hold more than this many entries per live order
-#: (plus _COMPACT_SLACK) -- see OrderBook._compact_heaps.
+#: (plus _COMPACT_SLACK) -- see OrderBook._compact_heaps.  The slack keeps a
+#: nearly empty book from rebuilding its heaps after every single cancel.
 _COMPACT_FACTOR = 2
 _COMPACT_SLACK = 64
 
@@ -94,7 +212,25 @@ _COMPACT_SLACK = 64
 # __slots__ keeps this hot, high-frequency wrapper small and fast
 # (see docs-design/perf-notes.md).
 class _HeapEntry:
-    """Wrapper so Order objects are never compared directly by heapq."""
+    """One slot in a price heap: a sort key, the order it stands for, and a
+    liveness flag.
+
+    Why not push the ``Order`` itself?  Three reasons:
+
+    * ``heapq`` orders items with ``<``.  Wrapping the order lets us define
+      ``<`` as "compare the key" and guarantees two Orders are never compared
+      directly (a dataclass Order has no sensible ordering).
+    * The key is *frozen at push time*.  A heap is only correct if the key of
+      an item never changes while it is inside; an Order's price or
+      ``arrival_seq`` can change (amend, iceberg refill), so a changed order is
+      pushed again as a NEW entry and the old one is retired.
+    * ``valid`` is the lazy-deletion flag.  Setting ``valid = False`` is how
+      the book "removes" an order from the middle of a heap in O(1); the dead
+      entry is thrown away when it eventually reaches the top (``_peek``) or
+      when ``_compact_heaps`` sweeps the garbage.
+
+    ``key`` is ``(+/-price, arrival_seq)`` -- see the module docstring.
+    """
 
     __slots__ = ("key", "order", "valid")
 
@@ -110,6 +246,17 @@ class _HeapEntry:
 # __slots__ speeds up the per-order attribute access on the hot path
 # (see docs-design/perf-notes.md).
 class OrderBook:
+    """The order book of ONE symbol: its resting orders, its stops, and the
+    matching rules.  The engine keeps one instance per symbol in
+    ``Engine.books``; they never interact.
+
+    Read the module docstring first.  Public surface, in the order a student
+    will meet it: ``process`` (a new order arrives), ``cancel_order``,
+    ``amend_order``, ``snapshot`` / ``depth_snapshot`` (read-only views for
+    market data), and ``trigger_stops`` (used by the auction code).
+    Everything starting with an underscore is internal machinery.
+    """
+
     __slots__ = (
         "symbol",
         "_bids",
@@ -139,25 +286,39 @@ class OrderBook:
 
     def __init__(self, symbol: str, recent_trades_maxlen: int = 20) -> None:
         self.symbol = symbol
+
+        # The two sides of the book.  Both are plain lists managed with
+        # heapq; heap[0] is always the best entry (see module docstring).
+        # Bids store the NEGATED price in the key so that Python's min-heap
+        # yields the highest bid first.
         self._bids: list[_HeapEntry] = []  # max-heap via negated price
         self._asks: list[_HeapEntry] = []  # min-heap
 
         # Stop orders split into two heaps for O(log k) trigger checks:
         #   _buy_stops:  min-heap keyed by (stop_price, arrival_seq)  — fires when price >= stop
         #   _sell_stops: max-heap keyed by (-stop_price, arrival_seq) — fires when price <= stop
+        # The heap top is the stop closest to firing, so a trade that moves
+        # nothing is answered by looking at heap[0] only.
         self._buy_stops: list[_HeapEntry] = []
         self._sell_stops: list[_HeapEntry] = []
 
         # Trailing stops: simple list, iterated after each trade to update prices.
+        # (Not a heap: every trade can move every trailing stop's trigger price.)
         # Lazy deletion: orders with CANCELLED/EXPIRED/FILLED status are dropped on next scan.
         self._trailing_stops: list[Order] = []
 
         # Price-level quantity index: price → total visible resting qty
+        # (an iceberg contributes only its displayed slice).  Display depth,
+        # not the matching source of truth: matching walks the heaps.
         self._bid_qty: dict[int, int] = {}
         self._ask_qty: dict[int, int] = {}
 
-        # order_id → _HeapEntry (for bid/ask) or Order (for stops)
+        # order_id → Order for every resting order (stops included): lets a
+        # cancel / amend find its order without scanning a heap.
         self._order_index: dict[str, Order] = {}
+        # order_id → the order's CURRENT live _HeapEntry (plain/quote orders
+        # and stop/stop-limit orders; trailing stops have none).  Cancelling
+        # flips entry.valid to False: this is the handle for lazy deletion.
         self._entry_index: dict[str, _HeapEntry] = {}
 
         # Secondary index over _order_index: gateway_id → set of order_ids
@@ -188,6 +349,11 @@ class OrderBook:
         # order, so two runs of the same input would publish differently.
         self._orders_by_gateway: dict[str, dict[str, None]] = {}
 
+        # Prices are always INTEGER TICKS inside the engine (never floats), so
+        # arithmetic and dict keys are exact; conversion to display money
+        # happens only at the edge (from_ticks).  last_trade_price is what
+        # stops compare against and what the engine's price collar anchors on;
+        # None until the first trade of the session.
         self.last_trade_price: Optional[int] = None
         self.last_trade_qty: Optional[int] = None
         self.last_buy_price: Optional[int] = (
@@ -270,6 +436,26 @@ class OrderBook:
         """
         Accept an incoming order and attempt to match it.
 
+        THIS IS THE ENTRY POINT of the matching engine.  By the time an order
+        gets here the engine has already authenticated the gateway, checked
+        the symbol, validated quantities/prices, applied the price collar and
+        the session/halt gates, and sent the positive ACK (all in
+        ``Engine._handle_new_order``).  The book only decides *how the order
+        trades*.
+
+        Steps, in order:
+
+        1. Sanity guard for icebergs (corrupt orders must fail loudly).
+        2. A stop that was triggered earlier and is now being matched leaves
+           the ``_triggered`` waiting room (or is dropped if cancelled).
+        3. ``match=False`` -> queue only (auction / halted phases), no trading.
+        4. ``match=True``  -> dispatch on ``order_type`` to the matcher,
+           which fills against the opposite side and rests any remainder.
+        5. Tell the engine if an OCO leg just died (``_oco_leg_ended``).
+        6. Stop cascade: the trades above moved ``last_trade_price``; stops
+           that fire are processed as fresh orders, which may trade, move the
+           price again and fire more stops (iteratively, not recursively).
+
         Parameters
         ----------
         match : bool
@@ -281,12 +467,21 @@ class OrderBook:
             Pre-computed timestamp from the engine's dispatch loop, threaded
             through to Trade.create() and stop conversion so the whole batch
             shares one clock read (see docs-design/perf-notes.md).
+        _cascade_stops : bool
+            Internal.  False while processing an order that a stop has just
+            released, so that the *outer* call's work-queue (step 6), not a
+            recursive call, handles any further stops.
 
         Returns
         -------
         trades  : list of Trade objects produced
         events  : list of Order objects whose status changed (fills, rejects)
-                  — caller publishes these as order.fill / order.ack messages
+                  — caller publishes these as order.fill / order.ack messages.
+                  The SAME Order can occur several times (once per fill it
+                  took part in, each time in its final state); the engine
+                  de-duplicates in ``_publish_dispatch``.  Because the lists
+                  are shared with the matchers below (they ``append`` to
+                  them), nothing is returned from the ``_match_*`` helpers.
         """
         # An iceberg's displayed slice is what a sweep is allowed to take from
         # it, so a slice larger than what is left over-fills the order to a
@@ -316,8 +511,12 @@ class OrderBook:
         trades: list[Trade] = []
         events: list[Order] = []
 
-        # A triggered stop leaves the queue here; one cancelled while it
-        # waited (its OCO sibling filled first, X15) does nothing at all.
+        # A stop that fired during an earlier step of this cascade is parked in
+        # self._triggered until its turn comes -- i.e. until now.  Pop it out
+        # of that waiting room.  If it was CANCELLED while it waited (its OCO
+        # sibling filled first, X15) it must do nothing at all: no trade, no
+        # event, so it returns immediately.  For every ordinary new order the
+        # dict is empty and this whole test short-circuits on `self._triggered`.
         if (
             self._triggered
             and self._triggered.pop(order.id, None) is not None
@@ -330,6 +529,11 @@ class OrderBook:
             now = now_ns()
 
         # --- No-matching mode: queue-only ---
+        # Used while the market is in a call phase (opening/closing auction,
+        # reopening) or a symbol is halted.  Orders are collected, not
+        # traded; the auction code crosses them later at one price.  Only
+        # orders that can sit on a book are allowed: anything that must trade
+        # *now* (MARKET, FOK, IOC) has nowhere to wait and is rejected.
         if not match:
             if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
                 order.status = OrderStatus.REJECTED
@@ -346,10 +550,15 @@ class OrderBook:
             if order.order_type == OrderType.TRAILING_STOP:
                 self._add_trailing_stop(order, events)
                 return trades, events
-            # LIMIT / ICEBERG — rest without sweeping
+            # LIMIT / ICEBERG — rest without sweeping.  The book may now be
+            # *crossed* (best bid >= best ask); that is normal during an
+            # auction and is resolved by the uncross, not here.
             self._rest(order)
             return trades, events
 
+        # --- Continuous matching: one matcher per order type ---
+        # Each _match_* method fills what it can via _sweep() and then decides
+        # the fate of the remainder (rest it, cancel it, or reject the lot).
         if order.order_type == OrderType.MARKET:
             self._match_market(order, trades, events, now)
 
@@ -394,6 +603,16 @@ class OrderBook:
         # queue instead of recursion, so a long chain cannot exhaust Python's
         # recursion limit.  Triggered orders are matched with _cascade_stops=
         # False; any stops they trigger are picked up by the loop below.
+        #
+        # Example: a SELL STOP at 99 sits on the book.  A trade prints at 99
+        # -> _check_stops releases it as a MARKET sell -> it sweeps the bids
+        # and prints at 98 -> that may release a SELL STOP at 98, and so on.
+        # `pending` is FIFO (pop(0)): stops run in the order they were
+        # released -- buy stops first, then sell stops, each group by trigger
+        # price then arrival.
+        #
+        # The three guards are cheap early-outs: no trades means the price did
+        # not move; _has_stops means there is anything to trigger at all.
         if trades and self._has_stops and _cascade_stops:
             pending = self._check_stops(now) + self._check_trailing_stops(now)
             while pending:
@@ -410,7 +629,15 @@ class OrderBook:
         return trades, events
 
     def _oco_leg_ended(self, order: Order) -> None:
-        """Report an OCO leg that is now dead to ``on_oco_leg_done``."""
+        """Report an OCO leg that is now dead to ``on_oco_leg_done``.
+
+        OCO = "one cancels other": two linked orders, and when one ends the
+        other must be cancelled.  The book cannot do that itself (the sibling
+        may live in the engine's bookkeeping), so it raises a callback and the
+        engine cancels the sibling.  It is done *inside* the dispatch, before
+        the stop cascade continues, so a later stop cannot trade against a
+        sibling that is already supposed to be gone.
+        """
         if (
             order.oco_group_id is not None
             and order.status in _DEAD_STATUSES
@@ -426,6 +653,12 @@ class OrderBook:
         """
         Cancel a resting order.  Returns the Order if found and cancellable,
         else None.
+
+        This is lazy deletion in action: the heap entry is not removed, only
+        marked ``valid = False`` (and the visible quantity taken out of the
+        price-level index); ``_peek`` discards it later.  The cancelled
+        order may be a resting limit order, a stop, or a stop that has fired
+        and is waiting its turn in ``_triggered``.
         """
         order = self._order_index.get(order_id) or self._triggered.get(order_id)
         if order is None:
@@ -559,7 +792,11 @@ class OrderBook:
         qty_increased = qty > old_qty
         priority_reset = price_changed or qty_increased
 
-        # Remove old qty from price-level index
+        # Bookkeeping order matters here: first take the OLD visible quantity
+        # out of the price-level index (at the OLD price, because
+        # _deduct_qty_index reads order.price_ticks), then mutate the order,
+        # then add the NEW visible quantity at the NEW price.  Swapping these
+        # steps would corrupt _bid_qty/_ask_qty.
         entry = self._entry_index.get(order_id)
         if entry and old_price is not None:
             old_visible = (
@@ -593,7 +830,8 @@ class OrderBook:
             # Priority lost: assign a fresh arrival sequence so the order goes
             # to the back of the queue at its (new) price level (finding H1).
             order.arrival_seq = self._next_seq()
-            # Invalidate old entry and re-insert with new key
+            # A heap key cannot be edited in place, so "move" the order by
+            # retiring the old entry (lazy deletion) and pushing a new one.
             if entry:
                 entry.valid = False
             if order.side == Side.BUY:
@@ -608,7 +846,10 @@ class OrderBook:
             heapq.heappush(heap, new_entry)
             self._entry_index[order.id] = new_entry
         else:
-            # Priority preserved — update qty index with new visible amount
+            # Priority preserved (pure quantity decrease at the same price):
+            # the existing heap entry and its key stay exactly as they are --
+            # that IS what keeping your place in the queue means.  Only the
+            # price-level quantity index needs the new visible amount.
             if order.side == Side.BUY:
                 self._bid_qty[price] = self._bid_qty.get(price, 0) + new_visible
             else:
@@ -935,9 +1176,24 @@ class OrderBook:
     # Internal matching helpers
     # ------------------------------------------------------------------
 
+    # The _match_* methods below differ only in (a) the price limit they hand
+    # to _sweep and (b) what they do with the part that did not trade:
+    #
+    #   type     price limit   unfilled remainder
+    #   -------  ------------  ----------------------------------------------
+    #   MARKET   none          cancelled (INSUFFICIENT_LIQUIDITY)
+    #   LIMIT    order price   rests on the book
+    #   IOC      order price   cancelled (INSUFFICIENT_LIQUIDITY)
+    #   FOK      order price   never starts unless it can fill completely
+    #   ICEBERG  order price   rests, but only a small slice is displayed
+    #
+    # `opposite` is the heap the order trades AGAINST: a buyer lifts asks, a
+    # seller hits bids.  All of them append to `trades` / `events` in place.
+
     def _match_market(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
+        """MARKET: trade at any price until filled or the book is empty."""
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
             order, opposite, price_limit=None, trades=trades, events=events, now=now
@@ -965,6 +1221,11 @@ class OrderBook:
     def _match_limit(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
+        """LIMIT: trade at the limit price or better, then rest the remainder.
+
+        "Or better" = a buy never pays more than its limit, a sell never
+        receives less.  The check is in ``_sweep`` (``price_limit``).
+        """
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
             order,
@@ -978,6 +1239,8 @@ class OrderBook:
         # CANCEL_AGGRESSOR / CANCEL_BOTH sets status=CANCELLED but leaves
         # remaining_qty > 0.  Resting it re-registers a dead order and leaks
         # phantom quantity into the level index (finding C3).
+        # (So "remaining_qty > 0" alone does NOT mean "should rest": a
+        # cancelled order keeps its unfilled quantity.  Always test status.)
         if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
             log.debug(
                 "LIMIT order resting after sweep order_id=%s symbol=%s side=%s price=%s remaining_qty=%s",
@@ -992,7 +1255,11 @@ class OrderBook:
     def _match_fok(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
-        """Check full fillability first; only execute if entire quantity can be filled.
+        """FOK (Fill-Or-Kill): all of it now, or none of it.
+
+        Check full fillability first; only execute if entire quantity can be filled.
+        This is the only matcher that looks BEFORE it trades -- a partial fill
+        cannot be undone, so the decision has to be made up front.
 
         #15: the pre-check walks the actual resting orders so it (a) counts the
         HIDDEN quantity of resting icebergs — the visible level index alone
@@ -1115,11 +1382,16 @@ class OrderBook:
         """
         price_limit = order.price_ticks
         side = order.side
-        # See _process_fok's comment: None should never reach here, but treat
+        # See _match_fok's comment: None should never reach here, but treat
         # it as "no SMP" rather than raising if it somehow does.
         smp = order.smp_action or SmpAction.NONE
         stops_sweep = smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
         gw = order.gateway_id
+        # A heap list is only partially ordered (heap[0] is best, the rest is
+        # not sorted), and popping would destroy the book.  sorted() on a COPY
+        # uses _HeapEntry.__lt__ (the key) to give true price-time order
+        # without touching the real heap.  O(n log n), acceptable because a
+        # FOK is rare compared with the rest of the flow.
         live = sorted(
             e
             for e in heap
@@ -1172,6 +1444,12 @@ class OrderBook:
         An incoming iceberg trades its full quantity like a LIMIT -- one
         execution per resting counterparty, as on real venues; hiding only
         matters for what rests. The remainder rests behind a full peak.
+
+        Iceberg vocabulary: ``quantity`` is the total size, ``visible_qty``
+        the fixed "peak" size chosen by the client, and ``displayed_qty`` how
+        much of the current peak is still showing on the book.  Example:
+        qty=1000, visible_qty=100 shows 100; once those 100 are traded a new
+        100 is shown, queued BEHIND everyone else at that price.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
@@ -1195,7 +1473,11 @@ class OrderBook:
     ) -> None:
         """
         Immediate-Or-Cancel: sweep up to price_limit, then cancel any unfilled remainder.
-        Unlike LIMIT, the order never rests on the book.
+        Unlike LIMIT, the order never rests on the book.  Unlike FOK, a partial
+        fill is fine -- it is the remainder that is cancelled.
+
+        The ``events.append`` below is what tells the owner about the cancel:
+        a fill alone would look as if the rest were still working.
         """
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
@@ -1228,6 +1510,10 @@ class OrderBook:
         """
         Add a trailing stop to the active trailing-stop list.
         The order must have stop_price (initial stop level) and trail_offset (distance).
+
+        A trailing stop is a stop whose trigger price follows the market at a
+        fixed distance (see ``_check_trailing_stops``).  It has no limit price
+        and never rests on a bid/ask heap, so it has no ``_entry_index`` entry.
         """
         assert (
             order.stop_price_ticks is not None
@@ -1239,7 +1525,11 @@ class OrderBook:
         self._order_index[order.id] = order
         self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
         self._has_stops = True
-        events.append(order)  # ack (status = NEW)
+        # Report the order as NEW.  The engine already sent the ACK before
+        # calling process(), and _publish_dispatch publishes nothing for a
+        # NEW order without fills, so this is a state notification for
+        # callers that inspect `events`, not a second ACK on the wire.
+        events.append(order)
 
     @staticmethod
     def _stop_is_triggered(order: Order, price: int) -> bool:
@@ -1258,7 +1548,13 @@ class OrderBook:
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         """Convert an already-breached stop to its live type and match it
-        immediately on entry (M2), instead of resting it until a future trade."""
+        immediately on entry (M2), instead of resting it until a future trade.
+
+        Stop conversion rules (the same ones ``_check_stops`` applies to a
+        stop that fires later):  STOP -> MARKET,  STOP_LIMIT -> LIMIT at the
+        order's limit price,  TRAILING_STOP -> MARKET.  ``ts_ns`` is reset to
+        "now" because from here on the order behaves like a fresh order.
+        """
         if order.order_type in (OrderType.STOP, OrderType.TRAILING_STOP):
             order.order_type = OrderType.MARKET
             order.price_ticks = None
@@ -1271,6 +1567,13 @@ class OrderBook:
             self._match_limit(order, trades, events, now)
 
     def _add_stop(self, order: Order, events: list[Order]) -> None:
+        """Arm a STOP / STOP_LIMIT: park it in a stop heap until it triggers.
+
+        A dormant stop is not part of the visible book: it is in no price
+        level, never matches, and shows in no depth.  It sits in the heap
+        keyed by its TRIGGER price, so ``_check_stops`` can find the next
+        one to fire by looking at ``heap[0]``.
+        """
         assert order.stop_price_ticks is not None, "Stop order must have a stop_price"
         log.debug(
             "stop armed order_id=%s symbol=%s side=%s stop_price=%s order_type=%s",
@@ -1295,7 +1598,11 @@ class OrderBook:
         self._entry_index[order.id] = entry
         self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
         self._has_stops = True
-        events.append(order)  # ack (status = NEW)
+        # Report the order as NEW.  The engine already sent the ACK before
+        # calling process(), and _publish_dispatch publishes nothing for a
+        # NEW order without fills, so this is a state notification for
+        # callers that inspect `events`, not a second ACK on the wire.
+        events.append(order)
 
     # ------------------------------------------------------------------
     # Sweep helpers
@@ -1345,7 +1652,28 @@ class OrderBook:
         events: list[Order],
         now: int,
     ) -> None:
-        """Generic price-time sweep for MARKET / LIMIT / IOC / FOK / ICEBERG."""
+        """Generic price-time sweep for MARKET / LIMIT / IOC / FOK / ICEBERG.
+
+        THE MATCHING LOOP.  Walk the opposite side from best price to worst
+        (and, within a price, oldest first) and trade until one of these stops
+        us:
+
+        * the aggressor is completely filled (``remaining_qty == 0``);
+        * the opposite side is empty;
+        * the best remaining price is worse than ``price_limit``
+          (``None`` = MARKET order, no limit);
+        * self-match prevention killed the aggressor.
+
+        Each pass of the loop produces exactly ONE trade, between the
+        aggressor and the single best resting order, for
+        ``min(aggressor remaining, resting available)``.  A big aggressor
+        therefore generates a *sequence* of trades, one per resting order it
+        consumes.  The trade price is always the RESTING order's price.
+
+        The loop never pops the heap itself: ``_peek`` returns the best live
+        order and ``_apply_fill`` (via ``_purge_from_indexes``) retires it once
+        it is fully filled, which is why the next ``_peek`` sees the next one.
+        """
         # Cache immutable aggressor attributes / bound methods as locals for the
         # tight sweep loop (see docs-design/perf-notes.md).
         _side = aggressor.side
@@ -1357,20 +1685,29 @@ class OrderBook:
         _apply_fill = self._apply_fill
 
         while aggressor.remaining_qty > 0 and opposite_heap:
+            # (1) Who is the best live counterparty?  `opposite_heap` may be
+            # non-empty yet hold only dead entries, so `_peek` can still
+            # return None.
             best = _peek(opposite_heap)
             if best is None:
                 break
             # Resting bid/ask orders always carry a price (L7: local narrowing).
             best_price = best.price_ticks
             assert best_price is not None
-            # Price check
+
+            # (2) Price check.  The heap is sorted best-first, so the first
+            # order that is too expensive means ALL the rest are too: stop.
+            # A BUY accepts asks at or BELOW its limit; a SELL accepts bids at
+            # or ABOVE it.
             if price_limit is not None:
                 if _side == Side.BUY and best_price > price_limit:
                     break
                 if _side == Side.SELL and best_price < price_limit:
                     break
 
-            # Self-match prevention
+            # (3) Self-match prevention: the same gateway on both sides would
+            # be trading with itself (a "wash trade").  What happens depends
+            # on the policy the order (or its gateway) carries.
             if _smp_action != SmpAction.NONE and _gw_id == best.gateway_id:
                 if _smp_action == SmpAction.CANCEL_AGGRESSOR:
                     log.debug(
@@ -1380,6 +1717,9 @@ class OrderBook:
                         best.id,
                         _gw_id,
                     )
+                    # Note: remaining_qty is left > 0 on purpose; the callers
+                    # (_match_limit etc.) test `status`, not just quantity,
+                    # before resting what is left (finding C3).
                     aggressor.status = OrderStatus.CANCELLED
                     aggressor.cancel_reason = "SELF_MATCH_PREVENTED"
                     events.append(aggressor)
@@ -1401,6 +1741,8 @@ class OrderBook:
                     events.append(aggressor)
                     return
 
+            # (4) How much can we trade with this one order?
+            #
             # Cap the fill against a PASSIVE iceberg at its displayed slice, not
             # its hidden remaining_qty (finding #17).  Filling the full hidden qty
             # in one shot jumps the queue past same-price orders with better time
@@ -1426,29 +1768,10 @@ class OrderBook:
                 fill_qty,
                 aggressor.remaining_qty - fill_qty,
             )
+            # (5) Execute at the RESTING order's price, then loop: either the
+            # aggressor is done, or `best` was exhausted and the next `_peek`
+            # returns the next order in the queue.
             _apply_fill(aggressor, best, fill_qty, best_price, trades, events, now)
-
-    def _available_qty(
-        self,
-        heap: list[_HeapEntry],
-        price_limit: Optional[int],
-        side: Side,
-    ) -> int:
-        """
-        Total available quantity at/within price_limit for FOK pre-check.
-        Uses the price-level qty index for O(p) where p = number of price levels,
-        rather than O(n) over every heap entry.
-        """
-        qty_index = self._ask_qty if side == Side.BUY else self._bid_qty
-        total = 0
-        for price, qty in qty_index.items():
-            if price_limit is not None:
-                if side == Side.BUY and price > price_limit:
-                    continue
-                if side == Side.SELL and price < price_limit:
-                    continue
-            total += qty
-        return total
 
     def _apply_fill(
         self,
@@ -1462,6 +1785,24 @@ class OrderBook:
         both_resting: bool = False,
     ) -> None:
         """Record fill, update quantities/statuses, build Trade object.
+
+        EVERY trade in the exchange is born here.  Both ``_sweep``
+        (continuous matching) and ``auction.execute_uncross`` call it.  In
+        order, it:
+
+        1. creates the ``Trade`` (buyer/seller are derived from the sides,
+           whichever of the two is the aggressor);
+        2. updates the book's running statistics (``last_trade_price`` --
+           which drives stops --, daily volume, ``recent_trades``);
+        3. reduces the aggressor's ``remaining_qty``, sets its status
+           (PARTIAL / FILLED) and appends it to ``events``;
+        4. does the same for the passive order, including the iceberg
+           replenishment and the price-level index deduction;
+        5. fires the quote-leg / OCO callbacks so the engine can cancel a
+           sibling leg *now*, before another trade can hit it.
+
+        Nothing is published here.  The caller returns ``trades`` and
+        ``events`` up to the engine.
 
         In continuous matching the aggressor is *not* resting, so only the
         passive side is counted in the price-level qty index and only that
@@ -1512,8 +1853,14 @@ class OrderBook:
             trade
         )  # deque(maxlen=20) handles eviction automatically
 
-        # Update aggressor
+        # --- Update the aggressor -------------------------------------------
+        # Orders are mutated IN PLACE.  The event list holds references, not
+        # copies, which is why an order that fills several times shows up
+        # several times in `events`, each showing its final state.
         aggressor.remaining_qty -= fill_qty
+        # Only the "both_resting" (auction) and ICEBERG branches below touch
+        # the index/heap for the aggressor: in continuous matching a plain
+        # aggressor never rested, so there is nothing of it to remove.
         if aggressor.order_type == OrderType.ICEBERG:
             aggressor.displayed_qty = max(0, (aggressor.displayed_qty or 0) - fill_qty)
             if both_resting:
@@ -1536,10 +1883,13 @@ class OrderBook:
             self._purge_from_indexes(aggressor)
         events.append(aggressor)
 
-        # Update passive order
+        # --- Update the passive (resting) order -----------------------------
         passive.remaining_qty -= fill_qty
         if passive.order_type == OrderType.ICEBERG:
             passive.displayed_qty = max(0, (passive.displayed_qty or 0) - fill_qty)
+            # Slice used up but hidden quantity remains: show the next slice.
+            # It is re-queued at the BACK of its price level, so this order
+            # loses its time priority -- the usual iceberg trade-off.
             if passive.remaining_qty > 0 and passive.displayed_qty == 0:
                 new_peak = min(passive.visible_qty or 0, passive.remaining_qty)
                 passive.displayed_qty = new_peak
@@ -1563,6 +1913,13 @@ class OrderBook:
             self._purge_from_indexes(passive)
         events.append(passive)
 
+        # --- Callbacks into the engine (continuous matching only) -----------
+        # A market maker's quote is a bid leg + an ask leg; when one leg
+        # trades the engine may need to pull the other, and an OCO pair needs
+        # its sibling cancelled.  This must happen NOW, between fills of one
+        # sweep, not after process() returns -- otherwise the very next fill
+        # (or a stop the fill triggers) could still trade against the leg the
+        # engine is about to report as cancelled (findings X3, X15).
         if not both_resting and self.on_quote_leg_fill is not None:
             if passive.quote_id is not None:
                 self.on_quote_leg_fill(passive)
@@ -1639,7 +1996,12 @@ class OrderBook:
     # ------------------------------------------------------------------
 
     def _deduct_qty_index(self, order: Order, qty: int) -> None:
-        """Subtract qty from the price-level index for the given resting order."""
+        """Subtract qty from the price-level index for the given resting order.
+
+        A level whose quantity reaches zero is DELETED from the dict, not left
+        at 0: ``best_bid_ticks`` / ``best_ask_ticks`` and ``bid_levels`` rely
+        on "key present" meaning "level exists".
+        """
         if order.price_ticks is None or qty <= 0:
             return
         if order.side == Side.BUY:
@@ -1654,7 +2016,13 @@ class OrderBook:
             idx[order.price_ticks] = updated
 
     def _rest(self, order: Order) -> None:
-        """Place a resting order on the appropriate heap and update the qty index."""
+        """Place a resting order on the appropriate heap and update the qty index.
+
+        This is the ONLY way a LIMIT / ICEBERG order becomes visible on the
+        book.  Four structures are updated together (miss one and the book
+        silently corrupts): the heap, the price-level qty index, the
+        id -> Order index and id -> entry index, and the per-gateway index.
+        """
         assert order.price_ticks is not None, "Resting order must have a price"
         # L7: bind the narrowed price to a local so mypy keeps the non-None
         # narrowing across the following calls (attribute narrowing is dropped
@@ -1682,7 +2050,14 @@ class OrderBook:
         self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
 
     def _reinsert_iceberg(self, order: Order) -> None:
-        """Invalidate old heap entry and push fresh one after peak replenishment."""
+        """Invalidate old heap entry and push fresh one after peak replenishment.
+
+        Called when an iceberg's displayed slice has been fully traded and a
+        new slice is shown.  The old entry is retired (lazy deletion) and a new
+        one with a fresh ``arrival_seq`` goes to the back of the queue at the
+        same price.  The caller has already set ``displayed_qty`` to the new
+        slice and deducted the traded quantity from the level index.
+        """
         assert order.price_ticks is not None, "Iceberg must have a price"
         price = order.price_ticks
         old_entry = self._entry_index.get(order.id)
@@ -1708,6 +2083,16 @@ class OrderBook:
         """
         Return the best order on the heap, skipping stale (invalid/filled/cancelled) entries.
         Performs lazy deletion.
+
+        This is where dead entries are finally thrown away (see "Lazy
+        deletion" in the module docstring).  It looks at ``heap[0]`` only and
+        does NOT remove the live order it returns: the caller decides what to
+        do with it, and a fully filled order is retired by ``_apply_fill``.
+        Amortised cost is O(log n): each dead entry is popped at most once.
+
+        Two kinds of dead entry exist: ``valid == False`` (cancelled, amended
+        or refilled -- the order may even be alive under a NEWER entry) and
+        a valid entry whose order is already in a terminal status.
         """
         while heap:
             entry = heap[0]
@@ -1728,6 +2113,14 @@ class OrderBook:
 
     def _check_stops(self, now: int) -> list[Order]:
         """
+        Release every stop whose trigger has been crossed by ``last_trade_price``.
+
+        Triggering only converts the order (STOP -> MARKET, STOP_LIMIT ->
+        LIMIT) and removes it from the book's indexes; it does NOT match it.
+        The converted orders are returned to ``process()``, which matches each
+        as a new order.  Until then they wait in ``self._triggered``, still
+        cancellable (an OCO sibling's fill may cancel one before its turn).
+
         Check pending stop orders against last_trade_price using two heaps:
           _buy_stops  min-heap by stop_price — fire when last_price >= stop_price
           _sell_stops max-heap by -stop_price — fire when last_price <= stop_price
@@ -1759,8 +2152,16 @@ class OrderBook:
                 heapq.heappop(self._buy_stops)
                 continue
             stop_price, _ = entry.key
+            # The heap top is the LOWEST buy stop.  If even that one has not
+            # been reached, none of the others (higher triggers) has either.
             if self.last_trade_price < stop_price:
                 break  # remaining stops need a higher price
+            # Release this stop and convert it to the order type it becomes.
+            # A plain STOP turns into a MARKET order, so its (absent) limit
+            # price is cleared; a STOP_LIMIT turns into a LIMIT and keeps its
+            # limit price.  (The pop + the type test below are matched
+            # verbatim by tools/mutate_engine.py mutant M11: keep them
+            # adjacent.)
             heapq.heappop(self._buy_stops)
             stop_order = entry.order
             if stop_order.order_type == OrderType.STOP:
@@ -1800,6 +2201,9 @@ class OrderBook:
             ):
                 heapq.heappop(self._sell_stops)
                 continue
+            # The sell-stop key stores the NEGATED price (so the min-heap's top
+            # is the HIGHEST stop, the first to fire as the price falls);
+            # negate again to get the real trigger price.
             neg_stop_price, _ = entry.key
             stop_price = -neg_stop_price
             if self.last_trade_price > stop_price:
@@ -1836,6 +2240,11 @@ class OrderBook:
     def _check_trailing_stops(self, now: int) -> list[Order]:
         """
         Update trailing stop prices based on the latest trade and return any triggered orders.
+
+        Example (SELL trailing stop, offset 5): the market trades at 100, the
+        stop sits at 95.  The market rises to 110 -> the stop ratchets up to
+        105.  The market then falls back to 105 -> triggered, a MARKET sell.
+        A fall from 110 to 108 changes nothing: the stop never moves down.
 
         Ratchet logic (only tightens the stop, never loosens it):
           SELL trailing stop — stop_price rises as market rises

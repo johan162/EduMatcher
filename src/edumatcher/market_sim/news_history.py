@@ -1,4 +1,5 @@
-"""SQLite storage and queries for published market news events."""
+"""SQLite storage and queries for published market news events, and the
+value model's jumps (which no news announces)."""
 
 from __future__ import annotations
 
@@ -33,6 +34,15 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
         )""")
     conn.execute("CREATE INDEX IF NOT EXISTS news_events_ts ON news_events(ts_ns DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS news_events_status ON news_events(status)")
+    # One row per jump of a symbol's true value: log_jump is the jump's log
+    # size, value the symbol's value after the step that carried it.
+    conn.execute("""CREATE TABLE IF NOT EXISTS value_jumps (
+            ts_ns INTEGER NOT NULL,
+            symbol TEXT NOT NULL,
+            log_jump REAL NOT NULL,
+            value REAL NOT NULL
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS value_jumps_ts ON value_jumps(ts_ns)")
 
 
 def _insert_event(conn: sqlite3.Connection, event: dict[str, Any]) -> None:
@@ -100,6 +110,19 @@ def append_news_event(path: Path, event: dict[str, Any]) -> None:
     with closing(_connect(path)) as conn:
         with conn:
             _insert_event(conn, event)
+
+
+def append_value_jumps(
+    path: Path, ts_ns: int, jumps: dict[str, float], values: dict[str, float]
+) -> None:
+    """Record one model step's jumps (symbol -> log size) at ``ts_ns``."""
+    with closing(_connect(path)) as conn:
+        with conn:
+            conn.executemany(
+                "INSERT INTO value_jumps (ts_ns, symbol, log_jump, value) "
+                "VALUES (?, ?, ?, ?)",
+                [(ts_ns, s, j, values[s]) for s, j in sorted(jumps.items())],
+            )
 
 
 def _epoch_ns(value: datetime) -> int:

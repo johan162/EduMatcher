@@ -594,7 +594,7 @@ _shtab_pm_ai_trader_option_strings=(-h --help --version --id --preset --preset-f
 
 
 
-_shtab_pm_ai_trader___preset_choices=(auction-player block-taker contrarian iceberg-seller institutional market-taker news-trader noise-retail scalper trend-follower value-investor)
+_shtab_pm_ai_trader___preset_choices=(auction-player block-taker contrarian iceberg-seller institutional market-taker news-trader noise-retail patient-liquidity scalper trend-follower value-investor)
 _shtab_pm_ai_trader___log_level_choices=(CRITICAL ERROR WARNING INFO DEBUG)
 _shtab_pm_ai_trader___log_target_choices=(server stdout file)
 

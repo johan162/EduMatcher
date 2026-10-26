@@ -1,4 +1,4 @@
-"""tools/sim_forensics checks H1-H3 (ops signals and statistics).
+"""tools/sim_forensics checks H1-H4 (ops signals and statistics).
 
 These checks report INFO: a count of pointers, never a failed run. Each
 test builds just the stores its check reads, with the recorders' schemas,
@@ -19,7 +19,7 @@ from edumatcher.stats.main import SCHEMA as STATS_SCHEMA
 from tests.sim_forensics_world import SEC, OpenDataset, build, iso, ns, opener, sql
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.__main__ import main  # noqa: E402
-from sim_forensics.checks.ops import spearman, ulid_ns  # noqa: E402
+from sim_forensics.checks.ops import _valued, spearman, ulid_ns  # noqa: E402
 from sim_forensics.registry import (  # noqa: E402
     REGISTRY,
     Check,
@@ -152,18 +152,23 @@ def h2_world(data: Path) -> None:
             "VALUES ('2026-06-15T08:00:00Z', ?, 'O', ?, 'AAPL', ?, ?)",
             [(et, gw, q, f) for et, q, f in rows],
         )
-    # AAPL wanders by a tick, then prints 10 % up twice (one excursion);
-    # MSFT does the same just after news on MSFT.
-    for symbol, news_at in (("AAPL", None), ("MSFT", ns("08:20:00"))):
-        prices = [10000, 10001, 10000, 10002, 10001] * 5 + [11000, 11000]
+    # AAPL wanders by a tick, then trades 10 % up and stays there (one
+    # excursion); MSFT does the same just after news on MSFT, NVDA just after
+    # its value jumped up; TSLA prints 10 % up once and goes straight back.
+    wander = [10000, 10001, 10000, 10002, 10001] * 5
+    for symbol, news_at, after in (
+        ("AAPL", None, [11000] * 20),
+        ("MSFT", ns("08:20:00"), [11000] * 20),
+        ("NVDA", None, [11000] * 20),
+        ("TSLA", None, [11000] + [10001] * 19),
+    ):
         conn.executemany(
             "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity, "
             "aggressor_side) VALUES (?, ?, ?, ?, 1, 'BUY')",
             [
                 (iso(ns("08:00:00") + k * 60 * SEC), f"{symbol}-{k:09d}", symbol, p)
-                for k, p in enumerate(prices[:-1])
-            ]
-            + [(iso(ns("09:00:00")), f"{symbol}-999999999", symbol, prices[-1])],
+                for k, p in enumerate(wander + after)
+            ],
         )
         if news_at is not None:
             news = sqlite3.connect(data / "market_sim_news.db")
@@ -176,6 +181,12 @@ def h2_world(data: Path) -> None:
             )
             news.commit()
             news.close()
+    news = sqlite3.connect(data / "market_sim_news.db")
+    news.execute(
+        "INSERT INTO value_jumps VALUES (?, 'NVDA', 0.09, 110.0)", (ns("08:20:00"),)
+    )
+    news.commit()
+    news.close()
     # Six symbols' spreads around 10 ticks at 100.00; ZS's is 2 %.
     for symbol, spread in zip(("A", "B", "C", "D", "E", "ZS"), (10, 11, 12, 10, 11, 200)):  # fmt: skip
         conn.execute(
@@ -197,7 +208,38 @@ def test_h2_reports_outliers_as_info(tmp_path: Path, open_ds: OpenDataset) -> No
     ]
     assert kinds == [("gateway", "AI006"), ("jump", "AAPL"), ("spread", "ZS")]
     assert result.samples[0]["figure"] == "reject_rate"
-    assert "1 unexplained jumps (> 5 % off the prevailing price; 1 more after news)" in result.note  # fmt: skip
+    assert result.samples[1]["lasting_pct"] == 9.99  # off the median 100.01
+    assert "1 unexplained lasting jumps (> 5 % off the prevailing price over 20 prints; 1 more after news, 1 after a value jump, 1 reverted)" in result.note  # fmt: skip
+
+
+def test_a_value_jump_explains_a_price_jump_its_way_and_shortly_after() -> None:
+    jumps = {"A": [(ns("08:00:00"), 0.08)]}
+    assert _valued(jumps, "A", ns("08:10:00"), 0.07)
+    assert not _valued(jumps, "A", ns("08:10:00"), -0.07)  # the other way
+    assert not _valued(jumps, "A", ns("08:20:00"), 0.07)  # too long after
+    assert not _valued(jumps, "A", ns("07:59:00"), 0.07)  # before it
+    assert not _valued(jumps, "B", ns("08:10:00"), 0.07)
+
+
+def test_h2_cannot_confirm_a_jump_at_the_end_of_the_day(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = tmp_path / "data"
+    conn = stats_db(data)
+    prices = [10000, 10001, 10000, 10002, 10001] * 4 + [11000] * 19
+    conn.executemany(
+        "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity, "
+        "aggressor_side) VALUES (?, ?, 'AAPL', ?, 1, 'BUY')",
+        [
+            (iso(ns("08:00:00") + k * 60 * SEC), f"AAPL-{k:09d}", p)
+            for k, p in enumerate(prices)
+        ],
+    )
+    conn.commit()
+    conn.close()
+    (result,) = run_checks(open_ds(data), [REGISTRY["H2"]], 10)
+    assert "0 unexplained lasting jumps" in result.note
+    assert "0 reverted" in result.note
 
 
 def test_h2_does_not_fail_the_run(tmp_path: Path) -> None:
@@ -236,3 +278,77 @@ def test_h3_finds_latency_spikes_and_their_correlates(
     assert result.samples[0]["engine.msgs_in"] == 1900
     assert "engine.msgs_in +1.00" in result.note
     assert "engine.busy_pct n/a" in result.note
+
+
+# --- H4 ----------------------------------------------------------------------
+
+
+def h4_world(data: Path) -> None:
+    """Prints every 10 s from 08:00 at 100.00; at 08:04 four value jumps.
+    FOLL's +10 % the price follows from 08:04:30, LAGS's it ignores; SMAL's
+    is too small to measure, and LATE's has no prints before it."""
+    conn = stats_db(data)
+    tape = {
+        "FOLL": [10000] * 24 + [11000] * 60,
+        "LAGS": [10000] * 84,
+        "SMAL": [10000] * 84,
+        "LATE": [10000] * 84,
+    }
+    for symbol, prices in tape.items():
+        start = ns("08:05:00") if symbol == "LATE" else ns("08:00:00")
+        conn.executemany(
+            "INSERT INTO trade_log (ts, trade_id, symbol, price, quantity, "
+            "aggressor_side) VALUES (?, ?, ?, ?, 1, 'BUY')",
+            [
+                (iso(start + k * 10 * SEC), f"{symbol}-{k:09d}", symbol, p)
+                for k, p in enumerate(prices)
+            ],
+        )
+    conn.commit()
+    conn.close()
+    news = sqlite3.connect(data / "market_sim_news.db")
+    news_schema(news)
+    jump = 0.0953  # log(1.1)
+    news.executemany(
+        "INSERT INTO value_jumps VALUES (?, ?, ?, 110.0)",
+        [
+            (ns("08:04:00"), "FOLL", jump),
+            (ns("08:04:00"), "LAGS", jump),
+            (ns("08:04:00"), "SMAL", 0.005),
+            (ns("08:04:00"), "LATE", jump),
+        ],
+    )
+    news.commit()
+    news.close()
+
+
+def test_h4_measures_how_far_prices_follow_value_jumps(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = tmp_path / "data"
+    h4_world(data)
+    (result,) = run_checks(open_ds(data), [REGISTRY["H4"]], 10)
+    assert (result.status, result.violations) == ("INFO", 1)
+    (sample,) = result.samples
+    assert (sample["symbol"], sample["share_60s"], sample["share_300s"]) == (
+        "LAGS",
+        0.0,
+        0.0,
+    )
+    assert result.note == (
+        "4 value jumps, 3 of >= 1 %, 2 measured; median share of the jump in "
+        "the price after 60 s 50%, after 300 s 50%; 1 followed by less than "
+        "half after 300 s"
+    )
+
+
+def test_h4_skips_a_run_without_value_jumps(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = tmp_path / "data"
+    stats_db(data).close()
+    news = sqlite3.connect(data / "market_sim_news.db")
+    news.execute("CREATE TABLE news_events (ts_ns INTEGER)")
+    news.close()
+    (result,) = run_checks(open_ds(data), [REGISTRY["H4"]], 10)
+    assert (result.status, "value_jumps" in result.note) == ("SKIPPED", True)

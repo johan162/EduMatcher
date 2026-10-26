@@ -27,6 +27,8 @@ export function fakeBridge(links: CrossAppLinks = { logGui: null, bookGui: null 
     switch (url.pathname) {
       case "/api/bridge/status":
         return json({ links });
+      case "/api/reference/schedule":
+        return json({ sessions_enabled: false, country: null, schedule: null });
       case "/api/thresholds":
         return json({
           source: "defaults",

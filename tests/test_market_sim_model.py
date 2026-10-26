@@ -73,6 +73,22 @@ def test_jump_frequency() -> None:
     assert abs(jumps - expected) < Z99 * math.sqrt(expected)
 
 
+def test_a_step_returns_its_jumps() -> None:
+    """Without diffusion a symbol moves only by its jumps, and step() names
+    each one with its log size."""
+    p = SymbolParams("X", vol=0.0, drift=0.0, jump_rate=5.0, jump_std=0.04)
+    m = ValueModel({"A": p, "B": p}, {"A": 100.0, "B": 50.0}, seed=5)
+    seen = 0
+    for _ in range(1000):
+        before = dict(m.log_values)
+        jumps = m.step(1 / 390)
+        for sym in ("A", "B"):
+            moved = m.log_values[sym] - before[sym]
+            assert jumps.get(sym, 0.0) == pytest.approx(moved, abs=1e-12)
+        seen += len(jumps)
+    assert seen > 0
+
+
 def test_overnight_variance_is_a_fraction_of_a_day() -> None:
     p = SymbolParams("X", vol=0.3, jump_rate=0.0, beta_market=0.0, beta_sector=0.0)
     m = ValueModel({"A": p}, {"A": 50.0}, seed=4, overnight_fraction=0.2)

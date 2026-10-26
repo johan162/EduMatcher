@@ -118,7 +118,7 @@ Because the script is read from a pipe, options need `bash -s --` so that the
 shell hands them to the script rather than consuming them itself:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.61.0
+curl -fsSL .../install.sh | bash -s -- --config s10-nominal --version 0.62.0
 ```
 
 Two environment variables are also honoured: `REPO_OWNER` (which GitHub
@@ -177,12 +177,13 @@ Everything else is a plain edit followed by `./edumatcher.sh restart`.
 #### Values you will not find in `.env`
 
 TapeDeck needs `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`, and the
-order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY` — the same read-only
+order book viewer `API_GATEWAY_URL` and `PM_BOOK_API_KEY`, and the operator
+dashboard `API_GATEWAY_URL` and `PM_DASH_API_KEY` — the same read-only
 key. Those are **resolved at startup and injected**, not stored: the read-only
 API key is generated per engine configuration — a different one in each
 bundled example — and lives on a different gateway instance than the trading
 credentials. `./edumatcher.sh start` reads the deployed configuration and
-passes them to both applications. Setting them in `.env` would only go stale the
+passes them to all three applications. Setting them in `.env` would only go stale the
 next time you switched configuration.
 
 ### Everyday commands
@@ -636,7 +637,7 @@ deployed configuration and `pm-opctl-cli` ready to start the stack.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.61.0 --snapshot
+    bash -s -- --version 0.62.0 --snapshot
 
 multipass shell ems
 cd /home/ubuntu/session
@@ -659,7 +660,7 @@ To read the script before running it:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.61.0 --snapshot
+bash curl_setup_vm.sh --version 0.62.0 --snapshot
 ```
 
 

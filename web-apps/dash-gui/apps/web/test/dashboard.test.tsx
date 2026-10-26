@@ -201,6 +201,19 @@ describe("rows 3-7 (D3.4)", () => {
     expect(tile("Orders avg / day")).toBe("—");
   });
 
+  it("participants: the connected count over the range, and each one's lane in its row", () => {
+    const socket = renderAt();
+    socket.deliver(hello, frame(CAPTURED));
+    expect(within(row("Participants")).getByRole("figure", { name: "Participants connected" }).textContent).toContain("heartbeat timeout");
+    const table = screen.getByRole("table", { name: "Participants" });
+    for (const p of CAPTURED.participants) {
+      const lane = table.querySelector(`[data-row="${p.id}"] svg[data-lane="${p.id}"]`)!;
+      expect(lane, p.id).toBeTruthy();
+      expect(lane.querySelectorAll("[data-segment]").length > 0, p.id).toBe(p.connected);
+    }
+    expect(row("Participants").querySelector("[data-widget=state-timeline]")).toBeNull();
+  });
+
   it("books: heap garbage is coloured only where pm-monitor judges it (I118)", () => {
     const socket = renderAt();
     const books = CAPTURED.books.map((b) => ({ ...b, heap_garbage_pct: 60 }));

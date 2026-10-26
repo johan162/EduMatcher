@@ -22,7 +22,7 @@ nav: platform
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#architecture">Architecture</a><a href="#orders">Orders</a><a href="#day">Trading day</a><a href="#risk">Risk</a><a href="#protocols">Protocols</a><a href="#ops">Operations</a><a href="#quality">Engineering</a><a href="#limits">Limits</a>
+  <a href="#architecture">Architecture</a><a href="#orders">Orders</a><a href="#day">Trading day</a><a href="#ipo">IPOs</a><a href="#risk">Risk</a><a href="#protocols">Protocols</a><a href="#ops">Operations</a><a href="#quality">Engineering</a><a href="#limits">Limits</a>
 </div></nav>
 
 <!-- ============ ARCHITECTURE ============ -->
@@ -97,8 +97,81 @@ nav: platform
   </div>
 </section>
 
+<!-- ============ IPO & VALUATION ============ -->
+<section class="section band" id="ipo">
+  <div class="wrap">
+    <div class="center rv" style="margin-bottom:40px">
+      <div class="eyebrow">IPOs &amp; valuation</div>
+      <h2 class="display">Take a company <span class="accent">public</span></h2>
+      <p class="lede">Every listed stock was once a private company with a story and a spreadsheet. With <code>pm-valuation</code> your students value a fictive company, build the book, set the offer price, and list it. Then their classmates' orders in the opening auction show whether they got it right.</p>
+    </div>
+    <div class="rv">{{> diagram-ipo}}</div>
+
+    <div class="feature" style="margin-top:56px">
+      <div class="copy-col rv">
+        <div class="eyebrow">Show your working</div>
+        <h3 class="display">A valuation you can<br>check with a calculator</h3>
+        <p class="muted">A banker's model is usually a black box. Here every number can be traced back to where it came from. A full-screen interview asks about the market, customers, churn, people, costs, capital and discount rates. Each answer is marked <b>you</b>, <b>preset</b>, <b>derived</b> or <b>default</b>, and the live preview recalculates fair value as you type.</p>
+        <ul class="checks">
+          <li><b>Two-stage DCF</b>: ten years of free cash flow, CAPM discount rates with size and execution premia, and a terminal value in which growth has to be paid for.</li>
+          <li><b>Comparables</b>: EV / revenue from the sector, blended 70/30 with the DCF, with a warning when the two methods disagree.</li>
+          <li><b>Uncertainty in plain sight</b>: bear, base and bull cases, a tornado of the drivers that matter, and a 10,000-company Monte Carlo that gives the odds the offer price is too high.</li>
+        </ul>
+      </div>
+      <figure class="fig rv d1" style="min-width:0">
+        {{> diagram-valuation}}
+        <figcaption><b>Football field</b> · the <code>tornfalk</code> classroom case, straight from the report</figcaption>
+      </figure>
+    </div>
+
+    <div class="twin rv" style="margin-bottom:44px">
+      <div class="half">
+        <div class="eyebrow">The science</div>
+        <h3 class="display">Hard finance</h3>
+        <p class="muted small">Time value of money, risk premia, free cash flow and the bridge from enterprise value to a price per share. Given the same assumptions, everyone gets the same answer.</p>
+        <ul><li><b>Fair value</b> 117.45 SEK</li><li><b>Price range</b> 94.50–105.00 SEK, after a 15&nbsp;% IPO discount</li><li><b>P(overpaying)</b> 43.8&nbsp;% of simulated companies</li></ul>
+      </div>
+      <div class="join"><svg viewBox="0 0 80 120" aria-hidden="true"><path d="M8 60 H72" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 7"/><circle cx="40" cy="60" r="16" fill="var(--surface-2)" stroke="var(--amber)" stroke-width="1.6"/><text x="40" y="65" text-anchor="middle" font-size="14" fill="var(--amber)" font-family="var(--font-mono)">vs</text></svg></div>
+      <div class="half">
+        <div class="eyebrow gold">The black magic</div>
+        <h3 class="display">Market mood</h3>
+        <p class="muted small">Investor interest, hype and a coverage target are modelled as clearly labelled heuristics, so students can see which way each force pushes the price.</p>
+        <ul><li><b>Book</b> 11.92× covered at the maximum price</li><li><b>Expected pop</b> 29.8&nbsp;% on the first day</li><li><b>Money left on the table</b> about 1.2 bn SEK</li></ul>
+      </div>
+    </div>
+
+    <div class="grid g3">
+      <div class="card rv"><span class="tag">Repeatable</span><h3>Same seed, same answer</h3><p class="muted small">The Monte Carlo is seeded (42 by default), so a whole class gets identical results. Change the seed to see how much the result moves by chance alone.</p></div>
+      <div class="card rv d1"><span class="tag">Shareable</span><h3>Scenario files</h3><p class="muted small">Save with F9 and only your own answers are written. <code>--with-defaults</code> writes a fully specified case, with every value commented with its source, ready to hand out to the next group.</p></div>
+      <div class="card rv d2"><span class="tag">What-if</span><h3>Back, change, compare</h3><p class="muted small">Go <code>b</code>ack to the interview, change one answer, press F5 and <code>c</code>ompare. Turn the hype down and the valuation stays put while coverage and the pop collapse.</p></div>
+      <div class="card rv"><span class="tag">Realistic</span><h3>18 sector presets</h3><p class="muted small">From SaaS and medtech to retail, heavy industry and wind parks. Each is a coherent set of margins, churn, capex, beta and multiples, with its ICB and SIC code.</p></div>
+      <div class="card rv d1"><span class="tag">Two frameworks</span><h3>Stockholm or New York</h3><p class="muted small">A Swedish prospectus approved by Finansinspektionen, where the top of the range is a hard maximum price, or a US S-1 with <code>--market us</code>, which may price up to 20&nbsp;% outside the range.</p></div>
+      <div class="card rv d2"><span class="tag">Printable</span><h3>A prospectus-style PDF</h3><p class="muted small">Cover, executive summary, six chapters with figures, every assumption and a glossary. <code>--pdf</code> writes it, or press <code>p</code> in the report.</p></div>
+    </div>
+
+    <div class="feature" style="margin-top:56px">
+      <div class="copy-col rv">
+        <div class="eyebrow">In the classroom</div>
+        <h3 class="display">From zero to<br>book-runner</h3>
+        <p class="muted">The Operator's Guide teaches the finance from scratch, from compounding to the growing perpetuity, with worked examples you can check by hand. The Training Guide then has seven exercises built around two shipped cases. <b>Tornfalk</b> is a hot software deal. <b>Halvard</b> is a robotics IPO that has to be postponed, because management will not price below the last private round.</p>
+        <div class="btn-row" style="margin-top:22px"><a class="btn ghost sm" href="docs/books/operator-guide/part-4-run-a-market/020-valuation/">IPO Valuation in the Operator's Guide</a><a class="btn ghost sm" href="docs/books/training-guide/280-ipo-valuation/">The IPO exercises</a></div>
+      </div>
+      <div class="codebox rv d1"><span class="label">terminal</span><button class="copy" data-copy="#ipo-sample">copy</button>
+<pre class="code" id="ipo-sample"><span class="p">$ </span>pm-valuation --case tornfalk   <span class="c"># interview, F5 for the report</span>
+<span class="p">$ </span>pm-valuation --case tornfalk --no-tui --pdf tornfalk.pdf
+<span class="p">$ </span>pm-valuation --case halvard --no-tui   <span class="c"># POSTPONE: why?</span>
+
+<span class="c"># price it, list it, let the market decide</span>
+<span class="p">$ </span>pm-opctl-cli stop
+<span class="p">$ </span>pm-valuation --case tornfalk --no-tui --mode deterministic --list
+<span class="p">$ </span>pm-opctl-cli start</pre></div>
+    </div>
+    <p class="center muted small rv" style="margin-top:8px">A teaching model, not a pricing engine: presets and sentiment formulas are illustrative and clearly labelled. The first real price is set by the opening auction.</p>
+  </div>
+</section>
+
 <!-- ============ RISK ============ -->
-<section class="section band" id="risk">
+<section class="section" id="risk">
   <div class="wrap">
     <div class="feature">
       <div class="copy-col rv">
@@ -120,7 +193,7 @@ nav: platform
 </section>
 
 <!-- ============ PROTOCOLS ============ -->
-<section class="section" id="protocols">
+<section class="section band" id="protocols">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:44px">
       <div class="eyebrow">Wire protocols</div>
@@ -147,7 +220,7 @@ nav: platform
 </section>
 
 <!-- ============ OPERATIONS ============ -->
-<section class="section band" id="ops">
+<section class="section" id="ops">
   <div class="wrap">
     <div class="center rv" style="margin-bottom:44px">
       <div class="eyebrow">Operations</div>
@@ -165,7 +238,7 @@ nav: platform
 </section>
 
 <!-- ============ QUALITY ============ -->
-<section class="section" id="quality">
+<section class="section band" id="quality">
   <div class="wrap">
     <div class="feature" style="margin-bottom:0">
       <div class="copy-col rv">
@@ -193,7 +266,7 @@ nav: platform
 </section>
 
 <!-- ============ LIMITS ============ -->
-<section class="section band" id="limits">
+<section class="section" id="limits">
   <div class="wrap" style="max-width:900px">
     <div class="center rv" style="margin-bottom:34px">
       <div class="eyebrow">Straight talk</div>

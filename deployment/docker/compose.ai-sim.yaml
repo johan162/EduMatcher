@@ -144,6 +144,8 @@ services:
       # The drawers' links, as the browser reaches log-gui and book-gui.
       LOG_GUI_URL: "${LOG_GUI_URL:-http://localhost:${LOG_GUI_PORT:-8091}}"
       BOOK_GUI_URL: "${BOOK_GUI_URL:-http://localhost:${BOOK_GUI_PORT:-8094}}"
+      API_GATEWAY_URL: "http://edumatcher:8081"
+      PM_DASH_API_KEY: "${PM_READONLY_API_KEY:-key-readonly-9vaho7}"
       LOG_SRV_ENABLED: "true"
       CALF_HOST: "edumatcher"
       LOG_SRV_HOST: "edumatcher"

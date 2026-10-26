@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import sqlite3
 import statistics
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -103,9 +105,41 @@ def test_a_stall_is_not_one_huge_move() -> None:
     sim = _sim()
     sim.on_session("CONTINUOUS", None, 0.0)
     calls: list[float] = []
-    sim.model.step = lambda dt, fraction=None: calls.append(dt)
+
+    def step(dt: float, fraction: float | None = None) -> dict[str, float]:
+        calls.append(dt)
+        return {}
+
+    sim.model.step = step
     sim.step(1000.0)
     assert calls == [pytest.approx(5.0 / DEFAULT_DAY_SEC)]
+
+
+def test_value_jumps_are_recorded(tmp_path: Path) -> None:
+    """Every jump the model makes lands in market_sim_news.db's value_jumps,
+    at the step's time and with the value it led to."""
+    jumpy = SymbolParams(
+        "X", vol=0.0, drift=0.0, jump_rate=2000.0, beta_market=0.0, beta_sector=0.0
+    )
+    cfg = _cfg(n=2, params=jumpy)
+    db = tmp_path / "market_sim_news.db"
+    sim = MarketSim(cfg, {"S0": 100.0, "S1": 50.0}, news_history_path=db)
+    sim.on_session("CONTINUOUS", 60.0, 0.0)
+    expected = []
+    for t in range(1, 21):
+        before = dict(sim.model.log_values)
+        sim.step(float(t))
+        for sym, lv in sorted(sim.model.log_values.items()):
+            if lv != before[sym]:
+                expected.append((t * 10**9, sym, lv - before[sym], math.exp(lv)))
+    with closing(sqlite3.connect(db)) as conn:
+        rows = conn.execute(
+            "SELECT ts_ns, symbol, log_jump, value FROM value_jumps ORDER BY rowid"
+        ).fetchall()
+    assert expected
+    assert [r[:2] for r in rows] == [e[:2] for e in expected]
+    for row, want in zip(rows, expected):
+        assert row[2:] == pytest.approx(want[2:])
 
 
 def test_commands_need_an_admin() -> None:

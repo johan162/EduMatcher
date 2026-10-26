@@ -578,9 +578,11 @@ class _Replay:
         if o.remaining > 0 and o.kind in ("LIMIT", "ICEBERG") and o.id not in dying:
             book.rest(o, self._next_seq())
         if traded and cascade:
+            # First in, first out, as the engine runs them: a stop-limit
+            # that trades nothing still rests before the next stop runs.
             pending = self._checkpoint(book)
             while pending:
-                nxt = self._pick(pending)
+                nxt = pending.pop(0)
                 if self._process(book, nxt, True, dying, cascade=False):
                     pending += self._checkpoint(book)
         return traded

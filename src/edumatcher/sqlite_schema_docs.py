@@ -107,7 +107,8 @@ def database_specs() -> tuple[DatabaseSpec, ...]:
         DatabaseSpec(
             "market_sim_news.db",
             "pm-market-sim",
-            "Generated and instructor-published news events.",
+            "Generated and instructor-published news events, and the value "
+            "model's jumps.",
             "src/edumatcher/market_sim/news_history.py",
             _initialize_news,
         ),

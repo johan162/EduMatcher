@@ -77,8 +77,9 @@ ifdef VM_BACKEND_IP
   BOOK_GUI_ENV := API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                   CALF_HOST=$(VM_BACKEND_IP) \
                   LOG_SRV_HOST=$(VM_BACKEND_IP)
-  # dash-gui: pm-monitor's PUB socket, pm-md-gwy (CALF, session phase), pm-log-srv
+  # dash-gui: pm-monitor's PUB socket, pm-md-gwy (CALF, session phase), pm-api-gwy (timetable), pm-log-srv
   DASH_GUI_ENV := MONITOR_HOST=$(VM_BACKEND_IP) \
+                  API_GATEWAY_URL=http://$(VM_BACKEND_IP):8081 \
                   CALF_HOST=$(VM_BACKEND_IP) \
                   LOG_SRV_HOST=$(VM_BACKEND_IP)
 else

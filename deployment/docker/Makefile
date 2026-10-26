@@ -345,7 +345,8 @@ endif
 		API_GATEWAY_URL="http://edumatcher:$$1"; export API_GATEWAY_URL; \
 		PM_TERMINAL_API_KEY="$$2"; export PM_TERMINAL_API_KEY; \
 		PM_BOOK_API_KEY="$$2"; export PM_BOOK_API_KEY; \
-		echo "==> terminal-gui history and book-gui: $$API_GATEWAY_URL (read-only key from the deployed config)"; \
+		PM_DASH_API_KEY="$$2"; export PM_DASH_API_KEY; \
+		echo "==> terminal-gui history, book-gui and dash-gui timetable: $$API_GATEWAY_URL (read-only key from the deployed config)"; \
 	else \
 		echo "==> WARNING: no read-only credential (gateway_id: null) in the deployed"; \
 		echo "    configuration — terminal-gui's history endpoints will be unavailable,"; \
@@ -568,6 +569,15 @@ dev-env: check
 		echo "export CONFIG_ARTIFACT_PATH=$$data/ref_data/engine_config.json"; \
 		echo "export LOG_GUI_URL=http://localhost:$${LOG_GUI_PORT:-8091}"; \
 		echo "export BOOK_GUI_URL=http://localhost:$${BOOK_GUI_PORT:-8094}"; \
+		cred=$$($(EXEC) $(CONTAINER_NAME) python3 -c "$$READONLY_CREDENTIAL_PY" 2>/dev/null || true); \
+		if [ -n "$$cred" ]; then \
+			set -- $$cred; \
+			echo "export API_GATEWAY_URL=http://127.0.0.1:$$1"; \
+			echo "export PM_DASH_API_KEY=$$2"; \
+		else \
+			echo "# no read-only credential (gateway_id: null) in the deployed config —"; \
+			echo "# the Session schedule row will be empty"; \
+		fi; \
 		if ! published 5611; then \
 			echo "WARNING: 5611 is not published, so there will be no live data; history" >&2; \
 			echo "         still works from metrics.db. For pm-monitor's snapshot feed:" >&2; \

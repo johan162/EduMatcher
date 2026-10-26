@@ -179,17 +179,18 @@ which: *now* (the last 60 seconds), *avg / min* (the last 60 minutes),
 "0.70 /min" beside "3.78 /h" is not a contradiction: the last hour was
 quieter than the day.
 
-### The eight rows
+### The nine rows
 
 Each row folds away with its title; the browser remembers which are folded.
 
 | Row | What it shows |
 |---|---|
 | **Overview** | Processes up (and which are not), participants connected, orders and trades today, orders per second and engine p99 latency (order entry) with their last minute; the host's CPU, memory and free disk; the exchange's memory by process over the range |
+| **Session schedule** | The same timetable as TapeDeck's Session view: this week's hours with bank holidays, today's phases with the current one lit and the exchange's time on the day, and the next bank holiday that closes the exchange or shortens its hours. Read from `pm-api-gwy` with the read-only key (`PM_DASH_API_KEY`); without one the row says the timetable is unavailable |
 | **Engine latency** | How long the matching engine takes per message over the last minute: order p50 and p99 with the number of samples behind them, the p99 with garbage-collection time taken out, the p99 of every other message, the longest GC pause and the share of time in GC. Below, the order latency and the longest GC pause over the range. See [Reading engine latency](#reading-engine-latency) |
 | **Processes** | Every process: state, uptime, memory and CPU with their recent trend, loop age and lag. Participant bots are listed after the exchange's own and never affect its status. Memory per process, and CPU per process over the range |
 | **Trading activity** | Orders per minute by participant (the top eight and "other"), trades and traded value per minute, the order averages, the reject ratio as `pm-monitor` judges it, and today's rejects by reason — what the engine said no to (`ORDER_NOT_FOUND`, `MARKET_CLOSED`, `MM_MAX_SPREAD` …) |
-| **Participants** | A lane per participant: when it was connected, with heartbeat timeouts marked. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today. "avg/day" shows "—" until there is a full day of history |
+| **Participants** | How many participants were connected over the range, with heartbeat timeouts as red lines: a drop of many at once points at a gateway or the network. Then the table: role, connection, orders today and their rates, reject %, resting orders, connects / disconnects / heartbeat timeouts today, and the participant's own connection lane over the range (sort that column to bring the most disconnected to the top). "avg/day" shows "—" until there is a full day of history |
 | **Order books** | The number of books and their estimated memory; per symbol: resting and stop orders, price levels, memory, heap garbage, trades today, and whether it is halted |
 | **Gateways & infrastructure** | Clients per gateway against its limit, API WebSocket sessions and dropped events, slow-client disconnects, log server intake, feed gaps, the data files' sizes, and the engine's internal diagnostics |
 | **Event log** | Every health event, newest first, filterable by kind: connects and disconnects, state changes, threshold breaches, session changes, halts |
@@ -268,6 +269,8 @@ these are already set; you need them only for Option 2 or 3.
 | `MONITOR_PUB_PORT` | `5611` | `monitor.pub_port` |
 | `MONITOR_DOWN_AFTER_SEC` | `3` | No snapshot for this long and `pm-monitor` is shown down |
 | `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | `pm-md-gwy`, for the session phase in the top bar |
+| `API_GATEWAY_URL` | `http://127.0.0.1:8081` | `pm-api-gwy`'s dashboards instance, for the Session schedule row |
+| `PM_DASH_API_KEY` | unset | The read-only API key (the credential with `gateway_id: null`); the stacks resolve it at start |
 | `METRICS_DB_PATH` | `<data dir>/metrics.db` | `pm-monitor`'s history, opened read-only |
 | `CONFIG_ARTIFACT_PATH` | `<data dir>/ref_data/engine_config.json` | The deployed configuration, for the threshold bands |
 | `LOG_GUI_URL` / `BOOK_GUI_URL` | unset (`http://localhost:8091` / `:8094` in the stacks) | log-gui's and book-gui's addresses as your browser reaches them; set, the drawers link there |
@@ -286,6 +289,8 @@ needed when you open the GUIs from another machine.
 - The stacks publish it on `127.0.0.1` only. Setting `BIND_ADDR=0.0.0.0`
   opens it — with every other GUI — to your network; do that only on a
   network you control, and set `CORS_ORIGIN` to the dashboard's own address.
+- The bridge holds the read-only API key for the Session schedule row; it
+  never sends it to the browser.
 - `pm-monitor`'s ports are not published by the stacks; the dashboard
   reaches it over the container network. `ZMQ=1` (or `EM_ZMQ=1`) publishes
   the snapshot feed (5611) for tools on the host, never the beacon intake
@@ -299,6 +304,7 @@ needed when you open the GUIs from another machine.
 | Banner "pm-monitor down" after it worked | `pm-monitor` stopped or hung | `pm-opctl-cli list`; restart it. The dashboard recovers by itself |
 | Live figures, but every chart says "No data in this range" | The bridge cannot read `metrics.db`, or the exchange has only just started (the first history row is written after 10 s) | `curl localhost:8095/api/bridge/status` shows `metricsDb`; check `METRICS_DB_PATH` and the mount |
 | Per-minute bars stay empty | The minute is not over yet, or refresh is off | Wait for the minute to close, or set refresh to 10 s |
+| Session schedule row says "Timetable unavailable" | No read-only key, or `pm-api-gwy` not reachable at `API_GATEWAY_URL` | `curl localhost:8095/api/reference/schedule` shows the gateway's answer; set `PM_DASH_API_KEY` (the stacks do it for you) |
 | Bands differ from `monitor.thresholds` | The bridge does not see the deployed configuration | Check `CONFIG_ARTIFACT_PATH`; `curl localhost:8095/api/thresholds` says `"source": "artifact"` when it does |
 | Changed `monitor.thresholds`, colours did not follow | `pm-monitor` reads its thresholds at start | Restart `pm-monitor`. The bands show the new values within one refresh interval |
 | No "Logs in log-gui" / "Book in book-gui" link | `LOG_GUI_URL` / `BOOK_GUI_URL` unset or not `http(s)://…` | Set them as your browser reaches those GUIs |

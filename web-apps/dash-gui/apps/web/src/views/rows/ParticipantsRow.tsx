@@ -1,35 +1,49 @@
 /**
- * Row 4, PARTICIPANTS (design §12.3): a lane per participant, connected
- * stretches over the range with heartbeat timeouts marked, and the table:
- * role, connection and since when, orders today and their rates (avg/day
- * "—" before the first full day of data), reject %, resting orders, and
- * connects / disconnects / heartbeat timeouts today.
+ * Row 4, PARTICIPANTS (design §12.3): how many participants were connected
+ * over the range, with heartbeat timeouts marked, and the table: role,
+ * connection and since when, orders today and their rates (avg/day "—"
+ * before the first full day of data), reject %, resting orders, connects /
+ * disconnects / heartbeat timeouts today, and the participant's own lane
+ * over the range -- sorted by time disconnected, the unstable ones gather.
+ * A lane per participant above the table pushed the table out of sight at
+ * a few dozen participants; in the table it costs no height.
  *
  * The lanes come from CONNECT/DISCONNECT events -- those of the range from
  * /api/events, the live ones from the stream -- and the snapshot's present
- * connection state.
+ * connection state; the count is the lanes summed.
  */
 
+import clsx from "clsx";
 import { useCallback, useMemo } from "react";
-import type { EventsResponse, HealthEvent, ParticipantStats } from "@edumatcher/dash-types";
+import type { EventsResponse, HealthEvent, ParticipantStats, Point } from "@edumatcher/dash-types";
 import { HealthTable, StateBadge, type Column } from "../../components/widgets/HealthTable.js";
 import { Row } from "../../components/widgets/Row.js";
-import { StateTimeline } from "../../components/widgets/StateTimeline.js";
+import { LaneBar, type Lane, type TimeRangeMs } from "../../components/widgets/StateTimeline.js";
+import { TimeSeries } from "../../components/widgets/TimeSeries.js";
 import { useOpenDrawer } from "../../hooks/drawer.js";
 import { useChartRange, useHistory, useNow } from "../../hooks/history.js";
 import { getJson, query } from "../../lib/api.js";
-import { formatCount, formatPercent, formatRate, NO_VALUE } from "../../lib/format.js";
+import { formatCount, formatDuration, formatPercent, formatRate, NO_VALUE } from "../../lib/format.js";
 import { TONE } from "../../lib/status.js";
 import { formatTime } from "../../lib/time.js";
 import { useDashStore } from "../../store/useDashStore.js";
-import { CONNECTED, connectionLanes, HEARTBEAT } from "./common.js";
+import { CONNECTED, connectedCount, connectionLanes, disconnectedMs, HEARTBEAT, heartbeatTimes } from "./common.js";
 
 const CONN = { glyph: "●", label: "yes", ...TONE.ok };
 const NOT_CONN = { glyph: "○", label: "no", ...TONE.stopped };
 
+const STATES = { [CONNECTED]: { label: "connected", color: TONE.ok.color } };
+const MARKS = { [HEARTBEAT]: { label: "heartbeat timeout", color: TONE.error.color } };
+
+/** The count line is held to whole minutes; a change still shows at once. */
+const COUNT_STEP_MS = 60_000;
+
 const rate = (v: number | null, per: "min" | "h") => (v === null ? NO_VALUE : formatRate(v, per));
 
-function columns(tz: string): Column<ParticipantStats>[] {
+/** A table row: the participant with its lane over the range (in the row's data, so the row redraws when the lane does). */
+type ParticipantRow = ParticipantStats & { lane: Lane; range: TimeRangeMs; downMs: number };
+
+function columns(tz: string): Column<ParticipantRow>[] {
   return [
     { id: "id", header: "ID", render: (p) => <span className="font-mono">{p.id}</span>, sortKey: (p) => p.id },
     { id: "role", header: "Role", render: (p) => p.role, sortKey: (p) => p.role },
@@ -49,6 +63,16 @@ function columns(tz: string): Column<ParticipantStats>[] {
       sortKey: (p) => p.heartbeat_timeouts_today,
       align: "right",
     },
+    {
+      id: "lane",
+      header: "Connected in range",
+      render: (p) => (
+        <span title={p.downMs > 0 ? `not connected for ${formatDuration(p.downMs / 1000)} of the range` : undefined}>
+          <LaneBar lane={p.lane} range={p.range} states={STATES} marks={MARKS} tz={tz} />
+        </span>
+      ),
+      sortKey: (p) => p.downMs,
+    },
   ];
 }
 
@@ -61,8 +85,8 @@ export function ParticipantsRow() {
   const now = useNow();
   const open = useOpenDrawer();
   const cols = useMemo(() => columns(tz), [tz]);
-  const onRowClick = useCallback((p: ParticipantStats) => open("participant", p.id), [open]);
-  const range = useChartRange(60_000);
+  const onRowClick = useCallback((p: ParticipantRow) => open("participant", p.id), [open]);
+  const range = useChartRange(COUNT_STEP_MS);
   const history = useHistory<EventsResponse>("connections", (r, signal) =>
     getJson(`/api/events?${query({ range: r, kind: "CONNECT,DISCONNECT", limit: 1000 })}`, signal),
   );
@@ -73,25 +97,35 @@ export function ParticipantsRow() {
     return [...bySeq.values()];
   }, [history.data, live]);
   const lanes = useMemo(() => connectionLanes(participants ?? [], events, range, now), [participants, events, range, now]);
+  const rows = useMemo(() => {
+    const byId = new Map(lanes.map((l) => [l.id, l]));
+    return (participants ?? []).map((p): ParticipantRow => {
+      const lane = byId.get(p.id)!;
+      return { ...p, lane, range, downMs: disconnectedMs(lane, range, now) };
+    });
+  }, [participants, lanes, range, now]);
+  // Kept the same objects until their values change: the lanes are new every snapshot (I118).
+  const countKey = JSON.stringify(connectedCount(lanes, range, now, Math.floor(now / COUNT_STEP_MS) * COUNT_STEP_MS));
+  const count = useMemo(() => [{ label: "connected", points: JSON.parse(countKey) as Point[] }], [countKey]);
+  const marksKey = JSON.stringify(heartbeatTimes(lanes, range));
+  const marks = useMemo(() => ({ ts: JSON.parse(marksKey) as number[], ...MARKS[HEARTBEAT] }), [marksKey]);
   const connected = participants?.filter((p) => p.connected).length ?? 0;
 
   return (
     <Row id="participants" title="Participants" badge={participants ? `${connected} / ${participants.length} connected` : undefined}>
-      <StateTimeline
-        label="Participant connections"
-        lanes={lanes}
-        range={range}
-        states={{ [CONNECTED]: { label: "connected", color: TONE.ok.color } }}
-        marks={{ [HEARTBEAT]: { label: "heartbeat timeout", color: TONE.error.color } }}
-        tz={tz}
-      />
+      <TimeSeries label="Participants connected" series={count} range={range} tz={tz} format={formatCount} integer step marks={marks} height={120} />
       <div className="mt-4">
-        <HealthTable label="Participants" columns={cols} rows={participants ?? []} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={onRowClick} />
+        <HealthTable label="Participants" columns={cols} rows={rows} rowKey={(p) => p.id} initialSort={{ id: "id", dir: "asc" }} onRowClick={onRowClick} />
         {/* Four windows side by side: say which is which. */}
         <p className="mb-0 mt-2 text-[11px] text-fg-faint">
           Orders: /min now over the last 60 s · avg/min over the last 60 min · avg/h today per hour open · avg/day over the last 7 trading days. Rej % and C/D/HB are today.
+          Connected in range: <Swatch color={STATES[CONNECTED].color} /> connected, <Swatch color={MARKS[HEARTBEAT].color} narrow /> heartbeat timeout; sort it to put the most disconnected first.
         </p>
       </div>
     </Row>
   );
+}
+
+function Swatch({ color, narrow = false }: { color: string; narrow?: boolean }) {
+  return <span aria-hidden="true" className={clsx("inline-block h-2 rounded-sm align-middle", narrow ? "w-0.5" : "w-3")} style={{ background: color }} />;
 }

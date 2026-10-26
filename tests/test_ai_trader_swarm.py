@@ -17,6 +17,7 @@ from edumatcher.ai_trader.swarm import (
     WorkerJob,
     assign_symbols,
     build_gateway_ids,
+    build_specs,
     default_worker_count,
     missing_participants,
     split_blocks,
@@ -95,6 +96,27 @@ class TestSwarmHelpers:
     def test_assign_symbols_per_agent_capped_by_universe(self) -> None:
         mapping = assign_symbols(["AI001"], ["AAPL", "MSFT"], 10)
         assert mapping == {"AI001": ["AAPL", "MSFT"]}
+
+    def test_build_specs_spreads_each_preset_over_the_symbols(self) -> None:
+        # The s300-sim shape: blocks of 30 repeat every 10 agents, so an
+        # interleaved preset of 5 or 10 agents used to land on the same blocks.
+        symbols = [f"S{i:03d}" for i in range(300)]
+        names = ["noise-retail", "trend-follower", "news-trader", "block-taker"]
+        weights = [83, 10, 5, 2]
+        composition = {n: (get_preset(n), float(w)) for n, w in zip(names, weights)}
+        specs = build_specs(
+            build_gateway_ids("AI", 1, 100), composition, symbols, 30, 1
+        )
+        assert Counter(s.preset.name for s in specs) == dict(zip(names, weights))
+        assert [s.preset.name for s in specs[:3]] == ["noise-retail"] * 3  # interleaved
+        for name, agents in zip(names, weights):
+            load = Counter(
+                sym for s in specs if s.preset.name == name for sym in s.symbols
+            )
+            assert len(load) == min(300, agents * 30), name
+            assert max(load.values()) - min(load.values()) <= 1, name
+        everyone = {sym for s in specs for sym in s.symbols}
+        assert everyone == set(symbols)
 
     def test_missing_participants(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
