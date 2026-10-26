@@ -13,6 +13,29 @@ supply curves count the same total quantity, so the indicative is what prints.
 
 The functions in this module operate on an OrderBook instance and return
 trades + events for the engine to publish.
+
+How this differs from continuous matching (``order_book.py``)
+-------------------------------------------------------------
+In continuous trading an incoming order *aggresses* the book and trades at
+the resting order's price, one order at a time.  In an auction (opening,
+closing, or reopening after a halt) orders are only COLLECTED -- the book is
+allowed to be crossed (best bid >= best ask) and nothing trades.  At the end
+of the phase the engine calls, in this order:
+
+1. ``compute_equilibrium(book)``  -> the ONE price that trades the most
+   volume (also published during the phase as the "indicative" price);
+2. ``execute_uncross(book, eq_price)`` -> every crossing order trades at
+   that same price.  Everybody gets the same price; price improvement over
+   an order's own limit is the norm, not the exception.
+
+Worked example -- bids: 100 @ 10.2, 100 @ 10.0;  asks: 50 @ 9.9, 100 @ 10.1
+  price 9.9 : buyers willing >= 9.9 = 200, sellers willing <= 9.9 =  50 -> 50
+  price 10.0: buyers = 200, sellers = 50                              -> 50
+  price 10.1: buyers = 100, sellers = 150                             -> 100  <-- max
+  price 10.2: buyers = 100, sellers = 150                             -> 100  (tie)
+The tie at 10.1 / 10.2 is broken by the smaller surplus (equal here), and
+then by the lower price, because candidates are scanned in ascending order
+and only a strictly better one replaces the current best.
 """
 
 # pyright: reportPrivateUsage=false
@@ -82,6 +105,12 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
       surplus  = |buy_qty − sell_qty|
 
     Pick P that maximises exec_qty; break ties by minimising surplus.
+    If still tied, the LOWEST such price wins (candidates are scanned in
+    ascending order and a later one must be strictly better to replace it).
+
+    Complexity is O(P^2) in the number of distinct price levels because the
+    cumulative lookups below rescan the price lists; that is fine for an
+    auction, which runs once per phase, and keeps the code obvious.
     """
     bid_qty, ask_qty = _auction_levels(book)
     bid_prices = sorted(bid_qty.keys(), reverse=True)  # highest first
@@ -242,12 +271,21 @@ def execute_uncross(
     # within an auction uncross are logically simultaneous at the same price.
     now = now_ns()
 
+    # Match the best bid against the best ask until they no longer overlap
+    # the equilibrium price.  Unlike _sweep there is no "aggressor": BOTH
+    # orders are resting, so we pick the best of each side and trade them
+    # at the one price eq_price.  `_peek` skips dead entries for us; and
+    # because _apply_fill retires a fully-filled order, each pass moves
+    # forward.  Price-time priority holds on each side as usual.
     while True:
         best_bid = book._peek(book._bids)
         best_ask = book._peek(book._asks)
 
         if best_bid is None or best_ask is None:
             break
+        # Resting orders always carry a price; the type: ignore is only there
+        # because the field is Optional[int] for the benefit of MARKET/stop
+        # orders, which can never be on a bid/ask heap.
         if best_bid.price_ticks < eq_price:  # type: ignore[operator]
             break  # remaining bids below equilibrium
         if best_ask.price_ticks > eq_price:  # type: ignore[operator]
@@ -268,6 +306,8 @@ def execute_uncross(
         )
         # both_resting=True: in an uncross both orders are resting and counted
         # in the level index, so both sides must be deducted (finding #3).
+        # The "aggressor" argument is just the first parameter slot: the
+        # trade is flagged AUCTION and neither side is the taker.
         book._apply_fill(
             best_bid,
             best_ask,
@@ -279,7 +319,11 @@ def execute_uncross(
             both_resting=True,
         )
 
-    # Update book state
+    # Update book state.  _apply_fill already set last_trade_price after
+    # each print; setting it again makes the intent explicit: the auction
+    # price becomes the new reference for stops, collars and circuit
+    # breakers.  Triggered stops are NOT released here -- the engine calls
+    # book.trigger_stops() afterwards (see Engine._run_uncross).
     if trades:
         book.last_trade_price = eq_price
         book.last_trade_qty = trades[-1].quantity
