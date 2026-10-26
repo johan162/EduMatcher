@@ -1288,6 +1288,8 @@ them to their respective symbol books:
 
 ```python
 def _accept_combo(self, combo: ComboOrder, ...) -> bool:
+    self.pub_sock.send_multipart(self._combo_ack(..., True))
+    self._combos[combo.id] = combo
     for i, leg in enumerate(combo.legs):
         child = Order.create(symbol=leg.symbol, side=leg.side, ...)
         child.combo_parent_id = combo.id
@@ -1296,10 +1298,14 @@ def _accept_combo(self, combo: ComboOrder, ...) -> bool:
         self._order_to_combo[child.id] = combo.id
         book = self._book(leg.symbol)
         trades, events = book.process(child)
-        ...
-
-    self._combos[combo.id] = combo
+        self._publish_dispatch(trades, events, ...)
+        if combo.status is ComboStatus.FAILED:
+            break
 ```
+
+The combo is registered before its first leg is posted, so a leg that is
+rejected or cancelled on entry fails the combo through the same follow-up as
+any later event, and the legs after it are never posted.
 
 When a child fills, the engine updates the parent combo’s status. When all legs
 fill, the combo is marked `MATCHED`:

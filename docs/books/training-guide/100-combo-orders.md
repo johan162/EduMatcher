@@ -46,7 +46,7 @@ half-filled position at submission. It can still *end up* half-filled while it
 rests. Exercises 2 and 3 show both halves of that.
 
 The combo's lifecycle states are `PENDING`, `PARTIALLY_MATCHED`, `MATCHED`,
-`FAILED` (a leg was cancelled or expired, so the siblings cascade-cancel),
+`FAILED` (a leg was cancelled, rejected or expired, so the siblings cascade-cancel),
 `CANCELLED` and `REJECTED`.
 
  

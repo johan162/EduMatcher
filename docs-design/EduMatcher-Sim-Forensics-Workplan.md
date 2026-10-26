@@ -37,6 +37,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 13 | S13 | X8b/X8c: measure, then fix, uncross quote legs and auction-stop fill prices | S8 | 1 d | ☑ | 2026-10-25 |
 | 14 | S14 | Run 2026-10-25 (C5, C6 FAIL): X15 engine OCO sibling inside a cascade; X16 C5/C6 check fixes; X17 OCO entry | S13 | 0.5 d | ☑ | 2026-10-25 |
 | 15 | S15 | X8d: one publisher for every `book.process()` result; X12, X18–X20 | S14 | 1 d | ☑ | 2026-10-25 |
+| 16 | S16 | X21: a combo leg ending on entry fails the combo; `combo.ack` first | S15 | 0.5 d | ☑ | 2026-10-26 |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
 pruned after 12 h).
@@ -692,7 +693,7 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X18 | S15 (probe) | — | not in a run | Engine bug: the OCO path ignores a symbol halt and matches its legs | Fixed 2026-10-25 (S15, uncommitted) |
 | X19 | S15 (probe) | — | not in a run | Engine bug: an OCO's own group was exempt from the book hook while posting, so a cascade from leg 2's fill on entry could fill leg 1 | Fixed 2026-10-25 (S15, uncommitted) |
 | X20 | S15 | every run | every non-new-order fill | Engine drift: `order.fill` lacked `price` outside the new-order path, and `tif`/`is_seed` on it | Fixed 2026-10-25 (S15, uncommitted) |
-| X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Open: needs a decision (see S15) |
+| X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Fixed 2026-10-26 (S16, uncommitted) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1199,7 +1200,7 @@ field differences masked, E2 equals the X15 baseline exactly: the same
 diverged symbol, and nothing new. On this run, X8d changes no message
 order, no topic and no trade.
 
-**X21 — open, needs a decision.** A combo registers only after all its
+**X21 — decided 2026-10-26, fixed in S16.** A combo registered only after all its
 children are posted, so the combo follow-up of a child that ends during
 acceptance is a no-op. Reachable today: an AON combo blocked by a short
 leg posts its IOC/FOK/MARKET legs with matching off, the book rejects
@@ -1209,3 +1210,34 @@ expired leg fails the combo, but says nothing about a rejected one. Both
 the rule (should a rejected leg fail the combo?) and the order of
 `combo.ack` relative to a `FAILED` status need a decision, so it is left
 out of S15.
+
+### S16 — X21: a combo leg ending on entry fails the combo
+
+**Done 2026-10-26.** Decided with Johan:
+
+- a leg that ends without filling — rejected, cancelled (an IOC's rest,
+  SMP) or expired — fails the combo, on entry as later. The guide named
+  only cancelled and expired legs, but a rejected leg can never fill, so
+  its combo could never match;
+- `combo.ack` is published before the first leg is posted, as the guide's
+  steps 2–3 already said; every leg event and `combo.status` follows it;
+- a failed combo posts no further legs: they could only be acked and
+  cancelled at once.
+
+`_accept_combo` now publishes the ack and registers the combo before its
+loop, so each child's own `_publish_dispatch` runs the combo follow-up:
+fills move the combo to `PARTIALLY_MATCHED`/`MATCHED` as they happen, and an
+ended leg fails it (`_check_combo_after_child_event` gains `REJECTED`). The
+loop stops once the combo has `FAILED`, and its trailing
+`_update_combo_status` is gone.
+
+The probe that found X21 also showed worse than a stale status: with leg 0
+cancelled by SMP on entry, leg 1 was still posted and **traded**, a fill for
+a combo that could never complete. `tests/test_engine_combo_acceptance.py`
+(5 tests, all failing before) covers a rejected leg after a resting one, a
+rejected first leg, the AON-blocked IOC leg, the SMP-cancelled leg, and the
+ack-first order with `MATCHED` published once. `test_combo.py`'s ack-order
+test now expects `combo.ack` first.
+
+Wire change: `combo.ack` precedes the legs' `order.ack`s on every combo, so
+E2 on an earlier run will show every accepted combo as reordered.
