@@ -162,6 +162,7 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
             {
                 "symbol": "AAA",
                 "resting_orders": 1204,
+                "gtc_orders": 60,
                 "stop_orders": 12,
                 "bid_levels": 84,
                 "ask_levels": 91,

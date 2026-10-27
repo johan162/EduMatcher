@@ -158,6 +158,7 @@ STORED_ENGINE_LABELLED = frozenset(
         "engine.diagnostics",
         "engine.resting_orders",
         "engine.book_resting_orders",
+        "engine.book_gtc_orders",
         "engine.book_est_bytes",
         "engine.book_heap_garbage_pct",
     }

@@ -1223,6 +1223,7 @@ One order book (design section 8.3); refreshed every book_metrics_interval_sec.
 |---|---|---|---|---|
 | `symbol` | `string` | required | max_len 16 |  |
 | `resting_orders` | `int` | required | ge 0, unit `dimensionless` |  |
+| `gtc_orders` | `int` | required | ge 0, unit `dimensionless` | Resting orders with TIF=GTC: the long orders that survive the close. A subset of resting_orders. |
 | `stop_orders` | `int` | required | ge 0, unit `dimensionless` |  |
 | `bid_levels` | `int` | required | ge 0, unit `dimensionless` |  |
 | `ask_levels` | `int` | required | ge 0, unit `dimensionless` |  |

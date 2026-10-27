@@ -40,6 +40,7 @@ export function BookDrawer() {
         items={[
           ["State", <StateBadge key="state" look={b.halted ? HALTED : TRADING} />],
           ["Resting orders", formatCount(b.resting_orders)],
+          ["Long orders (GTC)", formatCount(b.gtc_orders)],
           ["Stop orders", formatCount(b.stop_orders)],
           ["Bid levels", formatCount(b.bid_levels)],
           ["Ask levels", formatCount(b.ask_levels)],

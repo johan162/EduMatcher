@@ -245,6 +245,8 @@ class OrderManager:
                 continue
             if o.tif in (TIF.ATO, TIF.ATC):
                 continue  # the auction ends them
+            if o.tif == TIF.GTC:
+                continue  # long orders are meant to stay
             if now - o.submitted_at >= max_age:
                 out.append(o)
                 continue

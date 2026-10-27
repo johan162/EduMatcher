@@ -142,6 +142,7 @@ export interface ParticipantStats {
 export interface BookStats {
   symbol: string;
   resting_orders: number;
+  gtc_orders: number;
   stop_orders: number;
   bid_levels: number;
   ask_levels: number;

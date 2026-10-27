@@ -157,10 +157,8 @@ class Agent:
         if intent is None:
             return []
         st = market.symbols[intent.symbol]
-        if (
-            len(self.orders.live(intent.symbol))
-            >= self.preset.risk.max_live_orders_per_symbol
-        ):
+        live = [o for o in self.orders.live(intent.symbol) if o.tif != TIF.GTC]
+        if len(live) >= self.preset.risk.max_live_orders_per_symbol:
             return []
         size = max(1, round(self.preset.tempo.sample_qty(self.rng) * intent.size))
         qty = self._risk_qty(intent.symbol, intent.side, size)
@@ -197,6 +195,10 @@ class Agent:
         for o in orders:
             if o.qty <= 0:
                 continue
+            if o.tif == TIF.GTC and any(
+                x.tif == TIF.GTC for x in self.orders.live(o.symbol)
+            ):
+                o = replace(o, tif=TIF.DAY)  # one long order per symbol
             self.orders.track(
                 LiveOrder(
                     tag=o.tag,

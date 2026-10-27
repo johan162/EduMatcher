@@ -831,6 +831,7 @@ class BookStats:
 
     symbol: str
     resting_orders: int  # unit: dimensionless
+    gtc_orders: int  # unit: dimensionless
     stop_orders: int  # unit: dimensionless
     bid_levels: int  # unit: dimensionless
     ask_levels: int  # unit: dimensionless
@@ -853,6 +854,10 @@ class BookStats:
         if self.resting_orders < 0:
             raise MessageValidationError(
                 f"resting_orders: {self.resting_orders!r} must be >= 0"
+            )
+        if self.gtc_orders < 0:
+            raise MessageValidationError(
+                f"gtc_orders: {self.gtc_orders!r} must be >= 0"
             )
         if self.stop_orders < 0:
             raise MessageValidationError(
@@ -892,6 +897,7 @@ class BookStats:
         return cls(
             symbol=str(p["symbol"]),
             resting_orders=int(p["resting_orders"]),
+            gtc_orders=int(p["gtc_orders"]),
             stop_orders=int(p["stop_orders"]),
             bid_levels=int(p["bid_levels"]),
             ask_levels=int(p["ask_levels"]),
@@ -906,6 +912,7 @@ class BookStats:
         return {
             "symbol": self.symbol,
             "resting_orders": self.resting_orders,
+            "gtc_orders": self.gtc_orders,
             "stop_orders": self.stop_orders,
             "bid_levels": self.bid_levels,
             "ask_levels": self.ask_levels,

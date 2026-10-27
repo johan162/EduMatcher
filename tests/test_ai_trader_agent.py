@@ -181,6 +181,37 @@ class TestHousekeeping:
         assert agent.orders.orders == {}
 
 
+class TestLongOrders:
+    def _gtc_agent(self) -> Agent:
+        p = get_preset("noise-retail")
+        p = replace(p, execution=replace(p.execution, gtc_fraction=1.0))
+        p = replace(p, risk=replace(p.risk, max_order_age_sec=1.0))
+        p = replace(p, tempo=TempoSpec(600.0, 1, 5, "balanced"))
+        return Agent("AI001", p, ["AAPL"], seed=3, now=0.0)
+
+    def test_one_long_order_per_symbol_and_it_is_never_cancelled(self) -> None:
+        agent, m = self._gtc_agent(), _market(("AAPL",))
+        first = _run(agent, m, 3.0)
+        _ack_all(agent, first)
+        later = _run(agent, m, 30.0, t0=3.0)
+        _ack_all(agent, later)
+        sent = [a for a in first + later if isinstance(a, NewOrder)]
+        assert sum(a.tif == TIF.GTC for a in sent) == 1
+        assert any(a.tif == TIF.DAY for a in sent)  # the others were downgraded
+        gtc = [o for o in agent.orders.orders.values() if o.tif == TIF.GTC]
+        assert len(gtc) == 1
+        cancelled = {a.order_id for a in later if isinstance(a, CancelOrder)}
+        assert f"E{gtc[0].tag}" not in cancelled
+
+    def test_long_orders_do_not_use_up_the_live_order_cap(self) -> None:
+        agent = _agent(max_live_orders_per_symbol=1, max_order_age_sec=1e9)
+        agent.orders.track(
+            LiveOrder("G", "AAPL", "BUY", OrderType.LIMIT, TIF.GTC, 5, 5, 900, 0.0)
+        )
+        actions = _run(agent, _market(("AAPL",)), 20.0)
+        assert any(isinstance(a, NewOrder) for a in actions)
+
+
 class TestProtection:
     def _filled(self, preset: str, qty: int = 100) -> tuple[Agent, MarketState]:
         agent = _agent(preset)

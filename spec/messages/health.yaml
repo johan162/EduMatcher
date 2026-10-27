@@ -210,6 +210,8 @@ types:
     fields:
       - { name: symbol, type: string, validate: { max_len: 16 } }
       - { name: resting_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
+      - { name: gtc_orders, type: int, unit: dimensionless, validate: { ge: 0 },
+          doc: "Resting orders with TIF=GTC: the long orders that survive the close. A subset of resting_orders." }
       - { name: stop_orders, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: bid_levels, type: int, unit: dimensionless, validate: { ge: 0 } }
       - { name: ask_levels, type: int, unit: dimensionless, validate: { ge: 0 } }

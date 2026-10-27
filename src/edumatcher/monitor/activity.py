@@ -493,6 +493,7 @@ class Activity:
                 {
                     "symbol": symbol[:16],
                     "resting_orders": int(g.get("engine.book_resting_orders", 0)),
+                    "gtc_orders": int(g.get("engine.book_gtc_orders", 0)),
                     "stop_orders": int(g.get("engine.book_stop_orders", 0)),
                     "bid_levels": int(g.get("engine.book_bid_levels", 0)),
                     "ask_levels": int(g.get("engine.book_ask_levels", 0)),

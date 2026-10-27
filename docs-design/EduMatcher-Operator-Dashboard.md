@@ -541,6 +541,7 @@ not every beacon: all of it is O(number of books), none of it O(orders).
 |---|---|---|---|
 | `engine.books` | G | | `len(self.books)` |
 | `engine.book_resting_orders` | G | symbol | `len(book._order_index)` |
+| `engine.book_gtc_orders` | G | symbol | `book._gtc_count`, kept with `_orders_by_gateway`: resting orders with TIF=GTC, the ones that outlive the day |
 | `engine.book_stop_orders` | G | symbol | `len(_buy_stops) + len(_sell_stops) + len(_trailing_stops)` |
 | `engine.book_bid_levels` / `engine.book_ask_levels` | G | symbol | `len(_bid_qty)`, `len(_ask_qty)` |
 | `engine.book_heap_entries` | G | symbol | `len(_bids) + len(_asks)` — includes lazily-invalidated entries |
@@ -949,7 +950,7 @@ never re-derives a figure. Summary of the generated records:
 | `RateStats` | `today`, `per_sec_now`, `avg_per_min`, `avg_per_hour`, `avg_per_day` (null before a full day) — §9.4 |
 | `TradingStats` | `orders: RateStats`, `trades: RateStats`, `traded_value_today`, `reject_pct_5m`, `handle_p50_us`, `handle_p99_us`, `busy_pct` |
 | `ParticipantStats` | `id`, `role`, `connected`, `connected_since` (null), `orders: RateStats`, `reject_pct`, `fills_today`, `resting_orders`, `connects_today`, `disconnects_today`, `heartbeat_timeouts_today` |
-| `BookStats` | `symbol`, `resting_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_garbage_pct`, `trades_today`, `halted` |
+| `BookStats` | `symbol`, `resting_orders`, `gtc_orders`, `stop_orders`, `bid_levels`, `ask_levels`, `est_bytes`, `heap_garbage_pct`, `trades_today`, `halted` |
 | `GatewayStats` | `key`, `kind` (ALF/BALF/MD/RALF/DC/API/LOG), `clients`, `clients_max` (null), `msgs_per_sec`, `disconnects_today`, `slow_disconnects_today` |
 | `ActiveBreach` | `rule`, `subject`, `level` (WARN/CRIT), `value`, `threshold`, `since` |
 | `health.event` | `seq` (= `metrics.db` `events.seq`), `ts`, `kind` (§9.2 kinds + PROCESS_STATUS/THRESHOLD), `severity` (INFO/WARN/CRIT), `subject`, `detail` |

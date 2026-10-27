@@ -50,6 +50,9 @@ class ExecutionSpec:
     #: Child style of a twap parent: passive or marketable.
     child_style: str = "passive"
     tif: str = "DAY"  # DAY | GTC for resting orders
+    #: Share of resting orders sent GTC whatever ``tif`` says: the few that
+    #: outlive the day. The agent keeps at most one per symbol (Agent).
+    gtc_fraction: float = 0.0
     urgency_cross: float = 0.8
     #: Probability of taking part in a given call-phase decision.
     auction_participation: float = 0.5
@@ -179,6 +182,9 @@ class Executor:
         past the touch."""
         spec = self.spec
         tif = TIF(spec.tif)
+        rest_tif = tif
+        if spec.gtc_fraction > 0 and rng.random() < spec.gtc_fraction:
+            rest_tif = TIF.GTC
         buy = side == "BUY"
         touch = st.best_bid if buy else st.best_ask
         far = st.best_ask if buy else st.best_bid
@@ -219,14 +225,16 @@ class Executor:
                 st,
                 side,
                 OrderType.ICEBERG,
-                tif,
+                rest_tif,
                 qty,
                 price,
                 phase,
                 new_tag,
                 visible=visible,
             )
-        return self._finish(st, side, OrderType.LIMIT, tif, qty, price, phase, new_tag)
+        return self._finish(
+            st, side, OrderType.LIMIT, rest_tif, qty, price, phase, new_tag
+        )
 
     def _auction_order(
         self,

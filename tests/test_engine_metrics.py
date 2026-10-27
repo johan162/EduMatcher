@@ -803,6 +803,7 @@ def test_the_beacon_carries_every_metric_of_the_design(engine: Any) -> None:
         "engine.halted_symbols",
         "engine.gtc_flush_ms",
         "engine.book_resting_orders",
+        "engine.book_gtc_orders",
         "engine.book_stop_orders",
         "engine.book_bid_levels",
         "engine.book_ask_levels",
