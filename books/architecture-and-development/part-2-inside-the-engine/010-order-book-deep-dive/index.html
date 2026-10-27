@@ -9490,7 +9490,7 @@ auction (<code>both_resting</code>), whose follow-ups the engine runs after
 <tr>
 <td><code>last_trade_price</code></td>
 <td>every trade, continuous and auction</td>
-<td>stop and trailing-stop triggers, depth window centre, price collars, <code>trigger_stops</code> after an uncross</td>
+<td>stop and trailing-stop triggers, depth window centre, price collars, <code>run_stops</code> after an uncross</td>
 </tr>
 <tr>
 <td><code>last_buy_price</code></td>
@@ -10032,9 +10032,9 @@ without trading, and the book may become crossed. When the call phase ends,
    best bid against best ask at that one price, calling
    <code>book._apply_fill(..., both_resting=True)</code>.</li>
 <li><code>Engine._run_uncross</code> publishes the results and then calls
-   <code>book.trigger_stops(now)</code> — the public wrapper around <code>_check_stops</code> and
-   <code>_check_trailing_stops</code> — and processes each triggered stop with
-   <code>book.process()</code>.</li>
+   <code>book.run_stops(now)</code>: the same stop cascade <code>process()</code> runs after a
+   continuous trade (released stops queue FIFO behind the ones already
+   waiting), so stops fire in the same order after an auction print.</li>
 </ol>
 <p><code>both_resting=True</code> changes three things in <code>_apply_fill</code>: both orders'
 visible quantity is deducted from the level index (both were resting), the
@@ -10438,7 +10438,7 @@ in <code>_sweep</code>, or <code>order.order_type.value == "STOP"</code> in <cod
 <div class="admonition warning">
 <p class="admonition-title">Some methods mutate the book — never call them from a watch</p>
 <p><code>self._peek(...)</code> pops dead entries, <code>self._check_stops(...)</code> and
-<code>self.trigger_stops(...)</code> release stops, and <code>self._compact_heaps()</code>
+<code>self.run_stops(...)</code> release (and trade) stops, and <code>self._compact_heaps()</code>
 rebuilds heaps. Evaluating them in the debugger changes the state you are
 trying to observe. Read-only views (<code>snapshot()</code>, <code>depth_snapshot()</code>,
 <code>book_stats()</code>, <code>resting_orders()</code>, <code>get_order()</code>) are safe, and so is

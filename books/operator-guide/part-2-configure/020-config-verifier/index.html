@@ -2429,10 +2429,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-3-semantic-m001m031" class="md-nav__link">
+  <a href="#layer-3-semantic-m001m032" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 3 — Semantic (M001–M031)
+        Layer 3 — Semantic (M001–M032)
       
     </span>
   </a>
@@ -8447,7 +8447,7 @@ field, and both are conditions <code>pm-log-srv</code> refuses to start on:</p>
 <code>pull_port</code> equal to <code>pub_port</code>, is <code>M018</code>.</p>
 <p>See <a href="../../part-6-observe-and-recover/060-health-monitor/#configuration">Health Monitoring</a>
 for what these fields do.</p>
-<h3 id="layer-3-semantic-m001m031">Layer 3 — Semantic (<code>M001</code>–<code>M031</code>)<a class="headerlink" href="#layer-3-semantic-m001m031" title="Permanent link">&para;</a></h3>
+<h3 id="layer-3-semantic-m001m032">Layer 3 — Semantic (<code>M001</code>–<code>M032</code>)<a class="headerlink" href="#layer-3-semantic-m001m032" title="Permanent link">&para;</a></h3>
 <p><code>M014</code> is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <table>
@@ -8613,6 +8613,11 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <td><code>M031</code></td>
 <td>WARN</td>
 <td><code>monitor.bind_address</code> is neither a wildcard nor <code>monitor.host</code> (loopback on both sides counts as a match): every process sends its beacons to <code>host</code>, where pm-monitor may not be listening. A warning because <code>EDUMATCHER_GATEWAY_BIND_HOST</code> overrides the bind address at run time</td>
+</tr>
+<tr>
+<td><code>M032</code></td>
+<td>WARN</td>
+<td>No read-only API credential (<code>gateway_id: null</code>) under <code>api_gateways</code>: pm-dash has no session schedule, terminal-gui no history and book-gui no data</td>
 </tr>
 </tbody>
 </table>

@@ -7691,6 +7691,15 @@ at <code>/data</code>: <code>~/.edumatcher-sim/data</code> for an installed simu
 </table>
 <p>A backup taken while the exchange runs can catch a database mid-write; stop
 it first.</p>
+<p>The first start also builds <code>data/companies.db</code>: made-up company profiles for
+the 300 tickers (name, industry, CEO, founder story, financials, P/E, …). Look
+them up with <code>./edumatcher.sh shell pm-compdb-cli show AAPL</code>, or list and
+filter them with <code>pm-compdb-cli list</code>. It is built only when missing, so
+companies you add survive restarts; delete it to get the bundled set back.
+The reference manual's
+<a href="../../../reference-manual/part-1-command-line/010-processes-environment-and-ports/#pm-compdb-cli-company-database-cli">pm-compdb-cli</a>
+section explains where the source files are and when the entrypoint builds the
+database.</p>
 <h3 id="the-commands-you-will-use">The commands you will use<a class="headerlink" href="#the-commands-you-will-use" title="Permanent link">&para;</a></h3>
 <p>From the install directory (<code>cd ~/.edumatcher-sim</code>):</p>
 <table>

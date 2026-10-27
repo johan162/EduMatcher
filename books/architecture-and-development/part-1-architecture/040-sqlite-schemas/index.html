@@ -5558,15 +5558,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#log-ui-acksdb" class="md-nav__link">
+  <a href="#companiesdb" class="md-nav__link">
     <span class="md-ellipsis">
       
-        log-ui-acks.db
+        companies.db
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="log-ui-acks.db">
+    <nav class="md-nav" aria-label="companies.db">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -5582,6 +5582,84 @@
         
           <li class="md-nav__item">
   <a href="#ddl_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DDL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DDL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#table-companies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        table companies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-company_view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        view company_view
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#index-companies_sector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        index companies_sector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#log-ui-acksdb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log-ui-acks.db
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="log-ui-acks.db">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fields_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ddl_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         DDL
@@ -5648,7 +5726,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fields_6" class="md-nav__link">
+  <a href="#fields_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fields
@@ -5659,7 +5737,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ddl_6" class="md-nav__link">
+  <a href="#ddl_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         DDL
@@ -5858,7 +5936,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fields_7" class="md-nav__link">
+  <a href="#fields_8" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fields
@@ -5869,7 +5947,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ddl_7" class="md-nav__link">
+  <a href="#ddl_8" class="md-nav__link">
     <span class="md-ellipsis">
       
         DDL
@@ -11365,11 +11443,598 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <h4 id="index-value_jumps_ts"><code>index value_jumps_ts</code><a class="headerlink" href="#index-value_jumps_ts" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">value_jumps_ts</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">value_jumps</span><span class="p">(</span><span class="n">ts_ns</span><span class="p">)</span>
 </code></pre></div>
+<h2 id="companiesdb"><code>companies.db</code><a class="headerlink" href="#companiesdb" title="Permanent link">&para;</a></h2>
+<p><strong>Owner:</strong> pm-compdb-cli<br />
+<strong>Purpose:</strong> Made-up company profiles of the simulated market's tickers.<br />
+<strong>Schema source:</strong> <code>src/edumatcher/compdb/store.py</code></p>
+<h3 id="fields_5">Fields<a class="headerlink" href="#fields_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Field</th>
+<th>Declared type</th>
+<th>Not null</th>
+<th>Default</th>
+<th>Primary key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>symbol</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>name</code></td>
+<td><code>TEXT</code></td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>sector</code></td>
+<td><code>TEXT</code></td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>industry</code></td>
+<td><code>TEXT</code></td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>headquarters</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>purpose</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>key_market</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>market_position</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>origin</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>founders</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>founder_story</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>founded_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>ipo_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>ipo_valuation_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>ceo_name</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>ceo_since</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>ceo_industry_years</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>employees</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>fiscal_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>revenue_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>net_income_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>revenue_growth_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>operating_margin_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>free_cash_flow_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>market_cap_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>dividend_yield_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>debt_to_equity</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>credit_rating</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>competitors</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: companies</code></td>
+<td><code>key_risk</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>symbol</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>name</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>sector</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>industry</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>headquarters</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>purpose</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>key_market</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>market_position</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>origin</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>founders</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>founder_story</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>founded_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ipo_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ipo_valuation_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ceo_name</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ceo_since</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ceo_industry_years</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>employees</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>fiscal_year</code></td>
+<td><code>INTEGER</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>revenue_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>net_income_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>revenue_growth_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>operating_margin_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>free_cash_flow_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>market_cap_musd</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>dividend_yield_pct</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>debt_to_equity</code></td>
+<td><code>REAL</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>credit_rating</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>competitors</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>key_risk</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>years_in_business</code></td>
+<td><code>BLOB</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ceo_tenure_years</code></td>
+<td><code>BLOB</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>pe_ratio</code></td>
+<td><code>BLOB</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>ps_ratio</code></td>
+<td><code>BLOB</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>view: company_view</code></td>
+<td><code>net_margin_pct</code></td>
+<td><code>BLOB</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ddl_5">DDL<a class="headerlink" href="#ddl_5" title="Permanent link">&para;</a></h3>
+<h4 id="table-companies"><code>table companies</code><a class="headerlink" href="#table-companies" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">companies</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a><span class="w">    </span><span class="n">symbol</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a><span class="w">    </span><span class="n">name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a><span class="w">    </span><span class="n">sector</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a><span class="w">    </span><span class="n">industry</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a><span class="w">    </span><span class="n">headquarters</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a><span class="w">    </span><span class="n">purpose</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a><span class="w">    </span><span class="n">key_market</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-9" name="__codelineno-61-9" href="#__codelineno-61-9"></a><span class="w">    </span><span class="n">market_position</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-10" name="__codelineno-61-10" href="#__codelineno-61-10"></a><span class="w">    </span><span class="n">origin</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-11" name="__codelineno-61-11" href="#__codelineno-61-11"></a><span class="w">    </span><span class="n">founders</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-12" name="__codelineno-61-12" href="#__codelineno-61-12"></a><span class="w">    </span><span class="n">founder_story</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-13" name="__codelineno-61-13" href="#__codelineno-61-13"></a><span class="w">    </span><span class="n">founded_year</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-14" name="__codelineno-61-14" href="#__codelineno-61-14"></a><span class="w">    </span><span class="n">ipo_year</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-15" name="__codelineno-61-15" href="#__codelineno-61-15"></a><span class="w">    </span><span class="n">ipo_valuation_musd</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-16" name="__codelineno-61-16" href="#__codelineno-61-16"></a><span class="w">    </span><span class="n">ceo_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-17" name="__codelineno-61-17" href="#__codelineno-61-17"></a><span class="w">    </span><span class="n">ceo_since</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-18" name="__codelineno-61-18" href="#__codelineno-61-18"></a><span class="w">    </span><span class="n">ceo_industry_years</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-19" name="__codelineno-61-19" href="#__codelineno-61-19"></a><span class="w">    </span><span class="n">employees</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-20" name="__codelineno-61-20" href="#__codelineno-61-20"></a><span class="w">    </span><span class="n">fiscal_year</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-61-21" name="__codelineno-61-21" href="#__codelineno-61-21"></a><span class="w">    </span><span class="n">revenue_musd</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-22" name="__codelineno-61-22" href="#__codelineno-61-22"></a><span class="w">    </span><span class="n">net_income_musd</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-23" name="__codelineno-61-23" href="#__codelineno-61-23"></a><span class="w">    </span><span class="n">revenue_growth_pct</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-24" name="__codelineno-61-24" href="#__codelineno-61-24"></a><span class="w">    </span><span class="n">operating_margin_pct</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-25" name="__codelineno-61-25" href="#__codelineno-61-25"></a><span class="w">    </span><span class="n">free_cash_flow_musd</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-26" name="__codelineno-61-26" href="#__codelineno-61-26"></a><span class="w">    </span><span class="n">market_cap_musd</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-27" name="__codelineno-61-27" href="#__codelineno-61-27"></a><span class="w">    </span><span class="n">dividend_yield_pct</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-28" name="__codelineno-61-28" href="#__codelineno-61-28"></a><span class="w">    </span><span class="n">debt_to_equity</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+<a id="__codelineno-61-29" name="__codelineno-61-29" href="#__codelineno-61-29"></a><span class="w">    </span><span class="n">credit_rating</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-30" name="__codelineno-61-30" href="#__codelineno-61-30"></a><span class="w">    </span><span class="n">competitors</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-61-31" name="__codelineno-61-31" href="#__codelineno-61-31"></a><span class="w">    </span><span class="n">key_risk</span><span class="w"> </span><span class="nb">TEXT</span>
+<a id="__codelineno-61-32" name="__codelineno-61-32" href="#__codelineno-61-32"></a><span class="p">)</span>
+</code></pre></div>
+<h4 id="view-company_view"><code>view company_view</code><a class="headerlink" href="#view-company_view" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">company_view</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a><span class="w">    </span><span class="k">CAST</span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y'</span><span class="p">,</span><span class="w"> </span><span class="s1">'now'</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">founded_year</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">years_in_business</span><span class="p">,</span>
+<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a><span class="w">    </span><span class="k">CAST</span><span class="p">(</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y'</span><span class="p">,</span><span class="w"> </span><span class="s1">'now'</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">ceo_since</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ceo_tenure_years</span><span class="p">,</span>
+<a id="__codelineno-62-5" name="__codelineno-62-5" href="#__codelineno-62-5"></a><span class="w">    </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">net_income_musd</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">ROUND</span><span class="p">(</span><span class="n">market_cap_musd</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">net_income_musd</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">END</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">pe_ratio</span><span class="p">,</span>
+<a id="__codelineno-62-6" name="__codelineno-62-6" href="#__codelineno-62-6"></a><span class="w">    </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">revenue_musd</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">ROUND</span><span class="p">(</span><span class="n">market_cap_musd</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">revenue_musd</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">END</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">ps_ratio</span><span class="p">,</span>
+<a id="__codelineno-62-7" name="__codelineno-62-7" href="#__codelineno-62-7"></a><span class="w">    </span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">revenue_musd</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="n">ROUND</span><span class="p">(</span><span class="mi">100</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">net_income_musd</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">revenue_musd</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">END</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">net_margin_pct</span>
+<a id="__codelineno-62-8" name="__codelineno-62-8" href="#__codelineno-62-8"></a><span class="k">FROM</span><span class="w"> </span><span class="n">companies</span>
+</code></pre></div>
+<h4 id="index-companies_sector"><code>index companies_sector</code><a class="headerlink" href="#index-companies_sector" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">companies_sector</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">companies</span><span class="p">(</span><span class="n">sector</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="log-ui-acksdb"><code>log-ui-acks.db</code><a class="headerlink" href="#log-ui-acksdb" title="Permanent link">&para;</a></h2>
 <p><strong>Owner:</strong> Log GUI bridge<br />
 <strong>Purpose:</strong> Operator issue acknowledgements and acknowledgement history.<br />
 <strong>Schema source:</strong> <code>web-apps/log-gui/apps/bridge/src/schema.sql</code></p>
-<h3 id="fields_5">Fields<a class="headerlink" href="#fields_5" title="Permanent link">&para;</a></h3>
+<h3 id="fields_6">Fields<a class="headerlink" href="#fields_6" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -11504,38 +12169,38 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="ddl_5">DDL<a class="headerlink" href="#ddl_5" title="Permanent link">&para;</a></h3>
+<h3 id="ddl_6">DDL<a class="headerlink" href="#ddl_6" title="Permanent link">&para;</a></h3>
 <h4 id="table-ack_history"><code>table ack_history</code><a class="headerlink" href="#table-ack_history" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">ack_history</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a><span class="w">    </span><span class="n">id</span><span class="w">           </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
-<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a><span class="w">    </span><span class="n">fingerprint</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a><span class="w">    </span><span class="n">action</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a><span class="w">    </span><span class="k">at</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a><span class="w">    </span><span class="k">by</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a><span class="w">    </span><span class="n">note</span><span class="w">         </span><span class="nb">TEXT</span>
-<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">ack_history</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">    </span><span class="n">id</span><span class="w">           </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<a id="__codelineno-64-3" name="__codelineno-64-3" href="#__codelineno-64-3"></a><span class="w">    </span><span class="n">fingerprint</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-64-4" name="__codelineno-64-4" href="#__codelineno-64-4"></a><span class="w">    </span><span class="n">action</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-64-5" name="__codelineno-64-5" href="#__codelineno-64-5"></a><span class="w">    </span><span class="k">at</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-64-6" name="__codelineno-64-6" href="#__codelineno-64-6"></a><span class="w">    </span><span class="k">by</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-64-7" name="__codelineno-64-7" href="#__codelineno-64-7"></a><span class="w">    </span><span class="n">note</span><span class="w">         </span><span class="nb">TEXT</span>
+<a id="__codelineno-64-8" name="__codelineno-64-8" href="#__codelineno-64-8"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-issue_acks"><code>table issue_acks</code><a class="headerlink" href="#table-issue_acks" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">issue_acks</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a><span class="w">    </span><span class="n">fingerprint</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a><span class="w">    </span><span class="n">acked_at</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a><span class="w">    </span><span class="n">acked_by</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-5" name="__codelineno-62-5" href="#__codelineno-62-5"></a><span class="w">    </span><span class="n">note</span><span class="w">               </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-62-6" name="__codelineno-62-6" href="#__codelineno-62-6"></a><span class="w">    </span><span class="n">acked_through_seq</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-7" name="__codelineno-62-7" href="#__codelineno-62-7"></a><span class="w">    </span><span class="k">level</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-8" name="__codelineno-62-8" href="#__codelineno-62-8"></a><span class="w">    </span><span class="n">process</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-9" name="__codelineno-62-9" href="#__codelineno-62-9"></a><span class="w">    </span><span class="n">logger</span><span class="w">             </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-62-10" name="__codelineno-62-10" href="#__codelineno-62-10"></a><span class="w">    </span><span class="n">sample_message</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
-<a id="__codelineno-62-11" name="__codelineno-62-11" href="#__codelineno-62-11"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">issue_acks</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a><span class="w">    </span><span class="n">fingerprint</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a><span class="w">    </span><span class="n">acked_at</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a><span class="w">    </span><span class="n">acked_by</span><span class="w">           </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-5" name="__codelineno-65-5" href="#__codelineno-65-5"></a><span class="w">    </span><span class="n">note</span><span class="w">               </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-65-6" name="__codelineno-65-6" href="#__codelineno-65-6"></a><span class="w">    </span><span class="n">acked_through_seq</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-7" name="__codelineno-65-7" href="#__codelineno-65-7"></a><span class="w">    </span><span class="k">level</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-8" name="__codelineno-65-8" href="#__codelineno-65-8"></a><span class="w">    </span><span class="n">process</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-9" name="__codelineno-65-9" href="#__codelineno-65-9"></a><span class="w">    </span><span class="n">logger</span><span class="w">             </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-65-10" name="__codelineno-65-10" href="#__codelineno-65-10"></a><span class="w">    </span><span class="n">sample_message</span><span class="w">     </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-65-11" name="__codelineno-65-11" href="#__codelineno-65-11"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_acks_at"><code>index idx_acks_at</code><a class="headerlink" href="#index-idx_acks_at" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_acks_at</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">issue_acks</span><span class="p">(</span><span class="n">acked_at</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_acks_at</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">issue_acks</span><span class="p">(</span><span class="n">acked_at</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="audit_indexdb"><code>audit_index.db</code><a class="headerlink" href="#audit_indexdb" title="Permanent link">&para;</a></h2>
 <p><strong>Owner:</strong> pm-audit-cli<br />
 <strong>Purpose:</strong> Rebuildable query index over the rotating audit log.<br />
 <strong>Schema source:</strong> <code>src/edumatcher/audit/indexer.py</code></p>
-<h3 id="fields_6">Fields<a class="headerlink" href="#fields_6" title="Permanent link">&para;</a></h3>
+<h3 id="fields_7">Fields<a class="headerlink" href="#fields_7" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -11670,74 +12335,74 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="ddl_6">DDL<a class="headerlink" href="#ddl_6" title="Permanent link">&para;</a></h3>
+<h3 id="ddl_7">DDL<a class="headerlink" href="#ddl_7" title="Permanent link">&para;</a></h3>
 <h4 id="table-audit_events"><code>table audit_events</code><a class="headerlink" href="#table-audit_events" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">audit_events</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">    </span><span class="n">id</span><span class="w">          </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
-<a id="__codelineno-64-3" name="__codelineno-64-3" href="#__codelineno-64-3"></a><span class="w">    </span><span class="k">timestamp</span><span class="w">   </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-64-4" name="__codelineno-64-4" href="#__codelineno-64-4"></a><span class="w">    </span><span class="n">topic</span><span class="w">       </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-64-5" name="__codelineno-64-5" href="#__codelineno-64-5"></a><span class="w">    </span><span class="n">payload</span><span class="w">     </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-64-6" name="__codelineno-64-6" href="#__codelineno-64-6"></a><span class="w">    </span><span class="n">gateway_id</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-7" name="__codelineno-64-7" href="#__codelineno-64-7"></a><span class="w">    </span><span class="n">symbol</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-8" name="__codelineno-64-8" href="#__codelineno-64-8"></a><span class="w">    </span><span class="n">order_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-9" name="__codelineno-64-9" href="#__codelineno-64-9"></a><span class="w">    </span><span class="n">trade_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-10" name="__codelineno-64-10" href="#__codelineno-64-10"></a><span class="w">    </span><span class="n">event_type</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-11" name="__codelineno-64-11" href="#__codelineno-64-11"></a><span class="w">    </span><span class="n">seq</span><span class="w">            </span><span class="nb">INTEGER</span><span class="p">,</span>
-<a id="__codelineno-64-12" name="__codelineno-64-12" href="#__codelineno-64-12"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-13" name="__codelineno-64-13" href="#__codelineno-64-13"></a><span class="w">    </span><span class="n">causation_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-64-14" name="__codelineno-64-14" href="#__codelineno-64-14"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w"> </span><span class="nb">TEXT</span>
-<a id="__codelineno-64-15" name="__codelineno-64-15" href="#__codelineno-64-15"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">audit_events</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a><span class="w">    </span><span class="n">id</span><span class="w">          </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<a id="__codelineno-67-3" name="__codelineno-67-3" href="#__codelineno-67-3"></a><span class="w">    </span><span class="k">timestamp</span><span class="w">   </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-67-4" name="__codelineno-67-4" href="#__codelineno-67-4"></a><span class="w">    </span><span class="n">topic</span><span class="w">       </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-67-5" name="__codelineno-67-5" href="#__codelineno-67-5"></a><span class="w">    </span><span class="n">payload</span><span class="w">     </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-67-6" name="__codelineno-67-6" href="#__codelineno-67-6"></a><span class="w">    </span><span class="n">gateway_id</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-7" name="__codelineno-67-7" href="#__codelineno-67-7"></a><span class="w">    </span><span class="n">symbol</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-8" name="__codelineno-67-8" href="#__codelineno-67-8"></a><span class="w">    </span><span class="n">order_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-9" name="__codelineno-67-9" href="#__codelineno-67-9"></a><span class="w">    </span><span class="n">trade_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-10" name="__codelineno-67-10" href="#__codelineno-67-10"></a><span class="w">    </span><span class="n">event_type</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-11" name="__codelineno-67-11" href="#__codelineno-67-11"></a><span class="w">    </span><span class="n">seq</span><span class="w">            </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-67-12" name="__codelineno-67-12" href="#__codelineno-67-12"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-13" name="__codelineno-67-13" href="#__codelineno-67-13"></a><span class="w">    </span><span class="n">causation_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-67-14" name="__codelineno-67-14" href="#__codelineno-67-14"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w"> </span><span class="nb">TEXT</span>
+<a id="__codelineno-67-15" name="__codelineno-67-15" href="#__codelineno-67-15"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-index_meta"><code>table index_meta</code><a class="headerlink" href="#table-index_meta" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">index_meta</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a><span class="w">    </span><span class="k">key</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a><span class="w">    </span><span class="n">value</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
-<a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">index_meta</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a><span class="w">    </span><span class="k">key</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-68-3" name="__codelineno-68-3" href="#__codelineno-68-3"></a><span class="w">    </span><span class="n">value</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-68-4" name="__codelineno-68-4" href="#__codelineno-68-4"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_causation"><code>index idx_causation</code><a class="headerlink" href="#index-idx_causation" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_causation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">causation_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_causation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">causation_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_chain"><code>index idx_chain</code><a class="headerlink" href="#index-idx_chain" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_chain</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_chain</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_event_type"><code>index idx_event_type</code><a class="headerlink" href="#index-idx_event_type" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_event_type</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">event_type</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_event_type</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">event_type</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_gateway"><code>index idx_gateway</code><a class="headerlink" href="#index-idx_gateway" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_gateway</span><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_gateway</span><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_gw_ts"><code>index idx_gw_ts</code><a class="headerlink" href="#index-idx_gw_ts" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_gw_ts</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_gw_ts</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">gateway_id</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_msg_id"><code>index idx_msg_id</code><a class="headerlink" href="#index-idx_msg_id" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_msg_id</span><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">msg_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_msg_id</span><span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">msg_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_order"><code>index idx_order</code><a class="headerlink" href="#index-idx_order" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_order</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_order</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_sym_ts"><code>index idx_sym_ts</code><a class="headerlink" href="#index-idx_sym_ts" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_sym_ts</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_sym_ts</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_symbol"><code>index idx_symbol</code><a class="headerlink" href="#index-idx_symbol" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_symbol</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_symbol</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_timestamp"><code>index idx_timestamp</code><a class="headerlink" href="#index-idx_timestamp" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_timestamp</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="k">timestamp</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-78-1" name="__codelineno-78-1" href="#__codelineno-78-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_timestamp</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="k">timestamp</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_topic"><code>index idx_topic</code><a class="headerlink" href="#index-idx_topic" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_topic</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">topic</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_topic</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">topic</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_topic_ts"><code>index idx_topic_ts</code><a class="headerlink" href="#index-idx_topic_ts" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_topic_ts</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_topic_ts</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">topic</span><span class="p">,</span><span class="w"> </span><span class="k">timestamp</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_trade"><code>index idx_trade</code><a class="headerlink" href="#index-idx_trade" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-78-1" name="__codelineno-78-1" href="#__codelineno-78-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_trade</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">trade_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_trade</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">audit_events</span><span class="p">(</span><span class="n">trade_id</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="audit_replaydb"><code>audit_replay.db</code><a class="headerlink" href="#audit_replaydb" title="Permanent link">&para;</a></h2>
 <p><strong>Owner:</strong> pm-audit-replay<br />
 <strong>Purpose:</strong> Rebuildable episode, event, causal-link, anomaly, and actor index.<br />
 <strong>Schema source:</strong> <code>src/edumatcher/audit/replay/index.py</code></p>
-<h3 id="fields_7">Fields<a class="headerlink" href="#fields_7" title="Permanent link">&para;</a></h3>
+<h3 id="fields_8">Fields<a class="headerlink" href="#fields_8" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -12216,131 +12881,131 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="ddl_7">DDL<a class="headerlink" href="#ddl_7" title="Permanent link">&para;</a></h3>
+<h3 id="ddl_8">DDL<a class="headerlink" href="#ddl_8" title="Permanent link">&para;</a></h3>
 <h4 id="table-actors"><code>table actors</code><a class="headerlink" href="#table-actors" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">actors</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="w">    </span><span class="n">gateway_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a><span class="w">    </span><span class="n">description</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a><span class="w">    </span><span class="n">first_seen</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a><span class="w">    </span><span class="n">last_seen</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a><span class="w">    </span><span class="n">orders</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a><span class="w">    </span><span class="n">trades</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span>
-<a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">actors</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a><span class="w">    </span><span class="n">gateway_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a><span class="w">    </span><span class="n">description</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-82-4" name="__codelineno-82-4" href="#__codelineno-82-4"></a><span class="w">    </span><span class="n">first_seen</span><span class="w">   </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-82-5" name="__codelineno-82-5" href="#__codelineno-82-5"></a><span class="w">    </span><span class="n">last_seen</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-82-6" name="__codelineno-82-6" href="#__codelineno-82-6"></a><span class="w">    </span><span class="n">orders</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-82-7" name="__codelineno-82-7" href="#__codelineno-82-7"></a><span class="w">    </span><span class="n">trades</span><span class="w">       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-82-8" name="__codelineno-82-8" href="#__codelineno-82-8"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-anomalies"><code>table anomalies</code><a class="headerlink" href="#table-anomalies" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">anomalies</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a><span class="w">    </span><span class="n">anomaly_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-80-3" name="__codelineno-80-3" href="#__codelineno-80-3"></a><span class="w">    </span><span class="n">code</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-80-4" name="__codelineno-80-4" href="#__codelineno-80-4"></a><span class="w">    </span><span class="n">severity</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-80-5" name="__codelineno-80-5" href="#__codelineno-80-5"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
-<a id="__codelineno-80-6" name="__codelineno-80-6" href="#__codelineno-80-6"></a><span class="w">    </span><span class="n">sort_key</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-80-7" name="__codelineno-80-7" href="#__codelineno-80-7"></a><span class="w">    </span><span class="n">receipt_ts</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-80-8" name="__codelineno-80-8" href="#__codelineno-80-8"></a><span class="w">    </span><span class="n">detail</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-80-9" name="__codelineno-80-9" href="#__codelineno-80-9"></a><span class="w">    </span><span class="n">file</span><span class="w">        </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-80-10" name="__codelineno-80-10" href="#__codelineno-80-10"></a><span class="w">    </span><span class="n">line_no</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span>
-<a id="__codelineno-80-11" name="__codelineno-80-11" href="#__codelineno-80-11"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">anomalies</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="w">    </span><span class="n">anomaly_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a><span class="w">    </span><span class="n">code</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="w">    </span><span class="n">severity</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
+<a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a><span class="w">    </span><span class="n">sort_key</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a><span class="w">    </span><span class="n">receipt_ts</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-83-8" name="__codelineno-83-8" href="#__codelineno-83-8"></a><span class="w">    </span><span class="n">detail</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-83-9" name="__codelineno-83-9" href="#__codelineno-83-9"></a><span class="w">    </span><span class="n">file</span><span class="w">        </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-83-10" name="__codelineno-83-10" href="#__codelineno-83-10"></a><span class="w">    </span><span class="n">line_no</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-83-11" name="__codelineno-83-11" href="#__codelineno-83-11"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-episode_events"><code>table episode_events</code><a class="headerlink" href="#table-episode_events" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">episode_events</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
-<a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a><span class="w">    </span><span class="n">seq_in_ep</span><span class="w">   </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a><span class="w">    </span><span class="k">ref</span><span class="w">         </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a><span class="w">    </span><span class="n">sort_key</span><span class="w">    </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a><span class="w">    </span><span class="n">receipt_ts</span><span class="w">  </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a><span class="w">    </span><span class="n">topic</span><span class="w">       </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a><span class="w">    </span><span class="n">kind</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a><span class="w">    </span><span class="n">file</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a><span class="w">    </span><span class="n">line_no</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a><span class="w">    </span><span class="k">role</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-12" name="__codelineno-81-12" href="#__codelineno-81-12"></a><span class="w">    </span><span class="n">late</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-81-13" name="__codelineno-81-13" href="#__codelineno-81-13"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-81-14" name="__codelineno-81-14" href="#__codelineno-81-14"></a><span class="w">    </span><span class="n">causation_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-81-15" name="__codelineno-81-15" href="#__codelineno-81-15"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-81-16" name="__codelineno-81-16" href="#__codelineno-81-16"></a><span class="w">    </span><span class="n">topic_seq</span><span class="w">      </span><span class="nb">INTEGER</span><span class="p">,</span>
-<a id="__codelineno-81-17" name="__codelineno-81-17" href="#__codelineno-81-17"></a><span class="w">    </span><span class="n">payload</span><span class="w">     </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-81-18" name="__codelineno-81-18" href="#__codelineno-81-18"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">episode_id</span><span class="p">,</span><span class="w"> </span><span class="n">seq_in_ep</span><span class="p">)</span>
-<a id="__codelineno-81-19" name="__codelineno-81-19" href="#__codelineno-81-19"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">episode_events</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
+<a id="__codelineno-84-3" name="__codelineno-84-3" href="#__codelineno-84-3"></a><span class="w">    </span><span class="n">seq_in_ep</span><span class="w">   </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-4" name="__codelineno-84-4" href="#__codelineno-84-4"></a><span class="w">    </span><span class="k">ref</span><span class="w">         </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-5" name="__codelineno-84-5" href="#__codelineno-84-5"></a><span class="w">    </span><span class="n">sort_key</span><span class="w">    </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-6" name="__codelineno-84-6" href="#__codelineno-84-6"></a><span class="w">    </span><span class="n">receipt_ts</span><span class="w">  </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-7" name="__codelineno-84-7" href="#__codelineno-84-7"></a><span class="w">    </span><span class="n">topic</span><span class="w">       </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-8" name="__codelineno-84-8" href="#__codelineno-84-8"></a><span class="w">    </span><span class="n">kind</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-9" name="__codelineno-84-9" href="#__codelineno-84-9"></a><span class="w">    </span><span class="n">file</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-10" name="__codelineno-84-10" href="#__codelineno-84-10"></a><span class="w">    </span><span class="n">line_no</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-11" name="__codelineno-84-11" href="#__codelineno-84-11"></a><span class="w">    </span><span class="k">role</span><span class="w">        </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-12" name="__codelineno-84-12" href="#__codelineno-84-12"></a><span class="w">    </span><span class="n">late</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-84-13" name="__codelineno-84-13" href="#__codelineno-84-13"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-84-14" name="__codelineno-84-14" href="#__codelineno-84-14"></a><span class="w">    </span><span class="n">causation_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-84-15" name="__codelineno-84-15" href="#__codelineno-84-15"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-84-16" name="__codelineno-84-16" href="#__codelineno-84-16"></a><span class="w">    </span><span class="n">topic_seq</span><span class="w">      </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-84-17" name="__codelineno-84-17" href="#__codelineno-84-17"></a><span class="w">    </span><span class="n">payload</span><span class="w">     </span><span class="nb">TEXT</span><span class="w">    </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-84-18" name="__codelineno-84-18" href="#__codelineno-84-18"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">episode_id</span><span class="p">,</span><span class="w"> </span><span class="n">seq_in_ep</span><span class="p">)</span>
+<a id="__codelineno-84-19" name="__codelineno-84-19" href="#__codelineno-84-19"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-episodes"><code>table episodes</code><a class="headerlink" href="#table-episodes" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">episodes</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">      </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a><span class="w">    </span><span class="n">kind</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-82-4" name="__codelineno-82-4" href="#__codelineno-82-4"></a><span class="w">    </span><span class="n">anchor_key</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-82-5" name="__codelineno-82-5" href="#__codelineno-82-5"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-6" name="__codelineno-82-6" href="#__codelineno-82-6"></a><span class="w">    </span><span class="n">root_msg_id</span><span class="w">     </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-7" name="__codelineno-82-7" href="#__codelineno-82-7"></a><span class="w">    </span><span class="n">run_seq</span><span class="w">         </span><span class="nb">INTEGER</span><span class="p">,</span>
-<a id="__codelineno-82-8" name="__codelineno-82-8" href="#__codelineno-82-8"></a><span class="w">    </span><span class="n">symbol</span><span class="w">          </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-9" name="__codelineno-82-9" href="#__codelineno-82-9"></a><span class="w">    </span><span class="n">actor</span><span class="w">           </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-10" name="__codelineno-82-10" href="#__codelineno-82-10"></a><span class="w">    </span><span class="n">opened_sort_key</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-82-11" name="__codelineno-82-11" href="#__codelineno-82-11"></a><span class="w">    </span><span class="n">closed_sort_key</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-12" name="__codelineno-82-12" href="#__codelineno-82-12"></a><span class="w">    </span><span class="n">opened_ts</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-82-13" name="__codelineno-82-13" href="#__codelineno-82-13"></a><span class="w">    </span><span class="n">closed_ts</span><span class="w">       </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-14" name="__codelineno-82-14" href="#__codelineno-82-14"></a><span class="w">    </span><span class="n">outcome</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-82-15" name="__codelineno-82-15" href="#__codelineno-82-15"></a><span class="w">    </span><span class="n">summary</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-82-16" name="__codelineno-82-16" href="#__codelineno-82-16"></a><span class="w">    </span><span class="n">facts_json</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
-<a id="__codelineno-82-17" name="__codelineno-82-17" href="#__codelineno-82-17"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">episodes</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="w">    </span><span class="n">episode_id</span><span class="w">      </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-85-3" name="__codelineno-85-3" href="#__codelineno-85-3"></a><span class="w">    </span><span class="n">kind</span><span class="w">            </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-85-4" name="__codelineno-85-4" href="#__codelineno-85-4"></a><span class="w">    </span><span class="n">anchor_key</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-85-5" name="__codelineno-85-5" href="#__codelineno-85-5"></a><span class="w">    </span><span class="n">correlation_id</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-6" name="__codelineno-85-6" href="#__codelineno-85-6"></a><span class="w">    </span><span class="n">root_msg_id</span><span class="w">     </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-7" name="__codelineno-85-7" href="#__codelineno-85-7"></a><span class="w">    </span><span class="n">run_seq</span><span class="w">         </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-85-8" name="__codelineno-85-8" href="#__codelineno-85-8"></a><span class="w">    </span><span class="n">symbol</span><span class="w">          </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-9" name="__codelineno-85-9" href="#__codelineno-85-9"></a><span class="w">    </span><span class="n">actor</span><span class="w">           </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-10" name="__codelineno-85-10" href="#__codelineno-85-10"></a><span class="w">    </span><span class="n">opened_sort_key</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-85-11" name="__codelineno-85-11" href="#__codelineno-85-11"></a><span class="w">    </span><span class="n">closed_sort_key</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-12" name="__codelineno-85-12" href="#__codelineno-85-12"></a><span class="w">    </span><span class="n">opened_ts</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-85-13" name="__codelineno-85-13" href="#__codelineno-85-13"></a><span class="w">    </span><span class="n">closed_ts</span><span class="w">       </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-14" name="__codelineno-85-14" href="#__codelineno-85-14"></a><span class="w">    </span><span class="n">outcome</span><span class="w">         </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-85-15" name="__codelineno-85-15" href="#__codelineno-85-15"></a><span class="w">    </span><span class="n">summary</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-85-16" name="__codelineno-85-16" href="#__codelineno-85-16"></a><span class="w">    </span><span class="n">facts_json</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-85-17" name="__codelineno-85-17" href="#__codelineno-85-17"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-links"><code>table links</code><a class="headerlink" href="#table-links" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">links</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="w">    </span><span class="n">from_episode</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
-<a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a><span class="w">    </span><span class="n">to_episode</span><span class="w">    </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
-<a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="w">    </span><span class="n">relation</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a><span class="w">    </span><span class="n">confidence</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a><span class="w">    </span><span class="n">evidence</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">from_episode</span><span class="p">,</span><span class="w"> </span><span class="n">to_episode</span><span class="p">,</span><span class="w"> </span><span class="n">relation</span><span class="p">)</span>
-<a id="__codelineno-83-8" name="__codelineno-83-8" href="#__codelineno-83-8"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">links</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-86-2" name="__codelineno-86-2" href="#__codelineno-86-2"></a><span class="w">    </span><span class="n">from_episode</span><span class="w">  </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
+<a id="__codelineno-86-3" name="__codelineno-86-3" href="#__codelineno-86-3"></a><span class="w">    </span><span class="n">to_episode</span><span class="w">    </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">episode_id</span><span class="p">),</span>
+<a id="__codelineno-86-4" name="__codelineno-86-4" href="#__codelineno-86-4"></a><span class="w">    </span><span class="n">relation</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-86-5" name="__codelineno-86-5" href="#__codelineno-86-5"></a><span class="w">    </span><span class="n">confidence</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-86-6" name="__codelineno-86-6" href="#__codelineno-86-6"></a><span class="w">    </span><span class="n">evidence</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-86-7" name="__codelineno-86-7" href="#__codelineno-86-7"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">from_episode</span><span class="p">,</span><span class="w"> </span><span class="n">to_episode</span><span class="p">,</span><span class="w"> </span><span class="n">relation</span><span class="p">)</span>
+<a id="__codelineno-86-8" name="__codelineno-86-8" href="#__codelineno-86-8"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-replay_meta"><code>table replay_meta</code><a class="headerlink" href="#table-replay_meta" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">replay_meta</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a><span class="w">    </span><span class="k">key</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
-<a id="__codelineno-84-3" name="__codelineno-84-3" href="#__codelineno-84-3"></a><span class="w">    </span><span class="n">value</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
-<a id="__codelineno-84-4" name="__codelineno-84-4" href="#__codelineno-84-4"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">replay_meta</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a><span class="w">    </span><span class="k">key</span><span class="w">         </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<a id="__codelineno-87-3" name="__codelineno-87-3" href="#__codelineno-87-3"></a><span class="w">    </span><span class="n">value</span><span class="w">       </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-stated_links"><code>table stated_links</code><a class="headerlink" href="#table-stated_links" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">stated_links</span><span class="w"> </span><span class="p">(</span>
-<a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="w">    </span><span class="n">from_ref</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-85-3" name="__codelineno-85-3" href="#__codelineno-85-3"></a><span class="w">    </span><span class="n">to_ref</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-85-4" name="__codelineno-85-4" href="#__codelineno-85-4"></a><span class="w">    </span><span class="n">relation</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-85-5" name="__codelineno-85-5" href="#__codelineno-85-5"></a><span class="w">    </span><span class="n">confidence</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-85-6" name="__codelineno-85-6" href="#__codelineno-85-6"></a><span class="w">    </span><span class="n">evidence</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-85-7" name="__codelineno-85-7" href="#__codelineno-85-7"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">from_ref</span><span class="p">,</span><span class="w"> </span><span class="n">to_ref</span><span class="p">,</span><span class="w"> </span><span class="n">relation</span><span class="p">)</span>
-<a id="__codelineno-85-8" name="__codelineno-85-8" href="#__codelineno-85-8"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">stated_links</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="w">    </span><span class="n">from_ref</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a><span class="w">    </span><span class="n">to_ref</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-88-4" name="__codelineno-88-4" href="#__codelineno-88-4"></a><span class="w">    </span><span class="n">relation</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-88-5" name="__codelineno-88-5" href="#__codelineno-88-5"></a><span class="w">    </span><span class="n">confidence</span><span class="w">  </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-88-6" name="__codelineno-88-6" href="#__codelineno-88-6"></a><span class="w">    </span><span class="n">evidence</span><span class="w">    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<a id="__codelineno-88-7" name="__codelineno-88-7" href="#__codelineno-88-7"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">from_ref</span><span class="p">,</span><span class="w"> </span><span class="n">to_ref</span><span class="p">,</span><span class="w"> </span><span class="n">relation</span><span class="p">)</span>
+<a id="__codelineno-88-8" name="__codelineno-88-8" href="#__codelineno-88-8"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_anom_code"><code>index idx_anom_code</code><a class="headerlink" href="#index-idx_anom_code" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_anom_code</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">anomalies</span><span class="p">(</span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">sort_key</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_anom_code</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">anomalies</span><span class="p">(</span><span class="n">code</span><span class="p">,</span><span class="w"> </span><span class="n">sort_key</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ee_cause"><code>index idx_ee_cause</code><a class="headerlink" href="#index-idx_ee_cause" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_cause</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">causation_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_cause</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">causation_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ee_chain"><code>index idx_ee_chain</code><a class="headerlink" href="#index-idx_ee_chain" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_chain</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_chain</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ee_msg"><code>index idx_ee_msg</code><a class="headerlink" href="#index-idx_ee_msg" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_msg</span><span class="w">        </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">msg_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_msg</span><span class="w">        </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">msg_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ee_ref"><code>index idx_ee_ref</code><a class="headerlink" href="#index-idx_ee_ref" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_ref</span><span class="w">        </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="k">ref</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_ref</span><span class="w">        </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="k">ref</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ee_sort"><code>index idx_ee_sort</code><a class="headerlink" href="#index-idx_ee_sort" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_sort</span><span class="w">       </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">sort_key</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ee_sort</span><span class="w">       </span><span class="k">ON</span><span class="w"> </span><span class="n">episode_events</span><span class="p">(</span><span class="n">sort_key</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ep_actor_ts"><code>index idx_ep_actor_ts</code><a class="headerlink" href="#index-idx_ep_actor_ts" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_actor_ts</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="n">opened_ts</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_actor_ts</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">actor</span><span class="p">,</span><span class="w"> </span><span class="n">opened_ts</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ep_chain"><code>index idx_ep_chain</code><a class="headerlink" href="#index-idx_ep_chain" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_chain</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_chain</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">correlation_id</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ep_kind_key"><code>index idx_ep_kind_key</code><a class="headerlink" href="#index-idx_ep_kind_key" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_kind_key</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">anchor_key</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_kind_key</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span><span class="w"> </span><span class="n">anchor_key</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ep_sort"><code>index idx_ep_sort</code><a class="headerlink" href="#index-idx_ep_sort" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_sort</span><span class="w">       </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">opened_sort_key</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-98-1" name="__codelineno-98-1" href="#__codelineno-98-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_sort</span><span class="w">       </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">opened_sort_key</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ep_symbol_ts"><code>index idx_ep_symbol_ts</code><a class="headerlink" href="#index-idx_ep_symbol_ts" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_symbol_ts</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="n">opened_ts</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-99-1" name="__codelineno-99-1" href="#__codelineno-99-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ep_symbol_ts</span><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">episodes</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="n">opened_ts</span><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_links_to"><code>index idx_links_to</code><a class="headerlink" href="#index-idx_links_to" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-97-1" name="__codelineno-97-1" href="#__codelineno-97-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_links_to</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">links</span><span class="p">(</span><span class="n">to_episode</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-100-1" name="__codelineno-100-1" href="#__codelineno-100-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_links_to</span><span class="w">      </span><span class="k">ON</span><span class="w"> </span><span class="n">links</span><span class="p">(</span><span class="n">to_episode</span><span class="p">)</span>
 </code></pre></div>
 
 

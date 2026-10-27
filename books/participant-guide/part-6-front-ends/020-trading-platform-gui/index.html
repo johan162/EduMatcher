@@ -8880,7 +8880,7 @@ at a time; <code>Escape</code> closes whichever is open.</p>
 <tr>
 <td><strong>Symbol Detail</strong></td>
 <td>Clicking a Market Overview / Watchlist row, or a command-palette symbol</td>
-<td>Chart, depth, tape, stats and auction for one symbol</td>
+<td>Chart, depth, tape, stats, auction and company profile for one symbol</td>
 </tr>
 <tr>
 <td><strong>Event Center</strong></td>
@@ -9033,7 +9033,7 @@ again on every reconnect); new ones arrive live.</p>
 <p>The screen shows the latest 50 matching headlines; the gateway keeps 200.</p>
 <h3 id="symbol-detail-overlay">Symbol Detail overlay<a class="headerlink" href="#symbol-detail-overlay" title="Permanent link">&para;</a></h3>
 <p>A 640 px right-edge panel with a live header (symbol, last, change %, volume)
-and five tabs. The Auction tab shows an amber dot while a call phase is
+and six tabs. The Auction tab shows an amber dot while a call phase is
 running.</p>
 <table>
 <thead>
@@ -9062,6 +9062,10 @@ running.</p>
 <tr>
 <td><strong>Auction</strong></td>
 <td>The engine's indicative uncross (or the most recent completed result): equilibrium price, matched quantity, imbalance side and quantity — plus a <strong>cumulative supply/demand curve</strong> derived from the resting book, with the equilibrium price marked.</td>
+</tr>
+<tr>
+<td><strong>Company</strong></td>
+<td>The company behind the symbol, from the venue's company database: its name (highlighted), sector, industry, headquarters and purpose, then <strong>Valuation</strong> (market cap, P/E, P/S, dividend yield, debt/equity, credit rating), <strong>Financials</strong> for the last fiscal year (revenue and its growth, net income, net and operating margin, free cash flow, in millions of USD), <strong>Position</strong> (key market, market position, competitors, key risk), <strong>Management</strong> (CEO and tenure, years in the industry, employees) and <strong>History</strong> (founded, IPO, origin, founder story). Without a company database the tab says so.</td>
 </tr>
 </tbody>
 </table>
@@ -10400,6 +10404,16 @@ language rather than failing:</p>
 <td>Auction tab</td>
 <td><em>"The engine has not published an indicative uncross for this symbol yet."</em></td>
 <td>Call phase just started</td>
+</tr>
+<tr>
+<td>Company tab</td>
+<td><em>"The company database is not available on this venue (pm-compdb-cli init builds it)."</em></td>
+<td>No <code>companies.db</code> where <code>pm-api-gwy</code> looks for it</td>
+</tr>
+<tr>
+<td>Company tab</td>
+<td><em>"No company profile for <code>{symbol}</code>."</em></td>
+<td>The company database has no row for this symbol</td>
 </tr>
 <tr>
 <td>Auction badge / panel</td>

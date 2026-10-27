@@ -7768,8 +7768,13 @@ books, even if the matching algorithm is perfectly correct.</p>
 <p>EduMatcher uses a <strong>hybrid</strong>: orders are generated once as a FIX text file (the
 single source of truth), then played through two separate execution paths:</p>
 <ol>
-<li><strong>Paper trader</strong> — calls <code>OrderBook.process()</code> directly in-process, no ZMQ,
-   no clocks, no GTC persistence.  This is the oracle.</li>
+<li><strong>Paper trader</strong> — runs the reference matcher (<code>tests/reference_matcher.py</code>)
+   in-process: no ZMQ, no clocks, no GTC persistence.  This is the oracle.
+   The reference is a second, deliberately naive implementation written from
+   the documented rules (plain lists re-scanned on every match, no heaps, no
+   indexes), so the comparison is a true re-simulation.  Until 2026-10 the
+   paper trader was <code>OrderBook</code> itself, which made the comparison blind to
+   any matching bug: both sides ran the same code.</li>
 <li><strong>Live engine</strong> — receives the same orders over ZMQ, runs the full production
    path, then exposes book state via a snapshot API.</li>
 </ol>
@@ -8009,21 +8014,23 @@ everything else — not <code>Order.create()</code>'s own UUID (more on this und
 <a href="#problem-1-order-ids-now-reproducible-by-design">Problem 1</a>).</p>
 <h3 id="the-paper-trader">The paper trader<a class="headerlink" href="#the-paper-trader" title="Permanent link">&para;</a></h3>
 <p>After writing both FIX files, the generator processes <strong>the same text</strong> through
-<code>OrderBook</code> instances — one per symbol — without any networking. Simplified,
-dropping the bookkeeping that tracks which orders are still resting (needed
-so an <code>AMEND</code>/<code>CANCEL</code> line can find its target):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">books</span> <span class="o">=</span> <span class="p">{</span><span class="n">sym</span><span class="p">:</span> <span class="n">OrderBook</span><span class="p">(</span><span class="n">sym</span><span class="p">)</span> <span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">SYMBOLS</span><span class="p">}</span>
+one <code>ReferenceMatcher</code> per symbol, without any networking. Simplified:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">books</span> <span class="o">=</span> <span class="p">{</span><span class="n">sym</span><span class="p">:</span> <span class="n">ReferenceMatcher</span><span class="p">()</span> <span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">SYMBOLS</span><span class="p">}</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">mm_lines</span> <span class="o">+</span> <span class="n">test_lines</span><span class="p">:</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">verb</span><span class="p">,</span> <span class="n">kv</span> <span class="o">=</span> <span class="n">parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="k">if</span> <span class="n">verb</span> <span class="o">==</span> <span class="s2">"NEW"</span><span class="p">:</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol_of</span><span class="p">(</span><span class="n">kv</span><span class="p">)]</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">parse_fix_line</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol_of</span><span class="p">(</span><span class="n">kv</span><span class="p">)]</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">reference_order</span><span class="p">(</span><span class="n">parse_fix_line</span><span class="p">(</span><span class="n">line</span><span class="p">)))</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="k">elif</span> <span class="n">verb</span> <span class="o">==</span> <span class="s2">"CANCEL"</span><span class="p">:</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span><span class="o">.</span><span class="n">cancel_order</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">])</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span><span class="o">.</span><span class="n">cancel</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">])</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="k">elif</span> <span class="n">verb</span> <span class="o">==</span> <span class="s2">"AMEND"</span><span class="p">:</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span><span class="o">.</span><span class="n">amend_order</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">],</span> <span class="n">new_price</span><span class="o">=...</span><span class="p">,</span> <span class="n">new_qty</span><span class="o">=...</span><span class="p">)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span><span class="o">.</span><span class="n">amend</span><span class="p">(</span><span class="n">kv</span><span class="p">[</span><span class="s2">"ID"</span><span class="p">],</span> <span class="n">price</span><span class="o">=...</span><span class="p">,</span> <span class="n">qty</span><span class="o">=...</span><span class="p">)</span>
 </code></pre></div>
-<p><code>OrderBook.process()</code>, <code>.cancel_order()</code>, and <code>.amend_order()</code> all return
-synchronously.  There are no sockets, no threads, no timers.  The result is
+<p>The reference's <code>amend</code> also re-matches a marketable amend, as
+<code>Engine._handle_amend</code> does (cancel/replace), so nothing of the engine's
+amend logic is copied into the paper trader.  <code>reference_snapshot()</code> reduces
+each book to the same price-level shape as the engine's snapshot (an iceberg
+counts its shown slice).</p>
+<p><code>submit()</code>, <code>cancel()</code> and <code>amend()</code> all return synchronously.  There are no sockets, no threads, no timers.  The result is
 deterministic for a given seed — generation and paper-trading happen in the
 <em>same</em> pass, because an amendment has to name an order that is resting at
 that exact point in the stream, and only the book being built knows which
@@ -8348,9 +8355,9 @@ safety net.</p>
 <p>An iceberg order has a <code>total_qty</code> and a <code>visible_qty</code>.  When the visible slice
 is fully consumed, the engine replenishes it from the hidden reserve.  The
 replenishment creates a <em>new</em> queue position for the refreshed slice.</p>
-<p>In the paper trader, this happens inline inside <code>book.process()</code>.  In the
-engine, it is triggered by the same <code>process()</code> call but may interact with
-subsequent orders differently if message timing varies.</p>
+<p>In the paper trader, the reference replenishes the peak inline when it is
+used up.  In the engine, <code>OrderBook.process()</code> does the same, but may interact
+with subsequent orders differently if message timing varies.</p>
 <p>The comparison aggregates total visible qty at each price level, not per-order
 qty.  As long as the total resting quantity at $419.03 is 450 in both cases, the
 iceberg's internal refresh state does not matter.</p>

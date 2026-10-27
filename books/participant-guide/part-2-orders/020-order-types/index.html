@@ -8985,7 +8985,8 @@ event in the execution stream.</p>
   execute one after another: triggered BUY stops first (lowest stop price
   first, then in arrival order), then SELL stops (highest stop price first,
   then in arrival order), then trailing stops in arrival order. Stops
-  triggered by <em>those</em> executions queue behind them and run in turn.</li>
+  triggered by <em>those</em> executions queue behind them and run in turn. The
+  same holds for the stops an auction's uncross print triggers.</li>
 </ul>
 <p><strong>Why does a BUY STOP trigger at a price <em>higher</em> than the stop?</strong></p>
 <p>It seems backwards — normally you want to buy <em>low</em>. The key is that a BUY

@@ -4522,6 +4522,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#get-apiv1companiessymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/companies/{symbol}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-apiv1session" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8434,6 +8445,11 @@ here.</p>
 <td>Return the latest market-sim headlines and sector map</td>
 </tr>
 <tr>
+<td><a href="#get-apiv1companiessymbol">GET /api/v1/companies/{symbol}</a></td>
+<td>Authenticated key</td>
+<td>Return one company profile from the company database</td>
+</tr>
+<tr>
 <td><a href="#get-apiv1session">GET /api/v1/session</a></td>
 <td>Trading key</td>
 <td>Return the current engine session state</td>
@@ -10586,6 +10602,70 @@ since this is public information, not a trading action.</p>
 <tr>
 <td><code>VALIDATION</code></td>
 <td><code>limit</code> outside <code>1</code>-<code>200</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1companiessymbol"><code>GET /api/v1/companies/{symbol}</code><a class="headerlink" href="#get-apiv1companiessymbol" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the company profile behind one symbol, from the company
+database <code>pm-compdb-cli init</code> builds (<code>companies.db</code> in the data directory).
+The gateway opens it read-only. Access: Authenticated key (read-only keys included) — the profiles
+are public information.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>path</td>
+<td>Yes</td>
+<td>Ticker, case-insensitive</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbol": "AAPL", "name": ..., "pe_ratio": ..., ... }</code></td>
+<td>Every column of <code>company_view</code>: the stored fields plus the derived <code>years_in_business</code>, <code>ceo_tenure_years</code>, <code>pe_ratio</code>, <code>ps_ratio</code> and <code>net_margin_pct</code>. Money is in millions of USD; a field the database has no value for is <code>null</code>. <code>pm-compdb-cli columns</code> lists them all.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_COMPANY</code></td>
+<td><code>404</code>: the database has no profile for <code>symbol</code></td>
+</tr>
+<tr>
+<td><code>COMPANY_DB_UNAVAILABLE</code></td>
+<td><code>503</code>: no <code>companies.db</code> in the data directory, or it cannot be read</td>
 </tr>
 </tbody>
 </table>

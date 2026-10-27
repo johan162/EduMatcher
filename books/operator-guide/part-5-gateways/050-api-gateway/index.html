@@ -10816,6 +10816,10 @@ MARKET_MAKER key for <code>/bootstrap/mm</code>; ADMIN role for <code>/bootstrap
 <td>The latest <code>limit</code> (1–200) headlines from <code>pm-market-sim</code>, oldest first, as <code>{"news": [...], "sectors": {"TECH": ["AAPL", …], …}}</code>. <code>sectors</code> (from the deployed <code>market_sim.yaml</code>) says which symbols a <code>SECTOR</code> headline is about. Empty without <code>pm-market-sim</code>; new headlines arrive on the market-data socket</td>
 </tr>
 <tr>
+<td><code>GET /api/v1/companies/{symbol}</code></td>
+<td>The symbol's company profile from <code>companies.db</code> (<code>pm-compdb-cli</code>), opened read-only from the data directory, where <code>pm-compdb-cli init</code> builds it. <code>404</code> for a symbol without one, <code>503</code> when the database is missing</td>
+</tr>
+<tr>
 <td><code>GET /api/v1/reference/indexes</code></td>
 <td>Index definitions</td>
 </tr>
