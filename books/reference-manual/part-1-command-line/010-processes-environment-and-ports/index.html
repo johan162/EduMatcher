@@ -9900,8 +9900,8 @@ or redirected the viewer behaves exactly as it always did.</p>
 </tbody>
 </table>
 <h2 id="pm-audit-event-logger">pm-audit - Event Logger<a class="headerlink" href="#pm-audit-event-logger" title="Permanent link">&para;</a></h2>
-<p>Records every message on the bus to a rotating log file.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-file-mb<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--backup-count<span class="w"> </span><span class="m">5</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<p>Records every message on the bus to a day-closing log file; closed days are compressed to one zstd archive each.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-file-mb<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--keep-days<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9936,12 +9936,12 @@ or redirected the viewer behaves exactly as it always did.</p>
 <tr>
 <td><code>--max-file-mb</code></td>
 <td>10</td>
-<td>Rotate the audit log when it reaches this size in MB</td>
+<td>Close the audit log as a day part when it reaches this size in MB</td>
 </tr>
 <tr>
-<td><code>--backup-count</code></td>
-<td>5</td>
-<td>Rotated audit log files to keep</td>
+<td><code>--keep-days</code></td>
+<td>0</td>
+<td>Delete daily archives older than N days (0 keeps all)</td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -10045,12 +10045,12 @@ changing the raw event log format.</p>
 <tr>
 <td><code>--log-file PATH</code></td>
 <td><code>data/audit.log</code></td>
-<td>Primary audit log file</td>
+<td>Primary audit log file; reads the live trail (unarchived day parts, then this file). An archive or day part named here is read alone</td>
 </tr>
 <tr>
 <td><code>--log-dir PATH</code></td>
 <td>directory of <code>--log-file</code></td>
-<td>Directory containing rotated log backups</td>
+<td>Directory holding the <code>audit/</code> day parts and archives</td>
 </tr>
 <tr>
 <td><code>--format</code></td>
@@ -10132,6 +10132,12 @@ changing the raw event log format.</p>
 <td style="text-align: right;">—</td>
 <td>Build or update the optional SQLite index for faster queries</td>
 <td><code>--output PATH</code></td>
+</tr>
+<tr>
+<td><code>archive</code></td>
+<td style="text-align: right;">—</td>
+<td>Compress closed days' parts into one verified <code>audit-D.log.zst</code> per day</td>
+<td><code>--date D</code> or <code>--pending</code>, <code>--level N</code> (default 9), <code>--keep-days N</code></td>
 </tr>
 <tr>
 <td><code>health</code></td>
@@ -11828,7 +11834,7 @@ an ADMIN participant. See
 <tbody>
 <tr>
 <td><code>inject</code></td>
-<td>Publish a headline; prints its ID. <code>--symbol</code> and <code>--sector</code> repeat; <code>--kind</code> is one of <code>EARNINGS</code>, <code>GUIDANCE</code>, <code>LEGAL</code>, <code>MACRO</code>, <code>MANAGEMENT</code>, <code>MNA</code>, <code>PRODUCT</code>, <code>REGULATORY</code>; <code>--sentiment</code> −1 to 1 is public; <code>--impact</code> (log move of the value when confirmed) is not</td>
+<td>Publish a headline; prints its ID. <code>--symbol</code> and <code>--sector</code> repeat; <code>--kind</code> is one of <code>CONTRACT</code>, <code>EARNINGS</code>, <code>ESG</code>, <code>GUIDANCE</code>, <code>LEGAL</code>, <code>MACRO</code>, <code>MANAGEMENT</code>, <code>MNA</code>, <code>OPERATIONS</code>, <code>PRODUCT</code>, <code>REGULATORY</code>, <code>RESEARCH</code>; <code>--sentiment</code> −1 to 1 is public; <code>--impact</code> (log move of the value when confirmed) is not</td>
 </tr>
 <tr>
 <td><code>confirm</code></td>

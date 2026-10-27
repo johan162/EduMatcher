@@ -7552,9 +7552,9 @@ accepts, which on this market is tens of millions of log lines a month.</p>
 <td>up to 30 days, then flat</td>
 </tr>
 <tr>
-<td><code>audit.log</code>, <code>audit.log.1</code>–<code>.5</code></td>
-<td>The audit trail, rotated at 10 MB</td>
-<td>capped at 60 MB</td>
+<td><code>audit.log</code>, <code>audit/</code></td>
+<td>The audit trail: today in <code>audit.log</code>, closed day parts and one zstd archive per past day in <code>audit/</code></td>
+<td>parts never deleted; archives forever unless <code>pm-audit --keep-days N</code></td>
 </tr>
 <tr>
 <td><code>stats.db</code></td>

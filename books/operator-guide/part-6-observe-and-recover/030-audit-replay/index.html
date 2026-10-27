@@ -8208,7 +8208,7 @@ contains nothing the tool inferred.</p>
 <tr>
 <td><code>--log-file PATH</code></td>
 <td><code>&lt;DATA_DIR&gt;/audit.log</code></td>
-<td>The trail to read. Rotated <code>.1</code>, <code>.2.gz</code> … siblings are discovered and read automatically</td>
+<td>The trail to read: the live trail — every not-yet-archived day part, then this file. An archive or day part named here is read alone</td>
 </tr>
 <tr>
 <td><code>--db PATH</code></td>
@@ -8228,10 +8228,10 @@ contains nothing the tool inferred.</p>
 </tbody>
 </table>
 <div class="admonition warning">
-<p class="admonition-title">Rotated segments are part of the trail</p>
-<p><code>--log-file audit.log</code> reads <code>audit.log.1</code> and <code>audit.log.2</code> as well.
-That is right for a real trail and surprising for a scratch one: a
-previous run's rotated segments left in the same directory are replayed
+<p class="admonition-title">Day parts are part of the trail</p>
+<p><code>--log-file audit.log</code> reads the unarchived day parts in <code>audit/</code> beside
+it as well. That is right for a real trail and surprising for a scratch
+one: a previous run's parts left in the same directory are replayed
 alongside the current one. If two runs replay the same seeded dataset,
 every order appears twice and the tool correctly reports each as
 <code>ACK_DUPLICATE</code>.</p>
@@ -8255,7 +8255,7 @@ every order appears twice and the tool correctly reports each as
 </tr>
 <tr>
 <td><code>--date YYYY-MM-DD</code></td>
-<td>Shorthand for a whole UTC day</td>
+<td>Replay this trading day (session timezone) from its archive, or from its parts before it is archived. Not a time window: the day is its files</td>
 </tr>
 <tr>
 <td><code>--last DURATION</code></td>
@@ -8263,9 +8263,13 @@ every order appears twice and the tool correctly reports each as
 </tr>
 </tbody>
 </table>
-<p><code>--date</code> cannot be combined with <code>--from</code>/<code>--to</code>, and <code>--last</code> cannot be
-combined with either. All four are UTC, which is what the trail records —
-<code>--tz</code> changes what is displayed, never what is selected.</p>
+<p><code>--date</code> cannot be combined with <code>--from</code>/<code>--to</code>, with <code>--last</code>, or with an
+archive given as <code>--log-file</code>; <code>--last</code> cannot be combined with <code>--from</code>/<code>--to</code>.
+<code>--from</code>, <code>--to</code> and <code>--last</code> are UTC, which is what the trail records —
+<code>--tz</code> changes what is displayed, never what is selected. Yesterday replays
+from its archive with <code>--date</code>; today replays by default, across the midnight
+close, with no event repeated or missing. The episode index follows the file
+set, so it rebuilds by itself once a day has been archived.</p>
 <p>The window narrows the <strong>query</strong>, never the index: an index always covers the
 whole log, so the same one answers a wide question and a narrow one. Passing a
 window to the <code>index</code> subcommand is refused rather than ignored.</p>
@@ -9156,14 +9160,14 @@ that is the level that proves otherwise.</p>
 window does not contain is printed <em>in ticks and labelled as ticks</em>, with a
 <code>TICK_SCALE_UNKNOWN</code> finding — never silently rescaled. <code>--show-units</code> shows
 where each scale came from.</p>
-<p><strong><code>--tz</code> is for reading, never for filtering.</strong> <code>--from</code>/<code>--to</code>/<code>--date</code> are
+<p><strong><code>--tz</code> is for reading, never for filtering.</strong> <code>--from</code>/<code>--to</code>/<code>--last</code> are
 UTC, because that is what the trail records. <code>--tz</code> moves only what is
 <em>shown</em>, and only in the human-readable formats: <code>ndjson</code> and <code>json</code> keep the
 recorded timestamps, because a display switch that moved them would make the
 two formats disagree about when something happened.</p>
 <div class="admonition warning">
 <p class="admonition-title">Give a scratch trail its own directory</p>
-<p><code>--log-file</code> pulls in rotated siblings, and the index lands next to the
+<p><code>--log-file</code> pulls in the day parts beside it, and the index lands next to the
 log by default. For a one-off capture, point <code>EDUMATCHER_DATA_DIR</code> at a
 scratch directory, or pass <code>--log-file</code> and <code>--db</code> explicitly, so the
 findings are about the run you meant.</p>

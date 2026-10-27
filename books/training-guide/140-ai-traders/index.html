@@ -5981,10 +5981,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-stop-the-swarm" class="md-nav__link">
+  <a href="#exercise-8-a-breakthrough-and-a-fire" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Stop the Swarm
+        Exercise 8: A Breakthrough and a Fire
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-9-stop-the-swarm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 9: Stop the Swarm
       
     </span>
   </a>
@@ -7449,7 +7460,8 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Run a swarm of AI traders over a market whose prices have a hidden <em>true
 value</em> behind them, then move that market with news: trade an earnings
-surprise, decide what to do with a rumour, and watch a retraction unwind.</p>
+surprise, decide what to do with a rumour, watch a retraction unwind, and
+see how a breakthrough and a factory fire move two rival chipmakers.</p>
 <div class="admonition abstract">
 <p class="admonition-title">Background reading</p>
 <ul>
@@ -7624,8 +7636,25 @@ values do not move; prices dip only because traders believe it. At 240
 seconds it is retracted — in the GUIs the rumour is now struck through — and
 prices drift back to where the values are.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ENERGY symbols dip after the rumour and are back near their earlier prices a few minutes after the retraction.</p>
+<h2 id="exercise-8-a-breakthrough-and-a-fire">Exercise 8: A Breakthrough and a Fire<a class="headerlink" href="#exercise-8-a-breakthrough-and-a-fire" title="Permanent link">&para;</a></h2>
+<p>Not all news is earnings. <em>Events</em> (a fire at a factory, a research
+breakthrough, a big new contract, a product recall) go one way only, and
+they are big. Their kind says what happened: <code>OPERATIONS</code>, <code>RESEARCH</code>,
+<code>CONTRACT</code>, <code>ESG</code> or <code>PRODUCT</code>. Keep the market maker stopped, and have
+students watch NVDA and AMD side by side.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span>docs/examples/news/chip-race.yaml
+</code></pre></div>
+<p>At 60 seconds NVDA announces a <code>RESEARCH</code> breakthrough: its next chips are
+50% faster. The news is confirmed, and NVDA's value jumps about 10%. It is a
+<em>symbol</em> headline, so AMD's value does not move at all. Discuss: should
+AMD's price fall because its rival got ahead?</p>
+<p>At 240 seconds a rumour says AMD's main chip fab is on fire, credibility
+70%. Discuss before the next step: sell AMD now, or wait for confirmation? A
+credibility of 0.7 is high, and a fire never turns out to be good news. At
+360 seconds the fire is confirmed and AMD's value drops about 7%.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> NVDA jumps on the first headline while AMD barely moves; AMD dips on the rumour and falls further on the confirmation.</p>
 <p>Restart the market maker afterwards (the command from Exercise 1).</p>
-<h2 id="exercise-8-stop-the-swarm">Exercise 8: Stop the Swarm<a class="headerlink" href="#exercise-8-stop-the-swarm" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-9-stop-the-swarm">Exercise 9: Stop the Swarm<a class="headerlink" href="#exercise-9-stop-the-swarm" title="Permanent link">&para;</a></h2>
 <p>Ctrl+C on <code>pm-ai-swarm</code> stops every worker; each closes its traders'
 sessions, which cancels their orders. Stop <code>pm-market-sim</code> with Ctrl+C too:
 it saves its values and continues from them next time.</p>
@@ -7653,7 +7682,9 @@ it saves its values and continues from them next time.</p>
 same sentiment? Who in the swarm was on the other side of the news traders'
 orders right after the earnings headline? The market maker quotes around the
 true value: what would have happened to the price, and to the students'
-chances of buying AAPL cheaply, if it had not been anchored?</p>
+chances of buying AAPL cheaply, if it had not been anchored? An earnings
+headline can go either way, but a fire can only be bad: how did that change
+what you did on the AMD rumour?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../participant-guide/part-4-automated-trading/010-ai-traders/">AI Traders</a></li>

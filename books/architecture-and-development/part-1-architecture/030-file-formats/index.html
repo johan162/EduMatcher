@@ -7340,6 +7340,15 @@ events; <code>log_server.retention_days: null</code> or zero keeps them indefini
 <code>market_sim_news.jsonl</code> exists, it is imported when the SQLite database is
 first created, and the source file remains untouched. Audit indexes are
 derived from retained audit logs and can be rebuilt.</p>
+<p>The audit trail is line-oriented text, <code>[ts] [topic] [meta] {json}</code>, in three
+kinds of file under the data directory: <code>audit.log</code>, the active file holding
+one trading day (midnight in <code>locale.session_timezone</code>, by each line's receive
+time); <code>audit/audit-YYYY-MM-DD.N.log</code>, closed parts of a day, numbered in write
+order and never renamed; and <code>audit/audit-YYYY-MM-DD.log.zst</code>, one zstd stream
+per archived day, the day's parts concatenated, so decompressing it yields the
+day's log byte for byte. The archive's frame header records the uncompressed
+size. Readers take the live trail (unarchived parts, then <code>audit.log</code>) by
+default and a day's archive by <code>--date</code> or by path.</p>
 <p>Trading prices and notionals in the statistics and clearing stores use integer
 ticks and require the row's <code>tick_decimals</code> to convert to display currency.
 Index levels and some derived values are <code>REAL</code> values. Timestamps may be UTC

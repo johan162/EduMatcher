@@ -7775,9 +7775,9 @@ dedicated query tool.</p>
 <td><strong><code>pm-clearing-cli</code></strong> or SQL — see <a href="../../../participant-guide/part-5-positions-and-results/010-positions-and-pnl/">Positions and P&amp;L</a></td>
 </tr>
 <tr>
-<td><code>audit.log</code></td>
+<td><code>audit.log</code>, <code>audit/</code></td>
 <td><code>pm-audit</code></td>
-<td>Continuously (buffered flush); rotates at 10 MB × 5 backups</td>
+<td>Continuously (buffered flush); <code>audit.log</code> holds today and is closed as <code>audit/audit-DATE.N.log</code> at midnight or 10 MB; each past day is compressed to <code>audit/audit-DATE.log.zst</code></td>
 <td>Full chronological trail of every message on the bus</td>
 <td><strong><code>pm-audit-cli</code></strong> — see <a href="../020-audit-trail/">Audit Trail</a></td>
 </tr>
@@ -8270,9 +8270,12 @@ appends every message as a single line:</p>
 <p>The topic is <strong>not</strong> a JSON field inside the payload; it appears as a separate
 bracket-delimited token on the same line, and the <code>[META]</code> section, when
 present, is a further bracketed token between the topic and the payload.</p>
-<p><strong>File rotation</strong>: <code>RotatingFileHandler</code> — maximum 10 MB per file, 5 backup files
-(<code>audit.log.1</code> through <code>audit.log.5</code>). Oldest backup is deleted when a sixth
-would be created.</p>
+<p><strong>Day closing</strong>: <code>audit.log</code> holds one trading day (session timezone). At the
+date change, or at <code>--max-file-mb</code> (10 MB), it is closed as
+<code>audit/audit-YYYY-MM-DD.N.log</code>; nothing is deleted. Each closed day is
+compressed to one <code>audit/audit-YYYY-MM-DD.log.zst</code> (zstd, ≈ 13:1), and
+<code>--keep-days N</code> deletes archives older than N days. See
+<a href="../020-audit-trail/#day-parts-and-archives">Audit Trail</a>.</p>
 <p><strong>Useful grep patterns</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># All trades</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>grep<span class="w"> </span><span class="s1">'\[trade\.executed\]'</span><span class="w"> </span>src/data/audit.log

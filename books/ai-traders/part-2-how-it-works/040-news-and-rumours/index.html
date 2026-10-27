@@ -7493,7 +7493,7 @@ turns a headline into a price move you can watch.</p>
 <tr>
 <td><strong>Kind</strong></td>
 <td>yes</td>
-<td><code>EARNINGS</code>, <code>GUIDANCE</code>, <code>MNA</code>, <code>REGULATORY</code>, <code>PRODUCT</code>, <code>LEGAL</code>, <code>MANAGEMENT</code> or <code>MACRO</code></td>
+<td><code>EARNINGS</code>, <code>GUIDANCE</code>, <code>MNA</code>, <code>REGULATORY</code>, <code>PRODUCT</code>, <code>LEGAL</code>, <code>MANAGEMENT</code>, <code>MACRO</code>, <code>OPERATIONS</code>, <code>RESEARCH</code>, <code>CONTRACT</code> or <code>ESG</code></td>
 </tr>
 <tr>
 <td><strong>Headline</strong></td>
@@ -7574,8 +7574,12 @@ continuous trading. The <code>s300-sim</code> example keeps the defaults:</p>
 per trading day whatever speed the calendar runs at (see
 <a href="../../part-3-run-it/120-accelerated-time/">Accelerated Time</a>).</p>
 <h3 id="what-kind-of-news-how-big">What kind of news, how big<a class="headerlink" href="#what-kind-of-news-how-big" title="Permanent link">&para;</a></h3>
-<p>Each scope draws a kind, and each kind has its own size: the impact is
-normally distributed with the kind's mean and spread.</p>
+<p>Each headline is drawn from a catalogue of <em>stories</em>, and each story has its
+own size: the impact is normally distributed with the story's mean and
+spread. There are two sorts.</p>
+<p><strong>Everyday news</strong> can go either way. Its headline follows the sign of the
+impact: <em>"NVDA beats earnings expectations"</em> or <em>"NVDA misses earnings
+estimates"</em>.</p>
 <table>
 <thead>
 <tr>
@@ -7591,7 +7595,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>EARNINGS</code></td>
 <td>symbol</td>
-<td>35 %</td>
+<td>24 %</td>
 <td>0</td>
 <td>5 %</td>
 <td>±5 %</td>
@@ -7599,7 +7603,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>GUIDANCE</code></td>
 <td>symbol</td>
-<td>17 %</td>
+<td>12 %</td>
 <td>0</td>
 <td>3 %</td>
 <td>±3 %</td>
@@ -7607,7 +7611,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>PRODUCT</code></td>
 <td>symbol</td>
-<td>17 %</td>
+<td>12 %</td>
 <td>+0.5 %</td>
 <td>2 %</td>
 <td>±2 %</td>
@@ -7615,7 +7619,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>REGULATORY</code></td>
 <td>symbol, sector</td>
-<td>9 %</td>
+<td>6 %</td>
 <td>−1 %</td>
 <td>4 %</td>
 <td>±4 %, a little more often bad</td>
@@ -7623,7 +7627,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>LEGAL</code></td>
 <td>symbol</td>
-<td>9 %</td>
+<td>6 %</td>
 <td>−1 %</td>
 <td>3 %</td>
 <td>±3 %, a little more often bad</td>
@@ -7631,7 +7635,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>MANAGEMENT</code></td>
 <td>symbol</td>
-<td>9 %</td>
+<td>6 %</td>
 <td>0</td>
 <td>2 %</td>
 <td>±2 %</td>
@@ -7639,7 +7643,7 @@ normally distributed with the kind's mean and spread.</p>
 <tr>
 <td><code>MNA</code></td>
 <td>symbol</td>
-<td>4 %</td>
+<td>3 %</td>
 <td>+6 %</td>
 <td>6 %</td>
 <td>a takeover bid: mostly up, sometimes a lot</td>
@@ -7654,15 +7658,67 @@ normally distributed with the kind's mean and spread.</p>
 </tr>
 </tbody>
 </table>
-<p>Sector headlines are <code>REGULATORY</code> or <code>MACRO</code> (half each); market headlines
-are always <code>MACRO</code>.</p>
+<p><strong>Events</strong> go one way only, and they are big: a fire is always bad news, a
+breakthrough always good. Together they are about a third of symbol news,
+so with the default rates a class sees two or three a day, which is far
+more often than in real life, so that students get to watch what such a
+shock does to a price.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Examples</th>
+<th>Typical move</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OPERATIONS</code> (15 %)</td>
+<td><em>"Fire ravages XOM's main refinery"</em>, flooding, a cyber-attack, a strike, a parts shortage; good: a site reopening early, a new oil find</td>
+<td>−2.5 % to −5 %; +2 % to +5 %</td>
+</tr>
+<tr>
+<td><code>ESG</code> (7 %)</td>
+<td><em>"Environmental protests delay TSLA's new battery plant by 12 months"</em>, a fine for breaking environmental rules, an oil spill, a wildfire blamed on a utility's lines; good: a permit won after a long battle</td>
+<td>−2 % to −8 %; +2.5 %</td>
+</tr>
+<tr>
+<td><code>CONTRACT</code> (5 %)</td>
+<td><em>"CAT signs a $5 bn long-term deal with a major new customer"</em>, losing the largest customer, a defence contract</td>
+<td>+4.5 % to +5 %; −5 %</td>
+</tr>
+<tr>
+<td><code>RESEARCH</code> (4 %)</td>
+<td><em>"NVDA breakthrough lifts next-generation chip performance by 35 %"</em>, a late-stage drug trial that succeeds or fails, a flagship R&amp;D project written off, a chip that slips a year</td>
+<td>+5 % to +8 %; −5 % to −10 %</td>
+</tr>
+<tr>
+<td><code>PRODUCT</code> (2 % of the 14 %)</td>
+<td><em>"GM recalls 300,000 vehicles over a brake defect"</em>, a product recalled over a safety defect, deliveries halted</td>
+<td>−6 %</td>
+</tr>
+</tbody>
+</table>
+<p>Some events only happen in their own industry: chip stories to
+chipmakers, trials to drug makers, recalls of vehicles to carmakers,
+groundings to airlines, defence contracts to aerospace. Other events need
+a fitting sector: a bank has nothing to recall, and a utility has no
+largest customer. A number in the headline grows with the impact: a chip
+that is 40 % faster moves the value more than one that is 20 % faster.</p>
+<p>Sector headlines are <code>REGULATORY</code> (42 %, including export curbs on chips
+and drug-pricing reform), <code>MACRO</code> (40 %) or <code>OPERATIONS</code> (18 %: a
+supply-chain disruption, a port strike, a hurricane that shuts refineries).
+Market headlines are always <code>MACRO</code>.</p>
 <h3 id="sentiment-a-hint-not-the-answer">Sentiment: a hint, not the answer<a class="headerlink" href="#sentiment-a-hint-not-the-answer" title="Permanent link">&para;</a></h3>
-<p>The sentiment students see is the impact made public, but blurred: roughly
-impact ÷ (2 × the kind's spread), plus a little noise (σ 0.15), clipped to
-±1. So an earnings beat of one spread (+5 %) reads about +0.5, a big miss of
-two spreads (−10 %) about −1. The sign is almost always right; the size is
-only a guide. Two headlines with the same sentiment can move the value by
-quite different amounts — which is why value traders, who see the value
+<p>The sentiment students see is the impact made public, but blurred: for
+everyday news roughly impact ÷ (2 × the story's spread), plus a little noise
+(σ 0.15), clipped to ±1. So an earnings beat of one spread (+5 %) reads
+about +0.5, and a big miss of two spreads (−10 %) about −1. For an event it is
+impact ÷ (|mean| + spread) plus the same noise, so a typical fire reads
+about −0.7 and a bad one −1. An event's sentiment always has the right sign.
+For everyday news the sign is almost always right. For both, the size is only
+a guide. Two headlines with the same sentiment can move the value by
+quite different amounts, which is why value traders, who see the value
 itself, keep correcting what news traders start.</p>
 <h2 id="rumours">Rumours<a class="headerlink" href="#rumours" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>stateDiagram-v2
@@ -7796,8 +7852,9 @@ rates to 0 if yours should be the only ones.</p>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pm-news<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>play<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span>/opt/edumatcher/.venv/lib/python3.14/site-packages/docs/examples/news/earnings-surprise.yaml
 </code></pre></div>
-<p>Three scenarios ship with EduMatcher — <code>earnings-surprise</code>,
-<code>rumour-confirmed</code> and <code>rumour-retracted</code> — and fit <code>s300-sim</code> as they fit
+<p>Four scenarios ship with EduMatcher — <code>earnings-surprise</code>,
+<code>rumour-confirmed</code>, <code>rumour-retracted</code> and <code>chip-race</code> (a chip breakthrough,
+then a rumoured fire at a rival's fab) — and fit <code>s300-sim</code> as they fit
 the <code>s150-*</code> examples. Their format, and how to write your own, is in
 <a href="../../../operator-guide/part-4-run-a-market/090-market-model/#scenarios">The Market Model</a>;
 the <a href="../../../training-guide/140-ai-traders/">AI Traders &amp; News</a> exercises

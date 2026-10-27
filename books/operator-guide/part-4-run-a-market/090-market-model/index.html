@@ -7554,7 +7554,8 @@ toward the value; leave it off to let the value traders do the work.</p>
 <p><a id="pm-news"></a></p>
 <p>A headline has a <em>scope</em> — one or more symbols, one or more sectors, or the
 whole market — a <em>kind</em> (<code>EARNINGS</code>, <code>GUIDANCE</code>, <code>MNA</code>, <code>REGULATORY</code>,
-<code>PRODUCT</code>, <code>LEGAL</code>, <code>MANAGEMENT</code>, <code>MACRO</code>), a public <em>sentiment</em> from −1 (bad)
+<code>PRODUCT</code>, <code>LEGAL</code>, <code>MANAGEMENT</code>, <code>MACRO</code>, <code>OPERATIONS</code>, <code>RESEARCH</code>,
+<code>CONTRACT</code>, <code>ESG</code>), a public <em>sentiment</em> from −1 (bad)
 to 1 (good), and a secret <em>impact</em>: the log move of the true value (0.10 is
 about +10.5%). A sector headline moves each of its symbols by <code>β_s</code> times the
 impact, a market headline every symbol by <code>β_m</code> times it.</p>
@@ -7593,7 +7594,12 @@ move on a rumour anyway: that is traders betting on it.</p>
 continuous trading: on average 6 symbol, 0.5 sector and 0.3 market headlines
 per trading day across the whole exchange. 30% start as rumours, which resolve
 on their own 0.02 to 0.15 trading days later — confirmed 60% of the time; a
-rumour that will be confirmed tends to carry a higher credibility. Tune it in
+rumour that will be confirmed tends to carry a higher credibility. About a
+third of symbol headlines are <em>events</em>: fires, breakthroughs, trial results,
+big contracts, protests and recalls. They go one way, move the value 3–10 %,
+some happen only in their own industry, and they come far more often than in
+real life so that a class sees a few each day (see
+<a href="../../../ai-traders/part-2-how-it-works/040-news-and-rumours/#what-kind-of-news-how-big">News and Rumours</a>). Tune it in
 <code>market_sim.yaml</code>; a rate of 0 turns that scope off:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">news</span><span class="p">:</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">rate_symbol</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6.0</span>
@@ -7635,9 +7641,9 @@ start of the play. A step either injects a headline (same fields as the
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">at</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="nv">CONTINUOUS</span><span class="p p-Indicator">,</span><span class="nt"> after_sec</span><span class="p">:</span><span class="w"> </span><span class="nv">240</span><span class="p p-Indicator">}</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="nt">confirm</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bid</span>
 </code></pre></div>
-<p>Three classroom scenarios ship in <code>docs/examples/news/</code> and fit every <code>s150-*</code>
-example and <code>s300-load</code>: <code>earnings-surprise.yaml</code>, <code>rumour-confirmed.yaml</code> and
-<code>rumour-retracted.yaml</code>. The <a href="../../../training-guide/140-ai-traders/">AI Traders &amp; News</a>
+<p>Four classroom scenarios ship in <code>docs/examples/news/</code> and fit every <code>s150-*</code>
+example and <code>s300-load</code>: <code>earnings-surprise.yaml</code>, <code>rumour-confirmed.yaml</code>,
+<code>rumour-retracted.yaml</code> and <code>chip-race.yaml</code>. The <a href="../../../training-guide/140-ai-traders/">AI Traders &amp; News</a>
 training chapter uses them.</p>
 
 
