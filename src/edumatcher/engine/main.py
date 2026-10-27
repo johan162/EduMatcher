@@ -5584,14 +5584,13 @@ class Engine:
 
             # Trigger stop and trailing-stop orders whose stop price is now
             # reached by the equilibrium price.  execute_uncross() sets
-            # last_trade_price but does not call _check_stops(); without this
+            # last_trade_price but does not run the stops; without this
             # block, auction-phase stop orders never fire at uncross time.
+            # run_stops() is the same cascade a continuous trade runs, so the
+            # stops execute in the same order (rule G2, insight I19).
             if trades:
-                now_stop = now_ns()
-                triggered = book.trigger_stops(now_stop)
-                for stop_order in triggered:
-                    sub_trades, sub_events = book.process(stop_order, now=now_stop)
-                    self._publish_dispatch(sub_trades, sub_events)
+                sub_trades, sub_events = book.run_stops(now_ns())
+                self._publish_dispatch(sub_trades, sub_events)
 
                 log.info(
                     f"UNCROSS {symbol}: {len(trades)} trade(s) "

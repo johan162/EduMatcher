@@ -253,7 +253,7 @@ class OrderBook:
     Read the module docstring first.  Public surface, in the order a student
     will meet it: ``process`` (a new order arrives), ``cancel_order``,
     ``amend_order``, ``snapshot`` / ``depth_snapshot`` (read-only views for
-    market data), and ``trigger_stops`` (used by the auction code).
+    market data), and ``run_stops`` (used by the auction code).
     Everything starting with an underscore is internal machinery.
     """
 
@@ -612,18 +612,11 @@ class OrderBook:
         #
         # The three guards are cheap early-outs: no trades means the price did
         # not move; _has_stops means there is anything to trigger at all.
+        # The loop itself is run_stops(), which the uncross uses as well.
         if trades and self._has_stops and _cascade_stops:
-            pending = self._check_stops(now) + self._check_trailing_stops(now)
-            while pending:
-                t_order = pending.pop(0)
-                sub_trades, sub_events = self.process(
-                    t_order, now=now, _cascade_stops=False
-                )
-                trades.extend(sub_trades)
-                events.extend(sub_events)
-                if sub_trades and self._has_stops:
-                    pending.extend(self._check_stops(now))
-                    pending.extend(self._check_trailing_stops(now))
+            sub_trades, sub_events = self.run_stops(now)
+            trades.extend(sub_trades)
+            events.extend(sub_events)
 
         return trades, events
 
@@ -2349,15 +2342,30 @@ class OrderBook:
             self._triggered[order.id] = order
         return triggered
 
-    def trigger_stops(self, now: int) -> list[Order]:
-        """Return all stop and trailing-stop orders triggered at the current
-        ``last_trade_price``.  Returns an empty list if no stops are registered.
+    def run_stops(self, now: int) -> tuple[list[Trade], list[Order]]:
+        """Run the stop cascade at the current ``last_trade_price``.
 
-        Public wrapper around the private ``_check_stops`` /
-        ``_check_trailing_stops`` pair so callers outside the class (e.g.
-        ``Engine._run_uncross``) can trigger stops without pyright
-        ``reportPrivateUsage`` violations.
+        Every stop the price has reached is released and matched as a new
+        order, in the order ``_check_stops`` / ``_check_trailing_stops``
+        release them.  Stops released by *those* trades queue behind the ones
+        already waiting (FIFO, rule G2 in the participant guide), so the
+        cascade runs breadth-first.  Called by ``process`` after a trade and by
+        ``Engine._run_uncross`` after the auction print, so both follow one
+        rule.  Returns ``(trades, events)``, the same shape as ``process``.
         """
+        trades: list[Trade] = []
+        events: list[Order] = []
         if not self._has_stops:
-            return []
-        return self._check_stops(now) + self._check_trailing_stops(now)
+            return trades, events
+        pending = self._check_stops(now) + self._check_trailing_stops(now)
+        while pending:
+            t_order = pending.pop(0)
+            sub_trades, sub_events = self.process(
+                t_order, now=now, _cascade_stops=False
+            )
+            trades.extend(sub_trades)
+            events.extend(sub_events)
+            if sub_trades and self._has_stops:
+                pending.extend(self._check_stops(now))
+                pending.extend(self._check_trailing_stops(now))
+        return trades, events
