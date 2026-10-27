@@ -26,7 +26,7 @@ turns a headline into a price move you can watch.
 | Field | Public? | Meaning |
 |---|---|---|
 | **Scope** and targets | yes | One symbol, one sector, or the whole market |
-| **Kind** | yes | `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT` or `MACRO` |
+| **Kind** | yes | `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO`, `OPERATIONS`, `RESEARCH`, `CONTRACT` or `ESG` |
 | **Headline** | yes | The text, e.g. *"NVDA raises its outlook"* |
 | **Sentiment** | yes | How good it sounds, from −1 (very bad) to +1 (very good) |
 | **Status** | yes | `CONFIRMED` (it happened), `RUMOUR`, then `CONFIRMED` or `RETRACTED` |
@@ -75,31 +75,62 @@ per trading day whatever speed the calendar runs at (see
 
 ### What kind of news, how big
 
-Each scope draws a kind, and each kind has its own size: the impact is
-normally distributed with the kind's mean and spread.
+Each headline is drawn from a catalogue of *stories*, and each story has its
+own size: the impact is normally distributed with the story's mean and
+spread. There are two sorts.
+
+**Everyday news** can go either way. Its headline follows the sign of the
+impact: *"NVDA beats earnings expectations"* or *"NVDA misses earnings
+estimates"*.
 
 | Kind | Scopes | Share of symbol news | Impact mean | Impact spread (σ) | Typical move |
 |---|---|---|---|---|---|
-| `EARNINGS` | symbol | 35 % | 0 | 5 % | ±5 % |
-| `GUIDANCE` | symbol | 17 % | 0 | 3 % | ±3 % |
-| `PRODUCT` | symbol | 17 % | +0.5 % | 2 % | ±2 % |
-| `REGULATORY` | symbol, sector | 9 % | −1 % | 4 % | ±4 %, a little more often bad |
-| `LEGAL` | symbol | 9 % | −1 % | 3 % | ±3 %, a little more often bad |
-| `MANAGEMENT` | symbol | 9 % | 0 | 2 % | ±2 % |
-| `MNA` | symbol | 4 % | +6 % | 6 % | a takeover bid: mostly up, sometimes a lot |
+| `EARNINGS` | symbol | 24 % | 0 | 5 % | ±5 % |
+| `GUIDANCE` | symbol | 12 % | 0 | 3 % | ±3 % |
+| `PRODUCT` | symbol | 12 % | +0.5 % | 2 % | ±2 % |
+| `REGULATORY` | symbol, sector | 6 % | −1 % | 4 % | ±4 %, a little more often bad |
+| `LEGAL` | symbol | 6 % | −1 % | 3 % | ±3 %, a little more often bad |
+| `MANAGEMENT` | symbol | 6 % | 0 | 2 % | ±2 % |
+| `MNA` | symbol | 3 % | +6 % | 6 % | a takeover bid: mostly up, sometimes a lot |
 | `MACRO` | sector, market | — | 0 | 1.5 % | ±1.5 % before the betas |
 
-Sector headlines are `REGULATORY` or `MACRO` (half each); market headlines
-are always `MACRO`.
+**Events** go one way only, and they are big: a fire is always bad news, a
+breakthrough always good. Together they are about a third of symbol news,
+so with the default rates a class sees two or three a day, which is far
+more often than in real life, so that students get to watch what such a
+shock does to a price.
+
+| Kind | Examples | Typical move |
+|---|---|---|
+| `OPERATIONS` (15 %) | *"Fire ravages XOM's main refinery"*, flooding, a cyber-attack, a strike, a parts shortage; good: a site reopening early, a new oil find | −2.5 % to −5 %; +2 % to +5 % |
+| `ESG` (7 %) | *"Environmental protests delay TSLA's new battery plant by 12 months"*, a fine for breaking environmental rules, an oil spill, a wildfire blamed on a utility's lines; good: a permit won after a long battle | −2 % to −8 %; +2.5 % |
+| `CONTRACT` (5 %) | *"CAT signs a $5 bn long-term deal with a major new customer"*, losing the largest customer, a defence contract | +4.5 % to +5 %; −5 % |
+| `RESEARCH` (4 %) | *"NVDA breakthrough lifts next-generation chip performance by 35 %"*, a late-stage drug trial that succeeds or fails, a flagship R&D project written off, a chip that slips a year | +5 % to +8 %; −5 % to −10 % |
+| `PRODUCT` (2 % of the 14 %) | *"GM recalls 300,000 vehicles over a brake defect"*, a product recalled over a safety defect, deliveries halted | −6 % |
+
+Some events only happen in their own industry: chip stories to
+chipmakers, trials to drug makers, recalls of vehicles to carmakers,
+groundings to airlines, defence contracts to aerospace. Other events need
+a fitting sector: a bank has nothing to recall, and a utility has no
+largest customer. A number in the headline grows with the impact: a chip
+that is 40 % faster moves the value more than one that is 20 % faster.
+
+Sector headlines are `REGULATORY` (42 %, including export curbs on chips
+and drug-pricing reform), `MACRO` (40 %) or `OPERATIONS` (18 %: a
+supply-chain disruption, a port strike, a hurricane that shuts refineries).
+Market headlines are always `MACRO`.
 
 ### Sentiment: a hint, not the answer
 
-The sentiment students see is the impact made public, but blurred: roughly
-impact ÷ (2 × the kind's spread), plus a little noise (σ 0.15), clipped to
-±1. So an earnings beat of one spread (+5 %) reads about +0.5, a big miss of
-two spreads (−10 %) about −1. The sign is almost always right; the size is
-only a guide. Two headlines with the same sentiment can move the value by
-quite different amounts — which is why value traders, who see the value
+The sentiment students see is the impact made public, but blurred: for
+everyday news roughly impact ÷ (2 × the story's spread), plus a little noise
+(σ 0.15), clipped to ±1. So an earnings beat of one spread (+5 %) reads
+about +0.5, and a big miss of two spreads (−10 %) about −1. For an event it is
+impact ÷ (|mean| + spread) plus the same noise, so a typical fire reads
+about −0.7 and a bad one −1. An event's sentiment always has the right sign.
+For everyday news the sign is almost always right. For both, the size is only
+a guide. Two headlines with the same sentiment can move the value by
+quite different amounts, which is why value traders, who see the value
 itself, keep correcting what news traders start.
 
 ## Rumours
@@ -212,8 +243,9 @@ pm-news --id OPS01 play \
     /opt/edumatcher/.venv/lib/python3.14/site-packages/docs/examples/news/earnings-surprise.yaml
 ```
 
-Three scenarios ship with EduMatcher — `earnings-surprise`,
-`rumour-confirmed` and `rumour-retracted` — and fit `s300-sim` as they fit
+Four scenarios ship with EduMatcher — `earnings-surprise`,
+`rumour-confirmed`, `rumour-retracted` and `chip-race` (a chip breakthrough,
+then a rumoured fire at a rival's fab) — and fit `s300-sim` as they fit
 the `s150-*` examples. Their format, and how to write your own, is in
 [The Market Model](../../operator-guide/part-4-run-a-market/090-market-model.md#scenarios);
 the [AI Traders & News](../../training-guide/140-ai-traders.md) exercises

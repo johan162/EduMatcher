@@ -1,0 +1,26 @@
+# Instructor scenario: two events in one industry, one good and one bad
+# (training guide, AI Traders & News).
+#
+# A minute into continuous trading NVDA announces a breakthrough: its next
+# chips are 50% faster, and the value jumps about 10% at once. Three minutes
+# later a rumour says AMD's main chip fab is on fire; the value does not move
+# until the fire is confirmed two minutes after that, and then drops about 7%.
+# Watch whether prices of the two move together on the first headline (they
+# should not: the news is about NVDA) and how far AMD's price moves on the
+# rumour before it is confirmed.
+#
+#   pm-news --id OPS01 play docs/examples/news/chip-race.yaml
+#
+# Works with every s150-* and s300-* example (pm-market-sim running).
+version: 1
+steps:
+  - at: {phase: CONTINUOUS, after_sec: 60}
+    inject: {symbol: NVDA, kind: RESEARCH, sentiment: 0.9, impact: 0.10,
+             headline: "NVDA breakthrough lifts next-generation chip performance by 50 %"}
+  - at: {phase: CONTINUOUS, after_sec: 240}
+    name: fire
+    inject: {symbol: AMD, kind: OPERATIONS, sentiment: -0.8, impact: -0.07,
+             rumour: true, credibility: 0.7,
+             headline: "Fire reported at AMD's main chip fab"}
+  - at: {phase: CONTINUOUS, after_sec: 360}
+    confirm: fire

@@ -4,7 +4,8 @@
 
 Run a swarm of AI traders over a market whose prices have a hidden *true
 value* behind them, then move that market with news: trade an earnings
-surprise, decide what to do with a rumour, and watch a retraction unwind.
+surprise, decide what to do with a rumour, watch a retraction unwind, and
+see how a breakthrough and a factory fire move two rival chipmakers.
 
  
 
@@ -221,11 +222,37 @@ prices drift back to where the values are.
 
 :material-checkbox-blank-outline: **Checkpoint:** ENERGY symbols dip after the rumour and are back near their earlier prices a few minutes after the retraction.
 
+ 
+
+## Exercise 8: A Breakthrough and a Fire
+
+Not all news is earnings. *Events* (a fire at a factory, a research
+breakthrough, a big new contract, a product recall) go one way only, and
+they are big. Their kind says what happened: `OPERATIONS`, `RESEARCH`,
+`CONTRACT`, `ESG` or `PRODUCT`. Keep the market maker stopped, and have
+students watch NVDA and AMD side by side.
+
+```bash
+pm-news --id OPS01 play docs/examples/news/chip-race.yaml
+```
+
+At 60 seconds NVDA announces a `RESEARCH` breakthrough: its next chips are
+50% faster. The news is confirmed, and NVDA's value jumps about 10%. It is a
+*symbol* headline, so AMD's value does not move at all. Discuss: should
+AMD's price fall because its rival got ahead?
+
+At 240 seconds a rumour says AMD's main chip fab is on fire, credibility
+70%. Discuss before the next step: sell AMD now, or wait for confirmation? A
+credibility of 0.7 is high, and a fire never turns out to be good news. At
+360 seconds the fire is confirmed and AMD's value drops about 7%.
+
+:material-checkbox-blank-outline: **Checkpoint:** NVDA jumps on the first headline while AMD barely moves; AMD dips on the rumour and falls further on the confirmation.
+
 Restart the market maker afterwards (the command from Exercise 1).
 
  
 
-## Exercise 8: Stop the Swarm
+## Exercise 9: Stop the Swarm
 
 Ctrl+C on `pm-ai-swarm` stops every worker; each closes its traders'
 sessions, which cancels their orders. Stop `pm-market-sim` with Ctrl+C too:
@@ -261,7 +288,9 @@ Why does a confirmed headline move the price further than a rumour with the
 same sentiment? Who in the swarm was on the other side of the news traders'
 orders right after the earnings headline? The market maker quotes around the
 true value: what would have happened to the price, and to the students'
-chances of buying AAPL cheaply, if it had not been anchored?
+chances of buying AAPL cheaply, if it had not been anchored? An earnings
+headline can go either way, but a fire can only be bad: how did that change
+what you did on the AMD rumour?
 
  
 

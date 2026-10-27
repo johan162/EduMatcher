@@ -148,7 +148,8 @@ toward the value; leave it off to let the value traders do the work.
 
 A headline has a *scope* — one or more symbols, one or more sectors, or the
 whole market — a *kind* (`EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`,
-`PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO`), a public *sentiment* from −1 (bad)
+`PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO`, `OPERATIONS`, `RESEARCH`,
+`CONTRACT`, `ESG`), a public *sentiment* from −1 (bad)
 to 1 (good), and a secret *impact*: the log move of the true value (0.10 is
 about +10.5%). A sector headline moves each of its symbols by `β_s` times the
 impact, a market headline every symbol by `β_m` times it.
@@ -171,7 +172,12 @@ Without anyone doing anything, `pm-market-sim` publishes news at random during
 continuous trading: on average 6 symbol, 0.5 sector and 0.3 market headlines
 per trading day across the whole exchange. 30% start as rumours, which resolve
 on their own 0.02 to 0.15 trading days later — confirmed 60% of the time; a
-rumour that will be confirmed tends to carry a higher credibility. Tune it in
+rumour that will be confirmed tends to carry a higher credibility. About a
+third of symbol headlines are *events*: fires, breakthroughs, trial results,
+big contracts, protests and recalls. They go one way, move the value 3–10 %,
+some happen only in their own industry, and they come far more often than in
+real life so that a class sees a few each day (see
+[News and Rumours](../../ai-traders/part-2-how-it-works/040-news-and-rumours.md#what-kind-of-news-how-big)). Tune it in
 `market_sim.yaml`; a rate of 0 turns that scope off:
 
 ```yaml
@@ -225,8 +231,8 @@ steps:
     confirm: bid
 ```
 
-Three classroom scenarios ship in `docs/examples/news/` and fit every `s150-*`
-example and `s300-load`: `earnings-surprise.yaml`, `rumour-confirmed.yaml` and
-`rumour-retracted.yaml`. The [AI Traders & News](../../training-guide/140-ai-traders.md)
+Four classroom scenarios ship in `docs/examples/news/` and fit every `s150-*`
+example and `s300-load`: `earnings-surprise.yaml`, `rumour-confirmed.yaml`,
+`rumour-retracted.yaml` and `chip-race.yaml`. The [AI Traders & News](../../training-guide/140-ai-traders.md)
 training chapter uses them.
 

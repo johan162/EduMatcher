@@ -35,6 +35,10 @@ _NEWS_REQUEST_KIND_VALUES = (
     "LEGAL",
     "MANAGEMENT",
     "MACRO",
+    "OPERATIONS",
+    "RESEARCH",
+    "CONTRACT",
+    "ESG",
 )
 NewsRequestKind = Literal[
     "EARNINGS",
@@ -45,6 +49,10 @@ NewsRequestKind = Literal[
     "LEGAL",
     "MANAGEMENT",
     "MACRO",
+    "OPERATIONS",
+    "RESEARCH",
+    "CONTRACT",
+    "ESG",
 ]
 
 

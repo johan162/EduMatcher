@@ -21,7 +21,8 @@ types:
         doc: "Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET."
       - name: kind
         type: enum
-        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO]
+        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO,
+                 OPERATIONS, RESEARCH, CONTRACT, ESG]
       - { name: sentiment, type: float, unit: dimensionless,
           validate: { ge: -1, le: 1 } }
       - name: impact

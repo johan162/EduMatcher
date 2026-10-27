@@ -1715,7 +1715,7 @@ pm-news list [--duration SECONDS]
 
 | Subcommand | Does |
 |---|---|
-| `inject` | Publish a headline; prints its ID. `--symbol` and `--sector` repeat; `--kind` is one of `EARNINGS`, `GUIDANCE`, `LEGAL`, `MACRO`, `MANAGEMENT`, `MNA`, `PRODUCT`, `REGULATORY`; `--sentiment` −1 to 1 is public; `--impact` (log move of the value when confirmed) is not |
+| `inject` | Publish a headline; prints its ID. `--symbol` and `--sector` repeat; `--kind` is one of `CONTRACT`, `EARNINGS`, `ESG`, `GUIDANCE`, `LEGAL`, `MACRO`, `MANAGEMENT`, `MNA`, `OPERATIONS`, `PRODUCT`, `REGULATORY`, `RESEARCH`; `--sentiment` −1 to 1 is public; `--impact` (log move of the value when confirmed) is not |
 | `confirm` | Confirm a rumour: the values move now |
 | `retract` | Retract a rumour: nothing moves |
 | `play` | Run a timed scenario YAML |

@@ -3860,7 +3860,7 @@ _shtab_pm_news_inject_options=(
   "*--symbol[Symbol (repeatable)]:symbol:"
   "*--sector[Sector (repeatable)]:sector:"
   "--market[The whole market]"
-  "--kind[kind]:kind:(EARNINGS GUIDANCE LEGAL MACRO MANAGEMENT MNA PRODUCT REGULATORY)"
+  "--kind[kind]:kind:(CONTRACT EARNINGS ESG GUIDANCE LEGAL MACRO MANAGEMENT MNA OPERATIONS PRODUCT REGULATORY RESEARCH)"
   "--sentiment[-1 to 1, public]:sentiment:"
   "--impact[Log move of the true value when confirmed (0.10 \~ \+10.5\%), secret]:impact:"
   "--headline[Default\: written for you]:headline:"

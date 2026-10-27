@@ -6881,7 +6881,7 @@ _shtab_pm_news_option_strings=(-h --help --version --id)
 
 
 
-_shtab_pm_news_inject___kind_choices=(EARNINGS GUIDANCE LEGAL MACRO MANAGEMENT MNA PRODUCT REGULATORY)
+_shtab_pm_news_inject___kind_choices=(CONTRACT EARNINGS ESG GUIDANCE LEGAL MACRO MANAGEMENT MNA OPERATIONS PRODUCT REGULATORY RESEARCH)
 _shtab_pm_news_pos_0_choices=(inject confirm retract play list past)
 
 _shtab_pm_news_inject__h_nargs=0

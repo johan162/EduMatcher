@@ -36,7 +36,8 @@ messages:
         doc: "Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET."
       - name: kind
         type: enum
-        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO]
+        values: [EARNINGS, GUIDANCE, MNA, REGULATORY, PRODUCT, LEGAL, MANAGEMENT, MACRO,
+                 OPERATIONS, RESEARCH, CONTRACT, ESG]
       - { name: status, type: enum, values: [RUMOUR, CONFIRMED, RETRACTED] }
       - { name: headline, type: string, validate: { max_len: 200 } }
       - { name: sentiment, type: float, unit: dimensionless,

@@ -36,6 +36,10 @@ _NEWS_EVENT_KIND_VALUES = (
     "LEGAL",
     "MANAGEMENT",
     "MACRO",
+    "OPERATIONS",
+    "RESEARCH",
+    "CONTRACT",
+    "ESG",
 )
 NewsEventKind = Literal[
     "EARNINGS",
@@ -46,6 +50,10 @@ NewsEventKind = Literal[
     "LEGAL",
     "MANAGEMENT",
     "MACRO",
+    "OPERATIONS",
+    "RESEARCH",
+    "CONTRACT",
+    "ESG",
 ]
 _NEWS_EVENT_STATUS_VALUES = ("RUMOUR", "CONFIRMED", "RETRACTED")
 NewsEventStatus = Literal["RUMOUR", "CONFIRMED", "RETRACTED"]
