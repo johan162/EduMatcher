@@ -1,3 +1,41 @@
+## [v0.64.0] - 2026-10-27
+
+Release Type: major
+
+### 📋 Summary
+This release adds company profiles for the 300-symbol simulation, classroom network sharing, and greater visibility into good-till-cancelled orders. It also corrects auction-triggered stop processing and strengthens matching verification against an independent reference matcher.
+
+### ⚠️ Breaking Changes
+- Added the required `gtc_orders` field to the `BookStats` health-message schema; upgrade health producers and consumers together, and include the field in custom payloads and readers
+- The monitor.db has schema extension to store GTC orders for statistics
+
+### ✨ Additions
+- Added `pm-compdb-cli` to initialize, query, filter, import, add, update, and delete company profiles, with table, JSON, and CSV output
+- Added profiles for all 300 simulated companies, including financials, valuation ratios, management, competitive position, and company history
+- Added `GET /api/v1/companies/{symbol}` and a company-information panel in the Trading Workstation's symbol drawer
+- Added `edumatcher.sh share on [host-ip]` and `share off` to switch between classroom network access and private loopback bindings, with dashboard links adjusted to the host address; restart the stack after changing the setting
+- Added per-symbol GTC-order counts to engine health, the `engine.book_gtc_orders` metric, and dashboard book views
+
+### 🚀 Improvements
+- Increased persistent liquidity in the simulation with a fraction of GTC orders in the contrarian, value-investor, and patient-liquidity presets
+- Kept GTC orders out of normal age-based expiry and per-symbol live-order limits, while limiting each agent to one live GTC order per symbol
+- Initialized the simulation's company database automatically on first startup without overwriting existing profiles
+- Added configuration warning `M032` when no read-only API credential is available for dashboard schedules, terminal history, and order-book data
+
+### 🐛 Bug Fixes
+- Fixed auction-triggered stops bypassing the FIFO stop cascade used during continuous trading
+
+### 📚 Documentation
+- Documented classroom sharing, restart and firewall requirements, and the risks of exposing unauthenticated protocol gateways
+- Documented company profiles, the company API, database schema, and Trading Workstation panel
+- Updated GTC simulation tuning, health-message references, and matching-verification guidance
+
+### 🛠 Internal
+- Added differential fuzzing of the order book and engine against the independent reference matcher
+- Generated verification-dataset expectations through the reference matcher
+- Added regression coverage for post-auction stops, GTC lifetimes and metrics, company data and API access, and dashboard and trading views
+- Regenerated health models and shell completions
+
 ## [v0.63.0] - 2026-10-27
 
 Release Type: major
