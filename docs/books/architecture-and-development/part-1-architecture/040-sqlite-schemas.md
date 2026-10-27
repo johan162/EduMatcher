@@ -1045,6 +1045,140 @@ CREATE INDEX news_events_ts ON news_events(ts_ns DESC)
 CREATE INDEX value_jumps_ts ON value_jumps(ts_ns)
 ```
 
+## `companies.db`
+
+**Owner:** pm-compdb-cli  
+**Purpose:** Made-up company profiles of the simulated market's tickers.  
+**Schema source:** `src/edumatcher/compdb/store.py`
+
+### Fields
+
+| Object | Field | Declared type | Not null | Default | Primary key |
+|---|---|---|---|---|---|
+| `table: companies` | `symbol` | `TEXT` | no |  | 1 |
+| `table: companies` | `name` | `TEXT` | yes |  |  |
+| `table: companies` | `sector` | `TEXT` | yes |  |  |
+| `table: companies` | `industry` | `TEXT` | yes |  |  |
+| `table: companies` | `headquarters` | `TEXT` | no |  |  |
+| `table: companies` | `purpose` | `TEXT` | no |  |  |
+| `table: companies` | `key_market` | `TEXT` | no |  |  |
+| `table: companies` | `market_position` | `TEXT` | no |  |  |
+| `table: companies` | `origin` | `TEXT` | no |  |  |
+| `table: companies` | `founders` | `TEXT` | no |  |  |
+| `table: companies` | `founder_story` | `TEXT` | no |  |  |
+| `table: companies` | `founded_year` | `INTEGER` | no |  |  |
+| `table: companies` | `ipo_year` | `INTEGER` | no |  |  |
+| `table: companies` | `ipo_valuation_musd` | `REAL` | no |  |  |
+| `table: companies` | `ceo_name` | `TEXT` | no |  |  |
+| `table: companies` | `ceo_since` | `INTEGER` | no |  |  |
+| `table: companies` | `ceo_industry_years` | `INTEGER` | no |  |  |
+| `table: companies` | `employees` | `INTEGER` | no |  |  |
+| `table: companies` | `fiscal_year` | `INTEGER` | no |  |  |
+| `table: companies` | `revenue_musd` | `REAL` | no |  |  |
+| `table: companies` | `net_income_musd` | `REAL` | no |  |  |
+| `table: companies` | `revenue_growth_pct` | `REAL` | no |  |  |
+| `table: companies` | `operating_margin_pct` | `REAL` | no |  |  |
+| `table: companies` | `free_cash_flow_musd` | `REAL` | no |  |  |
+| `table: companies` | `market_cap_musd` | `REAL` | no |  |  |
+| `table: companies` | `dividend_yield_pct` | `REAL` | no |  |  |
+| `table: companies` | `debt_to_equity` | `REAL` | no |  |  |
+| `table: companies` | `credit_rating` | `TEXT` | no |  |  |
+| `table: companies` | `competitors` | `TEXT` | no |  |  |
+| `table: companies` | `key_risk` | `TEXT` | no |  |  |
+| `view: company_view` | `symbol` | `TEXT` | no |  |  |
+| `view: company_view` | `name` | `TEXT` | no |  |  |
+| `view: company_view` | `sector` | `TEXT` | no |  |  |
+| `view: company_view` | `industry` | `TEXT` | no |  |  |
+| `view: company_view` | `headquarters` | `TEXT` | no |  |  |
+| `view: company_view` | `purpose` | `TEXT` | no |  |  |
+| `view: company_view` | `key_market` | `TEXT` | no |  |  |
+| `view: company_view` | `market_position` | `TEXT` | no |  |  |
+| `view: company_view` | `origin` | `TEXT` | no |  |  |
+| `view: company_view` | `founders` | `TEXT` | no |  |  |
+| `view: company_view` | `founder_story` | `TEXT` | no |  |  |
+| `view: company_view` | `founded_year` | `INTEGER` | no |  |  |
+| `view: company_view` | `ipo_year` | `INTEGER` | no |  |  |
+| `view: company_view` | `ipo_valuation_musd` | `REAL` | no |  |  |
+| `view: company_view` | `ceo_name` | `TEXT` | no |  |  |
+| `view: company_view` | `ceo_since` | `INTEGER` | no |  |  |
+| `view: company_view` | `ceo_industry_years` | `INTEGER` | no |  |  |
+| `view: company_view` | `employees` | `INTEGER` | no |  |  |
+| `view: company_view` | `fiscal_year` | `INTEGER` | no |  |  |
+| `view: company_view` | `revenue_musd` | `REAL` | no |  |  |
+| `view: company_view` | `net_income_musd` | `REAL` | no |  |  |
+| `view: company_view` | `revenue_growth_pct` | `REAL` | no |  |  |
+| `view: company_view` | `operating_margin_pct` | `REAL` | no |  |  |
+| `view: company_view` | `free_cash_flow_musd` | `REAL` | no |  |  |
+| `view: company_view` | `market_cap_musd` | `REAL` | no |  |  |
+| `view: company_view` | `dividend_yield_pct` | `REAL` | no |  |  |
+| `view: company_view` | `debt_to_equity` | `REAL` | no |  |  |
+| `view: company_view` | `credit_rating` | `TEXT` | no |  |  |
+| `view: company_view` | `competitors` | `TEXT` | no |  |  |
+| `view: company_view` | `key_risk` | `TEXT` | no |  |  |
+| `view: company_view` | `years_in_business` | `BLOB` | no |  |  |
+| `view: company_view` | `ceo_tenure_years` | `BLOB` | no |  |  |
+| `view: company_view` | `pe_ratio` | `BLOB` | no |  |  |
+| `view: company_view` | `ps_ratio` | `BLOB` | no |  |  |
+| `view: company_view` | `net_margin_pct` | `BLOB` | no |  |  |
+
+### DDL
+
+#### `table companies`
+
+```sql
+CREATE TABLE companies (
+    symbol TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    sector TEXT NOT NULL,
+    industry TEXT NOT NULL,
+    headquarters TEXT,
+    purpose TEXT,
+    key_market TEXT,
+    market_position TEXT,
+    origin TEXT,
+    founders TEXT,
+    founder_story TEXT,
+    founded_year INTEGER,
+    ipo_year INTEGER,
+    ipo_valuation_musd REAL,
+    ceo_name TEXT,
+    ceo_since INTEGER,
+    ceo_industry_years INTEGER,
+    employees INTEGER,
+    fiscal_year INTEGER,
+    revenue_musd REAL,
+    net_income_musd REAL,
+    revenue_growth_pct REAL,
+    operating_margin_pct REAL,
+    free_cash_flow_musd REAL,
+    market_cap_musd REAL,
+    dividend_yield_pct REAL,
+    debt_to_equity REAL,
+    credit_rating TEXT,
+    competitors TEXT,
+    key_risk TEXT
+)
+```
+
+#### `view company_view`
+
+```sql
+CREATE VIEW company_view AS
+SELECT *,
+    CAST(strftime('%Y', 'now') AS INTEGER) - founded_year AS years_in_business,
+    CAST(strftime('%Y', 'now') AS INTEGER) - ceo_since AS ceo_tenure_years,
+    CASE WHEN net_income_musd > 0 THEN ROUND(market_cap_musd / net_income_musd, 1) END AS pe_ratio,
+    CASE WHEN revenue_musd > 0 THEN ROUND(market_cap_musd / revenue_musd, 2) END AS ps_ratio,
+    CASE WHEN revenue_musd > 0 THEN ROUND(100.0 * net_income_musd / revenue_musd, 1) END AS net_margin_pct
+FROM companies
+```
+
+#### `index companies_sector`
+
+```sql
+CREATE INDEX companies_sector ON companies(sector)
+```
+
 ## `log-ui-acks.db`
 
 **Owner:** Log GUI bridge  

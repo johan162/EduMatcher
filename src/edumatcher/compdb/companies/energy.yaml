@@ -1,0 +1,482 @@
+# ENERGY. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+BKR:
+  name: Brightwater Kinetics
+  sector: ENERGY
+  industry: Oil & Gas Equipment & Services
+  headquarters: Houston, USA
+  purpose: Makes drilling and completion equipment for oilfields and the gas turbines and compressors that liquefy natural gas for export.
+  key_market: LNG export projects and national oil companies in the Middle East, the US and Australia
+  market_position: Supplies the turbine-compressor trains at the heart of most new LNG plants, an order book that runs for years whatever the oil price does.
+  origin: MERGER
+  founders: Reuben Brightwater's tool shop and an Italian turbine maker
+  founder_story: Reuben Brightwater patented a casing shoe for oil wells in 1907 and built a tool shop around it; a century later the oilfield business merged with a turbine maker to sell to LNG plants.
+  founded_year: 1907
+  ipo_year: 1957
+  ipo_valuation_musd: 85
+  ceo_name: Lorenzo Castiglione
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 57000
+  fiscal_year: 2025
+  revenue_musd: 27800
+  net_income_musd: 2900
+  revenue_growth_pct: 0.9
+  operating_margin_pct: 13.5
+  free_cash_flow_musd: 2400
+  market_cap_musd: 42500
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.36
+  credit_rating: A-
+  competitors: SLB HAL NOV
+  key_risk: A wave of LNG projects being cancelled, if gas prices fall, would empty its best order book.
+COP:
+  name: Coppervale Petroleum Inc.
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Houston, USA
+  purpose: Explores for and produces oil and natural gas, mainly in Texas and New Mexico, Alaska, Norway and Qatar.
+  key_market: Crude oil and gas buyers in the US and Asia
+  market_position: The largest independent oil producer in the world, with no refineries, so it can put every dollar into the cheapest barrels it can find.
+  origin: SPIN_OFF
+  founders: Spun off from an integrated oil company
+  founder_story: Separated in 2012 from an integrated oil group that wanted to be a refiner; it took the wells and left the refineries, becoming a pure producer overnight.
+  founded_year: 2012
+  ipo_year: 2012
+  ipo_valuation_musd: 72000
+  ceo_name: Wade Halvorsen
+  ceo_since: 2014
+  ceo_industry_years: 40
+  employees: 11800
+  fiscal_year: 2025
+  revenue_musd: 58000
+  net_income_musd: 9600
+  revenue_growth_pct: 3.4
+  operating_margin_pct: 22.5
+  free_cash_flow_musd: 7800
+  market_cap_musd: 118000
+  dividend_yield_pct: 3.4
+  debt_to_equity: 0.38
+  credit_rating: A-
+  competitors: EOG DVN FANG OXY
+  key_risk: Oil below 60 dollars a barrel would halve its free cash flow and its buybacks.
+CVX:
+  name: Chevalier Oil Corporation
+  sector: ENERGY
+  industry: Integrated Oil & Gas
+  headquarters: Houston, USA
+  purpose: Explores for, produces, refines and sells oil and gas worldwide, from the Permian Basin to Kazakhstan and Australian LNG.
+  key_market: Fuel buyers and petrochemical makers in the US and Asia-Pacific
+  market_position: The second-largest integrated oil company in the US, with the lowest-cost barrels of the majors and a large Australian LNG business.
+  origin: FOUNDER
+  founders: Horace Chevalier
+  founder_story: Horace Chevalier struck oil in a canyon north of Los Angeles in 1879 and built a small refinery to sell kerosene to the gold-rush towns; the California company went on to find oil across the world.
+  founded_year: 1879
+  ipo_year: 1913
+  ipo_valuation_musd: 150
+  ceo_name: Margaret Ellsworth-Kahn
+  ceo_since: 2019
+  ceo_industry_years: 37
+  employees: 45000
+  fiscal_year: 2025
+  revenue_musd: 192000
+  net_income_musd: 15500
+  revenue_growth_pct: -4.0
+  operating_margin_pct: 11.2
+  free_cash_flow_musd: 15000
+  market_cap_musd: 270000
+  dividend_yield_pct: 4.6
+  debt_to_equity: 0.18
+  credit_rating: AA-
+  competitors: XOM COP
+  key_risk: Its large acquisition faces an arbitration over a share in the Guyana oilfield; losing it would undo the deal's logic.
+DVN:
+  name: Dovenby Resources Co.
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Oklahoma City, USA
+  purpose: Produces oil and gas from shale in the Delaware Basin, Oklahoma, North Dakota and Wyoming.
+  key_market: US crude and natural-gas buyers
+  market_position: Pioneered a variable dividend that pays out half of its excess cash each quarter, so shareholders get the upside of high prices directly.
+  origin: FAMILY
+  founders: The Halloran father and son
+  founder_story: Founded in 1971 by an Oklahoma oilman and his son with a few hundred thousand dollars of family money; the son grew it into one of the largest independents by buying fields the majors no longer wanted.
+  founded_year: 1971
+  ipo_year: 1988
+  ipo_valuation_musd: 220
+  ceo_name: Clayton Ridgeway
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 2300
+  fiscal_year: 2025
+  revenue_musd: 16200
+  net_income_musd: 2800
+  revenue_growth_pct: 5.5
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 22500
+  dividend_yield_pct: 3.6
+  debt_to_equity: 0.58
+  credit_rating: BBB
+  competitors: COP EOG FANG
+  key_risk: Its shale wells decline quickly; it must keep drilling just to stand still.
+EOG:
+  name: Eaglewood Oil & Gas
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Houston, USA
+  purpose: Drills and produces oil and gas from US shale formations, chosen for the highest return per well.
+  key_market: US crude and gas buyers
+  market_position: Its geologists consistently drill the most productive shale wells in the industry, and it only drills wells that pay back at 40-dollar oil.
+  origin: SPIN_OFF
+  founders: Spun off from a pipeline company's exploration arm
+  founder_story: The exploration arm of a Houston pipeline company, it was spun off in 1999, two years before its parent collapsed in one of the largest accounting frauds in US history.
+  founded_year: 1999
+  ipo_year: 1999
+  ipo_valuation_musd: 3600
+  ceo_name: Lucinda Barrera
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 3200
+  fiscal_year: 2025
+  revenue_musd: 23000
+  net_income_musd: 6200
+  revenue_growth_pct: -1.6
+  operating_margin_pct: 33.4
+  free_cash_flow_musd: 5100
+  market_cap_musd: 66500
+  dividend_yield_pct: 3.2
+  debt_to_equity: 0.15
+  credit_rating: AA-
+  competitors: COP DVN FANG
+  key_risk: Its best-acre inventory in the Delaware Basin will be drilled out within 15 years.
+FANG:
+  name: Fangrock Energy Inc.
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Midland, USA
+  purpose: Produces oil and gas from the Permian Basin of West Texas, nothing else.
+  key_market: Gulf Coast refiners and exporters
+  market_position: The lowest-cost pure Permian producer, running its drilling from Midland itself with the lowest overhead per barrel in the basin.
+  origin: CO_FOUNDERS
+  founders: Travis Dunmore, Rosa Escalante
+  founder_story: A landman and a petroleum engineer bought 40,000 acres of overlooked West Texas acreage in 2007 with private-equity money, betting that horizontal drilling would unlock it.
+  founded_year: 2007
+  ipo_year: 2012
+  ipo_valuation_musd: 1100
+  ceo_name: Travis Dunmore
+  ceo_since: 2012
+  ceo_industry_years: 33
+  employees: 1900
+  fiscal_year: 2025
+  revenue_musd: 15200
+  net_income_musd: 3500
+  revenue_growth_pct: 38.5
+  operating_margin_pct: 34.0
+  free_cash_flow_musd: 3200
+  market_cap_musd: 42000
+  dividend_yield_pct: 3.3
+  debt_to_equity: 0.38
+  credit_rating: BBB+
+  competitors: COP EOG DVN
+  key_risk: Every one of its wells is in one basin; a Texas regulatory change or pipeline bottleneck hits all of them at once.
+HAL:
+  name: Hartwell Energy Services
+  sector: ENERGY
+  industry: Oil & Gas Equipment & Services
+  headquarters: Houston, USA
+  purpose: Fractures, cements and completes oil and gas wells and supplies the drilling fluids and tools used to drill them.
+  key_market: North American shale producers and national oil companies in the Middle East and Latin America
+  market_position: The largest hydraulic-fracturing company in North America, with electric frac fleets that cut customers' fuel bills.
+  origin: FOUNDER
+  founders: Elmer Hartwell
+  founder_story: Elmer Hartwell, an Oklahoma truck driver, borrowed a wagon, a pump and a mule in 1919 to cement oil wells for drillers who could not stop their wells from flooding.
+  founded_year: 1919
+  ipo_year: 1948
+  ipo_valuation_musd: 50
+  ceo_name: Jerome Okonkwo
+  ceo_since: 2017
+  ceo_industry_years: 31
+  employees: 48000
+  fiscal_year: 2025
+  revenue_musd: 22500
+  net_income_musd: 1900
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 21500
+  dividend_yield_pct: 2.7
+  debt_to_equity: 0.72
+  credit_rating: BBB+
+  competitors: SLB BKR NOV
+  key_risk: US shale drilling is in slow decline, and its customers are cutting rigs to save cash.
+HES:
+  name: Hesketh Petroleum Corp.
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: New York, USA
+  purpose: Produces oil and gas in Guyana, North Dakota, the Gulf of Mexico and South-East Asia.
+  key_market: Global crude buyers
+  market_position: Holds a 30 per cent stake in the Stabroek block off Guyana, the largest oil discovery of the past decade.
+  origin: FOUNDER
+  founders: Mortimer Hesketh
+  founder_story: Mortimer Hesketh, a New Jersey heating-oil deliveryman, bought his first tanker truck in 1933 and built a business selling fuel oil to apartment buildings, then went looking for his own oil.
+  founded_year: 1933
+  ipo_year: 1962
+  ipo_valuation_musd: 70
+  ceo_name: Clara Hesketh
+  ceo_since: 2013
+  ceo_industry_years: 30
+  employees: 1800
+  fiscal_year: 2025
+  revenue_musd: 13000
+  net_income_musd: 2800
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 36.0
+  free_cash_flow_musd: 2600
+  market_cap_musd: 45000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.88
+  credit_rating: BBB
+  competitors: CVX XOM
+  key_risk: Its agreed takeover by a larger rival depends on an arbitration over the Guyana stake.
+KMI:
+  name: Keystone Midstream Inc.
+  sector: ENERGY
+  industry: Oil & Gas Storage & Transportation
+  headquarters: Houston, USA
+  purpose: Runs 80,000 miles of natural-gas pipelines, terminals and CO2 pipelines across the US.
+  key_market: Gas utilities, power stations and LNG exporters in the US
+  market_position: Moves about 40 per cent of the natural gas consumed in the US through its pipes, paid by volume and not by price.
+  origin: CO_FOUNDERS
+  founders: Lewis Kessler, Ann Moyer
+  founder_story: Two executives who had quit a Houston energy trader bought its unwanted pipeline unit in 1997 for 40 million dollars; they turned it into the largest gas-pipeline company in the country.
+  founded_year: 1997
+  ipo_year: 2011
+  ipo_valuation_musd: 22000
+  ceo_name: Kimberly Arceneaux
+  ceo_since: 2023
+  ceo_industry_years: 24
+  employees: 10900
+  fiscal_year: 2025
+  revenue_musd: 15800
+  net_income_musd: 2700
+  revenue_growth_pct: 4.9
+  operating_margin_pct: 27.5
+  free_cash_flow_musd: 2900
+  market_cap_musd: 60500
+  dividend_yield_pct: 4.3
+  debt_to_equity: 1.0
+  credit_rating: BBB
+  competitors: ""
+  key_risk: New pipeline projects take years of permits and lawsuits, which caps how fast it can grow.
+MPC:
+  name: Meridian Point Refining Corp.
+  sector: ENERGY
+  industry: Oil & Gas Refining & Marketing
+  headquarters: Findlay, USA
+  purpose: Runs 13 refineries that turn 3 million barrels of crude a day into petrol, diesel and jet fuel, and owns a large pipeline partnership.
+  key_market: Fuel wholesalers, airlines and petrol-station chains in the US Midwest, Gulf Coast and West Coast
+  market_position: The largest refiner in the US; its pipeline partnership pays a steady income that cushions the swings of refining margins.
+  origin: SPIN_OFF
+  founders: Spun off from an Ohio oil company
+  founder_story: Separated in 2011 from an Ohio oil group that had been refining since 1887; the parent kept the oilfields and set the refineries free to buy rivals.
+  founded_year: 2011
+  ipo_year: 2011
+  ipo_valuation_musd: 12000
+  ceo_name: Harrison Cole
+  ceo_since: 2024
+  ceo_industry_years: 27
+  employees: 18300
+  fiscal_year: 2025
+  revenue_musd: 135000
+  net_income_musd: 3200
+  revenue_growth_pct: -8.5
+  operating_margin_pct: 4.1
+  free_cash_flow_musd: 4300
+  market_cap_musd: 49000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 1.2
+  credit_rating: BBB
+  competitors: PSX VLO
+  key_risk: Refining margins have fallen from record highs as new refineries in Asia and Africa start up.
+NOV:
+  name: Novaridge Drilling Systems
+  sector: ENERGY
+  industry: Oil & Gas Equipment & Services
+  headquarters: Houston, USA
+  purpose: Designs and builds drilling rigs, drill pipe, offshore equipment and the flexible pipe used on floating production platforms.
+  key_market: Drilling contractors and offshore producers worldwide
+  market_position: Has equipment on nearly every drilling rig in the world, so its spare parts and service business continues whether new rigs are built or not.
+  origin: MERGER
+  founders: A rig-equipment maker and a drill-pipe maker
+  founder_story: Formed in 2005 when the two leading makers of rig equipment merged after the long 1990s oil slump left neither of them able to fund new designs alone.
+  founded_year: 2005
+  ipo_year: 2005
+  ipo_valuation_musd: 8100
+  ceo_name: Ivan Petrov-Lowell
+  ceo_since: 2014
+  ceo_industry_years: 34
+  employees: 33000
+  fiscal_year: 2025
+  revenue_musd: 8800
+  net_income_musd: 600
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 800
+  market_cap_musd: 5900
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.33
+  credit_rating: BBB+
+  competitors: SLB HAL BKR
+  key_risk: Offshore rig owners are retiring rigs instead of ordering new ones.
+OXY:
+  name: Oxbridge Petroleum Corp.
+  sector: ENERGY
+  industry: Oil & Gas Exploration & Production
+  headquarters: Houston, USA
+  purpose: Produces oil and gas in the Permian Basin, the Rocky Mountains, Oman and the UAE, and makes chlorine and caustic soda.
+  key_market: US crude buyers and chemical customers
+  market_position: Leads the industry in carbon capture, injecting CO2 to recover more oil and building the first large plant to pull CO2 straight out of the air.
+  origin: FOUNDER
+  founders: Ambrose Clarke
+  founder_story: A Los Angeles physician turned wildcatter bought a near-bankrupt oil company in 1957 as a tax shelter, then struck a gas field in California and oil in Libya.
+  founded_year: 1920
+  ipo_year: 1957
+  ipo_valuation_musd: 10
+  ceo_name: Victoria Lanham
+  ceo_since: 2016
+  ceo_industry_years: 37
+  employees: 13000
+  fiscal_year: 2025
+  revenue_musd: 27500
+  net_income_musd: 2800
+  revenue_growth_pct: 2.7
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 4600
+  market_cap_musd: 42000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.72
+  credit_rating: BBB-
+  competitors: COP EOG
+  key_risk: Its direct-air-capture plant is a multibillion-dollar bet on carbon prices that do not yet exist.
+PSX:
+  name: Prairieline Refining Inc.
+  sector: ENERGY
+  industry: Oil & Gas Refining & Marketing
+  headquarters: Houston, USA
+  purpose: Refines oil into fuel, runs pipelines and terminals, makes chemicals through a joint venture and sells fuel under a well-known service-station brand.
+  key_market: Fuel markets of the US Midwest and Gulf Coast, and plastics buyers worldwide
+  market_position: Its mix of refining, pipelines, chemicals and branded fuel smooths out the swings that pure refiners endure.
+  origin: SPIN_OFF
+  founders: Spun off from an integrated oil company
+  founder_story: The refining and marketing half of an integrated oil group, spun off in 2012; the brand dates back to a 1917 Oklahoma oil company named after the highway its first station stood on.
+  founded_year: 2012
+  ipo_year: 2012
+  ipo_valuation_musd: 21000
+  ceo_name: Russell Vandermeer
+  ceo_since: 2022
+  ceo_industry_years: 31
+  employees: 13200
+  fiscal_year: 2025
+  revenue_musd: 141000
+  net_income_musd: 2000
+  revenue_growth_pct: -3.5
+  operating_margin_pct: 2.4
+  free_cash_flow_musd: 1900
+  market_cap_musd: 52000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 0.68
+  credit_rating: BBB+
+  competitors: MPC VLO
+  key_risk: An activist investor wants it broken up, which would distract management for years.
+SLB:
+  name: Stratalog Borehole Services
+  sector: ENERGY
+  industry: Oil & Gas Equipment & Services
+  headquarters: Houston, USA
+  purpose: Supplies the seismic surveys, well logging, drilling tools and digital software that oil companies use to find and produce oil and gas.
+  key_market: National oil companies in the Middle East, Latin America and Asia
+  market_position: The largest oilfield-services company in the world and the leader in subsurface technology; its tools measured the rock in most of the world's oil wells.
+  origin: CO_FOUNDERS
+  founders: Émile Strahl, Gaston Strahl
+  founder_story: Two French physicist brothers ran an electrical current into a well in Alsace in 1927 to tell oil from water underground; the "well log" they invented became the industry's basic tool.
+  founded_year: 1926
+  ipo_year: 1956
+  ipo_valuation_musd: 120
+  ceo_name: Olivier Dumontier
+  ceo_since: 2019
+  ceo_industry_years: 33
+  employees: 110000
+  fiscal_year: 2025
+  revenue_musd: 35500
+  net_income_musd: 4300
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 17.5
+  free_cash_flow_musd: 4100
+  market_cap_musd: 54500
+  dividend_yield_pct: 2.9
+  debt_to_equity: 0.5
+  credit_rating: A
+  competitors: HAL BKR NOV
+  key_risk: Saudi Arabia, its largest single customer, has cut drilling plans.
+VLO:
+  name: Valorian Energy Corp.
+  sector: ENERGY
+  industry: Oil & Gas Refining & Marketing
+  headquarters: San Antonio, USA
+  purpose: Runs 15 refineries and is the second-largest producer of renewable diesel and ethanol in the world.
+  key_market: Fuel wholesalers in the US, Canada, the UK and Latin America
+  market_position: Its Gulf Coast refineries can process cheap, heavy, sour crude other refiners cannot handle, and export fuel to Latin America.
+  origin: SPIN_OFF
+  founders: Spun off from a Texas gas pipeline company
+  founder_story: Created in 1980 when a Texas gas pipeline company settled a lawsuit with its customers by spinning off its refining and pipeline assets to them.
+  founded_year: 1980
+  ipo_year: 1980
+  ipo_valuation_musd: 450
+  ceo_name: Adriana Solís
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 9900
+  fiscal_year: 2025
+  revenue_musd: 128000
+  net_income_musd: 2600
+  revenue_growth_pct: -11.2
+  operating_margin_pct: 2.6
+  free_cash_flow_musd: 3300
+  market_cap_musd: 43500
+  dividend_yield_pct: 3.3
+  debt_to_equity: 0.42
+  credit_rating: BBB
+  competitors: MPC PSX
+  key_risk: California's tougher fuel rules may force it to close its two refineries in the state.
+XOM:
+  name: Xanthe Petroleum Corporation
+  sector: ENERGY
+  industry: Integrated Oil & Gas
+  headquarters: Spring, USA
+  purpose: The largest US oil company, finding, producing, refining and selling oil, gas, fuels, lubricants and chemicals worldwide.
+  key_market: Fuel, LNG and chemicals buyers on every continent
+  market_position: Operates the giant Guyana oilfield and the largest US shale position, and has the strongest balance sheet of the oil majors.
+  origin: SPIN_OFF
+  founders: Created when the courts broke up the oil trust
+  founder_story: One of 34 companies created in 1911 when the US Supreme Court broke up the largest oil trust in history; the New Jersey piece kept the refineries and grew into the biggest of them all.
+  founded_year: 1911
+  ipo_year: 1911
+  ipo_valuation_musd: 390
+  ceo_name: Philip Whitcombe
+  ceo_since: 2018
+  ceo_industry_years: 33
+  employees: 61000
+  fiscal_year: 2025
+  revenue_musd: 335000
+  net_income_musd: 31000
+  revenue_growth_pct: -2.5
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 30000
+  market_cap_musd: 470000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 0.15
+  credit_rating: AA-
+  competitors: CVX COP
+  key_risk: Climate lawsuits by US states and cities claim it hid what it knew about global warming.

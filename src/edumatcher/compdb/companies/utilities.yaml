@@ -1,0 +1,542 @@
+# UTILITIES. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+AEP:
+  name: Arcline Electric & Power Co.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Columbus, USA
+  purpose: Generates and delivers electricity to 5.6 million customers across eleven states of the US Midwest and South.
+  key_market: Regulated retail electricity in Ohio, Texas, Oklahoma and the Appalachian states
+  market_position: Owns the longest high-voltage transmission network in the country, which earns a regulated return whoever generates the power.
+  origin: MERGER
+  founders: Ohio Valley Light & Traction, Kanawha Power Company
+  founder_story: Formed in 1906 when a streetcar operator and a coal-country power company pooled their dams and lines to sell surplus electricity to the mill towns along the Ohio River; a century of acquisitions turned the pair into a multi-state grid.
+  founded_year: 1906
+  ipo_year: 1949
+  ipo_valuation_musd: 310
+  ceo_name: Marguerite Okafor
+  ceo_since: 2021
+  ceo_industry_years: 27
+  employees: 16800
+  fiscal_year: 2025
+  revenue_musd: 19800
+  net_income_musd: 2900
+  revenue_growth_pct: 4.1
+  operating_margin_pct: 21.4
+  free_cash_flow_musd: -1800
+  market_cap_musd: 54000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 1.62
+  credit_rating: BBB+
+  competitors: DUK SO XEL
+  key_risk: A rate case that disallows the cost of its transmission build-out would cut earnings growth in half.
+ATO:
+  name: Atholl Gas Corporation
+  sector: UTILITIES
+  industry: Gas Utilities
+  headquarters: Dallas, USA
+  purpose: Distributes natural gas to 3.4 million homes and businesses and runs an intrastate pipeline across Texas.
+  key_market: Residential gas heating in Texas, Louisiana, Mississippi and Kansas
+  market_position: The largest pure-play gas distributor in the US, with the fastest pipe-replacement programme and a regulatory formula that recovers it within a year.
+  origin: FOUNDER
+  founders: Harlan Atholl
+  founder_story: Harlan Atholl, a West Texas oilfield surveyor, began piping waste gas from his own wells to the farmhouses of Amarillo in 1906; the town rang its bell when the first gas lamp was lit.
+  founded_year: 1906
+  ipo_year: 1983
+  ipo_valuation_musd: 420
+  ceo_name: Rafael Benavides
+  ceo_since: 2019
+  ceo_industry_years: 24
+  employees: 5300
+  fiscal_year: 2025
+  revenue_musd: 4300
+  net_income_musd: 1150
+  revenue_growth_pct: 3.2
+  operating_margin_pct: 32.8
+  free_cash_flow_musd: -1100
+  market_cap_musd: 22800
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.68
+  credit_rating: A
+  competitors: SRE CMS
+  key_risk: State or city bans on gas connections in new buildings would shrink its customer base over time.
+AWK:
+  name: Aquaworks Holdings Inc.
+  sector: UTILITIES
+  industry: Water Utilities
+  headquarters: Camden, USA
+  purpose: Supplies drinking water and wastewater services to 14 million people in 14 states and to US military bases.
+  key_market: Regulated municipal water in Pennsylvania, New Jersey, Missouri and Illinois
+  market_position: The largest listed water utility in the US; it grows by buying small town water systems that cannot afford the upgrades the rules now require.
+  origin: CO_FOUNDERS
+  founders: Josiah Penwright, Clara Penwright
+  founder_story: The Penwrights, a civil engineer and his sister, a typhoid nurse, built a sand filter for the town of Pottsville in 1886 after an outbreak killed forty people; towns up and down the river asked them to do the same.
+  founded_year: 1886
+  ipo_year: 1947
+  ipo_valuation_musd: 95
+  ceo_name: Deborah Lindqvist
+  ceo_since: 2022
+  ceo_industry_years: 31
+  employees: 6700
+  fiscal_year: 2025
+  revenue_musd: 4800
+  net_income_musd: 1060
+  revenue_growth_pct: 7.4
+  operating_margin_pct: 39.5
+  free_cash_flow_musd: -1600
+  market_cap_musd: 27600
+  dividend_yield_pct: 2.2
+  debt_to_equity: 1.48
+  credit_rating: A
+  competitors: ""
+  key_risk: The cost of removing PFAS chemicals from water may outrun what regulators let it charge.
+CEG:
+  name: Corvane Energy Generation Corp.
+  sector: UTILITIES
+  industry: Independent Power Producers
+  headquarters: Baltimore, USA
+  purpose: Runs the largest fleet of nuclear power stations in the US and sells carbon-free electricity to utilities, data centres and industry.
+  key_market: Wholesale power in the PJM and Midwest markets and long-term contracts with hyperscale data centres
+  market_position: The only producer able to sign 20-year round-the-clock carbon-free power contracts at gigawatt scale, which the large cloud companies now compete for.
+  origin: SPIN_OFF
+  founders: Spun off from Exelby Grid Corp. (EXC)
+  founder_story: Separated in 2022 from its regulated parent so investors could value a merchant nuclear fleet on its own; the spin-off came just as data-centre demand made 24-hour clean power scarce.
+  founded_year: 2022
+  ipo_year: 2022
+  ipo_valuation_musd: 17500
+  ceo_name: Thaddeus Mwangi
+  ceo_since: 2022
+  ceo_industry_years: 29
+  employees: 14200
+  fiscal_year: 2025
+  revenue_musd: 24900
+  net_income_musd: 3900
+  revenue_growth_pct: 6.8
+  operating_margin_pct: 19.6
+  free_cash_flow_musd: 2400
+  market_cap_musd: 98000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.62
+  credit_rating: BBB+
+  competitors: NRG EXC NEE
+  key_risk: A forced outage at one of its older reactors, or a new tax on nuclear output, would hit a business priced for perfection.
+CMS:
+  name: Cedarmoor Services Co.
+  sector: UTILITIES
+  industry: Multi-Utilities
+  headquarters: Jackson, USA
+  purpose: Supplies electricity and natural gas to most of Michigan's Lower Peninsula outside Detroit.
+  key_market: Regulated electricity and gas in Michigan
+  market_position: Its plan to close every coal plant by 2025 was agreed with the state up front, so its clean-energy spending is pre-approved for recovery.
+  origin: MERGER
+  founders: Grand Rapids Edison Co., Saginaw Valley Gas Light
+  founder_story: Two rival lighting companies merged in 1910 after their competing poles made Michigan Avenue in Jackson a forest of wires; the town council forced the deal.
+  founded_year: 1910
+  ipo_year: 1956
+  ipo_valuation_musd: 140
+  ceo_name: Helena Warszawski
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 8400
+  fiscal_year: 2025
+  revenue_musd: 7600
+  net_income_musd: 1010
+  revenue_growth_pct: 2.9
+  operating_margin_pct: 18.1
+  free_cash_flow_musd: -1300
+  market_cap_musd: 21400
+  dividend_yield_pct: 3.0
+  debt_to_equity: 2.1
+  credit_rating: BBB+
+  competitors: DTE AEP
+  key_risk: Michigan's elected regulators could turn against rate rises after a hard winter.
+D:
+  name: Dunmore Energy Inc.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Richmond, USA
+  purpose: Delivers electricity in Virginia and the Carolinas and is building the largest offshore wind farm in US waters.
+  key_market: Regulated electricity in Virginia, home of the world's densest cluster of data centres
+  market_position: Serves Northern Virginia's data-centre corridor, which gives it the fastest-growing commercial load of any US utility.
+  origin: MERGER
+  founders: Richmond Tidewater Power, Piedmont Hydro Electric
+  founder_story: Assembled in 1909 by a Richmond banker who bought a bankrupt trolley line for its dam on the James River and a hydro company for its customers, then sold power to both.
+  founded_year: 1909
+  ipo_year: 1952
+  ipo_valuation_musd: 210
+  ceo_name: Clarence Abernathy-Ruiz
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 14700
+  fiscal_year: 2025
+  revenue_musd: 15100
+  net_income_musd: 2300
+  revenue_growth_pct: 5.7
+  operating_margin_pct: 24.2
+  free_cash_flow_musd: -4200
+  market_cap_musd: 46500
+  dividend_yield_pct: 4.7
+  debt_to_equity: 1.55
+  credit_rating: BBB+
+  competitors: DUK SO AEP
+  key_risk: Cost overruns on the offshore wind project, which is the biggest single capital project in its history.
+DTE:
+  name: Delta Tri-State Electric Co.
+  sector: UTILITIES
+  industry: Multi-Utilities
+  headquarters: Detroit, USA
+  purpose: Supplies electricity to 2.3 million customers in south-east Michigan and gas to 1.3 million, and runs energy services for heavy industry.
+  key_market: Regulated electricity and gas in metropolitan Detroit
+  market_position: Its industrial energy unit supplies steam, cooling and renewable gas to car plants and steel mills under long contracts no other Midwestern utility offers.
+  origin: FOUNDER
+  founders: Augustus Rennick
+  founder_story: Augustus Rennick, an electrician who wired the first car factories in Detroit, founded the company in 1903 to sell the factories power at night so his day generators would not sit idle.
+  founded_year: 1903
+  ipo_year: 1951
+  ipo_valuation_musd: 175
+  ceo_name: Priyanka Natarajan
+  ceo_since: 2023
+  ceo_industry_years: 22
+  employees: 9800
+  fiscal_year: 2025
+  revenue_musd: 13200
+  net_income_musd: 1500
+  revenue_growth_pct: 3.4
+  operating_margin_pct: 15.9
+  free_cash_flow_musd: -1900
+  market_cap_musd: 27100
+  dividend_yield_pct: 3.3
+  debt_to_equity: 1.95
+  credit_rating: BBB
+  competitors: CMS AEP
+  key_risk: Ice storms and ageing overhead lines give it some of the worst outage statistics in the country, and regulators have started to fine it for them.
+DUK:
+  name: Durham United Kilowatt Corp.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Charlotte, USA
+  purpose: The largest US utility by customers, supplying electricity to 8.4 million homes and businesses in the Carolinas, Florida and the Midwest.
+  key_market: Regulated electricity in North and South Carolina and Florida
+  market_position: Operates the largest regulated nuclear fleet in the US, giving the fast-growing Southeast low-carbon baseload no rival can match in size.
+  origin: CO_FOUNDERS
+  founders: Walter Durham, Benjamin Kellogg
+  founder_story: A tobacco magnate and his engineer built a hydro dam on the Catawba River in 1904 to power their cotton mills, and soon found selling electricity to the mill towns paid better than tobacco.
+  founded_year: 1904
+  ipo_year: 1961
+  ipo_valuation_musd: 380
+  ceo_name: Yvonne Castellano
+  ceo_since: 2019
+  ceo_industry_years: 33
+  employees: 27600
+  fiscal_year: 2025
+  revenue_musd: 31200
+  net_income_musd: 4700
+  revenue_growth_pct: 3.6
+  operating_margin_pct: 24.9
+  free_cash_flow_musd: -3600
+  market_cap_musd: 90500
+  dividend_yield_pct: 3.6
+  debt_to_equity: 1.71
+  credit_rating: BBB+
+  competitors: SO D NEE
+  key_risk: Hurricanes along the Florida and Carolina coasts cost it hundreds of millions a year in storm repairs it can only recover later.
+ED:
+  name: Empire Dynamo Inc.
+  sector: UTILITIES
+  industry: Multi-Utilities
+  headquarters: New York, USA
+  purpose: Supplies electricity, gas and steam to New York City and Westchester County.
+  key_market: Regulated electricity, gas and district steam in New York City
+  market_position: Runs the largest underground electric network and the largest district steam system in the world, heating skyscrapers from Wall Street to Harlem.
+  origin: MERGER
+  founders: Six Manhattan gas-light companies
+  founder_story: In 1884 six rival gas-light companies, tired of digging up the same Manhattan streets, merged under pressure from the city; the merged company bought one of the first electric stations two years later.
+  founded_year: 1884
+  ipo_year: 1936
+  ipo_valuation_musd: 520
+  ceo_name: Lionel Feingold
+  ceo_since: 2021
+  ceo_industry_years: 32
+  employees: 14300
+  fiscal_year: 2025
+  revenue_musd: 15600
+  net_income_musd: 1850
+  revenue_growth_pct: 2.1
+  operating_margin_pct: 17.3
+  free_cash_flow_musd: -900
+  market_cap_musd: 33900
+  dividend_yield_pct: 3.4
+  debt_to_equity: 1.18
+  credit_rating: A-
+  competitors: ES EXC
+  key_risk: New York's climate law requires it to wind down gas and steam, its most profitable networks, on a schedule set by politicians.
+EIX:
+  name: Eldridge Pacific Electric
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Rosemead, USA
+  purpose: Delivers electricity to 15 million people across central, coastal and southern California outside Los Angeles city.
+  key_market: Regulated electricity in Southern California
+  market_position: Has the highest share of electric vehicles and rooftop solar on its network of any US utility, which makes it the test bed for grid electrification.
+  origin: FOUNDER
+  founders: Silas Eldridge
+  founder_story: Silas Eldridge, an orange grower, built a small hydro plant in the San Gabriel Mountains in 1886 to light his packing house and sold the leftover power to the town of Pomona.
+  founded_year: 1886
+  ipo_year: 1959
+  ipo_valuation_musd: 260
+  ceo_name: Rosalind Tran-Whitaker
+  ceo_since: 2021
+  ceo_industry_years: 25
+  employees: 13900
+  fiscal_year: 2025
+  revenue_musd: 17600
+  net_income_musd: 1500
+  revenue_growth_pct: 5.2
+  operating_margin_pct: 15.1
+  free_cash_flow_musd: -2900
+  market_cap_musd: 22500
+  dividend_yield_pct: 5.1
+  debt_to_equity: 2.25
+  credit_rating: BBB
+  competitors: SRE
+  key_risk: California holds a utility liable for any wildfire its equipment starts, whether or not it was negligent.
+ES:
+  name: Eastshore Utilities Trust
+  sector: UTILITIES
+  industry: Multi-Utilities
+  headquarters: Hartford, USA
+  purpose: Delivers electricity, gas and water to 4.4 million customers in Connecticut, Massachusetts and New Hampshire.
+  key_market: Regulated electricity and gas in New England
+  market_position: The largest utility in New England and the owner of its main transmission corridors, which every offshore wind farm needs to reach the cities.
+  origin: MERGER
+  founders: Hartford Electric Light, Western Massachusetts Electric
+  founder_story: Created in 1966 when three New England holding companies merged to build the region's first nuclear plants together, none being large enough to do it alone.
+  founded_year: 1966
+  ipo_year: 1967
+  ipo_valuation_musd: 610
+  ceo_name: Gerald O'Shaughnessy
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 10200
+  fiscal_year: 2025
+  revenue_musd: 12300
+  net_income_musd: 1250
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 19.2
+  free_cash_flow_musd: -2500
+  market_cap_musd: 22900
+  dividend_yield_pct: 4.8
+  debt_to_equity: 1.86
+  credit_rating: BBB+
+  competitors: ED EXC
+  key_risk: Connecticut regulators have cut its allowed returns twice; a third cut would make the state uneconomic to serve.
+ETR:
+  name: Estuary Power Corp.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: New Orleans, USA
+  purpose: Generates and delivers electricity to 3 million customers in Louisiana, Arkansas, Mississippi and Texas, about half of it to heavy industry.
+  key_market: Petrochemical plants, refineries and LNG terminals along the Gulf Coast
+  market_position: More of its electricity goes to industry than at any other large US utility, so it grows with every new chemical plant and LNG terminal on the Gulf.
+  origin: FOUNDER
+  founders: Antoine Dufresne
+  founder_story: Antoine Dufresne, a riverboat engineer, put a steam generator on a moored barge in 1913 and sold electricity to the sugar refineries of New Orleans until the city let him run cables ashore.
+  founded_year: 1913
+  ipo_year: 1949
+  ipo_valuation_musd: 150
+  ceo_name: Simone Achebe
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 12100
+  fiscal_year: 2025
+  revenue_musd: 12400
+  net_income_musd: 1600
+  revenue_growth_pct: 4.6
+  operating_margin_pct: 20.8
+  free_cash_flow_musd: -2100
+  market_cap_musd: 34500
+  dividend_yield_pct: 3.0
+  debt_to_equity: 1.82
+  credit_rating: BBB+
+  competitors: SO AEP
+  key_risk: A major hurricane through New Orleans can wipe out a year of earnings and tie up its balance sheet for years.
+EXC:
+  name: Exelby Grid Corporation
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Chicago, USA
+  purpose: Owns and runs the wires that deliver electricity and gas to 10 million customers in Chicago, Philadelphia, Baltimore and Washington DC, without generating any power itself.
+  key_market: Regulated transmission and distribution in Illinois, Pennsylvania, Maryland and DC
+  market_position: The largest wires-only utility in the US; with no power stations it carries none of the fuel or commodity price risk its peers do.
+  origin: MERGER
+  founders: Lakefront Edison Co., Keystone Electric
+  founder_story: Formed in 2000 when a Chicago utility and a Philadelphia utility merged to pool their nuclear fleets; it later split off the plants and kept only the wires.
+  founded_year: 2000
+  ipo_year: 2000
+  ipo_valuation_musd: 15400
+  ceo_name: Aurelio Mancini
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 19900
+  fiscal_year: 2025
+  revenue_musd: 23500
+  net_income_musd: 2600
+  revenue_growth_pct: 5.9
+  operating_margin_pct: 18.4
+  free_cash_flow_musd: -2800
+  market_cap_musd: 44200
+  dividend_yield_pct: 3.7
+  debt_to_equity: 1.74
+  credit_rating: BBB+
+  competitors: ED ES
+  key_risk: The bribery case at its Illinois unit still hangs over its relations with state legislators.
+NEE:
+  name: Nexwind Energy Enterprises
+  sector: UTILITIES
+  industry: Renewable Utilities
+  headquarters: Juno Beach, USA
+  purpose: Runs Florida's largest electric utility and, through a separate arm, is the world's largest developer of wind, solar and battery projects.
+  key_market: Regulated electricity in Florida and long-term renewable power contracts across the US
+  market_position: Its purchasing scale in turbines, panels and batteries lets it build renewables at a cost no other developer has matched.
+  origin: FOUNDER
+  founders: Edwin Marchetti
+  founder_story: Edwin Marchetti, a Miami ice merchant, began selling the spare power of his ice plant's generators to his neighbours in 1925; the ice business went, the power business stayed.
+  founded_year: 1925
+  ipo_year: 1950
+  ipo_valuation_musd: 230
+  ceo_name: Kofi Asante-Berg
+  ceo_since: 2022
+  ceo_industry_years: 23
+  employees: 16800
+  fiscal_year: 2025
+  revenue_musd: 26100
+  net_income_musd: 6600
+  revenue_growth_pct: 7.8
+  operating_margin_pct: 30.6
+  free_cash_flow_musd: -6400
+  market_cap_musd: 151000
+  dividend_yield_pct: 2.9
+  debt_to_equity: 1.43
+  credit_rating: A-
+  competitors: DUK SO CEG
+  key_risk: Higher interest rates raise the cost of the debt it builds with and lower what its long-term contracts are worth.
+NRG:
+  name: Norrgen Retail Power Inc.
+  sector: UTILITIES
+  industry: Independent Power Producers
+  headquarters: Houston, USA
+  purpose: Sells electricity, gas and home services to 8 million retail customers and runs the gas-fired power stations that back them.
+  key_market: Deregulated retail electricity in Texas and the US Northeast
+  market_position: The largest retail electricity brand in Texas, paired with its own generation so it can sell fixed-price plans without buying all its power on the spot market.
+  origin: SPIN_OFF
+  founders: Spun off from a Minnesota utility
+  founder_story: Started in 1989 as the unregulated power-trading desk of a Minnesota utility, it went bankrupt in 2003 when power prices collapsed and re-emerged as a Texas retailer that owns its own plants.
+  founded_year: 1989
+  ipo_year: 2000
+  ipo_valuation_musd: 3900
+  ceo_name: Brandon Kowalczyk
+  ceo_since: 2023
+  ceo_industry_years: 19
+  employees: 18200
+  fiscal_year: 2025
+  revenue_musd: 28700
+  net_income_musd: 1300
+  revenue_growth_pct: -2.4
+  operating_margin_pct: 7.2
+  free_cash_flow_musd: 1800
+  market_cap_musd: 20800
+  dividend_yield_pct: 1.7
+  debt_to_equity: 4.9
+  credit_rating: BB+
+  competitors: CEG
+  key_risk: A winter storm like 2021's can force it to buy power at the price cap of 5,000 dollars a megawatt-hour to supply customers on fixed contracts.
+SO:
+  name: Southwind Utilities Co.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Atlanta, USA
+  purpose: Supplies electricity to 9 million customers in Georgia, Alabama and Mississippi and gas in four more states.
+  key_market: Regulated electricity in Georgia and Alabama
+  market_position: Owns the only new nuclear reactors finished in the US in a generation, which will produce carbon-free baseload for the next 60 years.
+  origin: CO_FOUNDERS
+  founders: James Tuckahoe, Eleanor Brantley
+  founder_story: James Tuckahoe and Eleanor Brantley, a river engineer and a cotton heiress, dammed the Tallulah Gorge in 1913 to power Atlanta's streetcars; Brantley's money and Tuckahoe's dam made the city's first reliable power.
+  founded_year: 1913
+  ipo_year: 1949
+  ipo_valuation_musd: 290
+  ceo_name: Darnell Whitfield
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 27900
+  fiscal_year: 2025
+  revenue_musd: 26800
+  net_income_musd: 4300
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: -1500
+  market_cap_musd: 93200
+  dividend_yield_pct: 3.4
+  debt_to_equity: 1.78
+  credit_rating: BBB+
+  competitors: DUK NEE
+  key_risk: The nuclear build ran years late and billions over budget; another overrun would test regulators' patience.
+SRE:
+  name: Sierra Reach Energy
+  sector: UTILITIES
+  industry: Multi-Utilities
+  headquarters: San Diego, USA
+  purpose: Owns utilities serving San Diego and Southern California gas customers, a stake in Texas's largest power grid, and LNG export terminals.
+  key_market: Regulated utilities in California and Texas and LNG exports to Asia
+  market_position: The only US utility group with a stake in both of the fastest-growing grids, California's and Texas's, and its own LNG export business.
+  origin: MERGER
+  founders: Pacific Lighting Co., Tierra Gas & Electric
+  founder_story: Created in 1998 when a Los Angeles gas company and a San Diego electric company merged to compete in California's newly deregulated market, months before that market collapsed.
+  founded_year: 1998
+  ipo_year: 1998
+  ipo_valuation_musd: 6200
+  ceo_name: Mariana Echeverría
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 16500
+  fiscal_year: 2025
+  revenue_musd: 13900
+  net_income_musd: 3100
+  revenue_growth_pct: 1.8
+  operating_margin_pct: 22.3
+  free_cash_flow_musd: -3300
+  market_cap_musd: 52000
+  dividend_yield_pct: 3.2
+  debt_to_equity: 1.06
+  credit_rating: BBB+
+  competitors: EIX ATO
+  key_risk: Its LNG terminal expansions depend on federal export permits that a new administration could withhold.
+XEL:
+  name: Xelda Power Inc.
+  sector: UTILITIES
+  industry: Electric Utilities
+  headquarters: Minneapolis, USA
+  purpose: Supplies electricity and gas to 3.8 million customers in eight states from Minnesota to Texas, with one of the largest wind fleets of any utility.
+  key_market: Regulated electricity in Minnesota, Colorado and the Texas-New Mexico panhandle
+  market_position: The first major US utility to promise carbon-free electricity by 2050, and the owner of wind farms in the windiest corridor of the Great Plains.
+  origin: MERGER
+  founders: Northern Prairie Power, Mile High Public Service
+  founder_story: Formed in 2000 when a Minneapolis utility and a Denver utility merged to span the windy plains between them, decades before wind power was cheap enough to pay off.
+  founded_year: 2000
+  ipo_year: 2000
+  ipo_valuation_musd: 7100
+  ceo_name: Ingrid Halvorsen
+  ceo_since: 2021
+  ceo_industry_years: 26
+  employees: 11300
+  fiscal_year: 2025
+  revenue_musd: 14100
+  net_income_musd: 1900
+  revenue_growth_pct: 3.1
+  operating_margin_pct: 17.6
+  free_cash_flow_musd: -2400
+  market_cap_musd: 37600
+  dividend_yield_pct: 3.3
+  debt_to_equity: 1.52
+  credit_rating: A-
+  competitors: AEP NEE
+  key_risk: Wildfire claims in Texas and Colorado have shown it carries California-style liability outside California.

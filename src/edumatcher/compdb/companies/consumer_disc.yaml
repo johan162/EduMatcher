@@ -1,0 +1,1082 @@
+# CONSUMER_DISC. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+ABNB:
+  name: Abode & Berth Inc.
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: San Francisco, USA
+  purpose: Runs an online marketplace where 5 million hosts rent out homes, rooms and experiences to travellers in 220 countries.
+  key_market: Leisure travellers in North America and Europe
+  market_position: Has more listings than all the world's hotel chains have rooms, and owns none of them; most guests come to the app directly, not through search ads.
+  origin: CO_FOUNDERS
+  founders: Quentin Lowe, Darius Fairweather, Mei Okada
+  founder_story: Three design-school friends who could not pay their rent in 2008 put three air mattresses on their living-room floor during a sold-out conference and charged guests 80 dollars a night, breakfast included.
+  founded_year: 2008
+  ipo_year: 2020
+  ipo_valuation_musd: 47000
+  ceo_name: Quentin Lowe
+  ceo_since: 2008
+  ceo_industry_years: 18
+  employees: 7300
+  fiscal_year: 2025
+  revenue_musd: 12000
+  net_income_musd: 2500
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 21.5
+  free_cash_flow_musd: 4500
+  market_cap_musd: 80000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.25
+  credit_rating: BBB+
+  competitors: BKNG EXPE MAR HLT
+  key_risk: Cities from New York to Barcelona are banning or capping short-term rentals.
+AMZN:
+  name: Amberline Commerce Corp.
+  sector: CONSUMER_DISC
+  industry: Broadline Retail
+  headquarters: Seattle, USA
+  purpose: Runs the largest online shop in the Western world, the leading cloud-computing platform, a subscription video service and a growing advertising business.
+  key_market: Online shoppers in the US, Europe and Japan, and cloud customers worldwide
+  market_position: Its own delivery network reaches most US homes within a day, and its cloud arm earns most of the group's profit.
+  origin: FOUNDER
+  founders: Elliot Brannigan
+  founder_story: Elliot Brannigan, a hedge-fund analyst, read in 1994 that web use was growing 2,300 per cent a year, quit his job and started selling books online from a rented garage, packing orders on the floor.
+  founded_year: 1994
+  ipo_year: 1997
+  ipo_valuation_musd: 440
+  ceo_name: Owen Castellanos
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 1550000
+  fiscal_year: 2025
+  revenue_musd: 710000
+  net_income_musd: 72000
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 25000
+  market_cap_musd: 2300000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.18
+  credit_rating: AA
+  competitors: WMT BABA EBAY MSFT GOOGL
+  key_risk: Its 200-billion-dollar AI data-centre spending must earn a return before cloud rivals catch up.
+AZO:
+  name: Autoharbor Parts Inc.
+  sector: CONSUMER_DISC
+  industry: Automotive Retail
+  headquarters: Memphis, USA
+  purpose: Runs 7,400 car-parts stores in the US, Mexico and Brazil selling batteries, brakes, oil and parts to DIY mechanics and garages.
+  key_market: Do-it-yourself car owners and independent repair garages in the US
+  market_position: Its hub stores stock 100,000 parts and can deliver any of them to a garage within the hour, which smaller chains cannot match.
+  origin: SPIN_OFF
+  founders: Spun off from a Memphis grocery chain
+  founder_story: Opened in 1979 as an experiment by a Memphis grocery chain that noticed shoppers were buying motor oil with their groceries; the parts stores soon outgrew the supermarkets.
+  founded_year: 1979
+  ipo_year: 1991
+  ipo_valuation_musd: 900
+  ceo_name: Grady Templeton
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 125000
+  fiscal_year: 2025
+  revenue_musd: 18900
+  net_income_musd: 2600
+  revenue_growth_pct: 2.4
+  operating_margin_pct: 19.5
+  free_cash_flow_musd: 2000
+  market_cap_musd: 63000
+  dividend_yield_pct: 0.0
+  debt_to_equity: -2.9
+  credit_rating: BBB
+  competitors: GPC
+  key_risk: Electric cars need far fewer replacement parts than petrol cars.
+BABA:
+  name: Bayan Bazaar Group
+  sector: CONSUMER_DISC
+  industry: Broadline Retail
+  headquarters: Hangzhou, China
+  purpose: Runs China's largest online marketplaces, an international shopping site, a cloud-computing business and a logistics network.
+  key_market: Chinese online shoppers and merchants
+  market_position: Its marketplaces handle more merchandise value than any other company in the world; Chinese brands must sell on them.
+  origin: CO_FOUNDERS
+  founders: Liang Weiming and seventeen friends
+  founder_story: A former English teacher gathered seventeen friends in his Hangzhou flat in 1999 and pitched them a website where small Chinese factories could find foreign buyers; they pooled 60,000 dollars.
+  founded_year: 1999
+  ipo_year: 2014
+  ipo_valuation_musd: 168000
+  ceo_name: Zhou Yuhan
+  ceo_since: 2023
+  ceo_industry_years: 24
+  employees: 200000
+  fiscal_year: 2025
+  revenue_musd: 137000
+  net_income_musd: 17500
+  revenue_growth_pct: 5.5
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 12000
+  market_cap_musd: 280000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 0.22
+  credit_rating: A+
+  competitors: AMZN EBAY
+  key_risk: Beijing can rewrite the rules for its platforms overnight, as it did in 2021.
+BBY:
+  name: Bytebay Electronics Corp.
+  sector: CONSUMER_DISC
+  industry: Computer & Electronics Retail
+  headquarters: Richfield, USA
+  purpose: Runs 1,000 consumer-electronics stores and a website selling computers, phones, TVs, appliances and installation services.
+  key_market: US and Canadian households buying electronics and appliances
+  market_position: The last nationwide electronics chain in the US; tech brands pay it to run in-store showrooms because shoppers still want to touch before they buy.
+  origin: FOUNDER
+  founders: Nils Thorvaldsen
+  founder_story: Nils Thorvaldsen opened a hi-fi shop in Minnesota in 1966; after a tornado wrecked his largest store in 1981 he held a "tornado sale" in the car park, which drew such crowds he turned every store into a discount superstore.
+  founded_year: 1966
+  ipo_year: 1985
+  ipo_valuation_musd: 50
+  ceo_name: Corinne Delacroix
+  ceo_since: 2019
+  ceo_industry_years: 26
+  employees: 85000
+  fiscal_year: 2025
+  revenue_musd: 41500
+  net_income_musd: 1000
+  revenue_growth_pct: -4.4
+  operating_margin_pct: 3.5
+  free_cash_flow_musd: 1300
+  market_cap_musd: 15500
+  dividend_yield_pct: 5.0
+  debt_to_equity: 1.4
+  credit_rating: BBB+
+  competitors: AMZN WMT
+  key_risk: Shoppers keep their phones and laptops longer, and AI devices have not yet started a new upgrade wave.
+BKNG:
+  name: Bookwell Holdings Inc.
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Norwalk, USA
+  purpose: Runs the largest online travel agency in the world, with hotel, flight, rental-car and restaurant booking sites in 40 languages.
+  key_market: Travellers in Europe, where most of its hotel bookings come from, and Asia
+  market_position: Lists 30 million places to stay; small independent European hotels depend on it for most of their bookings.
+  origin: MERGER
+  founders: A Connecticut name-your-own-price site and an Amsterdam hotel-booking start-up
+  founder_story: A US site where travellers named their own price for flights bought a small Dutch hotel-booking start-up in 2005 for 135 million dollars; the Dutch business became the group.
+  founded_year: 1997
+  ipo_year: 1999
+  ipo_valuation_musd: 9800
+  ceo_name: Pieter-Jan Hofstede
+  ceo_since: 2017
+  ceo_industry_years: 26
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 26500
+  net_income_musd: 6200
+  revenue_growth_pct: 11.5
+  operating_margin_pct: 33.0
+  free_cash_flow_musd: 8500
+  market_cap_musd: 170000
+  dividend_yield_pct: 0.7
+  debt_to_equity: -4.5
+  credit_rating: A-
+  competitors: EXPE ABNB
+  key_risk: The EU's digital markets law limits the contract terms it can impose on hotels.
+CCL:
+  name: Coralline Cruise Lines
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Miami, USA
+  purpose: Runs nine cruise lines with 90 ships carrying 13 million passengers a year, from budget Caribbean trips to luxury voyages.
+  key_market: Holidaymakers from the US, the UK, Germany and Italy
+  market_position: The largest cruise company in the world, with brands at every price point and its own private islands in the Caribbean.
+  origin: FOUNDER
+  founders: Teodor Abramov
+  founder_story: Teodor Abramov, an immigrant travel agent, bought an old ocean liner in 1972 with borrowed money; it ran aground on its first voyage, but his "fun ship" idea of a floating party at sea caught on.
+  founded_year: 1972
+  ipo_year: 1987
+  ipo_valuation_musd: 1100
+  ceo_name: Josefina Arango
+  ceo_since: 2022
+  ceo_industry_years: 31
+  employees: 105000
+  fiscal_year: 2025
+  revenue_musd: 26500
+  net_income_musd: 2700
+  revenue_growth_pct: 6.5
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 2900
+  market_cap_musd: 34000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 2.5
+  credit_rating: BBB-
+  competitors: RCL
+  key_risk: It still carries 27 billion dollars of debt taken on to survive the pandemic shutdown.
+CMG:
+  name: Chilmark Mexican Grill
+  sector: CONSUMER_DISC
+  industry: Restaurants
+  headquarters: Newport Beach, USA
+  purpose: Runs 3,700 fast-casual restaurants serving burritos and bowls made to order from fresh ingredients, all company-owned.
+  key_market: Young professionals and students in the US
+  market_position: Owns every one of its restaurants, so it controls quality and keeps all the profit; its assembly lines serve a meal in under two minutes.
+  origin: FOUNDER
+  founders: Callum Ostrowe
+  founder_story: Callum Ostrowe, a chef trained in New York, opened a burrito stand near the University of Denver in 1993 to fund the fine-dining restaurant he planned; the burrito stand became the plan.
+  founded_year: 1993
+  ipo_year: 2006
+  ipo_valuation_musd: 1600
+  ceo_name: Natalia Brock
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 125000
+  fiscal_year: 2025
+  revenue_musd: 11900
+  net_income_musd: 1550
+  revenue_growth_pct: 5.4
+  operating_margin_pct: 16.5
+  free_cash_flow_musd: 1400
+  market_cap_musd: 52000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.4
+  credit_rating: BBB+
+  competitors: MCD SBUX DRI
+  key_risk: Young diners are cutting back on eating out as food prices rise.
+DHI:
+  name: Dunhaven Homes Inc.
+  sector: CONSUMER_DISC
+  industry: Homebuilding
+  headquarters: Arlington, USA
+  purpose: Builds about 90,000 houses a year, mostly entry-level homes for first-time buyers in the US South and West.
+  key_market: First-time home buyers in Texas, Florida, the Carolinas and Arizona
+  market_position: The largest homebuilder in the US by volume for over 20 years; it builds on land options rather than owned land, so a slowdown costs it less.
+  origin: FOUNDER
+  founders: Darnell Hightower
+  founder_story: Darnell Hightower, a Texas building-supply clerk, borrowed 3,000 dollars in 1978 to build a single house on spec in Fort Worth; it sold before the roof was on, and he built two more.
+  founded_year: 1978
+  ipo_year: 1992
+  ipo_valuation_musd: 210
+  ceo_name: Harmon Vickers
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 14500
+  fiscal_year: 2025
+  revenue_musd: 34500
+  net_income_musd: 3600
+  revenue_growth_pct: -7.0
+  operating_margin_pct: 13.5
+  free_cash_flow_musd: 3200
+  market_cap_musd: 45000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.22
+  credit_rating: BBB+
+  competitors: LEN
+  key_risk: Mortgage rates near 7 per cent force it to pay buyers' rates down, eroding its margin.
+DPZ:
+  name: Doughpoint Pizza Inc.
+  sector: CONSUMER_DISC
+  industry: Restaurants
+  headquarters: Ann Arbor, USA
+  purpose: Franchises 21,000 pizza delivery and takeaway stores in 90 countries and supplies them with dough and ingredients.
+  key_market: Pizza delivery customers in the US, the UK, India and Australia
+  market_position: The largest pizza company in the world; its own ordering technology and delivery network let it charge less for delivery than the delivery apps.
+  origin: CO_FOUNDERS
+  founders: Kevin Dorfmann, Gerald Dorfmann
+  founder_story: Two brothers bought a failing pizza shop in Ypsilanti, Michigan in 1960 for 500 dollars; one traded his half to the other for a used Volkswagen Beetle, and the other built an empire on 30-minute delivery to students.
+  founded_year: 1960
+  ipo_year: 2004
+  ipo_valuation_musd: 1100
+  ceo_name: Rashid Al-Amin
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 11000
+  fiscal_year: 2025
+  revenue_musd: 4900
+  net_income_musd: 600
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 19.5
+  free_cash_flow_musd: 600
+  market_cap_musd: 15000
+  dividend_yield_pct: 1.6
+  debt_to_equity: -1.8
+  credit_rating: BB+
+  competitors: MCD CMG
+  key_risk: Delivery apps let every local pizzeria deliver, which erodes the edge that built it.
+DRI:
+  name: Driftwood Restaurants Inc.
+  sector: CONSUMER_DISC
+  industry: Restaurants
+  headquarters: Orlando, USA
+  purpose: Runs 2,100 sit-down restaurants under ten brands, from Italian family dining to steakhouses.
+  key_market: Middle-income families eating out in the US
+  market_position: The largest full-service restaurant operator in the US; its scale buys food far cheaper than any independent restaurant can.
+  origin: FOUNDER
+  founders: Willis Durant
+  founder_story: Willis Durant, aged 19, opened a lunch counter in Georgia in 1938; forty years later he founded a seafood chain that brought lobster to inland towns at prices families could afford.
+  founded_year: 1968
+  ipo_year: 1995
+  ipo_valuation_musd: 2000
+  ceo_name: Ricardo Valenzuela
+  ceo_since: 2022
+  ceo_industry_years: 28
+  employees: 190000
+  fiscal_year: 2025
+  revenue_musd: 12000
+  net_income_musd: 1050
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 1000
+  market_cap_musd: 23500
+  dividend_yield_pct: 2.9
+  debt_to_equity: 0.95
+  credit_rating: BBB
+  competitors: CMG MCD
+  key_risk: Rising minimum wages in California and other states push up its labour costs.
+EBAY:
+  name: Exchange Bay Inc.
+  sector: CONSUMER_DISC
+  industry: Broadline Retail
+  headquarters: San Jose, USA
+  purpose: Runs an online marketplace where 18 million sellers sell used, collectible and refurbished goods to 130 million buyers.
+  key_market: Collectors and buyers of used goods in the US, the UK and Germany
+  market_position: The default marketplace for collectibles, trading cards and car parts, with authentication services that rival platforms lack.
+  origin: FOUNDER
+  founders: Pierre-Luc Amari
+  founder_story: Pierre-Luc Amari, a programmer, wrote an auction page over a holiday weekend in 1995 to test an idea; the first thing sold was his own broken pocket calculator, for 11.20 dollars, to a man who collected broken calculators.
+  founded_year: 1995
+  ipo_year: 1998
+  ipo_valuation_musd: 2000
+  ceo_name: Leona Fitzgerald
+  ceo_since: 2020
+  ceo_industry_years: 25
+  employees: 12000
+  fiscal_year: 2025
+  revenue_musd: 10500
+  net_income_musd: 2000
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 2200
+  market_cap_musd: 33000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 1.4
+  credit_rating: BBB+
+  competitors: AMZN BABA
+  key_risk: Cheap Chinese marketplace apps are drawing away younger shoppers.
+EXPE:
+  name: Expanse Travel Group
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Seattle, USA
+  purpose: Runs online travel agencies, a holiday-rental site and a business-to-business travel-booking platform used by airlines and banks.
+  key_market: US travellers, and companies that offer travel to their own customers
+  market_position: Its white-label booking engine powers the travel sites of banks, airlines and loyalty programmes, a growing business rivals do not have.
+  origin: SPIN_OFF
+  founders: Spun off from a software giant
+  founder_story: Started in 1996 as a project inside a large software company to show what the web could do; the software company spun it off in 1999 when travel turned out to be the web's best-selling product.
+  founded_year: 1996
+  ipo_year: 1999
+  ipo_valuation_musd: 1400
+  ceo_name: Ariane Dufour
+  ceo_since: 2023
+  ceo_industry_years: 22
+  employees: 16500
+  fiscal_year: 2025
+  revenue_musd: 14200
+  net_income_musd: 1300
+  revenue_growth_pct: 4.6
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 2400
+  market_cap_musd: 25000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 3.2
+  credit_rating: BBB
+  competitors: BKNG ABNB
+  key_risk: Google could push travel bookings into its own search results and AI answers.
+F:
+  name: Fairbrook Motor Company
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Dearborn, USA
+  purpose: Designs, builds and sells pickup trucks, SUVs, vans and electric vehicles and finances them through its own credit arm.
+  key_market: Pickup-truck and commercial-van buyers in North America
+  market_position: Has sold the best-selling pickup truck in the US for more than four decades; its commercial-van fleet business is the largest in the country.
+  origin: FOUNDER
+  founders: Hiram Fairbrook
+  founder_story: Hiram Fairbrook, a farm boy who fixed watches, built a quadricycle in a shed behind his house in 1896 and founded his company in 1903 with 28,000 dollars from twelve backers to make a car farmers could afford.
+  founded_year: 1903
+  ipo_year: 1956
+  ipo_valuation_musd: 3200
+  ceo_name: Martin Kowalski
+  ceo_since: 2020
+  ceo_industry_years: 32
+  employees: 171000
+  fiscal_year: 2025
+  revenue_musd: 187000
+  net_income_musd: 4500
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 3.0
+  free_cash_flow_musd: 6500
+  market_cap_musd: 44000
+  dividend_yield_pct: 5.5
+  debt_to_equity: 3.5
+  credit_rating: BBB-
+  competitors: GM TM TSLA HMC
+  key_risk: Its electric-vehicle unit loses about 5 billion dollars a year.
+GM:
+  name: Granite Motors Corp.
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Detroit, USA
+  purpose: Builds and sells trucks, SUVs, cars and electric vehicles under four brands and runs an autonomous-taxi subsidiary.
+  key_market: Full-size truck and SUV buyers in the US and car buyers in China
+  market_position: Leads the US in full-size trucks and SUVs, the most profitable vehicles there are, and has a dedicated electric platform that underpins 20 models.
+  origin: MERGER
+  founders: A carriage maker who bought up a dozen car companies
+  founder_story: A Michigan horse-carriage maker bought eleven car makers in two years from 1908, overstretched himself and lost control to his bankers twice; the patchwork became the biggest car company in the world.
+  founded_year: 1908
+  ipo_year: 2010
+  ipo_valuation_musd: 49500
+  ceo_name: Diane Okerlund
+  ceo_since: 2016
+  ceo_industry_years: 45
+  employees: 162000
+  fiscal_year: 2025
+  revenue_musd: 185000
+  net_income_musd: 6000
+  revenue_growth_pct: -0.5
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 11000
+  market_cap_musd: 55000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 1.8
+  credit_rating: BBB
+  competitors: F TM TSLA HMC
+  key_risk: Tariffs on vehicles it builds in Mexico and Korea could cost it 5 billion dollars a year.
+GPC:
+  name: Greystone Parts Co.
+  sector: CONSUMER_DISC
+  industry: Distributors
+  headquarters: Atlanta, USA
+  purpose: Distributes car parts to 10,000 stores and garages under a well-known parts brand, and industrial parts such as bearings and belts to factories.
+  key_market: Independent repair garages in North America, Europe and Australia; factory maintenance departments
+  market_position: Its network of independently owned parts stores supplies more garages than any rival.
+  origin: FOUNDER
+  founders: Ansel Greystone
+  founder_story: Ansel Greystone bought a small Atlanta car-parts shop in 1928 with 40,000 dollars; during the Depression people repaired cars rather than buying new ones and he opened a store a month.
+  founded_year: 1928
+  ipo_year: 1948
+  ipo_valuation_musd: 20
+  ceo_name: Paul Ridgely
+  ceo_since: 2016
+  ceo_industry_years: 30
+  employees: 63000
+  fiscal_year: 2025
+  revenue_musd: 24000
+  net_income_musd: 900
+  revenue_growth_pct: 1.8
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 17500
+  dividend_yield_pct: 3.3
+  debt_to_equity: 1.3
+  credit_rating: BBB
+  competitors: AZO
+  key_risk: Industrial customers are cutting maintenance spending as factory output weakens.
+GRMN:
+  name: Garnet Navigation Ltd.
+  sector: CONSUMER_DISC
+  industry: Consumer Electronics
+  headquarters: Schaffhausen, Switzerland
+  purpose: Makes GPS sports watches, fitness trackers, aviation and marine navigation, and in-car electronics.
+  key_market: Runners, cyclists, pilots, sailors and outdoor enthusiasts worldwide
+  market_position: Its avionics are in most new small aircraft and its sports watches dominate serious endurance athletes, niches that smartphone makers ignore.
+  origin: CO_FOUNDERS
+  founders: Garrett Holm, Minoru Akiyama
+  founder_story: Two engineers left an avionics company in 1989 to build a GPS receiver small enough for a cockpit, at a time when GPS was a military system few civilians had heard of.
+  founded_year: 1989
+  ipo_year: 2000
+  ipo_valuation_musd: 2600
+  ceo_name: Clifford Pemberton-Asher
+  ceo_since: 2020
+  ceo_industry_years: 32
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 6900
+  net_income_musd: 1600
+  revenue_growth_pct: 10.5
+  operating_margin_pct: 25.5
+  free_cash_flow_musd: 1400
+  market_cap_musd: 41000
+  dividend_yield_pct: 1.5
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: AAPL
+  key_risk: Smartwatch makers are adding the sports features that are its last line of defence.
+HAS:
+  name: Hasbury Toys Inc.
+  sector: CONSUMER_DISC
+  industry: Leisure Products
+  headquarters: Pawtucket, USA
+  purpose: Makes toys, board games and trading-card games and licenses its characters to films, TV and digital games.
+  key_market: Families and hobby gamers in the US and Europe
+  market_position: Owns the most popular fantasy trading-card game in the world, which earns most of its profit and draws adult players who spend heavily.
+  origin: FAMILY
+  founders: The Halberstam brothers
+  founder_story: Three immigrant brothers sold leftover cloth remnants in Rhode Island in 1923, then pencil cases, then crayons; a plastic potato with stick-on faces in 1952 turned them into a toy company.
+  founded_year: 1923
+  ipo_year: 1968
+  ipo_valuation_musd: 40
+  ceo_name: Gwendolyn Barclay
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 5000
+  fiscal_year: 2025
+  revenue_musd: 4300
+  net_income_musd: 450
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 600
+  market_cap_musd: 10500
+  dividend_yield_pct: 3.8
+  debt_to_equity: 3.1
+  credit_rating: BBB-
+  competitors: ""
+  key_risk: Most of its toys are made in China and face US tariffs.
+HD:
+  name: Hearthstone Supply Inc.
+  sector: CONSUMER_DISC
+  industry: Home Improvement Retail
+  headquarters: Atlanta, USA
+  purpose: Runs 2,350 home-improvement warehouse stores selling building materials, tools, garden and appliances to homeowners and contractors.
+  key_market: Professional contractors and homeowners in the US, Canada and Mexico
+  market_position: The largest home-improvement retailer in the world; professional contractors bring half its sales, and its supply arm can deliver whole job sites.
+  origin: CO_FOUNDERS
+  founders: Bertram Mays, Leon Lindsey
+  founder_story: Two hardware-chain managers fired on the same day in 1978 started a warehouse store in Atlanta with a giant range, low prices and staff who were tradespeople; they handed out dollar bills to lure the first shoppers.
+  founded_year: 1978
+  ipo_year: 1981
+  ipo_valuation_musd: 100
+  ceo_name: Teodoro Ruiz-Harlan
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 470000
+  fiscal_year: 2025
+  revenue_musd: 165000
+  net_income_musd: 14800
+  revenue_growth_pct: 3.5
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 15500
+  market_cap_musd: 385000
+  dividend_yield_pct: 2.4
+  debt_to_equity: 5.3
+  credit_rating: A
+  competitors: LOW
+  key_risk: Few homes are changing hands, and new owners are when most renovation happens.
+HLT:
+  name: Highcliff Hotels Worldwide
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: McLean, USA
+  purpose: Franchises and manages 8,000 hotels with 1.2 million rooms under 24 brands, from budget to luxury.
+  key_market: Business and leisure travellers in the US, Europe and China
+  market_position: Owns almost no hotels; property owners pay it fees for its brands and its 200-million-member loyalty programme, which gives it high margins and little capital.
+  origin: FOUNDER
+  founders: Cornelius Highcliff
+  founder_story: Cornelius Highcliff, a Texas banker, bought a small hotel in Ranger, Texas in 1919 because the oilmen in town could not find beds; he rented rooms in eight-hour shifts.
+  founded_year: 1919
+  ipo_year: 1946
+  ipo_valuation_musd: 40
+  ceo_name: Rafaela Mendonça
+  ceo_since: 2009
+  ceo_industry_years: 35
+  employees: 180000
+  fiscal_year: 2025
+  revenue_musd: 11800
+  net_income_musd: 1600
+  revenue_growth_pct: 5.5
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 62000
+  dividend_yield_pct: 0.2
+  debt_to_equity: -2.8
+  credit_rating: BBB
+  competitors: MAR ABNB
+  key_risk: A US recession would cut business travel first, and its fees rise and fall with room revenue.
+HMC:
+  name: Hanamura Motor Co.
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Tokyo, Japan
+  purpose: Builds cars, SUVs and 20 million motorcycles a year, plus power equipment, marine engines and small business jets.
+  key_market: Car buyers in North America and Japan, motorcycle riders in India and South-East Asia
+  market_position: The largest motorcycle maker in the world, and known for reliable, efficient engines in everything from lawnmowers to jets.
+  origin: FOUNDER
+  founders: Ichiro Hanamura
+  founder_story: Ichiro Hanamura, a self-taught mechanic, fitted surplus army radio-generator engines to bicycles in post-war Hamamatsu in 1946 so people could get to work; he could not make them fast enough.
+  founded_year: 1948
+  ipo_year: 1957
+  ipo_valuation_musd: 30
+  ceo_name: Kenji Morimoto
+  ceo_since: 2021
+  ceo_industry_years: 38
+  employees: 195000
+  fiscal_year: 2025
+  revenue_musd: 140000
+  net_income_musd: 5500
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 46000
+  dividend_yield_pct: 4.5
+  debt_to_equity: 0.95
+  credit_rating: A-
+  competitors: TM GM F
+  key_risk: Its merger talks with another Japanese maker collapsed, and it is late in electric cars.
+LCID:
+  name: Lumina Drive Inc.
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Newark, USA
+  purpose: Designs and builds luxury electric saloons and SUVs with the longest driving range of any electric car on sale.
+  key_market: Wealthy buyers in the US and the Middle East
+  market_position: Its in-house motors and battery packs are the most efficient in the industry, giving it a range advantage on any rival.
+  origin: SPIN_OFF
+  founders: A battery-pack engineering start-up
+  founder_story: Started in 2007 as a supplier of battery packs for racing cars and Formula E; in 2016 a sovereign wealth fund bankrolled its pivot to building its own luxury car.
+  founded_year: 2007
+  ipo_year: 2021
+  ipo_valuation_musd: 24000
+  ceo_name: Aldo Ferraresi
+  ceo_since: 2025
+  ceo_industry_years: 30
+  employees: 6800
+  fiscal_year: 2025
+  revenue_musd: 1100
+  net_income_musd: -3000
+  revenue_growth_pct: 36.0
+  operating_margin_pct: -260.0
+  free_cash_flow_musd: -3400
+  market_cap_musd: 7500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.6
+  credit_rating: B
+  competitors: TSLA RIVN
+  key_risk: It burns over 3 billion dollars a year and depends on its main shareholder to keep funding it.
+LEN:
+  name: Lenhart Ridge Homes
+  sector: CONSUMER_DISC
+  industry: Homebuilding
+  headquarters: Miami, USA
+  purpose: Builds about 80,000 homes a year across 26 US states, with every option included in the base price.
+  key_market: First-time and move-up home buyers in Florida, Texas and California
+  market_position: Sells homes with all extras included, which keeps its building lines simple and fast; it no longer owns most of its land.
+  origin: CO_FOUNDERS
+  founders: Leonard Ridgeway, Arthur Nash
+  founder_story: A Miami homebuilder and a land surveyor began building small houses for retirees moving to Florida in 1954, with a mortgage company attached so buyers did not need a bank.
+  founded_year: 1954
+  ipo_year: 1971
+  ipo_valuation_musd: 30
+  ceo_name: Jonah Ridgeway
+  ceo_since: 2018
+  ceo_industry_years: 33
+  employees: 13000
+  fiscal_year: 2025
+  revenue_musd: 34000
+  net_income_musd: 2200
+  revenue_growth_pct: -4.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 1000
+  market_cap_musd: 31000
+  dividend_yield_pct: 1.7
+  debt_to_equity: 0.18
+  credit_rating: BBB+
+  competitors: DHI
+  key_risk: It cuts prices to keep volumes up, and its margin is the lowest in years.
+LOW:
+  name: Lowland Home Centers
+  sector: CONSUMER_DISC
+  industry: Home Improvement Retail
+  headquarters: Mooresville, USA
+  purpose: Runs 1,700 home-improvement stores selling tools, appliances, building materials and garden supplies.
+  key_market: Do-it-yourself homeowners in the US, especially in suburbs and small towns
+  market_position: The second-largest home-improvement chain, with more DIY customers than its larger rival and the leading share in home appliances.
+  origin: FAMILY
+  founders: The Lowland family
+  founder_story: A North Carolina hardware store opened in 1921; after the Second World War a son-in-law returning from the army saw that returning soldiers needed to build homes and turned the shop into a building-supply chain.
+  founded_year: 1921
+  ipo_year: 1961
+  ipo_valuation_musd: 25
+  ceo_name: Marvin Okafor
+  ceo_since: 2018
+  ceo_industry_years: 34
+  employees: 300000
+  fiscal_year: 2025
+  revenue_musd: 84000
+  net_income_musd: 7000
+  revenue_growth_pct: 0.5
+  operating_margin_pct: 12.5
+  free_cash_flow_musd: 7500
+  market_cap_musd: 140000
+  dividend_yield_pct: 1.9
+  debt_to_equity: -2.6
+  credit_rating: BBB+
+  competitors: HD
+  key_risk: Do-it-yourself spending is falling and it is late to win professional contractors.
+LULU:
+  name: Lotus Meadow Athletica
+  sector: CONSUMER_DISC
+  industry: Apparel, Accessories & Luxury Goods
+  headquarters: Vancouver, Canada
+  purpose: Designs and sells premium yoga, running and training clothes through 750 of its own stores and online.
+  key_market: Affluent women and, increasingly, men in North America and China
+  market_position: Created the "athleisure" category; its stretch fabrics and own stores let it sell leggings for 100 dollars with almost no discounts.
+  origin: FOUNDER
+  founders: Duncan McCrae
+  founder_story: Duncan McCrae, who had run a surf-wear business, took a yoga class in Vancouver in 1998 and saw everyone wearing cotton that went see-through; he opened a design studio that doubled as a yoga studio at night.
+  founded_year: 1998
+  ipo_year: 2007
+  ipo_valuation_musd: 2900
+  ceo_name: Simone Hargreaves
+  ceo_since: 2026
+  ceo_industry_years: 22
+  employees: 39000
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 1750
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 22.5
+  free_cash_flow_musd: 1600
+  market_cap_musd: 26000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: BBB+
+  competitors: NKE
+  key_risk: Cheaper look-alike brands have stalled its US sales, and its founder is campaigning against the board.
+LVS:
+  name: Lantern Valley Sands Corp.
+  sector: CONSUMER_DISC
+  industry: Casinos & Gaming
+  headquarters: Las Vegas, USA
+  purpose: Owns and runs integrated casino resorts with hotels, shops and convention centres in Macau and Singapore.
+  key_market: Gamblers and tourists from mainland China and South-East Asia
+  market_position: Holds one of only two casino licences in Singapore and the largest share of hotel rooms on Macau's Cotai strip.
+  origin: FOUNDER
+  founders: Seymour Voss
+  founder_story: Seymour Voss, who made his fortune running a computer trade show, bought an old Las Vegas casino in 1989 to host conventions, and saw that convention visitors gambled on weekdays, when casinos were empty.
+  founded_year: 1988
+  ipo_year: 2004
+  ipo_valuation_musd: 9500
+  ceo_name: Evander Holt
+  ceo_since: 2024
+  ceo_industry_years: 18
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 11500
+  net_income_musd: 1600
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 1300
+  market_cap_musd: 34000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 4.8
+  credit_rating: BBB-
+  competitors: MGM
+  key_risk: Its Macau licence depends on Beijing's tolerance of gambling and its policies on travel.
+MAR:
+  name: Marlowe International Hotels
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Bethesda, USA
+  purpose: Franchises and manages 9,000 hotels with 1.7 million rooms under 30 brands in 140 countries.
+  key_market: Business travellers and higher-income leisure travellers worldwide
+  market_position: The largest hotel company in the world by rooms; its 230-million-member loyalty programme fills hotels and earns fees from its co-branded credit cards.
+  origin: FAMILY
+  founders: Josiah Marlowe and his wife
+  founder_story: A young Utah couple opened a nine-stool root-beer stand in Washington DC in 1927; their family restaurants grew into a motor hotel by an airport road in 1957, and the hotels took over.
+  founded_year: 1927
+  ipo_year: 1953
+  ipo_valuation_musd: 30
+  ceo_name: Elaine Kamakana
+  ceo_since: 2021
+  ceo_industry_years: 33
+  employees: 420000
+  fiscal_year: 2025
+  revenue_musd: 26000
+  net_income_musd: 2500
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 2700
+  market_cap_musd: 75000
+  dividend_yield_pct: 0.9
+  debt_to_equity: -4.0
+  credit_rating: BBB
+  competitors: HLT ABNB
+  key_risk: Hotel owners are pushing back against fee rises, and US room rates have stopped rising.
+MCD:
+  name: Mackinnon's Restaurants Corp.
+  sector: CONSUMER_DISC
+  industry: Restaurants
+  headquarters: Chicago, USA
+  purpose: Franchises 43,000 burger restaurants in 115 countries and owns most of the land under them.
+  key_market: Fast-food customers worldwide; the US is 40 per cent of sales
+  market_position: The largest restaurant brand in the world; franchisees pay it rent as well as royalties, which makes it as much a property company as a restaurant company.
+  origin: CO_FOUNDERS
+  founders: Angus Mackinnon, Fergus Mackinnon
+  founder_story: Two Scottish-American brothers ran a barbecue drive-in in California in 1940; in 1948 they cut the menu to nine items and built a kitchen like a factory line, then a milkshake-mixer salesman bought the rights to franchise it.
+  founded_year: 1955
+  ipo_year: 1965
+  ipo_valuation_musd: 70
+  ceo_name: Christopher Adeyemi
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 150000
+  fiscal_year: 2025
+  revenue_musd: 26500
+  net_income_musd: 8400
+  revenue_growth_pct: 2.5
+  operating_margin_pct: 45.5
+  free_cash_flow_musd: 7200
+  market_cap_musd: 215000
+  dividend_yield_pct: 2.4
+  debt_to_equity: -14.0
+  credit_rating: BBB+
+  competitors: CMG SBUX DPZ
+  key_risk: Low-income customers are cutting visits as menu prices outrun their wages.
+MGM:
+  name: Mesa Grand Resorts
+  sector: CONSUMER_DISC
+  industry: Casinos & Gaming
+  headquarters: Las Vegas, USA
+  purpose: Runs casino resorts on the Las Vegas Strip, in US regional cities and in Macau, and an online sports-betting joint venture.
+  key_market: Visitors to Las Vegas and US online sports bettors
+  market_position: Owns a third of the hotel rooms on the Las Vegas Strip and the venues for its biggest concerts and fights.
+  origin: FOUNDER
+  founders: Kirk Abrahamian
+  founder_story: Kirk Abrahamian, a trucking-company owner who left school at 16, bought a Hollywood film studio in 1969 and built the largest hotel in the world in Las Vegas, named after the studio.
+  founded_year: 1986
+  ipo_year: 1988
+  ipo_valuation_musd: 600
+  ceo_name: Benedetta Rossi-Clarke
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 63000
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 600
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 8.5
+  free_cash_flow_musd: 1200
+  market_cap_musd: 10500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 9.0
+  credit_rating: BB-
+  competitors: LVS
+  key_risk: Visitor numbers to Las Vegas have fallen after years of resort-fee and price rises.
+NKE:
+  name: Nikephoros Athletic Inc.
+  sector: CONSUMER_DISC
+  industry: Apparel, Accessories & Luxury Goods
+  headquarters: Beaverton, USA
+  purpose: Designs and markets athletic shoes, clothing and equipment sold in 190 countries, made by contract factories in Asia.
+  key_market: Athletes and sneaker fans in North America, Europe and China
+  market_position: The largest sportswear brand in the world; its endorsement deals with star athletes and its sneaker drops create demand no rival matches.
+  origin: CO_FOUNDERS
+  founders: Desmond Pruitt, Harlan Voight
+  founder_story: A middle-distance runner and his college coach shook hands in 1964 to import Japanese running shoes, selling them from the boot of a car at track meets; the coach poured rubber into his wife's waffle iron to make a better sole.
+  founded_year: 1964
+  ipo_year: 1980
+  ipo_valuation_musd: 400
+  ceo_name: Elliott Danforth
+  ceo_since: 2024
+  ceo_industry_years: 35
+  employees: 78000
+  fiscal_year: 2025
+  revenue_musd: 46500
+  net_income_musd: 3200
+  revenue_growth_pct: -10.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 105000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.85
+  credit_rating: AA-
+  competitors: LULU
+  key_risk: Smaller running brands took share while it cut wholesale partners; its turnaround is unproven.
+RCL:
+  name: Regal Coral Cruises Ltd.
+  sector: CONSUMER_DISC
+  industry: Hotels, Resorts & Cruise Lines
+  headquarters: Miami, USA
+  purpose: Runs three cruise lines with 68 ships, including the largest cruise ships ever built, and its own private island destinations.
+  key_market: US and European families taking cruise holidays
+  market_position: Builds the biggest and most spectacular ships, with water parks and theatres on board, which fill at higher prices than rivals.
+  origin: MERGER
+  founders: Three Norwegian shipping families
+  founder_story: Three Norwegian shipping families pooled their money in 1968 to build ships designed only for cruising from Miami to the Caribbean, at a time when cruises were old liners repainted.
+  founded_year: 1968
+  ipo_year: 1993
+  ipo_valuation_musd: 1600
+  ceo_name: Erling Haugland
+  ceo_since: 2022
+  ceo_industry_years: 25
+  employees: 105000
+  fiscal_year: 2025
+  revenue_musd: 17800
+  net_income_musd: 4100
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 28.5
+  free_cash_flow_musd: 3500
+  market_cap_musd: 70000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 2.2
+  credit_rating: BBB-
+  competitors: CCL
+  key_risk: Several new mega-ships arrive at once; filling them needs strong consumer spending.
+RIVN:
+  name: Riverine Automotive
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Irvine, USA
+  purpose: Designs and builds electric pickup trucks, SUVs and delivery vans, including the vans of a large online retailer's delivery fleet.
+  key_market: Affluent adventure-minded buyers in the US, and commercial delivery fleets
+  market_position: Its rugged outdoor brand appeals to buyers no other electric car maker reaches, and it supplies a fleet of 100,000 delivery vans under a single contract.
+  origin: FOUNDER
+  founders: Robin Esterhazy
+  founder_story: Robin Esterhazy founded it in 2009 straight out of an engineering PhD, with the idea of an electric adventure truck that could climb rocks and ford rivers; it took ten years and 18 billion dollars before the first truck shipped.
+  founded_year: 2009
+  ipo_year: 2021
+  ipo_valuation_musd: 66500
+  ceo_name: Robin Esterhazy
+  ceo_since: 2009
+  ceo_industry_years: 17
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 5300
+  net_income_musd: -3800
+  revenue_growth_pct: 7.0
+  operating_margin_pct: -70.0
+  free_cash_flow_musd: -2400
+  market_cap_musd: 15000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.9
+  credit_rating: B+
+  competitors: TSLA LCID F GM
+  key_risk: It must launch its cheaper mid-size model on time or run out of cash before turning a profit.
+SBUX:
+  name: Starboard Coffee Co.
+  sector: CONSUMER_DISC
+  industry: Restaurants
+  headquarters: Seattle, USA
+  purpose: Runs and licenses 40,000 coffee shops in 85 countries and sells packaged coffee in supermarkets.
+  key_market: Coffee drinkers in the US and China
+  market_position: The largest coffee-shop chain in the world; 35 million members of its loyalty app order ahead, which gives it customer data no café rival has.
+  origin: CO_FOUNDERS
+  founders: Three university friends who loved dark-roast coffee
+  founder_story: Three friends, a teacher, a writer and a historian, opened a shop selling dark-roast beans in Seattle in 1971; a salesman who later bought them out came back from Milan convinced Americans would buy espresso in a café.
+  founded_year: 1971
+  ipo_year: 1992
+  ipo_valuation_musd: 270
+  ceo_name: Bertrand Lacoste
+  ceo_since: 2024
+  ceo_industry_years: 30
+  employees: 360000
+  fiscal_year: 2025
+  revenue_musd: 37000
+  net_income_musd: 2800
+  revenue_growth_pct: 2.5
+  operating_margin_pct: 9.5
+  free_cash_flow_musd: 2500
+  market_cap_musd: 98000
+  dividend_yield_pct: 2.8
+  debt_to_equity: -3.0
+  credit_rating: BBB+
+  competitors: MCD
+  key_risk: Its turnaround plan is costly, and in China cheap local coffee chains undercut it heavily.
+TM:
+  name: Takemura Motor Corp.
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Nagoya, Japan
+  purpose: The world's largest car maker, building 10 million cars a year, with hybrids its strongest line.
+  key_market: Car buyers in Japan, North America, Asia and Europe
+  market_position: Invented lean production and the mass-market hybrid; the hybrids bridged the gap to electric cars better than any rival's.
+  origin: FAMILY
+  founders: The Takemura family
+  founder_story: Genzo Takemura invented an automatic loom in 1924; his son sold the loom patent to a British company and used the money to start a car division in 1937, still run by the founding family.
+  founded_year: 1937
+  ipo_year: 1949
+  ipo_valuation_musd: 50
+  ceo_name: Hideaki Ishikawa
+  ceo_since: 2023
+  ceo_industry_years: 33
+  employees: 380000
+  fiscal_year: 2025
+  revenue_musd: 315000
+  net_income_musd: 32000
+  revenue_growth_pct: 6.5
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 16000
+  market_cap_musd: 260000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 1.0
+  credit_rating: A+
+  competitors: HMC GM F TSLA
+  key_risk: Its subsidiaries were caught falsifying safety tests, and regulators halted some models.
+TSLA:
+  name: Tesserae Motors
+  sector: CONSUMER_DISC
+  industry: Automobiles
+  headquarters: Austin, USA
+  purpose: Builds electric cars, home and grid batteries and solar products, and develops self-driving software and humanoid robots.
+  key_market: Electric-car buyers in the US, China and Europe, and utilities buying grid batteries
+  market_position: The largest electric-car maker outside China, with its own charging network that other car makers now pay to use.
+  origin: CO_FOUNDERS
+  founders: Hugo Lindqvist, Pavel Orlov
+  founder_story: Two engineers founded it in 2003 to prove electric cars could be fast and desirable; a wealthy early investor took control a year later and has run it as an engineering crusade ever since.
+  founded_year: 2003
+  ipo_year: 2010
+  ipo_valuation_musd: 1700
+  ceo_name: Dmitri Valcourt
+  ceo_since: 2008
+  ceo_industry_years: 22
+  employees: 125000
+  fiscal_year: 2025
+  revenue_musd: 95000
+  net_income_musd: 5500
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 4000
+  market_cap_musd: 1350000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BBB
+  competitors: TM GM F RIVN LCID
+  key_risk: Its value rests on a robotaxi and robot future that has not yet arrived, while car sales and margins fall.
+UBER:
+  name: Urbane Rides Inc.
+  sector: CONSUMER_DISC
+  industry: Passenger Ground Transportation
+  headquarters: San Francisco, USA
+  purpose: Runs an app that connects 170 million users with drivers for rides, food and grocery delivery and freight in 70 countries.
+  key_market: Urban riders and diners in the US, Latin America and Europe
+  market_position: The largest ride-hailing network outside China; drivers come for the riders and riders for the drivers, which no newcomer has been able to break.
+  origin: CO_FOUNDERS
+  founders: Garrett Coburn, Thaddeus Kline
+  founder_story: Two entrepreneurs could not find a taxi in Paris on a snowy night in 2008 and imagined pressing a button to summon a black car; the first version was a limousine service for San Francisco tech workers.
+  founded_year: 2009
+  ipo_year: 2019
+  ipo_valuation_musd: 82000
+  ceo_name: Farid Moradi
+  ceo_since: 2017
+  ceo_industry_years: 28
+  employees: 31000
+  fiscal_year: 2025
+  revenue_musd: 50000
+  net_income_musd: 10000
+  revenue_growth_pct: 18.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 190000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.45
+  credit_rating: BBB
+  competitors: ""
+  key_risk: Driverless taxis may let rivals bypass its driver network altogether.

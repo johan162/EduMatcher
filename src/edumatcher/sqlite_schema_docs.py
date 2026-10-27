@@ -51,6 +51,12 @@ def _initialize_news(conn: sqlite3.Connection) -> None:
     initialize_schema(conn)
 
 
+def _initialize_companies(conn: sqlite3.Connection) -> None:
+    from edumatcher.compdb.store import initialize_schema
+
+    initialize_schema(conn)
+
+
 def _initialize_audit_index(conn: sqlite3.Connection) -> None:
     from edumatcher.audit.indexer import initialize_schema
 
@@ -111,6 +117,13 @@ def database_specs() -> tuple[DatabaseSpec, ...]:
             "model's jumps.",
             "src/edumatcher/market_sim/news_history.py",
             _initialize_news,
+        ),
+        DatabaseSpec(
+            "companies.db",
+            "pm-compdb-cli",
+            "Made-up company profiles of the simulated market's tickers.",
+            "src/edumatcher/compdb/store.py",
+            _initialize_companies,
         ),
         DatabaseSpec(
             "log-ui-acks.db",

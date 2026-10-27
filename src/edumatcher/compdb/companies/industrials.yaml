@@ -1,0 +1,1172 @@
+# INDUSTRIALS. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+AAL:
+  name: Allied Atlantic Airlines
+  sector: INDUSTRIALS
+  industry: Airlines
+  headquarters: Fort Worth, USA
+  purpose: Flies 220 million passengers a year to 350 destinations in 60 countries from hubs in Dallas, Charlotte, Chicago and Miami.
+  key_market: Domestic US travellers and flights to Latin America
+  market_position: The largest airline in the world by fleet and passengers, and the leading US carrier to Latin America from its Miami hub.
+  origin: MERGER
+  founders: Over 80 small airmail carriers
+  founder_story: Formed in 1930 when more than 80 small airmail operators were merged by an aviation holding company to win government mail contracts; passengers sat on the mail sacks.
+  founded_year: 1930
+  ipo_year: 1939
+  ipo_valuation_musd: 15
+  ceo_name: Ignatius Mbeki-Ford
+  ceo_since: 2023
+  ceo_industry_years: 26
+  employees: 133000
+  fiscal_year: 2025
+  revenue_musd: 54500
+  net_income_musd: 600
+  revenue_growth_pct: 0.5
+  operating_margin_pct: 4.0
+  free_cash_flow_musd: 1000
+  market_cap_musd: 8500
+  dividend_yield_pct: 0.0
+  debt_to_equity: -8.0
+  credit_rating: B+
+  competitors: DAL UAL
+  key_risk: It carries 30 billion dollars of debt, the most of any airline, with little margin for a downturn.
+AME:
+  name: Amesbury Electronic Instruments
+  sector: INDUSTRIALS
+  industry: Electrical Components & Equipment
+  headquarters: Berwyn, USA
+  purpose: Makes precision electronic instruments and electromechanical devices, from aircraft sensors to lab analysers and specialty motors.
+  key_market: Aerospace, power, research and medical equipment makers worldwide
+  market_position: Owns dozens of small niche-instrument businesses that each lead a tiny market, and buys a few more every year.
+  origin: FOUNDER
+  founders: Lionel Amesbury
+  founder_story: Lionel Amesbury, a Philadelphia radio engineer, started a factory in 1930 to make pressure gauges for the new airliners, which needed instruments sensitive enough for the cockpit.
+  founded_year: 1930
+  ipo_year: 1955
+  ipo_valuation_musd: 30
+  ceo_name: Yolanda Fitzwilliam
+  ceo_since: 2017
+  ceo_industry_years: 32
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 7200
+  net_income_musd: 1450
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 1700
+  market_cap_musd: 43000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.2
+  credit_rating: A-
+  competitors: EMR DOV
+  key_risk: It needs a steady supply of good-value acquisitions to keep growing.
+BA:
+  name: Bellingham Aerospace Co.
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Arlington, USA
+  purpose: Designs and builds commercial airliners, military aircraft, satellites and defence systems, and services airline fleets.
+  key_market: Airlines worldwide, and the US Department of Defense
+  market_position: One of only two companies in the world that build large passenger jets, with an order backlog of 5,500 aircraft.
+  origin: FOUNDER
+  founders: Wilhelm Bellingham
+  founder_story: Wilhelm Bellingham, a timber merchant who loved aircraft, built a seaplane from spruce and linen in a Seattle boathouse in 1916 and started an airmail route to Canada.
+  founded_year: 1916
+  ipo_year: 1934
+  ipo_valuation_musd: 20
+  ceo_name: Callum Strathearn
+  ceo_since: 2024
+  ceo_industry_years: 35
+  employees: 172000
+  fiscal_year: 2025
+  revenue_musd: 85000
+  net_income_musd: -4000
+  revenue_growth_pct: 28.0
+  operating_margin_pct: -3.0
+  free_cash_flow_musd: -2000
+  market_cap_musd: 160000
+  dividend_yield_pct: 0.0
+  debt_to_equity: -14.0
+  credit_rating: BBB-
+  competitors: GE RTX LMT GD
+  key_risk: Regulators cap how many jets it may build a month until its quality problems are fixed.
+BR:
+  name: Broadmere Investor Services
+  sector: INDUSTRIALS
+  industry: Data Processing & Outsourced Services
+  headquarters: Lake Success, USA
+  purpose: Sends shareholder votes and reports to investors on behalf of brokers and companies, and runs trade-processing systems for banks.
+  key_market: US banks, brokers and listed companies
+  market_position: Processes almost every shareholder vote in the US; brokers are required by regulation to deliver these documents and it is the only firm at that scale.
+  origin: SPIN_OFF
+  founders: Spun off from a payroll company
+  founder_story: Started in 1962 as the brokerage-services unit of a payroll processor; it handled so much of Wall Street's paperwork that it was spun off in 2007.
+  founded_year: 1962
+  ipo_year: 2007
+  ipo_valuation_musd: 2700
+  ceo_name: Ellis Thornquist
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 6900
+  net_income_musd: 850
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 1100
+  market_cap_musd: 27000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 1.3
+  credit_rating: BBB
+  competitors: ADP PAYX
+  key_risk: A switch to digital delivery of shareholder documents cuts its postal revenue.
+CARR:
+  name: Carrington Climate Systems
+  sector: INDUSTRIALS
+  industry: Building Products
+  headquarters: Palm Beach Gardens, USA
+  purpose: Makes heating, ventilation, air-conditioning and heat-pump systems for homes, offices and data centres.
+  key_market: Homeowners, building owners and data-centre operators in the US and Europe
+  market_position: Its founder invented modern air conditioning; its brand is the most recognised in HVAC and its European heat-pump business is growing fastest.
+  origin: SPIN_OFF
+  founders: Spun off from an aerospace and building-systems group
+  founder_story: Started in 1915 by an engineer who invented air conditioning to stop paper swelling in a Brooklyn printing plant; it was spun off by an industrial group in 2020.
+  founded_year: 1915
+  ipo_year: 2020
+  ipo_valuation_musd: 15000
+  ceo_name: Sebastian Wołoszyn
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 48000
+  fiscal_year: 2025
+  revenue_musd: 22500
+  net_income_musd: 1800
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 60000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.85
+  credit_rating: BBB
+  competitors: JCI
+  key_risk: Demand for home air conditioners fell when US housing slowed.
+CAT:
+  name: Caterwaul Heavy Equipment
+  sector: INDUSTRIALS
+  industry: Construction Machinery & Heavy Trucks
+  headquarters: Irving, USA
+  purpose: Makes bulldozers, excavators, mining trucks, diesel and gas engines and the turbines used in data-centre power plants.
+  key_market: Construction companies, miners and energy producers worldwide
+  market_position: The largest maker of construction and mining equipment in the world; its yellow machines and dealer network are known in every country.
+  origin: MERGER
+  founders: Two California tractor makers
+  founder_story: Two rival California tractor makers who had fought patent battles for years merged in 1925; they made crawler tractors that could cross the soft soil of the farmland around Stockton.
+  founded_year: 1925
+  ipo_year: 1929
+  ipo_valuation_musd: 30
+  ceo_name: Henrietta Kowalski-Dunn
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 112000
+  fiscal_year: 2025
+  revenue_musd: 64000
+  net_income_musd: 9500
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 190000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 1.9
+  credit_rating: A
+  competitors: DE CMI
+  key_risk: Construction and mining are cyclical; a global slowdown would cut orders sharply.
+CMI:
+  name: Cumberland Motors & Power
+  sector: INDUSTRIALS
+  industry: Construction Machinery & Heavy Trucks
+  headquarters: Columbus, USA
+  purpose: Makes diesel and natural-gas engines for trucks, buses and machines, power generators and filtration systems.
+  key_market: Truck and machine makers in North America, China and India; data centres needing backup power
+  market_position: The largest independent maker of diesel engines; truck makers buy from it rather than develop their own.
+  origin: FOUNDER
+  founders: Silas Cumberland
+  founder_story: Silas Cumberland, a chauffeur and mechanic for an Indiana banker, persuaded his employer in 1919 to fund his work on a diesel engine for cars, which he proved by driving across America on 13 dollars of fuel.
+  founded_year: 1919
+  ipo_year: 1947
+  ipo_valuation_musd: 10
+  ceo_name: Annalise Varga
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 70000
+  fiscal_year: 2025
+  revenue_musd: 34000
+  net_income_musd: 3000
+  revenue_growth_pct: 0.0
+  operating_margin_pct: 12.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 52000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.7
+  credit_rating: A
+  competitors: CAT
+  key_risk: Electric trucks would make its diesel-engine business obsolete over time.
+CPRT:
+  name: Copperton Auto Auctions
+  sector: INDUSTRIALS
+  industry: Diversified Support Services
+  headquarters: Dallas, USA
+  purpose: Runs online auctions for 4 million wrecked, salvaged and used vehicles a year, mostly for insurers.
+  key_market: US insurers disposing of written-off cars, and dealers and dismantlers buying them in 170 countries
+  market_position: Owns most of the storage land needed to hold wrecked cars near US cities, which competitors cannot easily acquire.
+  origin: FOUNDER
+  founders: Woodrow Copperton
+  founder_story: Woodrow Copperton, a California cattle rancher, bought a wrecking yard near Sacramento in 1982 and began selling written-off cars for insurers by auction; he moved the auctions online in 2003.
+  founded_year: 1982
+  ipo_year: 1994
+  ipo_valuation_musd: 150
+  ceo_name: Leopold Martinsson
+  ceo_since: 2021
+  ceo_industry_years: 22
+  employees: 11000
+  fiscal_year: 2025
+  revenue_musd: 4600
+  net_income_musd: 1500
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 37.0
+  free_cash_flow_musd: 1300
+  market_cap_musd: 50000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: ""
+  key_risk: Safer cars with crash-avoidance features mean fewer wrecks to sell.
+CSX:
+  name: Chesapeake Southern Railroad
+  sector: INDUSTRIALS
+  industry: Rail Transportation
+  headquarters: Jacksonville, USA
+  purpose: Runs a 20,000-mile freight railroad in 26 states east of the Mississippi, carrying coal, chemicals, cars, grain and containers.
+  key_market: Shippers in the eastern US and Canadian ports
+  market_position: One of only two large railroads in the eastern US; its tracks link the major Atlantic ports with the Midwest.
+  origin: MERGER
+  founders: The Chesapeake and Southern railways
+  founder_story: Created in 1980 when two eastern railroads, one dating back to America's first railway charter in 1827, merged to compete with trucks.
+  founded_year: 1980
+  ipo_year: 1980
+  ipo_valuation_musd: 4000
+  ceo_name: Benedict Arkwright
+  ceo_since: 2025
+  ceo_industry_years: 33
+  employees: 23000
+  fiscal_year: 2025
+  revenue_musd: 14500
+  net_income_musd: 3100
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 34.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 65000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 1.5
+  credit_rating: BBB+
+  competitors: NSC UNP
+  key_risk: A rival western railroad's merger with its eastern rival would leave it the odd one out.
+CTAS:
+  name: Cintamar Uniform Services
+  sector: INDUSTRIALS
+  industry: Diversified Support Services
+  headquarters: Mason, USA
+  purpose: Rents and launders work uniforms for a million businesses and supplies first-aid kits, fire extinguishers, mats and toilet supplies.
+  key_market: US businesses from restaurants to factories and hospitals
+  market_position: Its route trucks visit a million businesses every week, so each added product is cheap to deliver and hard for rivals to match.
+  origin: FAMILY
+  founders: The Fairhurst family
+  founder_story: During the Depression, a Cincinnati rag man began collecting dirty shop rags from factories in 1929, washing and returning them; his grandson added uniforms in the 1960s.
+  founded_year: 1929
+  ipo_year: 1983
+  ipo_valuation_musd: 100
+  ceo_name: Ewald Langstrom
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 46000
+  fiscal_year: 2025
+  revenue_musd: 10300
+  net_income_musd: 1800
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 23.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 85000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 0.55
+  credit_rating: A-
+  competitors: ECL
+  key_risk: Its shares trade at nearly 50 times earnings; any slowdown in hiring would cut its growth.
+DAL:
+  name: Delmarva Air Lines
+  sector: INDUSTRIALS
+  industry: Airlines
+  headquarters: Atlanta, USA
+  purpose: Flies 200 million passengers a year from hubs in Atlanta, Detroit, Minneapolis, Salt Lake City and New York to 300 destinations.
+  key_market: Premium and business travellers in the US, and transatlantic routes
+  market_position: The most profitable US airline; its premium cabins and credit-card partnership earn more than many rivals' entire operations.
+  origin: FOUNDER
+  founders: Chester Holloway
+  founder_story: Chester Holloway started a crop-dusting service in Louisiana in 1925 to kill the boll weevil on cotton farms; in 1929 he added a passenger seat behind the pilot.
+  founded_year: 1925
+  ipo_year: 1957
+  ipo_valuation_musd: 25
+  ceo_name: Augustin Delacroix-Ward
+  ceo_since: 2015
+  ceo_industry_years: 30
+  employees: 100000
+  fiscal_year: 2025
+  revenue_musd: 62000
+  net_income_musd: 4800
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 3500
+  market_cap_musd: 38000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 1.0
+  credit_rating: BBB-
+  competitors: UAL AAL
+  key_risk: Jet-fuel prices and pilot pay move its costs more than any decision it can make.
+DE:
+  name: Deerfield Implement Co.
+  sector: INDUSTRIALS
+  industry: Agricultural & Farm Machinery
+  headquarters: Moline, USA
+  purpose: Makes tractors, combines, sprayers and precision-farming technology, and construction and forestry machines.
+  key_market: Large farms in the US, Brazil and Europe
+  market_position: The leading maker of farm machinery in North America; its self-steering tractors and see-and-spray technology gather data farmers depend on.
+  origin: FOUNDER
+  founders: Josiah Deerfield
+  founder_story: Josiah Deerfield, a Vermont blacksmith in Illinois, made a steel plough from an old saw blade in 1837, because the sticky prairie soil clung to the cast-iron ploughs the settlers brought from the east.
+  founded_year: 1837
+  ipo_year: 1933
+  ipo_valuation_musd: 30
+  ceo_name: Harald Lindgren-Pike
+  ceo_since: 2021
+  ceo_industry_years: 32
+  employees: 75000
+  fiscal_year: 2025
+  revenue_musd: 46000
+  net_income_musd: 5000
+  revenue_growth_pct: -12.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 130000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 2.5
+  credit_rating: A
+  competitors: CAT CTVA
+  key_risk: Farm incomes have fallen with crop prices, and tariffs make its US-made machines dearer abroad.
+DOV:
+  name: Dovecote Industries Corp.
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Downers Grove, USA
+  purpose: Makes pumps, compressors, valves, refrigerated display cases, car-wash systems and other engineered components.
+  key_market: Industrial, food-retail, energy and biopharma customers in the US and Europe
+  market_position: A collection of niche businesses that each lead a small segment, managed with a light central touch.
+  origin: FOUNDER
+  founders: Gideon Dovecote
+  founder_story: Gideon Dovecote, a New York investor, bought a small elevator maker in 1955 and then a string of other small industrial companies, letting each keep its own name and managers.
+  founded_year: 1955
+  ipo_year: 1955
+  ipo_valuation_musd: 25
+  ceo_name: Rhiannon Talbot
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 8000
+  net_income_musd: 1100
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 1100
+  market_cap_musd: 27000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.4
+  credit_rating: A-
+  competitors: ITW IR EMR AME
+  key_risk: Its biggest end markets, food retail and energy, are slowing.
+EFX:
+  name: Equifield Credit Bureau
+  sector: INDUSTRIALS
+  industry: Research & Consulting Services
+  headquarters: Atlanta, USA
+  purpose: Runs one of the three US consumer credit bureaus and a database of employment and income records used to verify borrowers.
+  key_market: US lenders, employers and government agencies
+  market_position: Holds payroll records for more than half of US workers, which lenders and government agencies use to verify income instantly.
+  origin: CO_FOUNDERS
+  founders: Two Atlanta brothers
+  founder_story: Two brothers in Atlanta began compiling lists of shoppers' creditworthiness for local grocers in 1899; the lists became credit reports and the grocers' ledger became a national bureau.
+  founded_year: 1899
+  ipo_year: 1971
+  ipo_valuation_musd: 70
+  ceo_name: Arturo Mendelsohn
+  ceo_since: 2017
+  ceo_industry_years: 30
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 6000
+  net_income_musd: 700
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 28000
+  dividend_yield_pct: 0.7
+  debt_to_equity: 0.95
+  credit_rating: BBB
+  competitors: ""
+  key_risk: A 2017 data breach exposed 147 million people; another would be devastating.
+EMR:
+  name: Emberly Automation Co.
+  sector: INDUSTRIALS
+  industry: Electrical Components & Equipment
+  headquarters: St. Louis, USA
+  purpose: Makes industrial automation systems, valves, measurement instruments and the software that runs refineries, chemical plants and factories.
+  key_market: Process industries such as oil and gas, chemicals, power and pharmaceuticals worldwide
+  market_position: Its process-control systems run thousands of refineries and chemical plants; replacing them would mean a shutdown.
+  origin: CO_FOUNDERS
+  founders: Two St. Louis brothers and a partner
+  founder_story: Two St. Louis brothers made electric motors for sewing machines and fans in 1890; one of their first products was the first electric fan sold in the US.
+  founded_year: 1890
+  ipo_year: 1944
+  ipo_valuation_musd: 15
+  ceo_name: Lucius van Rensburg
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 73000
+  fiscal_year: 2025
+  revenue_musd: 18000
+  net_income_musd: 2200
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 72000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.65
+  credit_rating: A
+  competitors: HON ETN AME
+  key_risk: Its recent purchase of an industrial-software company must justify its high price.
+ETN:
+  name: Eastwick Power Management plc
+  sector: INDUSTRIALS
+  industry: Electrical Components & Equipment
+  headquarters: Dublin, Ireland
+  purpose: Makes switchgear, circuit breakers, transformers and backup power systems for data centres, utilities and buildings, and aerospace fuel systems.
+  key_market: Data centres, utilities and commercial buildings in the US and Europe
+  market_position: Has the deepest order backlog in electrical equipment, built on the rush to power AI data centres.
+  origin: FOUNDER
+  founders: Josias Eton
+  founder_story: Josias Eton, a Cleveland engineer, began making truck axles in 1911; the axles led to electrical controls for trucks, then for factories and power grids.
+  founded_year: 1911
+  ipo_year: 1923
+  ipo_valuation_musd: 10
+  ceo_name: Paulina Desrosiers
+  ceo_since: 2017
+  ceo_industry_years: 32
+  employees: 94000
+  fiscal_year: 2025
+  revenue_musd: 27000
+  net_income_musd: 4300
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 140000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: EMR HUBB HON
+  key_risk: If data-centre spending stops growing, its order book would shrink fast.
+EXPD:
+  name: Exmoor Freight International
+  sector: INDUSTRIALS
+  industry: Air Freight & Logistics
+  headquarters: Seattle, USA
+  purpose: Books air and ocean freight and handles customs clearance for exporters and importers, without owning aircraft or ships.
+  key_market: Technology, retail and industrial exporters shipping between Asia, the US and Europe
+  market_position: Runs a single global IT system and pays staff from branch profits, which makes it the most efficient freight forwarder in the world.
+  origin: CO_FOUNDERS
+  founders: A group of Seattle freight agents
+  founder_story: A group of freight agents in Seattle started it in 1979 to clear goods through customs for importers in the US; they had worked in Asian ports and knew the paperwork there.
+  founded_year: 1979
+  ipo_year: 1984
+  ipo_valuation_musd: 40
+  ceo_name: Rafferty Okonkwo
+  ceo_since: 2022
+  ceo_industry_years: 26
+  employees: 18000
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 800
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 800
+  market_cap_musd: 16000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: UPS FDX JBHT
+  key_risk: Tariffs on Chinese exports reduce the volume of goods it moves.
+FAST:
+  name: Fastwell Supply Co.
+  sector: INDUSTRIALS
+  industry: Trading Companies & Distributors
+  headquarters: Winona, USA
+  purpose: Sells nuts, bolts, safety gear, tools and other industrial supplies through 1,600 branches and 120,000 vending machines placed inside customer factories.
+  key_market: Manufacturers and construction companies in North America
+  market_position: Its vending machines on customers' shop floors dispense supplies and reorder automatically, which makes switching suppliers awkward.
+  origin: FOUNDER
+  founders: Bertil Faste
+  founder_story: Bertil Faste, a Minnesota inventor, tried to sell nuts and bolts from vending machines in 1967; the machines failed, but the shop he opened to sell the same goods succeeded.
+  founded_year: 1967
+  ipo_year: 1987
+  ipo_valuation_musd: 70
+  ceo_name: Darrell Thorvaldsen
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 8000
+  net_income_musd: 1200
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 1000
+  market_cap_musd: 48000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.1
+  credit_rating: A
+  competitors: GWW
+  key_risk: Weak US industrial output means fewer fasteners and less safety gear used.
+FDX:
+  name: Fenwick Express Corp.
+  sector: INDUSTRIALS
+  industry: Air Freight & Logistics
+  headquarters: Memphis, USA
+  purpose: Delivers 16 million parcels a day by air and ground to 220 countries, and runs freight trucking.
+  key_market: Businesses shipping urgent parcels in the US and internationally
+  market_position: Owns the largest cargo airline in the world, centred on its Memphis super-hub, which can deliver overnight across the globe.
+  origin: FOUNDER
+  founders: Barton Halvorsen
+  founder_story: Barton Halvorsen, a former air force pilot, set up an overnight delivery airline in Memphis in 1971 with 14 small jets after realising that parcels travelled on passenger planes that did not fly at night.
+  founded_year: 1971
+  ipo_year: 1978
+  ipo_valuation_musd: 150
+  ceo_name: Ramón Castellanos
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 500000
+  fiscal_year: 2025
+  revenue_musd: 88000
+  net_income_musd: 4100
+  revenue_growth_pct: 0.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 3500
+  market_cap_musd: 60000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 1.4
+  credit_rating: BBB
+  competitors: UPS EXPD
+  key_risk: The US Postal Service and online retailers' own networks are taking parcel volume.
+GD:
+  name: Granthorne Dynamics Corp.
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Reston, USA
+  purpose: Builds nuclear submarines, armoured vehicles, munitions and IT systems for the government, and business jets.
+  key_market: The US Navy, Army and government agencies, and wealthy private-jet buyers
+  market_position: One of only two shipyards that can build US nuclear submarines, and the maker of the best-selling large business jet.
+  origin: MERGER
+  founders: A submarine builder and an aircraft maker
+  founder_story: A Connecticut shipyard that had built the US Navy's first submarine in 1899 merged with an aircraft maker in 1952 to win contracts in the early Cold War.
+  founded_year: 1952
+  ipo_year: 1952
+  ipo_valuation_musd: 150
+  ceo_name: Nathalie Dumont-Grey
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 115000
+  fiscal_year: 2025
+  revenue_musd: 50000
+  net_income_musd: 4200
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 4000
+  market_cap_musd: 85000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.4
+  credit_rating: A-
+  competitors: LMT NOC RTX
+  key_risk: Shipyard labour shortages delay its submarine deliveries.
+GE:
+  name: Gantry Electric Co.
+  sector: INDUSTRIALS
+  industry: Industrial Conglomerates
+  headquarters: Evendale, USA
+  purpose: Makes jet engines for most of the world's airliners and military aircraft, and services them for decades after sale.
+  key_market: Airlines and aircraft makers worldwide
+  market_position: Its engines power about three quarters of the world's narrow-body airliners; the after-sales service earns most of its profit.
+  origin: MERGER
+  founders: An inventor's lamp company and a rival electrical firm
+  founder_story: An inventor's electric-lamp company merged with a rival electrical maker in 1892 to end their patent wars; a century of conglomerate building ended with it splitting into three companies.
+  founded_year: 1892
+  ipo_year: 1892
+  ipo_valuation_musd: 30
+  ceo_name: Lorcan Fitzhenry
+  ceo_since: 2020
+  ceo_industry_years: 32
+  employees: 53000
+  fiscal_year: 2025
+  revenue_musd: 42000
+  net_income_musd: 7500
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 7000
+  market_cap_musd: 300000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 1.0
+  credit_rating: A-
+  competitors: RTX HON
+  key_risk: Durability problems with its newest engine generation force costly early repairs.
+GWW:
+  name: Grangewell Industrial Supply
+  sector: INDUSTRIALS
+  industry: Trading Companies & Distributors
+  headquarters: Lake Forest, USA
+  purpose: Distributes 2 million maintenance, repair and operating products, from motors to safety gloves, online and through branches.
+  key_market: US and Japanese businesses, hospitals, schools and government
+  market_position: The largest maintenance-supply distributor in North America, with next-day delivery of almost any part to almost any business.
+  origin: FOUNDER
+  founders: Wilhelmina Grange
+  founder_story: Wilhelmina Grange began selling electric motors by catalogue from a Chicago office in 1927 to farmers and factories that could not find them in local stores.
+  founded_year: 1927
+  ipo_year: 1967
+  ipo_valuation_musd: 60
+  ceo_name: Darius Alvarenga
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 26000
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 1900
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 50000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 0.7
+  credit_rating: AA-
+  competitors: FAST
+  key_risk: Large customers use online marketplaces to compare prices, squeezing its margins.
+HON:
+  name: Hollowfield International
+  sector: INDUSTRIALS
+  industry: Industrial Conglomerates
+  headquarters: Charlotte, USA
+  purpose: Makes aircraft avionics and engines, building automation, industrial controls, warehouse robots and specialty chemicals.
+  key_market: Aerospace, buildings and process industries worldwide
+  market_position: Its avionics are on almost every commercial aircraft, and its building-automation systems manage millions of buildings.
+  origin: MERGER
+  founders: A thermostat maker and a chemical maker
+  founder_story: A Minnesota heating-regulator maker founded in 1906 merged in 1999 with a New Jersey chemical company, creating an industrial conglomerate now splitting into three.
+  founded_year: 1906
+  ipo_year: 1929
+  ipo_valuation_musd: 25
+  ceo_name: Viktoria Haugland
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 95000
+  fiscal_year: 2025
+  revenue_musd: 40000
+  net_income_musd: 6000
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 140000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 1.6
+  credit_rating: A
+  competitors: GE EMR JCI
+  key_risk: Splitting into three companies is costly and distracting.
+HUBB:
+  name: Hurlstone Electrical Products
+  sector: INDUSTRIALS
+  industry: Electrical Components & Equipment
+  headquarters: Shelton, USA
+  purpose: Makes electrical wiring devices, connectors, transformer components and grid hardware for utilities and buildings.
+  key_market: US electric utilities and electrical contractors
+  market_position: Its grid hardware and switches are specified in the standards of most US utilities, which are spending record sums on the grid.
+  origin: FOUNDER
+  founders: Hiram Hurlstone
+  founder_story: Hiram Hurlstone, a Connecticut tinkerer, patented the pull-chain light socket and the detachable electric plug in 1888, so that lamps no longer had to be wired into the wall.
+  founded_year: 1888
+  ipo_year: 1971
+  ipo_valuation_musd: 40
+  ceo_name: Gerhardt Kowal
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 6000
+  net_income_musd: 850
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 22000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: ETN EMR
+  key_risk: Utilities' spending could fall if regulators reject rate rises.
+IR:
+  name: Ironridge Compressors Inc.
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Davidson, USA
+  purpose: Makes air compressors, vacuum pumps, blowers and fluid-handling equipment for factories, labs and medical systems.
+  key_market: Industrial manufacturers and life-science companies worldwide
+  market_position: Its compressors are in factories everywhere and its after-market services generate a third of its revenue.
+  origin: MERGER
+  founders: Two compressor makers
+  founder_story: Grew from a New Jersey mining-drill maker founded in 1871, which merged with a rival compressor maker in 2020.
+  founded_year: 1871
+  ipo_year: 2017
+  ipo_valuation_musd: 6000
+  ceo_name: Bartholomew Duchamp
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 7500
+  net_income_musd: 900
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 1300
+  market_cap_musd: 33000
+  dividend_yield_pct: 0.1
+  debt_to_equity: 0.5
+  credit_rating: BBB
+  competitors: DOV ITW
+  key_risk: It depends on acquisitions for growth, and some recent ones have disappointed.
+ITW:
+  name: Ironworks Tool Works
+  sector: INDUSTRIALS
+  industry: Industrial Machinery & Supplies
+  headquarters: Glenview, USA
+  purpose: Makes fasteners, welding equipment, food-service equipment, car components, construction products and specialty films.
+  key_market: Industrial, automotive and food-service customers worldwide
+  market_position: Runs 84 businesses each focused on its most profitable 20 per cent of customers and products, a discipline that gives it margins above its peers.
+  origin: CO_FOUNDERS
+  founders: Byron Smitherman and partners
+  founder_story: A Chicago engineer and his partners started a cutting-tool business in 1912; a few decades later a lock washer they invented became one of the most widely used fasteners in industry.
+  founded_year: 1912
+  ipo_year: 1961
+  ipo_valuation_musd: 60
+  ceo_name: Ansgar Ellingsen
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 44000
+  fiscal_year: 2025
+  revenue_musd: 16000
+  net_income_musd: 3000
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 75000
+  dividend_yield_pct: 2.4
+  debt_to_equity: 2.8
+  credit_rating: A+
+  competitors: DOV IR
+  key_risk: Slow industrial demand in the US and Europe leaves little room for growth.
+JBHT:
+  name: Jamesburg Holt Transport
+  sector: INDUSTRIALS
+  industry: Cargo Ground Transportation
+  headquarters: Lowell, USA
+  purpose: Moves freight in containers on trains and trucks across North America and runs dedicated truck fleets and final-mile delivery.
+  key_market: US retailers and manufacturers shipping freight over long distances
+  market_position: The largest intermodal operator in the US; it owns the containers and contracts rail space, cheaper than trucks on long routes.
+  origin: FOUNDER
+  founders: Jamesburg Holt
+  founder_story: Jamesburg Holt, an Arkansas truck driver who had dropped out of school, started a business selling rice hulls for chicken litter in 1961 and bought trucks to deliver them.
+  founded_year: 1961
+  ipo_year: 1983
+  ipo_valuation_musd: 70
+  ceo_name: Winifred Marchetti
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 34000
+  fiscal_year: 2025
+  revenue_musd: 12000
+  net_income_musd: 550
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 6.0
+  free_cash_flow_musd: 600
+  market_cap_musd: 15000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: UNP CSX
+  key_risk: A long freight recession has kept rates low.
+JCI:
+  name: Jarrow Controls International
+  sector: INDUSTRIALS
+  industry: Building Products
+  headquarters: Cork, Ireland
+  purpose: Makes heating, cooling, fire-safety, security and building-automation systems for commercial buildings and data centres.
+  key_market: Commercial buildings, hospitals and data centres worldwide
+  market_position: Its chillers cool many of the world's largest data centres, and its building-control systems are in millions of buildings.
+  origin: FOUNDER
+  founders: Warren Jarrow
+  founder_story: Warren Jarrow, a Wisconsin professor, invented the electric room thermostat in 1883 so that the janitor would no longer have to go from room to room adjusting the heating.
+  founded_year: 1885
+  ipo_year: 1940
+  ipo_valuation_musd: 15
+  ceo_name: Isadora Lindholm
+  ceo_since: 2025
+  ceo_industry_years: 25
+  employees: 90000
+  fiscal_year: 2025
+  revenue_musd: 23500
+  net_income_musd: 2000
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 55000
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.55
+  credit_rating: BBB+
+  competitors: CARR HON
+  key_risk: It is still integrating businesses from a merger a decade ago.
+LHX:
+  name: Larkhaven Huxley Technologies
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Melbourne, USA
+  purpose: Makes military radios, satellites, space sensors, night-vision equipment and rocket engines.
+  key_market: The US Department of Defense and intelligence agencies, and allied militaries
+  market_position: The leading maker of tactical radios for US and allied troops, and of rocket motors for missiles now in short supply.
+  origin: MERGER
+  founders: A radio maker and a defence electronics firm
+  founder_story: Two defence-electronics firms, one founded in 1895 to make printing presses, merged in 2019 and bought a rocket-engine maker in 2023.
+  founded_year: 2019
+  ipo_year: 2019
+  ipo_valuation_musd: 40000
+  ceo_name: Clementine Beaufort
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 47000
+  fiscal_year: 2025
+  revenue_musd: 22000
+  net_income_musd: 1700
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 2200
+  market_cap_musd: 48000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.6
+  credit_rating: BBB
+  competitors: LMT NOC RTX GD
+  key_risk: A delayed US defence budget holds back new contracts.
+LMT:
+  name: Larkspur Meridian Corp.
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Bethesda, USA
+  purpose: The largest defence contractor in the world, building fighter jets, missiles, helicopters, satellites and space systems.
+  key_market: The US Department of Defense and allied governments
+  market_position: Builds the most advanced fighter jet in service with 20 allied air forces, and will support it for 50 years.
+  origin: MERGER
+  founders: A California aircraft maker and a Maryland aerospace firm
+  founder_story: Formed in 1995 when two aerospace companies, one founded by two brothers in 1912 and the other by a pioneer aviator in 1912, merged to survive post-Cold War defence cuts.
+  founded_year: 1995
+  ipo_year: 1995
+  ipo_valuation_musd: 10000
+  ceo_name: Imelda Haverstock
+  ceo_since: 2021
+  ceo_industry_years: 32
+  employees: 121000
+  fiscal_year: 2025
+  revenue_musd: 74000
+  net_income_musd: 5000
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 6000
+  market_cap_musd: 110000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 3.0
+  credit_rating: A-
+  competitors: NOC RTX GD BA
+  key_risk: Losses on classified fixed-price programmes have hit its earnings twice.
+MMM:
+  name: Minnemont Manufacturing Co.
+  sector: INDUSTRIALS
+  industry: Industrial Conglomerates
+  headquarters: Saint Paul, USA
+  purpose: Makes adhesives, abrasives, tapes, films, filters, safety equipment and electronics materials sold in 200 countries.
+  key_market: Industrial, consumer, electronics and car-making customers worldwide
+  market_position: Holds 100,000 patents and lets scientists spend part of their time on their own ideas, which has produced thousands of everyday products.
+  origin: CO_FOUNDERS
+  founders: Five Minnesota businessmen
+  founder_story: Five businessmen set out in 1902 to mine a mineral for grinding wheels on the shore of Lake Superior; the mineral was worthless, so they made sandpaper instead.
+  founded_year: 1902
+  ipo_year: 1946
+  ipo_valuation_musd: 50
+  ceo_name: Wendell Achterberg
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 62000
+  fiscal_year: 2025
+  revenue_musd: 24500
+  net_income_musd: 4200
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 80000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 3.0
+  credit_rating: BBB+
+  competitors: HON ITW
+  key_risk: It still pays out billions to settle lawsuits over forever chemicals and faulty military earplugs.
+NOC:
+  name: Norcastle Gryphon Corp.
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Falls Church, USA
+  purpose: Builds stealth bombers, space systems, missile defence, nuclear missiles and drones for the US government.
+  key_market: The US Air Force, Space Force and intelligence agencies
+  market_position: The only company building a new stealth bomber and the new land-based nuclear missile, two programmes that will run for decades.
+  origin: MERGER
+  founders: Two aircraft makers
+  founder_story: Two aircraft makers, one that built fighters for aircraft carriers in the Second World War and one that built flying wings, merged in 1994.
+  founded_year: 1994
+  ipo_year: 1994
+  ipo_valuation_musd: 5000
+  ceo_name: Oswaldo Kittredge
+  ceo_since: 2018
+  ceo_industry_years: 32
+  employees: 97000
+  fiscal_year: 2025
+  revenue_musd: 42000
+  net_income_musd: 4000
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 75000
+  dividend_yield_pct: 1.7
+  debt_to_equity: 1.0
+  credit_rating: BBB+
+  competitors: LMT GD RTX LHX
+  key_risk: Its nuclear-missile programme is over budget, and it bears part of the cost overrun.
+NSC:
+  name: Northfork Seaboard Railway
+  sector: INDUSTRIALS
+  industry: Rail Transportation
+  headquarters: Atlanta, USA
+  purpose: Runs a 19,000-mile freight railroad in 22 eastern states carrying coal, cars, chemicals and containers.
+  key_market: Shippers in the eastern and southern US
+  market_position: Its network covers most of the eastern US industrial heartland and reaches every major Atlantic port.
+  origin: MERGER
+  founders: Two eastern railroads
+  founder_story: Two eastern railroads merged in 1982; one ran coal trains out of Appalachia, the other linked the cities of the South.
+  founded_year: 1982
+  ipo_year: 1982
+  ipo_valuation_musd: 3500
+  ceo_name: Kasimir Thibault
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 20000
+  fiscal_year: 2025
+  revenue_musd: 12500
+  net_income_musd: 2700
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 37.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 60000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 1.3
+  credit_rating: BBB+
+  competitors: CSX UNP
+  key_risk: Its agreed takeover by a western railroad needs regulators' approval, which may take two years.
+PAYX:
+  name: Paylark Payroll Services
+  sector: INDUSTRIALS
+  industry: Human Resource & Employment Services
+  headquarters: Rochester, USA
+  purpose: Runs payroll, HR, benefits and insurance services for 800,000 small and mid-sized US businesses.
+  key_market: US businesses with fewer than 100 employees
+  market_position: The leading payroll provider to small US businesses, which rarely switch provider once set up.
+  origin: FOUNDER
+  founders: Thaddeus Golding
+  founder_story: Thaddeus Golding, a payroll salesman who saw that his employer ignored small businesses, started his own payroll service in Rochester in 1971 with 3,000 dollars on a credit card.
+  founded_year: 1971
+  ipo_year: 1983
+  ipo_valuation_musd: 50
+  ceo_name: Dominic Rasmussen
+  ceo_since: 2021
+  ceo_industry_years: 26
+  employees: 19000
+  fiscal_year: 2025
+  revenue_musd: 5600
+  net_income_musd: 1650
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 40.0
+  free_cash_flow_musd: 1900
+  market_cap_musd: 45000
+  dividend_yield_pct: 3.5
+  debt_to_equity: 1.2
+  credit_rating: BBB+
+  competitors: ADP BR
+  key_risk: Slower hiring among small businesses limits its growth.
+ADP:
+  name: Aldine Data Payroll Inc.
+  sector: INDUSTRIALS
+  industry: Human Resource & Employment Services
+  headquarters: Roseland, USA
+  purpose: Runs payroll, HR, tax and benefits for 1 million employers and pays one in six US workers.
+  key_market: US employers of all sizes, and multinationals in 140 countries
+  market_position: The largest payroll processor in the world; it holds clients' payroll funds before paying them out and earns interest on them.
+  origin: CO_FOUNDERS
+  founders: Hamish Lautner, Gus Weinberg
+  founder_story: A 22-year-old started a manual payroll business in New Jersey in 1949 after seeing his brother's company spend days each week calculating pay; his partners added computers in the 1960s.
+  founded_year: 1949
+  ipo_year: 1961
+  ipo_valuation_musd: 25
+  ceo_name: Ottoline Lindqvist-Mora
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 64000
+  fiscal_year: 2025
+  revenue_musd: 20500
+  net_income_musd: 4100
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 125000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.7
+  credit_rating: AA
+  competitors: PAYX BR
+  key_risk: Falling interest rates cut what it earns on client funds in transit.
+RTX:
+  name: Ravenstone Technologies
+  sector: INDUSTRIALS
+  industry: Aerospace & Defense
+  headquarters: Arlington, USA
+  purpose: Makes jet engines, avionics, missiles and air-defence systems for airlines and governments.
+  key_market: Airlines, aircraft makers and the US and allied militaries
+  market_position: The only company that is both a top-two commercial jet-engine maker and the leading maker of air-defence missiles.
+  origin: MERGER
+  founders: An industrial conglomerate and a missile maker
+  founder_story: Formed in 2020 when an industrial conglomerate that had made aircraft engines since 1925 merged with a missile maker founded by MIT engineers in 1922.
+  founded_year: 2020
+  ipo_year: 2020
+  ipo_valuation_musd: 120000
+  ceo_name: Leonora Abbatiello
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 185000
+  fiscal_year: 2025
+  revenue_musd: 85000
+  net_income_musd: 6500
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 6000
+  market_cap_musd: 200000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.6
+  credit_rating: BBB+
+  competitors: GE LMT NOC GD
+  key_risk: A manufacturing flaw in its newest engine forced inspections of hundreds of jets.
+UAL:
+  name: Uplift Air Lines
+  sector: INDUSTRIALS
+  industry: Airlines
+  headquarters: Chicago, USA
+  purpose: Flies 175 million passengers a year from hubs in Chicago, Denver, Houston, Newark, San Francisco and Washington.
+  key_market: Business travellers in US hubs and long-haul flights to Asia, Europe and Latin America
+  market_position: Has the largest international network of any US airline and the biggest order for new long-haul jets.
+  origin: MERGER
+  founders: An aircraft maker's airline and three air-mail carriers
+  founder_story: Formed in 1931 from four airmail carriers owned by an aircraft maker; an antitrust law in 1934 forced the airline and the plane maker to separate.
+  founded_year: 1931
+  ipo_year: 1934
+  ipo_valuation_musd: 15
+  ceo_name: Pascale Brannigan
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 107000
+  fiscal_year: 2025
+  revenue_musd: 59000
+  net_income_musd: 3500
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 32000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 2.2
+  credit_rating: BB+
+  competitors: DAL AAL
+  key_risk: Delays in aircraft deliveries from manufacturers hold back its growth plans.
+UNP:
+  name: Umber Plains Railroad
+  sector: INDUSTRIALS
+  industry: Rail Transportation
+  headquarters: Omaha, USA
+  purpose: Runs a 32,000-mile freight railroad in 23 western states, linking West Coast and Gulf ports with the Midwest and Mexico.
+  key_market: Shippers of farm goods, chemicals, coal, cars and containers in the western US
+  market_position: The largest US railroad, one of only two in the West; it is now buying an eastern railroad to create the first coast-to-coast line.
+  origin: CO_FOUNDERS
+  founders: Investors chartered by Congress
+  founder_story: Chartered by Congress in 1862 to build the eastern half of the first transcontinental railroad; its crews met the western line in Utah in 1869.
+  founded_year: 1862
+  ipo_year: 1897
+  ipo_valuation_musd: 100
+  ceo_name: Nikolai Kalashian
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 30000
+  fiscal_year: 2025
+  revenue_musd: 24500
+  net_income_musd: 7000
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 40.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 140000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 2.0
+  credit_rating: A-
+  competitors: CSX NSC JBHT
+  key_risk: Its coast-to-coast merger faces opposition from shippers and unions.
+UPS:
+  name: Upton Parcel Service
+  sector: INDUSTRIALS
+  industry: Air Freight & Logistics
+  headquarters: Atlanta, USA
+  purpose: Delivers 22 million parcels a day by van, truck and its own airline to 200 countries, and runs healthcare logistics.
+  key_market: Businesses and consumers in the US, and international trade lanes
+  market_position: The largest parcel delivery company in the world, with a unionised driver force and a dense ground network.
+  origin: CO_FOUNDERS
+  founders: Two Seattle teenagers
+  founder_story: Two Seattle teenagers borrowed 100 dollars in 1907 to start a messenger service by bicycle and on foot, delivering parcels for department stores.
+  founded_year: 1907
+  ipo_year: 1999
+  ipo_valuation_musd: 75000
+  ceo_name: Corinna Halloway
+  ceo_since: 2021
+  ceo_industry_years: 28
+  employees: 490000
+  fiscal_year: 2025
+  revenue_musd: 89000
+  net_income_musd: 5500
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 85000
+  dividend_yield_pct: 6.5
+  debt_to_equity: 1.5
+  credit_rating: A
+  competitors: FDX EXPD
+  key_risk: It is cutting volume from its largest customer, an online retailer that is building its own network.

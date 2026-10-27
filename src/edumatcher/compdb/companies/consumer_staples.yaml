@@ -1,0 +1,692 @@
+# CONSUMER_STAPLES. Made-up companies: the tickers and lines of business
+# follow the simulated market; every name, person and number is invented.
+CHD:
+  name: Chadwick Household Brands
+  sector: CONSUMER_STAPLES
+  industry: Household Products
+  headquarters: Ewing, USA
+  purpose: Makes baking-soda based household and personal-care products, from cat litter and toothpaste to laundry detergent and vitamins.
+  key_market: US households shopping at supermarkets, discounters and online
+  market_position: Its century-old baking-soda brand lends trust to every new product it puts the name on, and it buys small niche brands that big rivals overlook.
+  origin: CO_FOUNDERS
+  founders: Ezra Chadwick, Lucius Harrow
+  founder_story: Two brothers-in-law began packing bicarbonate of soda in paper bags in a New York kitchen in 1846, selling it to housewives as a leavening agent that never failed.
+  founded_year: 1846
+  ipo_year: 1972
+  ipo_valuation_musd: 45
+  ceo_name: Rebecca Thorsby
+  ceo_since: 2016
+  ceo_industry_years: 28
+  employees: 5600
+  fiscal_year: 2025
+  revenue_musd: 6100
+  net_income_musd: 760
+  revenue_growth_pct: 1.8
+  operating_margin_pct: 18.5
+  free_cash_flow_musd: 1050
+  market_cap_musd: 24500
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: CLX PG CL
+  key_risk: Shoppers are trading down to supermarket own-label products in its biggest categories.
+CL:
+  name: Colridge-Pembrook Co.
+  sector: CONSUMER_STAPLES
+  industry: Household Products
+  headquarters: New York, USA
+  purpose: Makes toothpaste, toothbrushes, soap, shampoo and pet food sold in more than 200 countries.
+  key_market: Households in Latin America, Asia and Africa, which bring more than half its sales
+  market_position: Sells the most-used toothpaste brand in the world, found in more homes than any other consumer brand.
+  origin: FOUNDER
+  founders: Josiah Colridge
+  founder_story: Josiah Colridge, a 22-year-old soap boiler, opened a starch, soap and candle shop on Dutch Street in Manhattan in 1806; toothpaste in a tube came eighty years later.
+  founded_year: 1806
+  ipo_year: 1930
+  ipo_valuation_musd: 60
+  ceo_name: Fernando Echeverri
+  ceo_since: 2007
+  ceo_industry_years: 41
+  employees: 34000
+  fiscal_year: 2025
+  revenue_musd: 20200
+  net_income_musd: 2950
+  revenue_growth_pct: 0.9
+  operating_margin_pct: 21.5
+  free_cash_flow_musd: 3500
+  market_cap_musd: 70000
+  dividend_yield_pct: 2.6
+  debt_to_equity: 12.5
+  credit_rating: AA-
+  competitors: PG KMB CHD
+  key_risk: Currency falls in Argentina, Turkey and Nigeria wipe out the price rises it pushes through.
+CLX:
+  name: Clearwater Bleach Co.
+  sector: CONSUMER_STAPLES
+  industry: Household Products
+  headquarters: Oakland, USA
+  purpose: Makes bleach, disinfecting wipes, cat litter, charcoal, bin bags, salad dressing and water filters.
+  key_market: US households
+  market_position: Its bleach brand is so dominant that Americans use its name for the product; it holds number one or two in most of its categories.
+  origin: CO_FOUNDERS
+  founders: Five Oakland investors
+  founder_story: Five Oakland businessmen put up 100 dollars each in 1913 to make bleach from the salt water of San Francisco Bay, selling it first to laundries in five-gallon jugs.
+  founded_year: 1913
+  ipo_year: 1928
+  ipo_valuation_musd: 8
+  ceo_name: Marisol Ventura
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 7600
+  fiscal_year: 2025
+  revenue_musd: 7100
+  net_income_musd: 750
+  revenue_growth_pct: -0.5
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 17000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 9.1
+  credit_rating: A-
+  competitors: CHD PG
+  key_risk: A cyber-attack in 2023 shut its factories for weeks; it is still replacing its IT systems.
+COST:
+  name: Coastwell Warehouse Clubs
+  sector: CONSUMER_STAPLES
+  industry: Consumer Staples Merchandise Retail
+  headquarters: Issaquah, USA
+  purpose: Runs 900 membership warehouse clubs in 14 countries, selling a narrow range of goods in bulk at low markups.
+  key_market: Middle-class families and small businesses in the US, Canada, Mexico and Asia
+  market_position: Earns most of its profit from 135 million membership fees, which lets it sell goods at almost no markup; nine in ten members renew.
+  origin: CO_FOUNDERS
+  founders: Harvey Brandt, Gwen Tollefson
+  founder_story: A grocery executive and a lawyer opened the first warehouse in an old aircraft hangar in Seattle in 1983, betting customers would pay a fee to shop where nothing was marked up more than 14 per cent.
+  founded_year: 1983
+  ipo_year: 1985
+  ipo_valuation_musd: 190
+  ceo_name: Ramon Esquivel
+  ceo_since: 2024
+  ceo_industry_years: 41
+  employees: 330000
+  fiscal_year: 2025
+  revenue_musd: 275000
+  net_income_musd: 8100
+  revenue_growth_pct: 8.1
+  operating_margin_pct: 3.8
+  free_cash_flow_musd: 7600
+  market_cap_musd: 420000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.27
+  credit_rating: AA
+  competitors: WMT TGT KR
+  key_risk: Its shares trade at more than 50 times earnings, a price that only works if it keeps growing for decades.
+DG:
+  name: Dalewood Discount Stores
+  sector: CONSUMER_STAPLES
+  industry: Consumer Staples Merchandise Retail
+  headquarters: Goodlettsville, USA
+  purpose: Runs 20,000 small discount stores selling food, cleaning products and basics, mostly in rural towns with no supermarket.
+  key_market: Low-income households in the rural US South and Midwest
+  market_position: For many small towns it is the only shop within twenty miles; nine in ten Americans live within five miles of one of its stores.
+  origin: FAMILY
+  founders: The Tolbert family
+  founder_story: A Kentucky father and son who sold dry goods wholesale opened their first store in 1955 where nothing cost more than a dollar, to clear out the stock other shops had returned.
+  founded_year: 1939
+  ipo_year: 1968
+  ipo_valuation_musd: 35
+  ceo_name: Henry Lasseter
+  ceo_since: 2023
+  ceo_industry_years: 32
+  employees: 190000
+  fiscal_year: 2025
+  revenue_musd: 41500
+  net_income_musd: 1250
+  revenue_growth_pct: 4.6
+  operating_margin_pct: 4.3
+  free_cash_flow_musd: 1600
+  market_cap_musd: 23500
+  dividend_yield_pct: 2.2
+  debt_to_equity: 0.85
+  credit_rating: BBB
+  competitors: DLTR WMT
+  key_risk: Its stores are understaffed and theft and inventory losses have risen sharply.
+DLTR:
+  name: Driftway Value Stores
+  sector: CONSUMER_STAPLES
+  industry: Consumer Staples Merchandise Retail
+  headquarters: Chesapeake, USA
+  purpose: Runs 9,000 discount stores where most items cost a single fixed price of 1.25 dollars, selling party goods, crafts, snacks and household basics.
+  key_market: Middle-income suburban households in the US and Canada
+  market_position: The fixed-price promise is simple and draws shoppers who treat a visit as a treasure hunt.
+  origin: CO_FOUNDERS
+  founders: Douglas Perrin, Mac Haverty
+  founder_story: Three partners turned a Virginia variety store into a chain of "everything a dollar" shops in 1986, when inflation made a single fixed price feel like a bargain.
+  founded_year: 1986
+  ipo_year: 1995
+  ipo_valuation_musd: 450
+  ceo_name: Olivia Strand
+  ceo_since: 2025
+  ceo_industry_years: 24
+  employees: 140000
+  fiscal_year: 2025
+  revenue_musd: 18500
+  net_income_musd: 1250
+  revenue_growth_pct: 5.5
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 1050
+  market_cap_musd: 21000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.68
+  credit_rating: BBB
+  competitors: DG WMT
+  key_risk: Tariffs on cheap imported goods squeeze a business that cannot raise its fixed price easily.
+EL:
+  name: Elsinore Lumière Beauty Inc.
+  sector: CONSUMER_STAPLES
+  industry: Personal Care Products
+  headquarters: New York, USA
+  purpose: Makes prestige skin care, make-up, fragrance and hair-care brands sold in department stores, travel retail and online.
+  key_market: Affluent shoppers in China, the US and duty-free stores in airports
+  market_position: Owns many of the most prestigious beauty brands in the world and controls the counters at department stores where they are sold.
+  origin: FAMILY
+  founders: Ruth Elsinore and her husband
+  founder_story: Ruth Elsinore sold face creams her chemist uncle mixed in his kitchen to New York beauty salons in 1946, giving away free samples long before anyone else thought of it.
+  founded_year: 1946
+  ipo_year: 1995
+  ipo_valuation_musd: 3200
+  ceo_name: Stéphane Morel
+  ceo_since: 2025
+  ceo_industry_years: 25
+  employees: 58000
+  fiscal_year: 2025
+  revenue_musd: 14500
+  net_income_musd: -1100
+  revenue_growth_pct: -8.0
+  operating_margin_pct: -5.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 26000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 1.6
+  credit_rating: BBB+
+  competitors: PG
+  key_risk: Chinese travel-retail sales collapsed, and it has written down billions on brands it overpaid for.
+GIS:
+  name: Granary Mills Inc.
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Minneapolis, USA
+  purpose: Makes breakfast cereals, baking mixes, snack bars, yoghurt and pet food.
+  key_market: US supermarkets, which bring three quarters of its sales
+  market_position: Owns the best-selling cereal brands in the US and a fast-growing premium dog-food business.
+  origin: MERGER
+  founders: Several Minneapolis flour mills
+  founder_story: A group of Minneapolis flour mills on the Mississippi falls merged in 1928; in the 1940s they turned excess flour into a ready-to-eat oat cereal, and cereal became the business.
+  founded_year: 1928
+  ipo_year: 1928
+  ipo_valuation_musd: 90
+  ceo_name: Jefferson Aldridge
+  ceo_since: 2017
+  ceo_industry_years: 29
+  employees: 33000
+  fiscal_year: 2025
+  revenue_musd: 19500
+  net_income_musd: 2300
+  revenue_growth_pct: -1.9
+  operating_margin_pct: 17.5
+  free_cash_flow_musd: 2500
+  market_cap_musd: 31000
+  dividend_yield_pct: 4.4
+  debt_to_equity: 1.3
+  credit_rating: BBB
+  competitors: K KHC MDLZ
+  key_risk: Weight-loss drugs are cutting how much Americans snack and eat sugary cereal.
+HSY:
+  name: Harlow Chocolate Co.
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Lancaster, USA
+  purpose: Makes chocolate bars, sweets and salty snacks; its chocolate holds over a third of the US market.
+  key_market: US convenience stores and supermarkets
+  market_position: Its chocolate brands are on every checkout counter in the US, and a charitable trust holds control, which protects it from takeover.
+  origin: FOUNDER
+  founders: Ambrose Harlow
+  founder_story: Ambrose Harlow, a caramel maker who had gone bankrupt twice, saw a German chocolate machine at the 1893 Chicago world fair, bought it, and built a factory and a whole company town in the Pennsylvania farmland.
+  founded_year: 1894
+  ipo_year: 1927
+  ipo_valuation_musd: 40
+  ceo_name: Imogen Caldwell
+  ceo_since: 2025
+  ceo_industry_years: 22
+  employees: 20500
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 1300
+  revenue_growth_pct: 0.8
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 1300
+  market_cap_musd: 36500
+  dividend_yield_pct: 3.2
+  debt_to_equity: 1.15
+  credit_rating: A
+  competitors: MDLZ
+  key_risk: Cocoa prices have tripled in two years, and it cannot raise chocolate prices as fast.
+K:
+  name: Kestrel Cereal Co.
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Chicago, USA
+  purpose: Makes crackers, crisps, toaster pastries, cereal bars and noodles sold in 180 countries.
+  key_market: Snackers in the US, Europe, Latin America and Africa
+  market_position: Owns the leading stackable-crisp brand in the world and fast-growing snack businesses in Africa.
+  origin: FOUNDER
+  founders: Orville Kestrel
+  founder_story: Orville Kestrel worked at a Michigan health spa and in 1894 left a batch of boiled wheat out overnight; rolled flat and baked, it became the first flaked breakfast cereal.
+  founded_year: 1906
+  ipo_year: 1952
+  ipo_valuation_musd: 90
+  ceo_name: Steffen Rasmussen
+  ceo_since: 2018
+  ceo_industry_years: 33
+  employees: 23000
+  fiscal_year: 2025
+  revenue_musd: 13000
+  net_income_musd: 1350
+  revenue_growth_pct: 1.2
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 1150
+  market_cap_musd: 28500
+  dividend_yield_pct: 2.8
+  debt_to_equity: 1.6
+  credit_rating: BBB
+  competitors: GIS MDLZ PEP
+  key_risk: Its agreed takeover by a European confectioner is under antitrust review; failure would leave it without a plan B.
+KDP:
+  name: Kettledrum Drinks & Pods
+  sector: CONSUMER_STAPLES
+  industry: Soft Drinks & Non-alcoholic Beverages
+  headquarters: Frisco, USA
+  purpose: Makes soft drinks, juices, mixers and coffee pods, and sells the single-serve coffee machines that use them.
+  key_market: US supermarkets, convenience stores and home coffee drinkers
+  market_position: Its pod coffee machines sit in 40 million US kitchens, and every one of them needs pods it licenses.
+  origin: MERGER
+  founders: A Vermont coffee roaster and a Texas soft-drink maker
+  founder_story: A Vermont coffee roaster that invented single-serve pods merged with a Texas soda company in 2018, owned by a European investment firm that saw both as everyday habits.
+  founded_year: 2018
+  ipo_year: 2018
+  ipo_valuation_musd: 25000
+  ceo_name: Tobias Nwankwo
+  ceo_since: 2024
+  ceo_industry_years: 22
+  employees: 29000
+  fiscal_year: 2025
+  revenue_musd: 15800
+  net_income_musd: 1800
+  revenue_growth_pct: 3.6
+  operating_margin_pct: 21.5
+  free_cash_flow_musd: 1600
+  market_cap_musd: 44000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.65
+  credit_rating: BBB
+  competitors: KO PEP MNST
+  key_risk: It is splitting into two companies after buying a European coffee group, a plan investors doubt.
+KHC:
+  name: Kensington Hollis Foods
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Pittsburgh, USA
+  purpose: Makes ketchup, sauces, macaroni and cheese, processed cheese, cold meats and coffee.
+  key_market: US supermarkets and foodservice
+  market_position: Its ketchup is on more restaurant tables than any other; its brands are in nearly every US kitchen cupboard.
+  origin: MERGER
+  founders: A Pittsburgh pickle maker and a Chicago cheese maker
+  founder_story: A Pittsburgh pickle and ketchup maker founded in 1869 merged in 2015 with a Chicago processed-cheese company, in a deal arranged by a famous investor and a Brazilian buyout firm.
+  founded_year: 2015
+  ipo_year: 2015
+  ipo_valuation_musd: 80000
+  ceo_name: Carlos Abreu-Lima
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 36000
+  fiscal_year: 2025
+  revenue_musd: 25500
+  net_income_musd: -5300
+  revenue_growth_pct: -3.0
+  operating_margin_pct: -15.0
+  free_cash_flow_musd: 3200
+  market_cap_musd: 33000
+  dividend_yield_pct: 5.8
+  debt_to_equity: 0.42
+  credit_rating: BBB
+  competitors: GIS MDLZ K
+  key_risk: It wrote down 9 billion dollars on brands and is splitting itself in two to undo the merger.
+KMB:
+  name: Kimbrough Calder Corp.
+  sector: CONSUMER_STAPLES
+  industry: Household Products
+  headquarters: Irving, USA
+  purpose: Makes nappies, tissues, toilet paper, kitchen towels and feminine-care products.
+  key_market: Households in North America, Latin America and Asia
+  market_position: Invented the paper tissue and the disposable nappy; its brands lead in most of the countries it sells in.
+  origin: CO_FOUNDERS
+  founders: Four Wisconsin businessmen
+  founder_story: Four men from Neenah, Wisconsin started a paper mill in 1872; in the First World War they made cellulose bandages, and the leftover stock became the first disposable tissue.
+  founded_year: 1872
+  ipo_year: 1929
+  ipo_valuation_musd: 40
+  ceo_name: Maxwell Ahern
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 19500
+  net_income_musd: 2500
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 2400
+  market_cap_musd: 43000
+  dividend_yield_pct: 3.9
+  debt_to_equity: 9.5
+  credit_rating: A
+  competitors: PG CL
+  key_risk: Pulp price swings move its costs, and own-label nappies keep taking share.
+KO:
+  name: Kola Original Beverage Co.
+  sector: CONSUMER_STAPLES
+  industry: Soft Drinks & Non-alcoholic Beverages
+  headquarters: Atlanta, USA
+  purpose: Makes the syrups and concentrates for the world's best-selling cola and 200 other drink brands, sold by bottlers in 200 countries.
+  key_market: Consumers worldwide; two thirds of sales come from outside North America
+  market_position: Owns the most valuable drink brand in the world and earns high margins by selling concentrate, leaving the costly bottling to partners.
+  origin: FOUNDER
+  founders: Cyrus Pembry
+  founder_story: Cyrus Pembry, an Atlanta pharmacist wounded in the Civil War, mixed a coca-leaf and kola-nut tonic in a brass kettle in his back yard in 1886 and sold it at a soda fountain for five cents a glass.
+  founded_year: 1892
+  ipo_year: 1919
+  ipo_valuation_musd: 25
+  ceo_name: Nikolaos Varga
+  ceo_since: 2017
+  ceo_industry_years: 33
+  employees: 69000
+  fiscal_year: 2025
+  revenue_musd: 47500
+  net_income_musd: 12500
+  revenue_growth_pct: 2.6
+  operating_margin_pct: 29.5
+  free_cash_flow_musd: 9500
+  market_cap_musd: 300000
+  dividend_yield_pct: 2.9
+  debt_to_equity: 1.6
+  credit_rating: A+
+  competitors: PEP KDP MNST
+  key_risk: A US tax dispute could cost it up to 16 billion dollars in back taxes.
+KR:
+  name: Krollmart Grocery Co.
+  sector: CONSUMER_STAPLES
+  industry: Food Retail
+  headquarters: Cincinnati, USA
+  purpose: Runs 2,700 supermarkets under 20 regional names, plus pharmacies and petrol stations, in 35 US states.
+  key_market: US households
+  market_position: The largest pure supermarket chain in the US, with loyalty-card data on 60 million households that it sells to food brands for targeted ads.
+  origin: FOUNDER
+  founders: Matthias Kroll
+  founder_story: Matthias Kroll, the son of German immigrants, opened a grocery in Cincinnati in 1883 with his life savings of 372 dollars and became the first grocer to bake his own bread.
+  founded_year: 1883
+  ipo_year: 1928
+  ipo_valuation_musd: 70
+  ceo_name: Gabriel Underhill
+  ceo_since: 2025
+  ceo_industry_years: 31
+  employees: 410000
+  fiscal_year: 2025
+  revenue_musd: 147000
+  net_income_musd: 2700
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 2.6
+  free_cash_flow_musd: 3000
+  market_cap_musd: 45000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 1.7
+  credit_rating: BBB
+  competitors: WMT COST TGT
+  key_risk: Its large merger was blocked, and its CEO left suddenly, leaving it with a costly break fee and no plan.
+MDLZ:
+  name: Mondrian Snacks International
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Chicago, USA
+  purpose: Makes biscuits, chocolate, sweets and gum sold in 150 countries.
+  key_market: Snackers in Europe, emerging markets and the US
+  market_position: Owns the best-selling biscuit and one of the best-selling chocolate brands in the world, with strong distribution in India and China.
+  origin: SPIN_OFF
+  founders: Spun off from a US food group
+  founder_story: Separated in 2012 from a US food group that split its fast-growing global snacks from its slow-growing US groceries.
+  founded_year: 2012
+  ipo_year: 2012
+  ipo_valuation_musd: 52000
+  ceo_name: Dirk van Leeuwen
+  ceo_since: 2017
+  ceo_industry_years: 32
+  employees: 91000
+  fiscal_year: 2025
+  revenue_musd: 37000
+  net_income_musd: 3300
+  revenue_growth_pct: 3.2
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 80000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.7
+  credit_rating: BBB
+  competitors: HSY K GIS
+  key_risk: Cocoa costs have doubled its chocolate input bill.
+MKC:
+  name: Mallory Spice Co.
+  sector: CONSUMER_STAPLES
+  industry: Packaged Foods & Meats
+  headquarters: Hunt Valley, USA
+  purpose: Sells spices, seasonings, sauces and flavourings to home cooks and to food makers and restaurant chains.
+  key_market: US households and global food and restaurant companies
+  market_position: The largest spice company in the world; restaurant chains have it develop their secret seasonings, then buy them from it for years.
+  origin: FOUNDER
+  founders: Willoughby Mallory
+  founder_story: Willoughby Mallory, aged 25, sold root beer, flavouring extracts and fruit syrups door to door in Baltimore in 1889, from a one-room cellar he shared with three workers.
+  founded_year: 1889
+  ipo_year: 1960
+  ipo_valuation_musd: 30
+  ceo_name: Brenda Ocasio
+  ceo_since: 2023
+  ceo_industry_years: 27
+  employees: 14000
+  fiscal_year: 2025
+  revenue_musd: 6800
+  net_income_musd: 790
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 15.5
+  free_cash_flow_musd: 700
+  market_cap_musd: 20500
+  dividend_yield_pct: 2.4
+  debt_to_equity: 0.75
+  credit_rating: BBB
+  competitors: KHC GIS
+  key_risk: Tariffs on spices, almost all imported, raise costs it cannot quickly pass on.
+MNST:
+  name: Monsoon Energy Beverages
+  sector: CONSUMER_STAPLES
+  industry: Soft Drinks & Non-alcoholic Beverages
+  headquarters: Corona, USA
+  purpose: Makes energy drinks sold in 140 countries, through the bottling network of a large cola company that owns a fifth of it.
+  key_market: Young adults in the US, Europe and Latin America
+  market_position: Holds about 40 per cent of the global energy-drink market and uses the cola maker's bottlers to reach nearly every shop.
+  origin: CO_FOUNDERS
+  founders: Jaco van der Berg, Pieter Smuts
+  founder_story: Two South African immigrants bought a struggling California juice company in 1990 and, after years of trying juices, launched an energy drink in 2002 in a tall black can with a claw logo.
+  founded_year: 1935
+  ipo_year: 1990
+  ipo_valuation_musd: 20
+  ceo_name: Jaco van der Berg
+  ceo_since: 1990
+  ceo_industry_years: 36
+  employees: 6000
+  fiscal_year: 2025
+  revenue_musd: 8200
+  net_income_musd: 1900
+  revenue_growth_pct: 9.5
+  operating_margin_pct: 28.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 62000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: KO PEP KDP
+  key_risk: Health warnings or taxes on high-caffeine drinks aimed at young people.
+MO:
+  name: Moreland Tobacco Group
+  sector: CONSUMER_STAPLES
+  industry: Tobacco
+  headquarters: Richmond, USA
+  purpose: Makes cigarettes, cigars, moist snuff and nicotine pouches sold in the US.
+  key_market: US adult smokers
+  market_position: Owns the best-selling cigarette brand in the US, with about 40 per cent of the market, and raises prices faster than volumes fall.
+  origin: FOUNDER
+  founders: Ignatius Moreland
+  founder_story: Ignatius Moreland, a London tobacconist, opened a New York shop in 1902 selling hand-rolled cigarettes to gentlemen's clubs; the American business outgrew the British one within twenty years.
+  founded_year: 1902
+  ipo_year: 1923
+  ipo_valuation_musd: 30
+  ceo_name: Harlan Cobb
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 6400
+  fiscal_year: 2025
+  revenue_musd: 20500
+  net_income_musd: 8800
+  revenue_growth_pct: -1.0
+  operating_margin_pct: 59.0
+  free_cash_flow_musd: 8900
+  market_cap_musd: 98000
+  dividend_yield_pct: 7.0
+  debt_to_equity: -8.4
+  credit_rating: A-
+  competitors: ""
+  key_risk: US cigarette volumes fall about 10 per cent a year, and illegal disposable vapes are taking smokers.
+PEP:
+  name: Peplow Beverages & Snacks
+  sector: CONSUMER_STAPLES
+  industry: Soft Drinks & Non-alcoholic Beverages
+  headquarters: Purchase, USA
+  purpose: Makes the second-best-selling cola, sports drinks, juices, crisps, corn chips and breakfast oats.
+  key_market: US supermarkets and convenience stores, and snackers worldwide
+  market_position: Owns the leading salty-snack business in the world, which delivers to stores on its own trucks and earns more than its drinks.
+  origin: MERGER
+  founders: A North Carolina cola maker and a Texas crisp maker
+  founder_story: A North Carolina pharmacist's cola, invented in 1893 to aid digestion, merged in 1965 with a Texas crisp maker; the chairmen agreed that salty snacks make people thirsty.
+  founded_year: 1965
+  ipo_year: 1965
+  ipo_valuation_musd: 1600
+  ceo_name: Ravi Chandrasekar
+  ceo_since: 2018
+  ceo_industry_years: 30
+  employees: 318000
+  fiscal_year: 2025
+  revenue_musd: 92000
+  net_income_musd: 7800
+  revenue_growth_pct: 0.4
+  operating_margin_pct: 13.5
+  free_cash_flow_musd: 7200
+  market_cap_musd: 200000
+  dividend_yield_pct: 3.8
+  debt_to_equity: 2.4
+  credit_rating: A+
+  competitors: KO KDP MDLZ
+  key_risk: An activist investor wants it to split drinks and snacks.
+PG:
+  name: Prentice & Galloway Co.
+  sector: CONSUMER_STAPLES
+  industry: Household Products
+  headquarters: Cincinnati, USA
+  purpose: Makes laundry detergent, nappies, razors, toothpaste, shampoo, paper towels and other everyday household brands sold in 180 countries.
+  key_market: Households in North America, Europe and China
+  market_position: The largest consumer-goods company in the world; it spends more on advertising than any rival and owns the leading brand in most of its categories.
+  origin: CO_FOUNDERS
+  founders: Thomas Prentice, Ezekiel Galloway
+  founder_story: A candle maker and a soap maker who had married sisters started a business in 1837 at their father-in-law's urging, as Cincinnati became the pork-packing capital of America and fat was cheap.
+  founded_year: 1837
+  ipo_year: 1890
+  ipo_valuation_musd: 20
+  ceo_name: Aisha Lindqvist-Monroe
+  ceo_since: 2026
+  ceo_industry_years: 28
+  employees: 108000
+  fiscal_year: 2025
+  revenue_musd: 84500
+  net_income_musd: 16000
+  revenue_growth_pct: 0.3
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 14000
+  market_cap_musd: 375000
+  dividend_yield_pct: 2.6
+  debt_to_equity: 0.7
+  credit_rating: AA-
+  competitors: CL KMB CHD CLX
+  key_risk: Its sales growth depends on price rises, and shoppers are starting to push back.
+TGT:
+  name: Tarragon Stores Corp.
+  sector: CONSUMER_STAPLES
+  industry: Consumer Staples Merchandise Retail
+  headquarters: Minneapolis, USA
+  purpose: Runs 2,000 discount department stores selling groceries, home goods, clothing and beauty, plus a large online business.
+  key_market: Suburban middle-income families in the US
+  market_position: Positioned as the stylish discounter, with exclusive designer collaborations and own brands that make up a third of its sales.
+  origin: FAMILY
+  founders: The Davington family
+  founder_story: A Minneapolis department-store family opened their first discount store in 1962, the same year as several other discounters, but chose a cleaner, more fashionable look.
+  founded_year: 1902
+  ipo_year: 1967
+  ipo_valuation_musd: 160
+  ceo_name: Michael Ferreira-Holt
+  ceo_since: 2026
+  ceo_industry_years: 22
+  employees: 440000
+  fiscal_year: 2025
+  revenue_musd: 105000
+  net_income_musd: 3800
+  revenue_growth_pct: -1.5
+  operating_margin_pct: 5.0
+  free_cash_flow_musd: 2700
+  market_cap_musd: 42000
+  dividend_yield_pct: 4.9
+  debt_to_equity: 1.3
+  credit_rating: A
+  competitors: WMT COST AMZN
+  key_risk: Boycotts from both sides of US politics have hit sales, and footfall keeps falling.
+WMT:
+  name: Wexmore Mart Inc.
+  sector: CONSUMER_STAPLES
+  industry: Consumer Staples Merchandise Retail
+  headquarters: Bentonville, USA
+  purpose: Runs 10,500 supercentres, discount stores and warehouse clubs in 19 countries and the second-largest online shop in the US.
+  key_market: Price-conscious households in the US, Mexico, India and China
+  market_position: The largest company in the world by revenue; its buying power lets it sell groceries for less than anyone, and 90 per cent of Americans live within ten miles of one of its stores.
+  origin: FAMILY
+  founders: Earl Wexmore and his brother
+  founder_story: Earl Wexmore, a variety-store owner in Arkansas, opened his first discount store in 1962 in a small town, betting that rural shoppers would drive to a big store with low prices.
+  founded_year: 1962
+  ipo_year: 1970
+  ipo_valuation_musd: 40
+  ceo_name: Gloria Pemberton
+  ceo_since: 2026
+  ceo_industry_years: 30
+  employees: 2100000
+  fiscal_year: 2025
+  revenue_musd: 690000
+  net_income_musd: 19500
+  revenue_growth_pct: 4.5
+  operating_margin_pct: 4.3
+  free_cash_flow_musd: 15000
+  market_cap_musd: 790000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 0.5
+  credit_rating: AA
+  competitors: COST TGT AMZN KR
+  key_risk: Its profit margin is so thin that tariffs on Chinese goods could cut it by a third.

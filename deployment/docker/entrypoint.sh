@@ -39,6 +39,13 @@ setup_data_dir() {
         pm-setup --config "${CONFIG}"
     fi
     printf '%s\n' "${CONFIG}" > "${CONFIG_STAMP}"
+    # The company profiles of the s300 tickers (pm-compdb-cli). Built once and
+    # never overwritten, so companies added in the container survive restarts.
+    if [ "${CONFIG}" = "s300-sim" ] && [ ! -f "${DATA_DIR}/companies.db" ]; then
+        log "building the company database"
+        pm-compdb-cli --db "${DATA_DIR}/companies.db" init \
+            || log "warning: could not build ${DATA_DIR}/companies.db"
+    fi
 }
 
 start_sshd() {

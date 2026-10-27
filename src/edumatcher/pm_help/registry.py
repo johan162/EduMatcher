@@ -1656,6 +1656,54 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
             "'pm-monitor-cli health -q' as its healthcheck.",
         ),
     ),
+    CommandInfo(
+        name="pm-compdb-cli",
+        category="Query & Reporting CLIs",
+        title="Company Database CLI",
+        summary="Company profiles of the simulated market: look up, list, filter, add.",
+        synopsis=(
+            "pm-compdb-cli [--db PATH] [--format table|json|csv] [--no-header] "
+            "COMMAND [options]",
+            "pm-compdb-cli list [-c COLS|all] [-w FILTER]... [-s COL [--desc]] [-n N]",
+            "pm-compdb-cli add|update SYMBOL FIELD=VALUE...",
+        ),
+        description=(
+            "A SQLite database of made-up company profiles for the 300 tickers of "
+            "the s300 simulation: name, industry, purpose, founder story, CEO, "
+            "financials (revenue, profit, P/E, margins, debt, rating) and more. "
+            "Each ticker keeps its sector and industry from pm-market-sim; every "
+            "name, person and number is invented. No running process is needed.",
+            "A filter is COLUMN OP VALUE with OP one of = != < <= > >= or ~ "
+            "(contains, any case); repeated filters must all match. "
+            "`pm-compdb-cli columns` lists the columns.",
+        ),
+        options=(
+            Option("--db PATH", "<DATA_DIR>/companies.db", "Database file"),
+            Option(
+                "--format table|json|csv", "table", "Output format of show and list"
+            ),
+            Option("--no-header", "off", "Leave out the table/CSV header"),
+        ),
+        subcommands=(
+            Subcommand("init", purpose="Build the database of the bundled companies"),
+            Subcommand("columns", purpose="List the columns and what each one holds"),
+            Subcommand("show", "SYMBOL...", "Everything about one or more companies"),
+            Subcommand(
+                "list", purpose="List companies with chosen columns and filters"
+            ),
+            Subcommand("add", "SYMBOL FIELD=VALUE...", "Add a company"),
+            Subcommand("import", "FILE...", "Add the companies of YAML files"),
+            Subcommand("update", "SYMBOL FIELD=VALUE...", "Change a company's fields"),
+            Subcommand("delete", "SYMBOL", "Remove a company"),
+        ),
+        related=("pm-market-sim", "pm-news"),
+        doc_anchor="pm-compdb-cli-company-database-cli",
+        examples=(
+            "pm-compdb-cli show AAPL",
+            "pm-compdb-cli list -c symbol,name,pe_ratio -w sector=TECH -w 'pe_ratio<25' -s pe_ratio",
+            "pm-compdb-cli --format csv list -c all > companies.csv",
+        ),
+    ),
 )
 
 
