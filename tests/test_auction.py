@@ -699,6 +699,59 @@ class TestUncrossIntegration:
         topics = _topics(pub_sock)
         assert "trade.executed" in topics
 
+    def test_uncross_stop_cascade_queues_breadth_first(self, session_engine) -> None:
+        """Stops the uncross print triggers run in G2 order, as in continuous
+        trading: a stop triggered by one of them queues behind the rest (I19).
+
+        The print at 100 triggers SELL STOPs A and B (stop 100). A sells into
+        the 98 bid, which triggers SELL STOP C (stop 98). B runs before C, so B
+        gets the 97 bid and C finds no bids left.
+        """
+        engine, pub_sock = session_engine
+        engine._handle_session_transition({"to_state": "CLOSING_AUCTION"})
+        engine._handle_session_transition({"to_state": "CLOSED"})
+        engine._handle_session_transition({"to_state": "PRE_OPEN"})
+        engine._handle_session_transition({"to_state": "OPENING_AUCTION"})
+
+        def submit(
+            side: Side, gw: str, qty: int, price: int | None, stop: int | None = None
+        ) -> Order:
+            o = Order.create(
+                symbol="AAPL",
+                side=side,
+                order_type=OrderType.LIMIT if stop is None else OrderType.STOP,
+                quantity=qty,
+                gateway_id=gw,
+                price_ticks=price,
+                stop_price_ticks=stop,
+            )
+            engine._handle_new_order(o.to_dict())
+            return o
+
+        submit(Side.BUY, "TRADER01", 10, 10000)
+        submit(Side.SELL, "TRADER02", 10, 10000)
+        bid98 = submit(Side.BUY, "TRADER01", 5, 9800)
+        bid97 = submit(Side.BUY, "TRADER01", 5, 9700)
+        a = submit(Side.SELL, "TRADER02", 5, None, stop=10000)
+        b = submit(Side.SELL, "TRADER02", 5, None, stop=10000)
+        c = submit(Side.SELL, "TRADER02", 5, None, stop=9800)
+        pub_sock.sent.clear()
+
+        engine._handle_session_transition({"to_state": "CONTINUOUS"})
+
+        trades = [
+            (p["buy_order_id"], p["sell_order_id"], p["price"], p["quantity"])
+            for t, p in (decode(f) for f in pub_sock.sent)
+            if t == "trade.executed"
+        ]
+        assert trades[1:] == [(bid98.id, a.id, 98.0, 5), (bid97.id, b.id, 97.0, 5)]
+        cancelled = [
+            p["order_id"]
+            for t, p in (decode(f) for f in pub_sock.sent)
+            if t == "order.cancelled.TRADER02"
+        ]
+        assert cancelled == [c.id]
+
     def test_no_uncross_when_no_crossable_interest(self, session_engine) -> None:
         engine, pub_sock = session_engine
 

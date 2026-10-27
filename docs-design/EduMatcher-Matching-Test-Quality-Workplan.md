@@ -20,7 +20,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 3 | T1 | Mutation-testing tool and baseline (`tools/mutate_engine.py`) | — | 1 d | ☑ | 2026-10-21 |
 | 4 | T2 | Independent reference matcher (`tests/reference_matcher.py`) | F1, F2, Q3 | 3 d | ☑ | 2026-10-21 |
 | 4b | F3 | Fix bug C: FOK partially fills under SMP CANCEL_AGGRESSOR/BOTH (found in T2) | — | — | ☑ | 2026-10-21 |
-| 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☐ | |
+| 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☑ | 2026-10-27 |
 | 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☐ | |
 | 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☐ | |
 | 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☐ | |
@@ -367,6 +367,41 @@ a real test: it adds statuses, the resting book, crossing amends (engine
 level) and auction batches. Expected divergence: the uncross stop cascade
 (I19).
 
+**As built (2026-10-27).** `tests/test_matching_differential.py`. One op
+generator (`_Gen`, I22) feeds two drivers: `_BookDriver` (`OrderBook` +
+`compute_equilibrium` / `execute_uncross` / `run_stops`, amends never cross)
+and `_EngineDriver` (`Engine` via `engine_harness`, reading back
+`trade.executed`, `order.cancelled.*`, `order.amended.*` and
+`auction.result.*`; crossing amends; auctions by session phase +
+`_run_uncross`). Ops: all 8 order types, SMP (20 %), cancels, amends
+(accepted and rejected), auction batches of 3–8 ops with icebergs, stops,
+amends and a rejected MARKET. After every step: the step's trades
+`(buy, sell, price, qty, aggressor)`, the resting book in priority order with
+each iceberg's shown slice, the dormant stops with their (ratcheted) trigger,
+cancel/amend acceptance, the auction equilibrium `(price, qty, surplus,
+side)`, `assert_book_invariants`, and (book level) every order's status and
+remaining qty. 50 seeds × 300 steps per driver, ≈ 4 s with `-n logical`;
+`-m heavy` runs 1000 seeds per driver (13 s, 0 divergences).
+
+Found I19 (fixed, I21). T3 alone kills 27 of 31 mutants (table below);
+every mutant named in the success line is killed. Survivors M19–M21 and M24
+are outside the reference's scope (session expiry, ownership, event
+publication; I23).
+
+| ID | kills | ID | kills | ID | kills | ID | kills |
+|---|---|---|---|---|---|---|---|
+| M01 | 100 | M09 | 100 | M17 | 100 | M25 | 100 |
+| M02 | 100 | M10 | 89 | M18 | 49 | M26 | 100 |
+| M03 | 100 | M11 | 100 | **M19** | **0** | M27 | 12 |
+| M04 | 48 | M12 | 20 | **M20** | **0** | M28 | 100 |
+| M05 | 64 | M13 | 100 | **M21** | **0** | M29 | 91 |
+| M06 | 94 | M14 | 95 | M22 | 94 | M30 | 4 |
+| M07 | 94 | M15 | 100 | M23 | 100 | M31 | 4 |
+| M08 | 94 | M16 | 97 | **M24** | **0** | | |
+
+(Kills = failing seeds out of 100 default tests, `--tests
+tests/test_matching_differential.py`.)
+
 ### T4 — Dataset smoke test checked against the reference
 
 `test_engine_dataset_smoke.py` says it compares the engine against
@@ -487,3 +522,6 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I18 | T2 | A throwaway probe (reference vs `OrderBook`, trade lists only, 800 streams × 300 steps with SMP and stops) found 0 divergences after the T2 changes and 200/200 before them, so the probe is sensitive and the two independent implementations agree. | Basis for T3 (see its text). |
 | I19 | T2 | Stop cascade after an uncross differs from continuous: `Engine._run_uncross` takes the triggered list once and runs each with `book.process` (depth-first: a stop's own triggers run before the next listed stop), while `OrderBook.process` queues them breadth-first (rule G2). | Not changed. T3 will confirm with an engine-level auction case and decide on the fix. |
 | I20 | T2 | Mutant M09's pattern became ambiguous once the TRAILING_STOP on-entry branch existed. The T1 guard caught it on the first full run. | M09 re-anchored on its comment line; M28–M30 added (all killed). |
+| I21 | T3 | I19 confirmed: the first run failed only on auction steps. Running the post-uncross stops as a FIFO queue made all 50 book-level seeds pass; the engine, still depth-first, failed 4 of 50 (seeds 7, 8, 9, 27). Rule G2 is documented and the continuous path already follows it, so the engine was wrong. | `OrderBook.trigger_stops` replaced by `OrderBook.run_stops(now)` (the whole cascade, also used by `process`); `Engine._run_uncross` calls it. Regression test `test_uncross_stop_cascade_queues_breadth_first` (`test_auction.py`); mutant M31 = the old loop (killed by it and the 4 seeds). M10 re-anchored (indentation). Participant guide G2 now says it holds after an uncross; architecture deep dive updated. |
+| I22 | T3 | `_OpDriver` was not reused (the plan said so): it is built around `Order` objects and the book's private index, uses a ±200-tick band in steps of 10 (few orders share a level, so time priority is rarely tested), and T6 extends it separately. | A new generator over `_Spec` values, built for either side, in a ±8-tick band so orders queue at one price. It reads the reference only to choose ids and prices. |
+| I23 | T3 | The engine-level variant compares what the engine publishes, not its `Order` objects (it builds its own from the payload), so per-order status is checked at book level only. Cancel reasons and order events are not compared at all, which is why M24 (silent MARKET cancel) survives T3, as do session expiry (M19, M20) and ownership (M21), which the reference does not model. | None in T3. They stay T5/T7 targets. M07, M16 and M17 are now killed by the suite (through T3), but T5 still wants plain specification tests for them. |
