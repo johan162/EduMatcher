@@ -716,8 +716,8 @@ _shtab_pm_audit_options=(
   {--terminal,-t}"[Also print each audit entry to stdout]"
   "--buffer-size[Number of messages to buffer before writing to disk (default\: 100)]:N:"
   "--flush-interval[Maximum seconds to wait before flushing buffer (default\: 10.0)]:SECONDS:"
-  "--max-file-mb[Rotate the audit log when it reaches this size (default\: 10)]:MB:"
-  "--backup-count[Rotated audit log files to keep (default\: 5)]:N:"
+  "--max-file-mb[Close the audit log as a day part at this size (default\: 10)]:MB:"
+  "--keep-days[Delete archives older than N days (default\: 0 \= keep all)]:N:"
   "--log-level[Logging level override (default\: WARNING)]:log_level:(CRITICAL ERROR WARNING INFO DEBUG)"
   "*"{-v,--verbose}"[Increase log verbosity (-v\: INFO, -vv\: DEBUG)]"
   {-q,--quiet}"[Reduce output to warnings\/errors]"
@@ -777,6 +777,7 @@ fi
 
 _shtab_pm_audit_cli_commands() {
   local _commands=(
+    archive:'Compress closed days'"'"' parts into one verified .zst archive per day'
     events:'Search log entries by topic, gateway, symbol, and time range'
     gateways:'List gateways and summarise their audit trail activity'
     health:'Check the pm-audit process and audit log file health'
@@ -793,8 +794,8 @@ _shtab_pm_audit_cli_commands() {
 _shtab_pm_audit_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--log-file[Primary audit log file (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log)]:PATH:"
-  "--log-dir[Directory containing rotated log backups.]:PATH:"
+  "--log-file[Primary audit log file (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log).]:PATH:"
+  "--log-dir[Directory holding the audit\/ day parts and archives.]:PATH:"
   "--format[Output format\: table (default), json, or csv]:format:(table json csv)"
   "--no-header[Suppress header row for csv output]"
   "--use-index[Path to SQLite index file.]:PATH:"
@@ -803,12 +804,23 @@ _shtab_pm_audit_cli_options=(
 # guard to ensure default positional specs are added only once per session
 _shtab_pm_audit_cli_defaults_added=0
 
+_shtab_pm_audit_cli_archive_options=(
+  "(- : *)"{-h,--help}"[show this help message and exit]"
+  "--date[Archive this day (must be before today)]:YYYY-MM-DD:"
+  "--pending[Archive every closed day that still has parts, oldest first]"
+  "--level[zstd compression level (default\: 9)]:N:"
+  "--keep-days[Afterwards delete archives older than N days (default\: 0 \= keep all)]:N:"
+)
+
+# guard to ensure default positional specs are added only once per session
+_shtab_pm_audit_cli_archive_defaults_added=0
+
 _shtab_pm_audit_cli_events_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "--topic[Topic prefix filter (e.g. order.fill)]:PREFIX:"
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
-  "--date[Restrict to a trading date]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--from[Start of time range]:ISO_TS:"
   "--to[End of time range]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
@@ -822,7 +834,7 @@ _shtab_pm_audit_cli_events_defaults_added=0
 
 _shtab_pm_audit_cli_gateways_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--date[Trading date]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--from[Start of time range]:ISO_TS:"
   "--to[End of time range]:ISO_TS:"
   "--min-events[Minimum events to include a gateway]:N:"
@@ -835,7 +847,7 @@ _shtab_pm_audit_cli_health_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   {-q,--quiet}"[Print nothing\; exit 0 when healthy or -1 otherwise]"
   "--extended[Also check the audit log file is readable, writable and ends in a well-formed entry\; allowed up to 15s]"
-  {-v,--verbose}"[Describe exactly what was checked, plus log file size, rotated backups and last entry time when combined with --extended]"
+  {-v,--verbose}"[Describe exactly what was checked, plus log file size, day parts, archives and last entry time when combined with --extended]"
 )
 
 # guard to ensure default positional specs are added only once per session
@@ -859,7 +871,7 @@ _shtab_pm_audit_cli_orders_options=(
   "*--id[Order ID to search for (repeatable)]:ORDER_ID:"
   "--gateway[Filter by gateway ID]:GW_ID:"
   "--symbol[Filter by symbol]:SYMBOL:"
-  "--date[Restrict to a trading date]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--from[Start of time range]:ISO_TS:"
   "--to[End of time range]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
@@ -893,7 +905,7 @@ _shtab_pm_audit_cli_timeline_defaults_added=0
 
 _shtab_pm_audit_cli_topics_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--date[Restrict to a trading date]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--from[Start of time range]:ISO_TS:"
   "--to[End of time range]:ISO_TS:"
   "--prefix[Filter topics by prefix (e.g. order.)]:PREFIX:"
@@ -912,7 +924,7 @@ _shtab_pm_audit_cli_trades_options=(
   "--min-price[Minimum trade price]:PRICE:"
   "--max-price[Maximum trade price]:PRICE:"
   "--min-qty[Minimum trade quantity]:QTY:"
-  "--date[Trading date]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--from[Start of time range]:ISO_TS:"
   "--to[End of time range]:ISO_TS:"
   "--limit[Maximum rows (default\: 100)]:N:"
@@ -941,6 +953,7 @@ _shtab_pm_audit_cli() {
       (( CURRENT += 1 ))
       curcontext="${curcontext%:*:*}:_shtab_pm_audit_cli-$line[1]:"
       case $line[1] in
+        archive) _arguments -C -s $_shtab_pm_audit_cli_archive_options ;;
         events) _arguments -C -s $_shtab_pm_audit_cli_events_options ;;
         gateways) _arguments -C -s $_shtab_pm_audit_cli_gateways_options ;;
         health) _arguments -C -s $_shtab_pm_audit_cli_health_options ;;
@@ -992,13 +1005,13 @@ _shtab_pm_audit_replay_commands() {
 _shtab_pm_audit_replay_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
-  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log). Rotated .1, .2.gz ... siblings are discovered automatically.]:PATH:"
+  "--log-file[Audit log to read (default\: \<EDUMATCHER_DATA_DIR\>\/audit.log). Reads the live trail\: unarchived day parts, then this file. An archive or day part named here is read alone.]:PATH:"
   "--db[Episode index (default\: \<EDUMATCHER_DATA_DIR\>\/audit_replay.db)]:PATH:"
   "--no-index[Stream without building or reading an index]"
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1030,7 +1043,7 @@ _shtab_pm_audit_replay_anomalies_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1063,7 +1076,7 @@ _shtab_pm_audit_replay_digest_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1097,7 +1110,7 @@ _shtab_pm_audit_replay_episodes_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1130,7 +1143,7 @@ _shtab_pm_audit_replay_index_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1163,7 +1176,7 @@ _shtab_pm_audit_replay_stats_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1195,7 +1208,7 @@ _shtab_pm_audit_replay_story_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -1238,7 +1251,7 @@ _shtab_pm_audit_replay_stream_options=(
   "--rebuild[Rebuild the episode index before rendering]"
   "--from[Start of window (ISO-8601 or YYYY-MM-DD)]:ISO_TS:"
   "--to[End of window]:ISO_TS:"
-  "--date[Shorthand for a whole UTC day]:YYYY-MM-DD:"
+  "--date[Read this trading day (session timezone)\: its archive, or its parts before it is archived]:YYYY-MM-DD:"
   "--last[Relative window, e.g. 15m, 2h, 1d]:DURATION:"
   "*--symbol[Restrict to one or more symbols (repeatable)]:SYMBOL:"
   "*--gateway[Restrict to one or more gateways (repeatable)]:GW_ID:"
@@ -3847,7 +3860,7 @@ _shtab_pm_news_inject_options=(
   "*--symbol[Symbol (repeatable)]:symbol:"
   "*--sector[Sector (repeatable)]:sector:"
   "--market[The whole market]"
-  "--kind[kind]:kind:(EARNINGS GUIDANCE LEGAL MACRO MANAGEMENT MNA PRODUCT REGULATORY)"
+  "--kind[kind]:kind:(CONTRACT EARNINGS ESG GUIDANCE LEGAL MACRO MANAGEMENT MNA OPERATIONS PRODUCT REGULATORY RESEARCH)"
   "--sentiment[-1 to 1, public]:sentiment:"
   "--impact[Log move of the true value when confirmed (0.10 \~ \+10.5\%), secret]:impact:"
   "--headline[Default\: written for you]:headline:"

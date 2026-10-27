@@ -181,6 +181,7 @@ and nothing is MISSING.
 | `heap_garbage_pct` — judged from 100 heap entries | a symbol | > 50 % | > 80 % |
 | `loop_age_ms` (fixed) | a process | > 1 000 ms | (HUNG) |
 | `slow_client_disconnects`, `api_dropped_events`, `stats_feed_gaps` (fixed) | a process | any increase in 5 min | — |
+| `audit_archive_errors` (fixed) — `pm-audit`'s archiver exited with an error | `pm-audit` | any increase in 5 min | — |
 | `metrics_store_errors` (fixed) — history `pm-monitor` could not write | `pm-monitor` | any increase in 5 min | — |
 
 The configurable rules take their levels from `monitor.thresholds`. A breach

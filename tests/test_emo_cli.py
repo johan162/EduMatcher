@@ -96,7 +96,7 @@ def test_ai_sim_profile_is_ai_swarm_set_up_for_long_runs() -> None:
     # A whole session of audit trail survives for post-run forensics.
     audit = processes["audit"]["command"]
     assert audit[audit.index("--max-file-mb") + 1] == "256"
-    assert audit[audit.index("--backup-count") + 1] == "100"
+    assert audit[audit.index("--keep-days") + 1] == "7"
     mm = processes["mm-bot"]["command"]
     assert mm[mm.index("--strategy") + 1] == "symmetric"
     assert mm[mm.index("--anchor-sim") + 1] == "0.3"
@@ -759,6 +759,33 @@ def test_remove_path_takes_a_databases_sqlite_companions(tmp_path: Path) -> None
     assert emo_cli._present(db)
     assert emo_cli._remove_path(db) is True
     assert not emo_cli._present(db)
+
+
+def test_clear_all_removes_the_audit_day_parts_and_archives_but_state_does_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audit_log = tmp_path / "audit.log"
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    audit_log.write_text("today", encoding="utf-8")
+    (audit_dir / "audit-2026-10-24.1.log").write_text("part", encoding="utf-8")
+    (audit_dir / "audit-2026-10-23.log.zst").write_bytes(b"zst")
+    monkeypatch.setattr(emo_cli, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(emo_cli, "AUDIT_LOG_FILE", audit_log)
+    monkeypatch.setattr(emo_cli, "STATE_PATHS", ())
+    monkeypatch.setattr(emo_cli, "_running_pm_pids", lambda: [])
+
+    monkeypatch.setattr(emo_cli, "NON_STATE_PATHS", (audit_log, audit_dir))
+    assert emo_cli.clear_data(scope="state", assume_yes=True) == 0
+    assert audit_dir.exists()
+    assert emo_cli.clear_data(scope="all", assume_yes=True) == 0
+    assert not audit_dir.exists() and not audit_log.exists()
+
+
+def test_the_real_non_state_paths_include_the_audit_directory() -> None:
+    from edumatcher.config import AUDIT_LOG_FILE
+
+    assert AUDIT_LOG_FILE.parent / "audit" in emo_cli.NON_STATE_PATHS
 
 
 def test_non_state_paths_list_each_file_once() -> None:

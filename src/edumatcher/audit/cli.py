@@ -12,7 +12,7 @@ Usage::
 Global options
 --------------
   --log-file PATH     Primary audit log file (default: data/audit.log)
-  --log-dir  PATH     Directory for rotated log backups (default: log file parent)
+  --log-dir  PATH     Directory holding audit/ (default: log file parent)
   --format   FORMAT   Output format: table (default), json, or csv
   --no-header         Suppress header row for csv output
   --use-index PATH    Use SQLite index for queries (auto-detected if omitted)
@@ -28,6 +28,7 @@ Commands
   stats       Show summary statistics about log files
   index       Build or update the optional SQLite index
   health      Check the pm-audit process (and, with --extended, its log file)
+  archive     Compress closed days' parts into one verified .zst per day
 
 ``events`` and ``timeline`` accept ``-f``/``--follow`` to keep printing new
 entries as they are appended to the log, polling every ``--interval``
@@ -40,11 +41,26 @@ import argparse
 import json
 import sys
 import time
+from compression import zstd
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
+from edumatcher.audit.archive import (
+    DEFAULT_LEVEL,
+    ArchiveBusy,
+    ArchiveError,
+    apply_retention,
+    archive_content_size,
+    archive_day,
+    archive_lock,
+    format_result,
+    pending_days,
+    session_timezone,
+    today_in,
+)
 from edumatcher.audit.formatters import render, render_stats
+from edumatcher.audit.writer import file_day
 from edumatcher.audit.indexer import (
     build_index,
     index_is_available,
@@ -53,7 +69,9 @@ from edumatcher.audit.indexer import (
 )
 from edumatcher.audit.query import (
     parse_line,
+    discover_day_files,
     discover_log_files,
+    is_explicit_file,
     parse_ts,
     query_events,
     query_gateways,
@@ -97,7 +115,12 @@ class _HealthProcessReport(TypedDict):
 
 class _HealthLogFileStats(TypedDict):
     size_bytes: int
-    rotated_files: int
+    parts: int
+    parts_bytes: int
+    archives: int
+    archives_bytes: int
+    #: Uncompressed size of the archives, None when one does not record it.
+    archives_content_bytes: int | None
     total_size_bytes: int
     last_entry_ts: str | None
 
@@ -166,6 +189,14 @@ _TIMELINE_COLS = ["timestamp", "topic", "gateway", "symbol", "payload"]
 # ---------------------------------------------------------------------------
 
 
+#: The commands whose ``--date`` selects a trading day's files.
+_DATE_COMMANDS = frozenset({"events", "orders", "trades", "topics", "gateways"})
+DATE_HELP = (
+    "Read this trading day (session timezone): its archive, or its parts "
+    "before it is archived"
+)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-audit-cli",
@@ -184,14 +215,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--log-file",
         default=str(AUDIT_LOG_FILE),
         metavar="PATH",
-        help=f"Primary audit log file (default: {AUDIT_LOG_FILE})",
+        help=(
+            f"Primary audit log file (default: {AUDIT_LOG_FILE}).\n"
+            "Reads the live trail: unarchived day parts, then this file.\n"
+            "An archive or day part named here is read alone."
+        ),
     )
     parser.add_argument(
         "--log-dir",
         default=None,
         metavar="PATH",
         help=(
-            "Directory containing rotated log backups.\n"
+            "Directory holding the audit/ day parts and archives.\n"
             "Defaults to the directory containing --log-file."
         ),
     )
@@ -230,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ev.add_argument("--gateway", metavar="GW_ID", help="Filter by gateway ID")
     ev.add_argument("--symbol", metavar="SYMBOL", help="Filter by symbol")
-    ev.add_argument("--date", metavar="YYYY-MM-DD", help="Restrict to a trading date")
+    ev.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
     ev.add_argument(
         "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
     )
@@ -272,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     od.add_argument("--gateway", metavar="GW_ID", help="Filter by gateway ID")
     od.add_argument("--symbol", metavar="SYMBOL", help="Filter by symbol")
-    od.add_argument("--date", metavar="YYYY-MM-DD", help="Restrict to a trading date")
+    od.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
     od.add_argument(
         "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
     )
@@ -304,7 +339,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-price", type=float, metavar="PRICE", help="Maximum trade price"
     )
     tr.add_argument("--min-qty", type=int, metavar="QTY", help="Minimum trade quantity")
-    tr.add_argument("--date", metavar="YYYY-MM-DD", help="Trading date")
+    tr.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
     tr.add_argument(
         "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
     )
@@ -324,7 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="List topics present in logs with event counts",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    tp.add_argument("--date", metavar="YYYY-MM-DD", help="Restrict to a trading date")
+    tp.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
     tp.add_argument(
         "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
     )
@@ -345,7 +380,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="List gateways and summarise their audit trail activity",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    gw.add_argument("--date", metavar="YYYY-MM-DD", help="Trading date")
+    gw.add_argument("--date", metavar="YYYY-MM-DD", help=DATE_HELP)
     gw.add_argument(
         "--from", dest="from_ts", metavar="ISO_TS", help="Start of time range"
     )
@@ -423,6 +458,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Add only new entries since last index",
     )
 
+    # ----------------------------------------------------------------- archive
+    ar = sub.add_parser(
+        "archive",
+        help="Compress closed days' parts into one verified .zst archive per day",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    which = ar.add_mutually_exclusive_group(required=True)
+    which.add_argument(
+        "--date", metavar="YYYY-MM-DD", help="Archive this day (must be before today)"
+    )
+    which.add_argument(
+        "--pending",
+        action="store_true",
+        help="Archive every closed day that still has parts, oldest first",
+    )
+    ar.add_argument(
+        "--level",
+        type=int,
+        default=DEFAULT_LEVEL,
+        metavar="N",
+        help=f"zstd compression level (default: {DEFAULT_LEVEL})",
+    )
+    ar.add_argument(
+        "--keep-days",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Afterwards delete archives older than N days (default: 0 = keep all)",
+    )
+
     # ------------------------------------------------------------------ health
     health = sub.add_parser(
         "health",
@@ -447,8 +512,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
         action="store_true",
         help=(
-            "Describe exactly what was checked, plus log file size, rotated "
-            "backups and last entry time when combined with --extended"
+            "Describe exactly what was checked, plus log file size, day parts, "
+            "archives and last entry time when combined with --extended"
         ),
     )
 
@@ -479,6 +544,19 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError("--interval must be > 0")
         if getattr(args, "reverse", False):
             raise ValueError("--follow and --reverse are mutually exclusive")
+
+    if args.command in _DATE_COMMANDS and getattr(args, "date", None):
+        if is_explicit_file(Path(args.log_file)):
+            raise ValueError("--date cannot be combined with an archive --log-file")
+        if getattr(args, "follow", False):
+            raise ValueError("--date and --follow are mutually exclusive")
+
+    if args.command == "archive":
+        if args.keep_days < 0:
+            raise ValueError("--keep-days must be >= 0")
+        low, high = zstd.CompressionParameter.compression_level.bounds()
+        if not low <= args.level <= high:
+            raise ValueError(f"--level must be between {low} and {high}")
 
     if args.command == "index":
         days = getattr(args, "days", None)
@@ -530,14 +608,18 @@ def _resolve_index_path(args: argparse.Namespace, log_file: Path) -> Path:
 def _handle_events(
     args: argparse.Namespace,
     log_files: list[Path],
-    index_path: Path,
+    index_path: Path | None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     from_dt, to_dt = _resolve_time_range(args)
 
     # Prefer the SQLite index when available. --follow always reads the live
     # JSONL files instead: the index is a point-in-time snapshot and is not
     # kept current between polls.
-    if not getattr(args, "follow", False) and index_is_available(index_path):
+    if (
+        index_path is not None
+        and not getattr(args, "follow", False)
+        and index_is_available(index_path)
+    ):
         try:
             conn = open_readonly_index(index_path)
             rows = query_index_events(
@@ -688,8 +770,8 @@ def _follow_fetch(
 ) -> list[dict[str, Any]]:
     """Re-discover log files and fetch rows newer than (after_ts, after_skip).
 
-    Called on every --follow poll, so a rotation that happens between polls
-    (a fresh ``audit.log.1`` appearing, or the active file being replaced) is
+    Called on every --follow poll, so a day close that happens between polls
+    (a new day part appearing, or the active file being replaced) is
     picked up automatically — ``discover_log_files`` is just a directory
     listing, which is cheap enough to repeat every tick.
     """
@@ -806,13 +888,24 @@ def _find_audit_pids() -> list[int]:
 def _collect_log_stats(
     log_file: Path, log_dir: Path | None, last_entry_ts: str | None
 ) -> _HealthLogFileStats:
-    """Active file size plus rotated backups, for --extended --verbose."""
-    rotated = [p for p in discover_log_files(log_file, log_dir) if p != log_file]
+    """Active file, day parts and archives, for --extended --verbose."""
+    parts = [p for p in discover_log_files(log_file, log_dir) if p != log_file]
+    search_dir = log_dir if log_dir is not None else log_file.parent
+    archives = sorted((search_dir / "audit").glob("audit-*.log.zst"))
+    sizes = [archive_content_size(a) for a in archives]
     size = log_file.stat().st_size
+    parts_bytes = sum(p.stat().st_size for p in parts)
+    archives_bytes = sum(a.stat().st_size for a in archives)
     return {
         "size_bytes": size,
-        "rotated_files": len(rotated),
-        "total_size_bytes": size + sum(p.stat().st_size for p in rotated),
+        "parts": len(parts),
+        "parts_bytes": parts_bytes,
+        "archives": len(archives),
+        "archives_bytes": archives_bytes,
+        "archives_content_bytes": (
+            None if any(s is None for s in sizes) else sum(s or 0 for s in sizes)
+        ),
+        "total_size_bytes": size + parts_bytes + archives_bytes,
         "last_entry_ts": last_entry_ts,
     }
 
@@ -966,7 +1059,20 @@ def _handle_health(
                 print("Log file stats:")
                 print(f"  path: {file_report['path']}")
                 print(f"  size: {format_bytes(stats['size_bytes'])}")
-                print(f"  rotated backups: {stats['rotated_files']}")
+                print(
+                    f"  day parts: {stats['parts']} "
+                    f"({format_bytes(stats['parts_bytes'])})"
+                )
+                content = stats["archives_content_bytes"]
+                ratio = (
+                    f", {content / stats['archives_bytes']:.1f}:1"
+                    if content and stats["archives_bytes"]
+                    else ""
+                )
+                print(
+                    f"  archives: {stats['archives']} "
+                    f"({format_bytes(stats['archives_bytes'])}{ratio})"
+                )
                 print(f"  total size: {format_bytes(stats['total_size_bytes'])}")
                 print(f"  last entry: {stats['last_entry_ts'] or '(empty log)'}")
     raise SystemExit(0 if healthy else 1)
@@ -975,6 +1081,55 @@ def _handle_health(
 # ---------------------------------------------------------------------------
 # Main entry-point
 # ---------------------------------------------------------------------------
+
+
+def _handle_archive(args: argparse.Namespace, log_file: Path, audit_dir: Path) -> int:
+    """Run ``archive``; the exit code is 0 unless an archive failed."""
+    failed = 0
+    try:
+        tz = session_timezone()
+        today = today_in(tz)
+        # A day audit.log still holds is not closed yet (pm-audit was down at
+        # midnight and closes it at its next start): archiving it now would
+        # leave that part outside the archive.
+        open_day = file_day(log_file, tz)
+        closed_before = min(today, open_day) if open_day is not None else today
+        with archive_lock(audit_dir):
+            days = (
+                pending_days(audit_dir, closed_before) if args.pending else [args.date]
+            )
+            for day in days:
+                try:
+                    result = archive_day(
+                        audit_dir, day, today=closed_before, level=args.level
+                    )
+                except (ArchiveError, OSError, zstd.ZstdError) as exc:
+                    # Parts stay in the live trail; carry on with the next day.
+                    print(f"[ERROR] {day}: {exc}", file=sys.stderr)
+                    failed += 1
+                    continue
+                if result is None:
+                    print(f"{day}: no parts to archive")
+                else:
+                    print(
+                        format_result(
+                            result,
+                            (
+                                format_bytes(result.bytes_in),
+                                format_bytes(result.bytes_out),
+                            ),
+                        )
+                    )
+            if args.keep_days > 0:
+                for path in apply_retention(audit_dir, args.keep_days, today):
+                    print(f"removed {path.name} (older than {args.keep_days} days)")
+    except ArchiveBusy as exc:
+        print(f"[archive] {exc}; nothing done")
+        return 0
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 1
+    return 1 if failed else 0
 
 
 def main() -> None:
@@ -989,6 +1144,10 @@ def main() -> None:
 
     log_file = Path(args.log_file).expanduser()
     log_dir = Path(args.log_dir).expanduser() if args.log_dir else None
+
+    if args.command == "archive":
+        search_dir = log_dir if log_dir is not None else log_file.parent
+        raise SystemExit(_handle_archive(args, log_file, search_dir / "audit"))
 
     # health reports a missing log file itself (under --extended) rather than
     # refusing to run, and needs none of the log discovery below.
@@ -1005,7 +1164,16 @@ def main() -> None:
             raise SystemExit(1)
 
     log_files = discover_log_files(log_file, log_dir)
-    index_path = _resolve_index_path(args, log_file)
+    index_path: Path | None = _resolve_index_path(args, log_file)
+    if getattr(args, "date", None) and args.command in _DATE_COMMANDS:
+        # The day is its files (session timezone), not a UTC time window, and
+        # the index covers only the live trail.
+        log_files = discover_day_files(log_file, args.date, session_timezone(), log_dir)
+        if not log_files:
+            print(f"[ERROR] No audit data for {args.date}", file=sys.stderr)
+            raise SystemExit(1)
+        args.date = None
+        index_path = None
 
     # --- stats (custom renderer) ---
     if args.command == "stats":

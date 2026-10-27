@@ -486,16 +486,17 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
         name="pm-audit",
         category="Core Runtime",
         title="Event Logger",
-        summary="Records every message on the bus to a rotating audit log file.",
+        summary="Records every message on the bus to a day-closing audit log file.",
         synopsis=(
             "pm-audit [--audit-log-file data/audit.log] [--terminal]",
             "         [--buffer-size 100] [--flush-interval 10]",
-            "         [--max-file-mb 10] [--backup-count 5]",
+            "         [--max-file-mb 10] [--keep-days 0]",
         ),
         description=(
             "Subscribes to everything published on :5556 with an empty topic prefix "
-            "and appends each entry to a rotating log file (10 MB, 5 backups by default), "
-            "buffering to reduce disk wear. On shutdown, buffered messages are always "
+            "and appends each entry to the active log file, closing it as a numbered day "
+            "part (audit/audit-YYYY-MM-DD.N.log) at midnight in the session timezone or "
+            "at 10 MB, never deleting anything. Entries are buffered to reduce disk wear. On shutdown, buffered messages are always "
             "flushed before exit.",
         ),
         options=(
@@ -518,12 +519,12 @@ _CORE_RUNTIME: tuple[CommandInfo, ...] = (
             Option(
                 "--max-file-mb MB",
                 "10",
-                "Rotate the audit log when it reaches this size",
+                "Close the audit log as a day part when it reaches this size",
             ),
             Option(
-                "--backup-count N",
-                "5",
-                "Rotated audit log files to keep",
+                "--keep-days N",
+                "0",
+                "Delete daily archives older than N days (0 keeps all)",
             ),
         ),
         has_common_log_options=True,
@@ -1376,6 +1377,11 @@ _QUERY_CLIS: tuple[CommandInfo, ...] = (
                 "index",
                 args="[--output PATH]",
                 purpose="Build or update the optional SQLite index for faster queries",
+            ),
+            Subcommand(
+                "archive",
+                args="(--date D | --pending) [--level N] [--keep-days N]",
+                purpose="Compress closed days' parts into one verified audit-D.log.zst",
             ),
         ),
         related=("pm-audit", "pm-stats-cli", "pm-clearing-cli"),

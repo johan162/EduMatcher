@@ -1,3 +1,43 @@
+## [v0.63.0] - 2026-10-27
+
+Release Type: major
+
+### 📋 Summary
+This release replaces the rotating audit-trail files with one file set per trading day that `pm-audit` compresses into a verified Zstandard archive once the day is closed. Audit tools can now read any trading day with `--date`. The simulated news feed gains one-directional event stories such as fires, breakthroughs, contracts, protests and recalls, and the Order Book deep-dive chapter has been rewritten to match the current matching engine.
+
+### ⚠️ Breaking Changes
+- Removed `pm-audit --backup-count`; audit files are no longer rotated and deleted. Use `--keep-days N` to set how many days of archives are kept, and update any launch scripts or emo profiles that pass the old flag
+- Changed `--date` in `pm-audit-cli` and `pm-audit-replay` to select a trading day's files in the session timezone instead of filtering the live trail by a UTC time window. `--date` can no longer be combined with an archive given as `--log-file`, or with `--follow` in `pm-audit-cli`
+
+### ✨ Additions
+- Added day-based audit files: `pm-audit` closes each trading day into numbered day parts, including at midnight when no orders arrive and at start-up after downtime
+- Added `pm-audit-cli archive`, which compresses a closed day into one verified Zstandard archive (default `--level 9`, about 13:1). It accepts `--date` or `--pending` and `--keep-days` retention, and recovers safely if a run crashes at any step
+- Added automatic archiving: `pm-audit` starts a low-priority archiver whenever a day closes and catches up on unarchived days at start-up
+- Added the `audit.archive_errors` health metric with a matching `audit_archive_errors` monitor and dashboard rule
+- Added reading of `.zst` archives and individual day parts, either by `--date` or by passing the archive or part as `--log-file`
+- Added one-directional news events in the market simulation with the new kinds `OPERATIONS`, `RESEARCH`, `CONTRACT` and `ESG` (fires, outages, breakthroughs, trial results, major contracts, environmental protests, product recalls). Events are matched to fitting industries and sectors, and the size of a figure in the headline grows with the impact
+- Added the `chip-race` instructor news scenario
+
+### 🚀 Improvements
+- Reworked simulated news so every headline comes from a catalogue of stories with their own impact size, and everyday headlines follow the sign of their impact
+- Added day-part and archive counts, sizes and compression ratio to `pm-audit-cli health --extended --verbose`
+- Changed the `ai-swarm` and `ai-sim` emo profiles to keep a week of daily audit archives (about 7 GB instead of about 25 GB of rotated files); `emo clean --all` now also removes the audit directory
+
+### 🐛 Bug Fixes
+- Fixed upcoming bank holiday names appearing in the host's locale language instead of the market country's language
+
+### 📚 Documentation
+- Rewrote the "Order Book: Deep Dive" chapter to match the current engine. It now covers the five side indexes, lazy deletion and compaction, every matcher, icebergs, stops and the stop cascade, with diagrams, worked examples and a hands-on "Learning by Debugging" section
+- Corrected two inaccurate index-maintenance comments in `order_book.py`
+- Documented day parts, archives, retention, manual recovery and the new `--date` behaviour in the operator guide, file-format reference and Zstandard audit design document
+- Documented event news kinds, story catalogues and sentiment in the AI-traders book, operator guide and training guide
+
+### 🛠 Internal
+- Added test coverage for audit day closing, archiving and crash recovery, day-scoped reads, and an end-to-end audit trail across midnight
+- Added test coverage for event news stories and their sector fit
+- Made the setup-verification, health-reporter timing and holiday-name tests pass on macOS as well as Linux
+- Updated `tools/verify_audit_trail.sh` for the dated audit file layout
+
 ## [v0.62.0] - 2026-10-26
 
 Release Type: minor

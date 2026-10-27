@@ -5,6 +5,9 @@ The membership table covers the tickers of the bundled examples (the s150
 set and the 150 that ``s300-load`` adds), following the usual GICS sectors.
 A ticker it does not know is spread over the sectors in a fixed order, so a
 generated file is the same every time.
+
+A few industries within a sector have news of their own (a chipmaker's next
+chip, a drug maker's trial); ``industry_of`` names them for the news desk.
 """
 
 from __future__ import annotations
@@ -60,6 +63,37 @@ _MEMBERS = {
 SECTOR_OF: dict[str, str] = {
     ticker: sector for sector, members in _MEMBERS.items() for ticker in members.split()
 }
+
+
+#: Industries with news of their own, inside the sector named first.
+_INDUSTRIES = {
+    "SEMICONDUCTORS": (
+        "TECH",
+        "ADI AMAT AMD ASML AVGO INTC KLAC LRCX MCHP MU NVDA QCOM TSM TXN",
+    ),
+    "SOFTWARE": (
+        "TECH",
+        "ACN ADBE ADSK CDNS CRM CRWD CTSH DDOG EPAM FICO FTNT INTU IT MDB MSFT NET "
+        "NOW ORCL PANW PLTR SAP SHOP SNOW TEAM ZS",
+    ),
+    "PHARMA": ("HEALTHCARE", "ABBV AMGN BIIB BMY GILD INCY JNJ LLY MRK MRNA PFE"),
+    "AUTOS": ("CONSUMER_DISC", "F GM HMC LCID RIVN TM TSLA"),
+    "AIRLINES": ("INDUSTRIALS", "AAL DAL UAL"),
+    "AEROSPACE": ("INDUSTRIALS", "BA GD LHX LMT NOC RTX"),
+}
+
+_INDUSTRY_OF: dict[str, tuple[str, str]] = {
+    ticker: (industry, sector)
+    for industry, (sector, members) in _INDUSTRIES.items()
+    for ticker in members.split()
+}
+
+
+def industry_of(ticker: str, sector: str) -> str:
+    """The ticker's industry when it has one of its own and sits in that
+    industry's sector; otherwise its sector."""
+    industry, home = _INDUSTRY_OF.get(ticker.upper(), ("", ""))
+    return industry if home == sector else sector
 
 
 def sector_for(ticker: str, unknown_index: int) -> str:

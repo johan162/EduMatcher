@@ -102,6 +102,8 @@ GATEWAYS: dict[str, GatewayMetrics] = {
 WATCHED_INCREASES = {
     "api.dropped_events": "api_dropped_events",
     "stats.feed_gaps": "stats_feed_gaps",
+    # pm-audit's archiver child failed; the day's parts stay readable.
+    "audit.archive_errors": "audit_archive_errors",
     # pm-monitor's own: history that was not written. It makes pm-monitor
     # DEGRADED, so a failing or missing metrics.db shows on the dashboard
     # rather than only in a log line (I123).

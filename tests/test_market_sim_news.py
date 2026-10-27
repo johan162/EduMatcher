@@ -12,9 +12,11 @@ import pytest
 from edumatcher.market_sim.config import SimConfig
 from edumatcher.market_sim.main import MarketSim, load_state, save_state
 from edumatcher.market_sim.model import SymbolParams
-from edumatcher.market_sim.news import KINDS, NewsConfig, NewsDesk
+from edumatcher.market_sim.news import KINDS, STORIES, NewsConfig, NewsDesk
+from edumatcher.market_sim.sectors import industry_of
 from edumatcher.market_sim.news_history import read_news_events
 from edumatcher.models.generated import news as N
+from edumatcher.models.generated import sim as S
 from edumatcher.models.message import decode
 
 TECH = SymbolParams("TECH", beta_market=0.5, beta_sector=0.4)
@@ -125,7 +127,69 @@ def test_generated_impacts_follow_their_kind() -> None:
     impacts = [m for mv in moves for m in mv.values()]  # rumours move nothing yet
     sd = statistics.pstdev(impacts)
     assert 0.02 < sd < 0.06  # a mixture of the symbol kinds' spreads
-    assert {k for k, p in KINDS.items() if "SYMBOL" in p.scopes} >= {"EARNINGS", "MNA"}
+    assert {s.kind for s in STORIES if s.scope == "SYMBOL"} >= {"EARNINGS", "MNA"}
+
+
+def test_every_kind_is_on_the_wire_and_has_default_headlines() -> None:
+    assert set(KINDS) == set(N._NEWS_EVENT_KIND_VALUES)
+    assert set(KINDS) == set(S._NEWS_REQUEST_KIND_VALUES)
+    assert {s.kind for s in STORIES} == set(KINDS)  # every kind can happen
+
+
+def test_industries_sit_inside_their_sector() -> None:
+    assert industry_of("NVDA", "TECH") == "SEMICONDUCTORS"
+    assert industry_of("pfe", "HEALTHCARE") == "PHARMA"
+    assert industry_of("MSFT", "TECH") == "SOFTWARE"
+    assert industry_of("AAPL", "TECH") == "TECH"
+    # A config that moves a ticker to another sector keeps it out of the industry.
+    assert industry_of("NVDA", "ENERGY") == "ENERGY"
+
+
+def _events_for(params: dict[str, SymbolParams], n: int = 3000) -> list[dict]:
+    desk = NewsDesk(params, NewsConfig(rumour_share=0.0), 11)
+    out = []
+    for _ in range(n):
+        event, moves = desk._generate("SYMBOL", 0.0)
+        event["impact"] = moves[event["targets"][0]]
+        out.append(event)
+    return out
+
+
+def test_industry_stories_reach_only_their_industry() -> None:
+    chips = _events_for({"NVDA": TECH})
+    software = _events_for({"MSFT": TECH})
+    assert any("cloud services" in e["headline"] for e in software)
+    bank = _events_for({"JPM": SymbolParams("FINANCIALS")})
+    assert any("chip performance" in e["headline"] for e in chips)
+    assert not any("chip" in e["headline"] for e in software)
+    assert not any("safety defect" in e["headline"] for e in bank)  # makes nothing
+    assert any("Data breach" in e["headline"] for e in bank)
+    for e in chips + software + bank:
+        assert "{" not in e["headline"] and len(e["headline"]) <= 200
+        N.make_news_event(**{k: v for k, v in e.items() if k != "impact"})
+
+
+def test_events_go_their_one_way_and_numbers_scale_with_the_move() -> None:
+    events = _events_for({"NVDA": TECH}, 6000)
+    fires = [e for e in events if e["headline"].startswith("Fire ravages")]
+    assert fires and all(e["impact"] < 0 and e["sentiment"] < 0 for e in fires)
+    boosts = [e for e in events if "chip performance" in e["headline"]]
+    assert all(e["impact"] > 0 for e in boosts)
+    pct = [int(e["headline"].split(" by ")[1].split(" ")[0]) for e in boosts]
+    assert pct == [max(1, round(e["impact"] * 500)) for e in boosts]
+    kinds = Counter(e["kind"] for e in events)
+    assert {"OPERATIONS", "RESEARCH", "CONTRACT", "ESG"} <= set(kinds)
+    major = sum(kinds[k] for k in ("OPERATIONS", "RESEARCH", "CONTRACT", "ESG"))
+    assert 0.25 < major / len(events) < 0.5
+
+
+def test_sector_stories_name_the_sector() -> None:
+    desk = NewsDesk({"XOM": ENERGY}, NewsConfig(rumour_share=0.0), 2)
+    headlines = {desk._generate("SECTOR", 0.0)[0]["headline"] for _ in range(500)}
+    assert "Hurricane shuts Gulf of Mexico refineries, hitting Energy stocks" in (
+        headlines
+    )
+    assert not any("chips" in h for h in headlines)
 
 
 def test_sentiment_has_the_sign_of_the_impact_mostly() -> None:

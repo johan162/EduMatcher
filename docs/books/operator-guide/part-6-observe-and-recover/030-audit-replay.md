@@ -208,15 +208,15 @@ Every option below is accepted by every subcommand, as are `-h`/`--help`.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--log-file PATH` | `<DATA_DIR>/audit.log` | The trail to read. Rotated `.1`, `.2.gz` … siblings are discovered and read automatically |
+| `--log-file PATH` | `<DATA_DIR>/audit.log` | The trail to read: the live trail — every not-yet-archived day part, then this file. An archive or day part named here is read alone |
 | `--db PATH` | `<DATA_DIR>/audit_replay.db` | The episode index |
 | `--no-index` | off | Stream without building or reading an index |
 | `--rebuild` | off | Rebuild the index before rendering |
 
-!!! warning "Rotated segments are part of the trail"
-    `--log-file audit.log` reads `audit.log.1` and `audit.log.2` as well.
-    That is right for a real trail and surprising for a scratch one: a
-    previous run's rotated segments left in the same directory are replayed
+!!! warning "Day parts are part of the trail"
+    `--log-file audit.log` reads the unarchived day parts in `audit/` beside
+    it as well. That is right for a real trail and surprising for a scratch
+    one: a previous run's parts left in the same directory are replayed
     alongside the current one. If two runs replay the same seeded dataset,
     every order appears twice and the tool correctly reports each as
     `ACK_DUPLICATE`.
@@ -227,12 +227,16 @@ Every option below is accepted by every subcommand, as are `-h`/`--help`.
 |---|---|
 | `--from ISO_TS` | Start of window (ISO-8601, or `YYYY-MM-DD`) |
 | `--to ISO_TS` | End of window |
-| `--date YYYY-MM-DD` | Shorthand for a whole UTC day |
+| `--date YYYY-MM-DD` | Replay this trading day (session timezone) from its archive, or from its parts before it is archived. Not a time window: the day is its files |
 | `--last DURATION` | Relative window: `15m`, `2h`, `1d` |
 
-`--date` cannot be combined with `--from`/`--to`, and `--last` cannot be
-combined with either. All four are UTC, which is what the trail records —
-`--tz` changes what is displayed, never what is selected.
+`--date` cannot be combined with `--from`/`--to`, with `--last`, or with an
+archive given as `--log-file`; `--last` cannot be combined with `--from`/`--to`.
+`--from`, `--to` and `--last` are UTC, which is what the trail records —
+`--tz` changes what is displayed, never what is selected. Yesterday replays
+from its archive with `--date`; today replays by default, across the midnight
+close, with no event repeated or missing. The episode index follows the file
+set, so it rebuilds by itself once a day has been archived.
 
 The window narrows the **query**, never the index: an index always covers the
 whole log, so the same one answers a wide question and a narrow one. Passing a
@@ -753,14 +757,14 @@ window does not contain is printed *in ticks and labelled as ticks*, with a
 `TICK_SCALE_UNKNOWN` finding — never silently rescaled. `--show-units` shows
 where each scale came from.
 
-**`--tz` is for reading, never for filtering.** `--from`/`--to`/`--date` are
+**`--tz` is for reading, never for filtering.** `--from`/`--to`/`--last` are
 UTC, because that is what the trail records. `--tz` moves only what is
 *shown*, and only in the human-readable formats: `ndjson` and `json` keep the
 recorded timestamps, because a display switch that moved them would make the
 two formats disagree about when something happened.
 
 !!! warning "Give a scratch trail its own directory"
-    `--log-file` pulls in rotated siblings, and the index lands next to the
+    `--log-file` pulls in the day parts beside it, and the index lands next to the
     log by default. For a one-off capture, point `EDUMATCHER_DATA_DIR` at a
     scratch directory, or pass `--log-file` and `--db` explicitly, so the
     findings are about the run you meant.

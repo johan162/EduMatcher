@@ -23,6 +23,16 @@ The market-simulation news store is not pruned automatically. If an older
 first created, and the source file remains untouched. Audit indexes are
 derived from retained audit logs and can be rebuilt.
 
+The audit trail is line-oriented text, `[ts] [topic] [meta] {json}`, in three
+kinds of file under the data directory: `audit.log`, the active file holding
+one trading day (midnight in `locale.session_timezone`, by each line's receive
+time); `audit/audit-YYYY-MM-DD.N.log`, closed parts of a day, numbered in write
+order and never renamed; and `audit/audit-YYYY-MM-DD.log.zst`, one zstd stream
+per archived day, the day's parts concatenated, so decompressing it yields the
+day's log byte for byte. The archive's frame header records the uncompressed
+size. Readers take the live trail (unarchived parts, then `audit.log`) by
+default and a day's archive by `--date` or by path.
+
 Trading prices and notionals in the statistics and clearing stores use integer
 ticks and require the row's `tick_decimals` to convert to display currency.
 Index levels and some derived values are `REAL` values. Timestamps may be UTC

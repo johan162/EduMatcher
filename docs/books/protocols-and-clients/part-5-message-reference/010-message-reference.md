@@ -2080,7 +2080,7 @@ pm-market-sim to everyone: one headline, or a change in what an earlier one is k
 | `ts_ns` | `int` | required | unit `epoch_nanos` |  |
 | `scope` | enum: `SYMBOL`, `SECTOR`, `MARKET` | required | — |  |
 | `targets` | list of `string` | required | — | Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET. |
-| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO` | required | — |  |
+| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO`, `OPERATIONS`, `RESEARCH`, `CONTRACT`, `ESG` | required | — |  |
 | `status` | enum: `RUMOUR`, `CONFIRMED`, `RETRACTED` | required | — |  |
 | `headline` | `string` | required | max_len 200 |  |
 | `sentiment` | `float` | required | ge -1, le 1, unit `dimensionless` | Tone of the news, -1 (bad) to 1 (good); not its size. |
@@ -3339,7 +3339,7 @@ A headline the instructor wants published (NEWS_INJECT).
 |---|---|---|---|---|
 | `scope` | enum: `SYMBOL`, `SECTOR`, `MARKET` | required | — |  |
 | `targets` | list of `string` | required | — | Symbols (SYMBOL) or sector names (SECTOR); empty for MARKET. |
-| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO` | required | — |  |
+| `kind` | enum: `EARNINGS`, `GUIDANCE`, `MNA`, `REGULATORY`, `PRODUCT`, `LEGAL`, `MANAGEMENT`, `MACRO`, `OPERATIONS`, `RESEARCH`, `CONTRACT`, `ESG` | required | — |  |
 | `sentiment` | `float` | required | ge -1, le 1, unit `dimensionless` |  |
 | `impact` | `float` | required | ge -1, le 1, unit `dimensionless` | Move of the log true value when the news is (or becomes) confirmed: 0.10 is about +10.5%. Sector and market news move each symbol by its beta to that factor. Never published. |
 | `headline` | `string` | defaults to `''` | max_len 200 | Empty: pm-market-sim writes one from the kind and sentiment. |

@@ -169,6 +169,7 @@ def test_watched_increases_are_counters_their_process_emits() -> None:
         "api.dropped_events": "pm-api-gwy",
         "stats.feed_gaps": "pm-stats",
         "monitor.store_errors": "pm-monitor",
+        "audit.archive_errors": "pm-audit",
     }
     assert set(WATCHED_INCREASES) == set(owners)
     for name, process in owners.items():

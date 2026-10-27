@@ -20,12 +20,12 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 
 | # | WP | Content | Depends on | Est. | Status | Done on |
 |---|---|---|---|---|---|---|
-| 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; `backports.zstd` on 3.13 | — | 0.5 d | ☐ | |
-| 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☐ | |
-| 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☐ | |
-| 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☐ | |
-| 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☐ | |
-| 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☐ | |
+| 1 | Z1 | Readers: `.zst` and the dated file layout in `audit/query.py`; stdlib `compression.zstd` | — | 0.5 d | ☑ | 2026-10-26 |
+| 2 | Z2 | `pm-audit` closes the day: per-line date split, numbered day parts, no deletion | Z1 | 1 d | ☑ | 2026-10-26 |
+| 3 | Z3 | `pm-audit-cli archive`: concatenate → verify → rename → delete, crash-safe | Z1, Z2 | 1 d | ☑ | 2026-10-26 |
+| 4 | Z4 | Automatic archiving from `pm-audit`, start-up catch-up, retention, health metrics | Z3 | 0.5 d | ☑ | 2026-10-26 |
+| 5 | Z5 | Replay and CLI scope: live trail by default, `--date`, archive paths, `--follow` across midnight | Z1, Z2 | 0.5 d | ☑ | 2026-10-26 |
+| 6 | Z6 | Operations and docs: emo profiles and clean, deployments, operator guide, file formats | Z2–Z5 | 0.5 d | ☑ | 2026-10-26 |
 
 Total ≈ 4 d. Z1 comes first so every reader understands archives before
 anything writes one; Z2 before Z3 because only closed day parts can be
@@ -160,9 +160,12 @@ the day. A tar would add member boundaries nobody needs.
 6. Delete the parts.
 
 A crash leaves the parts (before 5) or the archive plus parts (between 5 and
-6); a re-run sees the archive, re-verifies it against the parts if any are
-left, and deletes them. Never neither. A leftover `.part` is deleted and
-redone.
+6, possibly some already deleted); a re-run sees the archive, checks that the
+remaining parts are its tail, and deletes them. Never neither. Parts that are
+not its tail (the day reopened after archiving) are appended to it; an
+archive is never deleted by a run, and an unreadable one is refused. A
+leftover `.part` is deleted and redone. A day `audit.log` still holds is not
+closed and is not archived.
 
 **Level and speed.** ai-swarm writes ≈ 1.2 GB an hour, ≈ 10–14 GB a day.
 zstd level 3 compresses JSON at several hundred MB/s on one core, so a day
@@ -305,3 +308,186 @@ e2e passes.
 ## Insights log
 
 *(Append per WP: measurements, surprises, changes to later WPs.)*
+
+**Z1 (2026-10-26).**
+- Python 3.14 is now mandatory (`pyproject.toml` `^3.14`), so the
+  `backports.zstd` shim and dependency are dropped everywhere: `query.py`
+  imports `compression.zstd` directly. Z-WPs below need no 3.13 path.
+- `discover_log_files` also skips the parts of a day that already has an
+  archive (crash between rename and delete), so the live trail never repeats
+  a line. Archives themselves are read by explicit path until Z5 adds `--date`.
+- The indexer builds from the live trail only, so it does not index archives
+  yet; Z5 must make `--date D` feed the archive to the indexer.
+- `cli.py:_collect_log_stats` still counts non-active files as "rotated
+  backups"; Z5 rewrites it.
+
+**Z2 (2026-10-26).**
+- Q1–Q4 taken as the recommended answers (Johan: "cont.").
+- `AuditFile` lives in `audit/writer.py`, not `main.py`. It is a binary
+  append-only writer that tracks its own size; `AuditProcess` owns the
+  buffer of `(date, line)` and the session timezone (default UTC for
+  tests; `main()` passes the compiled config's, as `pm-stats` does).
+- The idle-midnight close runs from the receive loop once a second
+  (`_close_ended_day`), not from the flush timer: the timer exists only while
+  lines are buffered, so it never fires on a silent exchange. The same method
+  runs at start-up. Z4 hooks the archiver spawn onto `AuditFile.roll` /
+  `_close_ended_day`.
+- The size check is after a batch write, so a part can exceed `--max-file-mb`
+  by up to one flush (≤ `--buffer-size` lines).
+- A line whose date is *earlier* than the file's (wall clock stepped back) is
+  appended to the current file; only a later date closes it.
+- `--backup-count` removed from `pm-audit`, emo profiles, `pm_help` and
+  completions. Operator/reference docs still mention it: Z6.
+- `tools/verify_audit_trail.sh` now clears and counts `audit/audit-*.log`.
+  Verified end to end: 36510 lines, no findings.
+
+**Z3 (2026-10-26).**
+- **Level measurement** on three real 256 MB parts from `~/.edumatcher-sim/data`
+  (oldest, middle, newest; ~380–410 k lines each; single core, in memory):
+
+  | level | ratio | compress | decompress |
+  |---|---|---|---|
+  | 1 | 7.5:1 | ~610 MB/s | ~750 MB/s |
+  | 3 | 9.5:1 | ~475 MB/s | ~780 MB/s |
+  | 9 | 13.4:1 | ~140 MB/s | ~885 MB/s |
+  | 12 | 13.7:1 | ~70 MB/s | ~910 MB/s |
+
+  Level 12 buys 2 % over 9 for half the speed, so **`--level` defaults to 9**.
+  A 14 GB day then takes ≈ 100 s to compress. End to end through
+  `archive_day` (read, hash, compress, verify): 512 MB → 37.7 MB (13.6:1) in
+  8 s, i.e. ≈ 16 s/GB, well inside the ~1 min/GB aim. The external `zstd`
+  CLI decodes the archive to the same bytes. A day of ~10–14 GB becomes
+  ≈ 1 GB.
+- The 25 % free-space rule is therefore very conservative (needs ~8 %); kept
+  as is.
+- Logic is in `audit/archive.py`; the CLI is a thin wrapper. Crash tests use an
+  `on_step` hook that raises after "compressed", "verified", "renamed",
+  "deleted".
+- An archive found next to parts is re-verified against them; if it does not
+  match (stale or truncated) it is deleted and made again from the parts,
+  which are the source of truth.
+- A held lock makes `archive` print a note and exit 0 (the other run does the
+  work); a failed day exits 1. `--pending` carries on with the next day after
+  a failure.
+- `session_timezone()` moved into `archive.py`; `pm-audit` uses it too, so the
+  config lookup now exists once in the audit package (pm-stats still has its
+  own copy).
+- Z4: `ArchiveResult.ratio` feeds `audit.archive_ratio`; spawn
+  `pm-audit-cli archive --pending --keep-days N`.
+
+**Z4 (2026-10-26).**
+- `AuditFile` takes an `on_day_closed` callback, fired only when a roll closes
+  an *ended day* (a later-dated line, or the idle/start-up close), not on a
+  size roll: parts of today are not archivable. `AuditProcess` only sets a flag
+  from it (it runs under the buffer lock, possibly on the timer thread); the
+  **receive thread** spawns and reaps, in the once-a-second day check, so the
+  child is never started from a foreign thread.
+- Start-up catch-up is requested in `run()`, not `__init__`, so constructing an
+  `AuditProcess` in tests never starts a process.
+- One archiver at a time. A day that closes while one runs sets the flag again;
+  the run after it picks the day up, since `--pending` takes every closed day.
+- The child is `nice -n 10 python -m edumatcher.audit.cli --log-file <log>
+  archive --pending --keep-days N` (`sys.executable`, so the venv is used).
+  `preexec_fn` was avoided: pm-audit has timer threads.
+- The ratio reaches pm-audit through the child's result line:
+  `archive.format_result` writes it, `parse_ratio` reads it back. A non-zero
+  exit counts one `audit.archive_errors` and is logged at ERROR with the child's
+  stderr; a child that cannot be started counts the same.
+- A pm-audit shutdown does not kill a running archiver: it is crash-safe and
+  finishes (or the next start-up re-runs it).
+- Monitor: `audit.archive_errors` is in `WATCHED_INCREASES`
+  (`audit_archive_errors`), mirrored in dash-gui's `FIXED_RULES`; the health
+  contract test now lists pm-audit as its owner. Docs for the new rule:
+  Z6 (operator guide `060-health-monitor.md`, dashboard design).
+- `make test-e2e` target name: it exists; the earlier failure was run from
+  the wrong directory after a vitest call.
+
+**Z5 (2026-10-26).**
+- **`--date` changed meaning.** Both CLIs already had `--date` as a *UTC* time
+  window over the live trail. It now selects the trading day's *files*
+  (session timezone) and sets no time window: the day is its files, and a
+  UTC window on top would drop the evening lines of a session day. No
+  backwards compatibility kept (per the standing rule). `window_bounds` in
+  `pm-audit-replay` no longer reads `--date`.
+- `query.discover_day_files(log_file, day, tz, log_dir)`: the archive if there
+  is one, else the day's parts, plus `audit.log` when its first line is on
+  that day (`writer.file_day`, shared with `AuditFile`).
+- An archive or part named as `--log-file` is read alone
+  (`discover_log_files`); combining it with `--date` is refused in both CLIs.
+  `--date` with `--follow` is refused in `pm-audit-cli` (follow is the live
+  trail).
+- `pm-audit-cli --date` skips the SQLite events index (it covers only the live
+  trail). The replay index needed no change: `_log_files` feeds it the day's
+  files, so archiving changes the fingerprint and it rebuilds; episodes are
+  identical before and after (tested).
+- The archiver now pledges the input size (`ZstdCompressor.set_pledged_input_size`),
+  so the frame header carries the uncompressed size and
+  `archive_content_size` gives the ratio for `health --extended --verbose`
+  without decompressing: "day parts: N (size)", "archives: N (size, R:1)".
+- `--follow` across a rollover needed no new mechanism, as designed; a test
+  renames `audit.log` to a part mid-follow and asserts every line prints once.
+- Replay `--date` on a day with no files reports "no audit log at ..." (exit 1);
+  `pm-audit-cli` says "No audit data for D".
+- Docs for all of this: Z6 (`030-audit-replay.md` still calls `--date` a UTC
+  day).
+
+**Z6 (2026-10-26).**
+- emo: the `ai-swarm`/`ai-sim` audit entry is `--max-file-mb 256 --keep-days 7`
+  (a week of archives, ≈ 7 GB, against the ~25 GB of the old 100 × 256 MB
+  ring); the default profile's `pm-audit --verbose` is unchanged.
+  `NON_STATE_PATHS` gained `<data>/audit/`, so `emo clean --all` removes parts
+  and archives (state-only `clean` keeps them, like `audit.log`).
+- Deployments: the docker `./data:/data` mount already covers `audit/` (README
+  tree updated); the archiver child needs `nice` (coreutils) and the same
+  interpreter, both present in the image; the VM and curl installers keep the
+  trail in the data directory and need no change. A container restart across
+  midnight closes the old day at start-up and archives it.
+- Docs updated: operator guide `020-audit-trail.md` (day parts, archives,
+  retention, manual recovery, which files are read, `--date`), `030-audit-replay.md`,
+  `010-persistence.md`, `060-health-monitor.md` (`audit_archive_errors`),
+  reference manual (`pm-audit`, `pm-audit-cli archive`), architecture
+  `030-file-formats.md`, the AI-trader setup table and the Operator Dashboard
+  design's fixed-rule list. `mkdocs build` is clean.
+- e2e: `tests/test_audit_e2e.py` runs a real `AuditProcess` on a real ZeroMQ
+  PUB/SUB pair with a faked clock across midnight; the real archiver child
+  turns day D into one `.zst`, and `pm-audit-cli --date`, the default read and
+  `pm-audit-replay --date` see exactly the right lines. It uses free ports, so
+  it does not need the exchange's fixed ones. A real `pm-audit` process cannot
+  be made to cross midnight without a clock hook in product code, which was
+  deliberately not added.
+- **Open (not done):** `tools/verify_audit_trail.sh` and `make test-e2e` pass,
+  but the "left running across a real midnight" check of Z4 has only the faked
+  version. Worth one real overnight `ai-sim` run, which is also the next
+  measurement of archive time on a ~10 GB day.
+
+**Holistic review (2026-10-26, after Z6).** Fixed:
+- **Data loss on a crash mid-deletion.** Parts are deleted one at a time; a
+  crash after the first left parts 2..k beside a good archive, and the re-run
+  deleted the archive as "not matching" and remade it from 2..k. The archive
+  is now authoritative: remaining parts that are its tail are deleted, other
+  parts are appended (merge), an unreadable archive is refused, and a run
+  never deletes an archive. (Z3's crash hook only fired after *all* parts
+  were gone, so the tests missed it.)
+- A manual `archive` while `pm-audit` was down across midnight archived a day
+  whose last part was still `audit.log`; days on or after `audit.log`'s day
+  now count as not closed.
+- Shutdown closed `AuditFile` before joining the receive thread (Z2
+  regression: the old logging handler stayed open), losing late lines; it now
+  joins first.
+- A failing roll (mkdir/rename) left the writer closed: every later write
+  raised and the buffer grew without bound. A roll failure now logs an ERROR
+  and keeps appending to `audit.log`; the next write retries.
+- The archiver's output went to pipes read only after it exited; a child
+  outliving pm-audit died of a broken pipe on its result line. Now unlinked
+  temp files.
+- `archive --pending` stopped at an `OSError`/`ZstdError` and left the
+  `.part`; each day now fails on its own and the `.part` is removed.
+- The once-a-second day check flushed the buffer every time, capping
+  `--flush-interval` at 1 s; it now flushes only when the buffer holds an
+  ended day.
+
+Not fixed (low or pre-existing): the optional SQLite index keeps archived
+days while the default read excludes them; `--follow` re-reads the whole live
+trail every poll (up to a ~14 GB day under ai-swarm); an archiver that finds
+the lock busy exits 0, so other pending days wait for the next day close or
+restart.

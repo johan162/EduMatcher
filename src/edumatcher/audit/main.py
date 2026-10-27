@@ -1,9 +1,9 @@
 """
-Audit Process — records every event in the system to a rotating log file.
+Audit Process — records every event in the system to a day-closing log file.
 
 Usage:
   poetry run pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
-                      [--max-file-mb 10] [--backup-count 5]
+                      [--max-file-mb 10]
 
 Subscribes to ALL topics (empty filter) and appends each event as a
 single JSON line:
@@ -20,8 +20,15 @@ Options
   --terminal       Also print each entry to stdout
   --buffer-size    Number of messages to buffer before writing to disk (default: 100)
   --flush-interval Maximum seconds to wait before flushing buffer (default: 10)
-  --max-file-mb    Rotate the audit log at this size in MB (default: 10)
-  --backup-count   Rotated audit log files to keep (default: 5)
+  --max-file-mb    Close the audit log as a day part at this size in MB (default: 10)
+  --keep-days      Delete archives older than N days (default: 0 = keep all)
+
+The active file holds one trading day (midnight in the engine config's
+``locale.session_timezone``, by each line's receive time).  At the date change
+or at --max-file-mb it is closed as ``audit/audit-YYYY-MM-DD.N.log`` beside
+it.  Closed days are compressed to ``audit-YYYY-MM-DD.log.zst`` by a child
+``pm-audit-cli archive --pending`` (at start-up and after each day closes);
+only --keep-days ever deletes anything, and only archives.
 
 This process's own *operational* logging (``log.info(...)``/``log.warning(...)``
 calls below, distinct from the audit trail above) is sent to ``pm-log-srv``
@@ -35,21 +42,26 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import errno
+from itertools import groupby
+from operator import itemgetter
 import json
 import logging
 import signal
+import subprocess
 import sys
+import tempfile
 import threading
 import time
-from datetime import datetime, timezone
-from logging.handlers import RotatingFileHandler
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
-from typing import List
+from typing import IO, Callable
 
 import zmq
 
-from edumatcher.health import HealthReporter, counter
+from edumatcher.health import HealthReporter, counter, gauge
 from edumatcher.models.generated.health import MetricSample
+from edumatcher.audit.archive import parse_ratio, session_timezone
+from edumatcher.audit.writer import AuditFile
 from edumatcher.config import AUDIT_HEALTH_BIND_ADDR, AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -76,8 +88,9 @@ _SUB_RCVHWM = 200_000
 _DEFAULT_BUFFER_SIZE = 100
 _DEFAULT_FLUSH_INTERVAL = 10.0
 _DEFAULT_MAX_FILE_MB = 10
-_DEFAULT_BACKUP_COUNT = 5
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+#: How often the receive loop looks for a day that ended without a line.
+_DAY_CHECK_INTERVAL_SEC = 1.0
 
 log = logging.getLogger(__name__)
 
@@ -107,40 +120,6 @@ def _meta_section(frames: list[bytes]) -> str | None:
         if env.correlation_id:
             parts.append(f"chain={env.correlation_id}")
     return " ".join(parts)
-
-
-def _setup_logger(
-    log_path: Path,
-    to_terminal: bool,
-    max_file_mb: int = _DEFAULT_MAX_FILE_MB,
-    backup_count: int = _DEFAULT_BACKUP_COUNT,
-) -> logging.Logger:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("edumatcher.audit.data")
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-    for handler in list(logger.handlers):
-        logger.removeHandler(handler)
-        handler.close()
-
-    fmt = logging.Formatter("%(message)s")
-
-    fh = RotatingFileHandler(
-        log_path,
-        maxBytes=max_file_mb * 1024 * 1024,
-        backupCount=backup_count,
-        encoding="utf-8",
-    )
-    fh.setFormatter(fmt)
-    logger.addHandler(fh)
-
-    if to_terminal:
-        ch = logging.StreamHandler()
-        ch.setFormatter(fmt)
-        logger.addHandler(ch)
-
-    return logger
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -179,14 +158,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=_DEFAULT_MAX_FILE_MB,
         metavar="MB",
-        help=f"Rotate the audit log when it reaches this size (default: {_DEFAULT_MAX_FILE_MB})",
+        help=f"Close the audit log as a day part at this size (default: {_DEFAULT_MAX_FILE_MB})",
     )
     parser.add_argument(
-        "--backup-count",
+        "--keep-days",
         type=int,
-        default=_DEFAULT_BACKUP_COUNT,
+        default=0,
         metavar="N",
-        help=f"Rotated audit log files to keep (default: {_DEFAULT_BACKUP_COUNT})",
+        help="Delete archives older than N days (default: 0 = keep all)",
     )
     parser.add_argument(
         "--log-level",
@@ -281,9 +260,29 @@ class AuditProcess:
         buffer_size: int = _DEFAULT_BUFFER_SIZE,
         flush_interval: float = _DEFAULT_FLUSH_INTERVAL,
         max_file_mb: int = _DEFAULT_MAX_FILE_MB,
-        backup_count: int = _DEFAULT_BACKUP_COUNT,
+        session_tz: tzinfo = timezone.utc,
+        keep_days: int = 0,
     ) -> None:
-        self.logger = _setup_logger(log_path, to_terminal, max_file_mb, backup_count)
+        self._session_tz = session_tz
+        self._keep_days = keep_days
+        # Archiving: a child process, so compression stays off this process's
+        # GIL and CPU and a crash in it cannot take the recorder down.
+        self._archive_wanted = False
+        self._archiver: subprocess.Popen[str] | None = None
+        #: The running archiver's (stdout, stderr).
+        self._archiver_output: tuple[IO[str], IO[str]] | None = None
+        self._archives = 0
+        self._archive_errors = 0
+        self._archive_ratio = 0.0
+        #: Wall clock; audit timestamps are wall time even under a fast
+        #: simulation clock.  Replaceable so a test can cross midnight.
+        self._now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
+        self._file = AuditFile(
+            log_path,
+            max_file_mb * 1024 * 1024,
+            session_tz,
+            on_day_closed=self._want_archive,
+        )
         self._log_path = log_path
         self._to_terminal = to_terminal
         self._running = True
@@ -309,12 +308,16 @@ class AuditProcess:
             raise
         self.buffer_size = buffer_size
         self.flush_interval = flush_interval
-        self._buffer: List[str] = []
+        # (session-timezone date of receipt, line)
+        self._buffer: list[tuple[str, str]] = []
         self._buffer_lock = threading.Lock()
         self._last_flush_time = time.time()
         self._flush_timer: threading.Timer | None = None
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
+        self._last_day_check = time.monotonic()
+        # A day that ended while pm-audit was down is closed before the first line.
+        self._close_ended_day()
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -363,14 +366,109 @@ class AuditProcess:
     def _flush_buffer(self) -> None:
         """Flush buffered messages to disk."""
         with self._buffer_lock:
-            if self._buffer:
-                flushed = len(self._buffer)
-                for line in self._buffer:
-                    self.logger.info(line)
-                self._buffer.clear()
-                self._last_flush_time = time.time()
-                self._dbg_count("flush_calls")
-                self._dbg_count("lines_flushed", flushed)
+            self._flush_locked()
+
+    def _flush_locked(self) -> None:
+        if self._buffer:
+            flushed = len(self._buffer)
+            # Consecutive lines of one day go out in one write; a flush
+            # that straddles midnight is split at the date change.
+            for day, group in groupby(self._buffer, key=itemgetter(0)):
+                lines = [line for _, line in group]
+                self._file.write(day, lines)
+                if self._to_terminal:
+                    print("\n".join(lines))
+            self._buffer.clear()
+            self._last_flush_time = time.time()
+            self._dbg_count("flush_calls")
+            self._dbg_count("lines_flushed", flushed)
+
+    def _close_ended_day(self) -> None:
+        """Close the active file if it holds a day that has ended.
+
+        Needed because a quiet exchange sends no line to trigger the date
+        split in ``AuditFile.write``.
+        """
+        with self._buffer_lock:
+            today = self._now().astimezone(self._session_tz).date().isoformat()
+            # The ended day's buffered lines go out first, or they would
+            # reopen it in the new audit.log.  Otherwise the buffer is left to
+            # --buffer-size / --flush-interval.
+            if self._buffer and self._buffer[0][0] < today:
+                self._flush_locked()
+            self._file.close_days_before(today)
+
+    def _want_archive(self) -> None:
+        """A day just closed (called under the buffer lock, from any thread)."""
+        self._archive_wanted = True
+
+    def _archiver_command(self) -> list[str]:
+        return [
+            "nice",
+            "-n",
+            "10",
+            sys.executable,
+            "-m",
+            "edumatcher.audit.cli",
+            "--log-file",
+            str(self._log_path),
+            "archive",
+            "--pending",
+            "--keep-days",
+            str(self._keep_days),
+        ]
+
+    def _service_archiver(self) -> None:
+        """Reap a finished archiver, then start one if a day closed meanwhile.
+
+        Runs on the receive thread.  At most one archiver runs at a time; a
+        day that closes while one runs is picked up by the next, since
+        ``--pending`` takes every closed day it finds.
+        """
+        child = self._archiver
+        if child is not None:
+            if child.poll() is None:
+                return
+            assert self._archiver_output is not None
+            out, err = (self._read_archiver_output(fh) for fh in self._archiver_output)
+            self._archiver = None
+            self._archiver_output = None
+            if child.returncode != 0:
+                self._archive_errors += 1
+                log.error("audit archiver exited %s: %s", child.returncode, err.strip())
+            for line in out.splitlines():
+                if (ratio := parse_ratio(line)) is not None:
+                    self._archives += 1
+                    self._archive_ratio = ratio
+                    log.info("audit archive: %s", line.strip())
+        if self._archive_wanted and self._archiver is None:
+            self._archive_wanted = False
+            # Unlinked temp files, not pipes: a child that outlives this
+            # process (shutdown does not stop it) can still print its result,
+            # and its output is read only once it has exited.
+            self._archiver_output = (
+                tempfile.TemporaryFile("w+"),
+                tempfile.TemporaryFile("w+"),
+            )
+            try:
+                self._archiver = subprocess.Popen(
+                    self._archiver_command(),
+                    stdout=self._archiver_output[0],
+                    stderr=self._archiver_output[1],
+                    text=True,
+                )
+            except OSError as exc:
+                for fh in self._archiver_output:
+                    fh.close()
+                self._archiver_output = None
+                self._archive_errors += 1
+                log.error("cannot start the audit archiver: %s", exc)
+
+    @staticmethod
+    def _read_archiver_output(fh: IO[str]) -> str:
+        with fh:
+            fh.seek(0)
+            return fh.read()
 
     def _schedule_flush(self) -> None:
         """Schedule a flush after flush_interval seconds."""
@@ -381,10 +479,10 @@ class AuditProcess:
         self._flush_timer.start()
         self._dbg_count("flush_timer_scheduled")
 
-    def _add_to_buffer(self, line: str) -> None:
+    def _add_to_buffer(self, day: str, line: str) -> None:
         """Add a line to the buffer and flush if needed."""
         with self._buffer_lock:
-            self._buffer.append(line)
+            self._buffer.append((day, line))
             buffer_len = len(self._buffer)
         self._dbg_count("messages_buffered")
 
@@ -406,6 +504,10 @@ class AuditProcess:
         while self._running:
             if reporter is not None:
                 reporter.tick_and_publish(self.metric_samples)
+            if time.monotonic() - self._last_day_check >= _DAY_CHECK_INTERVAL_SEC:
+                self._last_day_check = time.monotonic()
+                self._close_ended_day()
+                self._service_archiver()
             try:
                 socks = dict(poller.poll(timeout=_POLL_TIMEOUT_MS))
             except zmq.ZMQError as exc:
@@ -420,14 +522,16 @@ class AuditProcess:
                     topic, payload = decode(frames)
                     self._dbg_count("messages_received")
                     self._dbg_count(f"topic_family_{self._topic_family(topic)}")
-                    ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+                    now = self._now()
+                    ts = now.isoformat(timespec="milliseconds")
+                    day = now.astimezone(self._session_tz).date().isoformat()
                     meta = _meta_section(frames)
                     if meta is None:
                         self._dbg_count("messages_without_envelope")
                         line = f"[{ts}] [{topic}] {json.dumps(payload)}"
                     else:
                         line = f"[{ts}] [{topic}] [{meta}] {json.dumps(payload)}"
-                    self._add_to_buffer(line)
+                    self._add_to_buffer(day, line)
                     self._records += 1
                     self._bytes += len(line) + 1  # the newline written with it
                 except Exception as exc:
@@ -440,6 +544,8 @@ class AuditProcess:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
 
+        # Catch up on days closed while pm-audit was down or whose archive failed.
+        self._archive_wanted = True
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
         log.info(
@@ -456,12 +562,14 @@ class AuditProcess:
             while self._running:
                 t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms
         finally:
-            # Flush any remaining messages before exiting
+            # The receive loop stops first, so no line arrives after the last
+            # flush or is written to the closed file.
+            t.join(timeout=1.0)
             if self._flush_timer is not None:
                 self._flush_timer.cancel()
             self._flush_buffer()
+            self._file.close()
             self._flush_debug_summary(force=True)
-            t.join(timeout=1.0)
             if self._reporter is not None:
                 self._reporter.stop()
             self.sub.close()
@@ -482,6 +590,9 @@ class AuditProcess:
             counter("audit.records", self._records),
             counter("audit.bytes", self._bytes),
             counter("audit.decode_errors", self._decode_errors),
+            counter("audit.archives", self._archives),
+            counter("audit.archive_errors", self._archive_errors),
+            gauge("audit.archive_ratio", self._archive_ratio),
         ]
 
 
@@ -492,13 +603,12 @@ def main() -> None:
     log.info("starting pm-audit with log level %s", logging.getLevelName(log_level))
     log.debug(
         "resolved audit config: audit_log_file=%s terminal=%s buffer_size=%d "
-        "flush_interval=%s max_file_mb=%d backup_count=%d",
+        "flush_interval=%s max_file_mb=%d",
         args.audit_log_file,
         args.terminal,
         args.buffer_size,
         args.flush_interval,
         args.max_file_mb,
-        args.backup_count,
     )
 
     # Validate arguments
@@ -508,9 +618,13 @@ def main() -> None:
         parser.error("--flush-interval must be positive")
     if args.max_file_mb < 1:
         parser.error("--max-file-mb must be at least 1")
-    if args.backup_count < 1:
-        parser.error("--backup-count must be at least 1")
+    if args.keep_days < 0:
+        parser.error("--keep-days must be >= 0")
 
+    try:
+        session_tz = session_timezone()
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         process = AuditProcess(
             Path(args.audit_log_file),
@@ -518,7 +632,8 @@ def main() -> None:
             buffer_size=args.buffer_size,
             flush_interval=args.flush_interval,
             max_file_mb=args.max_file_mb,
-            backup_count=args.backup_count,
+            session_tz=session_tz,
+            keep_days=args.keep_days,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)

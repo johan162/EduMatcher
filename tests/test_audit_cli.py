@@ -5,9 +5,9 @@ Coverage target: >= 90% across the four audit modules.
 
 from __future__ import annotations
 
-import gzip
 import json
 import time
+from compression import zstd
 from pathlib import Path
 from typing import Any
 
@@ -103,9 +103,17 @@ def _write_log(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_gz_log(path: Path, lines: list[str]) -> None:
-    with gzip.open(path, "wt", encoding="utf-8") as f:
+def _write_zst_log(path: Path, lines: list[str]) -> None:
+    with zstd.open(path, "wt", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
+
+
+def _write_part(root: Path, day: str, n: int, lines: list[str]) -> Path:
+    """A closed day part, ``<root>/audit/audit-<day>.<n>.log``."""
+    path = root / "audit" / f"audit-{day}.{n}.log"
+    path.parent.mkdir(exist_ok=True)
+    _write_log(path, lines)
+    return path
 
 
 @pytest.fixture()
@@ -219,25 +227,37 @@ class TestDiscoverLogFiles:
         files = discover_log_files(log)
         assert files == [log]
 
-    def test_rotated_backups_ordered_oldest_first(self, tmp_path: Path) -> None:
+    def test_parts_ordered_by_date_then_number(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        log.write_text("x")
+        want = [
+            _write_part(tmp_path, "2026-10-24", 1, ["a"]),
+            _write_part(tmp_path, "2026-10-24", 2, ["b"]),
+            _write_part(tmp_path, "2026-10-24", 10, ["c"]),
+            _write_part(tmp_path, "2026-10-25", 1, ["d"]),
+        ]
+        assert discover_log_files(log) == [*want, log]
+
+    def test_archives_are_not_in_the_live_trail(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        log.write_text("x")
+        (tmp_path / "audit").mkdir()
+        _write_zst_log(tmp_path / "audit" / "audit-2026-10-23.log.zst", ["a"])
+        assert discover_log_files(log) == [log]
+
+    def test_parts_of_an_archived_day_are_skipped(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        log.write_text("x")
+        _write_part(tmp_path, "2026-10-23", 1, ["a"])
+        _write_zst_log(tmp_path / "audit" / "audit-2026-10-23.log.zst", ["a"])
+        kept = _write_part(tmp_path, "2026-10-24", 1, ["b"])
+        assert discover_log_files(log) == [kept, log]
+
+    def test_old_rotation_names_are_ignored(self, tmp_path: Path) -> None:
         log = tmp_path / "audit.log"
         log.write_text("x")
         (tmp_path / "audit.log.1").write_text("y")
-        (tmp_path / "audit.log.2").write_text("z")
-        files = discover_log_files(log)
-        # .2 is older than .1 in RotatingFileHandler convention
-        assert files[0].name == "audit.log.2"
-        assert files[1].name == "audit.log.1"
-        assert files[-1].name == "audit.log"
-
-    def test_gz_rotated_backup(self, tmp_path: Path) -> None:
-        log = tmp_path / "audit.log"
-        log.write_text("x")
-        gz = tmp_path / "audit.log.1.gz"
-        gz.write_bytes(b"")
-        files = discover_log_files(log)
-        names = [f.name for f in files]
-        assert "audit.log.1.gz" in names
+        assert discover_log_files(log) == [log]
 
     def test_nonexistent_log_excluded(self, tmp_path: Path) -> None:
         log = tmp_path / "audit.log"  # does not exist
@@ -249,14 +269,26 @@ class TestDiscoverLogFiles:
         log_dir.mkdir()
         log = log_dir / "audit.log"
         log.write_text("x")
-        (log_dir / "audit.log.1").write_text("y")
-        files = discover_log_files(log, log_dir)
-        assert any("audit.log.1" in f.name for f in files)
+        part = _write_part(log_dir, "2026-10-24", 1, ["y"])
+        assert discover_log_files(log, log_dir) == [part, log]
 
 
 # ===========================================================================
 # query.py — line parsing
 # ===========================================================================
+
+
+class TestIndexerOverParts:
+    def test_index_reads_parts_then_active_log(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        _write_log(log, _LINES[2:])
+        _write_part(tmp_path, "2026-07-08", 1, _LINES[:2])
+        whole = tmp_path / "whole" / "audit.log"
+        whole.parent.mkdir()
+        _write_log(whole, _LINES)
+        n_parts = build_index(tmp_path / "a.db", log)
+        n_whole = build_index(tmp_path / "b.db", whole)
+        assert n_parts == n_whole == len(_LINES)
 
 
 class TestParseLine:
@@ -391,11 +423,25 @@ class TestIterEntries:
         entries = list(iter_entries([missing]))
         assert entries == []
 
-    def test_gz_file_readable(self, tmp_path: Path) -> None:
-        gz = tmp_path / "audit.log.1.gz"
-        _write_gz_log(gz, [_LINES[0]])
-        entries = list(iter_entries([gz]))
-        assert len(entries) == 1
+    def test_zst_file_reads_like_the_plain_file(self, tmp_path: Path) -> None:
+        zst = tmp_path / "audit-2026-07-08.log.zst"
+        _write_zst_log(zst, _LINES)
+        plain = tmp_path / "plain.log"
+        _write_log(plain, _LINES)
+        from_zst = [(e.timestamp, e.topic, e.payload) for e in iter_entries([zst])]
+        from_plain = [(e.timestamp, e.topic, e.payload) for e in iter_entries([plain])]
+        assert from_zst == from_plain
+        assert len(from_zst) == len(_LINES)
+
+    def test_mixed_zst_and_plain_set_equals_the_plain_set(self, tmp_path: Path) -> None:
+        zst = tmp_path / "audit-2026-07-08.log.zst"
+        _write_zst_log(zst, _LINES[:2])
+        active = tmp_path / "audit.log"
+        _write_log(active, _LINES[2:])
+        whole = tmp_path / "whole.log"
+        _write_log(whole, _LINES)
+        mixed = [e.timestamp for e in iter_entries([zst, active])]
+        assert mixed == [e.timestamp for e in iter_entries([whole])]
 
     def test_empty_file(self, empty_log: Path) -> None:
         entries = list(iter_entries([empty_log]))
@@ -2348,7 +2394,7 @@ class TestCliHealth:
         log_file: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        _write_log(log_file.with_name("audit.log.1"), _LINES[:1])
+        _write_part(log_file.parent, "2026-07-07", 1, _LINES[:1])
         _healthy_process(monkeypatch)
 
         with pytest.raises(SystemExit) as exc_info:
@@ -2362,7 +2408,8 @@ class TestCliHealth:
         assert "Checks performed:" in output
         assert "Log file read/write/entry:     yes" in output
         assert "Log file stats:" in output
-        assert "rotated backups: 1" in output
+        assert "day parts: 1" in output
+        assert "archives: 0" in output
         assert f"last entry: {_TS4}" in output
 
     def test_health_verbose_without_extended_notes_log_file_was_skipped(

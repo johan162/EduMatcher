@@ -204,6 +204,10 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
         "LEGAL": "a legal matter",
         "MANAGEMENT": "management",
         "MACRO": "the economy",
+        "OPERATIONS": "operations",
+        "RESEARCH": "research and development",
+        "CONTRACT": "a customer contract",
+        "ESG": "an environmental matter",
         # health.event
         "CONNECT": "a connect",
         "AUTH_REJECT": "a rejected logon",

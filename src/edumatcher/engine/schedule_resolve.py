@@ -40,7 +40,12 @@ def upcoming_holidays(
     following ``days`` days, ascending, with their names.
     """
     end = start + timedelta(days=days)
-    calendar = holidays.country_holidays(country, years=range(start.year, end.year + 1))
+    # Pin the names to the country's own language; with language=None the
+    # holidays library follows LANG/LC_* and output varies by host.
+    native = holidays.country_holidays(country).default_language
+    calendar = holidays.country_holidays(
+        country, years=range(start.year, end.year + 1), language=native
+    )
     return sorted(
         (day, str(name)) for day, name in calendar.items() if start <= day <= end
     )

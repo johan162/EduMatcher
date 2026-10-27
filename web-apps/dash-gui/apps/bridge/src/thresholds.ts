@@ -43,6 +43,7 @@ export const INVERTED: readonly string[] = ["disk_free_pct"];
 export const FIXED_RULES: Record<string, ThresholdRule> = {
   loop_age_ms: { warn: 1000, crit: null, invert: false, configurable: false },
   api_dropped_events: { warn: 0, crit: null, invert: false, configurable: false },
+  audit_archive_errors: { warn: 0, crit: null, invert: false, configurable: false },
   metrics_store_errors: { warn: 0, crit: null, invert: false, configurable: false },
   stats_feed_gaps: { warn: 0, crit: null, invert: false, configurable: false },
   slow_client_disconnects: { warn: 0, crit: null, invert: false, configurable: false },

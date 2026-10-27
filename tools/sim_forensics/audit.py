@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
-from edumatcher.audit.query import discover_log_files
+from edumatcher.audit.query import discover_log_files, open_log_file
 
 
 class Line(NamedTuple):
@@ -35,15 +35,14 @@ def audit_files(data_dir: Path) -> list[Path]:
 
 def lines(files: list[Path]) -> Iterator[Line]:
     for path in files:
-        with path.open(encoding="utf-8", errors="replace") as fh:
-            for raw in fh:
-                if not raw.startswith("["):
-                    continue
-                a = raw.find("] [", 1)
-                b = raw.find("] [", a + 3)
-                c = raw.find("] ", b + 3)
-                if a < 0 or b < 0 or c < 0:
-                    continue
-                meta = raw[b + 3 : c]
-                chain = meta[meta.rfind("chain=") + 6 :]
-                yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a])
+        for raw in open_log_file(path):
+            if not raw.startswith("["):
+                continue
+            a = raw.find("] [", 1)
+            b = raw.find("] [", a + 3)
+            c = raw.find("] ", b + 3)
+            if a < 0 or b < 0 or c < 0:
+                continue
+            meta = raw[b + 3 : c]
+            chain = meta[meta.rfind("chain=") + 6 :]
+            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a])

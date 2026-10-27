@@ -385,7 +385,7 @@ opening the SQLite file or grepping a log by hand:
 
 | Command | Reads | Reach for it when |
 |---|---|---|
-| `pm-audit-cli` | `data/audit.log` (+ rotated `.gz`) | "what happened on the bus?" — filter by topic, gateway, symbol, time |
+| `pm-audit-cli` | `data/audit.log`, `data/audit/` (day parts, `.zst` archives) | "what happened on the bus?" — filter by topic, gateway, symbol, time |
 | `pm-stats-cli` | the stats database | OHLCV, trades, order events, order lifecycle, gaps |
 | `pm-clearing-cli` | the clearing database | positions, P&L, and `reconcile` against the raw trade archive |
 | `pm-log-cli` | `pm-log-srv` | operational logs from every process in one place |

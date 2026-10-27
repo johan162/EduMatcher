@@ -654,35 +654,3 @@ class TestExpireTIF:
         engine._expire_tif(TIF.ATO)
         topics = [decode(f)[0] for f in pub_sock.sent]
         assert any("expired" in t for t in topics)
-
-
-# ---------------------------------------------------------------------------
-# Audit process helpers
-# ---------------------------------------------------------------------------
-
-
-class TestAuditProcess:
-    def test_setup_logger_creates_log_file(self, tmp_path) -> None:
-        from edumatcher.audit.main import _setup_logger
-
-        log_path = tmp_path / "sub" / "audit.log"
-        logger = _setup_logger(log_path, to_terminal=False)
-        logger.info("test entry")
-        assert log_path.exists()
-        content = log_path.read_text()
-        assert "test entry" in content
-
-    def test_setup_logger_with_terminal(self, tmp_path) -> None:
-        import logging
-        from edumatcher.audit.main import _setup_logger
-
-        log_path = tmp_path / "audit_term.log"
-        logger = _setup_logger(log_path, to_terminal=True)
-        # With to_terminal=True, there should be a StreamHandler (not FileHandler)
-        stream_handlers = [
-            h
-            for h in logger.handlers
-            if isinstance(h, logging.StreamHandler)
-            and not isinstance(h, logging.FileHandler)
-        ]
-        assert len(stream_handlers) >= 1

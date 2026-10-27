@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import errno
 import logging
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -185,7 +184,7 @@ def test_add_to_buffer_flushes_on_overflow(tmp_path: Path) -> None:
         proc = AuditProcess(log_path=log_path, to_terminal=False, buffer_size=3)
 
     for i in range(3):
-        proc._add_to_buffer(f"line {i}")
+        proc._add_to_buffer("2026-10-24", f"line {i}")
 
     # After reaching buffer_size, the buffer should have been flushed.
     assert log_path.read_text(encoding="utf-8").count("line") == 3
@@ -204,7 +203,7 @@ def test_flush_timer_is_scheduled_on_first_message(tmp_path: Path) -> None:
         )
 
     assert proc._flush_timer is None
-    proc._add_to_buffer("first line")
+    proc._add_to_buffer("2026-10-24", "first line")
     assert proc._flush_timer is not None
     proc._flush_timer.cancel()
 
@@ -268,25 +267,18 @@ def test_receive_answers_health_ping_with_utc_timestamp(tmp_path: Path) -> None:
     assert datetime.fromisoformat(fake_rep.sent[0].decode()).tzinfo is not None
 
 
-def _file_handler(proc: AuditProcess) -> RotatingFileHandler:
-    return next(h for h in proc.logger.handlers if isinstance(h, RotatingFileHandler))
-
-
-def test_rotation_defaults_to_10_mb_and_5_backups(tmp_path: Path) -> None:
+def test_rotation_defaults_to_10_mb(tmp_path: Path) -> None:
     with (
         patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
         patch("edumatcher.audit.main.make_replier"),
     ):
         proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
 
-    handler = _file_handler(proc)
-    assert handler.maxBytes == 10 * 1024 * 1024
-    assert handler.backupCount == 5
+    assert proc._file._max_bytes == 10 * 1024 * 1024
 
 
-def test_rotation_size_and_backup_count_are_configurable(tmp_path: Path) -> None:
-    """Intent: a long simulation must be able to keep a whole session — the
-    default 60 MB held only ~3 minutes of a 100-trader run."""
+def test_part_size_is_configurable(tmp_path: Path) -> None:
+    """Intent: a long simulation must be able to use bigger parts."""
     with (
         patch("edumatcher.audit.main.make_subscriber", return_value=_FakeSub(0)),
         patch("edumatcher.audit.main.make_replier"),
@@ -295,19 +287,15 @@ def test_rotation_size_and_backup_count_are_configurable(tmp_path: Path) -> None
             log_path=tmp_path / "audit.log",
             to_terminal=False,
             max_file_mb=256,
-            backup_count=100,
         )
 
-    handler = _file_handler(proc)
-    assert handler.maxBytes == 256 * 1024 * 1024
-    assert handler.backupCount == 100
+    assert proc._file._max_bytes == 256 * 1024 * 1024
 
 
 @pytest.mark.parametrize(
     "argv, message",
     [
         (["--max-file-mb", "0"], "--max-file-mb must be at least 1"),
-        (["--backup-count", "0"], "--backup-count must be at least 1"),
     ],
 )
 def test_main_rejects_non_positive_rotation_options(

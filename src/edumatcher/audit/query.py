@@ -4,19 +4,20 @@ Reads audit log files written by ``pm-audit`` in the format::
 
     [2026-07-08T09:30:00.123+00:00] [trade.executed] {"id": "...", ...}
 
-Files are read as plain text (active log) or decompressed gzip (rotated
-backups ending in ``.gz``).  All filtering is applied during streaming so
+Files are read as plain text (the active log and closed day parts) or
+decompressed zstd (daily archives ending in ``.zst``).  All filtering is applied during streaming so
 large log files are never fully loaded into memory.
 """
 
 from __future__ import annotations
 
-import gzip
 import json
 import re
-from datetime import datetime, timezone
+from compression import zstd
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Iterator, cast
+from edumatcher.audit.writer import file_day
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
 from edumatcher.models.generated.order import (
     PREFIX_ORDER_ACK,
@@ -185,35 +186,71 @@ def date_to_range(date_str: str) -> tuple[datetime, datetime]:
 # ---------------------------------------------------------------------------
 
 
-def discover_log_files(log_file: Path, log_dir: Path | None = None) -> list[Path]:
-    """Return all relevant log files in chronological order (oldest first).
+#: Closed parts of a day: ``audit-2026-10-25.3.log`` (in ``<dir>/audit/``).
+_PART_RE = re.compile(r"^audit-(\d{4}-\d{2}-\d{2})\.(\d+)\.log$")
+#: One archive per archived day: ``audit-2026-10-24.log.zst``.
+_ARCHIVE_RE = re.compile(r"^audit-(\d{4}-\d{2}-\d{2})\.log\.zst$")
 
-    The active log comes last; rotated backups (``audit.log.1``,
-    ``audit.log.2``, ``audit.log.2.gz``, …) are sorted by numeric suffix.
+
+def is_explicit_file(log_file: Path) -> bool:
+    """True when ``log_file`` names one archive or day part, not the active log."""
+    return bool(_ARCHIVE_RE.match(log_file.name) or _PART_RE.match(log_file.name))
+
+
+def discover_day_files(
+    log_file: Path, day: str, tz: tzinfo, log_dir: Path | None = None
+) -> list[Path]:
+    """The files holding trading day ``day`` (session timezone), oldest first.
+
+    Its archive if there is one, else its parts, then ``audit.log`` if that
+    holds the day too (today, or a day pm-audit has not yet closed).
     """
-    files: list[tuple[int, Path]] = []
+    search_dir = log_dir if log_dir is not None else log_file.parent
+    parts_dir = search_dir / "audit"
+    archive = parts_dir / f"audit-{day}.log.zst"
+    if archive.exists():
+        files = [archive]
+    elif parts_dir.is_dir():
+        found = [
+            (int(m.group(2)), p)
+            for p in parts_dir.iterdir()
+            if (m := _PART_RE.match(p.name)) and m.group(1) == day
+        ]
+        files = [p for _, p in sorted(found)]
+    else:
+        files = []
+    if log_file.exists() and file_day(log_file, tz) == day:
+        files.append(log_file)
+    return files
+
+
+def discover_log_files(log_file: Path, log_dir: Path | None = None) -> list[Path]:
+    """Return the live trail in chronological order (oldest first).
+
+    That is every closed day part not yet archived, ordered by (date, part
+    number), then the active log.  Archives are not included: they are read
+    by explicit path (which is returned alone) or by ``discover_day_files``.
+    A day that has an archive but still has parts (a crash between the
+    archive's rename and the parts' deletion) is read from its archive only,
+    so no line appears twice.
+    """
+    if is_explicit_file(log_file):
+        return [log_file] if log_file.exists() else []
 
     search_dir = log_dir if log_dir is not None else log_file.parent
-    stem = log_file.name  # e.g. "audit.log"
+    parts_dir = search_dir / "audit"
 
-    if search_dir.is_dir():
-        for candidate in search_dir.iterdir():
-            name = candidate.name
-            # Match "audit.log.1" or "audit.log.2.gz"
-            if name.startswith(stem + ".") and name != stem:
-                suffix = name[len(stem) + 1 :]
-                suffix_clean = (
-                    suffix.rstrip(".gz") if suffix.endswith(".gz") else suffix
-                )
-                try:
-                    idx = int(suffix_clean)
-                    files.append((idx, candidate))
-                except ValueError:
-                    pass
+    parts: list[tuple[str, int, Path]] = []
+    archived: set[str] = set()
+    if parts_dir.is_dir():
+        for candidate in parts_dir.iterdir():
+            if m := _PART_RE.match(candidate.name):
+                parts.append((m.group(1), int(m.group(2)), candidate))
+            elif m := _ARCHIVE_RE.match(candidate.name):
+                archived.add(m.group(1))
 
-    # Sort descending by index (highest = oldest for RotatingFileHandler)
-    files.sort(key=lambda t: t[0], reverse=True)
-    ordered: list[Path] = [p for _, p in files]
+    parts.sort(key=lambda t: t[:2])
+    ordered: list[Path] = [p for day, _, p in parts if day not in archived]
 
     if log_file.exists():
         ordered.append(log_file)
@@ -226,10 +263,10 @@ def discover_log_files(log_file: Path, log_dir: Path | None = None) -> list[Path
 # ---------------------------------------------------------------------------
 
 
-def _open_file(path: Path) -> Iterator[str]:
-    """Yield raw text lines from a plain or gzip-compressed file."""
-    if path.suffix == ".gz":
-        with gzip.open(path, "rt", encoding="utf-8", errors="replace") as fh:
+def open_log_file(path: Path) -> Iterator[str]:
+    """Yield raw text lines from a plain or zstd-compressed (``.zst``) file."""
+    if path.suffix == ".zst":
+        with zstd.open(path, "rt", encoding="utf-8", errors="replace") as fh:
             yield from fh
     else:
         with path.open("r", encoding="utf-8", errors="replace") as fh:
@@ -379,7 +416,7 @@ def iter_entries(
         file_name = str(path)
         # Counted over raw lines, not parsed ones: the ordinal has to be what
         # `sed -n 118423p` would show, or it is no use for tracing back.
-        for line_no, raw in enumerate(_open_file(path), start=1):
+        for line_no, raw in enumerate(open_log_file(path), start=1):
             parsed = parse_line(raw)
             if parsed is None:
                 continue
@@ -842,7 +879,7 @@ def query_stats(
         file_events = 0
         file_bytes = path.stat().st_size
         total_bytes += file_bytes
-        if path.suffix == ".gz":
+        if path.suffix == ".zst":
             compressed_bytes += file_bytes
 
         for entry in iter_entries([path], limit=None):

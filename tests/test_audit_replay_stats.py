@@ -122,14 +122,8 @@ class TestTheSubcommand:
 
 
 class TestWindowAndWindowBounds:
-    def test_a_date_becomes_a_whole_day(self) -> None:
-        args = _parsed(["--date", "2026-09-08", "stats"])
-        start, end = window_bounds(args)
-        assert start is not None and end is not None
-        assert start.hour == 0
-        assert (start.year, start.month, start.day) == (2026, 9, 8)
-        assert (end.year, end.month, end.day) == (2026, 9, 8)
-        assert end.hour == 23
+    def test_a_date_sets_no_window_because_the_day_is_its_files(self) -> None:
+        assert window_bounds(_parsed(["--date", "2026-09-08", "stats"])) == (None, None)
 
     def test_last_is_relative_to_now(self) -> None:
         start, end = window_bounds(_parsed(["--last", "15m", "stats"]))

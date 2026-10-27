@@ -92,7 +92,7 @@ dedicated query tool.
 |------|------------|------|---------|---------------------|
 | `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md) |
 | `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [Positions and P&L](../../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
-| `audit.log` | `pm-audit` | Continuously (buffered flush); rotates at 10 MB × 5 backups | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) |
+| `audit.log`, `audit/` | `pm-audit` | Continuously (buffered flush); `audit.log` holds today and is closed as `audit/audit-DATE.N.log` at midnight or 10 MB; each past day is compressed to `audit/audit-DATE.log.zst` | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](020-audit-trail.md) |
 | `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
 | `indexes/<ID>_history.jsonl` | `pm-index` (triggered by [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) for `CORP_ACTION`/`ADD_CONSTITUENT`/`DELIST`, or the API gateway's rebalance endpoint for `REBALANCE`) | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** (read-only) — see [Market Index](../part-4-run-a-market/070-market-index.md) |
 | `indexes/<ID>_state.json` | `pm-index` | On startup, every trade update, EOD finalization, and every corporate action/constituent change (EOD does **not** also append to `_history.jsonl`) | Divisor, constituent list, per-symbol last prices, day OHLC and last level, so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup — rejects a mismatched constituent list (use `--reset`); see [Market Index — State file](../part-4-run-a-market/070-market-index.md#state-file) |
@@ -619,9 +619,12 @@ The topic is **not** a JSON field inside the payload; it appears as a separate
 bracket-delimited token on the same line, and the `[META]` section, when
 present, is a further bracketed token between the topic and the payload.
 
-**File rotation**: `RotatingFileHandler` — maximum 10 MB per file, 5 backup files
-(`audit.log.1` through `audit.log.5`). Oldest backup is deleted when a sixth
-would be created.
+**Day closing**: `audit.log` holds one trading day (session timezone). At the
+date change, or at `--max-file-mb` (10 MB), it is closed as
+`audit/audit-YYYY-MM-DD.N.log`; nothing is deleted. Each closed day is
+compressed to one `audit/audit-YYYY-MM-DD.log.zst` (zstd, ≈ 13:1), and
+`--keep-days N` deletes archives older than N days. See
+[Audit Trail](020-audit-trail.md#day-parts-and-archives).
 
 **Useful grep patterns**:
 
