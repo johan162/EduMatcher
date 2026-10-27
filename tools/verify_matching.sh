@@ -4,7 +4,8 @@
 # What it does
 # ------------
 #   1. Generates mm_orders.fix, test_orders.fix and paper_result.json
-#      (the "golden" expected result from the pure-Python paper trader).
+#      (the "golden" expected result from the paper trader, which runs the
+#      independent reference matcher in tests/reference_matcher.py).
 #   2. Starts a clean engine instance with verify_engine_config.yaml.
 #   3. Replays every order through the engine and collects engine_result.json.
 #   4. Compares the two results and exits 0 on full agreement, 1 on any diff.
@@ -31,9 +32,11 @@ usage() {
 Usage: verify_matching.sh [OPTIONS]
 
 End-to-end deterministic verification of the matching engine. Generates a
-seeded order flow, paper-trades it in pure Python, replays the same flow
-through a real pm-engine, and compares the two resulting order books. Any
-difference is an engine defect: the paper trader is the specification.
+seeded order flow, paper-trades it through the reference matcher (an
+independent model of the documented rules, tests/reference_matcher.py),
+replays the same flow through a real pm-engine, and compares the two
+resulting order books. Any difference means the engine and the documented
+rules disagree: an engine defect, or a rule the reference got wrong.
 
 Options:
   --seed N          Seed for the generated dataset (default: 42). The whole

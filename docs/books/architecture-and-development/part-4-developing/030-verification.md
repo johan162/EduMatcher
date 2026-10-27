@@ -47,8 +47,13 @@ There are two ways to verify a matching engine:
 EduMatcher uses a **hybrid**: orders are generated once as a FIX text file (the
 single source of truth), then played through two separate execution paths:
 
-1. **Paper trader** — calls `OrderBook.process()` directly in-process, no ZMQ,
-   no clocks, no GTC persistence.  This is the oracle.
+1. **Paper trader** — runs the reference matcher (`tests/reference_matcher.py`)
+   in-process: no ZMQ, no clocks, no GTC persistence.  This is the oracle.
+   The reference is a second, deliberately naive implementation written from
+   the documented rules (plain lists re-scanned on every match, no heaps, no
+   indexes), so the comparison is a true re-simulation.  Until 2026-10 the
+   paper trader was `OrderBook` itself, which made the comparison blind to
+   any matching bug: both sides ran the same code.
 2. **Live engine** — receives the same orders over ZMQ, runs the full production
    path, then exposes book state via a snapshot API.
 
@@ -199,24 +204,27 @@ everything else — not `Order.create()`'s own UUID (more on this under
 ### The paper trader
 
 After writing both FIX files, the generator processes **the same text** through
-`OrderBook` instances — one per symbol — without any networking. Simplified,
-dropping the bookkeeping that tracks which orders are still resting (needed
-so an `AMEND`/`CANCEL` line can find its target):
+one `ReferenceMatcher` per symbol, without any networking. Simplified:
 
 ```python
-books = {sym: OrderBook(sym) for sym in SYMBOLS}
+books = {sym: ReferenceMatcher() for sym in SYMBOLS}
 for line in mm_lines + test_lines:
     verb, kv = parse_line(line)
     if verb == "NEW":
-        books[symbol_of(kv)].process(parse_fix_line(line))
+        books[symbol_of(kv)].submit(reference_order(parse_fix_line(line)))
     elif verb == "CANCEL":
-        books[symbol].cancel_order(kv["ID"])
+        books[symbol].cancel(kv["ID"])
     elif verb == "AMEND":
-        books[symbol].amend_order(kv["ID"], new_price=..., new_qty=...)
+        books[symbol].amend(kv["ID"], price=..., qty=...)
 ```
 
-`OrderBook.process()`, `.cancel_order()`, and `.amend_order()` all return
-synchronously.  There are no sockets, no threads, no timers.  The result is
+The reference's `amend` also re-matches a marketable amend, as
+`Engine._handle_amend` does (cancel/replace), so nothing of the engine's
+amend logic is copied into the paper trader.  `reference_snapshot()` reduces
+each book to the same price-level shape as the engine's snapshot (an iceberg
+counts its shown slice).
+
+`submit()`, `cancel()` and `amend()` all return synchronously.  There are no sockets, no threads, no timers.  The result is
 deterministic for a given seed — generation and paper-trading happen in the
 *same* pass, because an amendment has to name an order that is resting at
 that exact point in the stream, and only the book being built knows which
@@ -611,9 +619,9 @@ An iceberg order has a `total_qty` and a `visible_qty`.  When the visible slice
 is fully consumed, the engine replenishes it from the hidden reserve.  The
 replenishment creates a *new* queue position for the refreshed slice.
 
-In the paper trader, this happens inline inside `book.process()`.  In the
-engine, it is triggered by the same `process()` call but may interact with
-subsequent orders differently if message timing varies.
+In the paper trader, the reference replenishes the peak inline when it is
+used up.  In the engine, `OrderBook.process()` does the same, but may interact
+with subsequent orders differently if message timing varies.
 
 The comparison aggregates total visible qty at each price level, not per-order
 qty.  As long as the total resting quantity at $419.03 is 450 in both cases, the

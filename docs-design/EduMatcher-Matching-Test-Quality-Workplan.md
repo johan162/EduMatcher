@@ -21,7 +21,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4 | T2 | Independent reference matcher (`tests/reference_matcher.py`) | F1, F2, Q3 | 3 d | ☑ | 2026-10-21 |
 | 4b | F3 | Fix bug C: FOK partially fills under SMP CANCEL_AGGRESSOR/BOTH (found in T2) | — | — | ☑ | 2026-10-21 |
 | 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☑ | 2026-10-27 |
-| 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☐ | |
+| 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☑ | 2026-10-27 |
 | 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☐ | |
 | 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☐ | |
 | 9 | T7 | In-process end-to-end trading test (ALF client → gateway → engine → fills/MD/clearing) | — | 2 d | ☐ | |
@@ -411,6 +411,22 @@ the reference matcher (`tools/verify_matching.sh` benefits too), or keep the
 paper trader and add a third comparison, reference vs engine. Correct the
 docstring either way.
 
+**As built (2026-10-27).** First option: the paper trader in
+`tools/gen_verification_set.py` is now one `ReferenceMatcher` per symbol
+(`apply_line`, `reference_snapshot`, `_reference_order`). Amend targets and
+the "through the opposite best" price come from the reference's book. The
+paper trader's copy of the engine's amend re-match (`_apply_amend`) is gone,
+because the reference's `amend` does that itself. `paper_result.json` keeps its name and
+shape. `Dataset.trades` holds the reference's trade tape per symbol, and
+the smoke test now also compares it with the engine's `trade.executed`
+messages, print by print (`test_every_trade_matches`, and in the heavy
+10,000-line test). Docstrings, `verify_matching.sh` help and the
+verification chapter are corrected.
+
+Mutants killed by `tests/test_engine_dataset_smoke.py` alone: **2/31
+before** (M05, M18), 10/31 with the reference oracle on the final books,
+**16/31** with the trade tape (I24).
+
 ### T5 — Specification scenario tests for both sides
 
 Readable, hand-written scenarios that act as executable documentation. Each is
@@ -525,3 +541,6 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I21 | T3 | I19 confirmed: the first run failed only on auction steps. Running the post-uncross stops as a FIFO queue made all 50 book-level seeds pass; the engine, still depth-first, failed 4 of 50 (seeds 7, 8, 9, 27). Rule G2 is documented and the continuous path already follows it, so the engine was wrong. | `OrderBook.trigger_stops` replaced by `OrderBook.run_stops(now)` (the whole cascade, also used by `process`); `Engine._run_uncross` calls it. Regression test `test_uncross_stop_cascade_queues_breadth_first` (`test_auction.py`); mutant M31 = the old loop (killed by it and the 4 seeds). M10 re-anchored (indentation). Participant guide G2 now says it holds after an uncross; architecture deep dive updated. |
 | I22 | T3 | `_OpDriver` was not reused (the plan said so): it is built around `Order` objects and the book's private index, uses a ±200-tick band in steps of 10 (few orders share a level, so time priority is rarely tested), and T6 extends it separately. | A new generator over `_Spec` values, built for either side, in a ±8-tick band so orders queue at one price. It reads the reference only to choose ids and prices. |
 | I23 | T3 | The engine-level variant compares what the engine publishes, not its `Order` objects (it builds its own from the payload), so per-order status is checked at book level only. Cancel reasons and order events are not compared at all, which is why M24 (silent MARKET cancel) survives T3, as do session expiry (M19, M20) and ownership (M21), which the reference does not model. | None in T3. They stay T5/T7 targets. M07, M16 and M17 are now killed by the suite (through T3), but T5 still wants plain specification tests for them. |
+| I24 | T4 | The final books are aggregated price levels, so they cannot show who traded with whom: with the reference oracle on books alone, priority (M04, M05, M14) and aggressor (M15) mutants still survived. The trade tape kills them. The remaining 15 survivors are features the dataset never generates (SMP: M12, M22, M30; auctions: M16, M17, M25, M26, M31; trailing stops: M08, M28; sessions and ownership: M19–M21), the event-only M24, and M27, which needs a qty-decrease amend on a partly used iceberg peak and is rare in 1000 lines. | Trade-tape comparison added in-process only. `paper_result.json` / `compare_results.py` (the live ZMQ run) still compare books. The dataset is not widened: T3 covers those features. |
+| I25 | T4 | The dataset for a given seed changed (amend targets are now drawn from the reference's resting orders, which include a triggered STOP_LIMIT resting as a LIMIT). The 10,000-line heavy run takes about 10 s, most of it in the reference's FOK dry run, which deep-copies the matcher. | None. Seed stability across versions was never promised. The FOK cost is acceptable for a heavy test, and making the oracle smarter would cost independence. |
+| I26 | T4 | `verify_matching.sh` was not run end to end (it needs a live engine on 5555/5556 and deploys its config into the data dir). The in-process smoke test runs the same generator and comparison. The verification chapter's "does not verify the order of trade events" box is still true for the shell tool but no longer for the in-process test. | T9's docs pass: describe the in-process smoke test, the reference matcher and the trade-tape comparison. |
