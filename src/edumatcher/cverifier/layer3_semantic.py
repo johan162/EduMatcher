@@ -86,6 +86,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_balf_gateway_semantic(raw, results)
     _check_gateway_port_collisions(raw, results)
     _check_api_gateway_semantic(raw, results)
+    _check_readonly_api_key(raw, results)
     _check_monitor_semantic(raw, results)
     return results
 
@@ -1094,6 +1095,45 @@ def _check_api_gateway_semantic(
                     path=path,
                 )
             )
+
+
+def _check_readonly_api_key(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Warn when no read-only API credential (gateway_id: null) is defined.
+
+    The dashboards' session schedule, terminal history and book-gui all read
+    through pm-api-gwy with such a key.
+    """
+
+    named = raw.get("api_gateways")
+    if isinstance(named, dict):
+        for section in named.values():
+            creds = section.get("credentials") if isinstance(section, dict) else None
+            if not isinstance(creds, list):
+                continue
+            for cred in creds:
+                if (
+                    isinstance(cred, dict)
+                    and str(cred.get("api_key", "")).strip()
+                    and cred.get("gateway_id") is None
+                ):
+                    return
+
+    results.append(
+        CheckResult(
+            code="M032",
+            severity=Severity.WARN,
+            message=(
+                "No read-only API credential (gateway_id: null) is defined "
+                "under api_gateways."
+            ),
+            suggestion=(
+                "Add a credential with an api_key and gateway_id: null to an "
+                "api_gateways instance; without it pm-dash has no session "
+                "schedule, terminal-gui no history and book-gui no data."
+            ),
+            path="api_gateways",
+        )
+    )
 
 
 def _iter_api_gateway_credential_ids(raw: dict[str, Any]) -> list[tuple[str, str]]:

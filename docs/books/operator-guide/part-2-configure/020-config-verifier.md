@@ -497,7 +497,7 @@ The rules that relate two `monitor` fields are semantic checks (`M029`,
 See [Health Monitoring](../part-6-observe-and-recover/060-health-monitor.md#configuration)
 for what these fields do.
 
-### Layer 3 — Semantic (`M001`–`M031`)
+### Layer 3 — Semantic (`M001`–`M032`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -535,6 +535,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M029` | ERROR    | A `monitor.thresholds` band is in the wrong order: `warn` must be strictly below `crit`, except `disk_free_pct`, where a lower value is worse and `warn` must be strictly above `crit` |
 | `M030` | ERROR    | `monitor.hung_after_sec` is not greater than `monitor.beacon_interval_sec` |
 | `M031` | WARN     | `monitor.bind_address` is neither a wildcard nor `monitor.host` (loopback on both sides counts as a match): every process sends its beacons to `host`, where pm-monitor may not be listening. A warning because `EDUMATCHER_GATEWAY_BIND_HOST` overrides the bind address at run time |
+| `M032` | WARN     | No read-only API credential (`gateway_id: null`) under `api_gateways`: pm-dash has no session schedule, terminal-gui no history and book-gui no data |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 

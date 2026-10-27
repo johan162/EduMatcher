@@ -1643,6 +1643,24 @@ class TestLayer3ApiGatewaySemantic:
         )
         codes = _codes(layer3_semantic.check(raw, Path("x.yaml")))
         assert "M022" not in codes
+        assert "M032" not in codes
+
+    def test_m032_warns_without_readonly_credential(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "participants:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: GW01\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert [r.severity for r in results if r.code == "M032"] == [Severity.WARN]
+
+    def test_m032_warns_without_api_gateways(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\n")
+        assert "M032" in _codes(layer3_semantic.check(raw, Path("x.yaml")))
 
 
 # ---------------------------------------------------------------------------

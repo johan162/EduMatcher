@@ -61,3 +61,9 @@ mm_obligation_defaults:
 enforce_collars: true
 enforce_circuit_breakers: true
 sessions_enabled: false
+
+api_gateways:
+  dashboards:
+    credentials:
+      - api_key: key-dashboard-demo
+        gateway_id: null
