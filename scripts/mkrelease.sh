@@ -335,7 +335,11 @@ print_step_colored ""
 
 # 2.2: Merge to main branch and create release commit
 run_command "git checkout main" "Switching to main branch..."
-run_command "git pull origin main" "Pulling latest main..."
+# Use the tracking ref, not FETCH_HEAD, which a concurrent fetch can overwrite.
+run_command "git fetch origin" "Fetching latest remote branches..."
+run_command "git merge --ff-only origin/main" "Fast-forwarding main to origin/main..."
+check_condition '[[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]]' \
+    "Local main does not match origin/main. Aborting before the squash merge; inspect and reconcile local-only commits before retrying."
 
 # Squash merge develop into main
 run_command "git merge --squash develop" "Squashing develop changes..."
@@ -376,8 +380,8 @@ fi
 
 # 2.4: Push main branch and tags
 MAIN_RELEASE_SHA="$(git rev-parse main)"
-run_command "git push origin main" "Pushing main branch..."
-run_command "git push origin \"v$VERSION\"" "Pushing release tag..."
+run_command "git push --atomic origin main \"v$VERSION\"" "Pushing main branch..."
+# run_command "git push origin \"v$VERSION\"" "Pushing release tag..."
 
 # =====================================
 # PHASE 3: POST-RELEASE CLEANUP
