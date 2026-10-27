@@ -1968,6 +1968,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `GET /api/v1/reference/symbols` | Tick sizes and per-symbol config |
 | `GET /api/v1/reference/risk` | Risk bands and CB levels |
 | `GET /api/v1/news?limit=50` | The latest `limit` (1–200) headlines from `pm-market-sim`, oldest first, as `{"news": [...], "sectors": {"TECH": ["AAPL", …], …}}`. `sectors` (from the deployed `market_sim.yaml`) says which symbols a `SECTOR` headline is about. Empty without `pm-market-sim`; new headlines arrive on the market-data socket |
+| `GET /api/v1/companies/{symbol}` | The symbol's company profile from `companies.db` (`pm-compdb-cli`), opened read-only from the data directory, where `pm-compdb-cli init` builds it. `404` for a symbol without one, `503` when the database is missing |
 | `GET /api/v1/reference/indexes` | Index definitions |
 | `GET /api/v1/reference/schedule` | Session schedule metadata |
 

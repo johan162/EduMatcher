@@ -19,6 +19,7 @@ from contextlib import closing
 from datetime import date
 from pathlib import Path
 from typing import Any, NamedTuple
+from urllib.parse import quote
 
 import yaml
 
@@ -284,10 +285,15 @@ def build(path: Path, records: list[dict[str, Any]], force: bool = False) -> Non
 
 
 # --- reading and writing -------------------------------------------------------
-def connect(path: Path) -> sqlite3.Connection:
+def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
     if not path.exists():
         raise CompanyError(f"no company database at {path} (run: pm-compdb-cli init)")
-    conn = sqlite3.connect(path)
+    if readonly:
+        # Percent-encoded: a '?' in the path would otherwise end the URI path.
+        uri = f"file:{quote(str(path.resolve()))}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+    else:
+        conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
 

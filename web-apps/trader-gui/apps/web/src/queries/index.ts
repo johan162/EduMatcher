@@ -48,6 +48,18 @@ export function useReferenceScheduleQuery() {
   });
 }
 
+// ── Company profile ───────────────────────────────────────────────────────────
+// A profile does not change during a session, and a 404 (no profile) or 503
+// (no database) will not go away by retrying.
+export function useCompanyQuery(symbol: string) {
+  return useQuery({
+    queryKey: ["companies", symbol],
+    queryFn: () => api.getCompany(symbol),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 // ── Session ───────────────────────────────────────────────────────────────────
 /**
  * L3: not called anywhere in the app (H4+H5+M1's session resync went a

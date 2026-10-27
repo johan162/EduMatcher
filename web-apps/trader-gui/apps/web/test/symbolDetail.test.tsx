@@ -36,11 +36,19 @@ vi.mock("lightweight-charts", () => {
 vi.mock("@/api/apiFetch", () => ({
   apiFetch: vi.fn(async () => ({})),
   ApiError: class ApiError extends Error {
-    status = 0;
+    constructor(
+      public readonly status = 0,
+      public readonly code = "",
+      message = "",
+    ) {
+      super(message);
+    }
   },
 }));
 
 import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel";
+import { apiFetch, ApiError } from "@/api/apiFetch";
+import type { CompanyProfile } from "@/types/index";
 import { useActiveSymbolStore } from "@/store/useActiveSymbolStore";
 import { useSymbolDetailStore } from "@/store/useSymbolDetailStore";
 import { useBookStore } from "@/store/useBookStore";
@@ -94,6 +102,7 @@ function renderPanel(): void {
 
 beforeEach(() => {
   cleanup();
+  vi.mocked(apiFetch).mockImplementation(async () => ({}));
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   useSymbolStore.setState({
     symbols: [
@@ -114,6 +123,46 @@ beforeEach(() => {
   chartSeries.update.mockClear();
 });
 
+function company(): CompanyProfile {
+  return {
+    symbol: "AAPL",
+    name: "Orchard Computing Inc.",
+    sector: "TECHNOLOGY",
+    industry: "Hardware",
+    headquarters: "Cupertino",
+    purpose: "Makes phones.",
+    key_market: "Consumers",
+    market_position: "Premium",
+    origin: "CO_FOUNDERS",
+    founders: "Two friends",
+    founder_story: null,
+    founded_year: 1976,
+    ipo_year: 1980,
+    ipo_valuation_musd: 1_800,
+    ceo_name: "Dana Whitlow",
+    ceo_since: 2011,
+    ceo_industry_years: 30,
+    employees: 160_000,
+    fiscal_year: 2025,
+    revenue_musd: 390_000,
+    net_income_musd: 95_000,
+    revenue_growth_pct: 4,
+    operating_margin_pct: 30,
+    free_cash_flow_musd: 100_000,
+    market_cap_musd: 3_500_000,
+    dividend_yield_pct: 0.5,
+    debt_to_equity: 1.5,
+    credit_rating: "AA+",
+    competitors: "MSFT, GOOGL",
+    key_risk: "China",
+    years_in_business: 50,
+    ceo_tenure_years: 15,
+    pe_ratio: 36.8,
+    ps_ratio: 9.0,
+    net_margin_pct: 24.4,
+  };
+}
+
 function trade(id: string, tsNs: number, price: number) {
   return {
     type: "trade",
@@ -131,11 +180,11 @@ describe("SymbolDetailPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("renders the header and all five tabs when open", () => {
+  it("renders the header and all six tabs when open", () => {
     renderPanel();
     const panel = screen.getByRole("dialog", { name: /AAPL detail/i });
     expect(panel).toBeTruthy();
-    for (const label of ["Chart", "Depth", "Trades", "Stats", "Auction"]) {
+    for (const label of ["Chart", "Depth", "Trades", "Stats", "Auction", "Company"]) {
       expect(screen.getByRole("tab", { name: new RegExp(label) })).toBeTruthy();
     }
     // Live last price from the seeded book.
@@ -180,6 +229,39 @@ describe("SymbolDetailPanel", () => {
     renderPanel();
     const auctionTab = screen.getByRole("tab", { name: /Auction/ });
     expect(auctionTab.querySelector('[aria-label="auction in progress"]')).not.toBeNull();
+  });
+
+  it("opens the Company tab on the company name, highlighted, before the figures", async () => {
+    vi.mocked(apiFetch).mockImplementation(async (path: string) =>
+      path === "/api/v1/companies/AAPL" ? company() : {},
+    );
+    renderPanel();
+    fireEvent.click(screen.getByRole("tab", { name: /Company/ }));
+
+    const name = await screen.findByRole("heading", { name: "Orchard Computing Inc." });
+    expect(name.className).toContain("text-accent");
+    const text = screen.getByRole("dialog").textContent ?? "";
+    expect(text.indexOf("Orchard Computing Inc.")).toBeLessThan(text.indexOf("Market cap"));
+    expect(text.indexOf("Market cap")).toBeLessThan(text.indexOf("Founded"));
+    expect(screen.getByText("3,500,000 M$")).toBeTruthy();
+    expect(screen.getByText("+4.00%")).toBeTruthy();
+    expect(screen.getByText("Technology · Hardware · Cupertino")).toBeTruthy();
+    // No founder story in this profile: its line is left out, not shown empty.
+    expect(screen.queryByText(/undefined|null/)).toBeNull();
+  });
+
+  it.each([
+    [404, "No company profile for AAPL."],
+    [503, "The company database is not available on this venue (pm-compdb-cli init builds it)."],
+  ])("explains a %i on the Company tab", async (status, message) => {
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path !== "/api/v1/companies/AAPL") return {};
+      throw new ApiError(status, "CODE", "failed");
+    });
+    renderPanel();
+    fireEvent.click(screen.getByRole("tab", { name: /Company/ }));
+
+    expect(await screen.findByText(message)).toBeTruthy();
   });
 
   it("closes when the close button is clicked", () => {

@@ -14,8 +14,9 @@ import { DepthLadder } from "./DepthLadder.js";
 import { TradesTape } from "./TradesTape.js";
 import { StatsPanel } from "./StatsPanel.js";
 import { AuctionPanel } from "./AuctionPanel.js";
+import { CompanyPanel } from "./CompanyPanel.js";
 
-type TabId = "chart" | "depth" | "trades" | "stats" | "auction";
+type TabId = "chart" | "depth" | "trades" | "stats" | "auction" | "company";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "chart", label: "Chart" },
@@ -23,6 +24,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "trades", label: "Trades" },
   { id: "stats", label: "Stats" },
   { id: "auction", label: "Auction" },
+  { id: "company", label: "Company" },
 ];
 
 /**
@@ -124,6 +126,7 @@ export function SymbolDetailPanel() {
         {tab === "trades" && <TradesTape symbol={symbol} tickDecimals={tickDecimals} />}
         {tab === "stats" && <StatsPanel symbol={symbol} tickDecimals={tickDecimals} />}
         {tab === "auction" && <AuctionPanel symbol={symbol} tickDecimals={tickDecimals} />}
+        {tab === "company" && <CompanyPanel symbol={symbol} />}
       </div>
     </aside>
   );

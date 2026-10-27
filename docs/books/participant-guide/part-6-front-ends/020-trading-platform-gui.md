@@ -418,7 +418,7 @@ at a time; `Escape` closes whichever is open.
 
 | Overlay | Opened by | Purpose |
 |---|---|---|
-| **Symbol Detail** | Clicking a Market Overview / Watchlist row, or a command-palette symbol | Chart, depth, tape, stats and auction for one symbol |
+| **Symbol Detail** | Clicking a Market Overview / Watchlist row, or a command-palette symbol | Chart, depth, tape, stats, auction and company profile for one symbol |
 | **Event Center** | Bell icon, `Ctrl+.` | Session history of acks, fills, rejects, cancels, CB and session events |
 | **Order Detail drawer** | Double-click a blotter row, an Event Center entry, or a Trade History order id | One order's full chronological lifecycle |
 | **Help drawer** | `?` button, `Ctrl+/` | Topic-based in-app help |
@@ -546,7 +546,7 @@ The screen shows the latest 50 matching headlines; the gateway keeps 200.
 ### Symbol Detail overlay
 
 A 640 px right-edge panel with a live header (symbol, last, change %, volume)
-and five tabs. The Auction tab shows an amber dot while a call phase is
+and six tabs. The Auction tab shows an amber dot while a call phase is
 running.
 
 | Tab | Contents |
@@ -556,6 +556,7 @@ running.
 | **Trades** | The last 50 prints, seeded from `/history/trades` and topped with the live tape, de-duplicated by trade id. Price is green when a buyer was the aggressor, red when a seller, grey `A` for an auction print. |
 | **Stats** | Today's OHLCV grid: Open, High, Low, Close/Last, Volume, Trade Count, VWAP, Largest Trade, Last Buy, Last Sell. |
 | **Auction** | The engine's indicative uncross (or the most recent completed result): equilibrium price, matched quantity, imbalance side and quantity — plus a **cumulative supply/demand curve** derived from the resting book, with the equilibrium price marked. |
+| **Company** | The company behind the symbol, from the venue's company database: its name (highlighted), sector, industry, headquarters and purpose, then **Valuation** (market cap, P/E, P/S, dividend yield, debt/equity, credit rating), **Financials** for the last fiscal year (revenue and its growth, net income, net and operating margin, free cash flow, in millions of USD), **Position** (key market, market position, competitors, key risk), **Management** (CEO and tenure, years in the industry, employees) and **History** (founded, IPO, origin, founder story). Without a company database the tab says so. |
 
 #### The depth ladder
 
@@ -1446,6 +1447,8 @@ language rather than failing:
 | Trade History | *"Could not load fills — is the stats DB available?"* | No stats database |
 | Stats tab | *"No daily statistics for `{symbol}` yet"* | No trade has printed this session |
 | Auction tab | *"The engine has not published an indicative uncross for this symbol yet."* | Call phase just started |
+| Company tab | *"The company database is not available on this venue (pm-compdb-cli init builds it)."* | No `companies.db` where `pm-api-gwy` looks for it |
+| Company tab | *"No company profile for `{symbol}`."* | The company database has no row for this symbol |
 | Auction badge / panel | `no cross` | A real reading: the book would not cross at any price |
 | Quote Bootstrap | The degraded-leg note | The gateway served `/quotes/legs` from its warm cache |
 | Index Administration | *"Index history unavailable — the stats database is not running."* | No stats database |

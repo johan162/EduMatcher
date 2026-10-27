@@ -20,6 +20,7 @@ from edumatcher.compdb.store import (
     build,
     check,
     connect,
+    delete,
     get,
     load_seed,
     parse_filter,
@@ -201,6 +202,13 @@ def test_view_derives_ratios(db: Path) -> None:
     assert xa is not None and xb is not None
     assert (xa["pe_ratio"], xa["ps_ratio"], xa["net_margin_pct"]) == (20.0, 5.0, 25.0)
     assert xb["pe_ratio"] is None and xb["net_margin_pct"] == -25.0
+
+
+def test_readonly_connection_reads_but_cannot_write(db: Path) -> None:
+    with closing(connect(db, readonly=True)) as conn:
+        assert get(conn, "AAPL") is not None
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            delete(conn, "AAPL")
 
 
 def test_build_refuses_to_overwrite_without_force(db: Path) -> None:

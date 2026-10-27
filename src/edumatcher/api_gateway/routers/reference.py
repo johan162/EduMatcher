@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import closing
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.compdb import store as compdb
 from edumatcher.clearing.query import (
     PeriodRealizedPnl,
     open_readonly_connection,
@@ -208,6 +210,40 @@ async def news(
     public. Empty when pm-market-sim is not running."""
     snapshot: dict[str, Any] = request.app.state.sim.news_snapshot(limit)
     return snapshot
+
+
+@router.get("/companies/{symbol}")
+async def company(
+    symbol: str, request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    """One company profile from ``<DATA_DIR>/companies.db`` (pm-compdb-cli's
+    default), stored and derived columns alike, opened read-only. Any key,
+    read-only ones included: the profiles are public. 503 when the database
+    is missing or unreadable, 404 when it has no row for *symbol*."""
+    try:
+        with closing(compdb.connect(compdb.COMPANIES_DB, readonly=True)) as conn:
+            row = compdb.get(conn, symbol)
+    except (compdb.CompanyError, sqlite3.Error) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "COMPANY_DB_UNAVAILABLE",
+                    "message": f"Cannot read the company database: {exc}",
+                }
+            },
+        ) from exc
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "UNKNOWN_COMPANY",
+                    "message": f"No company profile for {symbol.upper()}",
+                }
+            },
+        )
+    return row
 
 
 @router.get("/session")
