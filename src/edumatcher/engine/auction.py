@@ -323,7 +323,7 @@ def execute_uncross(
     # each print; setting it again makes the intent explicit: the auction
     # price becomes the new reference for stops, collars and circuit
     # breakers.  Triggered stops are NOT released here -- the engine calls
-    # book.trigger_stops() afterwards (see Engine._run_uncross).
+    # book.run_stops() afterwards (see Engine._run_uncross).
     if trades:
         book.last_trade_price = eq_price
         book.last_trade_qty = trades[-1].quantity

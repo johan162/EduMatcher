@@ -1,0 +1,512 @@
+# MATERIALS. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+ALB:
+  name: Albrecht Lithium & Bromine
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Charlotte, USA
+  purpose: Mines and refines lithium for electric-car batteries, and makes bromine flame retardants and refinery catalysts.
+  key_market: Battery makers in China, Korea and Japan
+  market_position: Owns stakes in the two richest hard-rock and brine lithium deposits outside China, in Western Australia and Chile's Atacama desert.
+  origin: SPIN_OFF
+  founders: Spun off from a Virginia paper company
+  founder_story: Born in 1994 as the chemicals arm of a Virginia paper maker; it bought a lithium business in 2015, just before electric cars made lithium the most sought-after metal of the decade.
+  founded_year: 1994
+  ipo_year: 1994
+  ipo_valuation_musd: 1100
+  ceo_name: Werner Albrecht-Diaz
+  ceo_since: 2020
+  ceo_industry_years: 29
+  employees: 8300
+  fiscal_year: 2025
+  revenue_musd: 5200
+  net_income_musd: -1150
+  revenue_growth_pct: -40.5
+  operating_margin_pct: -15.0
+  free_cash_flow_musd: -900
+  market_cap_musd: 10300
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.39
+  credit_rating: BBB-
+  competitors: FCX
+  key_risk: Lithium prices fell 80 per cent from their peak; its earnings swing with a price it does not control.
+APD:
+  name: Apex Process Dynamics
+  sector: MATERIALS
+  industry: Industrial Gases
+  headquarters: Allentown, USA
+  purpose: Supplies oxygen, nitrogen, hydrogen and helium by pipeline and truck to refineries, chip fabs, steel mills and hospitals.
+  key_market: Refineries, chemical plants and electronics makers in the US, China and the Middle East
+  market_position: Builds gas plants on its customers' sites under 15- to 20-year take-or-pay contracts; it is building the world's largest green-hydrogen plant.
+  origin: FOUNDER
+  founders: Gustav Pockrass
+  founder_story: Gustav Pockrass, a travelling salesman of oxygen cylinders, designed a small machine in 1940 that made oxygen on the customer's own site, so welders no longer had to wait for deliveries.
+  founded_year: 1940
+  ipo_year: 1946
+  ipo_valuation_musd: 25
+  ceo_name: Evangeline Saarinen
+  ceo_since: 2025
+  ceo_industry_years: 28
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 12000
+  net_income_musd: 2500
+  revenue_growth_pct: -1.5
+  operating_margin_pct: 22.4
+  free_cash_flow_musd: -2700
+  market_cap_musd: 62000
+  dividend_yield_pct: 2.6
+  debt_to_equity: 0.88
+  credit_rating: A
+  competitors: LIN
+  key_risk: Its multibillion-dollar hydrogen projects have no signed buyers for much of their output.
+CF:
+  name: Cornfield Fertilizers Inc.
+  sector: MATERIALS
+  industry: Fertilizers & Agricultural Chemicals
+  headquarters: Deerfield, USA
+  purpose: Makes ammonia and nitrogen fertilizers from natural gas at plants in the US, Canada and the UK.
+  key_market: Corn and wheat farmers in the US Midwest, and ammonia buyers worldwide
+  market_position: Its plants run on cheap North American shale gas, which costs a fraction of what European and Asian fertilizer makers pay.
+  origin: COOPERATIVE
+  founders: A cooperative of Midwestern farm supply co-ops
+  founder_story: Founded in 1946 by a federation of Midwestern farm co-ops that wanted their own fertilizer supply after wartime shortages; it was owned by its farmer customers until it listed in 2005.
+  founded_year: 1946
+  ipo_year: 2005
+  ipo_valuation_musd: 900
+  ceo_name: Robert Kasprzak
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 2700
+  fiscal_year: 2025
+  revenue_musd: 6200
+  net_income_musd: 1300
+  revenue_growth_pct: 4.3
+  operating_margin_pct: 27.0
+  free_cash_flow_musd: 1900
+  market_cap_musd: 15600
+  dividend_yield_pct: 2.2
+  debt_to_equity: 0.42
+  credit_rating: BBB+
+  competitors: MOS CTVA
+  key_risk: A sharp rise in US natural-gas prices would erase its cost advantage.
+CTVA:
+  name: Cultiva Agriscience
+  sector: MATERIALS
+  industry: Fertilizers & Agricultural Chemicals
+  headquarters: Indianapolis, USA
+  purpose: Breeds and sells seed corn and soybeans and makes the herbicides, insecticides and fungicides that protect them.
+  key_market: Large-scale corn and soybean farms in the US, Brazil and Argentina
+  market_position: Owns the deepest library of plant genetics in the world, the result of 100 years of corn breeding, and patents on the leading weed-resistance traits.
+  origin: SPIN_OFF
+  founders: Spun off from Durand Dynamics (DD)
+  founder_story: Separated in 2019 from a chemical conglomerate that had itself just been formed by merger; the agriculture business was split off so farmers' seed and spray would no longer share a balance sheet with plastics.
+  founded_year: 2019
+  ipo_year: 2019
+  ipo_valuation_musd: 20500
+  ceo_name: Anneliese Brandt
+  ceo_since: 2022
+  ceo_industry_years: 27
+  employees: 22500
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 1300
+  revenue_growth_pct: 3.1
+  operating_margin_pct: 11.5
+  free_cash_flow_musd: 1400
+  market_cap_musd: 42000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.14
+  credit_rating: A-
+  competitors: CF MOS
+  key_risk: Generic chemicals from China are taking share in crop protection as its patents run out.
+DD:
+  name: Durand Dynamics Company
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Wilmington, USA
+  purpose: Makes advanced materials for electronics, water filtration, protective clothing and healthcare.
+  key_market: Chip makers, water utilities and industrial safety buyers worldwide
+  market_position: Its brand names for aramid fibre and engineered membranes are what customers ask for by name, and its chip-polishing materials are qualified in every leading fab.
+  origin: FAMILY
+  founders: The Durand family
+  founder_story: Founded in 1802 by a French émigré family making gunpowder on the Brandywine River; two centuries of chemistry later the gunpowder mill is a museum and the family is long gone from the board.
+  founded_year: 1802
+  ipo_year: 1915
+  ipo_valuation_musd: 160
+  ceo_name: Gregory Thibodeaux
+  ceo_since: 2024
+  ceo_industry_years: 30
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 12500
+  net_income_musd: 900
+  revenue_growth_pct: 2.2
+  operating_margin_pct: 15.1
+  free_cash_flow_musd: 1500
+  market_cap_musd: 32500
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.31
+  credit_rating: BBB+
+  competitors: DOW LYB
+  key_risk: Lawsuits over "forever chemicals" made decades ago could cost billions.
+DOW:
+  name: Dunlin Polymers Inc.
+  sector: MATERIALS
+  industry: Commodity Chemicals
+  headquarters: Midland, USA
+  purpose: Makes polyethylene, silicones and industrial chemicals that end up in packaging, construction, cars and consumer goods.
+  key_market: Packaging, infrastructure and consumer-goods makers worldwide
+  market_position: One of the lowest-cost plastics makers in the world, running its crackers on cheap US Gulf Coast ethane.
+  origin: FOUNDER
+  founders: Herbert Dunlin
+  founder_story: Herbert Dunlin, a chemist, began extracting bromine from the salt brine under Midland, Michigan in 1897 when every other chemist said it could not be done at a profit.
+  founded_year: 1897
+  ipo_year: 1937
+  ipo_valuation_musd: 110
+  ceo_name: Patricia Oyelaran
+  ceo_since: 2023
+  ceo_industry_years: 31
+  employees: 35000
+  fiscal_year: 2025
+  revenue_musd: 41000
+  net_income_musd: -600
+  revenue_growth_pct: -6.9
+  operating_margin_pct: 0.8
+  free_cash_flow_musd: -1300
+  market_cap_musd: 18500
+  dividend_yield_pct: 5.4
+  debt_to_equity: 0.88
+  credit_rating: BBB
+  competitors: LYB DD
+  key_risk: A glut of new plastics capacity in China has pushed margins to cyclical lows, and it has cut its dividend.
+ECL:
+  name: Ecoline Hygiene Group
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Saint Paul, USA
+  purpose: Supplies cleaning, sanitising and water-treatment chemicals and service to restaurants, hotels, hospitals and factories.
+  key_market: Restaurants, hotels, food plants and data centres worldwide
+  market_position: 25,000 trained field technicians visit customers' kitchens and plants; the service, not the chemical, is what customers pay for and why they stay.
+  origin: FOUNDER
+  founders: Marjorie Ostrander
+  founder_story: Marjorie Ostrander, a door-to-door salesperson, created a carpet cleaner in 1923 that hotels could use without closing the room; hotel managers became her first loyal customers.
+  founded_year: 1923
+  ipo_year: 1957
+  ipo_valuation_musd: 40
+  ceo_name: Christopher Ndiaye
+  ceo_since: 2021
+  ceo_industry_years: 25
+  employees: 48000
+  fiscal_year: 2025
+  revenue_musd: 16000
+  net_income_musd: 2100
+  revenue_growth_pct: 3.6
+  operating_margin_pct: 17.8
+  free_cash_flow_musd: 2000
+  market_cap_musd: 71500
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.85
+  credit_rating: A-
+  competitors: CTAS
+  key_risk: Its premium valuation leaves no room for a slowdown in restaurant and hotel traffic.
+FCX:
+  name: Fairmount Copper & Gold
+  sector: MATERIALS
+  industry: Metals & Mining
+  headquarters: Phoenix, USA
+  purpose: Mines copper, gold and molybdenum in Arizona, Peru and one of the world's largest copper-gold mines, in Indonesia.
+  key_market: Copper refiners and fabricators in Asia, the US and Europe
+  market_position: One of the largest listed copper producers, with reserves that last decades as electrification drives copper demand.
+  origin: MERGER
+  founders: Fairmount Sulphur Co., Arizona Copper Basin Mines
+  founder_story: A Gulf Coast sulphur miner merged with an Arizona copper miner in 2007 to buy the Indonesian mine its geologists had found in the clouds of New Guinea in the 1980s.
+  founded_year: 2007
+  ipo_year: 2007
+  ipo_valuation_musd: 26000
+  ceo_name: Diego Arredondo
+  ceo_since: 2024
+  ceo_industry_years: 27
+  employees: 27000
+  fiscal_year: 2025
+  revenue_musd: 25500
+  net_income_musd: 2000
+  revenue_growth_pct: -0.5
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 60000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 0.48
+  credit_rating: BBB
+  competitors: NEM ALB
+  key_risk: Indonesia's government owns half the main mine and can change its export rules at will.
+IFF:
+  name: Iridia Flavors & Fragrances
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: New York, USA
+  purpose: Creates the flavours in snacks and drinks, the scents in detergents and perfumes, and food ingredients such as probiotics and enzymes.
+  key_market: Global food, beverage, household and personal-care brands
+  market_position: One of four companies that make most of the world's flavours and fragrances; a brand that changes its supplier risks changing the taste customers know.
+  origin: MERGER
+  founders: A Dutch perfumer and a New York flavour house
+  founder_story: A Dutch perfumer and a New York flavour house merged in 1958 when big food and soap brands began wanting one supplier for both the taste and the smell of their products.
+  founded_year: 1958
+  ipo_year: 1964
+  ipo_valuation_musd: 90
+  ceo_name: Sophie Vanderhoeven
+  ceo_since: 2024
+  ceo_industry_years: 23
+  employees: 22000
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 450
+  revenue_growth_pct: -2.5
+  operating_margin_pct: 10.5
+  free_cash_flow_musd: 700
+  market_cap_musd: 19500
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.65
+  credit_rating: BBB-
+  competitors: ""
+  key_risk: Its debt from an expensive merger limits investment while it sells off businesses to pay it down.
+IP:
+  name: Ironbridge Paper Co.
+  sector: MATERIALS
+  industry: Paper & Forest Products
+  headquarters: Memphis, USA
+  purpose: Makes corrugated boxes and the containerboard and pulp that go into them, for e-commerce and food packaging.
+  key_market: Packaging for consumer goods, food and e-commerce in North America and Europe
+  market_position: The largest box maker in North America, with a mill and box-plant network that can deliver anywhere in the country in a day.
+  origin: MERGER
+  founders: Seventeen New England pulp and paper mills
+  founder_story: Seventeen pulp and paper mills in New England and New York merged in 1898 to stop undercutting each other on newsprint; the newsprint is long gone, the boxes remain.
+  founded_year: 1898
+  ipo_year: 1941
+  ipo_valuation_musd: 75
+  ceo_name: Torsten Lindgren
+  ceo_since: 2024
+  ceo_industry_years: 28
+  employees: 65000
+  fiscal_year: 2025
+  revenue_musd: 24500
+  net_income_musd: 400
+  revenue_growth_pct: 32.0
+  operating_margin_pct: 4.6
+  free_cash_flow_musd: 300
+  market_cap_musd: 20500
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.82
+  credit_rating: BBB
+  competitors: ""
+  key_risk: The large European acquisition it just made has to deliver promised savings while box demand is flat.
+LIN:
+  name: Lindqvist Gases plc
+  sector: MATERIALS
+  industry: Industrial Gases
+  headquarters: Woking, UK
+  purpose: The world's largest supplier of industrial gases and the engineering firm that designs gas and hydrogen plants.
+  key_market: Healthcare, chemicals, electronics and manufacturing in more than 100 countries
+  market_position: The largest industrial-gas company in the world, with dense local delivery networks that make it the cheapest supplier in most cities.
+  origin: MERGER
+  founders: A Munich refrigeration firm and a Connecticut gas maker
+  founder_story: Formed in 2018 when the world's two largest gas makers merged; one began in 1879 with a professor's refrigeration machine for breweries, the other in 1907 by liquefying air for welding.
+  founded_year: 2018
+  ipo_year: 2018
+  ipo_valuation_musd: 89000
+  ceo_name: Henrik Bjørnstad
+  ceo_since: 2022
+  ceo_industry_years: 32
+  employees: 66000
+  fiscal_year: 2025
+  revenue_musd: 33500
+  net_income_musd: 6800
+  revenue_growth_pct: 1.4
+  operating_margin_pct: 27.6
+  free_cash_flow_musd: 5300
+  market_cap_musd: 215000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.55
+  credit_rating: A
+  competitors: APD
+  key_risk: Weak European industrial production drags on volumes in its second-largest region.
+LYB:
+  name: Lyonsbridge Petrochemicals
+  sector: MATERIALS
+  industry: Commodity Chemicals
+  headquarters: Houston, USA
+  purpose: Makes polyethylene, polypropylene and oxyfuels and licenses the process technology used in many of the world's plastics plants.
+  key_market: Packaging and car-parts makers in the US and Europe
+  market_position: Its polypropylene process is licensed to more plants worldwide than any other, earning royalties even from its competitors.
+  origin: MERGER
+  founders: A Houston refiner and a Rotterdam polymer maker
+  founder_story: A Houston refining company and a Rotterdam plastics maker merged in 2007; the deal was financed with debt and the company went bankrupt in the 2009 crisis before coming back stronger.
+  founded_year: 2007
+  ipo_year: 2010
+  ipo_valuation_musd: 9800
+  ceo_name: Matthias Kronberger
+  ceo_since: 2022
+  ceo_industry_years: 29
+  employees: 20000
+  fiscal_year: 2025
+  revenue_musd: 37500
+  net_income_musd: 600
+  revenue_growth_pct: -7.6
+  operating_margin_pct: 2.5
+  free_cash_flow_musd: 400
+  market_cap_musd: 17000
+  dividend_yield_pct: 8.6
+  debt_to_equity: 0.96
+  credit_rating: BBB
+  competitors: DOW DD
+  key_risk: Its high dividend is not covered by cash flow in the current downturn and may have to be cut.
+MLM:
+  name: Millbrook Aggregates Inc.
+  sector: MATERIALS
+  industry: Construction Materials
+  headquarters: Raleigh, USA
+  purpose: Quarries crushed stone, sand and gravel and makes cement for roads, buildings and data centres in the US South and West.
+  key_market: Highway, residential and data-centre construction in Texas, the Carolinas, Georgia and Colorado
+  market_position: Stone is too heavy to ship far, so each of its 300 quarries is a local near-monopoly, and new quarry permits are almost impossible to win.
+  origin: SPIN_OFF
+  founders: Spun off from an aerospace and materials conglomerate
+  founder_story: Separated in 1994 from an aerospace group that had owned quarries since the 1930s; investors bought it as the simplest possible bet on America building more roads.
+  founded_year: 1994
+  ipo_year: 1994
+  ipo_valuation_musd: 900
+  ceo_name: Leland Hutchins
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 9300
+  fiscal_year: 2025
+  revenue_musd: 6900
+  net_income_musd: 1200
+  revenue_growth_pct: 6.2
+  operating_margin_pct: 27.2
+  free_cash_flow_musd: 1100
+  market_cap_musd: 36500
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.55
+  credit_rating: BBB+
+  competitors: ""
+  key_risk: Federal highway funding runs out in 2026; a stalled renewal would cut road volumes.
+MOS:
+  name: Mosswood Crop Nutrients
+  sector: MATERIALS
+  industry: Fertilizers & Agricultural Chemicals
+  headquarters: Tampa, USA
+  purpose: Mines phosphate in Florida and potash in Saskatchewan and turns them into crop fertilizers.
+  key_market: Farmers in the US, Brazil and India
+  market_position: The largest producer of finished phosphate in the US and one of a handful of potash miners in the world, with Brazil's largest fertilizer distribution business.
+  origin: MERGER
+  founders: A Florida phosphate miner and a Minnesota grain cooperative's fertilizer arm
+  founder_story: Formed in 2004 when a Florida phosphate miner merged with a grain trader's fertilizer business so that the mines and the farmers would be in one company.
+  founded_year: 2004
+  ipo_year: 2004
+  ipo_valuation_musd: 6300
+  ceo_name: Celia Montgomery-Lee
+  ceo_since: 2023
+  ceo_industry_years: 22
+  employees: 13800
+  fiscal_year: 2025
+  revenue_musd: 11500
+  net_income_musd: 700
+  revenue_growth_pct: 2.3
+  operating_margin_pct: 9.5
+  free_cash_flow_musd: 300
+  market_cap_musd: 10500
+  dividend_yield_pct: 2.6
+  debt_to_equity: 0.38
+  credit_rating: BBB
+  competitors: CF CTVA
+  key_risk: A sinkhole or spill at its Florida phosphate stacks can halt production and bring large clean-up costs.
+NEM:
+  name: Northmarch Gold Corporation
+  sector: MATERIALS
+  industry: Metals & Mining
+  headquarters: Denver, USA
+  purpose: The world's largest gold miner, with mines in Nevada, Ghana, Australia, Canada, Peru and Papua New Guinea.
+  key_market: Gold refiners and bullion banks worldwide
+  market_position: Produces about 6 million ounces a year, more than any rival, from mines in mostly stable countries.
+  origin: FOUNDER
+  founders: Colonel Sterling Northmarch
+  founder_story: Colonel Sterling Northmarch, a New York financier, set up a holding company in 1921 to invest in mines and oil; it struck gold in Nevada in the 1960s and has been a gold miner ever since.
+  founded_year: 1921
+  ipo_year: 1925
+  ipo_valuation_musd: 30
+  ceo_name: Bronwyn Kealoha
+  ceo_since: 2025
+  ceo_industry_years: 24
+  employees: 22000
+  fiscal_year: 2025
+  revenue_musd: 21500
+  net_income_musd: 5400
+  revenue_growth_pct: 15.6
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 5800
+  market_cap_musd: 82000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.25
+  credit_rating: BBB+
+  competitors: FCX
+  key_risk: Its earnings move almost one-for-one with the gold price; costs keep rising whatever gold does.
+NUE:
+  name: Nucastle Steel Corp.
+  sector: MATERIALS
+  industry: Steel
+  headquarters: Charlotte, USA
+  purpose: Makes steel from scrap in electric-arc furnaces and turns it into rebar, beams, sheet, joists and decking.
+  key_market: US construction, car and appliance makers and energy projects
+  market_position: The largest steelmaker in the US and the lowest-carbon of the big producers, because its mini-mills melt scrap instead of iron ore.
+  origin: FOUNDER
+  founders: Walter Nuemann
+  founder_story: Walter Nuemann ran a failing car-parts maker that bought too much steel; in 1969 he built his own small mill to melt scrap cars, and found it made steel cheaper than the giants.
+  founded_year: 1969
+  ipo_year: 1972
+  ipo_valuation_musd: 60
+  ceo_name: Raymond Delgado
+  ceo_since: 2023
+  ceo_industry_years: 26
+  employees: 32000
+  fiscal_year: 2025
+  revenue_musd: 30500
+  net_income_musd: 1900
+  revenue_growth_pct: -1.3
+  operating_margin_pct: 9.8
+  free_cash_flow_musd: 400
+  market_cap_musd: 34000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.31
+  credit_rating: A-
+  competitors: ""
+  key_risk: If US tariffs on imported steel are lifted, prices fall to world levels.
+SHW:
+  name: Sherbourne Paints Co.
+  sector: MATERIALS
+  industry: Specialty Chemicals
+  headquarters: Cleveland, USA
+  purpose: Makes paint and coatings and sells them through 5,000 of its own stores to professional painters and homeowners.
+  key_market: Professional painting contractors and homeowners in the US and Canada
+  market_position: Owns the paint stores as well as the factories, so it keeps the retailer's margin and the professional painter's loyalty.
+  origin: CO_FOUNDERS
+  founders: Henry Sherbourne, Edward Pell
+  founder_story: Two Cleveland men set up a paint shop in 1866 and became the first to sell ready-mixed paint in cans, when everyone else mixed their own from powder and oil.
+  founded_year: 1866
+  ipo_year: 1964
+  ipo_valuation_musd: 70
+  ceo_name: Angela Marchetti
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 64000
+  fiscal_year: 2025
+  revenue_musd: 23300
+  net_income_musd: 2700
+  revenue_growth_pct: 0.4
+  operating_margin_pct: 16.8
+  free_cash_flow_musd: 2600
+  market_cap_musd: 85000
+  dividend_yield_pct: 0.9
+  debt_to_equity: 2.8
+  credit_rating: BBB+
+  competitors: ""
+  key_risk: Housing turnover is at a 30-year low and people paint when they move.

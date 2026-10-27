@@ -7,6 +7,7 @@
 #   ./edumatcher.sh mounts
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
 #   ./edumatcher.sh speed <N> [start-time]      (AI-sim installs only)
+#   ./edumatcher.sh share on [host-ip] | off
 #   ./edumatcher.sh update [version]
 #   ./edumatcher.sh uninstall [--data]
 #
@@ -346,6 +347,51 @@ cmd_speed() {
     echo "Apply it with: ./edumatcher.sh restart"
 }
 
+# Publish the exchange to the network (a classroom) or pull it back to this
+# machine. 'on' also points the dashboard's drawer links at the host address,
+# because their localhost default would send a student to their own machine.
+# The protocol gateways have no password: use 'on' on a network you control.
+#
+#   ./edumatcher.sh share on                    auto-detected host address
+#   ./edumatcher.sh share on 192.168.0.232
+#   ./edumatcher.sh share off
+host_ip() {
+    local ip=""
+    if command -v ip >/dev/null 2>&1; then
+        ip="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)"
+    fi
+    [[ -n "$ip" ]] || ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+    printf '%s' "$ip"
+}
+
+cmd_share() {
+    case "${1:-}" in
+        on)
+            local ip="${2:-$(host_ip)}"
+            [[ -n "$ip" ]] || die "Could not detect this host's address — pass it: ./edumatcher.sh share on <host-ip>"
+            local log_port book_port dash_port
+            log_port="$(env_value LOG_GUI_PORT)"; book_port="$(env_value BOOK_GUI_PORT)"
+            dash_port="$(env_value DASH_GUI_PORT)"
+            set_env BIND_ADDR 0.0.0.0
+            set_env LOG_GUI_URL "http://${ip}:${log_port:-8091}"
+            set_env BOOK_GUI_URL "http://${ip}:${book_port:-8094}"
+            ok "Sharing on ${ip}: published ports listen on all interfaces"
+            warn "The gateways have no password — only do this on a network you control."
+            echo "Apply it with: ./edumatcher.sh restart"
+            echo "Students open: http://${ip}:${dash_port:-8095}"
+            echo "If they cannot connect, open the ports in the host firewall (8090-8095/tcp)."
+            ;;
+        off)
+            set_env BIND_ADDR 127.0.0.1
+            set_env LOG_GUI_URL ""
+            set_env BOOK_GUI_URL ""
+            ok "Private: published ports listen on this machine only"
+            echo "Apply it with: ./edumatcher.sh restart"
+            ;;
+        *) die "Usage: ./edumatcher.sh share on [host-ip] | off" ;;
+    esac
+}
+
 cmd_update() {
     detect_engine
     local version="${1:-latest}"
@@ -378,6 +424,7 @@ case "${1:-}" in
     mounts)    shift; cmd_mounts "$@" ;;
     config)    shift; cmd_config "$@" ;;
     speed)     shift; cmd_speed "$@" ;;
+    share)     shift; cmd_share "$@" ;;
     update)    shift; cmd_update "$@" ;;
     uninstall) shift; cmd_uninstall "$@" ;;
     *)

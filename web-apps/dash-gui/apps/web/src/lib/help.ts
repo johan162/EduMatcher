@@ -33,6 +33,7 @@ const COLUMN: Record<string, Record<string, string>> = {
   },
   "Order books": {
     symbol: "The instrument the book belongs to. Click a row for its detail.",
+    long: "Long orders: resting orders with time in force GTC (good till cancelled). They stay in the book across the close and are restored when the exchange restarts. A subset of Resting.",
     resting: "Limit orders waiting in the book, on both sides.",
     stops: "Stop orders held back until their trigger price trades. They are not visible in the book.",
     bid: "Distinct buy price levels in the book. Orders at the same price share a level.",

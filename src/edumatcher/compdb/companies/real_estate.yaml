@@ -1,0 +1,452 @@
+# REAL_ESTATE. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+AMT:
+  name: Ambertower International REIT
+  sector: REAL_ESTATE
+  industry: Telecom Tower REITs
+  headquarters: Boston, USA
+  purpose: Owns 225,000 mobile-phone towers in 25 countries and leases space on them to wireless carriers.
+  key_market: Wireless carriers in the US, India, Brazil and Europe
+  market_position: The largest independent tower owner in the world; each tower can host three or four carriers, and leases run ten years with annual price escalators.
+  origin: SPIN_OFF
+  founders: Spun off from a Boston radio broadcaster
+  founder_story: Began in 1995 as the tower department of a radio group that found it earned more renting space on its masts to the new cellular carriers than from its stations; the radio stations were sold, the towers kept.
+  founded_year: 1995
+  ipo_year: 1998
+  ipo_valuation_musd: 2100
+  ceo_name: Victor Albuquerque
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 4900
+  fiscal_year: 2025
+  revenue_musd: 10300
+  net_income_musd: 2700
+  revenue_growth_pct: 2.9
+  operating_margin_pct: 43.1
+  free_cash_flow_musd: 3900
+  market_cap_musd: 98500
+  dividend_yield_pct: 3.1
+  debt_to_equity: 4.2
+  credit_rating: BBB
+  competitors: CCI
+  key_risk: Consolidation among carriers cuts the number of tenants per tower, and with it the rent.
+ARE:
+  name: Arbor Research Estates
+  sector: REAL_ESTATE
+  industry: Office & Laboratory REITs
+  headquarters: Pasadena, USA
+  purpose: Develops and leases laboratory campuses to drug makers, biotech start-ups and research universities.
+  key_market: Life-science clusters in Boston, San Francisco, San Diego and Seattle
+  market_position: Owns the largest portfolio of purpose-built laboratory space in the US, clustered next to the universities that feed biotech.
+  origin: CO_FOUNDERS
+  founders: Joel Rennert, Margaret Aiyar
+  founder_story: A real-estate lawyer and a molecular biologist started the company in 1994 after Aiyar's start-up spent a year failing to find lab space any landlord would fit out with fume hoods and backup power.
+  founded_year: 1994
+  ipo_year: 1997
+  ipo_valuation_musd: 410
+  ceo_name: Hugo Sandoval
+  ceo_since: 2024
+  ceo_industry_years: 21
+  employees: 560
+  fiscal_year: 2025
+  revenue_musd: 3100
+  net_income_musd: 330
+  revenue_growth_pct: 0.8
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 15800
+  dividend_yield_pct: 5.8
+  debt_to_equity: 0.72
+  credit_rating: BBB+
+  competitors: WELL
+  key_risk: Biotech funding has dried up and new lab supply has flooded in, pushing vacancy to a record.
+AVB:
+  name: Avonbury Residential
+  sector: REAL_ESTATE
+  industry: Residential REITs
+  headquarters: Arlington, USA
+  purpose: Builds and rents out 90,000 apartments in high-income suburbs and city districts on both US coasts.
+  key_market: Apartment renters in Boston, New York, Washington DC, Seattle and California
+  market_position: Builds most of its own buildings, in supply-constrained coastal markets, so it earns a developer's margin on top of the rent.
+  origin: MERGER
+  founders: Avonridge Properties, Brookbury Communities
+  founder_story: Two apartment developers, one on each coast, merged in 1998 when both found their local banks unwilling to finance projects of the size the coastal cities needed.
+  founded_year: 1998
+  ipo_year: 1998
+  ipo_valuation_musd: 3300
+  ceo_name: Natalie Fairbanks
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 2900
+  fiscal_year: 2025
+  revenue_musd: 2950
+  net_income_musd: 1050
+  revenue_growth_pct: 4.6
+  operating_margin_pct: 37.5
+  free_cash_flow_musd: 1350
+  market_cap_musd: 31500
+  dividend_yield_pct: 3.1
+  debt_to_equity: 0.68
+  credit_rating: A-
+  competitors: MAA
+  key_risk: Rent-control laws are spreading in exactly the coastal states where it owns most of its apartments.
+CCI:
+  name: Crestline Communications Infrastructure
+  sector: REAL_ESTATE
+  industry: Telecom Tower REITs
+  headquarters: Houston, USA
+  purpose: Owns 40,000 towers, 115,000 small cells and 90,000 miles of fibre in the US and leases them to wireless carriers.
+  key_market: The three national US wireless carriers
+  market_position: The only US tower owner that also owns dense urban fibre and small-cell networks, which 5G needs every few hundred metres.
+  origin: FOUNDER
+  founders: Lyle Pritchard
+  founder_story: Lyle Pritchard, a Houston oilfield-radio engineer, bought 80 broadcast towers from a bankrupt TV network in 1994, betting that mobile phones would need far more masts than television ever did.
+  founded_year: 1994
+  ipo_year: 1998
+  ipo_valuation_musd: 1450
+  ceo_name: Simona Petrescu
+  ceo_since: 2024
+  ceo_industry_years: 20
+  employees: 3900
+  fiscal_year: 2025
+  revenue_musd: 6600
+  net_income_musd: 1600
+  revenue_growth_pct: -3.1
+  operating_margin_pct: 35.9
+  free_cash_flow_musd: 2900
+  market_cap_musd: 44500
+  dividend_yield_pct: 6.0
+  debt_to_equity: 5.8
+  credit_rating: BBB
+  competitors: AMT
+  key_risk: Its fibre and small-cell bet earns less than it cost, and an activist shareholder is pushing for a sale.
+CSGP:
+  name: Castlegate Property Data
+  sector: REAL_ESTATE
+  industry: Real Estate Services
+  headquarters: Washington, USA
+  purpose: Runs the commercial-property database every US broker and lender uses, plus apartment and home listing websites.
+  key_market: Commercial real-estate brokers, landlords, lenders and apartment renters in the US and UK
+  market_position: Has photographed and measured nearly every commercial building in the US over 35 years; nobody else has the data, and every broker subscribes.
+  origin: FOUNDER
+  founders: Graham Ellery
+  founder_story: Graham Ellery, a 25-year-old office broker in Washington, began typing building data into a PC in 1987 because his firm's card index was always out of date; other brokers asked to buy his floppy disks.
+  founded_year: 1987
+  ipo_year: 1998
+  ipo_valuation_musd: 240
+  ceo_name: Graham Ellery
+  ceo_since: 1987
+  ceo_industry_years: 41
+  employees: 6600
+  fiscal_year: 2025
+  revenue_musd: 2950
+  net_income_musd: 180
+  revenue_growth_pct: 12.4
+  operating_margin_pct: 6.5
+  free_cash_flow_musd: 190
+  market_cap_musd: 33500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.11
+  credit_rating: BBB-
+  competitors: ""
+  key_risk: Its home-listing site burns over a billion dollars a year in marketing with no proof it will ever pay back.
+DLR:
+  name: Datalith Realty Trust
+  sector: REAL_ESTATE
+  industry: Data Center REITs
+  headquarters: Austin, USA
+  purpose: Owns and leases 300 data centres in 50 cities to cloud providers, banks and network carriers.
+  key_market: Hyperscale cloud companies building AI capacity in North America and Europe
+  market_position: Can deliver a fully powered 100-megawatt data hall faster than almost anyone, because it secured power connections years before the AI boom.
+  origin: SPIN_OFF
+  founders: Spun off from a bankrupt telecom landlord
+  founder_story: Formed in 2004 from the buildings of a bankrupt telecom-hotel company; the founders bought empty switching centres for cents on the dollar just before cloud computing filled them.
+  founded_year: 2004
+  ipo_year: 2004
+  ipo_valuation_musd: 520
+  ceo_name: Rajesh Venkataraman
+  ceo_since: 2022
+  ceo_industry_years: 22
+  employees: 3700
+  fiscal_year: 2025
+  revenue_musd: 5900
+  net_income_musd: 1050
+  revenue_growth_pct: 8.3
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: -2200
+  market_cap_musd: 58000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.86
+  credit_rating: BBB
+  competitors: EQIX IRM
+  key_risk: Power, not demand, limits its growth; the grid in its main markets has no spare capacity until 2030.
+EQIX:
+  name: Equilibra Interconnect Inc.
+  sector: REAL_ESTATE
+  industry: Data Center REITs
+  headquarters: Redwood City, USA
+  purpose: Runs 260 data centres where networks, clouds and companies connect directly to each other, in 70 cities worldwide.
+  key_market: Enterprises, network carriers and cloud providers in 35 countries
+  market_position: Its buildings host the most network interconnections in the world; once a company's partners are there, moving out means losing them.
+  origin: CO_FOUNDERS
+  founders: Albert Moreau, Jerome Fenwick
+  founder_story: Two facilities managers at a Silicon Valley computer maker founded it in 1998 with the idea of a neutral building where competing internet networks could swap traffic without trusting each other's premises.
+  founded_year: 1998
+  ipo_year: 2000
+  ipo_valuation_musd: 2600
+  ceo_name: Caroline Ashdown
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 13600
+  fiscal_year: 2025
+  revenue_musd: 9100
+  net_income_musd: 1050
+  revenue_growth_pct: 6.2
+  operating_margin_pct: 19.4
+  free_cash_flow_musd: 400
+  market_cap_musd: 82000
+  dividend_yield_pct: 2.2
+  debt_to_equity: 1.37
+  credit_rating: BBB+
+  competitors: DLR
+  key_risk: A short-seller report questioned how it measures its earnings, and the regulators' review is still open.
+IRM:
+  name: Ironmark Records & Storage
+  sector: REAL_ESTATE
+  industry: Specialized REITs
+  headquarters: Boston, USA
+  purpose: Stores paper records, backup tapes and art for 240,000 organisations, shreds what they discard and increasingly runs data centres.
+  key_market: Corporate legal, medical and financial records in North America and Europe
+  market_position: Nearly every large company keeps its archives in its warehouses, and boxes stay an average of 15 years; it raises prices every year and few leave.
+  origin: FOUNDER
+  founders: Harold Wexley
+  founder_story: Harold Wexley, a mushroom farmer, began renting the cool limestone caves of his farm in upstate New York to banks in 1951 as atomic-proof vaults for their records.
+  founded_year: 1951
+  ipo_year: 1996
+  ipo_valuation_musd: 480
+  ceo_name: Kwabena Osei
+  ceo_since: 2023
+  ceo_industry_years: 18
+  employees: 27000
+  fiscal_year: 2025
+  revenue_musd: 6400
+  net_income_musd: 290
+  revenue_growth_pct: 11.8
+  operating_margin_pct: 18.2
+  free_cash_flow_musd: -650
+  market_cap_musd: 31000
+  dividend_yield_pct: 2.9
+  debt_to_equity: 15.6
+  credit_rating: BB-
+  competitors: DLR EQIX
+  key_risk: Its debt is high for a REIT, and its data-centre growth needs ever more of it.
+MAA:
+  name: Magnolia Apartment Associates
+  sector: REAL_ESTATE
+  industry: Residential REITs
+  headquarters: Memphis, USA
+  purpose: Owns and rents out 100,000 garden-style apartments in the Sun Belt from Texas to the Carolinas.
+  key_market: Renters in fast-growing southern cities such as Atlanta, Dallas, Austin, Charlotte and Tampa
+  market_position: The largest apartment owner in the Sun Belt, where population growth is fastest and building permits easiest to get.
+  origin: FAMILY
+  founders: The Delacroix family
+  founder_story: Started in 1977 when George Delacroix, a Memphis homebuilder, kept the first apartment complex he could not sell during a recession and found the rent more dependable than sales.
+  founded_year: 1977
+  ipo_year: 1994
+  ipo_valuation_musd: 190
+  ceo_name: Celeste Delacroix-Hart
+  ceo_since: 2023
+  ceo_industry_years: 22
+  employees: 2500
+  fiscal_year: 2025
+  revenue_musd: 2200
+  net_income_musd: 520
+  revenue_growth_pct: 1.2
+  operating_margin_pct: 27.8
+  free_cash_flow_musd: 880
+  market_cap_musd: 17600
+  dividend_yield_pct: 4.0
+  debt_to_equity: 0.82
+  credit_rating: A-
+  competitors: AVB
+  key_risk: A wave of new apartments in Austin and Phoenix forces it to offer free months of rent to fill units.
+O:
+  name: Oakhaven Net Lease Trust
+  sector: REAL_ESTATE
+  industry: Retail REITs
+  headquarters: San Diego, USA
+  purpose: Owns 15,000 single-tenant shops and warehouses leased for 10 to 20 years to chains that pay the taxes and repairs, and pays its owners a dividend every month.
+  key_market: Convenience stores, grocers, pharmacies and dollar stores in the US and UK
+  market_position: The best-known monthly-dividend stock in the US; its size lets it borrow cheaper than any rival and so outbid them on every sale-and-leaseback.
+  origin: CO_FOUNDERS
+  founders: William Oakes, Joan Havenridge
+  founder_story: A San Diego couple began buying single shops in 1969 for a pool of retired teachers who wanted a dependable monthly income; the pool grew into the company.
+  founded_year: 1969
+  ipo_year: 1994
+  ipo_valuation_musd: 620
+  ceo_name: Benedict Yeo
+  ceo_since: 2021
+  ceo_industry_years: 24
+  employees: 470
+  fiscal_year: 2025
+  revenue_musd: 5400
+  net_income_musd: 1000
+  revenue_growth_pct: 9.6
+  operating_margin_pct: 41.2
+  free_cash_flow_musd: 3500
+  market_cap_musd: 52000
+  dividend_yield_pct: 5.6
+  debt_to_equity: 0.73
+  credit_rating: A-
+  competitors: REG SPG
+  key_risk: Growth depends on buying more properties each year than the last, which gets harder as it grows.
+PLD:
+  name: Portlane Logistics Inc.
+  sector: REAL_ESTATE
+  industry: Industrial REITs
+  headquarters: San Francisco, USA
+  purpose: Owns 1.2 billion square feet of warehouses near ports and big cities in 20 countries and leases them to retailers and logistics firms.
+  key_market: E-commerce, retail and third-party logistics customers in the US, Europe, Japan and Mexico
+  market_position: The largest warehouse owner in the world, holding land near nearly every major port and city that new developers can no longer get.
+  origin: MERGER
+  founders: Pacific Gateway Warehouses, Lone Star Distribution Trust
+  founder_story: Formed in 2011 when the two largest warehouse landlords merged during the financial crisis, both of them short of capital and long on land.
+  founded_year: 2011
+  ipo_year: 2011
+  ipo_valuation_musd: 14500
+  ceo_name: Teresa Valdés
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 2700
+  fiscal_year: 2025
+  revenue_musd: 8600
+  net_income_musd: 3500
+  revenue_growth_pct: 5.4
+  operating_margin_pct: 39.5
+  free_cash_flow_musd: 4800
+  market_cap_musd: 104000
+  dividend_yield_pct: 3.4
+  debt_to_equity: 0.55
+  credit_rating: A
+  competitors: ""
+  key_risk: Tariffs slow trade through the ports where its warehouses cluster.
+PSA:
+  name: Pallisade Storage Corp.
+  sector: REAL_ESTATE
+  industry: Self-Storage REITs
+  headquarters: Glendale, USA
+  purpose: Rents out 3,000 self-storage facilities across 40 US states, and owns a stake in Europe's largest storage chain.
+  key_market: Households moving home, students and small businesses in US cities
+  market_position: The largest and best-known self-storage brand; its name draws customers online without paying for marketing that smaller rivals must buy.
+  origin: CO_FOUNDERS
+  founders: Bernard Pallister, Ken Akiyama
+  founder_story: Two Los Angeles property men opened their first storage lot in 1972 after Pallister saw a row of rented garages in Texas full of furniture and realised people would pay for space they never saw.
+  founded_year: 1972
+  ipo_year: 1980
+  ipo_valuation_musd: 160
+  ceo_name: Leticia Montoya
+  ceo_since: 2023
+  ceo_industry_years: 20
+  employees: 6100
+  fiscal_year: 2025
+  revenue_musd: 4800
+  net_income_musd: 1900
+  revenue_growth_pct: 1.6
+  operating_margin_pct: 47.0
+  free_cash_flow_musd: 2400
+  market_cap_musd: 50500
+  dividend_yield_pct: 4.1
+  debt_to_equity: 0.95
+  credit_rating: A
+  competitors: ""
+  key_risk: When home sales fall people move less, and fewer moves mean fewer new renters.
+REG:
+  name: Regalia Centers Corp.
+  sector: REAL_ESTATE
+  industry: Retail REITs
+  headquarters: Jacksonville, USA
+  purpose: Owns 480 neighbourhood shopping centres anchored by grocery stores in affluent US suburbs.
+  key_market: Grocery-anchored shopping centres in Florida, California and the Northeast suburbs
+  market_position: Almost every centre has a top grocer as its anchor, and people visit the grocery store weekly whatever happens to online shopping.
+  origin: FOUNDER
+  founders: Martin Reigler
+  founder_story: Martin Reigler, a Jacksonville supermarket manager, built a strip of shops around his store's car park in 1963 because he saw customers driving on to the next town for the dry cleaner and the bank.
+  founded_year: 1963
+  ipo_year: 1993
+  ipo_valuation_musd: 280
+  ceo_name: Olumide Bakare
+  ceo_since: 2020
+  ceo_industry_years: 25
+  employees: 500
+  fiscal_year: 2025
+  revenue_musd: 1500
+  net_income_musd: 410
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 35.1
+  free_cash_flow_musd: 790
+  market_cap_musd: 13200
+  dividend_yield_pct: 3.8
+  debt_to_equity: 0.69
+  credit_rating: A-
+  competitors: SPG O
+  key_risk: A grocery-chain merger could close stores that anchor several of its centres at once.
+SPG:
+  name: Spangler Mall Group
+  sector: REAL_ESTATE
+  industry: Retail REITs
+  headquarters: Indianapolis, USA
+  purpose: Owns 190 premium shopping malls and designer outlet centres in North America, Europe and Asia.
+  key_market: Upscale shoppers and luxury, fashion and restaurant tenants in the US
+  market_position: Owns most of the US's top-tier malls; while weaker malls close, its prime centres take their tenants.
+  origin: CO_FOUNDERS
+  founders: Otto Spangler, Frank Spangler
+  founder_story: Two brothers opened a shopping plaza in Indiana in 1960 and went on to build the first enclosed mall in the state, betting that Midwesterners would rather shop indoors in winter.
+  founded_year: 1960
+  ipo_year: 1993
+  ipo_valuation_musd: 1800
+  ceo_name: Laura Spangler-Ross
+  ceo_since: 2009
+  ceo_industry_years: 33
+  employees: 2500
+  fiscal_year: 2025
+  revenue_musd: 6100
+  net_income_musd: 2300
+  revenue_growth_pct: 3.8
+  operating_margin_pct: 50.5
+  free_cash_flow_musd: 3200
+  market_cap_musd: 59000
+  dividend_yield_pct: 4.8
+  debt_to_equity: 6.7
+  credit_rating: A-
+  competitors: REG O
+  key_risk: A recession that cuts spending on clothes and dining would hit the tenants whose sales set part of its rent.
+WELL:
+  name: Wellstead Health Properties
+  sector: REAL_ESTATE
+  industry: Health Care REITs
+  headquarters: Toledo, USA
+  purpose: Owns 2,000 senior-housing communities and medical office buildings in the US, Canada and the UK.
+  key_market: Seniors' housing for the over-80s in affluent US and Canadian suburbs
+  market_position: The largest owner of senior housing at the very moment the baby boomers turn 80 and new building has stalled.
+  origin: FOUNDER
+  founders: Doris Wellstead
+  founder_story: Doris Wellstead, a nurse who ran a Toledo nursing home, set up a trust in 1970 so that nursing-home operators could rent their buildings instead of tying up their capital in them.
+  founded_year: 1970
+  ipo_year: 1978
+  ipo_valuation_musd: 70
+  ceo_name: Marcus Lindenberg
+  ceo_since: 2022
+  ceo_industry_years: 24
+  employees: 590
+  fiscal_year: 2025
+  revenue_musd: 8700
+  net_income_musd: 990
+  revenue_growth_pct: 22.0
+  operating_margin_pct: 13.6
+  free_cash_flow_musd: 2300
+  market_cap_musd: 99000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.43
+  credit_rating: A-
+  competitors: ARE
+  key_risk: Its shares already price in years of rising occupancy; any stall in senior-housing demand would hit them hard.

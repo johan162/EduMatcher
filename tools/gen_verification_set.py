@@ -8,9 +8,15 @@ Steps performed
     them to  data/verify/mm_orders.fix
 2.  Generate <count> random single-leg orders (LIMIT, MARKET, FOK, IOC,
     ICEBERG, STOP, STOP_LIMIT) and write them to  data/verify/test_orders.fix
-3.  Paper-trade the complete order stream (MM + test) directly through
-    OrderBook, record every fill, and save the final per-symbol book state
-    to  data/verify/paper_result.json
+3.  Paper-trade the complete order stream (MM + test) through the reference
+    matcher (tests/reference_matcher.py), and save the final per-symbol book
+    state to  data/verify/paper_result.json
+
+The paper trader is deliberately *not* ``OrderBook``: an engine compared with
+itself can only disagree about what the engine layer adds around the book
+(validation, the amend re-match), never about matching. The reference is an
+independent model written from the documented rules (matching test-quality
+workplan, T2/T4).
 
 The .fix files are the single source of truth used by both this script and the
 replay tool.  The paper_result.json is the expected ("golden") result against
@@ -35,18 +41,18 @@ from typing import Any, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))  # tests.reference_matcher
 
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.order import (
     Order,
-    OrderStatus,
     OrderType,
     Side,
     SmpAction,
     TIF,
 )
 from edumatcher.models.price import from_ticks, to_ticks_exact, to_ticks_or_none
-from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
+from tests.reference_matcher import ReferenceMatcher, ROrder
 
 # ---------------------------------------------------------------------------
 # Output paths
@@ -277,18 +283,6 @@ _AMEND_KINDS = [
 _AMEND_NAMES = [k for k, _ in _AMEND_KINDS]
 _AMEND_WEIGHTS = [w for _, w in _AMEND_KINDS]
 
-_TERMINAL = (
-    OrderStatus.FILLED,
-    OrderStatus.CANCELLED,
-    OrderStatus.REJECTED,
-    OrderStatus.EXPIRED,
-)
-
-#: Only these rest in the order index and only these can be amended
-#: (OrderBook.amend_order). A MARKET or IOC order never rests, and a pending
-#: STOP lives in a separate heap the amend path does not reach.
-_AMENDABLE = (OrderType.LIMIT, OrderType.ICEBERG)
-
 
 def _order_id(rng: random.Random) -> str:
     """A deterministic order id.
@@ -304,7 +298,16 @@ def _order_id(rng: random.Random) -> str:
     return f"{rng.getrandbits(128):032x}"
 
 
-def _amended_price(rng: random.Random, order: Order, book: OrderBook) -> float:
+def _best_opposite(order: ROrder, book: ReferenceMatcher) -> int | None:
+    """The best opposite price for *order*, in ticks, or None if that side is empty."""
+    if order.side == "BUY":
+        return min((o.price for o in book.asks if o.price is not None), default=None)
+    return max((o.price for o in book.bids if o.price is not None), default=None)
+
+
+def _amended_price(
+    rng: random.Random, order: ROrder, symbol: str, book: ReferenceMatcher
+) -> float:
     """The new price for a price amendment.
 
     Two shapes, because they exercise different halves of the engine. A small
@@ -322,20 +325,20 @@ def _amended_price(rng: random.Random, order: Order, book: OrderBook) -> float:
     ``order.amend`` is checked with ``to_ticks_exact``, so the result has to
     land on the tick grid -- two decimals here, so two decimals out.
     """
-    resting = from_ticks(order.price_ticks or 0, order.symbol)
+    resting = from_ticks(order.price or 0, symbol)
     if rng.random() < AGGRESSIVE_AMEND_SHARE:
-        opposite = (
-            book.best_ask_ticks() if order.side == Side.BUY else book.best_bid_ticks()
-        )
+        opposite = _best_opposite(order, book)
         if opposite is not None:
-            through = from_ticks(opposite, order.symbol)
-            step = 0.01 if order.side == Side.BUY else -0.01
+            through = from_ticks(opposite, symbol)
+            step = 0.01 if order.side == "BUY" else -0.01
             return max(round(through + step, 2), 0.01)
     nudge = rng.choice([-0.03, -0.02, -0.01, 0.01, 0.02, 0.03])
     return max(round(resting + nudge, 2), 0.01)
 
 
-def _amend_line(rng: random.Random, order: Order, book: OrderBook) -> str:
+def _amend_line(
+    rng: random.Random, order: ROrder, symbol: str, book: ReferenceMatcher
+) -> str:
     """One AMEND or CANCEL against an order that is resting right now.
 
     Picking blind from every id ever issued was the obvious alternative and is
@@ -354,18 +357,18 @@ def _amend_line(rng: random.Random, order: Order, book: OrderBook) -> str:
 
     parts = [f"AMEND|ID={order.id}"]
     if kind in ("price", "both"):
-        assert order.price_ticks is not None
-        parts.append(f"PRICE={_amended_price(rng, order, book):.2f}")
+        assert order.price is not None
+        parts.append(f"PRICE={_amended_price(rng, order, symbol, book):.2f}")
     if kind in ("qty_down", "qty_up", "both"):
-        filled = order.quantity - order.remaining_qty
+        filled = order.qty - order.remaining
         if kind == "qty_down":
             # Must still exceed what has already traded, or amend_order
             # refuses it -- a rule worth honouring most of the time so that
             # most reductions actually reduce.
             low = filled + 1
-            qty = rng.randint(low, order.quantity) if low < order.quantity else low
+            qty = rng.randint(low, order.qty) if low < order.qty else low
         else:
-            qty = order.quantity + rng.randrange(1, 5) * 50
+            qty = order.qty + rng.randrange(1, 5) * 50
         parts.append(f"QTY={qty}")
     return "|".join(parts)
 
@@ -434,12 +437,12 @@ def parse_fix_line(line: str, gateway_id: str = "PAPER01") -> Optional[Order]:
 
 
 # ---------------------------------------------------------------------------
-# Paper trader — uses OrderBook directly, no ZMQ
+# Paper trader — the reference matcher, no engine, no ZMQ
 # ---------------------------------------------------------------------------
 
 
 def _snapshot_for_result(book: OrderBook) -> dict[str, Any]:
-    """Strip snapshot down to the fields used for comparison."""
+    """Strip an engine book's snapshot down to the fields used for comparison."""
     snap = book.snapshot()
     return {
         "bids": [{"price": b["price"], "qty": b["qty"]} for b in snap["bids"]],
@@ -450,28 +453,73 @@ def _snapshot_for_result(book: OrderBook) -> dict[str, Any]:
     }
 
 
-def _track(events: list[Order], resting: dict[str, str]) -> None:
-    """Keep the live set in step with what the book just did.
+def reference_snapshot(book: ReferenceMatcher, symbol: str) -> dict[str, Any]:
+    """The reference's book in the shape of :func:`_snapshot_for_result`.
 
-    ``process`` reports every order whose status changed, which is how a
-    resting order that was consumed by someone else's aggressor leaves the
-    set without being looked up.
+    A level's quantity is what it shows: an iceberg counts its shown slice
+    only, as in the engine's market-data snapshot. The side-specific last
+    prices are the last print with that aggressor; an auction print (neither
+    side the aggressor) updates neither.
     """
-    for event in events:
-        if event.status in _TERMINAL:
-            resting.pop(event.id, None)
+
+    def levels(orders: list[ROrder], best_first: bool) -> list[dict[str, Any]]:
+        shown: dict[int, int] = {}
+        for o in orders:
+            assert o.price is not None
+            shown[o.price] = shown.get(o.price, 0) + o.available
+        return [
+            {"price": from_ticks(p, symbol), "qty": q}
+            for p, q in sorted(shown.items(), reverse=best_first)
+        ]
+
+    def last(aggressor: str | None) -> float | None:
+        price = next(
+            (
+                t.price
+                for t in reversed(book.trades)
+                if aggressor is None or t.aggressor == aggressor
+            ),
+            None,
+        )
+        return from_ticks(price, symbol) if price is not None else None
+
+    return {
+        "bids": levels(book.bids, best_first=True),
+        "asks": levels(book.asks, best_first=False),
+        "last_price": last(None),
+        "last_buy_price": last("BUY"),
+        "last_sell_price": last("SELL"),
+    }
 
 
-def _rest_if_live(order: Order, resting: dict[str, str]) -> None:
-    if order.order_type in _AMENDABLE and order.status not in _TERMINAL:
-        resting[order.id] = order.symbol
+def _reference_order(order: Order) -> ROrder:
+    """The reference's copy of a parsed dataset order (wire strings, ticks)."""
+    return ROrder(
+        order.id,
+        order.side.value,
+        order.order_type.value,
+        order.quantity,
+        order.gateway_id,
+        price=order.price_ticks,
+        stop=order.stop_price_ticks,
+        trail=order.trail_offset_ticks,
+        visible=order.visible_qty,
+        smp=order.smp_action.value if order.smp_action is not None else "NONE",
+    )
 
 
-def apply_line(line: str, books: dict[str, OrderBook], resting: dict[str, str]) -> int:
+def apply_line(line: str, books: dict[str, ReferenceMatcher]) -> int:
     """Apply one dataset line to the paper books. Returns trades produced.
 
-    -1 means the line was not applied at all -- a comment, or an order for a
-    symbol this dataset does not cover.
+    -1 means the line was not applied at all -- a comment, an order for a
+    symbol this dataset does not cover, or an id no book knows.
+
+    An AMEND is applied the way ``Engine._handle_amend`` performs it: re-queued
+    at its new price and quantity, and a *marketable* amend matched like a new
+    aggressive order (cancel/replace), so an amend cannot leave the book
+    crossed. The reference's ``amend`` does both halves. The gates the engine
+    applies around it (collars, order limits, session and halt state) are all
+    inert under the verification config, which configures none of them.
     """
     parsed = _fields(line)
     if parsed is None:
@@ -482,77 +530,30 @@ def apply_line(line: str, books: dict[str, OrderBook], resting: dict[str, str]) 
         order = parse_fix_line(line)
         if order is None or order.symbol not in books:
             return -1
-        trades, events = books[order.symbol].process(order)
-        _track(events, resting)
-        _rest_if_live(order, resting)
-        return len(trades)
+        return len(books[order.symbol].submit(_reference_order(order)))
 
-    order_id = kv.get("ID")
-    symbol = resting.get(order_id or "")
-    if order_id is None or symbol is None:
-        # The dataset only ever names an order that was resting when the line
-        # was generated, so this is a line that has been hand-edited or a
-        # file that has drifted from its own paper result.
+    order_id = kv.get("ID", "")
+    symbol = next((s for s, b in books.items() if order_id in b.orders), None)
+    if symbol is None:
+        # The dataset only ever names an order it submitted earlier, so this
+        # is a line that has been hand-edited or a file that has drifted from
+        # its own paper result.
         return -1
     book = books[symbol]
 
     if verb == "CANCEL":
-        book.cancel_order(order_id)
-        resting.pop(order_id, None)
+        book.cancel(order_id)
         return 0
-
     if verb != "AMEND":
         return -1
-    return _apply_amend(kv, order_id, symbol, book, resting)
-
-
-def _apply_amend(
-    kv: dict[str, str],
-    order_id: str,
-    symbol: str,
-    book: OrderBook,
-    resting: dict[str, str],
-) -> int:
-    """The amend path, as ``Engine._handle_amend`` performs it.
-
-    Two steps, not one. ``amend_order`` re-queues the order at its new price
-    and quantity, and then a *marketable* amend is pulled back out and run
-    through matching -- cancel/replace semantics, so an amend cannot leave the
-    book crossed. Doing only the first half would make the paper trader and
-    the engine disagree on exactly the orders that amended into the spread.
-
-    The gates the engine applies around this (collars, order limits, session
-    and halt state) are all inert under the verification config, which
-    configures none of them.
-    """
     new_price = float(kv["PRICE"]) if "PRICE" in kv else None
-    new_qty = int(kv["QTY"]) if "QTY" in kv else None
-    amended, _priority_reset, _err = book.amend_order(
+    start = len(book.trades)
+    book.amend(
         order_id,
-        new_price=to_ticks_exact(new_price, symbol) if new_price is not None else None,
-        new_qty=new_qty,
+        price=to_ticks_exact(new_price, symbol) if new_price is not None else None,
+        qty=int(kv["QTY"]) if "QTY" in kv else None,
     )
-    if amended is None:
-        resting.pop(order_id, None)
-        return 0
-
-    if amended.price_ticks is None or amended.status in _TERMINAL:
-        return 0
-    if amended.side == Side.BUY:
-        best = book.best_ask_ticks()
-        marketable = best is not None and amended.price_ticks >= best
-    else:
-        best = book.best_bid_ticks()
-        marketable = best is not None and amended.price_ticks <= best
-    if not marketable:
-        return 0
-
-    book.cancel_order(order_id)
-    amended.status = OrderStatus.NEW
-    trades, events = book.process(amended, match=True)
-    _track(events, resting)
-    _rest_if_live(amended, resting)
-    return len(trades)
+    return len(book.trades) - start
 
 
 @dataclass
@@ -563,6 +564,10 @@ class Dataset:
     test_lines: list[str]
     result: dict[str, dict[str, Any]]
     counts: dict[str, int]
+    #: Per symbol, every print in order: (buy id, sell id, price ticks, qty,
+    #: aggressor side). Not written to paper_result.json; the in-process
+    #: smoke test compares it with the engine's trade.executed messages.
+    trades: dict[str, list[tuple[str, str, int, int, str]]]
 
 
 def generate(rng: random.Random, count: int) -> Dataset:
@@ -574,21 +579,12 @@ def generate(rng: random.Random, count: int) -> Dataset:
     it -- which is what this did while every line was a NEW -- cannot answer
     that question.
     """
-    # A trade id is f"{run_seq:06d}-{trade_seq:09d}" and the engine sets the
-    # run half at startup from a durable counter. Nothing does that here --
-    # this is an OrderBook in a bare process -- so minting the first trade
-    # raised RuntimeError. Zero says "paper run", and the comparison never
-    # looks at a trade id: it compares book state.
-    reset_trade_ids_for_tests()
-    set_run_seq(0)
-
-    books: dict[str, OrderBook] = {sym: OrderBook(sym) for sym in SYMBOLS}
-    resting: dict[str, str] = {}
+    books = {sym: ReferenceMatcher() for sym in SYMBOLS}
     counts = {"new": 0, "amend": 0, "cancel": 0, "trades": 0, "skipped": 0}
 
     mm_lines = build_mm_orders()
     for raw in mm_lines:
-        trades = apply_line(raw, books, resting)
+        trades = apply_line(raw, books)
         if trades < 0:
             counts["skipped"] += 1
         else:
@@ -600,28 +596,32 @@ def generate(rng: random.Random, count: int) -> Dataset:
     sym_cycle = [SYMBOLS[i % len(SYMBOLS)] for i in range(count)]
     rng.shuffle(sym_cycle)
     for symbol in sym_cycle:
+        # Sorted, because the choice below has to be a function of the seed.
+        resting = sorted(
+            (o.id, sym) for sym, book in books.items() for o in book.bids + book.asks
+        )
         if resting and rng.random() < AMEND_SHARE:
-            target_id = rng.choice(sorted(resting))
-            target = books[resting[target_id]].get_order(target_id)
-            # sorted() because a set's iteration order is not reproducible
-            # across runs, and this file has to be a function of its seed.
-            if target is not None:
-                line = _amend_line(rng, target, books[target.symbol])
-                counts["cancel" if line.startswith("CANCEL") else "amend"] += 1
-            else:
-                line = _new_order_line(rng, symbol, _order_id(rng))
-                counts["new"] += 1
+            target_id, target_symbol = rng.choice(resting)
+            book = books[target_symbol]
+            line = _amend_line(rng, book.orders[target_id], target_symbol, book)
+            counts["cancel" if line.startswith("CANCEL") else "amend"] += 1
         else:
             line = _new_order_line(rng, symbol, _order_id(rng))
             counts["new"] += 1
         lines.append(line)
-        counts["trades"] += max(apply_line(line, books, resting), 0)
+        counts["trades"] += max(apply_line(line, books), 0)
 
     return Dataset(
         mm_lines=mm_lines,
         test_lines=lines,
-        result={sym: _snapshot_for_result(book) for sym, book in books.items()},
+        result={sym: reference_snapshot(book, sym) for sym, book in books.items()},
         counts=counts,
+        trades={
+            sym: [
+                (t.buy_id, t.sell_id, t.price, t.qty, t.aggressor) for t in book.trades
+            ]
+            for sym, book in books.items()
+        },
     )
 
 

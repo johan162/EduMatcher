@@ -149,6 +149,7 @@ from edumatcher.models.order import (
     OrderType,
     Side,
     SmpAction,
+    TIF,
 )
 from edumatcher.models.trade import Trade
 
@@ -181,12 +182,14 @@ class BookStats:
     """Sizes of one book, for the health beacon (operator dashboard §8.3).
 
     ``resting_orders`` counts every order the book holds -- stops and trailing
-    stops included, as ``resting_orders()`` does; ``stop_orders`` is the live
+    stops included, as ``resting_orders()`` does; ``gtc_orders`` is the subset
+    with TIF=GTC, the long orders that survive the close; ``stop_orders`` is the live
     subset of those that are stops. ``heap_entries`` includes entries already
     invalidated but not yet compacted; ``live_entries`` does not.
     """
 
     resting_orders: int
+    gtc_orders: int
     stop_orders: int
     bid_levels: int
     ask_levels: int
@@ -253,7 +256,7 @@ class OrderBook:
     Read the module docstring first.  Public surface, in the order a student
     will meet it: ``process`` (a new order arrives), ``cancel_order``,
     ``amend_order``, ``snapshot`` / ``depth_snapshot`` (read-only views for
-    market data), and ``trigger_stops`` (used by the auction code).
+    market data), and ``run_stops`` (used by the auction code).
     Everything starting with an underscore is internal machinery.
     """
 
@@ -269,6 +272,7 @@ class OrderBook:
         "_order_index",
         "_entry_index",
         "_orders_by_gateway",
+        "_gtc_count",
         "last_trade_price",
         "last_trade_qty",
         "last_buy_price",
@@ -347,6 +351,11 @@ class OrderBook:
         # and a set of id strings would emit them in the per-process hash
         # order, so two runs of the same input would publish differently.
         self._orders_by_gateway: dict[str, dict[str, None]] = {}
+        # How many of those orders are TIF=GTC -- the ones that outlive the
+        # day.  Moves with _orders_by_gateway (_track_gateway on the way in,
+        # _discard_from_gateway_index on the way out) so book_stats() can
+        # report it without walking the book.
+        self._gtc_count = 0
 
         # Prices are always INTEGER TICKS inside the engine (never floats), so
         # arithmetic and dict keys are exact; conversion to display money
@@ -612,18 +621,11 @@ class OrderBook:
         #
         # The three guards are cheap early-outs: no trades means the price did
         # not move; _has_stops means there is anything to trigger at all.
+        # The loop itself is run_stops(), which the uncross uses as well.
         if trades and self._has_stops and _cascade_stops:
-            pending = self._check_stops(now) + self._check_trailing_stops(now)
-            while pending:
-                t_order = pending.pop(0)
-                sub_trades, sub_events = self.process(
-                    t_order, now=now, _cascade_stops=False
-                )
-                trades.extend(sub_trades)
-                events.extend(sub_events)
-                if sub_trades and self._has_stops:
-                    pending.extend(self._check_stops(now))
-                    pending.extend(self._check_trailing_stops(now))
+            sub_trades, sub_events = self.run_stops(now)
+            trades.extend(sub_trades)
+            events.extend(sub_events)
 
         return trades, events
 
@@ -886,6 +888,7 @@ class OrderBook:
         ) + sum(1 for o in self._trailing_stops if o.status not in _DEAD_STATUSES)
         return BookStats(
             resting_orders=len(self._order_index),
+            gtc_orders=self._gtc_count,
             stop_orders=live_stops,
             bid_levels=len(self._bid_qty),
             ask_levels=len(self._ask_qty),
@@ -1522,7 +1525,7 @@ class OrderBook:
         ), "Trailing stop must have a positive trail_offset"
         self._trailing_stops.append(order)
         self._order_index[order.id] = order
-        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
+        self._track_gateway(order)
         self._has_stops = True
         # Report the order as NEW.  The engine already sent the ACK before
         # calling process(), and _publish_dispatch publishes nothing for a
@@ -1595,7 +1598,7 @@ class OrderBook:
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
-        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
+        self._track_gateway(order)
         self._has_stops = True
         # Report the order as NEW.  The engine already sent the ACK before
         # calling process(), and _publish_dispatch publishes nothing for a
@@ -1972,6 +1975,14 @@ class OrderBook:
             ]
             heapq.heapify(heap)
 
+    def _track_gateway(self, order: Order) -> None:
+        """Add ``order`` to ``_orders_by_gateway`` (and the GTC count)."""
+        gateway_orders = self._orders_by_gateway.setdefault(order.gateway_id, {})
+        if order.id not in gateway_orders:
+            gateway_orders[order.id] = None
+            if order.tif == TIF.GTC:
+                self._gtc_count += 1
+
     def _discard_from_gateway_index(self, order: Order) -> None:
         """Remove ``order`` from ``_orders_by_gateway``, pruning the
         gateway's entry once it holds no more resting order ids.
@@ -1986,7 +1997,10 @@ class OrderBook:
         """
         gateway_orders = self._orders_by_gateway.get(order.gateway_id)
         if gateway_orders is not None:
-            gateway_orders.pop(order.id, None)
+            if order.id in gateway_orders:
+                del gateway_orders[order.id]
+                if order.tif == TIF.GTC:
+                    self._gtc_count -= 1
             if not gateway_orders:
                 del self._orders_by_gateway[order.gateway_id]
 
@@ -2046,7 +2060,7 @@ class OrderBook:
         heapq.heappush(heap, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
-        self._orders_by_gateway.setdefault(order.gateway_id, {})[order.id] = None
+        self._track_gateway(order)
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment.
@@ -2349,15 +2363,30 @@ class OrderBook:
             self._triggered[order.id] = order
         return triggered
 
-    def trigger_stops(self, now: int) -> list[Order]:
-        """Return all stop and trailing-stop orders triggered at the current
-        ``last_trade_price``.  Returns an empty list if no stops are registered.
+    def run_stops(self, now: int) -> tuple[list[Trade], list[Order]]:
+        """Run the stop cascade at the current ``last_trade_price``.
 
-        Public wrapper around the private ``_check_stops`` /
-        ``_check_trailing_stops`` pair so callers outside the class (e.g.
-        ``Engine._run_uncross``) can trigger stops without pyright
-        ``reportPrivateUsage`` violations.
+        Every stop the price has reached is released and matched as a new
+        order, in the order ``_check_stops`` / ``_check_trailing_stops``
+        release them.  Stops released by *those* trades queue behind the ones
+        already waiting (FIFO, rule G2 in the participant guide), so the
+        cascade runs breadth-first.  Called by ``process`` after a trade and by
+        ``Engine._run_uncross`` after the auction print, so both follow one
+        rule.  Returns ``(trades, events)``, the same shape as ``process``.
         """
+        trades: list[Trade] = []
+        events: list[Order] = []
         if not self._has_stops:
-            return []
-        return self._check_stops(now) + self._check_trailing_stops(now)
+            return trades, events
+        pending = self._check_stops(now) + self._check_trailing_stops(now)
+        while pending:
+            t_order = pending.pop(0)
+            sub_trades, sub_events = self.process(
+                t_order, now=now, _cascade_stops=False
+            )
+            trades.extend(sub_trades)
+            events.extend(sub_events)
+            if sub_trades and self._has_stops:
+                pending.extend(self._check_stops(now))
+                pending.extend(self._check_trailing_stops(now))
+        return trades, events

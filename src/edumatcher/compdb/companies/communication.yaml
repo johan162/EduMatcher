@@ -1,0 +1,362 @@
+# COMMUNICATION. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+CHTR:
+  name: Chartwell Broadband Inc.
+  sector: COMMUNICATION
+  industry: Cable & Broadband
+  headquarters: Stamford, USA
+  purpose: Sells broadband, cable TV, mobile and phone service over its own network to 32 million homes and businesses in 41 US states.
+  key_market: Suburban and rural households in the US Midwest, South and New York
+  market_position: Bundles its own mobile service with broadband at a price the phone companies cannot match, using a rival's network wholesale.
+  origin: FOUNDER
+  founders: Gerald Pruett
+  founder_story: Gerald Pruett, a St. Louis TV repairman, strung a cable from a hilltop antenna down to his neighbours' houses in 1993 so they could watch the networks without snow on the screen.
+  founded_year: 1993
+  ipo_year: 1999
+  ipo_valuation_musd: 9300
+  ceo_name: Kendrick Moyo
+  ceo_since: 2022
+  ceo_industry_years: 27
+  employees: 94000
+  fiscal_year: 2025
+  revenue_musd: 55500
+  net_income_musd: 5000
+  revenue_growth_pct: 0.9
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 4400
+  market_cap_musd: 51000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 4.8
+  credit_rating: BB+
+  competitors: CMCSA T VZ TMUS
+  key_risk: Fixed-wireless broadband from the mobile carriers is taking its cheapest customers.
+CMCSA:
+  name: Commonwealth Cable & Studios Corp.
+  sector: COMMUNICATION
+  industry: Cable & Broadband
+  headquarters: Philadelphia, USA
+  purpose: Runs the largest US cable network, a national TV network, cable channels, a film studio, theme parks and a European pay-TV business.
+  key_market: US broadband households and global film and theme-park audiences
+  market_position: The only company that owns both the pipe into 60 million homes and the shows, films and theme parks people pay to watch.
+  origin: FAMILY
+  founders: The Rothwell family
+  founder_story: Saul Rothwell, a belt salesman, bought a 1,200-subscriber cable system in Tupelo, Mississippi in 1963; his son turned it into the largest cable company in the country and the family still controls the votes.
+  founded_year: 1963
+  ipo_year: 1972
+  ipo_valuation_musd: 40
+  ceo_name: Nathaniel Rothwell
+  ceo_since: 2004
+  ceo_industry_years: 39
+  employees: 182000
+  fiscal_year: 2025
+  revenue_musd: 124000
+  net_income_musd: 15500
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 19.5
+  free_cash_flow_musd: 13000
+  market_cap_musd: 135000
+  dividend_yield_pct: 3.8
+  debt_to_equity: 1.17
+  credit_rating: A-
+  competitors: CHTR DIS NFLX T
+  key_risk: Cord-cutting costs it about a million TV subscribers a year, and broadband customers are now shrinking too.
+DIS:
+  name: Dreamisle Entertainment Co.
+  sector: COMMUNICATION
+  industry: Movies & Entertainment
+  headquarters: Burbank, USA
+  purpose: Makes animated and live-action films and series, runs theme parks and cruise ships, and owns sports and streaming channels.
+  key_market: Families worldwide, through films, streaming, parks and merchandise
+  market_position: Owns the best-loved family characters in the world, and turns each new hit into park rides, toys and cruises for decades.
+  origin: CO_FOUNDERS
+  founders: Harold Penwick, Louis Penwick
+  founder_story: Two brothers from Kansas City opened a tiny cartoon studio in a Los Angeles garage in 1923 after their first studio went bankrupt; a cartoon fox they drew on a train journey saved them.
+  founded_year: 1923
+  ipo_year: 1957
+  ipo_valuation_musd: 30
+  ceo_name: Rebecca Holloway
+  ceo_since: 2026
+  ceo_industry_years: 26
+  employees: 230000
+  fiscal_year: 2025
+  revenue_musd: 94500
+  net_income_musd: 6800
+  revenue_growth_pct: 3.8
+  operating_margin_pct: 14.5
+  free_cash_flow_musd: 10100
+  market_cap_musd: 205000
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.42
+  credit_rating: A-
+  competitors: NFLX CMCSA SPOT
+  key_risk: Its new CEO inherits a streaming business that only recently turned a profit and a TV network business in decline.
+EA:
+  name: Emberarc Games Inc.
+  sector: COMMUNICATION
+  industry: Interactive Home Entertainment
+  headquarters: Redwood City, USA
+  purpose: Makes and publishes video games, above all licensed football, soccer and other sports series updated every year.
+  key_market: Console and PC gamers in North America and Europe
+  market_position: Holds the exclusive licences of the major sports leagues; every year millions of fans buy the new season's game and spend more on team packs.
+  origin: FOUNDER
+  founders: Trevor Holcombe
+  founder_story: Trevor Holcombe left a computer maker in 1982 convinced that game programmers should be treated, and credited, like recording artists; his first games came in record-album style sleeves with the developers' photos.
+  founded_year: 1982
+  ipo_year: 1989
+  ipo_valuation_musd: 75
+  ceo_name: Samuel Okonjo-Reid
+  ceo_since: 2013
+  ceo_industry_years: 30
+  employees: 14500
+  fiscal_year: 2025
+  revenue_musd: 7500
+  net_income_musd: 1100
+  revenue_growth_pct: -1.4
+  operating_margin_pct: 20.5
+  free_cash_flow_musd: 2000
+  market_cap_musd: 48000
+  dividend_yield_pct: 0.4
+  debt_to_equity: 0.23
+  credit_rating: BBB+
+  competitors: SONY
+  key_risk: It has agreed to be taken private, and the deal's financing depends on a sovereign fund's approval.
+GOOGL:
+  name: Glimmer Search Holdings
+  sector: COMMUNICATION
+  industry: Interactive Media & Services
+  headquarters: Mountain View, USA
+  purpose: Runs the world's most used search engine and video site, a mobile operating system, a cloud platform and an AI research lab.
+  key_market: Advertisers worldwide, and cloud customers in the US and Europe
+  market_position: Handles about 90 per cent of the world's web searches, and its own AI chips give it the lowest cost per AI answer of any search provider.
+  origin: CO_FOUNDERS
+  founders: Priya Lindholm, Tomasz Wierzbicki
+  founder_story: Two Stanford PhD students built a search engine in their dorm in 1996 that ranked pages by the links pointing to them; they tried to sell it for a million dollars and nobody bought it.
+  founded_year: 1998
+  ipo_year: 2004
+  ipo_valuation_musd: 23000
+  ceo_name: Helen Dubois-Achterberg
+  ceo_since: 2017
+  ceo_industry_years: 22
+  employees: 187000
+  fiscal_year: 2025
+  revenue_musd: 395000
+  net_income_musd: 118000
+  revenue_growth_pct: 13.5
+  operating_margin_pct: 32.5
+  free_cash_flow_musd: 74000
+  market_cap_musd: 2900000
+  dividend_yield_pct: 0.3
+  debt_to_equity: 0.08
+  credit_rating: AA+
+  competitors: META MSFT AMZN
+  key_risk: US courts have ruled its search business an illegal monopoly; the remedies could end its default-search deals.
+META:
+  name: Mirrorwall Platforms Inc.
+  sector: COMMUNICATION
+  industry: Interactive Media & Services
+  headquarters: Menlo Park, USA
+  purpose: Runs the world's largest social networks and messaging apps, used by 3.5 billion people a day, and builds AI models and smart glasses.
+  key_market: Advertisers worldwide, especially small businesses and app developers
+  market_position: Knows more about what 3.5 billion people like than any other company, which lets it target ads more precisely than anyone except search.
+  origin: CO_FOUNDERS
+  founders: Caleb Ostrowski, Inés Moreira
+  founder_story: A Harvard student launched a website in 2004 for students to look up each other's dorm profiles; within a month half the campus had signed up, and within two years every college in America.
+  founded_year: 2004
+  ipo_year: 2012
+  ipo_valuation_musd: 104000
+  ceo_name: Caleb Ostrowski
+  ceo_since: 2004
+  ceo_industry_years: 22
+  employees: 76000
+  fiscal_year: 2025
+  revenue_musd: 198000
+  net_income_musd: 68000
+  revenue_growth_pct: 20.5
+  operating_margin_pct: 41.0
+  free_cash_flow_musd: 46000
+  market_cap_musd: 1750000
+  dividend_yield_pct: 0.3
+  debt_to_equity: 0.27
+  credit_rating: AA-
+  competitors: GOOGL
+  key_risk: It is spending over 100 billion dollars a year on AI data centres with no clear way yet to earn it back.
+NFLX:
+  name: Nightfall Streaming Inc.
+  sector: COMMUNICATION
+  industry: Movies & Entertainment
+  headquarters: Los Gatos, USA
+  purpose: Streams films and series it makes or licenses to 300 million paying households in 190 countries, and now shows ads and live events.
+  key_market: Subscribers worldwide, half of them outside North America
+  market_position: The only streaming service that is clearly profitable at global scale; it spends more on new shows than any rival and earns it back.
+  origin: CO_FOUNDERS
+  founders: Gordon Pryce, Laila Nasser
+  founder_story: Gordon Pryce was charged a 40-dollar late fee for a rented video in 1997 and set up a DVD-by-post rental service with a monthly subscription and no late fees; ten years later he moved it online.
+  founded_year: 1997
+  ipo_year: 2002
+  ipo_valuation_musd: 310
+  ceo_name: Teodora Sandoval
+  ceo_since: 2023
+  ceo_industry_years: 24
+  employees: 14000
+  fiscal_year: 2025
+  revenue_musd: 45000
+  net_income_musd: 11000
+  revenue_growth_pct: 15.6
+  operating_margin_pct: 29.5
+  free_cash_flow_musd: 9000
+  market_cap_musd: 480000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.63
+  credit_rating: A
+  competitors: DIS CMCSA ROKU
+  key_risk: Its shares price in years of growth; a quarter of lost subscribers would hit them hard.
+ROKU:
+  name: Rookery Streaming Devices
+  sector: COMMUNICATION
+  industry: Interactive Media & Services
+  headquarters: San Jose, USA
+  purpose: Makes the TV operating system and streaming sticks used on one in three smart TVs sold in the US, and sells the ads shown on its home screen.
+  key_market: US television households and the advertisers who want to reach them
+  market_position: The most used TV operating system in the US, so every streaming service must be on its home screen and pay for prominent placement.
+  origin: FOUNDER
+  founders: Felix Marchand
+  founder_story: Felix Marchand, who had founded and sold two tech companies, built a 100-dollar box in 2008 that let a DVD-rental company stream films to TVs; when that company dropped the project, he sold the box himself.
+  founded_year: 2002
+  ipo_year: 2017
+  ipo_valuation_musd: 1300
+  ceo_name: Felix Marchand
+  ceo_since: 2002
+  ceo_industry_years: 35
+  employees: 3200
+  fiscal_year: 2025
+  revenue_musd: 4600
+  net_income_musd: -40
+  revenue_growth_pct: 15.0
+  operating_margin_pct: -1.0
+  free_cash_flow_musd: 400
+  market_cap_musd: 13500
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: BB
+  competitors: NFLX GOOGL AMZN
+  key_risk: TV makers and big tech are building their own operating systems and pushing it off the screen.
+SPOT:
+  name: Spindle Audio AB
+  sector: COMMUNICATION
+  industry: Movies & Entertainment
+  headquarters: Stockholm, Sweden
+  purpose: Streams music, podcasts and audiobooks to 700 million users in 180 markets, 270 million of them paying.
+  key_market: Music listeners in Europe, the Americas and emerging markets
+  market_position: The world's largest audio-streaming service, used by twice as many people as its nearest rival, and the main income of the music industry.
+  origin: CO_FOUNDERS
+  founders: Anders Bergqvist, Elin Sjöberg
+  founder_story: Two Swedish entrepreneurs started it in 2006 to beat music piracy with something easier than piracy; the record labels agreed only because sales were collapsing.
+  founded_year: 2006
+  ipo_year: 2018
+  ipo_valuation_musd: 26500
+  ceo_name: Elin Sjöberg
+  ceo_since: 2006
+  ceo_industry_years: 21
+  employees: 7300
+  fiscal_year: 2025
+  revenue_musd: 19000
+  net_income_musd: 2100
+  revenue_growth_pct: 16.5
+  operating_margin_pct: 12.6
+  free_cash_flow_musd: 3200
+  market_cap_musd: 135000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.25
+  credit_rating: BBB
+  competitors: GOOGL AAPL AMZN
+  key_risk: The three big record labels take two thirds of its revenue and can renegotiate the split.
+T:
+  name: Telwright Communications Inc.
+  sector: COMMUNICATION
+  industry: Integrated Telecommunication Services
+  headquarters: Dallas, USA
+  purpose: Runs a national mobile network for 120 million connections and a fibre broadband network passing 30 million homes.
+  key_market: US mobile and broadband customers, both consumers and businesses
+  market_position: The US carrier with the most fibre, which lets it sell mobile and broadband together and keep customers longer than rivals with only one of them.
+  origin: FOUNDER
+  founders: Cornelius Telwright
+  founder_story: Cornelius Telwright, a telegraph engineer, patented an improvement to the telephone in 1876 and founded a company to rent telephones to subscribers; it became the national phone monopoly until the courts broke it up in 1984.
+  founded_year: 1885
+  ipo_year: 1901
+  ipo_valuation_musd: 80
+  ceo_name: Jonathan Akinola
+  ceo_since: 2020
+  ceo_industry_years: 33
+  employees: 140000
+  fiscal_year: 2025
+  revenue_musd: 124000
+  net_income_musd: 12500
+  revenue_growth_pct: 1.4
+  operating_margin_pct: 19.4
+  free_cash_flow_musd: 18000
+  market_cap_musd: 195000
+  dividend_yield_pct: 4.0
+  debt_to_equity: 1.23
+  credit_rating: BBB
+  competitors: VZ TMUS CHTR
+  key_risk: Its copper landline network still has to be maintained in rural areas where nobody wants it.
+TMUS:
+  name: Tidewave Mobile US
+  sector: COMMUNICATION
+  industry: Wireless Telecommunication Services
+  headquarters: Bellevue, USA
+  purpose: Runs a national 5G mobile network for 135 million customers and sells fixed-wireless home broadband over it.
+  key_market: US mobile and home-broadband customers
+  market_position: Has the widest and fastest 5G network in the US, thanks to radio spectrum it bought in a merger, and has won market share every year for a decade.
+  origin: MERGER
+  founders: A German telecom's US unit and a Seattle prepaid carrier
+  founder_story: The US unit of a European phone company, written off as too small to survive, rebranded itself the "un-carrier" in 2013, scrapped contracts and then bought a struggling rival for its spectrum.
+  founded_year: 1994
+  ipo_year: 2013
+  ipo_valuation_musd: 14000
+  ceo_name: Selena Harrington
+  ceo_since: 2025
+  ceo_industry_years: 25
+  employees: 70000
+  fiscal_year: 2025
+  revenue_musd: 85000
+  net_income_musd: 11500
+  revenue_growth_pct: 4.6
+  operating_margin_pct: 23.0
+  free_cash_flow_musd: 18000
+  market_cap_musd: 270000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 1.8
+  credit_rating: BBB+
+  competitors: VZ T CHTR
+  key_risk: Its European parent controls the board, and its interests may not always match those of the other shareholders.
+VZ:
+  name: Vantage Zone Communications
+  sector: COMMUNICATION
+  industry: Integrated Telecommunication Services
+  headquarters: New York, USA
+  purpose: Runs a national mobile network, fibre broadband in the Northeast, and the networks of large companies and government agencies.
+  key_market: US premium mobile customers, enterprises and federal government
+  market_position: Long had the most reliable network in the US; its customers pay the highest prices and leave the least often of any carrier.
+  origin: MERGER
+  founders: Two regional phone companies created when the national monopoly was broken up
+  founder_story: Formed in 2000 when two of the regional phone companies left by the 1984 break-up of the national monopoly merged and folded in a mobile carrier to compete nationally.
+  founded_year: 2000
+  ipo_year: 2000
+  ipo_valuation_musd: 150000
+  ceo_name: Daniel Seward
+  ceo_since: 2025
+  ceo_industry_years: 32
+  employees: 100000
+  fiscal_year: 2025
+  revenue_musd: 136000
+  net_income_musd: 17500
+  revenue_growth_pct: 0.8
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 19500
+  market_cap_musd: 178000
+  dividend_yield_pct: 6.3
+  debt_to_equity: 1.6
+  credit_rating: BBB+
+  competitors: T TMUS CHTR
+  key_risk: Its large debt and high dividend leave little room if a price war breaks out.

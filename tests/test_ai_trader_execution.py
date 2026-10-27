@@ -99,6 +99,24 @@ class TestContinuous:
         )
         assert (o.price_ticks, o.tif) == (1011, TIF.GTC)
 
+    def test_gtc_fraction_sends_that_share_of_resting_orders_long(self) -> None:
+        spec = ExecutionSpec(style="passive", offset_ticks=1, gtc_fraction=0.2)
+        tifs = [_orders(spec, seed=s)[1][0].tif for s in range(500)]
+        assert 60 < tifs.count(TIF.GTC) < 140
+        assert set(tifs) == {TIF.GTC, TIF.DAY}
+
+    def test_gtc_fraction_leaves_crossing_orders_alone(self) -> None:
+        spec = ExecutionSpec(style="marketable", gtc_fraction=1.0)
+        assert {_orders(spec, seed=s)[1][0].tif for s in range(20)} == {TIF.DAY}
+
+    def test_no_gtc_fraction_draws_nothing_from_the_rng(self) -> None:
+        a, b = random.Random(7), random.Random(7)
+        spec = ExecutionSpec(style="passive", offset_ticks=1)
+        Executor(spec).orders_for(
+            Intent("AAPL", "BUY", 0.1), _st(), 10, "CONTINUOUS", 0.0, a, TagFactory("X")
+        )
+        assert a.random() == b.random()
+
     def test_join_the_touch(self) -> None:
         _, [o] = _orders(ExecutionSpec(style="passive", offset_ticks=0))
         assert o.price_ticks == 990

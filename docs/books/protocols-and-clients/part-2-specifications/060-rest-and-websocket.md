@@ -45,6 +45,7 @@ All paths are rooted at `/api/v1`.
 | [POST /api/v1/kill-switch](#post-apiv1kill-switch) | Trading key | Alias of mass-cancel |
 | [GET /api/v1/symbols](#get-apiv1symbols) | Trading key | Return instrument metadata |
 | [GET /api/v1/news](#get-apiv1news) | Authenticated key | Return the latest market-sim headlines and sector map |
+| [GET /api/v1/companies/{symbol}](#get-apiv1companiessymbol) | Authenticated key | Return one company profile from the company database |
 | [GET /api/v1/session](#get-apiv1session) | Trading key | Return the current engine session state |
 | [GET /api/v1/halts](#get-apiv1halts) | Trading key | Return currently-halted symbols (non-admin) |
 | [GET /api/v1/status](#get-apiv1status) | Trading key | Return gateway cache summary and resolved role |
@@ -1087,6 +1088,33 @@ since this is public information, not a trading action.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `VALIDATION` | `limit` outside `1`-`200` |
+
+### `GET /api/v1/companies/{symbol}`
+
+Purpose: return the company profile behind one symbol, from the company
+database `pm-compdb-cli init` builds (`companies.db` in the data directory).
+The gateway opens it read-only. Access: Authenticated key (read-only keys included) — the profiles
+are public information.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | path | Yes | Ticker, case-insensitive |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "symbol": "AAPL", "name": ..., "pe_ratio": ..., ... }` | Every column of `company_view`: the stored fields plus the derived `years_in_business`, `ceo_tenure_years`, `pe_ratio`, `ps_ratio` and `net_margin_pct`. Money is in millions of USD; a field the database has no value for is `null`. `pm-compdb-cli columns` lists them all. |
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `AUTH` | Missing or malformed key |
+| `UNKNOWN_COMPANY` | `404`: the database has no profile for `symbol` |
+| `COMPANY_DB_UNAVAILABLE` | `503`: no `companies.db` in the data directory, or it cannot be read |
 
 ### `GET /api/v1/session`
 

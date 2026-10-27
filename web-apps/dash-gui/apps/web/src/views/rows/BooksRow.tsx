@@ -1,7 +1,7 @@
 /**
  * Row 5, ORDER BOOKS (design §12.3): how many books and their estimated
- * memory (and its share of the engine's), then one row per symbol: resting
- * and stop orders, price levels, memory, heap garbage against its
+ * memory (and its share of the engine's), then one row per symbol: long (GTC),
+ * resting and stop orders, price levels, memory, heap garbage against its
  * threshold, trades today, and whether it is halted -- in words.
  */
 
@@ -27,6 +27,7 @@ const TRADING = { glyph: "●", label: "trading", ...TONE.ok };
 function columns(breaches: readonly ActiveBreach[]): Column<BookStats>[] {
   return [
     { id: "symbol", header: "Symbol", render: (b) => <span className="font-mono">{b.symbol}</span>, sortKey: (b) => b.symbol },
+    { id: "long", header: "Long", render: (b) => formatCount(b.gtc_orders), sortKey: (b) => b.gtc_orders, align: "right" },
     { id: "resting", header: "Resting", render: (b) => formatCount(b.resting_orders), sortKey: (b) => b.resting_orders, align: "right" },
     { id: "stops", header: "Stops", render: (b) => formatCount(b.stop_orders), sortKey: (b) => b.stop_orders, align: "right" },
     { id: "bid", header: "Bid lv", render: (b) => formatCount(b.bid_levels), sortKey: (b) => b.bid_levels, align: "right" },

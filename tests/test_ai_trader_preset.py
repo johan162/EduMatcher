@@ -68,7 +68,9 @@ def test_builtins_cover_every_order_type_and_protection() -> None:
         "trailing",
         "bracket",
     }
-    assert any(p.execution.tif == "GTC" for p in presets)
+    assert any(
+        p.execution.tif == "GTC" or p.execution.gtc_fraction > 0 for p in presets
+    )
     assert len(list(OrderType)) == 8  # if the engine grows a type, cover it here
 
 

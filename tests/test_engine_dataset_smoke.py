@@ -1,23 +1,28 @@
 """The verification dataset, replayed through the engine (smoke test).
 
 ``tools/verify_matching.sh`` generates a random session, paper-trades it
-through ``OrderBook`` directly, replays it through a live ``pm-engine`` over
-ZMQ and compares the two books. That is a genuinely valuable check and it ran
-approximately never -- by the time anyone reached for it, it had gone stale in
-five separate ways and did not start at all.
+through the reference matcher (``tests/reference_matcher.py``), replays it
+through a live ``pm-engine`` over ZMQ and compares the two books. That is a
+genuinely valuable check and it ran approximately never -- by the time anyone
+reached for it, it had gone stale in five separate ways and did not start at
+all.
 
 So the same dataset runs here, every suite run. What is different is the
 vehicle: the engine is built in-process on fake sockets
 (:mod:`tests.engine_harness`) and driven by calling its handlers, so there is
 no subprocess, no port to collide on and nothing to time out. What is the same
 is everything that matters -- the real ``Engine``, its validation, its dispatch
-and its books, against the paper trader's.
+and its books, against the paper trader's. In-process the comparison also
+covers the trade tape, print by print, which the final books alone cannot
+show (who traded with whom, in which order).
 
 The dataset is the point. A hand-written test asserts the case its author
 thought of; a thousand seeded orders with amendments and cancellations
 interleaved against whatever happens to be resting asserts that the engine and
-a straightforward reimplementation of matching agree about *all* of it. That
-is what caught the iceberg sweep that never terminated.
+an independent model of the documented rules agree about *all* of it. Until
+2026-10 the paper trader was ``OrderBook`` itself, so this could only catch
+the engine layer around the book, never a matching bug (matching test-quality
+workplan, T4). It did catch the iceberg sweep that never terminated.
 """
 
 from __future__ import annotations
@@ -29,7 +34,10 @@ from typing import Any
 
 import pytest
 
-from tests.engine_harness import connect, make_engine
+from edumatcher.models.message import decode
+from edumatcher.models.price import to_ticks
+
+from tests.engine_harness import FakeSock, connect, make_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
@@ -81,12 +89,31 @@ def engine_books(engine: Any) -> dict[str, dict[str, Any]]:
     }
 
 
+def engine_trades(pub: FakeSock) -> dict[str, list[tuple[str, str, int, int, str]]]:
+    """The published prints per symbol, in the shape of ``Dataset.trades``."""
+    out: dict[str, list[tuple[str, str, int, int, str]]] = {s: [] for s in gen.SYMBOLS}
+    for frames in pub.sent:
+        topic, p = decode(frames)
+        if topic == "trade.executed":
+            out[p["symbol"]].append(
+                (
+                    p["buy_order_id"],
+                    p["sell_order_id"],
+                    to_ticks(p["price"], p["symbol"]),
+                    p["quantity"],
+                    p["aggressor_side"],
+                )
+            )
+    return out
+
+
 def run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, count: int
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, int]]:
-    """Generate, paper-trade and replay. Returns (paper, engine, counts)."""
+) -> tuple[gen.Dataset, dict[str, dict[str, Any]], dict[str, list[Any]]]:
+    """Generate, paper-trade and replay. Returns (dataset, engine books, engine
+    trades)."""
     dataset = gen.generate(random.Random(42), count)
-    engine, _pub = make_engine(
+    engine, pub = make_engine(
         monkeypatch,
         tmp_path,
         symbols=tuple(gen.SYMBOLS),
@@ -95,16 +122,24 @@ def run(
     )
     connect(engine, GATEWAY)
     replay(engine, dataset.mm_lines + dataset.test_lines)
-    return dataset.result, engine_books(engine), dataset.counts
+    return dataset, engine_books(engine), engine_trades(pub)
 
 
 class TestTheEngineAgreesWithThePaperTrader:
     def test_every_book_matches(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        paper, engine, _counts = run(monkeypatch, tmp_path, SMOKE_COUNT)
+        dataset, engine, _trades = run(monkeypatch, tmp_path, SMOKE_COUNT)
 
-        assert engine == paper
+        assert engine == dataset.result
+
+    def test_every_trade_matches(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        dataset, _engine, trades = run(monkeypatch, tmp_path, SMOKE_COUNT)
+
+        for symbol in gen.SYMBOLS:
+            assert trades[symbol] == dataset.trades[symbol], symbol
 
     def test_the_dataset_is_worth_comparing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -115,7 +150,8 @@ class TestTheEngineAgreesWithThePaperTrader:
         asserts the session actually happened: trades on every symbol, and the
         amendment share the generator promises.
         """
-        paper, _engine, counts = run(monkeypatch, tmp_path, SMOKE_COUNT)
+        dataset, _engine, _trades = run(monkeypatch, tmp_path, SMOKE_COUNT)
+        paper, counts = dataset.result, dataset.counts
 
         assert counts["trades"] > SMOKE_COUNT // 4
         assert all(paper[symbol]["last_price"] is not None for symbol in gen.SYMBOLS)
@@ -144,6 +180,7 @@ class TestTheEngineAgreesWithThePaperTrader:
         smoke test is that it runs on every commit, and the point of this one
         is depth. ``-m heavy`` gives you the ten thousand.
         """
-        paper, engine, _counts = run(monkeypatch, tmp_path, gen.DEFAULT_COUNT)
+        dataset, engine, trades = run(monkeypatch, tmp_path, gen.DEFAULT_COUNT)
 
-        assert engine == paper
+        assert engine == dataset.result
+        assert trades == dataset.trades

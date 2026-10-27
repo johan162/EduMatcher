@@ -4,6 +4,7 @@
  */
 import { apiFetch } from "./apiFetch.js";
 import type {
+  CompanyProfile,
   NewsSnapshot,
   StatusResponse,
   Order,
@@ -73,6 +74,11 @@ export const getHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/halts")
 // ── News (WP-E5) ──────────────────────────────────────────────────────────────
 // pm-market-sim's latest headlines; live ones arrive on the market-data socket.
 export const getNews = (limit = 200) => apiFetch<NewsSnapshot>(`/api/v1/news?limit=${limit}`);
+
+// ── Company profiles ──────────────────────────────────────────────────────────
+// pm-compdb-cli's companies.db, read by the gateway; 404 for an unknown symbol.
+export const getCompany = (symbol: string) =>
+  apiFetch<CompanyProfile>(`/api/v1/companies/${encodeURIComponent(symbol)}`);
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 // Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin

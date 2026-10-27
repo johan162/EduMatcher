@@ -489,6 +489,7 @@ def book_samples(books: Iterable[OrderBook]) -> list[MetricSample]:
         out.extend(
             (
                 gauge("engine.book_resting_orders", stats.resting_orders, sym),
+                gauge("engine.book_gtc_orders", stats.gtc_orders, sym),
                 gauge("engine.book_stop_orders", stats.stop_orders, sym),
                 gauge("engine.book_bid_levels", stats.bid_levels, sym),
                 gauge("engine.book_ask_levels", stats.ask_levels, sym),

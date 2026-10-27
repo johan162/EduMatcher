@@ -498,7 +498,8 @@ The rules below pin down the cases the overview leaves open. They hold for
   execute one after another: triggered BUY stops first (lowest stop price
   first, then in arrival order), then SELL stops (highest stop price first,
   then in arrival order), then trailing stops in arrival order. Stops
-  triggered by *those* executions queue behind them and run in turn.
+  triggered by *those* executions queue behind them and run in turn. The
+  same holds for the stops an auction's uncross print triggers.
 
 **Why does a BUY STOP trigger at a price *higher* than the stop?**
 

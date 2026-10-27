@@ -147,6 +147,7 @@ cython_debug/
 *.bak
 *.backup
 *.db
+!docs/examples/ref_data/s300-sim-setup/companies.db
 *.sqlite
 *.sqlite3
 *.csv

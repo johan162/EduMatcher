@@ -143,8 +143,8 @@ MUTANTS: tuple[Mutant, ...] = (
         "M10",
         "stop cascade disabled (a stop's fill cannot trigger the next stop)",
         OB,
-        "                if sub_trades and self._has_stops:",
-        "                if False:",
+        "            if sub_trades and self._has_stops:",
+        "            if False:",
     ),
     Mutant(
         "M11",
@@ -322,6 +322,16 @@ MUTANTS: tuple[Mutant, ...] = (
         OB,
         "                if stops_sweep:\n                    return total",
         "                if stops_sweep:\n                    continue",
+    ),
+    Mutant(
+        "M31",
+        "uncross stop cascade runs depth-first, not queued (T3, I19)",
+        MN,
+        "                sub_trades, sub_events = book.run_stops(now_ns())\n"
+        "                self._publish_dispatch(sub_trades, sub_events)",
+        "                for stop in book._check_stops(0) + book._check_trailing_stops(0):\n"
+        "                    sub_trades, sub_events = book.process(stop)\n"
+        "                    self._publish_dispatch(sub_trades, sub_events)",
     ),
 )
 

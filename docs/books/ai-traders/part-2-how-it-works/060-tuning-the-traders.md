@@ -164,6 +164,7 @@ What each lever does:
 | `slices`, `horizon_sec` (twap) | works its order in more pieces over a longer time: less impact, slower to reach the value |
 | `auction_participation` | takes part in more auction decisions |
 | `tif: GTC` | leaves orders on the book overnight |
+| `gtc_fraction` | sends that share of its resting orders as GTC, whatever `tif` says: a few long orders that outlive the day (a trader keeps at most one per symbol, and never cancels it as stale) |
 
 ### Tempo
 

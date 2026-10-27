@@ -197,6 +197,12 @@ class TestQueries:
         assert om.stale(59.0, max_age=60, drift_ticks=None, touch={}) == []
         assert len(om.stale(60.0, max_age=60, drift_ticks=None, touch={})) == 1
 
+    def test_long_orders_are_never_stale(self) -> None:
+        om = OrderManager()
+        self._live(om, _order(at=0.0, tif=TIF.GTC))
+        touch: dict[str, tuple[int | None, int | None]] = {"AAPL": (2000, 2010)}
+        assert om.stale(1e6, max_age=60, drift_ticks=10, touch=touch) == []
+
     @pytest.mark.parametrize(
         ("side", "price", "bid", "ask", "stale"),
         [

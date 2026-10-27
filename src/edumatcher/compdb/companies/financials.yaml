@@ -1,0 +1,1172 @@
+# FINANCIALS. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+AFL:
+  name: Amberfield Life Assurance
+  sector: FINANCIALS
+  industry: Life & Health Insurance
+  headquarters: Columbus, USA
+  purpose: Sells supplemental cancer, accident and hospital insurance that pays cash directly to policyholders, mostly in Japan and the US.
+  key_market: Japanese households, which bring two thirds of its premiums, and US employers' voluntary benefit plans
+  market_position: Pioneered cancer insurance in Japan in the 1970s and still sells one in four policies there through the post office network.
+  origin: FAMILY
+  founders: Three Georgia brothers
+  founder_story: Three brothers in Columbus, Georgia started a life insurer in 1955; on a visit to the Osaka world fair in 1970 one of them noticed Japanese people wearing surgical masks and asked about their health worries, which led to cancer cover.
+  founded_year: 1955
+  ipo_year: 1974
+  ipo_valuation_musd: 60
+  ceo_name: Lamar Pettigrew
+  ceo_since: 1992
+  ceo_industry_years: 45
+  employees: 12500
+  fiscal_year: 2025
+  revenue_musd: 18500
+  net_income_musd: 4200
+  revenue_growth_pct: -1.5
+  operating_margin_pct: 27.0
+  free_cash_flow_musd: 2600
+  market_cap_musd: 57000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.3
+  credit_rating: A
+  competitors: MET
+  key_risk: A weak yen cuts the dollar value of its Japanese profits, and Japan's population is shrinking.
+AIG:
+  name: Atlas International Group
+  sector: FINANCIALS
+  industry: Multi-line Insurance
+  headquarters: New York, USA
+  purpose: Insures large companies' property, liability, marine, aviation and financial risks in 200 countries and reinsures other insurers.
+  key_market: Multinational corporations in North America, Europe and Asia
+  market_position: One of very few insurers that can write a single global policy for a multinational across 200 countries.
+  origin: FOUNDER
+  founders: Cornell Starling
+  founder_story: Cornell Starling, a 27-year-old American, opened an insurance agency in Shanghai in 1919 to sell cover to Chinese customers that Western insurers ignored; he moved it to New York in 1949.
+  founded_year: 1919
+  ipo_year: 1969
+  ipo_valuation_musd: 600
+  ceo_name: Philippa Ravenscroft
+  ceo_since: 2017
+  ceo_industry_years: 35
+  employees: 22000
+  fiscal_year: 2025
+  revenue_musd: 27500
+  net_income_musd: 3300
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 46000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.25
+  credit_rating: A-
+  competitors: CB ALL HIG
+  key_risk: The 2008 bailout still shapes how regulators and customers see it.
+AJG:
+  name: Ambrose J. Gallant & Co.
+  sector: FINANCIALS
+  industry: Insurance Brokers
+  headquarters: Rolling Meadows, USA
+  purpose: Brokers insurance and manages risk and employee benefits for mid-sized companies in 130 countries.
+  key_market: Mid-market companies in the US, the UK and Australia
+  market_position: Has bought over 500 small brokers in 40 years, giving it the broadest reach into mid-sized firms that the two largest brokers find too small to bother with.
+  origin: FOUNDER
+  founders: Ambrose Juniper Gallant
+  founder_story: Ambrose Juniper Gallant, a Chicago insurance clerk, set up his own brokerage in 1927 with one client; his sons and grandsons ran it for three generations.
+  founded_year: 1927
+  ipo_year: 1984
+  ipo_valuation_musd: 150
+  ceo_name: Fiona Gallant-Moore
+  ceo_since: 1997
+  ceo_industry_years: 45
+  employees: 56000
+  fiscal_year: 2025
+  revenue_musd: 13500
+  net_income_musd: 1800
+  revenue_growth_pct: 18.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 2400
+  market_cap_musd: 78000
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.55
+  credit_rating: BBB
+  competitors: AON MMC BRO
+  key_risk: Its largest acquisition ever must be integrated just as insurance prices start to soften.
+ALL:
+  name: Allwick Insurance Co.
+  sector: FINANCIALS
+  industry: Property & Casualty Insurance
+  headquarters: Northbrook, USA
+  purpose: Insures 18 million cars and homes in the US through its own agents, independent agents and online.
+  key_market: US car and home owners
+  market_position: One of the best-known insurance brands in the US, with its own exclusive agents in nearly every town.
+  origin: SPIN_OFF
+  founders: Spun off from a department-store chain
+  founder_story: A Chicago mail-order and department-store chain began selling car insurance by mail to its catalogue customers in 1931; the insurer was spun off in 1993.
+  founded_year: 1931
+  ipo_year: 1993
+  ipo_valuation_musd: 12000
+  ceo_name: Owen Greaves
+  ceo_since: 2008
+  ceo_industry_years: 36
+  employees: 53000
+  fiscal_year: 2025
+  revenue_musd: 66000
+  net_income_musd: 5500
+  revenue_growth_pct: 8.5
+  operating_margin_pct: 10.5
+  free_cash_flow_musd: 8000
+  market_cap_musd: 53000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.35
+  credit_rating: A-
+  competitors: CB HIG AIG
+  key_risk: Severe hail and wildfire seasons push its home insurance into losses.
+AMP:
+  name: Amplestone Financial Inc.
+  sector: FINANCIALS
+  industry: Asset Management & Custody Banks
+  headquarters: Minneapolis, USA
+  purpose: Gives financial advice to 3 million US households through 10,000 advisers, and manages funds, annuities and insurance.
+  key_market: Mass-affluent US households planning for retirement
+  market_position: Its advisers are the most productive in the industry, and clients' money stays for decades because they plan whole retirements with it.
+  origin: FOUNDER
+  founders: Josiah Whitcombe-Amble
+  founder_story: A Minneapolis lawyer set up a mutual savings company in 1894 so that working families could buy investment certificates with small monthly payments.
+  founded_year: 1894
+  ipo_year: 2005
+  ipo_valuation_musd: 9500
+  ceo_name: Harriet Lindquist
+  ceo_since: 2006
+  ceo_industry_years: 38
+  employees: 13500
+  fiscal_year: 2025
+  revenue_musd: 17500
+  net_income_musd: 3500
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 48000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.8
+  credit_rating: A-
+  competitors: SCHW MS
+  key_risk: Falling interest rates cut what it earns on clients' cash.
+AON:
+  name: Aonach Risk Partners plc
+  sector: FINANCIALS
+  industry: Insurance Brokers
+  headquarters: Dublin, Ireland
+  purpose: Advises large companies on risk, retirement and health benefits and places their insurance and reinsurance.
+  key_market: Multinational corporations and insurers worldwide
+  market_position: One of the two largest insurance brokers in the world, with data on more insurance placements than any rival.
+  origin: MERGER
+  founders: A Chicago insurance broker and a reinsurance broker
+  founder_story: Formed in 1982 when a Chicago broker that started by selling accident insurance to travelling salesmen merged with a reinsurance broker.
+  founded_year: 1982
+  ipo_year: 1982
+  ipo_valuation_musd: 1100
+  ceo_name: Gareth Fennimore
+  ceo_since: 2007
+  ceo_industry_years: 36
+  employees: 60000
+  fiscal_year: 2025
+  revenue_musd: 17000
+  net_income_musd: 2700
+  revenue_growth_pct: 9.5
+  operating_margin_pct: 26.5
+  free_cash_flow_musd: 3200
+  market_cap_musd: 78000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 2.3
+  credit_rating: BBB+
+  competitors: MMC AJG BRO
+  key_risk: It took on debt to buy a mid-market broker and must deliver the promised savings.
+AXP:
+  name: Axiom Express Co.
+  sector: FINANCIALS
+  industry: Consumer Finance
+  headquarters: New York, USA
+  purpose: Issues premium charge and credit cards and runs its own card network, which merchants pay to accept.
+  key_market: Affluent consumers and corporations in the US
+  market_position: Is both card issuer and network, so it earns fees on both sides; its cardholders spend three times as much per card as on rival networks.
+  origin: CO_FOUNDERS
+  founders: Henrietta Westbridge, Silas Fairgate
+  founder_story: Founded in 1850 as a freight express company carrying valuables in the American West; it invented the traveller's cheque in 1891 when its president could not cash a letter of credit in Europe.
+  founded_year: 1850
+  ipo_year: 1965
+  ipo_valuation_musd: 250
+  ceo_name: Malcolm Ashworth
+  ceo_since: 2019
+  ceo_industry_years: 33
+  employees: 75000
+  fiscal_year: 2025
+  revenue_musd: 72000
+  net_income_musd: 11000
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 19.5
+  free_cash_flow_musd: 14000
+  market_cap_musd: 215000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 1.8
+  credit_rating: A-
+  competitors: V MA COF
+  key_risk: Merchants are pushing for laws to cap card fees, which would hit its premium model hardest.
+BAC:
+  name: Bayport American Bancorp
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: Charlotte, USA
+  purpose: Serves 70 million consumers and small businesses, runs a large wealth-management arm, and is a leading investment bank.
+  key_market: US consumers, businesses and wealthy families
+  market_position: Has more US deposits than almost any bank, at almost no interest cost, which funds its lending more cheaply than rivals.
+  origin: MERGER
+  founders: A San Francisco immigrants' bank and a Carolina bank
+  founder_story: A San Francisco bank founded in 1904 to serve Italian immigrants, which lent to people other banks refused, merged in 1998 with a fast-growing Carolina bank.
+  founded_year: 1998
+  ipo_year: 1998
+  ipo_valuation_musd: 90000
+  ceo_name: Gregory Altman
+  ceo_since: 2011
+  ceo_industry_years: 33
+  employees: 213000
+  fiscal_year: 2025
+  revenue_musd: 105000
+  net_income_musd: 29000
+  revenue_growth_pct: 5.5
+  operating_margin_pct: 32.0
+  free_cash_flow_musd: 22000
+  market_cap_musd: 365000
+  dividend_yield_pct: 2.2
+  debt_to_equity: 1.1
+  credit_rating: A
+  competitors: JPM WFC C
+  key_risk: It bought long-dated bonds at low rates in 2021 that are still worth far less than it paid.
+BK:
+  name: Bridgeway Mellon Custody
+  sector: FINANCIALS
+  industry: Asset Management & Custody Banks
+  headquarters: New York, USA
+  purpose: Holds and services 50 trillion dollars of assets for pension funds, asset managers and governments, and clears US Treasury trades.
+  key_market: Institutional investors and broker-dealers worldwide
+  market_position: The largest custody bank in the world and the main clearing bank for the US government bond market.
+  origin: FOUNDER
+  founders: Alexander Bridgeway
+  founder_story: Alexander Bridgeway, a founding father of the young American republic, set up a bank in New York in 1784 to bring order to the confusion of currencies after the revolution.
+  founded_year: 1784
+  ipo_year: 1792
+  ipo_valuation_musd: 1
+  ceo_name: Ronan Whitlock
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 51000
+  fiscal_year: 2025
+  revenue_musd: 19000
+  net_income_musd: 4800
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 32.0
+  free_cash_flow_musd: 4000
+  market_cap_musd: 70000
+  dividend_yield_pct: 2.0
+  debt_to_equity: 0.8
+  credit_rating: AA-
+  competitors: SCHW
+  key_risk: A cyber-attack on its clearing systems could freeze the government bond market.
+BLK:
+  name: Blackrun Asset Management
+  sector: FINANCIALS
+  industry: Asset Management & Custody Banks
+  headquarters: New York, USA
+  purpose: Manages 12 trillion dollars in index funds, active funds and private markets, and sells its risk-management software to other investors.
+  key_market: Pension funds, insurers and individual investors worldwide
+  market_position: The largest asset manager in the world and the leading provider of exchange-traded funds; its risk software runs inside rival firms.
+  origin: CO_FOUNDERS
+  founders: Eight former bond traders
+  founder_story: Eight bond traders started it in 1988 in a single room, after one of them lost 100 million dollars at his old bank by misjudging interest rates and resolved to build a firm obsessed with measuring risk.
+  founded_year: 1988
+  ipo_year: 1999
+  ipo_valuation_musd: 2000
+  ceo_name: Conrad Ellington
+  ceo_since: 1988
+  ceo_industry_years: 50
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 23500
+  net_income_musd: 6500
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 165000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 0.25
+  credit_rating: AA-
+  competitors: BX SCHW MS
+  key_risk: Its push into private credit carries risks that its index-fund business never did.
+BRO:
+  name: Brockton & Rowe Insurance
+  sector: FINANCIALS
+  industry: Insurance Brokers
+  headquarters: Daytona Beach, USA
+  purpose: Brokers property, casualty and employee-benefit insurance for small and mid-sized businesses and individuals, mostly in the US.
+  key_market: Small businesses and homeowners in Florida, California and the Northeast
+  market_position: Runs as hundreds of decentralised local offices that keep their own names and clients, with the margins of a large firm.
+  origin: CO_FOUNDERS
+  founders: Calvin Brockton, Edgar Rowe
+  founder_story: Two Daytona Beach friends opened an insurance agency in 1939 to cover the boardwalk hotels against hurricanes; when the large insurers pulled out of Florida they found cover for their clients elsewhere.
+  founded_year: 1939
+  ipo_year: 1993
+  ipo_valuation_musd: 200
+  ceo_name: Russell Brockton
+  ceo_since: 2009
+  ceo_industry_years: 33
+  employees: 17500
+  fiscal_year: 2025
+  revenue_musd: 5300
+  net_income_musd: 1000
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 30.0
+  free_cash_flow_musd: 1300
+  market_cap_musd: 32000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.65
+  credit_rating: BBB+
+  competitors: AJG AON MMC
+  key_risk: Florida's insurance market is fragile; a big hurricane could drive insurers away again.
+BX:
+  name: Boxwood Capital Group
+  sector: FINANCIALS
+  industry: Asset Management & Custody Banks
+  headquarters: New York, USA
+  purpose: Manages 1.2 trillion dollars in private equity, real estate, private credit and hedge-fund strategies for pension funds and wealthy individuals.
+  key_market: Pension funds, sovereign wealth funds and wealthy investors worldwide
+  market_position: The largest alternative-asset manager and the world's largest owner of commercial real estate; its funds lock up money for ten years and charge high fees.
+  origin: CO_FOUNDERS
+  founders: Stanley Pierson, Pieter Voss
+  founder_story: Two former investment bankers started it in 1985 with 400,000 dollars and an assistant; they spent a year pitching 488 investors before they raised their first fund.
+  founded_year: 1985
+  ipo_year: 2007
+  ipo_valuation_musd: 33000
+  ceo_name: Jonathan Grayling
+  ceo_since: 2021
+  ceo_industry_years: 33
+  employees: 5000
+  fiscal_year: 2025
+  revenue_musd: 13000
+  net_income_musd: 3000
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 47.0
+  free_cash_flow_musd: 5000
+  market_cap_musd: 190000
+  dividend_yield_pct: 2.5
+  debt_to_equity: 0.65
+  credit_rating: A+
+  competitors: BLK
+  key_risk: Investors pulled money from its flagship property fund for wealthy individuals; another run would hurt its fees.
+C:
+  name: Cityline Bank Group
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: New York, USA
+  purpose: Moves money across borders for multinationals, runs a large investment bank and wealth business, and issues credit cards in the US.
+  key_market: Multinational corporations, banking in 95 countries
+  market_position: The most global US bank; its cash-management network moves 4 trillion dollars a day for companies in nearly every country.
+  origin: FOUNDER
+  founders: Merchants of New York
+  founder_story: Founded in 1812 by a group of New York merchants to finance trade with Europe; it opened its first foreign branch in 1914 to follow its corporate clients abroad.
+  founded_year: 1812
+  ipo_year: 1968
+  ipo_valuation_musd: 1500
+  ceo_name: Margarethe Linwood
+  ceo_since: 2020
+  ceo_industry_years: 37
+  employees: 230000
+  fiscal_year: 2025
+  revenue_musd: 82000
+  net_income_musd: 13000
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 10000
+  market_cap_musd: 155000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 1.5
+  credit_rating: A-
+  competitors: JPM BAC WFC
+  key_risk: Regulators have ordered it to fix its risk controls, and the fines grow while it does.
+CB:
+  name: Chalcedony Bermuda Ltd.
+  sector: FINANCIALS
+  industry: Property & Casualty Insurance
+  headquarters: Zurich, Switzerland
+  purpose: Insures companies' property, liability and cyber risks and high-net-worth individuals' homes, art and yachts, in 54 countries.
+  key_market: Corporations in North America and Europe and wealthy households in the US
+  market_position: The largest listed property and casualty insurer in the world, known for the best underwriting discipline in the industry.
+  origin: MERGER
+  founders: A Bermuda insurer and a New Jersey insurer
+  founder_story: A Bermuda insurer set up in 1985 by banks that could not buy liability insurance bought a New Jersey insurer in 2016 that had insured mansions and art collections since 1882.
+  founded_year: 1985
+  ipo_year: 1993
+  ipo_valuation_musd: 2500
+  ceo_name: Lucas Petit
+  ceo_since: 2012
+  ceo_industry_years: 35
+  employees: 43000
+  fiscal_year: 2025
+  revenue_musd: 58000
+  net_income_musd: 9500
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 18.5
+  free_cash_flow_musd: 13000
+  market_cap_musd: 115000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.3
+  credit_rating: AA
+  competitors: AIG ALL HIG CINF
+  key_risk: Natural catastrophes are getting bigger and US courts are awarding ever larger damages.
+CINF:
+  name: Cinderford Financial Corp.
+  sector: FINANCIALS
+  industry: Property & Casualty Insurance
+  headquarters: Fairfield, USA
+  purpose: Insures businesses, homes and cars in the US Midwest and South through 2,000 independent agencies.
+  key_market: Small businesses and homeowners in Ohio, Indiana and Kentucky
+  market_position: Works only through independent agents and lets them settle claims locally, which makes it their favourite insurer in many towns.
+  origin: CO_FOUNDERS
+  founders: Four Cincinnati insurance agents
+  founder_story: Four independent agents set up their own insurer in 1950 because the big insurers kept rejecting their clients; they sold the first shares to their own customers.
+  founded_year: 1950
+  ipo_year: 1968
+  ipo_valuation_musd: 20
+  ceo_name: Stephen Brandvold
+  ceo_since: 2022
+  ceo_industry_years: 32
+  employees: 5400
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 1900
+  revenue_growth_pct: 7.5
+  operating_margin_pct: 21.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 23000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.06
+  credit_rating: A+
+  competitors: CB ALL HIG
+  key_risk: Its large stock portfolio makes its earnings swing with the stock market.
+CME:
+  name: Calumet Mercantile Exchanges
+  sector: FINANCIALS
+  industry: Financial Exchanges & Data
+  headquarters: Chicago, USA
+  purpose: Runs the largest futures and options exchanges in the world, trading interest rates, stock indexes, currencies, energy, metals and farm goods.
+  key_market: Banks, hedge funds, asset managers and commodity producers worldwide
+  market_position: Has a near-monopoly on US interest-rate and index futures; traders go where the liquidity is, and the liquidity is here.
+  origin: MERGER
+  founders: A Chicago butter and egg board and a grain exchange
+  founder_story: A Chicago butter and egg board set up in 1898 by produce dealers who wanted to fix prices ahead of harvests merged in 2007 with the city's older grain exchange.
+  founded_year: 1898
+  ipo_year: 2002
+  ipo_valuation_musd: 1100
+  ceo_name: Gavin Dougherty
+  ceo_since: 2017
+  ceo_industry_years: 35
+  employees: 3800
+  fiscal_year: 2025
+  revenue_musd: 6400
+  net_income_musd: 3700
+  revenue_growth_pct: 8.5
+  operating_margin_pct: 66.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 95000
+  dividend_yield_pct: 4.1
+  debt_to_equity: 0.12
+  credit_rating: AA-
+  competitors: NDAQ
+  key_risk: New exchanges backed by large trading firms are trying to win its Treasury futures.
+COF:
+  name: Capstone One Financial
+  sector: FINANCIALS
+  industry: Consumer Finance
+  headquarters: McLean, USA
+  purpose: Issues credit cards, makes car loans and runs an online bank, and owns a card-payment network it bought in 2025.
+  key_market: US consumers, especially those with average or below-average credit
+  market_position: Was the first lender to use mass data testing to price credit to each customer, and now owns its own payment network.
+  origin: CO_FOUNDERS
+  founders: Elliot Fairclough, Vikram Morrow
+  founder_story: Two consultants convinced a Virginia bank in 1988 to let them run thousands of experiments on credit-card offers, a radical idea when every card cost the same.
+  founded_year: 1994
+  ipo_year: 1994
+  ipo_valuation_musd: 1100
+  ceo_name: Elliot Fairclough
+  ceo_since: 1994
+  ceo_industry_years: 38
+  employees: 76000
+  fiscal_year: 2025
+  revenue_musd: 47000
+  net_income_musd: 6500
+  revenue_growth_pct: 27.0
+  operating_margin_pct: 17.0
+  free_cash_flow_musd: 18000
+  market_cap_musd: 130000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.85
+  credit_rating: BBB+
+  competitors: AXP JPM V MA
+  key_risk: It lends to weaker borrowers, so a recession would quickly raise its loan losses.
+FI:
+  name: Fiscalis Inc.
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Milwaukee, USA
+  purpose: Runs the core banking systems of thousands of US banks, processes card payments for merchants and sells point-of-sale terminals to small businesses.
+  key_market: US banks, credit unions and small merchants
+  market_position: Its point-of-sale system for small businesses is the second-largest in the US, and thousands of banks run their accounts on its software.
+  origin: MERGER
+  founders: Two Milwaukee bank data centres
+  founder_story: Two bank data-processing centres merged in 1984 to sell computer services to small banks that could not afford their own mainframes.
+  founded_year: 1984
+  ipo_year: 1986
+  ipo_valuation_musd: 150
+  ceo_name: Sabine Lindahl
+  ceo_since: 2025
+  ceo_industry_years: 30
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 21000
+  net_income_musd: 3600
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 27.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 72000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.1
+  credit_rating: BBB
+  competitors: FIS GPN SQ
+  key_risk: Growth in its small-business point-of-sale system has slowed sharply, and it has cut guidance.
+FIS:
+  name: Fidelis Information Systems
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Jacksonville, USA
+  purpose: Supplies core banking, payments, trading and risk software to banks and capital-markets firms in 130 countries.
+  key_market: Banks and capital-markets firms worldwide
+  market_position: Runs the core systems of many of the world's largest banks, which almost never switch because of the risk.
+  origin: SPIN_OFF
+  founders: Spun off from a title-insurance company
+  founder_story: Began in 1968 as the data-processing arm of a small Arkansas bank; a title insurer bought it and spun it off in 2006.
+  founded_year: 1968
+  ipo_year: 2006
+  ipo_valuation_musd: 8000
+  ceo_name: Kalinda Marchbanks
+  ceo_since: 2022
+  ceo_industry_years: 28
+  employees: 55000
+  fiscal_year: 2025
+  revenue_musd: 10500
+  net_income_musd: 1100
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 38000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.85
+  credit_rating: BBB
+  competitors: FI GPN
+  key_risk: It is buying back an issuer-processing business it sold years ago, adding debt.
+FITB:
+  name: Fitzbury Bancorp
+  sector: FINANCIALS
+  industry: Regional Banks
+  headquarters: Cincinnati, USA
+  purpose: A regional bank serving consumers and businesses in eleven Midwestern and South-Eastern states, with a large commercial-payments business.
+  key_market: Consumers and mid-sized businesses in Ohio, Michigan, Illinois and the Southeast
+  market_position: Its commercial-payments platform processes payments for companies nationally, earning fees beyond its regional footprint.
+  origin: MERGER
+  founders: Two Cincinnati banks
+  founder_story: Two Cincinnati banks, both founded in the 1850s, merged in 1908 and kept both names because neither board would give up its own.
+  founded_year: 1858
+  ipo_year: 1975
+  ipo_valuation_musd: 150
+  ceo_name: Teresa Kohlbrenner
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 18500
+  fiscal_year: 2025
+  revenue_musd: 8700
+  net_income_musd: 2400
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 34.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 28000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  competitors: HBAN KEY MTB
+  key_risk: Its agreed takeover of a Texas regional bank must pass regulators and win over depositors.
+GPN:
+  name: Global Paylink Networks
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Atlanta, USA
+  purpose: Processes card payments for 4 million merchants in 38 countries and sells software for restaurants, schools and other sectors.
+  key_market: Small and mid-sized merchants in the US, Europe and Asia
+  market_position: Bundles payments into business software for specific industries, so merchants who use its software take its payments too.
+  origin: SPIN_OFF
+  founders: Spun off from a payments company
+  founder_story: Spun off in 2001 from a payments firm that processed card transactions; it grew through dozens of acquisitions, including its largest rival's merchant business.
+  founded_year: 2001
+  ipo_year: 2001
+  ipo_valuation_musd: 1000
+  ceo_name: Desmond Robichaux
+  ceo_since: 2023
+  ceo_industry_years: 26
+  employees: 27000
+  fiscal_year: 2025
+  revenue_musd: 10000
+  net_income_musd: 1600
+  revenue_growth_pct: 1.0
+  operating_margin_pct: 23.0
+  free_cash_flow_musd: 2200
+  market_cap_musd: 21000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.7
+  credit_rating: BBB-
+  competitors: FI FIS SQ
+  key_risk: Its huge swap of businesses with a rival is complex and could go wrong.
+GS:
+  name: Goldcrest Saxby & Co.
+  sector: FINANCIALS
+  industry: Investment Banking & Brokerage
+  headquarters: New York, USA
+  purpose: Advises on mergers, underwrites shares and bonds, trades securities and manages money for institutions and the very wealthy.
+  key_market: Corporations, governments and institutional investors worldwide
+  market_position: Has ranked first in global merger advice for most of the past 25 years, and is among the largest traders of shares and bonds.
+  origin: FOUNDER
+  founders: Marcus Goldcrest
+  founder_story: Marcus Goldcrest, a German immigrant, began buying businesses' IOUs in New York in 1869 and carrying them in his hat to banks; his son-in-law joined and they started underwriting shares.
+  founded_year: 1869
+  ipo_year: 1999
+  ipo_valuation_musd: 33000
+  ceo_name: Douglas Saltonstall
+  ceo_since: 2019
+  ceo_industry_years: 40
+  employees: 46000
+  fiscal_year: 2025
+  revenue_musd: 57000
+  net_income_musd: 15000
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 34.0
+  free_cash_flow_musd: 10000
+  market_cap_musd: 220000
+  dividend_yield_pct: 1.8
+  debt_to_equity: 2.5
+  credit_rating: A+
+  competitors: MS JPM
+  key_risk: Trading profits swing with markets, and its consumer-banking venture cost billions to unwind.
+HBAN:
+  name: Huntley Bancshares Inc.
+  sector: FINANCIALS
+  industry: Regional Banks
+  headquarters: Columbus, USA
+  purpose: A regional bank with 1,000 branches in eleven Midwestern states, and the leading small-business lender in its region.
+  key_market: Consumers and small businesses in Ohio, Michigan and the Midwest
+  market_position: Offers free overdraft grace periods that drew customers from larger banks, and makes more small-business loans in its region than anyone.
+  origin: FOUNDER
+  founders: Patrick Huntley
+  founder_story: Patrick Huntley, an Irish immigrant, opened a bank in Columbus in 1866 that stayed open through every financial panic of the 19th century.
+  founded_year: 1866
+  ipo_year: 1966
+  ipo_valuation_musd: 50
+  ceo_name: Martina Rafferty
+  ceo_since: 2010
+  ceo_industry_years: 40
+  employees: 20000
+  fiscal_year: 2025
+  revenue_musd: 7600
+  net_income_musd: 2000
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 33.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 25000
+  dividend_yield_pct: 3.8
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  competitors: FITB KEY MTB
+  key_risk: Large deposits from businesses can leave quickly, as they did from failed banks in 2023.
+HIG:
+  name: Harbourfield Insurance Group
+  sector: FINANCIALS
+  industry: Property & Casualty Insurance
+  headquarters: Hartford, USA
+  purpose: Insures small and mid-sized businesses, provides workers' compensation and group benefits, and insures older drivers and homeowners.
+  key_market: Small businesses and employers in the US
+  market_position: Leads the US in small-business insurance sold online through agents, a niche where it prices quickly and accurately.
+  origin: CO_FOUNDERS
+  founders: Hartford merchants
+  founder_story: A group of Hartford merchants founded it in 1810 to insure against fire; it paid every claim after the great New York fire of 1835 when other insurers went bankrupt.
+  founded_year: 1810
+  ipo_year: 1995
+  ipo_valuation_musd: 4800
+  ceo_name: Adrian Swanwick
+  ceo_since: 2015
+  ceo_industry_years: 37
+  employees: 19000
+  fiscal_year: 2025
+  revenue_musd: 27500
+  net_income_musd: 3300
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 15.5
+  free_cash_flow_musd: 5500
+  market_cap_musd: 36000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.27
+  credit_rating: BBB+
+  competitors: CB ALL CINF
+  key_risk: Its old asbestos and environmental claims keep coming back.
+JPM:
+  name: Jasper Pell Morrow & Co.
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: New York, USA
+  purpose: The largest US bank, serving 85 million consumers, most large corporations, and investors through its investment bank and asset manager.
+  key_market: US consumers and businesses, and corporations and institutions worldwide
+  market_position: The largest and most profitable bank in the US, leading in consumer banking, investment banking and markets at once.
+  origin: MERGER
+  founders: More than 1,200 predecessor banks
+  founder_story: The product of 1,200 bank mergers over two centuries, the oldest a water company founded in 1799 that used a loophole in its charter to open a bank.
+  founded_year: 1799
+  ipo_year: 1969
+  ipo_valuation_musd: 2500
+  ceo_name: Vivienne Ashcombe
+  ceo_since: 2008
+  ceo_industry_years: 46
+  employees: 317000
+  fiscal_year: 2025
+  revenue_musd: 180000
+  net_income_musd: 57000
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 41.0
+  free_cash_flow_musd: 40000
+  market_cap_musd: 820000
+  dividend_yield_pct: 1.9
+  debt_to_equity: 1.3
+  credit_rating: AA-
+  competitors: BAC C WFC GS MS
+  key_risk: Its long-serving CEO has no named successor.
+KEY:
+  name: Keyfort Financial Corp.
+  sector: FINANCIALS
+  industry: Regional Banks
+  headquarters: Cleveland, USA
+  purpose: A regional bank with 1,000 branches from Alaska to Maine, with a commercial and investment bank for mid-sized companies.
+  key_market: Consumers and mid-sized companies in 15 US states
+  market_position: Its investment bank for mid-sized companies gives it fees that other regional banks lack.
+  origin: MERGER
+  founders: A Cleveland bank and an Albany bank
+  founder_story: A Cleveland bank and an Albany bank merged in 1994, joining a Midwestern bank with one that stretched across the northern US to Alaska.
+  founded_year: 1825
+  ipo_year: 1960
+  ipo_valuation_musd: 60
+  ceo_name: Beatrice Hale
+  ceo_since: 2020
+  ceo_industry_years: 35
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 7000
+  net_income_musd: 1500
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 19500
+  dividend_yield_pct: 4.6
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  competitors: FITB HBAN MTB
+  key_risk: It sold low-yield bonds at a loss and took a foreign bank's money; its independence is not secure.
+MA:
+  name: Marigold Card International
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Purchase, USA
+  purpose: Runs a global card-payment network linking 3.5 billion cards, 100 million merchants and 25,000 banks, and sells fraud and data services.
+  key_market: Banks and merchants worldwide
+  market_position: One of two global card networks; it takes no credit risk and earns a small fee on every transaction, with margins above 55 per cent.
+  origin: COOPERATIVE
+  founders: A group of California banks
+  founder_story: Several California banks formed a shared credit-card network in 1966 to compete with a rival card issued by one large bank; the banks owned it as a cooperative until it listed.
+  founded_year: 1966
+  ipo_year: 2006
+  ipo_valuation_musd: 5300
+  ceo_name: Moritz Riedel
+  ceo_since: 2020
+  ceo_industry_years: 26
+  employees: 35000
+  fiscal_year: 2025
+  revenue_musd: 32000
+  net_income_musd: 15000
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 58.0
+  free_cash_flow_musd: 16000
+  market_cap_musd: 520000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 2.4
+  credit_rating: A+
+  competitors: V AXP PYPL
+  key_risk: Stablecoins and instant bank payments could route around card networks.
+MCO:
+  name: Moorcroft Ratings Corp.
+  sector: FINANCIALS
+  industry: Financial Exchanges & Data
+  headquarters: New York, USA
+  purpose: Rates the credit of companies, governments and bonds and sells risk data and analytics.
+  key_market: Bond issuers and investors worldwide
+  market_position: One of the two largest credit-rating agencies; a bond without its rating is hard to sell.
+  origin: FOUNDER
+  founders: Josiah Moorcroft
+  founder_story: Josiah Moorcroft, a Wall Street clerk, published a manual of railroad bonds in 1909 with letter grades for their safety, the first bond ratings ever sold.
+  founded_year: 1909
+  ipo_year: 2000
+  ipo_valuation_musd: 6000
+  ceo_name: Tomas Fauntleroy
+  ceo_since: 2016
+  ceo_industry_years: 33
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 7700
+  net_income_musd: 2300
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 45.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 90000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 1.8
+  credit_rating: BBB+
+  competitors: MSCI
+  key_risk: A drop in bond issuance cuts its rating fees immediately.
+MET:
+  name: Metronome Life Insurance
+  sector: FINANCIALS
+  industry: Life & Health Insurance
+  headquarters: New York, USA
+  purpose: Sells life insurance, annuities, dental and disability cover to employers and individuals in 40 countries, and manages pension risk.
+  key_market: US employers' group benefits, and individuals in Japan and Latin America
+  market_position: The largest US provider of group life and dental insurance at work, and leads in taking over companies' pension obligations.
+  origin: CO_FOUNDERS
+  founders: A group of New York businessmen
+  founder_story: A group of New York businessmen founded it in 1868 to sell life insurance to soldiers wounded in the Civil War; it went on to insure factory workers for a few cents a week.
+  founded_year: 1868
+  ipo_year: 2000
+  ipo_valuation_musd: 14000
+  ceo_name: Michelle Kozlovsky
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 45000
+  fiscal_year: 2025
+  revenue_musd: 72000
+  net_income_musd: 4500
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 8.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 54000
+  dividend_yield_pct: 2.7
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: AFL
+  key_risk: A fall in long-term interest rates reduces what it earns on its policyholders' money.
+MMC:
+  name: Marston Meriwether Companies
+  sector: FINANCIALS
+  industry: Insurance Brokers
+  headquarters: New York, USA
+  purpose: The world's largest insurance broker, and through other arms a management consultant, pensions adviser and HR consultant.
+  key_market: Multinational corporations and insurers worldwide
+  market_position: The largest insurance broker in the world, which gives it the most data on what risk costs.
+  origin: CO_FOUNDERS
+  founders: Henry Marston, Donald Meriwether
+  founder_story: Two Chicago insurance brokers merged their firms in 1905; one had made his name insuring the new steel trust and the other insuring railroads.
+  founded_year: 1905
+  ipo_year: 1962
+  ipo_valuation_musd: 300
+  ceo_name: Josiah Abernathy
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 90000
+  fiscal_year: 2025
+  revenue_musd: 26500
+  net_income_musd: 4200
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 4700
+  market_cap_musd: 110000
+  dividend_yield_pct: 1.5
+  debt_to_equity: 1.4
+  credit_rating: A-
+  competitors: AON AJG BRO
+  key_risk: AI tools may shrink the consulting work that brings a third of its revenue.
+MS:
+  name: Morrow Stanhope & Co.
+  sector: FINANCIALS
+  industry: Investment Banking & Brokerage
+  headquarters: New York, USA
+  purpose: Runs a leading investment bank and the largest wealth-management business in the US, with 8 trillion dollars of client assets.
+  key_market: Wealthy US families, corporations and institutional investors
+  market_position: Its wealth arm, built by buying a broker and an online trading platform, earns steady fees that make up half its revenue.
+  origin: SPIN_OFF
+  founders: Spun out of a commercial bank
+  founder_story: Formed in 1935 when a new law forced banks to choose between deposit-taking and securities; two partners left the bank and set up their own securities house.
+  founded_year: 1935
+  ipo_year: 1986
+  ipo_valuation_musd: 1700
+  ceo_name: Leonard Ashby
+  ceo_since: 2024
+  ceo_industry_years: 30
+  employees: 80000
+  fiscal_year: 2025
+  revenue_musd: 66000
+  net_income_musd: 15000
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 31.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 225000
+  dividend_yield_pct: 2.6
+  debt_to_equity: 3.0
+  credit_rating: A+
+  competitors: GS JPM SCHW
+  key_risk: A sharp market fall cuts asset-based fees in wealth management and deal activity in banking at the same time.
+MSCI:
+  name: Mercator Index Analytics
+  sector: FINANCIALS
+  industry: Financial Exchanges & Data
+  headquarters: New York, USA
+  purpose: Calculates stock-market indexes that trillions of dollars of funds track and sells portfolio risk, climate and ESG analytics.
+  key_market: Asset managers, pension funds and ETF issuers worldwide
+  market_position: Its global and emerging-market indexes are the benchmark for 16 trillion dollars of assets; funds that track them must license them.
+  origin: SPIN_OFF
+  founders: Spun off from an investment bank
+  founder_story: Started in 1969 as a small international index service published by a Geneva bank, it was bought by an investment bank and spun off in 2007.
+  founded_year: 1969
+  ipo_year: 2007
+  ipo_valuation_musd: 1700
+  ceo_name: Ingrid Baranowski
+  ceo_since: 2008
+  ceo_industry_years: 33
+  employees: 6000
+  fiscal_year: 2025
+  revenue_musd: 3100
+  net_income_musd: 1200
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 54.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 45000
+  dividend_yield_pct: 1.2
+  debt_to_equity: -4.2
+  credit_rating: BBB-
+  competitors: MCO NDAQ
+  key_risk: Fee pressure from large index-fund providers, who are building their own indexes.
+MTB:
+  name: Monmouth & Tidewater Bank Corp.
+  sector: FINANCIALS
+  industry: Regional Banks
+  headquarters: Buffalo, USA
+  purpose: A regional bank with 1,000 branches from New York to Virginia, known for commercial property and mid-sized business loans.
+  key_market: Consumers, small businesses and commercial property in New York, Pennsylvania, Maryland and New England
+  market_position: Known for the most conservative lending in US banking; it has never had a loss-making quarter since 1976.
+  origin: CO_FOUNDERS
+  founders: Buffalo merchants
+  founder_story: Founded in 1856 by Buffalo merchants and traders on the Erie Canal to finance grain moving from the Great Lakes to New York City.
+  founded_year: 1856
+  ipo_year: 1971
+  ipo_valuation_musd: 50
+  ceo_name: Agnes Valdemar
+  ceo_since: 2017
+  ceo_industry_years: 34
+  employees: 22000
+  fiscal_year: 2025
+  revenue_musd: 9500
+  net_income_musd: 2700
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 37.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 31000
+  dividend_yield_pct: 2.9
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: FITB HBAN KEY
+  key_risk: It is heavily exposed to office-building loans as offices stay half empty.
+NDAQ:
+  name: Northdock Exchange Group
+  sector: FINANCIALS
+  industry: Financial Exchanges & Data
+  headquarters: New York, USA
+  purpose: Runs US and Nordic stock exchanges, and sells financial-crime detection, risk and investor-relations software to banks and companies.
+  key_market: Listed companies, banks and exchanges worldwide
+  market_position: The listing venue for most of the largest technology companies in the world, and supplies the market software of 130 other exchanges.
+  origin: COOPERATIVE
+  founders: A US securities dealers' association
+  founder_story: Created in 1971 by a dealers' association as the world's first electronic stock market, a quote screen that let brokers trade without a trading floor.
+  founded_year: 1971
+  ipo_year: 2002
+  ipo_valuation_musd: 1400
+  ceo_name: Marguerite Olsson
+  ceo_since: 2017
+  ceo_industry_years: 30
+  employees: 9500
+  fiscal_year: 2025
+  revenue_musd: 7600
+  net_income_musd: 1800
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 47000
+  dividend_yield_pct: 1.3
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  competitors: CME MSCI
+  key_risk: Fewer companies go public, and those that do may choose rival exchanges.
+PYPL:
+  name: Paylode Holdings Inc.
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: San Jose, USA
+  purpose: Runs a digital wallet with 430 million accounts, a peer-to-peer payment app and payment processing for online merchants.
+  key_market: Online shoppers and merchants in the US and Europe
+  market_position: Its checkout button is on most of the world's online shops, and 430 million people have an account with it.
+  origin: MERGER
+  founders: Two Palo Alto start-ups
+  founder_story: Two rival Palo Alto start-ups, one making payments between handheld computers and one an online bank, merged in 2000 to stop burning cash fighting each other.
+  founded_year: 1998
+  ipo_year: 2015
+  ipo_valuation_musd: 47000
+  ceo_name: Benedikt Kristiansen
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 33000
+  net_income_musd: 4800
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 6000
+  market_cap_musd: 65000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.5
+  credit_rating: A-
+  competitors: SQ V MA AAPL
+  key_risk: Smartphone wallets with one-tap checkout are winning younger shoppers.
+SCHW:
+  name: Schwyzer Brokerage Corp.
+  sector: FINANCIALS
+  industry: Investment Banking & Brokerage
+  headquarters: Westlake, USA
+  purpose: Runs a discount brokerage, bank and asset manager for 37 million accounts, and the custody platform for independent financial advisers.
+  key_market: Self-directed US investors and independent financial advisers
+  market_position: The largest US brokerage by client assets; it charges no trading commissions and earns on clients' cash and its own index funds.
+  origin: FOUNDER
+  founders: Anton Schwyzer
+  founder_story: Anton Schwyzer started a newsletter for investors in 1971, and when fixed commissions were abolished in 1975 became one of the first discount brokers, selling to people Wall Street ignored.
+  founded_year: 1971
+  ipo_year: 1987
+  ipo_valuation_musd: 400
+  ceo_name: Ryan Delacorte
+  ceo_since: 2024
+  ceo_industry_years: 25
+  employees: 32000
+  fiscal_year: 2025
+  revenue_musd: 23000
+  net_income_musd: 8000
+  revenue_growth_pct: 18.0
+  operating_margin_pct: 46.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 165000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.9
+  credit_rating: A-
+  competitors: MS AMP BLK
+  key_risk: When rates rise clients move their cash into money-market funds, cutting its interest income.
+SQ:
+  name: Squarefold Inc.
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: Oakland, USA
+  purpose: Sells card readers and point-of-sale software to small merchants and runs a consumer payment app with 57 million users.
+  key_market: Small merchants and young consumers in the US
+  market_position: Runs both sides of payments, a merchant network and a consumer app, and links them through its own cash card and buy-now-pay-later.
+  origin: CO_FOUNDERS
+  founders: Darius Oyelowo, Gemma Kincaid
+  founder_story: A furniture maker lost a 2,000-dollar sale at a craft fair in 2009 because he could not take a credit card; his friend, a software engineer, built a tiny square reader that plugged into a phone.
+  founded_year: 2009
+  ipo_year: 2015
+  ipo_valuation_musd: 2900
+  ceo_name: Darius Oyelowo
+  ceo_since: 2009
+  ceo_industry_years: 20
+  employees: 11000
+  fiscal_year: 2025
+  revenue_musd: 24000
+  net_income_musd: 2200
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 1800
+  market_cap_musd: 45000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.35
+  credit_rating: BB+
+  competitors: FI PYPL GPN
+  key_risk: Its founder-CEO's focus on bitcoin worries investors who want it to fix its slowing businesses.
+V:
+  name: Vireo Payments Inc.
+  sector: FINANCIALS
+  industry: Transaction & Payment Processing
+  headquarters: San Francisco, USA
+  purpose: Runs the world's largest card-payment network, linking 4.5 billion cards and 150 million merchants in 200 countries.
+  key_market: Banks and merchants worldwide; most of its volume is outside the US
+  market_position: The largest of the two global card networks, processing 300 billion transactions a year at margins above 65 per cent.
+  origin: COOPERATIVE
+  founders: A California bank's card programme
+  founder_story: A California bank mailed 60,000 unsolicited credit cards to the people of Fresno in 1958; the programme was spun into a bank-owned cooperative in 1970 so other banks could join without dealing with a rival.
+  founded_year: 1958
+  ipo_year: 2008
+  ipo_valuation_musd: 18000
+  ceo_name: Ravindra Suresh-Kelly
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 31000
+  fiscal_year: 2025
+  revenue_musd: 40000
+  net_income_musd: 20000
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 67.0
+  free_cash_flow_musd: 21000
+  market_cap_musd: 680000
+  dividend_yield_pct: 0.7
+  debt_to_equity: 0.55
+  credit_rating: AA-
+  competitors: MA AXP PYPL
+  key_risk: The US government is suing it for monopolising debit-card payments.
+WFC:
+  name: Westbridge Fairgate & Co.
+  sector: FINANCIALS
+  industry: Diversified Banks
+  headquarters: San Francisco, USA
+  purpose: A US bank serving 70 million customers with branches, mortgages, credit cards, commercial loans and wealth management.
+  key_market: US consumers and mid-sized businesses
+  market_position: Has one of the largest US branch networks and was the largest mortgage lender for decades.
+  origin: CO_FOUNDERS
+  founders: Henrietta Westbridge, Silas Fairgate
+  founder_story: The same pair who set up the freight express company founded a bank in San Francisco in 1852 to buy gold dust from miners and ship it east in stagecoaches.
+  founded_year: 1852
+  ipo_year: 1962
+  ipo_valuation_musd: 200
+  ceo_name: Nicholas Stanfield
+  ceo_since: 2020
+  ceo_industry_years: 38
+  employees: 215000
+  fiscal_year: 2025
+  revenue_musd: 82000
+  net_income_musd: 19500
+  revenue_growth_pct: 0.5
+  operating_margin_pct: 28.0
+  free_cash_flow_musd: 15000
+  market_cap_musd: 260000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 1.3
+  credit_rating: A
+  competitors: JPM BAC C
+  key_risk: A regulator's cap on its balance sheet was only lifted in 2025 after its fake-accounts scandal; any new failing could bring it back.

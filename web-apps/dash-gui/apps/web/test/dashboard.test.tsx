@@ -219,7 +219,7 @@ describe("rows 3-7 (D3.4)", () => {
     const books = CAPTURED.books.map((b) => ({ ...b, heap_garbage_pct: 60 }));
     const breach = { rule: "heap_garbage_pct", subject: "MSFT", level: "WARN" as const, value: 60, threshold: 50, since: CAPTURED.ts };
     socket.deliver(hello, frame(fixtureSnapshot({ books, thresholds: [breach] })));
-    const garbage = (symbol: string) => [...screen.getByRole("table", { name: "Order books" }).querySelector(`[data-row="${symbol}"]`)!.querySelectorAll("td")][6]!.textContent;
+    const garbage = (symbol: string) => [...screen.getByRole("table", { name: "Order books" }).querySelector(`[data-row="${symbol}"]`)!.querySelectorAll("td")][7]!.textContent;
     expect(garbage("MSFT")).toBe("60.0% ◐");
     expect(garbage("AAPL")).toBe("60.0%"); // above the band, too few entries for pm-monitor to judge
   });
@@ -229,7 +229,9 @@ describe("rows 3-7 (D3.4)", () => {
     socket.deliver(hello, frame(CAPTURED));
     const aapl = screen.getByRole("table", { name: "Order books" }).querySelector('[data-row="AAPL"]')!;
     expect(aapl.textContent).toContain("trading");
-    expect([...aapl.querySelectorAll("td")][7]!.textContent).toBe("8");
+    expect([...aapl.querySelectorAll("td")][8]!.textContent).toBe("8");
+    expect([...aapl.querySelectorAll("td")][1]!.textContent).toBe("1");
+    expect(screen.getByRole("table", { name: "Order books" }).querySelectorAll("th")[1]!.textContent).toContain("Long");
     expect(tile("Books")).toBe(String(CAPTURED.books.length));
     expect(tile("ALF clients")).toBe("2 / 1 024");
     expect(tile("API dropped events")).toBe("0");

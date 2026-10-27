@@ -1725,6 +1725,103 @@ pm-news list [--duration SECONDS]
 
 None.
 
+## pm-compdb-cli — Company Database CLI
+
+A SQLite database of company profiles for the 300 tickers of the s300
+simulation (`docs/examples/ref_data/s300-sim-setup`), and the tool to query and
+edit it. The companies are made up: each ticker keeps its
+sector and industry from `pm-market-sim` (and so the news it gets), but every
+name, person and number is invented. No running process is needed.
+
+```bash
+pm-compdb-cli [--db PATH] [--format table|json|csv] [--no-header] COMMAND [options]
+pm-compdb-cli list [-c COLS|all] [-w FILTER]... [-s COL [--desc]] [-n N]
+pm-compdb-cli add|update SYMBOL FIELD=VALUE...
+```
+
+| Subcommand | Does |
+|---|---|
+| `init` | Build the database of the 300 bundled companies; `--force` replaces an existing one |
+| `columns` | List the columns, their types and what each holds |
+| `show SYMBOL...` | Everything about one or more companies |
+| `list` | List companies: `-c` comma-separated columns or `all`; `-w COLUMN OP VALUE` with `OP` one of `=` `!=` `<` `<=` `>` `>=` `~` (contains, any case), repeat to narrow; `-s` sort column, `--desc`; `-n` at most N rows |
+| `add SYMBOL FIELD=VALUE...` | Add a company; `name`, `sector` and `industry` are required |
+| `import FILE...` | Add the companies of YAML files (a mapping of `SYMBOL:` to fields, the format of the bundled ones); all or nothing |
+| `update SYMBOL FIELD=VALUE...` | Change fields; an empty value clears one |
+| `delete SYMBOL` | Remove a company |
+
+**Where the companies come from.** The bundled companies are hand-written
+YAML files, one per sector, installed as part of the `edumatcher` package in
+its `compdb/companies/` folder. `init` always reads them from the installed
+package, and no option points it elsewhere. To load your own files, use
+`import`. Where the folder is depends on how EduMatcher was installed:
+
+| Install | Source YAML (`init` reads) | Database (default `--db`) |
+|---|---|---|
+| Source checkout (`poetry install`, editable) | `src/edumatcher/compdb/companies/*.yaml` in the checkout; edits take effect at the next `init` | `<DATA_DIR>/companies.db` |
+| `pip` / `pipx` install of the wheel | `<site-packages>/edumatcher/compdb/companies/*.yaml` inside that environment (pipx: `~/.local/share/pipx/venvs/edumatcher/lib/python3.*/site-packages/…`); replaced by every upgrade | `<DATA_DIR>/companies.db` |
+| Simulation container (`edumatcher-ai-sim`) | `/opt/edumatcher/.venv/lib/python3.14/site-packages/edumatcher/compdb/companies/*.yaml` in the image | `/data/companies.db`, which is `~/.edumatcher-sim/data/companies.db` (installed) or `./data-sim/companies.db` (checkout) on the host |
+
+To see the folder of the installation you are running:
+
+```bash
+python -c "from edumatcher.compdb.store import SEED_DIR; print(SEED_DIR)"
+```
+
+`init` never changes the YAML files. Adding, changing or deleting a company
+changes only the database. The source checkout also has a prebuilt copy,
+`docs/examples/ref_data/s300-sim-setup/companies.db`. A test keeps it equal to
+the YAML, so after editing the YAML rebuild it with
+`pm-compdb-cli --db docs/examples/ref_data/s300-sim-setup/companies.db init --force`.
+The prebuilt copy is not in the wheel or the container image.
+
+**In the simulation container.** The container's entrypoint
+(`deployment/docker/entrypoint.sh`) builds the database when it prepares the
+data directory: if the bundled `s300-sim` example is configured
+(`EM_CONFIG=s300-sim`, the image's default) and `/data/companies.db` does not
+exist, it runs `pm-compdb-cli --db /data/companies.db init`. It does nothing
+in the following cases:
+
+- the database already exists, so companies you added survive restarts and
+  upgrades. Delete the file and restart to get the bundled set of the
+  installed version back.
+- another example is configured, or your own configuration is given with
+  `EM_CONFIG_FILE`. Its tickers need not be the s300 ones; run `init` yourself
+  if you want the database anyway.
+
+A failed build is logged (`warning: could not build /data/companies.db`) and
+the exchange starts regardless.
+
+**Columns.** Identity: `symbol`, `name`, `sector`, `industry`, `headquarters`.
+Business: `purpose`, `key_market`, `market_position`, `competitors` (tickers),
+`key_risk`. History: `origin` (`FOUNDER`, `CO_FOUNDERS`, `FAMILY`, `MERGER`,
+`SPIN_OFF`, `PRIVATISATION`, `COOPERATIVE`), `founders`, `founder_story`,
+`founded_year`, `ipo_year`, `ipo_valuation_musd`. Management: `ceo_name`,
+`ceo_since`, `ceo_industry_years`, `employees`. Financials for `fiscal_year`
+(money in USD millions): `revenue_musd`, `net_income_musd`,
+`revenue_growth_pct`, `operating_margin_pct`, `free_cash_flow_musd`,
+`market_cap_musd`, `dividend_yield_pct`, `debt_to_equity`, `credit_rating`.
+Derived by the database: `years_in_business`, `ceo_tenure_years`, `pe_ratio`
+(market cap / net income, empty for a loss), `ps_ratio`, `net_margin_pct`.
+
+Checks on every write: a ticker the simulation knows must keep its sector; the
+industries the simulation gives news of their own (`Semiconductors`,
+`Software`, `Pharmaceuticals`, `Automobiles`, `Airlines`,
+`Aerospace & Defense`) belong to exactly their members; years must run in order
+(founded, IPO, fiscal year; the CEO no earlier than the founding).
+
+```bash
+pm-compdb-cli show NVDA
+pm-compdb-cli list -c symbol,name,pe_ratio,dividend_yield_pct -w sector=UTILITIES -s dividend_yield_pct --desc
+pm-compdb-cli list -w "origin=MERGER" -w "founded_year<1950" -c symbol,name,founders
+pm-compdb-cli list -w "net_income_musd<0" -c symbol,name,revenue_growth_pct,key_risk
+pm-compdb-cli --format csv list -c all > companies.csv
+```
+
+**Expected runtime input arguments:**
+
+None.
+
 
 ## pm-mm-bot — Autonomous Market-Maker Bot
 

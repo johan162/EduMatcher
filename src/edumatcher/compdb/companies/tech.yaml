@@ -1,0 +1,1562 @@
+# TECH. Made-up companies: the tickers and lines of business follow the
+# simulated market; every name, person and number is invented.
+AAPL:
+  name: Aplomb Devices Inc.
+  sector: TECH
+  industry: Technology Hardware
+  headquarters: Cupertino, USA
+  purpose: Designs smartphones, personal computers, tablets, watches and earphones, and sells apps, music, video, cloud storage and payments for them.
+  key_market: Premium consumers in the US, Europe, China and Japan
+  market_position: More than 2.3 billion of its devices are in use; they work best together, so its customers rarely leave and keep paying for its services.
+  origin: CO_FOUNDERS
+  founders: Rufus Calloway-Brandt, Simeon Achterhof
+  founder_story: Two college drop-outs built a computer kit in a parents' garage in 1976 and sold 50 to a local electronics shop, which insisted they come fully assembled; they raised the money by selling a van and a calculator.
+  founded_year: 1976
+  ipo_year: 1980
+  ipo_valuation_musd: 1800
+  ceo_name: Marguerite Sandoval-Reyes
+  ceo_since: 2013
+  ceo_industry_years: 36
+  employees: 166000
+  fiscal_year: 2025
+  revenue_musd: 415000
+  net_income_musd: 112000
+  revenue_growth_pct: 6.5
+  operating_margin_pct: 32.0
+  free_cash_flow_musd: 98000
+  market_cap_musd: 3700000
+  dividend_yield_pct: 0.4
+  debt_to_equity: 1.5
+  credit_rating: AA+
+  competitors: MSFT GOOGL SONY
+  key_risk: A court ruling could end the 20 billion dollars a year a search company pays it to be the default search engine.
+ACN:
+  name: Accordant Consulting plc
+  sector: TECH
+  industry: Software
+  headquarters: Dublin, Ireland
+  purpose: Builds and runs IT systems, cloud migrations, AI projects and outsourced operations for large companies and governments in 120 countries.
+  key_market: Fortune 500 companies and governments in North America and Europe
+  market_position: The largest IT services company in the world, with 780,000 staff and partnerships with every major software and cloud vendor.
+  origin: SPIN_OFF
+  founders: Spun off from an accounting firm
+  founder_story: The consulting arm of a large accounting firm, which installed one of the first business computers for a US company in 1953; it split from the accountants after a bitter arbitration in 2000.
+  founded_year: 1989
+  ipo_year: 2001
+  ipo_valuation_musd: 15000
+  ceo_name: Henrike Vasconcelos
+  ceo_since: 2018
+  ceo_industry_years: 31
+  employees: 780000
+  fiscal_year: 2025
+  revenue_musd: 70000
+  net_income_musd: 7800
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 15.5
+  free_cash_flow_musd: 10500
+  market_cap_musd: 160000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.15
+  credit_rating: AA-
+  competitors: IBM CTSH EPAM IT
+  key_risk: AI coding tools may shrink the number of consultants clients pay for.
+ADBE:
+  name: Adeline Creative Systems
+  sector: TECH
+  industry: Software
+  headquarters: San Jose, USA
+  purpose: Makes the standard software for photo editing, design, video, documents and PDFs, and marketing software for large companies.
+  key_market: Creative professionals, businesses and marketers worldwide
+  market_position: Its formats and tools are the standard of the creative industry; every designer is trained on them.
+  origin: CO_FOUNDERS
+  founders: Wendell Harcourt, Lionel Pemberton
+  founder_story: Two engineers at a copier maker's research lab left in 1982 when their employer would not sell their page-description language; it became the way computers talked to laser printers.
+  founded_year: 1982
+  ipo_year: 1986
+  ipo_valuation_musd: 90
+  ceo_name: Ottavio Brennan
+  ceo_since: 2010
+  ceo_industry_years: 33
+  employees: 31000
+  fiscal_year: 2025
+  revenue_musd: 23500
+  net_income_musd: 7000
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 36.0
+  free_cash_flow_musd: 9500
+  market_cap_musd: 160000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.55
+  credit_rating: A+
+  competitors: MSFT GOOGL CRM
+  key_risk: AI image and video generators let anyone do what once needed its tools.
+ADI:
+  name: Aldermoor Analog Inc.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Wilmington, USA
+  purpose: Designs and makes analogue, mixed-signal and power chips that convert real-world signals such as sound, heat and pressure into data.
+  key_market: Industrial, car, communications and healthcare equipment makers
+  market_position: Its tens of thousands of analogue chips stay in products for 10 to 20 years, so revenue lasts long after the design is won.
+  origin: CO_FOUNDERS
+  founders: Two MIT graduates
+  founder_story: Two MIT graduates started it in a Cambridge basement in 1965 making amplifiers for lab equipment; their first big customer was a manufacturer of blood-pressure monitors.
+  founded_year: 1965
+  ipo_year: 1979
+  ipo_valuation_musd: 100
+  ceo_name: Ingeborg Salazar
+  ceo_since: 2016
+  ceo_industry_years: 33
+  employees: 24000
+  fiscal_year: 2025
+  revenue_musd: 10500
+  net_income_musd: 2300
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 27.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 115000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.25
+  credit_rating: A-
+  competitors: TXN MCHP
+  key_risk: Industrial customers overstocked chips after the shortages, and demand has been slow to recover.
+ADSK:
+  name: Autodraft Systems Inc.
+  sector: TECH
+  industry: Software
+  headquarters: San Francisco, USA
+  purpose: Makes design software for architects, engineers, builders, manufacturers and film studios.
+  key_market: Architecture, engineering, construction and manufacturing firms worldwide
+  market_position: Its computer-aided design program has been the standard for drawing buildings and machines since the 1980s.
+  origin: CO_FOUNDERS
+  founders: Sixteen programmers
+  founder_story: Sixteen programmers each put in a few thousand dollars in 1982 to sell a drafting program for the new personal computers; the company had no office for months.
+  founded_year: 1982
+  ipo_year: 1985
+  ipo_valuation_musd: 70
+  ceo_name: Ansel Borowski
+  ceo_since: 2016
+  ceo_industry_years: 30
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 6500
+  net_income_musd: 1200
+  revenue_growth_pct: 12.0
+  operating_margin_pct: 23.0
+  free_cash_flow_musd: 1600
+  market_cap_musd: 65000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.0
+  credit_rating: BBB+
+  competitors: CDNS
+  key_risk: An activist investor is pushing it to change its leadership and capital plans.
+AMAT:
+  name: Amalgam Materials Inc.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Santa Clara, USA
+  purpose: Makes the machines that deposit, etch and inspect the materials on silicon wafers in chip factories, and equipment for displays.
+  key_market: Chip makers in Taiwan, Korea, China and the US
+  market_position: The largest maker of chip-making equipment, with the broadest range of machines used in almost every step of chip production.
+  origin: FOUNDER
+  founders: Marcus Halberd
+  founder_story: Marcus Halberd, an engineer at a chemical-vapour company, founded it in 1967 in a small building in Mountain View to make the furnaces that coat silicon wafers.
+  founded_year: 1967
+  ipo_year: 1972
+  ipo_valuation_musd: 30
+  ceo_name: Gwendolyn Arkwright
+  ceo_since: 2014
+  ceo_industry_years: 32
+  employees: 35000
+  fiscal_year: 2025
+  revenue_musd: 28500
+  net_income_musd: 7000
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 29.0
+  free_cash_flow_musd: 6000
+  market_cap_musd: 140000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 0.3
+  credit_rating: A
+  competitors: LRCX KLAC ASML
+  key_risk: US export rules restrict sales to China, its largest market.
+AMD:
+  name: Ardent Micro Devices
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Santa Clara, USA
+  purpose: Designs processors for PCs and servers, graphics chips, AI accelerators and programmable chips, made by contract foundries.
+  key_market: Data-centre operators, PC makers and game-console makers worldwide
+  market_position: The only serious challenger in both server processors and AI accelerators, and the supplier of chips in the two leading game consoles.
+  origin: CO_FOUNDERS
+  founders: Eight engineers from a Silicon Valley chip maker
+  founder_story: A salesman and seven engineers left a chip maker in 1969 to start their own; for decades it was the second source for a larger rival's processors, until it began to design its own.
+  founded_year: 1969
+  ipo_year: 1972
+  ipo_valuation_musd: 50
+  ceo_name: Margit Halloran
+  ceo_since: 2016
+  ceo_industry_years: 32
+  employees: 28000
+  fiscal_year: 2025
+  revenue_musd: 33000
+  net_income_musd: 3500
+  revenue_growth_pct: 28.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 320000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.06
+  credit_rating: A
+  competitors: NVDA INTC AVGO
+  key_risk: Its AI chips must win large customers away from the market leader's software ecosystem.
+ANET:
+  name: Arnett Networks Inc.
+  sector: TECH
+  industry: Communications Equipment
+  headquarters: Santa Clara, USA
+  purpose: Makes high-speed data-centre network switches and routers and the software that runs them.
+  key_market: Cloud giants and large enterprises building AI and cloud data centres
+  market_position: Its single operating system runs on every switch it makes, which cloud companies prefer; it supplies the networks of the largest AI clusters.
+  origin: CO_FOUNDERS
+  founders: Two Silicon Valley entrepreneurs and a Stanford professor
+  founder_story: Two entrepreneurs who had sold a previous networking company and a Stanford professor founded it in 2004 to build faster, more programmable switches for the new cloud data centres.
+  founded_year: 2004
+  ipo_year: 2014
+  ipo_valuation_musd: 2700
+  ceo_name: Brigitte Saunier
+  ceo_since: 2009
+  ceo_industry_years: 35
+  employees: 4500
+  fiscal_year: 2025
+  revenue_musd: 8700
+  net_income_musd: 3400
+  revenue_growth_pct: 25.0
+  operating_margin_pct: 43.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 180000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: CSCO HPE
+  key_risk: Two cloud companies bring over a third of its revenue.
+APH:
+  name: Amphion Connectors Corp.
+  sector: TECH
+  industry: Electronic Components
+  headquarters: Wallingford, USA
+  purpose: Makes electrical and fibre-optic connectors, cable assemblies, antennas and sensors for data centres, cars, aircraft and phones.
+  key_market: Data-centre, car, defence and industrial equipment makers worldwide
+  market_position: Runs 130 small units close to customers, each designing custom connectors quickly, which bigger rivals cannot match.
+  origin: FOUNDER
+  founders: Arthur Jacobi
+  founder_story: Arthur Jacobi, a Chicago radio enthusiast, began making vacuum-tube sockets in his basement in 1932 for the radio sets then in every home.
+  founded_year: 1932
+  ipo_year: 1991
+  ipo_valuation_musd: 300
+  ceo_name: Leopold Okafor
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 125000
+  fiscal_year: 2025
+  revenue_musd: 21000
+  net_income_musd: 3700
+  revenue_growth_pct: 38.0
+  operating_margin_pct: 24.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 150000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.65
+  credit_rating: BBB+
+  competitors: GLW
+  key_risk: Half its growth now comes from AI data centres; a pause in their build would hurt.
+ASML:
+  name: Aspheric Lithography Holding NV
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Veldhoven, Netherlands
+  purpose: Makes the lithography machines that print circuit patterns onto silicon wafers, including the only machines in the world that use extreme ultraviolet light.
+  key_market: Leading chip makers in Taiwan, Korea and the US
+  market_position: The only supplier of EUV lithography; every advanced chip in the world is printed on one of its 200-million-dollar machines.
+  origin: SPIN_OFF
+  founders: A joint venture of an electronics group and a chip-equipment maker
+  founder_story: Set up in 1984 as a 50-50 venture by a Dutch electronics group and an equipment maker, in a leaky shed next to an office building; nobody expected it to survive.
+  founded_year: 1984
+  ipo_year: 1995
+  ipo_valuation_musd: 1500
+  ceo_name: Joost Verbruggen
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 44000
+  fiscal_year: 2025
+  revenue_musd: 35000
+  net_income_musd: 10000
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 34.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 300000
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.2
+  credit_rating: A+
+  competitors: AMAT LRCX KLAC
+  key_risk: Dutch and US export controls block sales of its best machines to China.
+AVGO:
+  name: Avalon Gateway Semiconductor
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Palo Alto, USA
+  purpose: Designs network, broadband, wireless and custom AI chips, and sells infrastructure and virtualisation software.
+  key_market: Cloud companies, network-equipment makers and smartphone makers; large enterprises for software
+  market_position: Designs the custom AI chips of the largest cloud companies and leads in data-centre networking chips.
+  origin: SPIN_OFF
+  founders: Spun off from a test-and-measurement company
+  founder_story: Began as the chip division of a California instrument maker founded in a garage in 1939; buyout firms bought it in 2005 and it went on to take over much larger rivals.
+  founded_year: 1961
+  ipo_year: 2009
+  ipo_valuation_musd: 4500
+  ceo_name: Edwin Castellano
+  ceo_since: 2007
+  ceo_industry_years: 40
+  employees: 37000
+  fiscal_year: 2025
+  revenue_musd: 62000
+  net_income_musd: 21000
+  revenue_growth_pct: 24.0
+  operating_margin_pct: 39.0
+  free_cash_flow_musd: 26000
+  market_cap_musd: 1500000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 0.9
+  credit_rating: BBB+
+  competitors: NVDA AMD QCOM
+  key_risk: A few cloud companies make up most of its AI revenue, and each could bring chip design in-house.
+CDNS:
+  name: Coriander Design Systems
+  sector: TECH
+  industry: Software
+  headquarters: San Jose, USA
+  purpose: Makes the software and hardware that chip designers use to design, simulate and verify chips and circuit boards.
+  key_market: Chip and electronic-system designers worldwide
+  market_position: One of two companies whose design tools every chip maker uses; designers are trained on them and switching mid-project is unthinkable.
+  origin: MERGER
+  founders: Two electronic-design software firms
+  founder_story: Two Silicon Valley design-software firms merged in 1988, at a time when chips had become too complex to design by hand.
+  founded_year: 1988
+  ipo_year: 1988
+  ipo_valuation_musd: 300
+  ceo_name: Kwame Bellingham
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 13000
+  fiscal_year: 2025
+  revenue_musd: 5200
+  net_income_musd: 1100
+  revenue_growth_pct: 13.0
+  operating_margin_pct: 31.0
+  free_cash_flow_musd: 1400
+  market_cap_musd: 85000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.55
+  credit_rating: A-
+  competitors: ADSK
+  key_risk: China has restricted its sales there in response to US export controls.
+CDW:
+  name: Corridor Data Warehouse Corp.
+  sector: TECH
+  industry: Technology Distributors
+  headquarters: Vernon Hills, USA
+  purpose: Resells computers, software, networking and cloud services to businesses, schools, hospitals and government agencies, with installation and support.
+  key_market: Mid-sized US businesses, schools, hospitals and government
+  market_position: The largest IT reseller in North America, with account managers who know their customers' systems.
+  origin: FOUNDER
+  founders: Malcolm Corrigan
+  founder_story: Malcolm Corrigan sold used computers from his kitchen table in Chicago in 1984, through classified adverts in the newspaper; customers kept coming back for advice.
+  founded_year: 1984
+  ipo_year: 1993
+  ipo_valuation_musd: 300
+  ceo_name: Hortense Ashby
+  ceo_since: 2018
+  ceo_industry_years: 25
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 21500
+  net_income_musd: 1050
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 22000
+  dividend_yield_pct: 1.5
+  debt_to_equity: 2.6
+  credit_rating: BBB-
+  competitors: ACN IBM
+  key_risk: Vendors increasingly sell cloud services directly to customers.
+CRM:
+  name: Cumulo Relations Management
+  sector: TECH
+  industry: Software
+  headquarters: San Francisco, USA
+  purpose: Sells cloud software for sales, customer service, marketing, analytics and team chat, and AI agents that work inside them.
+  key_market: Businesses of all sizes, mostly in North America and Europe
+  market_position: The largest customer-relationship software company in the world; customer data for 150,000 companies lives in its cloud.
+  origin: FOUNDER
+  founders: Bartholomew Achebe-Lund
+  founder_story: A software salesman started it in a rented San Francisco flat in 1999 with the slogan "no software", meaning customers would never again install programs, only log in to a website.
+  founded_year: 1999
+  ipo_year: 2004
+  ipo_valuation_musd: 1100
+  ceo_name: Bartholomew Achebe-Lund
+  ceo_since: 1999
+  ceo_industry_years: 38
+  employees: 76000
+  fiscal_year: 2025
+  revenue_musd: 39000
+  net_income_musd: 6500
+  revenue_growth_pct: 8.5
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 12500
+  market_cap_musd: 260000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.2
+  credit_rating: A+
+  competitors: MSFT ORCL SAP NOW
+  key_risk: AI agents may let customers do with fewer seats what they now pay per user for.
+CRWD:
+  name: Crowfield Security Inc.
+  sector: TECH
+  industry: Software
+  headquarters: Austin, USA
+  purpose: Sells cloud-based security software that protects computers, servers, cloud workloads and identities from hackers.
+  key_market: Large enterprises and governments worldwide
+  market_position: Its single lightweight agent collects data from 30 million devices, which trains its threat-detection models better than rivals.
+  origin: CO_FOUNDERS
+  founders: Ingvar Solberg, Desmond Achterberg
+  founder_story: Two security researchers who had tracked state hackers at an antivirus company founded it in 2011 to stop attackers rather than just malware.
+  founded_year: 2011
+  ipo_year: 2019
+  ipo_valuation_musd: 6700
+  ceo_name: Ingvar Solberg
+  ceo_since: 2011
+  ceo_industry_years: 30
+  employees: 10000
+  fiscal_year: 2025
+  revenue_musd: 4300
+  net_income_musd: -50
+  revenue_growth_pct: 22.0
+  operating_margin_pct: -2.0
+  free_cash_flow_musd: 1100
+  market_cap_musd: 115000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.25
+  credit_rating: BBB-
+  competitors: PANW ZS FTNT MSFT
+  key_risk: A faulty update in 2024 crashed 8.5 million Windows computers worldwide; another such failure would be fatal.
+CSCO:
+  name: Cascadia Systems Inc.
+  sector: TECH
+  industry: Communications Equipment
+  headquarters: San Jose, USA
+  purpose: Makes network routers, switches, Wi-Fi, security and observability software, and video-conferencing systems.
+  key_market: Enterprises, telecom carriers, governments and cloud companies worldwide
+  market_position: The standard for enterprise networks for 35 years; network engineers are certified in its systems, so companies keep buying them.
+  origin: CO_FOUNDERS
+  founders: Leonora Bjerke, Samson Ilori
+  founder_story: A married couple who ran computer departments at Stanford built a router in 1984 so their networks could talk to each other across campus, then sold it to other universities.
+  founded_year: 1984
+  ipo_year: 1990
+  ipo_valuation_musd: 220
+  ceo_name: Emmerich Volkov
+  ceo_since: 2016
+  ceo_industry_years: 30
+  employees: 90000
+  fiscal_year: 2025
+  revenue_musd: 56500
+  net_income_musd: 10500
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 23.0
+  free_cash_flow_musd: 13500
+  market_cap_musd: 260000
+  dividend_yield_pct: 2.5
+  debt_to_equity: 0.6
+  credit_rating: AA-
+  competitors: ANET HPE MSI
+  key_risk: Cloud companies build their own network gear or buy from leaner rivals.
+CTSH:
+  name: Cogsworth Technology Services
+  sector: TECH
+  industry: Software
+  headquarters: Teaneck, USA
+  purpose: Provides IT services, software development and business-process outsourcing from large delivery centres in India.
+  key_market: US banks, insurers, healthcare companies and retailers
+  market_position: Its staff of 340,000, most in India, run critical systems for many large US healthcare and financial companies.
+  origin: SPIN_OFF
+  founders: Spun off from a business-information company
+  founder_story: Started in 1994 as the in-house technology unit of a business-information company, which set up offices in Chennai to cut its software costs.
+  founded_year: 1994
+  ipo_year: 1998
+  ipo_valuation_musd: 200
+  ceo_name: Dagfinn Delacourt
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 340000
+  fiscal_year: 2025
+  revenue_musd: 20500
+  net_income_musd: 2300
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 15.5
+  free_cash_flow_musd: 2200
+  market_cap_musd: 38000
+  dividend_yield_pct: 1.6
+  debt_to_equity: 0.05
+  credit_rating: BBB+
+  competitors: ACN EPAM IBM
+  key_risk: AI coding assistants may cut the number of developers clients need.
+DDOG:
+  name: Dogwood Observability Inc.
+  sector: TECH
+  industry: Software
+  headquarters: New York, USA
+  purpose: Sells cloud software that monitors applications, servers, logs and security for companies running in the cloud.
+  key_market: Software companies and digital businesses worldwide
+  market_position: Combines monitoring, logs and security in a single product, which engineers prefer to a pile of separate tools.
+  origin: CO_FOUNDERS
+  founders: Bastien Pomeroy, Ari Venkatesh
+  founder_story: Two engineers who ran operations at an education start-up got tired of developers and operations staff blaming each other during outages, and in 2010 built a dashboard both could look at.
+  founded_year: 2010
+  ipo_year: 2019
+  ipo_valuation_musd: 11000
+  ceo_name: Bastien Pomeroy
+  ceo_since: 2010
+  ceo_industry_years: 24
+  employees: 6500
+  fiscal_year: 2025
+  revenue_musd: 3300
+  net_income_musd: 150
+  revenue_growth_pct: 25.0
+  operating_margin_pct: 2.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 50000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.5
+  credit_rating: BBB
+  competitors: SNOW MSFT
+  key_risk: A large customer cutting back its data bill can cost it a noticeable share of revenue.
+ENPH:
+  name: Ensolis Solar Electronics
+  sector: TECH
+  industry: Solar Energy Equipment
+  headquarters: Fremont, USA
+  purpose: Makes microinverters that convert sunlight from each rooftop solar panel into household current, plus home batteries and EV chargers.
+  key_market: Homeowners installing rooftop solar in the US and Europe
+  market_position: Invented the microinverter, which makes rooftop systems safer and more efficient, and holds most of the US residential market.
+  origin: CO_FOUNDERS
+  founders: Two engineers from a telecom-equipment maker
+  founder_story: Two engineers who designed telecom gear were installing solar panels on one of their homes in 2006 and found the inverters crude and unsafe; they put a small computer behind each panel instead.
+  founded_year: 2006
+  ipo_year: 2012
+  ipo_valuation_musd: 400
+  ceo_name: Pradeep Halloran
+  ceo_since: 2016
+  ceo_industry_years: 32
+  employees: 3000
+  fiscal_year: 2025
+  revenue_musd: 1400
+  net_income_musd: 120
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 300
+  market_cap_musd: 6000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.4
+  credit_rating: BB
+  competitors: FSLR
+  key_risk: The end of US residential solar tax credits will cut demand sharply.
+EPAM:
+  name: Epameria Systems Inc.
+  sector: TECH
+  industry: Software
+  headquarters: Newtown, USA
+  purpose: Provides software engineering and digital product development, with 50,000 engineers in Eastern Europe, India and Latin America.
+  key_market: Software, financial, travel and consumer companies in North America and Europe
+  market_position: Known for the strongest engineering skills among outsourcing firms; clients use it for hard product work rather than routine maintenance.
+  origin: CO_FOUNDERS
+  founders: Two schoolmates from Minsk
+  founder_story: Two schoolmates from Minsk, one by then living in the US, started it in 1993 to write software for US clients with the strong engineers of post-Soviet Belarus.
+  founded_year: 1993
+  ipo_year: 2012
+  ipo_valuation_musd: 700
+  ceo_name: Agnieszka Holm
+  ceo_since: 2025
+  ceo_industry_years: 25
+  employees: 55000
+  fiscal_year: 2025
+  revenue_musd: 5200
+  net_income_musd: 450
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 550
+  market_cap_musd: 10000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: BBB
+  competitors: ACN CTSH
+  key_risk: It had to move thousands of engineers out of Belarus and Russia after the war in Ukraine began.
+FICO:
+  name: Fairhaven Isbister Scoring
+  sector: TECH
+  industry: Software
+  headquarters: Bozeman, USA
+  purpose: Licenses the credit score used in nine out of ten US lending decisions, and sells decision-analytics software to banks.
+  key_market: US lenders, credit bureaus and mortgage market
+  market_position: Its score is written into mortgage rules and bank systems; lenders cannot easily switch, so it can raise prices sharply.
+  origin: CO_FOUNDERS
+  founders: An engineer and a mathematician
+  founder_story: An engineer and a mathematician from Stanford put 400 dollars each into a company in 1956 to apply statistics to business decisions, and in 1989 created the first general-purpose credit score.
+  founded_year: 1956
+  ipo_year: 1987
+  ipo_valuation_musd: 150
+  ceo_name: Gunnar Larssen
+  ceo_since: 2013
+  ceo_industry_years: 33
+  employees: 3500
+  fiscal_year: 2025
+  revenue_musd: 2000
+  net_income_musd: 650
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 45.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 40000
+  dividend_yield_pct: 0.0
+  debt_to_equity: -2.5
+  credit_rating: BBB-
+  competitors: EFX
+  key_risk: The mortgage agencies now accept a rival score, ending its monopoly.
+FSLR:
+  name: Flintlock Solar Inc.
+  sector: TECH
+  industry: Solar Energy Equipment
+  headquarters: Tempe, USA
+  purpose: Makes thin-film solar panels in US and Asian factories for utility-scale solar farms.
+  key_market: US utility-scale solar developers
+  market_position: The largest US-headquartered solar maker; its thin-film technology does not use Chinese silicon, which qualifies it for US subsidies.
+  origin: FOUNDER
+  founders: Hollis Brandvold
+  founder_story: Hollis Brandvold, a glass-industry inventor in Ohio, developed a way to coat glass with a thin semiconductor film in 1990 and founded a company to make solar panels from it.
+  founded_year: 1990
+  ipo_year: 2006
+  ipo_valuation_musd: 1400
+  ceo_name: Maximilian Kovač
+  ceo_since: 2018
+  ceo_industry_years: 28
+  employees: 7000
+  fiscal_year: 2025
+  revenue_musd: 5000
+  net_income_musd: 1500
+  revenue_growth_pct: 18.0
+  operating_margin_pct: 33.0
+  free_cash_flow_musd: 200
+  market_cap_musd: 22000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: BBB
+  competitors: ENPH
+  key_risk: Its profits depend on US manufacturing tax credits that Congress could cut.
+FTNT:
+  name: Fortwall Networks Inc.
+  sector: TECH
+  industry: Software
+  headquarters: Sunnyvale, USA
+  purpose: Makes network firewalls with its own security chips, plus secure networking and cloud-security software.
+  key_market: Mid-sized companies and service providers worldwide
+  market_position: Designs its own security chips, so its firewalls are faster and cheaper than rivals built on general-purpose processors.
+  origin: CO_FOUNDERS
+  founders: Two brothers, both engineers
+  founder_story: Two brothers who had already founded and sold a firewall company started again in 2000 with the idea of putting firewall functions on a dedicated chip.
+  founded_year: 2000
+  ipo_year: 2009
+  ipo_valuation_musd: 1400
+  ceo_name: Weiling Okonkwo
+  ceo_since: 2000
+  ceo_industry_years: 35
+  employees: 14000
+  fiscal_year: 2025
+  revenue_musd: 6700
+  net_income_musd: 1900
+  revenue_growth_pct: 14.0
+  operating_margin_pct: 30.0
+  free_cash_flow_musd: 2200
+  market_cap_musd: 80000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.8
+  credit_rating: BBB+
+  competitors: PANW CRWD ZS CSCO
+  key_risk: A slowdown in firewall replacement cycles hits its hardware sales.
+GLW:
+  name: Glassworks Coldwater Inc.
+  sector: TECH
+  industry: Electronic Components
+  headquarters: Elmira, USA
+  purpose: Makes specialty glass and ceramics for phone screens, TV displays, optical fibre, car exhaust filters and drug vials.
+  key_market: Smartphone, display, telecom and data-centre equipment makers worldwide
+  market_position: Its tough cover glass is on most smartphones and its optical fibre wires most AI data centres.
+  origin: FAMILY
+  founders: The Halloway family
+  founder_story: A Brooklyn glass merchant moved his glassworks up the Hudson Valley in 1868, where he made the glass envelope for the first electric light bulb in 1879.
+  founded_year: 1851
+  ipo_year: 1945
+  ipo_valuation_musd: 70
+  ceo_name: Edmund Lowery
+  ceo_since: 2007
+  ceo_industry_years: 40
+  employees: 56000
+  fiscal_year: 2025
+  revenue_musd: 15500
+  net_income_musd: 1500
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 1500
+  market_cap_musd: 55000
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.65
+  credit_rating: BBB+
+  competitors: APH
+  key_risk: Weak TV and smartphone demand hits its display glass sales.
+HPE:
+  name: Hollister Pike Enterprise
+  sector: TECH
+  industry: Technology Hardware
+  headquarters: Houston, USA
+  purpose: Sells servers, storage, networking and hybrid-cloud services to businesses and governments, including AI supercomputers.
+  key_market: Enterprises, governments and research labs worldwide
+  market_position: Builds several of the world's fastest supercomputers and owns a fast-growing enterprise Wi-Fi and networking business.
+  origin: SPIN_OFF
+  founders: Split from a California computer and printer company
+  founder_story: Split in 2015 from a California electronics company founded in a garage in 1939, which separated its corporate computing from its PCs and printers.
+  founded_year: 2015
+  ipo_year: 2015
+  ipo_valuation_musd: 40000
+  ceo_name: Kristof Ferrandiz
+  ceo_since: 2017
+  ceo_industry_years: 30
+  employees: 61000
+  fiscal_year: 2025
+  revenue_musd: 33000
+  net_income_musd: 1300
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 7.0
+  free_cash_flow_musd: 1400
+  market_cap_musd: 30000
+  dividend_yield_pct: 2.4
+  debt_to_equity: 0.7
+  credit_rating: BBB
+  competitors: CSCO ANET IBM
+  key_risk: Its large networking acquisition must deliver savings while AI-server margins are thin.
+HPQ:
+  name: Hollister Pike Inc.
+  sector: TECH
+  industry: Technology Hardware
+  headquarters: Palo Alto, USA
+  purpose: Makes personal computers, printers, ink and toner, and video-conferencing equipment.
+  key_market: Consumers, businesses and schools worldwide
+  market_position: The second-largest PC maker and the largest printer maker in the world; its ink subscriptions earn a steady income.
+  origin: CO_FOUNDERS
+  founders: Wendell Hollister, Douglas Pike
+  founder_story: Two Stanford friends started an electronics company in a Palo Alto garage in 1939 with 538 dollars; their first product, an audio oscillator, was bought by a film studio.
+  founded_year: 1939
+  ipo_year: 1957
+  ipo_valuation_musd: 50
+  ceo_name: Ottokar Lorimer
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 58000
+  fiscal_year: 2025
+  revenue_musd: 55000
+  net_income_musd: 2700
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 7.5
+  free_cash_flow_musd: 3000
+  market_cap_musd: 27000
+  dividend_yield_pct: 4.2
+  debt_to_equity: -7.0
+  credit_rating: BBB
+  competitors: AAPL
+  key_risk: Fewer people print at home and at work, and the printing business funds the dividend.
+IBM:
+  name: Ironclad Business Machines
+  sector: TECH
+  industry: IT Services
+  headquarters: Armonk, USA
+  purpose: Sells hybrid-cloud software, mainframe computers, consulting and AI tools to large companies and governments, and develops quantum computers.
+  key_market: Banks, airlines, insurers and governments worldwide
+  market_position: Most of the world's bank transactions still run on its mainframes, which nobody dares to replace.
+  origin: MERGER
+  founders: Four companies making scales, clocks and tabulators
+  founder_story: A financier merged four companies making scales, time clocks and punch-card tabulating machines in 1911; the tabulators had counted the 1890 US census in one year instead of eight.
+  founded_year: 1911
+  ipo_year: 1915
+  ipo_valuation_musd: 20
+  ceo_name: Laurentius Haverford
+  ceo_since: 2018
+  ceo_industry_years: 33
+  employees: 290000
+  fiscal_year: 2025
+  revenue_musd: 64000
+  net_income_musd: 7000
+  revenue_growth_pct: 3.5
+  operating_margin_pct: 16.0
+  free_cash_flow_musd: 13000
+  market_cap_musd: 230000
+  dividend_yield_pct: 2.6
+  debt_to_equity: 2.3
+  credit_rating: A-
+  competitors: ACN MSFT ORCL
+  key_risk: Its consulting arm is shrinking as clients pause projects to see what AI changes.
+INTC:
+  name: Inglenook Logic Corp.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Santa Clara, USA
+  purpose: Designs and makes processors for PCs and servers in its own factories, and offers to make chips for other companies.
+  key_market: PC makers and data-centre operators worldwide
+  market_position: The last US company that both designs and makes leading-edge processors; the US government now owns a share of it.
+  origin: CO_FOUNDERS
+  founders: Two physicists who left a chip maker
+  founder_story: Two physicists left a chip maker in 1968 and raised 2.5 million dollars in an afternoon; their memory chips and then the first microprocessor put the "silicon" in Silicon Valley.
+  founded_year: 1968
+  ipo_year: 1971
+  ipo_valuation_musd: 60
+  ceo_name: Matthias Okoro
+  ceo_since: 2025
+  ceo_industry_years: 35
+  employees: 100000
+  fiscal_year: 2025
+  revenue_musd: 53000
+  net_income_musd: -3000
+  revenue_growth_pct: -1.0
+  operating_margin_pct: -2.0
+  free_cash_flow_musd: -8000
+  market_cap_musd: 150000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.45
+  credit_rating: BBB
+  competitors: AMD NVDA TSM QCOM
+  key_risk: Its foundry business needs outside customers it has not yet won to justify tens of billions in new factories.
+INTU:
+  name: Inkberry Financial Software
+  sector: TECH
+  industry: Software
+  headquarters: Mountain View, USA
+  purpose: Makes the best-selling US tax-filing, small-business accounting, personal-finance and email-marketing software.
+  key_market: US consumers filing taxes and small businesses doing their books
+  market_position: Its accounting software is used by most US small businesses and their accountants, and its tax software files a third of US returns.
+  origin: CO_FOUNDERS
+  founders: Sterling Hayworth, Tom Prowse
+  founder_story: A former consultant watched his wife struggle to pay the household bills in 1983 and, with a Stanford student programmer, wrote a personal-finance program simple enough for anyone.
+  founded_year: 1983
+  ipo_year: 1993
+  ipo_valuation_musd: 400
+  ceo_name: Magdalena Duvall
+  ceo_since: 2020
+  ceo_industry_years: 28
+  employees: 18000
+  fiscal_year: 2025
+  revenue_musd: 18500
+  net_income_musd: 3800
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 6000
+  market_cap_musd: 185000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.35
+  credit_rating: A-
+  competitors: MSFT
+  key_risk: A free government tax-filing service would take its easiest customers.
+IT:
+  name: Insightvale Research Inc.
+  sector: TECH
+  industry: Software
+  headquarters: Stamford, USA
+  purpose: Sells research, advice and conferences to IT leaders and other executives who decide what technology to buy.
+  key_market: Chief information officers and executives of large companies and governments
+  market_position: Its research rankings decide which vendors IT buyers shortlist; vendors and buyers both pay for its view.
+  origin: FOUNDER
+  founders: Gideon Faircloth
+  founder_story: Gideon Faircloth, a former IT salesman, founded it in 1979 to tell large companies whether they really needed what the computer makers were selling them.
+  founded_year: 1979
+  ipo_year: 1993
+  ipo_valuation_musd: 300
+  ceo_name: Ulrich Brannock
+  ceo_since: 2005
+  ceo_industry_years: 35
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 6400
+  net_income_musd: 900
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 25000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 2.0
+  credit_rating: BBB-
+  competitors: ACN
+  key_risk: Executives may turn to AI chatbots for the advice they used to pay analysts for.
+KLAC:
+  name: Klarion Inspection Corp.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Milpitas, USA
+  purpose: Makes the machines that inspect and measure chips and wafers for defects at every stage of chip manufacturing.
+  key_market: Leading chip makers in Taiwan, Korea, the US and China
+  market_position: Holds over half the market for chip inspection; as chips shrink, each defect costs more, so its tools matter more.
+  origin: MERGER
+  founders: Two wafer-inspection companies
+  founder_story: Formed in 1997 when two companies that had pioneered automated wafer inspection in 1975 and 1976 merged; their founders had realised humans could no longer spot defects under microscopes.
+  founded_year: 1997
+  ipo_year: 1997
+  ipo_valuation_musd: 3500
+  ceo_name: Rajesh Brightwell
+  ceo_since: 2007
+  ceo_industry_years: 35
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 12000
+  net_income_musd: 4000
+  revenue_growth_pct: 22.0
+  operating_margin_pct: 42.0
+  free_cash_flow_musd: 3800
+  market_cap_musd: 110000
+  dividend_yield_pct: 0.8
+  debt_to_equity: 1.3
+  credit_rating: A
+  competitors: AMAT LRCX ASML
+  key_risk: China is a large share of its sales and US rules restrict them more each year.
+LRCX:
+  name: Lantana Research Corp.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Fremont, USA
+  purpose: Makes the etching and deposition machines used to build memory chips and advanced processors.
+  key_market: Memory-chip makers in Korea and Japan and foundries in Taiwan
+  market_position: The leader in etching the tall, narrow holes needed for 3D memory chips with hundreds of layers.
+  origin: FOUNDER
+  founders: Darius Lantana
+  founder_story: Darius Lantana, an engineer born in China and educated in the US, founded it in 1980 to make plasma-etching machines; his first machine went to a Japanese chip maker.
+  founded_year: 1980
+  ipo_year: 1984
+  ipo_valuation_musd: 100
+  ceo_name: Margarethe Fischer
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 18000
+  fiscal_year: 2025
+  revenue_musd: 18500
+  net_income_musd: 5300
+  revenue_growth_pct: 24.0
+  operating_margin_pct: 33.0
+  free_cash_flow_musd: 5000
+  market_cap_musd: 130000
+  dividend_yield_pct: 0.9
+  debt_to_equity: 0.45
+  credit_rating: A-
+  competitors: AMAT KLAC ASML
+  key_risk: Memory makers cut their equipment orders sharply whenever memory prices fall.
+MCHP:
+  name: Mitchford Silicon Inc.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Chandler, USA
+  purpose: Makes microcontrollers, analogue chips and programmable logic that control everything from washing machines to car seats.
+  key_market: Industrial, car, consumer and aerospace equipment makers worldwide
+  market_position: Sells over 100,000 customers chips that stay in production for decades and are hard to design out.
+  origin: SPIN_OFF
+  founders: Spun out of a semiconductor maker by its managers
+  founder_story: Managers bought an unprofitable Arizona microcontroller division from its parent in 1989 with venture money; within five years it had become the most profitable chip maker of its size.
+  founded_year: 1989
+  ipo_year: 1993
+  ipo_valuation_musd: 300
+  ceo_name: Vernon Quist
+  ceo_since: 2024
+  ceo_industry_years: 35
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 4500
+  net_income_musd: -50
+  revenue_growth_pct: -35.0
+  operating_margin_pct: 2.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 35000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  competitors: TXN ADI
+  key_risk: Its customers hold too much stock, and orders have collapsed until they use it up.
+MDB:
+  name: Monolith Data Inc.
+  sector: TECH
+  industry: Software
+  headquarters: New York, USA
+  purpose: Sells a document database that developers use to build applications, both as cloud service and as software.
+  key_market: Software developers and enterprises worldwide
+  market_position: The most popular database among developers for new applications; its cloud service runs on all three main clouds.
+  origin: CO_FOUNDERS
+  founders: Three engineers from an online advertising company
+  founder_story: Three engineers who had built an advertising network found existing databases could not keep up, and in 2007 built one that stored data the way programmers think about it.
+  founded_year: 2007
+  ipo_year: 2017
+  ipo_valuation_musd: 1600
+  ceo_name: Callista Ortega
+  ceo_since: 2025
+  ceo_industry_years: 26
+  employees: 5500
+  fiscal_year: 2025
+  revenue_musd: 2300
+  net_income_musd: -100
+  revenue_growth_pct: 18.0
+  operating_margin_pct: -5.0
+  free_cash_flow_musd: 350
+  market_cap_musd: 25000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: BB+
+  competitors: ORCL SNOW MSFT
+  key_risk: The cloud providers offer cheaper compatible databases of their own.
+MSFT:
+  name: Marbleworks Software Corp.
+  sector: TECH
+  industry: Software
+  headquarters: Redmond, USA
+  purpose: Makes the dominant PC operating system and office software, runs the second-largest cloud platform, and sells AI assistants, games and business software.
+  key_market: Businesses and governments worldwide, and consumers and gamers
+  market_position: Its office software is in almost every business, and its cloud is the main home of the leading AI models.
+  origin: CO_FOUNDERS
+  founders: Wilbur Gaithersby, Percival Allard
+  founder_story: Two school friends from Seattle wrote a programming language for the first hobbyist computer in 1975 before the computer had even arrived; they set up in Albuquerque to sell it.
+  founded_year: 1975
+  ipo_year: 1986
+  ipo_valuation_musd: 780
+  ceo_name: Leopold Brannagh
+  ceo_since: 2015
+  ceo_industry_years: 33
+  employees: 228000
+  fiscal_year: 2025
+  revenue_musd: 282000
+  net_income_musd: 102000
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 45.0
+  free_cash_flow_musd: 72000
+  market_cap_musd: 3600000
+  dividend_yield_pct: 0.7
+  debt_to_equity: 0.15
+  credit_rating: AAA
+  competitors: GOOGL AMZN ORCL CRM
+  key_risk: It is spending 80 billion dollars a year on AI data centres, and its AI partner may go elsewhere for computing.
+MSI:
+  name: Moravia Signal Inc.
+  sector: TECH
+  industry: Communications Equipment
+  headquarters: Chicago, USA
+  purpose: Makes two-way radios, emergency-call software, body cameras and video security for police, fire and ambulance services.
+  key_market: Police, fire and emergency services in the US, Europe and Australia
+  market_position: The radio system of most US police forces; replacing it would mean replacing every radio in the force and the network behind them.
+  origin: FAMILY
+  founders: The Galvanek brothers
+  founder_story: Two Chicago brothers started a company in 1928 to repair battery eliminators for radios and soon made car radios, then the first walkie-talkies for the army.
+  founded_year: 1928
+  ipo_year: 1943
+  ipo_valuation_musd: 20
+  ceo_name: Anselm Oyelaran
+  ceo_since: 2010
+  ceo_industry_years: 35
+  employees: 21000
+  fiscal_year: 2025
+  revenue_musd: 11300
+  net_income_musd: 2200
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 75000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 3.0
+  credit_rating: BBB
+  competitors: CSCO
+  key_risk: Regulators are investigating whether it overcharges for its emergency-radio network in the UK.
+MU:
+  name: Mountainview Memory Inc.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Boise, USA
+  purpose: Makes DRAM and NAND memory chips, including the high-bandwidth memory stacked next to AI processors.
+  key_market: Data-centre, PC, phone and car makers worldwide
+  market_position: The only US maker of memory chips, and one of three in the world able to make high-bandwidth memory for AI accelerators.
+  origin: CO_FOUNDERS
+  founders: Four engineers in a dentist's basement
+  founder_story: Four engineers started a chip-design consultancy in the basement of a Boise dentist's office in 1978; a potato farmer's money paid for their first memory factory.
+  founded_year: 1978
+  ipo_year: 1984
+  ipo_valuation_musd: 300
+  ceo_name: Benedikt Calloway
+  ceo_since: 2016
+  ceo_industry_years: 38
+  employees: 48000
+  fiscal_year: 2025
+  revenue_musd: 37000
+  net_income_musd: 8500
+  revenue_growth_pct: 49.0
+  operating_margin_pct: 26.0
+  free_cash_flow_musd: 3500
+  market_cap_musd: 130000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.3
+  credit_rating: BBB
+  competitors: TSM INTC
+  key_risk: Memory is the most cyclical part of the chip industry; prices can halve in a year.
+NET:
+  name: Nimbus Edge Inc.
+  sector: TECH
+  industry: Software
+  headquarters: San Francisco, USA
+  purpose: Runs a global network in 330 cities that speeds up, protects and hosts websites and applications, and blocks cyber-attacks.
+  key_market: Websites, developers and enterprises worldwide
+  market_position: About a fifth of all websites run through its network; its free plan for small sites gives it more data on attacks than anyone.
+  origin: CO_FOUNDERS
+  founders: Amara Lindqvist, Hollis Zabaneh, Ike Morrow
+  founder_story: Three business-school friends started it in 2009 after a class project that tracked how spammers harvested email addresses from websites.
+  founded_year: 2009
+  ipo_year: 2019
+  ipo_valuation_musd: 4400
+  ceo_name: Hollis Zabaneh
+  ceo_since: 2009
+  ceo_industry_years: 25
+  employees: 4500
+  fiscal_year: 2025
+  revenue_musd: 2100
+  net_income_musd: -80
+  revenue_growth_pct: 27.0
+  operating_margin_pct: -5.0
+  free_cash_flow_musd: 250
+  market_cap_musd: 70000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.2
+  credit_rating: BB+
+  competitors: ZS PANW
+  key_risk: A network outage takes down a large part of the internet and damages trust.
+NOW:
+  name: Nowhaven Service Cloud
+  sector: TECH
+  industry: Software
+  headquarters: Santa Clara, USA
+  purpose: Sells cloud software that automates IT, HR, customer-service and security workflows inside large companies.
+  key_market: Large enterprises and governments worldwide
+  market_position: Its IT-service platform runs inside most large companies and expands into every other department from there.
+  origin: FOUNDER
+  founders: Fergus Lindahl
+  founder_story: Fergus Lindahl, a veteran software engineer who had already sold two companies, wrote the first version alone in 2004 to replace the help-desk systems he hated.
+  founded_year: 2004
+  ipo_year: 2012
+  ipo_valuation_musd: 2100
+  ceo_name: Ignatius Rourke
+  ceo_since: 2020
+  ceo_industry_years: 35
+  employees: 27000
+  fiscal_year: 2025
+  revenue_musd: 13000
+  net_income_musd: 1700
+  revenue_growth_pct: 20.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 4500
+  market_cap_musd: 190000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.2
+  credit_rating: A
+  competitors: CRM MSFT SAP
+  key_risk: Its shares price in 20 per cent growth for years; a slowdown in US government spending would test that.
+NVDA:
+  name: Norvale Accelerated Computing
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Santa Clara, USA
+  purpose: Designs the graphics processors and AI accelerators, networking and software that train and run most of the world's AI models.
+  key_market: Cloud companies, AI labs, governments and gamers worldwide
+  market_position: Its programming platform has been used by AI researchers for 15 years; almost all AI software is written for its chips first.
+  origin: CO_FOUNDERS
+  founders: Three chip engineers
+  founder_story: Three chip engineers met in a roadside diner in San Jose in 1993 and decided to build graphics chips for video games; they nearly went bankrupt with their first chip.
+  founded_year: 1993
+  ipo_year: 1999
+  ipo_valuation_musd: 600
+  ceo_name: Tobiah Waldmann
+  ceo_since: 1993
+  ceo_industry_years: 40
+  employees: 36000
+  fiscal_year: 2025
+  revenue_musd: 165000
+  net_income_musd: 90000
+  revenue_growth_pct: 60.0
+  operating_margin_pct: 62.0
+  free_cash_flow_musd: 75000
+  market_cap_musd: 4300000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.1
+  credit_rating: AA-
+  competitors: AMD AVGO INTC
+  key_risk: Its largest customers are designing their own AI chips, and US export rules limit sales to China.
+ORCL:
+  name: Orchid Relational Systems
+  sector: TECH
+  industry: Software
+  headquarters: Austin, USA
+  purpose: Makes the leading database software and business applications, and runs a fast-growing cloud that rents computing to AI companies.
+  key_market: Large enterprises and governments, and AI labs renting computing power
+  market_position: Its database runs the core systems of most large companies; it has signed hundreds of billions in AI computing contracts.
+  origin: CO_FOUNDERS
+  founders: Godfrey Abercrombie and two partners
+  founder_story: Three programmers read an IBM research paper on relational databases in 1977 and built a commercial version before IBM did; their first customer was a US intelligence agency.
+  founded_year: 1977
+  ipo_year: 1986
+  ipo_valuation_musd: 270
+  ceo_name: Clemency Harrow
+  ceo_since: 2014
+  ceo_industry_years: 35
+  employees: 160000
+  fiscal_year: 2025
+  revenue_musd: 57000
+  net_income_musd: 12500
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 31.0
+  free_cash_flow_musd: -400
+  market_cap_musd: 700000
+  dividend_yield_pct: 0.7
+  debt_to_equity: 4.5
+  credit_rating: BBB
+  competitors: MSFT SAP AMZN
+  key_risk: It is borrowing heavily to build AI data centres for a few customers who may not be able to pay.
+PANW:
+  name: Palisade Security Networks
+  sector: TECH
+  industry: Software
+  headquarters: Santa Clara, USA
+  purpose: Sells next-generation firewalls and a platform of cloud, network and security-operations software.
+  key_market: Large enterprises and governments worldwide
+  market_position: The largest pure cybersecurity company; it is trying to replace a company's dozens of separate security tools with its single platform.
+  origin: FOUNDER
+  founders: Nadav Ben-Haim
+  founder_story: An Israeli engineer who had invented a key firewall technique founded it in 2005 to build a firewall that could see which application was sending traffic, not just which port.
+  founded_year: 2005
+  ipo_year: 2012
+  ipo_valuation_musd: 2700
+  ceo_name: Nikolai Arora
+  ceo_since: 2018
+  ceo_industry_years: 30
+  employees: 16000
+  fiscal_year: 2025
+  revenue_musd: 9200
+  net_income_musd: 1200
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 10.0
+  free_cash_flow_musd: 3400
+  market_cap_musd: 130000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: BBB+
+  competitors: CRWD FTNT ZS CSCO
+  key_risk: Its platform strategy gives free products to win customers, which slows short-term revenue growth.
+PLTR:
+  name: Paladin Data Systems
+  sector: TECH
+  industry: Software
+  headquarters: Denver, USA
+  purpose: Sells data-integration and AI platforms to intelligence agencies, militaries and large companies.
+  key_market: US defence and intelligence agencies, and large US companies
+  market_position: Its software is embedded in US military targeting and intelligence systems, where few rivals have security clearance.
+  origin: CO_FOUNDERS
+  founders: Five Silicon Valley entrepreneurs
+  founder_story: Five entrepreneurs, including veterans of an online-payments company, set it up in 2003 to apply the fraud-detection software they had built to counter-terrorism; a CIA venture fund was an early investor.
+  founded_year: 2003
+  ipo_year: 2020
+  ipo_valuation_musd: 21000
+  ceo_name: Benedikt Varnhagen
+  ceo_since: 2004
+  ceo_industry_years: 23
+  employees: 4000
+  fiscal_year: 2025
+  revenue_musd: 4000
+  net_income_musd: 1100
+  revenue_growth_pct: 45.0
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 420000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: BBB-
+  competitors: SNOW MSFT
+  key_risk: Its shares trade at more than 100 times sales, the highest of any large company.
+QCOM:
+  name: Quorum Communications Inc.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: San Diego, USA
+  purpose: Designs smartphone processors and modems, chips for cars and PCs, and licenses its mobile patents to every phone maker.
+  key_market: Smartphone makers in China and the US, and car makers
+  market_position: Holds the essential patents of mobile communications; every phone maker pays it royalties, even those who buy no chips.
+  origin: CO_FOUNDERS
+  founders: Seven engineers from a defence-communications firm
+  founder_story: Seven engineers met in a San Diego den in 1985 to start a company built on a radio technique first used for military communications, which they bet could carry many more phone calls.
+  founded_year: 1985
+  ipo_year: 1991
+  ipo_valuation_musd: 500
+  ceo_name: Bertil Sandqvist
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 50000
+  fiscal_year: 2025
+  revenue_musd: 43000
+  net_income_musd: 11000
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 28.0
+  free_cash_flow_musd: 12000
+  market_cap_musd: 180000
+  dividend_yield_pct: 2.1
+  debt_to_equity: 0.5
+  credit_rating: A
+  competitors: AVGO NVDA AMD
+  key_risk: Its largest customer is designing its own modems and will stop buying them.
+SAP:
+  name: Saarbrücker Anwendungen AG
+  sector: TECH
+  industry: Software
+  headquarters: Walldorf, Germany
+  purpose: Makes the business software that runs the finances, supply chains and HR of most of the world's large companies.
+  key_market: Large enterprises worldwide, especially in Europe
+  market_position: Its software runs the core processes of most large companies; moving off it takes years, so customers stay for decades.
+  origin: CO_FOUNDERS
+  founders: Five former IBM engineers
+  founder_story: Five engineers left IBM's German office in 1972 to write accounting software that ran in real time instead of overnight batches; their first customer was a chemical company down the road.
+  founded_year: 1972
+  ipo_year: 1988
+  ipo_valuation_musd: 900
+  ceo_name: Friederike Lindemann
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 108000
+  fiscal_year: 2025
+  revenue_musd: 39000
+  net_income_musd: 7500
+  revenue_growth_pct: 11.0
+  operating_margin_pct: 28.0
+  free_cash_flow_musd: 8000
+  market_cap_musd: 300000
+  dividend_yield_pct: 1.0
+  debt_to_equity: 0.2
+  credit_rating: A+
+  competitors: ORCL MSFT CRM
+  key_risk: It is forcing customers onto its cloud by 2030, and some may switch instead.
+SHOP:
+  name: Shopwright Commerce Inc.
+  sector: TECH
+  industry: Software
+  headquarters: Ottawa, Canada
+  purpose: Sells software that lets merchants build online shops and sell in stores, on social media and on marketplaces, and processes their payments.
+  key_market: Small and mid-sized merchants and fast-growing consumer brands in North America and Europe
+  market_position: Powers over 10 per cent of US e-commerce; brands that do not want to depend on a marketplace build their shops on it.
+  origin: CO_FOUNDERS
+  founders: Florian Kerrigan, Daniel Varga
+  founder_story: A German programmer in Ottawa wanted to sell snowboards online in 2004 and found the software so bad that he wrote his own; the shop software turned out to be the real product.
+  founded_year: 2006
+  ipo_year: 2015
+  ipo_valuation_musd: 1300
+  ceo_name: Florian Kerrigan
+  ceo_since: 2008
+  ceo_industry_years: 22
+  employees: 8000
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 2000
+  revenue_growth_pct: 26.0
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 200000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.08
+  credit_rating: BBB+
+  competitors: AMZN
+  key_risk: Tariffs and the end of duty-free imports hit the small merchants who use it.
+SNOW:
+  name: Snowmass Data Cloud
+  sector: TECH
+  industry: Software
+  headquarters: Bozeman, USA
+  purpose: Runs a cloud data warehouse where companies store, share and analyse their data and build AI applications on it.
+  key_market: Large enterprises worldwide
+  market_position: Separates storage from computing so customers pay only for what they use, and lets companies share data without copying it.
+  origin: CO_FOUNDERS
+  founders: Three database engineers
+  founder_story: Two French engineers from a database company and a Dutch engineer from a start-up built a data warehouse for the cloud in 2012, convinced the old database designs could not be adapted.
+  founded_year: 2012
+  ipo_year: 2020
+  ipo_valuation_musd: 33000
+  ceo_name: Ottmar Ostergaard
+  ceo_since: 2024
+  ceo_industry_years: 20
+  employees: 8000
+  fiscal_year: 2025
+  revenue_musd: 4500
+  net_income_musd: -1300
+  revenue_growth_pct: 27.0
+  operating_margin_pct: -35.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 75000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.75
+  credit_rating: BB+
+  competitors: MDB MSFT ORCL DDOG
+  key_risk: Stock-based pay is so high that it has never shown a profit under standard accounting.
+SONY:
+  name: Sonora Electronics Group
+  sector: TECH
+  industry: Consumer Electronics
+  headquarters: Tokyo, Japan
+  purpose: Makes games consoles, camera sensors, music, films and TV series, and financial services in Japan.
+  key_market: Gamers, music and film audiences worldwide; phone makers for image sensors
+  market_position: Makes most of the world's high-end phone camera sensors and the best-selling games console of its generation.
+  origin: CO_FOUNDERS
+  founders: Kaito Morimura, Ren Ibukiyama
+  founder_story: Two engineers started a radio-repair shop in a bombed-out Tokyo department store in 1946; they made the first transistor radio small enough for a shirt pocket.
+  founded_year: 1946
+  ipo_year: 1958
+  ipo_valuation_musd: 20
+  ceo_name: Kenta Mizushima
+  ceo_since: 2025
+  ceo_industry_years: 30
+  employees: 113000
+  fiscal_year: 2025
+  revenue_musd: 85000
+  net_income_musd: 7500
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 11.0
+  free_cash_flow_musd: 8000
+  market_cap_musd: 150000
+  dividend_yield_pct: 0.5
+  debt_to_equity: 0.4
+  credit_rating: A
+  competitors: AAPL EA
+  key_risk: Games-console sales peak and fall in each generation, and the next console is years away.
+TEAM:
+  name: Teamwright Software plc
+  sector: TECH
+  industry: Software
+  headquarters: Sydney, Australia
+  purpose: Sells software development teams use to plan work, track bugs, write documents and run IT service desks.
+  key_market: Software teams in companies of all sizes worldwide
+  market_position: Its issue tracker is used by most software teams; it sold online with no salesforce, so its customers came to it.
+  origin: CO_FOUNDERS
+  founders: Two university friends in Sydney
+  founder_story: Two Sydney university friends set it up in 2002 with a 10,000-dollar credit card, rather than take graduate jobs paying 48,000 dollars a year.
+  founded_year: 2002
+  ipo_year: 2015
+  ipo_valuation_musd: 4400
+  ceo_name: Lachlan Orsini
+  ceo_since: 2002
+  ceo_industry_years: 24
+  employees: 13000
+  fiscal_year: 2025
+  revenue_musd: 5200
+  net_income_musd: -250
+  revenue_growth_pct: 20.0
+  operating_margin_pct: -3.0
+  free_cash_flow_musd: 1400
+  market_cap_musd: 45000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.7
+  credit_rating: BBB
+  competitors: MSFT NOW
+  key_risk: AI coding agents may need fewer human developers with fewer seats.
+TSM:
+  name: Tamsui Silicon Manufacturing Co.
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Hsinchu, Taiwan
+  purpose: Makes chips designed by other companies in its own foundries, including nearly all of the world's most advanced processors.
+  key_market: Chip designers in the US and Asia, for phones, AI and PCs
+  market_position: Makes nine in ten of the world's leading-edge chips; no rival can yet match its yields at the newest nodes.
+  origin: PRIVATISATION
+  founders: Set up by Taiwan's government with a Dutch electronics partner
+  founder_story: Taiwan's government invited a veteran US chip executive home in 1987 to set up a foundry that would only make other companies' chips, an idea US chip makers dismissed.
+  founded_year: 1987
+  ipo_year: 1994
+  ipo_valuation_musd: 6000
+  ceo_name: Lin Haoran
+  ceo_since: 2019
+  ceo_industry_years: 35
+  employees: 80000
+  fiscal_year: 2025
+  revenue_musd: 120000
+  net_income_musd: 52000
+  revenue_growth_pct: 36.0
+  operating_margin_pct: 50.0
+  free_cash_flow_musd: 30000
+  market_cap_musd: 1500000
+  dividend_yield_pct: 1.1
+  debt_to_equity: 0.2
+  credit_rating: AA-
+  competitors: INTC
+  key_risk: Most of its factories are on an island that China claims as its own.
+TXN:
+  name: Trinity Valley Instruments
+  sector: TECH
+  industry: Semiconductors
+  headquarters: Dallas, USA
+  purpose: Makes analogue and embedded processing chips used in industrial equipment, cars and appliances, mostly in its own US factories.
+  key_market: Industrial and car makers worldwide
+  market_position: Makes its analogue chips on 300-millimetre wafers in its own factories, which gives it the lowest cost in the industry.
+  origin: SPIN_OFF
+  founders: Four geophysicists' oil-survey firm
+  founder_story: Began in 1930 as an oil-prospecting firm using sound waves; its engineers built the first silicon transistor in 1954 and one of them invented the integrated circuit in 1958.
+  founded_year: 1930
+  ipo_year: 1953
+  ipo_valuation_musd: 50
+  ceo_name: Cornelius Olufemi
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 34000
+  fiscal_year: 2025
+  revenue_musd: 17000
+  net_income_musd: 5000
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 35.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 170000
+  dividend_yield_pct: 2.9
+  debt_to_equity: 0.8
+  credit_rating: A+
+  competitors: ADI MCHP
+  key_risk: Its huge factory-building plan depresses cash flow until demand catches up.
+ZS:
+  name: Zenshield Inc.
+  sector: TECH
+  industry: Software
+  headquarters: San Jose, USA
+  purpose: Sells cloud security that sits between a company's staff and the internet or its own applications, replacing VPNs and firewalls.
+  key_market: Large enterprises worldwide
+  market_position: Runs the largest security cloud in the world, inspecting 500 billion transactions a day.
+  origin: FOUNDER
+  founders: Haresh Varadan
+  founder_story: A serial entrepreneur from India who had sold several security companies founded it in 2007 on the idea that corporate networks would stop mattering once staff worked from anywhere.
+  founded_year: 2007
+  ipo_year: 2018
+  ipo_valuation_musd: 2000
+  ceo_name: Haresh Varadan
+  ceo_since: 2007
+  ceo_industry_years: 35
+  employees: 8000
+  fiscal_year: 2025
+  revenue_musd: 2700
+  net_income_musd: -40
+  revenue_growth_pct: 23.0
+  operating_margin_pct: -3.0
+  free_cash_flow_musd: 750
+  market_cap_musd: 45000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 1.0
+  credit_rating: BB+
+  competitors: PANW CRWD NET FTNT
+  key_risk: Network vendors are bundling similar products cheaply with their firewalls.

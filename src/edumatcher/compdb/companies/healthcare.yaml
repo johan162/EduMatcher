@@ -1,0 +1,992 @@
+# HEALTHCARE. Made-up companies: the tickers and lines of business follow
+# the simulated market; every name, person and number is invented.
+ABBV:
+  name: Abbeyvale Biopharma Inc.
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: North Chicago, USA
+  purpose: Develops and sells medicines for autoimmune diseases, cancer, neurology and aesthetics, including the world's best-selling anti-wrinkle injection.
+  key_market: US patients, through specialist doctors and insurers
+  market_position: Replaced the revenue of the best-selling drug in history, lost to generics in 2023, with two newer immunology drugs that are growing faster than the old one fell.
+  origin: SPIN_OFF
+  founders: Spun off from a diversified healthcare group
+  founder_story: Separated in 2013 from a 125-year-old healthcare group that wanted to split its slow, steady device business from its patent-driven drug business.
+  founded_year: 2013
+  ipo_year: 2013
+  ipo_valuation_musd: 54000
+  ceo_name: Rowan Tilbury
+  ceo_since: 2024
+  ceo_industry_years: 28
+  employees: 55000
+  fiscal_year: 2025
+  revenue_musd: 60000
+  net_income_musd: 5500
+  revenue_growth_pct: 6.5
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 17500
+  market_cap_musd: 380000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 25.0
+  credit_rating: A-
+  competitors: JNJ LLY AMGN
+  key_risk: US drug-price negotiations will soon cover some of its largest products.
+AMGN:
+  name: Ambergen Therapeutics
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Thousand Oaks, USA
+  purpose: Discovers and makes biologic medicines for bone loss, cholesterol, inflammation, cancer and rare diseases.
+  key_market: Patients in the US and Europe treated by specialists
+  market_position: One of the pioneers of biotechnology, with the largest biologics manufacturing network and a promising weight-loss injection taken monthly.
+  origin: CO_FOUNDERS
+  founders: Venture capitalists and UCLA scientists
+  founder_story: A handful of venture capitalists and university scientists founded it in 1980 to make medicines from recombinant DNA; its first two products, for anaemia and infections, made it the first billion-dollar biotech.
+  founded_year: 1980
+  ipo_year: 1983
+  ipo_valuation_musd: 160
+  ceo_name: Tobias Eckhardt
+  ceo_since: 2013
+  ceo_industry_years: 33
+  employees: 28000
+  fiscal_year: 2025
+  revenue_musd: 35000
+  net_income_musd: 6500
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 10500
+  market_cap_musd: 160000
+  dividend_yield_pct: 3.2
+  debt_to_equity: 9.0
+  credit_rating: BBB+
+  competitors: LLY ABBV
+  key_risk: Its weight-loss drug must show it can compete with the market leaders, whose head start is large.
+BAX:
+  name: Baxwell Healthcare Corp.
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Deerfield, USA
+  purpose: Makes intravenous fluids, infusion pumps, surgical sealants and hospital beds used in hospitals worldwide.
+  key_market: Hospitals in the US and Europe
+  market_position: The largest maker of IV fluid in the US; when its main plant flooded in 2024, US hospitals rationed fluids for months.
+  origin: CO_FOUNDERS
+  founders: Two Chicago surgeons
+  founder_story: Two Chicago surgeons began making intravenous solutions in a converted car showroom in 1931, because hospitals then had to mix their own and many patients got fevers from impurities.
+  founded_year: 1931
+  ipo_year: 1951
+  ipo_valuation_musd: 25
+  ceo_name: Lothar Kuyper
+  ceo_since: 2025
+  ceo_industry_years: 30
+  employees: 38000
+  fiscal_year: 2025
+  revenue_musd: 11000
+  net_income_musd: 400
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 600
+  market_cap_musd: 13000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 1.6
+  credit_rating: BBB
+  competitors: BDX MDT
+  key_risk: It sold its kidney-care business and is now a slow-growing company with a lot of debt.
+BDX:
+  name: Beckford Drummond Medical
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Franklin Lakes, USA
+  purpose: Makes syringes, needles, catheters, blood-collection tubes, lab diagnostics and medication-management systems.
+  key_market: Hospitals, labs and pharmacies worldwide
+  market_position: Makes most of the world's syringes and blood-collection tubes; its products touch almost every patient in a hospital.
+  origin: CO_FOUNDERS
+  founders: Maxwell Beckford, Fairleigh Drummond
+  founder_story: Two salesmen met on a train in 1897 and agreed to import thermometers and syringes together; they began making their own glass syringes in New Jersey when European supply ran short.
+  founded_year: 1897
+  ipo_year: 1962
+  ipo_valuation_musd: 70
+  ceo_name: Ingrid Vellacott
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 70000
+  fiscal_year: 2025
+  revenue_musd: 21500
+  net_income_musd: 1600
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 13.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 58000
+  dividend_yield_pct: 2.3
+  debt_to_equity: 0.75
+  credit_rating: BBB
+  competitors: BAX MDT
+  key_risk: It is selling its life-science business to focus on medical devices, a costly reorganisation.
+BIIB:
+  name: Bioguild Neurosciences
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Cambridge, USA
+  purpose: Develops medicines for multiple sclerosis, Alzheimer's disease, spinal muscular atrophy and other neurological diseases.
+  key_market: Neurologists and patients in the US and Europe
+  market_position: Has more experience developing brain drugs than any other company; it co-developed one of the first drugs to slow Alzheimer's.
+  origin: CO_FOUNDERS
+  founders: Six molecular biologists including two Nobel laureates
+  founder_story: Six molecular biologists from Europe and the US founded it in Geneva in 1978, among the first biotech companies in the world; it nearly went bankrupt twice before its first drug.
+  founded_year: 1978
+  ipo_year: 1983
+  ipo_valuation_musd: 90
+  ceo_name: Edmund Vaillancourt
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 7500
+  fiscal_year: 2025
+  revenue_musd: 9600
+  net_income_musd: 1700
+  revenue_growth_pct: -3.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 2200
+  market_cap_musd: 21000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.35
+  credit_rating: BBB+
+  competitors: LLY
+  key_risk: Its multiple-sclerosis franchise is losing patent protection and Alzheimer's sales are slow to start.
+BMY:
+  name: Bristow-Maynard Sciences
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Princeton, USA
+  purpose: Discovers and sells cancer immunotherapies, blood thinners, blood-cancer drugs and a new schizophrenia treatment.
+  key_market: Cancer and cardiovascular patients in the US and Europe
+  market_position: Pioneered immuno-oncology; its checkpoint drug was among the first to let the immune system attack cancer.
+  origin: MERGER
+  founders: A New York drug house and a Brooklyn chemist's firm
+  founder_story: A Clinton, New York drug company founded in 1887 merged in 1989 with a Brooklyn company started by a navy doctor who made pure ether for surgery in 1858.
+  founded_year: 1989
+  ipo_year: 1989
+  ipo_valuation_musd: 25000
+  ceo_name: Gideon Larrabee
+  ceo_since: 2023
+  ceo_industry_years: 28
+  employees: 34000
+  fiscal_year: 2025
+  revenue_musd: 47000
+  net_income_musd: 5500
+  revenue_growth_pct: -2.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 13000
+  market_cap_musd: 95000
+  dividend_yield_pct: 5.2
+  debt_to_equity: 3.0
+  credit_rating: A
+  competitors: MRK PFE ABBV
+  key_risk: Its three best-selling drugs lose patent protection by 2028.
+BSX:
+  name: Bramwell Scientific Corp.
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Marlborough, USA
+  purpose: Makes minimally invasive devices for the heart, blood vessels, digestive and urinary tract, including heart-rhythm ablation systems.
+  key_market: Cardiologists and hospitals in the US, Europe and China
+  market_position: Leads the fastest-growing area of heart care, pulsed-field ablation for atrial fibrillation, ahead of all larger rivals.
+  origin: CO_FOUNDERS
+  founders: Joseph Bramwell, Lionel Hartnell
+  founder_story: A medical-devices entrepreneur and an engineer bought a small Massachusetts catheter maker in 1979 with the idea of treating disease through tiny incisions instead of open surgery.
+  founded_year: 1979
+  ipo_year: 1992
+  ipo_valuation_musd: 900
+  ceo_name: Martha Bjornsen
+  ceo_since: 2016
+  ceo_industry_years: 32
+  employees: 53000
+  fiscal_year: 2025
+  revenue_musd: 20000
+  net_income_musd: 2800
+  revenue_growth_pct: 20.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 3500
+  market_cap_musd: 150000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.48
+  credit_rating: A-
+  competitors: MDT EW ISRG
+  key_risk: Its valuation assumes ablation growth lasts years; a safety problem would end that.
+CAH:
+  name: Cardiff Health Distribution
+  sector: HEALTHCARE
+  industry: Health Care Distributors
+  headquarters: Dublin, USA
+  purpose: Distributes medicines to 25,000 US pharmacies and hospitals and makes and distributes medical supplies.
+  key_market: US retail pharmacies, hospitals and specialist clinics
+  market_position: One of three companies that move nine in ten US prescriptions from drug makers to pharmacies.
+  origin: FOUNDER
+  founders: Rufus Calloway
+  founder_story: Rufus Calloway started a food wholesaler in Ohio in 1971 and in 1979 bought a drug wholesaler to use his trucks better; the drugs soon outgrew the food.
+  founded_year: 1971
+  ipo_year: 1983
+  ipo_valuation_musd: 100
+  ceo_name: Wilhelmina Haverford
+  ceo_since: 2022
+  ceo_industry_years: 25
+  employees: 47000
+  fiscal_year: 2025
+  revenue_musd: 225000
+  net_income_musd: 1600
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 1.0
+  free_cash_flow_musd: 3000
+  market_cap_musd: 38000
+  dividend_yield_pct: 1.3
+  debt_to_equity: -3.5
+  credit_rating: BBB
+  competitors: MCK
+  key_risk: Opioid lawsuits have already cost it billions and more claims are pending.
+CI:
+  name: Cedarline Health Group
+  sector: HEALTHCARE
+  industry: Managed Health Care
+  headquarters: Bloomfield, USA
+  purpose: Sells health insurance to employers and runs one of the largest pharmacy-benefit managers and specialty pharmacies in the US.
+  key_market: Large US employers and their 20 million employees
+  market_position: Its pharmacy-benefit manager negotiates drug prices for 120 million Americans, which gives it enormous buying power over drug makers.
+  origin: MERGER
+  founders: A Connecticut insurer and a Philadelphia insurer
+  founder_story: A Connecticut general insurer founded in 1865 merged in 1982 with a Philadelphia insurer that claimed to have sold the first American insurance policy in 1792.
+  founded_year: 1982
+  ipo_year: 1982
+  ipo_valuation_musd: 3000
+  ceo_name: Darius Penhallow
+  ceo_since: 2021
+  ceo_industry_years: 26
+  employees: 73000
+  fiscal_year: 2025
+  revenue_musd: 260000
+  net_income_musd: 4500
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 3.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 85000
+  dividend_yield_pct: 1.8
+  debt_to_equity: 0.75
+  credit_rating: A-
+  competitors: UNH CVS HUM CNC
+  key_risk: Congress wants to ban pharmacy-benefit managers from owning pharmacies or keeping drug rebates.
+CNC:
+  name: Centurion Health Plans
+  sector: HEALTHCARE
+  industry: Managed Health Care
+  headquarters: St. Louis, USA
+  purpose: Runs government-funded health plans for 28 million low-income Americans under Medicaid, Medicare and the public insurance marketplaces.
+  key_market: Medicaid and marketplace members in 30 US states
+  market_position: The largest Medicaid and marketplace insurer in the US, contracting with more states than any rival.
+  origin: FOUNDER
+  founders: Elaine Hostetler
+  founder_story: Elaine Hostetler, a hospital bookkeeper in Milwaukee, set up a health plan in 1984 for the city's Medicaid mothers, whom the hospital was losing money on.
+  founded_year: 1984
+  ipo_year: 2001
+  ipo_valuation_musd: 300
+  ceo_name: Saoirse McDermott
+  ceo_since: 2021
+  ceo_industry_years: 24
+  employees: 60000
+  fiscal_year: 2025
+  revenue_musd: 175000
+  net_income_musd: -300
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 0.0
+  free_cash_flow_musd: -500
+  market_cap_musd: 17000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.7
+  credit_rating: BBB-
+  competitors: UNH CI HUM
+  key_risk: Cuts to Medicaid and marketplace subsidies would remove millions of its members.
+CVS:
+  name: Corvallis Pharmacy & Health
+  sector: HEALTHCARE
+  industry: Health Care Services
+  headquarters: Woonsocket, USA
+  purpose: Runs 9,000 pharmacies, one of the largest pharmacy-benefit managers and a health insurer covering 27 million people.
+  key_market: US patients, employers and Medicare members
+  market_position: The only US company that is at once pharmacy, pharmacy-benefit manager and insurer, so it can manage a patient's care and drug costs end to end.
+  origin: CO_FOUNDERS
+  founders: Two brothers and a partner
+  founder_story: Two brothers and their partner opened a health and beauty discount store in Lowell, Massachusetts in 1963; they added pharmacy counters four years later.
+  founded_year: 1963
+  ipo_year: 1996
+  ipo_valuation_musd: 3500
+  ceo_name: Lorenzo Fairbairn
+  ceo_since: 2024
+  ceo_industry_years: 26
+  employees: 300000
+  fiscal_year: 2025
+  revenue_musd: 390000
+  net_income_musd: 5000
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 2.5
+  free_cash_flow_musd: 7000
+  market_cap_musd: 90000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 1.1
+  credit_rating: BBB
+  competitors: CI UNH HUM
+  key_risk: Its Medicare insurance business lost money when seniors used more care than expected.
+DHR:
+  name: Dahlgren Life Sciences
+  sector: HEALTHCARE
+  industry: Life Sciences Tools & Services
+  headquarters: Washington, USA
+  purpose: Makes the equipment, reagents and filters used to make biologic drugs, plus lab instruments and diagnostics tests.
+  key_market: Biopharmaceutical companies and hospital and research labs worldwide
+  market_position: Its bioprocessing filters and resins are written into the approved manufacturing process of thousands of drugs, so customers cannot switch.
+  origin: CO_FOUNDERS
+  founders: Stuart Dahlgren, Martin Dahlgren
+  founder_story: Two brothers who had made their money in real estate bought a small industrial company in 1984 and ran it with a Japanese-style improvement system that they then applied to every company they bought.
+  founded_year: 1969
+  ipo_year: 1978
+  ipo_valuation_musd: 50
+  ceo_name: Wilhelm Abendroth
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 63000
+  fiscal_year: 2025
+  revenue_musd: 24000
+  net_income_musd: 3800
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 20.0
+  free_cash_flow_musd: 5000
+  market_cap_musd: 150000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 0.35
+  credit_rating: A-
+  competitors: MTD ILMN IQV
+  key_risk: Biotech customers ran down stocks after the pandemic and orders took two years to return.
+DXCM:
+  name: Dextrum Medical Inc.
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: San Diego, USA
+  purpose: Makes continuous glucose monitors, small sensors worn on the skin that read blood sugar every five minutes and send it to a phone.
+  key_market: People with diabetes in the US and Europe
+  market_position: Its sensors are the most accurate on the market and connect to every major insulin pump, which makes it the choice of insulin users.
+  origin: FOUNDER
+  founders: Samuel Ekwueme
+  founder_story: Samuel Ekwueme, a biomedical engineer whose sister had type 1 diabetes, founded the company in 1999 to spare her the finger pricks; it took seven years to get a sensor approved.
+  founded_year: 1999
+  ipo_year: 2005
+  ipo_valuation_musd: 350
+  ceo_name: Miriam Morrow-Tate
+  ceo_since: 2025
+  ceo_industry_years: 22
+  employees: 10000
+  fiscal_year: 2025
+  revenue_musd: 4600
+  net_income_musd: 700
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 28000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.95
+  credit_rating: BBB-
+  competitors: MDT
+  key_risk: Its larger rival sells a cheaper sensor and has pushed it into a price war.
+EW:
+  name: Edgewater Lifesciences
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Irvine, USA
+  purpose: Makes heart valves that surgeons implant through a catheter, without opening the chest.
+  key_market: Cardiologists and patients with structural heart disease in the US, Europe and Japan
+  market_position: Invented transcatheter aortic valve replacement and still holds two thirds of the US market for it.
+  origin: CO_FOUNDERS
+  founders: An engineer and a heart surgeon
+  founder_story: A retired hydraulics engineer and a heart surgeon in Oregon built the first artificial heart valve in 1958 in a garage, testing it with pumps from irrigation systems.
+  founded_year: 1958
+  ipo_year: 2000
+  ipo_valuation_musd: 900
+  ceo_name: Odile Liang
+  ceo_since: 2019
+  ceo_industry_years: 28
+  employees: 16000
+  fiscal_year: 2025
+  revenue_musd: 6000
+  net_income_musd: 1400
+  revenue_growth_pct: 9.0
+  operating_margin_pct: 28.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 45000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.08
+  credit_rating: A-
+  competitors: BSX MDT
+  key_risk: Trials of its valves for younger, lower-risk patients must succeed for growth to continue.
+GEHC:
+  name: Gemfield Healthcare Technologies
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Chicago, USA
+  purpose: Makes MRI and CT scanners, ultrasound machines, patient monitors and contrast agents for medical imaging.
+  key_market: Hospitals and imaging centres worldwide
+  market_position: Has one of the largest installed bases of imaging machines in the world, so its service contracts and contrast agents bring steady revenue.
+  origin: SPIN_OFF
+  founders: Spun off from an industrial conglomerate
+  founder_story: Separated in 2023 from an industrial conglomerate that had made X-ray tubes since 1896, a year after X-rays were discovered.
+  founded_year: 2023
+  ipo_year: 2023
+  ipo_valuation_musd: 26000
+  ceo_name: Hendrik Vandenbussche
+  ceo_since: 2023
+  ceo_industry_years: 30
+  employees: 53000
+  fiscal_year: 2025
+  revenue_musd: 20000
+  net_income_musd: 2000
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 1700
+  market_cap_musd: 36000
+  dividend_yield_pct: 0.2
+  debt_to_equity: 1.0
+  credit_rating: BBB
+  competitors: ISRG
+  key_risk: Chinese hospital buying has collapsed under an anti-corruption campaign.
+GILD:
+  name: Gilderoy Sciences Inc.
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Foster City, USA
+  purpose: Develops and sells antiviral medicines for HIV, hepatitis B and C and COVID-19, and cancer cell therapies.
+  key_market: HIV patients in the US and Europe
+  market_position: Its HIV pills are taken by most treated patients in the US, and its twice-yearly HIV-prevention injection may change how HIV is fought.
+  origin: FOUNDER
+  founders: Marcus Treloar
+  founder_story: Marcus Treloar, a 29-year-old doctor turned venture capitalist, founded it in 1987 to make antiviral drugs at a time when most companies thought viruses could not be treated.
+  founded_year: 1987
+  ipo_year: 1992
+  ipo_valuation_musd: 160
+  ceo_name: Viktor Saltzman
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 18000
+  fiscal_year: 2025
+  revenue_musd: 29000
+  net_income_musd: 6000
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 38.0
+  free_cash_flow_musd: 10000
+  market_cap_musd: 140000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 1.3
+  credit_rating: BBB+
+  competitors: MRK
+  key_risk: Its HIV medicines lose patent protection from 2032 and it depends on them for two thirds of sales.
+HCA:
+  name: Halcyon Hospital Corp.
+  sector: HEALTHCARE
+  industry: Health Care Facilities
+  headquarters: Nashville, USA
+  purpose: Runs 190 hospitals and 2,400 outpatient centres in 20 US states and the UK.
+  key_market: Patients with private insurance and Medicare in Florida, Texas and the Southeast
+  market_position: The largest for-profit hospital group in the US; its scale in fast-growing Sun Belt cities makes it unavoidable for insurers there.
+  origin: FAMILY
+  founders: A Nashville doctor and his son
+  founder_story: A Nashville doctor and his son, joined by a fried-chicken entrepreneur, founded it in 1968 to run hospitals the way a chain runs restaurants, with shared buying and standards.
+  founded_year: 1968
+  ipo_year: 1969
+  ipo_valuation_musd: 100
+  ceo_name: Ottilie Pryor
+  ceo_since: 2019
+  ceo_industry_years: 32
+  employees: 315000
+  fiscal_year: 2025
+  revenue_musd: 74000
+  net_income_musd: 6200
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 15.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 105000
+  dividend_yield_pct: 0.7
+  debt_to_equity: -8.0
+  credit_rating: BBB-
+  competitors: UNH
+  key_risk: Medicaid cuts would raise the number of patients who cannot pay.
+HUM:
+  name: Humbolt Health Plans Inc.
+  sector: HEALTHCARE
+  industry: Managed Health Care
+  headquarters: Louisville, USA
+  purpose: Runs private Medicare plans for 6 million seniors and primary-care clinics and home-health services for them.
+  key_market: US seniors in Medicare Advantage plans
+  market_position: The second-largest Medicare Advantage insurer, focused on seniors more than any rival, and owner of 300 senior-focused clinics.
+  origin: CO_FOUNDERS
+  founders: Two Louisville lawyers
+  founder_story: Two Louisville lawyers started a nursing-home company in 1961 with 1,000 dollars each; it became the largest hospital company in the 1970s before turning itself into a health insurer.
+  founded_year: 1961
+  ipo_year: 1968
+  ipo_valuation_musd: 30
+  ceo_name: Byron Achterberg
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 65000
+  fiscal_year: 2025
+  revenue_musd: 125000
+  net_income_musd: 1500
+  revenue_growth_pct: 8.0
+  operating_margin_pct: 2.0
+  free_cash_flow_musd: 2500
+  market_cap_musd: 31000
+  dividend_yield_pct: 1.4
+  debt_to_equity: 0.7
+  credit_rating: BBB
+  competitors: UNH CVS CI
+  key_risk: The quality star rating of its largest plan fell, which cuts the bonus payments it gets from Medicare.
+IDXX:
+  name: Idexion Veterinary Laboratories
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Westbrook, USA
+  purpose: Makes diagnostic tests, in-clinic analysers and software for vets, and tests water and farm animals.
+  key_market: Veterinary clinics in North America and Europe
+  market_position: Its analysers are in most US vet clinics; each one uses its tests, which are sold under multi-year contracts.
+  origin: FOUNDER
+  founders: Duncan Ferrante
+  founder_story: Duncan Ferrante, a Maine biochemist, founded it in 1983 to apply human diagnostics to animals after noticing that vets were still guessing what was wrong with sick cattle.
+  founded_year: 1983
+  ipo_year: 1991
+  ipo_valuation_musd: 200
+  ceo_name: Josephine Wardell
+  ceo_since: 2019
+  ceo_industry_years: 28
+  employees: 11000
+  fiscal_year: 2025
+  revenue_musd: 4100
+  net_income_musd: 1000
+  revenue_growth_pct: 6.0
+  operating_margin_pct: 30.0
+  free_cash_flow_musd: 950
+  market_cap_musd: 45000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.5
+  credit_rating: BBB+
+  competitors: ""
+  key_risk: Vet visits have fallen as pet owners cut spending.
+ILMN:
+  name: Ilmenite Genomics
+  sector: HEALTHCARE
+  industry: Life Sciences Tools & Services
+  headquarters: San Diego, USA
+  purpose: Makes the DNA sequencing machines and chemistry used by most genomics labs, cancer testers and research centres in the world.
+  key_market: Genomics labs, hospitals and research institutes in the US, Europe and China
+  market_position: Its sequencers produce most of the world's genetic data; labs that run its machines keep buying its reagents for years.
+  origin: CO_FOUNDERS
+  founders: Tufts researchers and a venture fund
+  founder_story: A Tufts chemistry professor's lab discovered how to put thousands of DNA probes on glass beads in fibre-optic bundles in 1998; a venture firm set up a company around it.
+  founded_year: 1998
+  ipo_year: 2000
+  ipo_valuation_musd: 1000
+  ceo_name: Lars Bellerose
+  ceo_since: 2023
+  ceo_industry_years: 25
+  employees: 9000
+  fiscal_year: 2025
+  revenue_musd: 4300
+  net_income_musd: 500
+  revenue_growth_pct: -3.0
+  operating_margin_pct: 18.0
+  free_cash_flow_musd: 700
+  market_cap_musd: 15000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.7
+  credit_rating: BBB
+  competitors: DHR
+  key_risk: China has banned it from selling sequencers there, and cheaper rivals are winning in the US.
+INCY:
+  name: Inkwell Therapeutics
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Wilmington, USA
+  purpose: Develops medicines for blood cancers, myeloproliferative disorders and skin diseases such as vitiligo.
+  key_market: Haematologists and dermatologists in the US
+  market_position: Its first drug for a rare bone-marrow cancer has been the standard of care for 15 years and funds its research.
+  origin: SPIN_OFF
+  founders: Spun off from a genomics database company
+  founder_story: Began in 1991 as a company selling genomic databases; when the business model collapsed in 2002 it fired most of its staff and turned the remaining scientists to drug discovery.
+  founded_year: 1991
+  ipo_year: 1993
+  ipo_valuation_musd: 100
+  ceo_name: Ingmar Thorsrud
+  ceo_since: 2025
+  ceo_industry_years: 28
+  employees: 2700
+  fiscal_year: 2025
+  revenue_musd: 4800
+  net_income_musd: 900
+  revenue_growth_pct: 15.0
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 14000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: BBB-
+  competitors: ABBV
+  key_risk: Its main drug loses patent protection in 2028 and newer products must replace it.
+IQV:
+  name: Ivoria Clinical Research
+  sector: HEALTHCARE
+  industry: Life Sciences Tools & Services
+  headquarters: Durham, USA
+  purpose: Runs clinical trials for drug makers and sells healthcare data and analytics about prescriptions, doctors and patients.
+  key_market: Drug makers worldwide
+  market_position: Holds anonymised data on more than a billion patients, which lets it find trial patients and sites faster than any other trial runner.
+  origin: MERGER
+  founders: A clinical-trials company and a healthcare data company
+  founder_story: Formed in 2016 when a North Carolina clinical-trials company founded by a statistics professor merged with a healthcare data company that had tracked prescriptions since 1954.
+  founded_year: 2016
+  ipo_year: 2016
+  ipo_valuation_musd: 18000
+  ceo_name: Nadia Sethuraman
+  ceo_since: 2016
+  ceo_industry_years: 30
+  employees: 88000
+  fiscal_year: 2025
+  revenue_musd: 16000
+  net_income_musd: 1400
+  revenue_growth_pct: 3.0
+  operating_margin_pct: 14.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 33000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 2.1
+  credit_rating: BBB-
+  competitors: LH DHR
+  key_risk: Biotech funding is tight and small biotechs are cancelling trials.
+ISRG:
+  name: Insurgence Surgical Systems
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Sunnyvale, USA
+  purpose: Makes robotic surgery systems and the instruments used with them, for urology, gynaecology and general surgery.
+  key_market: Hospitals in the US, Europe and Asia
+  market_position: Has 10,000 robots installed and trained a generation of surgeons on them; each operation uses instruments only it sells.
+  origin: SPIN_OFF
+  founders: Researchers from a Californian research institute
+  founder_story: Researchers at a Californian institute built a remote-surgery robot for the US army in the early 1990s so surgeons could operate on wounded soldiers from far away; they founded a company in 1995 to sell it to hospitals.
+  founded_year: 1995
+  ipo_year: 2000
+  ipo_valuation_musd: 600
+  ceo_name: Gabriela Ostrowska
+  ceo_since: 2021
+  ceo_industry_years: 25
+  employees: 15000
+  fiscal_year: 2025
+  revenue_musd: 9600
+  net_income_musd: 2700
+  revenue_growth_pct: 17.0
+  operating_margin_pct: 29.0
+  free_cash_flow_musd: 2000
+  market_cap_musd: 190000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.0
+  credit_rating: A
+  competitors: MDT BSX
+  key_risk: Large device rivals are finally launching their own surgical robots.
+JNJ:
+  name: Jarnefelt Health Corp.
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: New Brunswick, USA
+  purpose: Develops medicines for cancer, immunology and neuroscience, and makes surgical, orthopaedic and heart devices.
+  key_market: Patients and hospitals in the US, Europe and Japan
+  market_position: The largest healthcare company in the world, with a triple-A credit rating that few companies hold.
+  origin: FAMILY
+  founders: Three Jarnefelt brothers
+  founder_story: Three Swedish-American brothers began making sterile surgical dressings in New Jersey in 1886, after one of them heard a lecture on germs causing infection in operating theatres.
+  founded_year: 1886
+  ipo_year: 1944
+  ipo_valuation_musd: 150
+  ceo_name: Benedict Ravensworth
+  ceo_since: 2022
+  ceo_industry_years: 30
+  employees: 135000
+  fiscal_year: 2025
+  revenue_musd: 92000
+  net_income_musd: 19000
+  revenue_growth_pct: 5.0
+  operating_margin_pct: 25.0
+  free_cash_flow_musd: 19000
+  market_cap_musd: 400000
+  dividend_yield_pct: 3.0
+  debt_to_equity: 0.5
+  credit_rating: AAA
+  competitors: PFE MRK ABBV MDT
+  key_risk: Tens of thousands of lawsuits claim its old talc baby powder caused cancer.
+LH:
+  name: Larchmont Laboratories
+  sector: HEALTHCARE
+  industry: Health Care Services
+  headquarters: Burlington, USA
+  purpose: Runs one of the two largest US clinical-laboratory networks, processing 600,000 patient samples a day, and runs early-stage drug trials.
+  key_market: US doctors, hospitals and insurers, and drug makers
+  market_position: Its courier network collects samples from almost every US doctor's office every day, which no regional lab can match.
+  origin: MERGER
+  founders: Two North Carolina labs
+  founder_story: Two North Carolina clinical labs, one founded by a pathologist in 1969, merged in 1995 to compete with national lab chains for insurers' contracts.
+  founded_year: 1995
+  ipo_year: 1995
+  ipo_valuation_musd: 1200
+  ceo_name: Adebayo Ransome
+  ceo_since: 2019
+  ceo_industry_years: 28
+  employees: 70000
+  fiscal_year: 2025
+  revenue_musd: 13500
+  net_income_musd: 900
+  revenue_growth_pct: 7.0
+  operating_margin_pct: 9.0
+  free_cash_flow_musd: 1200
+  market_cap_musd: 21000
+  dividend_yield_pct: 1.2
+  debt_to_equity: 0.9
+  credit_rating: BBB
+  competitors: IQV
+  key_risk: Medicare is cutting what it pays for common lab tests.
+LLY:
+  name: Lilienthal Pharmaceuticals
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Indianapolis, USA
+  purpose: Develops and sells medicines for diabetes, obesity, Alzheimer's, cancer and immunology.
+  key_market: Patients with diabetes and obesity in the US and worldwide
+  market_position: Makes the best-selling weight-loss and diabetes injections in the world and has the leading pill in late trials; no drug maker has grown as fast.
+  origin: FOUNDER
+  founders: Ezra Lilienthal
+  founder_story: Ezra Lilienthal, a pharmacist who had served as a field medic, set up a laboratory in Indianapolis in 1876, frustrated by poorly made medicines; the company was among the first to make insulin at scale in 1923.
+  founded_year: 1876
+  ipo_year: 1970
+  ipo_valuation_musd: 800
+  ceo_name: Dominic Harrowgate
+  ceo_since: 2016
+  ceo_industry_years: 30
+  employees: 47000
+  fiscal_year: 2025
+  revenue_musd: 62000
+  net_income_musd: 19000
+  revenue_growth_pct: 37.0
+  operating_margin_pct: 42.0
+  free_cash_flow_musd: 9000
+  market_cap_musd: 850000
+  dividend_yield_pct: 0.6
+  debt_to_equity: 2.2
+  credit_rating: A+
+  competitors: AMGN MRK
+  key_risk: Its shares value it as if weight-loss drugs will keep growing for a decade, while price cuts and rivals are coming.
+MCK:
+  name: McKinstry Distribution Corp.
+  sector: HEALTHCARE
+  industry: Health Care Distributors
+  headquarters: Irving, USA
+  purpose: Distributes a third of all US prescription medicines to pharmacies and hospitals and supplies cancer clinics and doctors' offices.
+  key_market: US pharmacy chains, independent pharmacies and oncology clinics
+  market_position: The largest US drug distributor; its network of community cancer clinics gives it a growing specialty business.
+  origin: CO_FOUNDERS
+  founders: Josiah McKinstry, Charles Rollins
+  founder_story: Two partners opened a drug wholesaler in lower Manhattan in 1833 to supply the city's apothecaries; it survived a Ponzi scandal in the 1930s that made it a byword for accounting fraud.
+  founded_year: 1833
+  ipo_year: 1928
+  ipo_valuation_musd: 20
+  ceo_name: Harriet Tolliver
+  ceo_since: 2019
+  ceo_industry_years: 30
+  employees: 45000
+  fiscal_year: 2025
+  revenue_musd: 360000
+  net_income_musd: 3300
+  revenue_growth_pct: 16.0
+  operating_margin_pct: 1.2
+  free_cash_flow_musd: 6000
+  market_cap_musd: 88000
+  dividend_yield_pct: 0.4
+  debt_to_equity: -3.0
+  credit_rating: BBB+
+  competitors: CAH
+  key_risk: Weight-loss drugs raise its revenue but earn almost nothing, which hides weakness elsewhere.
+MDT:
+  name: Meridyne Medical plc
+  sector: HEALTHCARE
+  industry: Health Care Equipment
+  headquarters: Dublin, Ireland
+  purpose: Makes pacemakers, heart valves, insulin pumps, spinal implants, surgical tools and nerve stimulators sold in 150 countries.
+  key_market: Hospitals and cardiologists in the US, Europe and China
+  market_position: The largest pure medical-device company in the world, with the broadest range of implants of any rival.
+  origin: CO_FOUNDERS
+  founders: Arvid Lundquist, Olaf Brekke
+  founder_story: A medical-equipment repairman and his brother-in-law fixed hospital machines in a Minneapolis garage in 1949; in 1957 a surgeon asked them for a battery pacemaker after a power cut killed a patient on a mains-powered one.
+  founded_year: 1949
+  ipo_year: 1960
+  ipo_valuation_musd: 25
+  ceo_name: Geoffrey Martinsen
+  ceo_since: 2020
+  ceo_industry_years: 30
+  employees: 95000
+  fiscal_year: 2025
+  revenue_musd: 34000
+  net_income_musd: 4700
+  revenue_growth_pct: 4.0
+  operating_margin_pct: 19.0
+  free_cash_flow_musd: 5500
+  market_cap_musd: 115000
+  dividend_yield_pct: 3.2
+  debt_to_equity: 0.5
+  credit_rating: A
+  competitors: BSX EW ISRG BDX
+  key_risk: It is spinning off its diabetes business and must find growth in the rest.
+MRK:
+  name: Merrow Kessel & Co.
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Rahway, USA
+  purpose: Develops and sells medicines and vaccines for cancer, infectious disease and heart disease, and animal-health products.
+  key_market: Cancer patients and vaccine buyers in the US, Europe and China
+  market_position: Makes the best-selling drug in the world, a cancer immunotherapy used against 20 types of tumour.
+  origin: SPIN_OFF
+  founders: US branch of a German pharmacy family's company
+  founder_story: The US branch of a German chemical company founded in 1891; it was seized by the US government in the First World War and sold to the public, becoming independent of its former parent.
+  founded_year: 1891
+  ipo_year: 1941
+  ipo_valuation_musd: 100
+  ceo_name: Robert Iannucci
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 72000
+  fiscal_year: 2025
+  revenue_musd: 64000
+  net_income_musd: 18000
+  revenue_growth_pct: 1.5
+  operating_margin_pct: 35.0
+  free_cash_flow_musd: 17000
+  market_cap_musd: 230000
+  dividend_yield_pct: 3.6
+  debt_to_equity: 0.8
+  credit_rating: A+
+  competitors: BMY PFE ABBV
+  key_risk: Its best-selling cancer drug loses US patent protection in 2028, and it is half its sales.
+MRNA:
+  name: Morphogen RNA Therapeutics
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: Cambridge, USA
+  purpose: Develops vaccines and medicines based on messenger RNA, for COVID-19, flu, RSV, cancer and rare diseases.
+  key_market: Governments and health systems buying vaccines in the US and Europe
+  market_position: Its RNA technology produced a COVID vaccine in weeks; it hopes the same platform can make personalised cancer vaccines.
+  origin: CO_FOUNDERS
+  founders: A Harvard stem-cell scientist and a venture firm
+  founder_story: A Harvard stem-cell scientist found in 2010 that modified RNA could make cells produce any protein; a Boston venture firm built a company around it a decade before COVID made it famous.
+  founded_year: 2010
+  ipo_year: 2018
+  ipo_valuation_musd: 7500
+  ceo_name: Severin Abelard
+  ceo_since: 2013
+  ceo_industry_years: 25
+  employees: 5000
+  fiscal_year: 2025
+  revenue_musd: 2000
+  net_income_musd: -3500
+  revenue_growth_pct: -38.0
+  operating_margin_pct: -175.0
+  free_cash_flow_musd: -3000
+  market_cap_musd: 11000
+  dividend_yield_pct: 0.0
+  debt_to_equity: 0.05
+  credit_rating: BB
+  competitors: PFE
+  key_risk: Vaccine sceptics in the US government are cutting support for mRNA vaccines.
+MTD:
+  name: Mettlebrook Instruments
+  sector: HEALTHCARE
+  industry: Life Sciences Tools & Services
+  headquarters: Columbus, USA
+  purpose: Makes precision weighing instruments, lab balances, pipettes and analytical instruments used in labs, factories and food plants.
+  key_market: Pharmaceutical labs, chemical plants and food producers worldwide
+  market_position: Its lab balances are the standard in drug labs worldwide, and its service technicians recalibrate them under regulated contracts.
+  origin: FOUNDER
+  founders: Erhard Mettlebrook
+  founder_story: Erhard Mettlebrook, a Swiss engineer, invented a single-pan balance in 1945 that weighed faster and more precisely than the two-pan balances every lab used.
+  founded_year: 1945
+  ipo_year: 1997
+  ipo_valuation_musd: 1100
+  ceo_name: Ferdinand Kaltenbrunner
+  ceo_since: 2021
+  ceo_industry_years: 30
+  employees: 17000
+  fiscal_year: 2025
+  revenue_musd: 3900
+  net_income_musd: 850
+  revenue_growth_pct: 2.0
+  operating_margin_pct: 29.0
+  free_cash_flow_musd: 900
+  market_cap_musd: 26000
+  dividend_yield_pct: 0.0
+  debt_to_equity: -14.0
+  credit_rating: BBB
+  competitors: DHR
+  key_risk: Weak lab and industrial spending in China, its third-largest market.
+PFE:
+  name: Pfennig Pharmaceuticals
+  sector: HEALTHCARE
+  industry: Pharmaceuticals
+  headquarters: New York, USA
+  purpose: Develops and sells medicines and vaccines for cancer, infection, heart disease and rare diseases in 185 countries.
+  key_market: Patients, hospitals and governments worldwide
+  market_position: One of the largest drug makers in the world; its manufacturing scale let it deliver billions of COVID vaccine doses in a year.
+  origin: CO_FOUNDERS
+  founders: Two German immigrant cousins
+  founder_story: Two German immigrant cousins, a chemist and a confectioner, opened a chemicals business in Brooklyn in 1849, and made their first success by sweetening a bitter worm medicine with toffee.
+  founded_year: 1849
+  ipo_year: 1942
+  ipo_valuation_musd: 90
+  ceo_name: Alistair Kemble
+  ceo_since: 2019
+  ceo_industry_years: 31
+  employees: 81000
+  fiscal_year: 2025
+  revenue_musd: 63000
+  net_income_musd: 9000
+  revenue_growth_pct: 0.0
+  operating_margin_pct: 22.0
+  free_cash_flow_musd: 10000
+  market_cap_musd: 140000
+  dividend_yield_pct: 7.0
+  debt_to_equity: 0.7
+  credit_rating: A
+  competitors: MRK JNJ BMY MRNA
+  key_risk: COVID sales collapsed and several large drugs lose patent protection this decade.
+UNH:
+  name: Unity Health Group
+  sector: HEALTHCARE
+  industry: Managed Health Care
+  headquarters: Minnetonka, USA
+  purpose: The largest US health insurer, covering 50 million people, and the owner of doctor practices, a pharmacy-benefit manager and health-data services.
+  key_market: US employers, Medicare and Medicaid members
+  market_position: Employs or is affiliated with 90,000 doctors and pays claims for one in seven Americans, so it controls more of the US health system than any company.
+  origin: FOUNDER
+  founders: Reinhold McGann
+  founder_story: Reinhold McGann, a health-policy consultant, set up a company in 1977 to organise doctors into networks that insurers could buy as a package, an early form of managed care.
+  founded_year: 1977
+  ipo_year: 1984
+  ipo_valuation_musd: 100
+  ceo_name: Lucian Fairweather
+  ceo_since: 2025
+  ceo_industry_years: 34
+  employees: 400000
+  fiscal_year: 2025
+  revenue_musd: 440000
+  net_income_musd: 13000
+  revenue_growth_pct: 10.0
+  operating_margin_pct: 4.5
+  free_cash_flow_musd: 18000
+  market_cap_musd: 280000
+  dividend_yield_pct: 2.8
+  debt_to_equity: 0.75
+  credit_rating: A+
+  competitors: CI CVS HUM CNC
+  key_risk: The Justice Department is investigating its Medicare billing, and medical costs are rising faster than its premiums.

@@ -8,9 +8,9 @@ step_sec: 1.0
 overnight_fraction: 0.2
 defaults: {vol: 0.30, drift: 0.05, jump_rate: 0.05, jump_mean: 0.0, jump_std: 0.04, beta_market: 0.5, beta_sector: 0.4}
 news:                      # generated news and rumours (S8: on)
-  rate_symbol: 6.0         # symbol news per trading day, whole exchange
-  rate_sector: 0.5         # sector news per trading day
-  rate_market: 0.3         # market-wide news per trading day
+  rate_symbol: 20.0         # symbol news per trading day, whole exchange
+  rate_sector: 0.6         # sector news per trading day
+  rate_market: 0.4         # market-wide news per trading day
   rumour_share: 0.3        # share that starts as a rumour
   rumour_confirm: 0.6      # chance a rumour is confirmed rather than retracted
   rumour_delay_min: 0.02   # trading days before a rumour resolves (uniform)

@@ -5,10 +5,11 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pytest
+from fastapi import HTTPException
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -32,6 +33,7 @@ from edumatcher.api_gateway.schemas import (
 )
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, require_trading
 from edumatcher.clearing import query as clearing_query
+from edumatcher.compdb import store as compdb
 from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import clear_tick_registry, register_tick_decimals
@@ -929,3 +931,51 @@ async def test_positions_survive_an_unreadable_clearing_db(tmp_path: Path) -> No
 
     assert result["positions"][0]["net_qty"] == 5
     assert result["positions"][0]["realized_pnl_session"] is None
+
+
+@pytest.fixture
+def companies_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    db = tmp_path / "companies.db"
+    monkeypatch.setattr(compdb, "COMPANIES_DB", db)
+    return db
+
+
+@pytest.mark.anyio
+async def test_company_returns_the_profile_with_derived_columns(
+    companies_db: Path,
+) -> None:
+    compdb.build(companies_db, [r for r in compdb.load_seed() if r["symbol"] == "AAPL"])
+    readonly = Session(api_key="ro", gateway_id=None, description="viewer")
+
+    row = await reference.company("aapl", fake_request(), readonly)
+
+    assert row["symbol"] == "AAPL"
+    assert row["name"]
+    assert row["pe_ratio"] > 0
+
+
+@pytest.mark.anyio
+async def test_company_unknown_symbol_is_404(companies_db: Path) -> None:
+    compdb.build(companies_db, [])
+
+    with pytest.raises(HTTPException) as info:
+        await reference.company("ZZZ", fake_request(), trading_session())
+
+    assert info.value.status_code == 404
+    assert cast(dict[str, Any], info.value.detail)["error"]["code"] == "UNKNOWN_COMPANY"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("content", [None, "not a database"])
+async def test_company_without_a_readable_db_is_503(
+    companies_db: Path, content: str | None
+) -> None:
+    if content is not None:
+        companies_db.write_text(content)
+
+    with pytest.raises(HTTPException) as info:
+        await reference.company("AAPL", fake_request(), trading_session())
+
+    assert info.value.status_code == 503
+    detail = cast(dict[str, Any], info.value.detail)
+    assert detail["error"]["code"] == "COMPANY_DB_UNAVAILABLE"

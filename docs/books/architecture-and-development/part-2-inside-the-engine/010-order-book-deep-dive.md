@@ -1252,7 +1252,7 @@ auction (`both_resting`), whose follow-ups the engine runs after
 
 | Field | Updated when | Used for |
 |---|---|---|
-| `last_trade_price` | every trade, continuous and auction | stop and trailing-stop triggers, depth window centre, price collars, `trigger_stops` after an uncross |
+| `last_trade_price` | every trade, continuous and auction | stop and trailing-stop triggers, depth window centre, price collars, `run_stops` after an uncross |
 | `last_buy_price` | a trade whose **aggressor was the buyer** | market data ("last trade on the buy side"), persisted across restarts |
 | `last_sell_price` | a trade whose **aggressor was the seller** | the same, for the sell side |
 
@@ -1756,9 +1756,9 @@ without trading, and the book may become crossed. When the call phase ends,
    best bid against best ask at that one price, calling
    `book._apply_fill(..., both_resting=True)`.
 3. `Engine._run_uncross` publishes the results and then calls
-   `book.trigger_stops(now)` — the public wrapper around `_check_stops` and
-   `_check_trailing_stops` — and processes each triggered stop with
-   `book.process()`.
+   `book.run_stops(now)`: the same stop cascade `process()` runs after a
+   continuous trade (released stops queue FIFO behind the ones already
+   waiting), so stops fire in the same order after an auction print.
 
 `both_resting=True` changes three things in `_apply_fill`: both orders'
 visible quantity is deducted from the level index (both were resting), the
@@ -2038,7 +2038,7 @@ self.book_stats()
 
 !!! warning "Some methods mutate the book — never call them from a watch"
     `self._peek(...)` pops dead entries, `self._check_stops(...)` and
-    `self.trigger_stops(...)` release stops, and `self._compact_heaps()`
+    `self.run_stops(...)` release (and trade) stops, and `self._compact_heaps()`
     rebuilds heaps. Evaluating them in the debugger changes the state you are
     trying to observe. Read-only views (`snapshot()`, `depth_snapshot()`,
     `book_stats()`, `resting_orders()`, `get_order()`) are safe, and so is

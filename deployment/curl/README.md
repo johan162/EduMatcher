@@ -242,6 +242,12 @@ machine only. **The protocol gateways have no authentication**, so anyone who
 can open the socket can trade; think before setting it to `0.0.0.0` on a
 network you do not control.
 
+For a classroom, `./edumatcher.sh share on [host-ip]` sets `BIND_ADDR=0.0.0.0`
+and points the dashboard's `LOG_GUI_URL` / `BOOK_GUI_URL` at the host address
+(auto-detected unless given); `share off` restores the private defaults. Run
+`./edumatcher.sh restart` afterwards, and open 8090-8095/tcp in the host
+firewall if students still cannot connect.
+
 Inside the container the gateways themselves bind `0.0.0.0` — that is what
 makes them reachable from the sibling GUI containers, and it exposes nothing on
 its own, because the only route in is a port `BIND_ADDR` published.

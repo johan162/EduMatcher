@@ -133,6 +133,16 @@ at `/data`: `~/.edumatcher-sim/data` for an installed simulation,
 A backup taken while the exchange runs can catch a database mid-write; stop
 it first.
 
+The first start also builds `data/companies.db`: made-up company profiles for
+the 300 tickers (name, industry, CEO, founder story, financials, P/E, …). Look
+them up with `./edumatcher.sh shell pm-compdb-cli show AAPL`, or list and
+filter them with `pm-compdb-cli list`. It is built only when missing, so
+companies you add survive restarts; delete it to get the bundled set back.
+The reference manual's
+[pm-compdb-cli](../../reference-manual/part-1-command-line/010-processes-environment-and-ports.md#pm-compdb-cli-company-database-cli)
+section explains where the source files are and when the entrypoint builds the
+database.
+
 ### The commands you will use
 
 From the install directory (`cd ~/.edumatcher-sim`):
