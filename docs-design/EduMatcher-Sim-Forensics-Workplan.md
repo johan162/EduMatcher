@@ -1562,8 +1562,15 @@ result: COMBO entry, ATC, every explicit SMP mode, resolved SMP other than
 command, reference reload; CLOSING_AUCTION/CLOSED were only not reached
 yet). Also: the AI agents cancel every DAY order they enter in PRE_OPEN
 (55 792, all by their own `order.cancel`, before or early in the opening
-auction), so only ATO and MM orders reach the opening uncross — let some
-pre-open orders stay into the auction. Then: AI agents amend (price up and
+auction), so only ATO and MM orders reach the opening uncross. Cause:
+`Agent._housekeeping` runs `OrderManager.stale` in every phase; it exempts
+ATO/ATC/GTC but ages DAY limits out after the preset's
+`max_order_age_sec` (20–120 s; ages at cancel cluster at 20/30/45/60/120 s)
+against a 25 min pre-open, and its drift rule measures against a call
+book's touch. **Fixed 2026-10-28** (separate change): `_housekeeping`
+skips the stale sweep in call phases; leftovers go at the first continuous
+sweep. Confirm on the next run (H5: PRE_OPEN DAY limits FILLED/EXPIRED,
+opening-auction volume up). Then: AI agents amend (price up and
 down, qty down) and send combos, ATC orders, explicit SMP modes (all four)
 and more STOP_LIMIT and non-LIMIT GTC; the sim profile enables collars and
 circuit breakers with bands a news jump can hit; a scripted operator

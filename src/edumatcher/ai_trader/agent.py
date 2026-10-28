@@ -32,7 +32,7 @@ from edumatcher.ai_trader.market_state import MarketState, SymbolState
 from edumatcher.ai_trader.orders import LiveOrder, OrderManager, OrderState, Purpose
 from edumatcher.ai_trader.preset import Preset
 from edumatcher.ai_trader.risk import RejectBreaker, allowed_qty
-from edumatcher.ai_trader.session_policy import order_allowed
+from edumatcher.ai_trader.session_policy import is_call_phase, order_allowed
 from edumatcher.ai_trader.strategies import DecisionContext
 from edumatcher.models.order import TIF, OrderType
 
@@ -226,12 +226,20 @@ class Agent:
             if sym in market.symbols
         }
         out: list[Action] = []
-        for o in self.orders.stale(
-            now,
-            max_age=risk.max_order_age_sec,
-            drift_ticks=risk.stale_price_ticks,
-            touch=touch,
-        ):
+        # In a call phase an order waits for the uncross by design, and a
+        # call book's touch is no market price: no stale sweep there. What
+        # is left after the uncross goes at the first continuous sweep.
+        stale = (
+            []
+            if is_call_phase(market.phase)
+            else self.orders.stale(
+                now,
+                max_age=risk.max_order_age_sec,
+                drift_ticks=risk.stale_price_ticks,
+                touch=touch,
+            )
+        )
+        for o in stale:
             out += self._cancel(o, now)
         for o in self.orders.unanswered_cancels(now, CANCEL_TIMEOUT):
             log.warning(

@@ -18,7 +18,10 @@ wakes, in this order:
 
 1. **Housekeeping.** Cancel resting orders older than `max_order_age_sec`, or
    more than `stale_price_ticks` behind the touch on their own side (a buy
-   order behind the best bid, a sell order behind the best ask).
+   order behind the best bid, a sell order behind the best ask). Not in
+   pre-open and the auction calls: there an order waits for the uncross,
+   and whatever is left after it goes at the first sweep of continuous
+   trading.
 2. **Slices due** of a `twap` parent order.
 3. **Protection.** Place, resize or remove the protective orders for each
    open position (continuous trading only).

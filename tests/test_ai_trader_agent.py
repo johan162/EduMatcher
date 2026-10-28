@@ -11,7 +11,7 @@ import pytest
 from edumatcher.ai_trader.actions import CancelOco, CancelOrder, NewOco, NewOrder
 from edumatcher.ai_trader.agent import Agent, intraday_multiplier
 from edumatcher.ai_trader.market_state import MarketState
-from edumatcher.ai_trader.orders import LiveOrder
+from edumatcher.ai_trader.orders import LiveOrder, OrderState
 from edumatcher.ai_trader.preset import TempoSpec, get_preset
 from edumatcher.ai_trader.risk import RiskSpec
 from edumatcher.models.order import TIF, OrderType
@@ -158,6 +158,38 @@ class TestHousekeeping:
         cancels = [a for a in later if isinstance(a, CancelOrder)]
         assert cancels
         assert len({c.order_id for c in cancels}) == len(cancels)
+
+    def test_pre_open_orders_wait_for_the_uncross(self) -> None:
+        """Pre-open lasts 25 min, an order's age limit 20-120 s: swept in a
+        call phase, no DAY order ever reached the opening uncross (sim run
+        2026-10-28: all 55 792 cancelled). Left over after it, they go."""
+        agent = _agent(max_order_age_sec=5.0, max_live_orders_per_symbol=1)
+        m = _market(session="PRE_OPEN")
+        first = _run(agent, m, 1.0)
+        sent = {f"E{a.tag}" for a in first if isinstance(a, NewOrder)}
+        assert sent
+        _ack_all(agent, first)
+        later = _run(agent, m, 30.0, t0=1.0)
+        assert not any(isinstance(a, CancelOrder) for a in later)
+        m.on_session_state({"state": "CONTINUOUS"}, wall=31.0)
+        after = _run(agent, m, 2.0, t0=31.0)
+        assert sent <= {a.order_id for a in after if isinstance(a, CancelOrder)}
+
+    @pytest.mark.parametrize("phase", ["OPENING_AUCTION", "CLOSING_AUCTION"])
+    def test_a_resting_day_order_stays_through_an_auction_call(
+        self, phase: str
+    ) -> None:
+        """Far behind the touch and past its age, but in the call it waits
+        for the uncross."""
+        agent = _agent(max_order_age_sec=5.0, max_live_orders_per_symbol=1)
+        agent.orders.track(
+            LiveOrder(
+                "D", "AAPL", "BUY", OrderType.LIMIT, TIF.DAY, 5, 5, 900, 0.0,
+                order_id="E-D", state=OrderState.LIVE,
+            )
+        )  # fmt: skip
+        out = _run(agent, _market(("AAPL",), session=phase), 30.0)
+        assert not any(isinstance(a, CancelOrder) for a in out)
 
     def test_unacked_orders_are_not_cancelled_by_id(self) -> None:
         agent = _agent(max_order_age_sec=1.0)
