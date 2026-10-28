@@ -26,11 +26,16 @@ class Line(NamedTuple):
     body: str
     #: When pm-audit wrote the line (ISO, millisecond precision).
     ts: str
+    #: The engine's per-topic sequence (None on a line without one).
+    seq: int | None = None
 
 
 def audit_files(data_dir: Path) -> list[Path]:
-    """The run's audit files, oldest first (empty when there is none)."""
-    return discover_log_files(data_dir / "audit.log")
+    """The run's audit files, oldest first (empty when there is none): the
+    daily archives, then the live trail. ``discover_log_files`` leaves the
+    archives out, but a run that crossed midnight starts in one."""
+    archives = sorted((data_dir / "audit").glob("audit-????-??-??.log.zst"))
+    return archives + discover_log_files(data_dir / "audit.log")
 
 
 def lines(files: list[Path]) -> Iterator[Line]:
@@ -45,4 +50,8 @@ def lines(files: list[Path]) -> Iterator[Line]:
                 continue
             meta = raw[b + 3 : c]
             chain = meta[meta.rfind("chain=") + 6 :]
-            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a])
+            seq = None
+            if meta.startswith("seq="):
+                end = meta.find(" ")
+                seq = int(meta[4 : end if end > 0 else None])
+            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq)

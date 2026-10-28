@@ -244,7 +244,7 @@ class _Replay:
     def run(self, stream: Iterable[Line]) -> None:
         pending: list[tuple[str, str, dict[str, Any]]] = []
         chain = ""
-        for topic, line_chain, body, _ in stream:
+        for topic, line_chain, body, *_ in stream:
             kind = _EXACT.get(topic) or _PREFIX.get(topic[: topic.rfind(".") + 1])
             if kind is None:
                 if topic.startswith(_UNMODELLED):

@@ -2,6 +2,8 @@
 
 from sim_forensics.checks import (  # noqa: F401
     bookkeeping,
+    completeness,
+    coverage,
     derived,
     lifecycle,
     matching,

@@ -38,9 +38,23 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 14 | S14 | Run 2026-10-25 (C5, C6 FAIL): X15 engine OCO sibling inside a cascade; X16 C5/C6 check fixes; X17 OCO entry | S13 | 0.5 d | ☑ | 2026-10-25 |
 | 15 | S15 | X8d: one publisher for every `book.process()` result; X12, X18–X20 | S14 | 1 d | ☑ | 2026-10-25 |
 | 16 | S16 | X21: a combo leg ending on entry fails the combo; `combo.ack` first | S15 | 0.5 d | ☑ | 2026-10-26 |
+| 17 | S17 | A5 audit completeness (per-topic `seq` gaps) + H5 feature-coverage matrix | — | 0.5 d | ☑ | 2026-10-28 |
+| 18 | S18 | Direct checks on today's data: C9 IOC/FOK/MARKET, C10 quote replace, D10 auction indicative, F6 depth fields | S17 | 1 d | ☐ | |
+| 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☐ | |
+| 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☐ | |
+| 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20 | 1 d | ☐ | |
+| 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☐ | |
+| 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☐ | |
+| 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☐ | |
+| 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☐ | |
+| 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☐ | |
+| 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
+| 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☐ | |
+| 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
-pruned after 12 h).
+pruned after 12 h). S17–S29 (≈ 16 d plus triage) are the pre-1.0 extension,
+see §10: after 1.0 the audit, bus and DB formats freeze.
 
 ---
 
@@ -175,6 +189,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | A2 | Trade counter (`run_seq-counter`) gap-free and duplicate-free per `run_seq`. |
 | A3 | Per trade: price, qty, gateways, order ids, aggressor, tick_decimals identical in every store. |
 | A4 | Trade ts monotonic in counter order; `ts_ns` within session phase windows (`session_events`). |
+| A5 | (S17) The audit is complete: per topic, `seq` runs 1, 2, 3 … without gap or repeat within one engine start (after S23: the global engine sequence too). Every other audit check assumes this. |
 
 ### B — Double-entry book-keeping
 
@@ -201,6 +216,8 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C6 | Reject / cancel reason codes are canonical (not the X7 OCO sibling rows, which carry `oco.cancelled`'s free text); reject-rate time series per code (spikes → H). |
 | C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
+| C9 | **Planned (S18).** IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
+| C10 | **Planned (S18).** At most one active quote per (gateway, symbol); a replacing quote's old legs have ended before its new legs trade. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -213,7 +230,8 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | D5 | Price-time priority: within a level, resting orders fill in `arrival_seq` order (iceberg refills lose priority; amend-down keeps it). |
 | D6 | Auction uncross: one price per symbol per auction, maximises executable volume, tie-breaks per the spec; book uncrossed afterwards; all prints `aggressor_side = AUCTION`. |
 | D7 | SMP: no continuous self-trades; auction self-trade policy per Q2 (R4). |
-| D8 | All prices on the tick grid; trades inside collar / circuit-breaker bands; halts honoured. |
+| D8 | All prices on the tick grid; trades inside collar / circuit-breaker bands; halts honoured. (Built: tick grid only; bands and halts in S28, after S24 publishes the bands.) |
+| D10 | **Planned (S18).** Each `auction.indicative.*` equals the uncross the replayed book would make at that moment; the `auction.result` equals the last indicative when the book did not change after it. |
 
 ### E — Replay differential
 
@@ -223,6 +241,9 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | E2 | Replay into a fresh `OrderBook` (canonicalise ids and timestamps as in the System-Trading-Verification doc §9); diff trades, acks, rejects. A diff here means non-determinism or a hidden input (time, collar state). |
 | E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. **Not built (S6 decision):** the reference has no quotes, OCO or sessions; S5's replay is the independent model on the real stream, and the reference differential stays with T3 of the matching plan. |
 | E4 | Final replayed book vs `gtc_orders.json` and the last `book.*` snapshots. |
+| E5 | **Planned (S19).** Symbol isolation: each symbol's commands re-run alone equal that symbol's part of the full re-run (cross-symbol commands — OCO, kill switch, halt-all — grouped or left out). |
+| E6 | **Planned (S19).** Crash recovery: persist the re-run engine at random command k with its own persistence code, restore a fresh engine from it, continue; the output equals the uninterrupted re-run. |
+| E7 | **Planned (S19).** Metamorphic: renaming gateway and client ids gives the same trades; shifting every price of a symbol by k ticks (away from bands) gives the same trades shifted by k. |
 
 ### F — Derived data and market data
 
@@ -233,6 +254,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | F3 | `book.*` `last_price`/`last_qty`/`recent_trades` consistent with `trade.executed`. |
 | F4 | `book_stats.json` `prev_close` = previous day's `close_price`. |
 | F5 | Index levels recomputable from constituent prices (once R7 is fixed). **Not built (S7 decision):** the s300-sim profile defines no index (R7), so there is no data to check; build it with the first run that has indexes. |
+| F6 | **Planned (S18).** `depth.*` derived fields (mid, bid/ask depth within tolerance, imbalance, microprice, cost to move) recomputed from the `book.*` snapshot of the same instant. |
 
 ### G — Persistence
 
@@ -240,6 +262,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 |---|---|
 | G1 | `gtc_orders.json` contains no terminal orders; `remaining_qty` matches the last FILL; ticks match `tick_decimals`. (Built per entry; "matches the last FILL" is C4's, and E4 compares the whole book.) |
 | G2 | `run_seq` in trade ids matches `engine_run_seq.json`; on a run with a restart, no trade id reused and resting orders survive. |
+| G3 | **Planned (S26).** Cross-day continuity: the archived EOD state of day N (resting GTC orders, combos, `book_stats.json`) is exactly what the engine recovers at the start of day N+1. |
 
 ### H — Ops-signal correlation and statistics
 
@@ -251,6 +274,7 @@ H checks report **INFO** (S7 decision): a count of pointers, never a FAIL.
 | H2 | Per-agent outliers: P&L, fill ratio, reject rate, cancel-to-fill; per-symbol: spread, price jumps > k·σ without a news event (`market_sim_news.db`). |
 | H3 | Latency (`engine.handle_us_*`) vs book size / garbage — not a correctness check, but feeds the perf plan. |
 | H4 | How far and how fast prices follow the value model's jumps (`market_sim_news.value_jumps`, added 2026-10-26). |
+| H5 | (S17) Feature coverage: counts per order type × TIF × SMP mode × phase × outcome, and per engine feature (amend, combo, OCO, quote, auction, band reject, halt, kill switch, restart). A zero marks a feature whose checks passed vacuously. |
 
 ## 6. Triage workflow (S8)
 
@@ -679,6 +703,35 @@ X8a and X4–X7 together.
 - **Q4** Should the checks also run continuously against a live sim (e.g. a
   periodic job, findings as pm-monitor events)? Recommendation: not before S8
   has shown which checks are stable and cheap.
+
+Pre-1.0 questions (§10), to settle in S20:
+
+- **Q5** Engine-side input journal? The audit is a PUB/SUB tap (pm-audit's
+  SUB, `_SUB_RCVHWM = 200_000`): best effort, and A5 can only *detect* a
+  loss. E2 shows the engine is deterministic, so a sequenced inbound
+  command journal written by the engine (batched fsync) would make the
+  record complete by construction, at some hot-path cost. Recommendation:
+  decide before 1.0 — it is the one change that is hard to add after the
+  freeze; if no, A5 is the guard.
+- **Q6** Global engine sequence: in addition to the per-topic `seq`, or
+  replacing it? Recommendation: in addition (subscribers that filter topics
+  still need per-topic gap detection); one more envelope frame field.
+- **Q7** Stop triggers, trailing ratchets and iceberg refills: client-visible
+  messages, or an audit-only trace topic? Recommendation: `order.triggered`
+  client-visible (it is what a participant needs, cf. FIX ExecType=L);
+  ratchet and refill on an audit-only `engine.trace.*` topic.
+- **Q8** Prices on the bus: add `*_ticks` beside the display floats, or
+  replace the floats? Recommendation: add ticks as the canonical value,
+  keep the floats as display only (the GUIs show them as is). No migration
+  either way: fresh stores.
+- **Q9** Book checkpoints: phase boundaries, startup/recovery and EOD only,
+  or also every N minutes? Size is ~one `gtc_orders.json` per checkpoint.
+  Recommendation: the events only; add a period later if replay start-up
+  time demands it (that is not a format change).
+- **Q10** E3 (reference matcher differential): build it on the chains the
+  reference supports (no quote, OCO, combo, auction), now that T3 of the
+  matching plan is done, or leave it? Recommendation: leave it; E5–E7 give
+  more for the effort.
 
 ## 9. Findings ledger
 
@@ -1290,3 +1343,289 @@ it to `market_sim_news.db`'s new `value_jumps` table (`ts_ns`, `symbol`,
   from then, against the median of the 20 before the jump, the same day.
   Samples are the jumps followed by less than half after 300 s, largest
   first. SKIPPED on a run whose pm-market-sim did not record jumps.
+
+## 10. Pre-1.0: deeper checks and the last format changes (2026-10-28)
+
+After 1.0 the audit line format, the bus message schemas (`spec/messages/`),
+the DB schemas (stats, clearing, metrics) and the persistence files freeze.
+This is the last chance to add what the forensics would need, so S17–S29
+first add the checks today's data already allows, then settle and make the
+format changes, then make the sim exercise what it never does, and end
+with a long run on the 1.0 formats.
+
+### Recon on the 2026-10-28 run
+
+Audit: 25 files of 268 MB (plus 2026-10-27 as `.zst`); the sim was still
+running. One hourly file (`audit-2026-10-28.12.log`): `book`/`depth`
+snapshots 131 k lines, `order.new` 37 k, `trade.executed` 17 k, quotes
+~38 k, OCO ~1.8 k.
+
+**Coverage.** `order.new` over the whole day: LIMIT, IOC, TRAILING_STOP,
+STOP, MARKET, ICEBERG, FOK; STOP_LIMIT 1 303; TIF ATO 2 955, GTC 6 751, the
+rest DAY. **Never, all day:** `order.amend`/`order.amended`, `order.combo`
+/ `combo.*`, TIF ATC, an explicit `smp_action` (all `null`, so every order
+takes its gateway default), `circuit_breaker.*`, `auction.reopen`,
+`risk.*` (halt, kill switch, force uncross), `system.reference_reload`,
+`system.startup_recovery` (no restart). Every check on those features passes
+vacuously, and the replay could not follow them anyway: `matching.py`'s
+`_UNMODELLED = ("order.amended.", "combo.", "circuit_breaker.")`, and D8
+checks the tick grid only.
+
+**Audit completeness is assumed, not checked.** Lines carry a per-topic
+`seq=`, but `sim_forensics/audit.py` drops it, and B7's
+`audit.decode_errors` does not see a message pm-audit never received.
+pm-audit is a ZMQ SUB (`audit/main.py`, `_SUB_RCVHWM = 200_000`): a slow
+writer loses messages silently at the high-water mark.
+
+**Format gaps found:**
+
+- Execution messages carry money as display floats: `trade.executed.price`,
+  `order.fill.fill_price`/`price`, `order.ack.price`/`stop_price`/
+  `trail_offset`. The DBs already store integer ticks.
+- `order.fill` has `remaining_qty` but no cumulative qty or average price;
+  `order.cancelled` / `order.expired` have no remaining qty; no message
+  carries the engine priority (`arrival_seq`; `order.new` echoes 0).
+- `trade.executed` does not say in which phase or auction it printed, nor
+  which stop triggered its aggressor; the replay infers both.
+- Stop triggers, trailing ratchets and iceberg refills are published
+  nowhere; C7 and D5 infer them.
+- Collar / band reference prices are not published, so D8 cannot check
+  bands.
+- The audit has no header or format version, and no message says which
+  engine (version, commit) and which compiled config made it. E2 reads
+  `data/ref_data/engine_config.json`, which the next run overwrites, and
+  needs the run's engine checked out by hand.
+- `system.startup_recovery` holds only counts. The replay needs the audit
+  from the engine's start, without a restart (else SKIPPED), and a daily
+  audit file cannot be replayed alone when GTC orders rest overnight.
+- `gtc_orders.json`, `gtc_combos.json`, `book_stats.json` are overwritten
+  in place: no cross-day comparison is possible.
+- `stats.order_events` and `clearing.trade_events` hold no audit `msg` /
+  `chain`; `stats.trade_log` holds no order ids (clearing does).
+
+### S17 — A5 audit completeness, H5 coverage
+
+No format change. `audit.py`'s `Line` keeps `seq`; A5 tracks the last
+`seq` per topic, resets on `system.startup_recovery` / a `run_seq` change,
+and counts gaps and repeats (samples: topic, expected, got, file, ts). H5
+counts `order.new` by type × TIF × `smp_action` (as received and as
+acked) × phase, outcomes per type (filled / partial / cancelled by reason /
+expired / rejected by code), and one row per engine feature; INFO, samples
+are the zero rows.
+
+Done when: a test plants a dropped line and a repeat (A5 FAIL) and a run
+with no amend shows the zero (H5); the 2026-10-28 run reports both.
+
+### S18 — C9, C10, D10, F6
+
+No format change. C9 must accept an acked FOK that ends CANCELLED
+`SELF_MATCH_PREVENTED` with no fill in its own dispatch: the operator
+guide (risk controls, "FOK — self-match liquidity is excluded before the
+pre-check", step 2) prescribes it for `CANCEL_AGGRESSOR`/`CANCEL_BOTH`
+with a same-gateway conflict; H5 found 12 on the 2026-10-28 run. C9 (lifecycle, from the audit's chains), C10 (quotes,
+extends `checks/quotes.py`), D10 (reuses the replay's uncross function
+`matching.py` already has for D6, evaluated at each `auction.indicative.*`
+on the replayed book), F6 (`derived.py`, from the same `book.*` /
+`depth.*` pass F2/F3 use; `depth` and `book` of one dispatch share a
+`ts_ns` window — confirm the pairing rule against the engine first).
+
+Done when: one planted violation per check in a unit test; 2026-10-28 run
+reported, any FAIL triaged as X*n*.
+
+### S19 — E5, E6, E7
+
+No format change; extends `checks/rerun.py` (same fake-socket engine, same
+comparison and id binding).
+
+- **E5** filters the echoed commands per symbol (a command naming several
+  symbols — OCO across symbols, kill switch, halt-all, session — goes to
+  every symbol it names or to all) and diffs each against its part of the
+  full re-run. Finds state that leaks between symbols.
+- **E6** at k random command indices (seeded; default 20) calls the
+  engine's own GTC/combo persistence, builds a new `Engine` from those
+  files as `run()` does after a restart, and continues; output after k
+  must equal the uninterrupted re-run, apart from what a restart is
+  documented to change (DAY orders, quotes, `run_seq` in new trade ids —
+  write that list down first, it is part of the spec). Tests the
+  persistence format **before** it freezes: iceberg slices, trailing
+  levels, priority order, armed stops, OCO/combo links.
+- **E7** two transforms: a bijective rename of gateway ids, client tags
+  and order ids (trades must be equal after mapping back), and a +k tick
+  shift of every price of one symbol, k chosen so no band is crossed
+  (trades shifted by k). Run on a sample of symbols; cost is one re-run
+  each.
+
+Cost: each is one or more full re-runs (~6 min each on 2.5 M commands);
+make E6/E7 opt-in (`--slow`) if the default report gets too long.
+
+Done when: each has a unit test with a planted engine fault it catches
+(E5: a cross-symbol global; E6: a field dropped from persistence; E7: a
+tie-break on gateway id), and the 2026-10-28 run is reported.
+
+### S20 — Pre-1.0 decisions (doc only)
+
+Settle Q5–Q10 (§8) with the maintainer, then write the frozen list into
+this section: for each message touched by S21–S25 the fields added, their
+units, and which are canonical; for stats/clearing the new columns and the
+schema version. S21–S26 implement exactly that list; any later change
+goes back here first.
+
+### S21 — Self-describing audit
+
+- New `system.startup` message, the engine's first on every start:
+  package version, git commit (or "unknown" in a wheel), Python version,
+  `run_seq`, the compiled `engine_config` (as JSON) and its SHA-256, the
+  persistence files it loaded with their SHA-256.
+- The audit writer starts every file with a header line (format version,
+  pm-audit version, file start time); `discover_log_files`/`open_log_file`
+  and `pm-audit-replay` skip it.
+- E2 builds its engine from `system.startup`'s config instead of
+  `ref_data/`, and its note names the commit to re-run with.
+
+Done when: `make msgen-check` clean; E2 passes on a short recorded run with
+`ref_data/` removed.
+
+### S22 — Execution messages
+
+Per S20's list, likely: `price_ticks` / `stop_price_ticks` /
+`trail_offset_ticks` on `order.ack`, `order.amended`; `fill_price_ticks`,
+`cum_qty`, `avg_price_ticks` on `order.fill`; `remaining_qty`, `cum_qty` on
+`order.cancelled` / `order.expired`; `price_ticks` on `trade.executed`;
+`priority_seq` (the engine's `arrival_seq`) on `order.ack` and
+`order.amended`, with `priority_kept` on the latter. Spec in
+`spec/messages/*.yaml`, `make msgen`; every publisher goes through
+`_publish_dispatch` (S15), so the change is in one place. B8, C3, D3, D5
+switch to the integer fields; C3 also checks `cum_qty` and `avg_price`.
+
+Done when: msgen-check, full test suite, and a short recorded run on which
+B8/C3 PASS with the new fields.
+
+### S23 — Global sequence, trade context
+
+- Every engine PUB message gets an engine-wide sequence (`eseq`) next to
+  the per-topic one (envelope, `messaging/bus.py`); pm-audit writes it in
+  the line's meta; A5 checks it gap-free per engine start.
+- `trade.executed` gains `match_type` (CONTINUOUS, OPENING_AUCTION,
+  CLOSING_AUCTION, REOPEN_AUCTION, FORCE_UNCROSS), `auction_id` (also on
+  `auction.result`) and `trigger_order_id` (the stop whose trigger made
+  the aggressor, else null). `stats.trade_log` / `clearing.trade_events`
+  store `match_type`.
+- A4 checks `match_type` against the phase; D6 groups prints by
+  `auction_id` instead of by time.
+
+### S24 — Explicit engine events, bands
+
+- `order.triggered.<gw>` (order id, stop price ticks, trigger trade id,
+  price that triggered it, resulting order type) when a stop / stop-limit
+  / trailing stop fires.
+- Per Q7, an audit-only trace topic for a trailing stop's new trigger
+  level and an iceberg's refill (order id, new displayed qty, new
+  priority).
+- Collar / circuit-breaker bands published when they change (symbol,
+  reference price ticks, low, high, source), and the band on a band
+  reject's ack.
+
+C7 and D5 can then compare the replay's inference with the engine's
+statement (a disagreement names a bug on one side); D8's band part
+becomes possible (S28).
+
+### S25 — Book checkpoints
+
+`system.book_checkpoint.<SYM>` (or one message per engine, per Q9): every
+resting order with hidden quantity and priority, armed stops with current
+trigger levels, active quotes, OCO/combo links, last price, phase. Emitted
+after startup/recovery, at each phase change, and at EOD. The replay
+(`matching.py`) and `rerun.py` can then start at any checkpoint: a run with
+a restart, or a single day file, is no longer SKIPPED; D9 compares order
+by order at each checkpoint.
+
+Done when: replay started from a mid-day checkpoint of a recorded run gives
+the same D-results for the rest of the day as the replay from the start.
+
+### S26 — Stores
+
+- At EOD (`system.eod`), the engine copies `gtc_orders.json`,
+  `gtc_combos.json`, `book_stats.json` to `eod/<session date>/`; G3 checks
+  day N's archive against day N+1's recovery (and S25's startup
+  checkpoint).
+- `stats.order_events` and `clearing.trade_events` get `msg_id` (audit
+  ULID); `stats.trade_log` gets `buy_order_id`, `sell_order_id`. Fresh DBs,
+  schema versions bumped, no migration.
+- Checks that join the audit to a store (B1, C6, F2) use `msg_id` where it
+  makes them simpler; do not rewrite ones that work.
+
+### S27 — Sim feature coverage
+
+Make the run exercise what H5 shows as zero (2026-10-28, see S17's
+result: COMBO entry, ATC, every explicit SMP mode, resolved SMP other than
+`CANCEL_AGGRESSOR`, amend, combos, circuit breakers, every `risk.*`
+command, reference reload; CLOSING_AUCTION/CLOSED were only not reached
+yet). Also: the AI agents cancel every DAY order they enter in PRE_OPEN
+(55 792, all by their own `order.cancel`, before or early in the opening
+auction), so only ATO and MM orders reach the opening uncross — let some
+pre-open orders stay into the auction. Then: AI agents amend (price up and
+down, qty down) and send combos, ATC orders, explicit SMP modes (all four)
+and more STOP_LIMIT and non-LIMIT GTC; the sim profile enables collars and
+circuit breakers with bands a news jump can hit; a scripted operator
+schedule (via the existing risk commands) halts and resumes a symbol,
+fires a gateway kill switch and a force uncross, and restarts the engine
+once mid-session. Rates low enough not to change the market's character
+(watch H2/H4).
+
+Done when: H5 on a 1 h run shows no zero row the engine supports.
+
+### S28 — Replay models the rest
+
+`matching.py` models `order.amended` (price change loses priority, qty
+down keeps it — as the guide says), combos (legs as their own orders,
+plus the combo grammar in C5), circuit-breaker halts and reopen auctions,
+symbol halts (no trade while halted), using S24's bands for D8.
+`_UNMODELLED` ends empty. C7/D5 compare against S24's events.
+
+Done when: planted-fault tests per new feature; a run from S27 replays
+with D9 PASS.
+
+### S29 — The 1.0 long run
+
+A full sim session on the 1.0 formats with S27's coverage; the full
+report (with E5–E7); triage as in §6. Formats freeze when it is clean or
+every finding is a fix that does not touch them.
+
+### S17 — done 2026-10-28
+
+- `sim_forensics/audit.py`: `Line` gains `seq`. **`audit_files` now reads
+  the daily `.zst` archives first.** It used `discover_log_files`, which
+  leaves archives out, so on a run that crossed midnight (every sim run
+  since the zstd audit) the replay checks would have reported SKIPPED ("the
+  audit does not reach back to the engine's start") and C8/F2/F3 read a
+  partial trail without saying so. (`matching.py`'s 4-tuple unpack of
+  `Line` became `*_`.)
+- **A5** (`checks/completeness.py`, oracle conservation): per topic, seq
+  must be previous + 1; `system.startup_recovery` with seq 1 starts every
+  topic again; without the engine's start in the audit a topic's first
+  line only sets the baseline (the note says so). A line pm-audit wrote
+  without an envelope has no seq either, but its topic's next line shows
+  the gap, so nothing slips through `lines()` skipping it.
+- **H5** (`checks/coverage.py`, INFO): orders keyed (entry, type, TIF,
+  resolved SMP, phase on entry) → outcome (FILLED, PARTIAL+CANCELLED,
+  CANCELLED, PARTIAL+EXPIRED, EXPIRED, REJECTED, LIVE). Type and TIF come
+  from `order.new` for a reject (a rejecting ack carries neither); quote
+  legs from `quote.ack` (they get no `order.ack`); a rejecting ack with no
+  `order.new` waiting is a refused cancel/amend, counted apart. Violations
+  = values of a dimension never seen; samples = those, then the rarest
+  combinations.
+- Tests: `tests/test_sim_forensics_completeness.py` (13), including a real
+  `Engine` recorded through the real `SequencedPublisher` and pm-audit's
+  `_meta_section` (passes A5; dropping one ack is a gap on that topic), and
+  archive ordering.
+- **2026-10-28 run (sim still running, ~13:20):** A5 PASS — 11.0 M lines in
+  29 files (archive included), 12 979 topics, 1 engine start, nothing
+  missing (22 s). H5 (68 s): 1.58 M orders in 17 combinations; never seen:
+  see S27. Two pointers checked: the 12 acked FOKs cancelled
+  `SELF_MATCH_PREVENTED` with no fill are the documented SMP case (→ C9's
+  rule, S18); the 55 792 PRE_OPEN DAY limits all cancelled are the agents'
+  own cancels (→ S27).
+- Not from S17: `test_shell_completion` failed at HEAD (871fa8d1 added
+  pm-compdb-cli `--format grid/markdown` without `make completion`);
+  `make _check` regenerated `src/edumatcher/completion/*` — commit apart.
+
