@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -169,6 +169,27 @@ describe("the book drawer", () => {
 
     await userEvent.click(within(drawer).getByRole("tab", { name: "OVERVIEW" }));
     expect(within(drawer).getByLabelText("Book figures")).toBeDefined();
+  });
+
+  it("explains the COMPANY tab's values in tips that open on focus", async () => {
+    company.mockResolvedValue({
+      ...Object.fromEntries(COMPANY_FIELDS.map((f) => [f, null])),
+      symbol: "AAPL",
+      name: "Apple Inc",
+      sector: "TECH",
+      industry: "Hardware",
+      key_risk: "China",
+    });
+    show();
+    await userEvent.click(await screen.findByText("AAPL"));
+    const drawer = await screen.findByRole("dialog");
+    await userEvent.click(within(drawer).getByRole("tab", { name: "COMPANY" }));
+    await within(drawer).findByRole("heading", { name: "Apple Inc" });
+
+    fireEvent.focus(within(drawer).getByRole("button", { name: "P/E help" }));
+    expect(within(drawer).getByRole("tooltip").textContent).toMatch(/market cap ÷ net income/);
+    // Prose lines carry a tip too, not only the figure boxes.
+    expect(within(drawer).getByRole("button", { name: "Key risk help" })).toBeDefined();
   });
 
   it("says so when the company database is not available", async () => {

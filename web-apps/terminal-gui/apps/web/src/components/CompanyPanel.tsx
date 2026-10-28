@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HttpError, api } from "../lib/api.js";
 import type { CompanyProfile } from "@edumatcher/terminal-types";
+import { companyHelp } from "../lib/companyHelp.js";
+import { InfoTip } from "./shared/InfoTip.js";
 
 /** Whole units, grouped: the same rounding as pm-trader's Company tab. */
 const formatQty = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -17,10 +19,18 @@ function words(v: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** The "i" for a label, from the company help; nothing for a label without any. */
+function Tip({ label }: { label: string }) {
+  const help = companyHelp(label);
+  return help ? <InfoTip label={label} help={help} /> : null;
+}
+
 function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-border bg-bg-subtle px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</div>
+      <div className="text-[10px] uppercase tracking-wide text-fg-faint">
+        {label} <Tip label={label} />
+      </div>
       <div className="text-sm font-mono text-fg">{value}</div>
     </div>
   );
@@ -41,6 +51,7 @@ function Line({ label, value }: { label: string; value: string | null }) {
   return (
     <p className="text-xs text-fg-subtle">
       <span className="text-fg-subtle">{label}: </span>
+      <Tip label={label} />{" "}
       {value}
     </p>
   );

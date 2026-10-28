@@ -250,6 +250,21 @@ describe("SymbolDetailPanel", () => {
     expect(screen.queryByText(/undefined|null/)).toBeNull();
   });
 
+  it("explains the Company tab's values in tips that open on focus", async () => {
+    vi.mocked(apiFetch).mockImplementation(async (path: string) =>
+      path === "/api/v1/companies/AAPL" ? company() : {},
+    );
+    renderPanel();
+    fireEvent.click(screen.getByRole("tab", { name: /Company/ }));
+    await screen.findByRole("heading", { name: "Orchard Computing Inc." });
+
+    fireEvent.focus(screen.getByRole("button", { name: "P/E help" }));
+    expect(screen.getByRole("tooltip").textContent).toMatch(/market cap ÷ net income/);
+    // Prose lines carry a tip too, not only the figure boxes.
+    expect(screen.getByRole("button", { name: "Key risk help" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Free cash flow help" })).toBeTruthy();
+  });
+
   it.each([
     [404, "No company profile for AAPL."],
     [503, "The company database is not available on this venue (pm-compdb-cli init builds it)."],
