@@ -669,6 +669,8 @@ class _Replay:
         self, book: _Book, t: dict[str, Any], agg: _Order, dying: set[str]
     ) -> None:
         self.trades_replayed += 1
+        if t.get("match_type") not in (None, "CONTINUOUS"):
+            self._flag("D6", error="continuous match not marked CONTINUOUS", trade_id=t["id"], match_type=t["match_type"])  # fmt: skip
         price = self._price(book, t)
         qty = int(t["quantity"])
         passive_id = t["sell_order_id"] if agg.side == BUY else t["buy_order_id"]
@@ -821,6 +823,12 @@ class _Replay:
                 qty=total,
                 replay=eq,
             )
+        for t in prints:
+            kind = t.get("match_type")
+            if kind == "CONTINUOUS":
+                self._flag("D6", error="uncross print marked CONTINUOUS", trade_id=t["id"])  # fmt: skip
+            if auction is not None and auction.get("auction_id") and t.get("auction_id") != auction["auction_id"]:  # fmt: skip
+                self._flag("D6", error="print's auction_id is not its auction.result's", trade_id=t["id"], print=t.get("auction_id"), result=auction["auction_id"])  # fmt: skip
         if auction is not None:
             stated = auction.get("eq_price")
             stated_ticks = _ticks(stated, book.td) if stated is not None else None

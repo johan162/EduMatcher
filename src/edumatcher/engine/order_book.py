@@ -1841,6 +1841,12 @@ class OrderBook:
             quantity=fill_qty,
             aggressor_side=aggressor_side,
             now=now,
+            # A triggered stop keeps its stop price when it turns MARKET/LIMIT.
+            trigger_order_id=(
+                aggressor.id
+                if not both_resting and aggressor.stop_price_ticks is not None
+                else None
+            ),
         )
         trades.append(trade)
         self.last_trade_price = fill_price

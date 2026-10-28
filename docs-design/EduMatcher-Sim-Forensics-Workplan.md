@@ -45,7 +45,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 20b | S20b | Restart contract: fix X23–X26 (OCO links, last price, no recovery uncross, priority order) and X27 | S20 | 1 d | ☑ | 2026-10-28 |
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☑ | 2026-10-28 |
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☑ | 2026-10-28 |
-| 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☐ | |
+| 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☑ | 2026-10-28 |
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☐ | |
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☐ | |
 | 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☐ | |
@@ -1496,11 +1496,15 @@ is new: an integer count of the symbol's tick).
 | `order.oco` | `tick_decimals` filled by every gateway (X27, S20b) |
 
 **Envelope and trade context (S23):** `eseq` (engine-wide output
-sequence) in the envelope frame, written by pm-audit as `eseq=N` in the
+sequence) in its own frame right after `seq` (changed in S23 from "in the
+envelope frame": the envelope's text is parsed strictly by every reader,
+and readers find it by shape), written by pm-audit as `eseq=N` in the
 line's meta; `trade.executed` + `match_type` (`CONTINUOUS`,
-`OPENING_AUCTION`, `CLOSING_AUCTION`, `REOPEN_AUCTION`, `FORCE_UNCROSS`),
-`auction_id` (also on `auction.result`), `trigger_order_id` (null unless
-the aggressor was a triggered stop).
+`OPENING_AUCTION`, `CLOSING_AUCTION`, `REOPEN_AUCTION`, `RECOVERY_AUCTION`,
+`BACKSTOP`, `FORCE_UNCROSS` — the last-but-two pair added in S23, one per
+uncross reason), `auction_id` (also on `auction.result`),
+`trigger_order_id` (null unless the aggressor was a triggered stop). The
+stores' `match_type` columns come with S26's schema change.
 
 **New messages (S21, S24, S25):**
 
@@ -1899,4 +1903,36 @@ checkpoints), and `order.amended` no `priority_kept` (it has
   field-order tests updated.
 - Holistic: 11 129 passed, coverage 88.8 %; `make _check` clean; e2e 14 of
   15 (the pre-existing `aapl[7]`, S21).
+
+### S23 — done 2026-10-28
+
+- **`eseq`**: `SequencedPublisher` stamps a socket-wide count in a frame
+  right after the per-topic `seq` (`decode_publisher_sequence`); pm-audit
+  writes `eseq=N` after `seq=N`. `system.startup` has eseq 1. Two changes
+  to S20's list: the frame (not inside the envelope — its text is parsed
+  strictly by every reader, PUSH included), and the stores' `match_type`
+  columns move to S26, so the schemas change once.
+- **A5** also checks `eseq` gap-free per engine start: it finds what `seq`
+  cannot, the loss of a topic's last message (a lost *final* line of the
+  audit has no later line to show it).
+- **Trade context**: `Trade` gains `match_type` (default CONTINUOUS),
+  `auction_id`, `trigger_order_id`; `OrderBook._apply_fill` sets the
+  trigger when a (non-uncross) aggressor has a stop price — a triggered
+  stop keeps it when it turns MARKET/LIMIT; `_run_uncross` names each
+  uncross `AUC-<run_seq>-<n>` (`current_run_seq()`), stamps its prints
+  and its `auction.result`, and maps its reason to the match type
+  (`_uncross_match_type`; SCHEDULED by the phase being left). All three
+  are optional and omitted when unset, so archived payloads still parse
+  and the historical wire tests hold; the engine always sets
+  `match_type`. `feed_schema.TradeExecutedPayload` and the audit-replay
+  lexicon follow.
+- **D6** also checks that each uncross print carries its
+  `auction.result`'s `auction_id` and a non-CONTINUOUS type, and that a
+  continuous match is CONTINUOUS.
+- Tests: `tests/test_engine_trade_context.py` (9), A5's `eseq` tests,
+  D6's (4), the frame-layout tests. Operator guide: `eseq` in the audit
+  metadata table.
+- Holistic: 11 150 passed, coverage 88.8 %; `make _check` clean; e2e 15
+  of 15 (`aapl[7]` → `aapl[8]` fixed by the maintainer in the working
+  tree, uncommitted, not part of S23).
 

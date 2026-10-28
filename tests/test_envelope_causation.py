@@ -28,6 +28,7 @@ from edumatcher.models.message import (
     decode,
     decode_envelope,
     decode_push_envelope,
+    decode_publisher_sequence,
     decode_sequence,
 )
 
@@ -132,7 +133,7 @@ class TestFrameLayout:
         pub.send_multipart([b"trade.executed", b"{}"])
 
         frames = sock.sent[0]
-        assert len(frames) == 4
+        assert len(frames) == 5  # topic, payload, seq, eseq, envelope
         assert decode_sequence(frames) == 1
         assert decode_envelope(frames) is not None
 
@@ -144,6 +145,8 @@ class TestFrameLayout:
         pub.send_multipart([b"trade.executed", b"{}"])
 
         assert [decode_sequence(f) for f in sock.sent] == [1, 1, 2]
+        # ...and the socket-wide one counts every message.
+        assert [decode_publisher_sequence(f) for f in sock.sent] == [1, 2, 3]
 
     def test_payload_is_untouched(self) -> None:
         """The envelope rides outside the JSON — the payload is byte-identical."""

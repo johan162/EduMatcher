@@ -71,7 +71,12 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.healthcheck import answer_health_ping
 from edumatcher.messaging.bus import make_replier, make_subscriber
-from edumatcher.models.message import decode, decode_envelope, decode_sequence
+from edumatcher.models.message import (
+    decode,
+    decode_envelope,
+    decode_publisher_sequence,
+    decode_sequence,
+)
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _CLIENT_NAME = "pm-audit"
@@ -113,6 +118,9 @@ def _meta_section(frames: list[bytes]) -> str | None:
     parts: list[str] = []
     if seq is not None:
         parts.append(f"seq={seq}")
+        eseq = decode_publisher_sequence(frames)
+        if eseq is not None:
+            parts.append(f"eseq={eseq}")
     if env is not None:
         parts.append(f"msg={env.msg_id}")
         if env.causation_id:

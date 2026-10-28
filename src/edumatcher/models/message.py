@@ -112,6 +112,21 @@ def decode_sequence(frames: list[bytes]) -> int | None:
         return None
 
 
+def decode_publisher_sequence(frames: list[bytes]) -> int | None:
+    """Return the publisher's socket-wide sequence (``eseq``), if stamped.
+
+    The frame after the per-topic sequence. ``None`` from a publisher that
+    does not stamp it -- including PUSH, where the envelope follows the
+    payload directly and is no integer.
+    """
+    if len(frames) < 4:
+        return None
+    try:
+        return int(frames[3])
+    except ValueError, TypeError:
+        return None
+
+
 def decode_envelope(frames: list[bytes]) -> Envelope | None:
     """Return the causal envelope, if the publisher stamped one.
 
@@ -1099,6 +1114,7 @@ def make_auction_result_msg(
     imbalance_qty: int,
     reason: str,
     eq_price_ticks: int | None = None,
+    auction_id: str | None = None,
 ) -> list[bytes]:
     """Engine → all: auction uncross result for one symbol.
 
@@ -1123,6 +1139,7 @@ def make_auction_result_msg(
         imbalance_qty=imbalance_qty,
         reason=reason,
         eq_price_ticks=eq_price_ticks,
+        auction_id=auction_id,
     )
 
 

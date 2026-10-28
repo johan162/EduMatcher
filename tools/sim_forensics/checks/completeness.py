@@ -11,6 +11,10 @@ The engine's first message on every start is ``system.startup`` with
 seq 1; there all topics start again at 1. An audit that begins after
 the engine's start cannot say where each topic began, so a topic's first
 line then only sets the baseline.
+
+Each line also carries the socket-wide ``eseq``: one count over every
+message, so it must run 1, 2, 3 … from the start without a hole -- a
+check that does not depend on how messages spread over topics.
 """
 
 from __future__ import annotations
@@ -35,6 +39,8 @@ class _Pass:
     lines = 0
     starts = 0
     missing = 0
+    #: Last eseq since the engine's last start (None: not yet known).
+    eseq: int | None = None
     #: Whether the audit holds the start of the engine run being read.
     from_start = False
 
@@ -43,7 +49,7 @@ class _Pass:
         if len(self.samples) < _KEEP:
             self.samples.append({"error": error, **keys})
 
-    def line(self, topic: str, seq: int | None, ts: str) -> None:
+    def line(self, topic: str, seq: int | None, eseq: int | None, ts: str) -> None:
         self.lines += 1
         if seq is None:
             self.flag("line without seq", topic=topic, ts=ts)
@@ -52,6 +58,11 @@ class _Pass:
             self.last.clear()
             self.starts += 1
             self.from_start = True
+            self.eseq = 0
+        if eseq is not None:
+            if self.eseq is not None and eseq != self.eseq + 1:
+                self.flag("eseq gap", topic=topic, after=self.eseq, got=eseq, ts=ts)  # fmt: skip
+            self.eseq = eseq
         prev = self.last.get(topic)
         if prev is None:
             prev = 0 if self.from_start else seq - 1
@@ -75,7 +86,7 @@ def audit_is_complete(ds: Dataset) -> Outcome:
         raise Skipped("no audit.log in the data dir")
     p = _Pass()
     for ln in lines(files):
-        p.line(ln.topic, ln.seq, ln.ts)
+        p.line(ln.topic, ln.seq, ln.eseq, ln.ts)
     note = (
         f"{p.lines} lines in {len(files)} files, {len(p.last)} topics, "
         f"{p.starts} engine start(s) in the audit, {p.missing} messages missing"

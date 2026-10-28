@@ -776,6 +776,7 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
 | `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
 | `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `auction_id` | `string` | omitted when unset | max_len 32 | This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`. |
 
 !!! note
 
@@ -4657,6 +4658,9 @@ Public print of a completed match. The authoritative record of what traded, cons
 | `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision. |
 | `tick_decimals` | `int` | defaults to `2` | ge 0, le 8, unit `dimensionless` | Decimal scale for `price`; 1 tick = 10^-tick_decimals. |
 | `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `match_type` | enum: `CONTINUOUS`, `OPENING_AUCTION`, `CLOSING_AUCTION`, `REOPEN_AUCTION`, `RECOVERY_AUCTION`, `BACKSTOP`, `FORCE_UNCROSS` | omitted when unset | — | How the trade came about; the engine sets it on every trade (absent only on prints from before it existed). CONTINUOUS for every match with an aggressor (a stop an uncross triggers included); an uncross print (aggressor_side AUCTION) names its uncross: the scheduled opening or closing auction, a halted symbol's reopening, the restore of a crossed book on an engine without sessions, the closing backstop, or an operator's forced uncross. |
+| `auction_id` | `string` | omitted when unset | max_len 32 | The uncross this print belongs to: `auction.result.auction_id`. |
+| `trigger_order_id` | `string` | omitted when unset | max_len 64 | The aggressor's order id when the aggressor is a stop that has triggered; absent otherwise. |
 
 !!! note
 

@@ -4,7 +4,7 @@ pm-audit has one SUB socket on the engine's PUB socket, so the files, oldest
 first, hold every engine message in publish order -- including the inbound
 commands, which the engine republishes before acting on them. A line is::
 
-    [ts] [topic] [seq=N msg=ULID cause=ULID chain=ULID] {json}
+    [ts] [topic] [seq=N eseq=N msg=ULID cause=ULID chain=ULID] {json}
 
 Lines are split by hand, not by ``edumatcher.audit.query.parse_line``: a run
 holds ~15 M lines, most of them book snapshots a check may skip unparsed.
@@ -34,6 +34,8 @@ class Line(NamedTuple):
     ts: str
     #: The engine's per-topic sequence (None on a line without one).
     seq: int | None = None
+    #: The engine's socket-wide sequence (None on a line without one).
+    eseq: int | None = None
 
 
 def audit_files(data_dir: Path) -> list[Path]:
@@ -56,11 +58,14 @@ def lines(files: list[Path]) -> Iterator[Line]:
                 continue
             meta = raw[b + 3 : c]
             chain = meta[meta.rfind("chain=") + 6 :]
-            seq = None
+            seq = eseq = None
             if meta.startswith("seq="):
                 end = meta.find(" ")
                 seq = int(meta[4 : end if end > 0 else None])
-            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq)
+                if meta.startswith("eseq=", end + 1):
+                    stop = meta.find(" ", end + 1)
+                    eseq = int(meta[end + 6 : stop if stop > 0 else None])
+            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq, eseq)
 
 
 def run_config_text(files: list[Path]) -> str:

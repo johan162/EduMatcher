@@ -98,20 +98,37 @@ class SequencedPublisher:
     that position when a caller (see ``CausalPublisher``) has already attached
     frames of its own. ``decode_sequence`` reads ``frames[2]`` and must keep
     working whatever else is on the wire behind it.
+
+    Behind it, at index 3, rides a second, socket-wide counter (``eseq``,
+    ``decode_publisher_sequence``): the one total order of everything this
+    socket published, for a subscriber that takes every topic (pm-audit).
+    The envelope is found by its shape, so it may move one frame back.
     """
 
-    __slots__ = ("_sock", "_seq")
+    __slots__ = ("_sock", "_seq", "_eseq")
 
     def __init__(self, sock: SendsMultipart) -> None:
         self._sock: Any = sock
         self._seq: dict[bytes, int] = {}
+        #: Socket-wide count (``eseq``): on the engine's socket, one total
+        #: order over everything it published. A subscriber that takes every
+        #: topic (pm-audit) sees it gap-free; one that filters must use
+        #: ``seq``.
+        self._eseq = 0
 
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
         topic = frames[0]
         nxt = self._seq.get(topic, 0) + 1
         self._seq[topic] = nxt
+        self._eseq += 1
         return self._sock.send_multipart(
-            [frames[0], frames[1], str(nxt).encode("ascii"), *frames[2:]],
+            [
+                frames[0],
+                frames[1],
+                str(nxt).encode("ascii"),
+                str(self._eseq).encode("ascii"),
+                *frames[2:],
+            ],
             *args,
             **kwargs,
         )

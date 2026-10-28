@@ -163,9 +163,12 @@ messages:
       - { name: eq_price_ticks, type: ticks, unit: ticks, required: false,
           nullable: true, omit_when_none: true,
           doc: "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: auction_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 },
+          doc: "This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`." }
     encoding:
       # `symbol` in the body as well as the topic — see `auction_indicative`.
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, eq_price, eq_qty, trades_count, imbalance_side,
-                  imbalance_qty, reason, eq_price_ticks]
+                  imbalance_qty, reason, eq_price_ticks, auction_id]

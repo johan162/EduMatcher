@@ -1090,7 +1090,7 @@ def test_all_nine_rows_show_the_live_exchange(
         "[...document.querySelector('table[aria-label=\"Order books\"] [data-row=AAPL]').querySelectorAll('td')]"
         ".map(td => td.textContent)"
     )
-    assert aapl[7] == _count(book(s, "AAPL")["trades_today"])
+    assert aapl[8] == _count(book(s, "AAPL")["trades_today"])
     # Row 6: the ALF gateway's clients against its limit.
     alf = gateway(s, "ALF")
     assert page.js(tile.format("ALF clients")) == (

@@ -230,7 +230,7 @@ from edumatcher.models.price import (
     to_ticks_exact,
 )
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
-from edumatcher.models.trade import set_run_seq
+from edumatcher.models.trade import current_run_seq, set_run_seq
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
@@ -663,6 +663,8 @@ class Engine:
         self.snapshot_interval_sec: float = self.SNAPSHOT_INTERVAL
         self.auction_indicative_interval_sec: float = 1.0
         self._last_auction_indicative: float = 0.0
+        #: Uncrosses run so far this engine run (auction_id).
+        self._auctions_run = 0
 
         # Combo-order tracking
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
@@ -5587,6 +5589,21 @@ class Engine:
                             self._check_combo_after_child_event(cancelled)
                         self._mark_dirty(book.symbol)
 
+    def _uncross_match_type(self, reason: str) -> str:
+        """``trade.executed.match_type`` of an uncross's prints. A scheduled
+        uncross runs before the session moves on, so the session state is
+        still the phase being left."""
+        if reason == "SCHEDULED":
+            if self._session_state == SessionState.CLOSING_AUCTION:
+                return "CLOSING_AUCTION"
+            return "OPENING_AUCTION"
+        return {
+            "REOPEN": "REOPEN_AUCTION",
+            "RECOVERY": "RECOVERY_AUCTION",
+            "BACKSTOP": "BACKSTOP",
+            "ADMIN_MANUAL": "FORCE_UNCROSS",
+        }[reason]
+
     def _run_uncross(
         self,
         symbol_filter: str | None = None,
@@ -5621,6 +5638,7 @@ class Engine:
         do not need the outcome (the session sweep, recovery) ignore it.
         """
         outcomes: dict[str, tuple[int | None, int]] = {}
+        match_type = self._uncross_match_type(reason)
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
@@ -5630,6 +5648,8 @@ class Engine:
             # arrives after deactivate(), so it is unaffected by this guard.
             if self._halted_symbols.get(symbol):
                 continue
+            self._auctions_run += 1
+            auction_id = f"AUC-{current_run_seq() or 0:06d}-{self._auctions_run:06d}"
             result = compute_equilibrium(book)
             # An ADMIN_MANUAL reopen may assert a print price even when the book
             # has no natural equilibrium (a failed auction). Every other caller
@@ -5660,6 +5680,8 @@ class Engine:
                         imbalance_side=result.imbalance_side,
                     )
 
+                for t in trades:
+                    t.match_type, t.auction_id = match_type, auction_id
                 # X8b: the book's quote and OCO hooks are not called inside
                 # execute_uncross (its two-sided walk must not be mutated
                 # mid-way), so their follow-ups run here -- before the stops
@@ -5698,6 +5720,7 @@ class Engine:
                     imbalance_qty=result.surplus,
                     reason=reason,
                     eq_price_ticks=result.eq_price,
+                    auction_id=auction_id,
                 )
             )
             outcomes[symbol] = (

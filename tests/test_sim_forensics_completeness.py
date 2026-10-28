@@ -57,10 +57,11 @@ def test_lines_carry_the_seq(tmp_path: Path) -> None:
         tmp_path,
         line("order.new", 7)
         + f"[{TS}] [trade.executed] [seq=12] {{}}\n"
-        + f"[{TS}] [order.cancel] [msg=M chain=C] {{}}\n",
+        + f"[{TS}] [order.cancel] [msg=M chain=C] {{}}\n"
+        + f"[{TS}] [order.ack.G1] [seq=3 eseq=40 msg=M chain=C] {{}}\n",
     )
-    got = [(ln.topic, ln.seq) for ln in lines(audit_files(data))]
-    assert got == [("order.new", 7), ("trade.executed", 12), ("order.cancel", None)]
+    got = [(ln.topic, ln.seq, ln.eseq) for ln in lines(audit_files(data))]
+    assert got == [("order.new", 7, None), ("trade.executed", 12, None), ("order.cancel", None, None), ("order.ack.G1", 3, 40)]  # fmt: skip
 
 
 def test_audit_files_start_with_the_daily_archives(tmp_path: Path) -> None:
@@ -196,8 +197,23 @@ def test_a5_passes_a_real_engine_recording_and_finds_a_dropped_line(
     acks = [i for i, ln in enumerate(tape) if "[order.ack.TRADER01]" in ln]
     del tape[acks[0]]
     out = a5(open_ds, write(tmp_path, "".join(tape)))
-    assert out.samples[0]["error"] == "gap"
-    assert out.samples[0]["topic"] == "order.ack.TRADER01"
+    assert [s["error"] for s in out.samples] == ["eseq gap", "gap"]
+    assert out.samples[1]["topic"] == "order.ack.TRADER01"
+
+
+def test_a5_eseq_finds_the_loss_of_a_topics_last_message(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """A topic's own seq cannot show its last message missing; eseq can."""
+    tape = _record_engine(tmp_path / "state")
+    assert "eseq=1 " in tape[0]  # system.startup is the engine's first message
+    topics = [ln.split("] [")[1] for ln in tape]
+    # A topic published once, not at the very end (a lost final line has no
+    # later line to show the hole).
+    lone = next(i for i, t in enumerate(topics[:-1]) if i and topics.count(t) == 1)
+    del tape[lone]
+    out = a5(open_ds, write(tmp_path, "".join(tape)))
+    assert [s["error"] for s in out.samples] == ["eseq gap"]
 
 
 # --- H5 ---------------------------------------------------------------------

@@ -357,6 +357,14 @@ _AUCTION_RESULT_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
     },
+    {
+        "name": "auction_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`.",
+        "constraints": {"max_len": 32},
+    },
 )
 
 
@@ -385,6 +393,7 @@ class AuctionResult:
     eq_price: float | None = None  # unit: display_price
     imbalance_side: AuctionResultImbalanceSide | None = None
     eq_price_ticks: int | None = None  # unit: ticks
+    auction_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -419,6 +428,11 @@ class AuctionResult:
             raise MessageValidationError(
                 f"reason: {self.reason!r} is not one of {_AUCTION_RESULT_REASON_VALUES!r}"
             )
+        if self.auction_id is not None:
+            if len(self.auction_id) > 32:
+                raise MessageValidationError(
+                    f"auction_id: length {len(self.auction_id)} exceeds max_len 32"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "AuctionResult":
@@ -443,6 +457,7 @@ class AuctionResult:
             eq_price_ticks=(
                 None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
             ),
+            auction_id=None if p.get("auction_id") is None else str(p["auction_id"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -459,6 +474,8 @@ class AuctionResult:
             payload["imbalance_side"] = self.imbalance_side
         if self.eq_price_ticks is not None:
             payload["eq_price_ticks"] = self.eq_price_ticks
+        if self.auction_id is not None:
+            payload["auction_id"] = self.auction_id
         return payload
 
 
@@ -498,6 +515,7 @@ def make_auction_result_unchecked(
     eq_price: float | None = None,
     imbalance_side: AuctionResultImbalanceSide | None = None,
     eq_price_ticks: int | None = None,
+    auction_id: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_auction_result``, without ``validate()``.
 
@@ -521,6 +539,8 @@ def make_auction_result_unchecked(
         payload["imbalance_side"] = str(imbalance_side)
     if eq_price_ticks is not None:
         payload["eq_price_ticks"] = int(eq_price_ticks)
+    if auction_id is not None:
+        payload["auction_id"] = str(auction_id)
     return [
         topic_auction_result(symbol).encode(),
         _msg.dumps(payload),

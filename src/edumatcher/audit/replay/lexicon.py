@@ -82,6 +82,15 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     "combo_type": {"AON": "all-or-none"},
     "liquidity_flag": {"MAKER": "resting", "TAKER": "aggressing"},
+    "match_type": {
+        "CONTINUOUS": "in continuous matching",
+        "OPENING_AUCTION": "in the opening auction",
+        "CLOSING_AUCTION": "in the closing auction",
+        "REOPEN_AUCTION": "in a halted symbol's reopening auction",
+        "RECOVERY_AUCTION": "uncrossing the book restored at engine startup",
+        "BACKSTOP": "at the closing backstop",
+        "FORCE_UNCROSS": "in an operator's forced uncross",
+    },
     "aggressor_side": {
         "BUY": "the buyer",
         "SELL": "the seller",

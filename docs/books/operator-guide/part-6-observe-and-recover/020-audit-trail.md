@@ -158,6 +158,7 @@ Every line is an independent record in this format:
 | Key | Meaning |
 |---|---|
 | `seq` | The publisher's per-topic sequence number. Dense within a run, so a gap means messages were **dropped** — PUB/SUB discards silently once a subscriber falls behind, and this is how you find out |
+| `eseq` | The publisher's count over *all* its messages: one total order of everything the engine published since it started. A gap is a lost message even where `seq` cannot show one — the last message of a topic |
 | `msg` | ULID of this message |
 | `cause` | ULID of the message that caused this one. **Absent means nothing caused it** — a scheduler tick, a circuit-breaker trip — not that the cause is unknown |
 | `chain` | ULID shared by every message descending from one original request |

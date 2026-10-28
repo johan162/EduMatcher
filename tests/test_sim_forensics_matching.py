@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
@@ -727,3 +728,55 @@ def test_d9_finds_a_trade_by_an_order_the_replay_was_not_matching(
     assert [s["error"] for s in out.samples] == [
         "trade by an order the replay was not matching"
     ]
+
+
+def _with_context(
+    t: Tape, prints: Mapping[str, object], result: Mapping[str, object]
+) -> Tape:
+    """The S23 fields on the tape's uncross prints and auction.result."""
+    out = []
+    for ln in t.lines:
+        head, body = ln.split("] {", 1)
+        p = json.loads("{" + body)
+        if "[trade.executed]" in head:
+            p.update(prints)
+        elif "[auction.result." in head:
+            p.update(result)
+        out.append(f"{head}] {json.dumps(p)}\n")
+    t.lines = out
+    return t
+
+
+def test_d6_passes_prints_tied_to_their_auction(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    ids = {"auction_id": "AUC-000001-000001"}
+    t = _with_context(opening_auction(), {"match_type": "OPENING_AUCTION", **ids}, ids)
+    assert violations(open_ds, t.write(tmp_path / "data")) == {}
+
+
+@pytest.mark.parametrize(
+    "prints, error",
+    [
+        ({"match_type": "CONTINUOUS", "auction_id": "AUC-000001-000001"}, "uncross print marked CONTINUOUS"),  # fmt: skip
+        ({"match_type": "OPENING_AUCTION", "auction_id": "AUC-000001-000009"}, "print's auction_id is not its auction.result's"),  # fmt: skip
+    ],
+)
+def test_d6_finds_a_print_its_context_misdescribes(
+    tmp_path: Path, open_ds: OpenDataset, prints: dict[str, object], error: str
+) -> None:
+    t = _with_context(opening_auction(), prints, {"auction_id": "AUC-000001-000001"})
+    errors = {
+        s["error"] for s in run(open_ds, t.write(tmp_path / "data"), "D6").samples
+    }
+    assert errors == {error}
+
+
+def test_d6_finds_a_continuous_match_marked_as_an_auction(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    t = _with_context(continuous_day(), {"match_type": "OPENING_AUCTION"}, {})
+    errors = {
+        s["error"] for s in run(open_ds, t.write(tmp_path / "data"), "D6").samples
+    }
+    assert errors == {"continuous match not marked CONTINUOUS"}
