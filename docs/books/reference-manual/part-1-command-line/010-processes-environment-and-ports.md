@@ -1734,7 +1734,7 @@ sector and industry from `pm-market-sim` (and so the news it gets), but every
 name, person and number is invented. No running process is needed.
 
 ```bash
-pm-compdb-cli [--db PATH] [--format table|json|csv] [--no-header] COMMAND [options]
+pm-compdb-cli [--db PATH] [--format table|grid|markdown|json|csv] [--no-header] COMMAND [options]
 pm-compdb-cli list [-c COLS|all] [-w FILTER]... [-s COL [--desc]] [-n N]
 pm-compdb-cli add|update SYMBOL FIELD=VALUE...
 ```
@@ -1749,6 +1749,20 @@ pm-compdb-cli add|update SYMBOL FIELD=VALUE...
 | `import FILE...` | Add the companies of YAML files (a mapping of `SYMBOL:` to fields, the format of the bundled ones); all or nothing |
 | `update SYMBOL FIELD=VALUE...` | Change fields; an empty value clears one |
 | `delete SYMBOL` | Remove a company |
+
+**Output formats.** `--format` applies to `show` and `list`:
+
+| Format | Output |
+|---|---|
+| `table` (default) | Plain text columns separated by `|`; long cells are cut short with `...` |
+| `grid` | A table drawn with UTF-8 box characters (`┌─┬─┐ │ ├─┼─┤ └─┴─┘`); numbers right-aligned, long cells wrapped over several lines instead of cut. `show` gives a two-column table of column and value |
+| `markdown` | Markdown for notes, wikis and pull requests. `list` gives a pipe table with column names and tickers in `code` and numbers right-aligned. `show` gives a heading with the name and ticker, then a table of column, value and meaning for each of Identity, Business, History, Management and Financials. A `|` in a value is escaped. `--no-header` is ignored, as a Markdown table needs its header |
+| `json`, `csv` | For programs; `--no-header` leaves out the CSV header |
+
+```bash
+pm-compdb-cli --format grid list -w sector=TECH -s market_cap_musd --desc -n 5
+pm-compdb-cli --format markdown show NVDA > nvda.md
+```
 
 **Where the companies come from.** The bundled companies are hand-written
 YAML files, one per sector, installed as part of the `edumatcher` package in

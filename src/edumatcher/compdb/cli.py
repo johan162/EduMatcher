@@ -9,6 +9,8 @@ Usage examples:
   pm-compdb-cli show AAPL
   pm-compdb-cli list -c symbol,name,pe_ratio -w sector=TECH -w "pe_ratio<25" --sort pe_ratio
   pm-compdb-cli list -w "founder_story~garage" -c symbol,name,founders
+  pm-compdb-cli --format grid list -w sector=TECH -n 5
+  pm-compdb-cli --format markdown show AAPL > aapl.md
   pm-compdb-cli --format csv list -c all > companies.csv
   pm-compdb-cli add ACME name="Acme Rockets" sector=INDUSTRIALS industry=Machinery
   pm-compdb-cli update ACME ceo_name="Wile E. Coyote" ceo_since=2024
@@ -19,6 +21,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 import textwrap
 from contextlib import closing
@@ -43,7 +46,51 @@ from edumatcher.compdb.store import (
 )
 
 DEFAULT_COLUMNS = "symbol,name,sector,industry,market_cap_musd,pe_ratio"
-MAX_CELL = 60  # table cells longer than this are cut short
+MAX_CELL = 60  # table cells longer than this are cut short (grid: wrapped)
+FORMATS = ("table", "grid", "markdown", "json", "csv")
+
+#: ``show --format markdown`` sections; every column belongs to exactly one.
+SHOW_GROUPS: dict[str, tuple[str, ...]] = {
+    "Identity": ("symbol", "name", "sector", "industry", "headquarters"),
+    "Business": (
+        "purpose",
+        "key_market",
+        "market_position",
+        "competitors",
+        "key_risk",
+    ),
+    "History": (
+        "origin",
+        "founders",
+        "founder_story",
+        "founded_year",
+        "years_in_business",
+        "ipo_year",
+        "ipo_valuation_musd",
+    ),
+    "Management": (
+        "ceo_name",
+        "ceo_since",
+        "ceo_tenure_years",
+        "ceo_industry_years",
+        "employees",
+    ),
+    "Financials": (
+        "fiscal_year",
+        "revenue_musd",
+        "revenue_growth_pct",
+        "net_income_musd",
+        "net_margin_pct",
+        "operating_margin_pct",
+        "free_cash_flow_musd",
+        "market_cap_musd",
+        "pe_ratio",
+        "ps_ratio",
+        "dividend_yield_pct",
+        "debt_to_equity",
+        "credit_rating",
+    ),
+}
 
 
 def _cell(value: Any) -> str:
@@ -67,14 +114,21 @@ def _render(
         writer.writerows([_cell(row[c]) for c in columns] for row in rows)
         return
     if not rows:
-        print("No companies found.")
+        print("*No companies found.*" if fmt == "markdown" else "No companies found.")
+        return
+    if fmt == "markdown":
+        print(_markdown_table(rows, columns))
+        return
+    numeric = [COLUMNS[c].kind != "TEXT" for c in columns]
+    if fmt == "grid":
+        body = [[_cell(row[c]) for c in columns] for row in rows]
+        print(_grid(None if no_header else columns, body, numeric))
         return
     cells = [
         [textwrap.shorten(_cell(row[c]), MAX_CELL, placeholder="...") for c in columns]
         for row in rows
     ]
     widths = [max([len(c)] + [len(r[i]) for r in cells]) for i, c in enumerate(columns)]
-    numeric = [COLUMNS[c].kind != "TEXT" for c in columns]
 
     def line(values: list[str]) -> str:
         return " | ".join(
@@ -87,6 +141,96 @@ def _render(
         print("-+-".join("-" * w for w in widths))
     for r in cells:
         print(line(r))
+
+
+def _grid(
+    header: list[str] | None,
+    rows: list[list[str]],
+    numeric: list[bool],
+    wrap: int = MAX_CELL,
+) -> str:
+    """A table in box-drawing characters; a cell wider than ``wrap`` is wrapped."""
+    header_cells = [[h] for h in header] if header else None
+    body = [[textwrap.wrap(v, wrap) or [""] for v in row] for row in rows]
+    widths = [
+        max(
+            len(line)
+            for r in [*([header_cells] if header_cells else []), *body]
+            for line in r[i]
+        )
+        for i in range(len(numeric))
+    ]
+
+    def rule(left: str, mid: str, right: str) -> str:
+        return left + mid.join("─" * (w + 2) for w in widths) + right
+
+    def lines(row: list[list[str]], align: list[bool]) -> list[str]:
+        height = max(len(c) for c in row)
+        out = []
+        for k in range(height):
+            parts = []
+            for c, w, right_aligned in zip(row, widths, align, strict=True):
+                text = c[k] if k < len(c) else ""
+                parts.append(text.rjust(w) if right_aligned else text.ljust(w))
+            out.append("│ " + " │ ".join(parts) + " │")
+        return out
+
+    out = [rule("┌", "┬", "┐")]
+    if header_cells:
+        out += lines(header_cells, [False] * len(numeric))
+        out.append(rule("├", "┼", "┤"))
+    for row in body:
+        out += lines(row, numeric)
+    out.append(rule("└", "┴", "┘"))
+    return "\n".join(out)
+
+
+def _md(text: str) -> str:
+    """Text safe inside a Markdown table cell."""
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+
+
+def _md_value(name: str, value: Any) -> str:
+    """A cell value; tickers are set as code."""
+    text = _md(_cell(value))
+    if not text:
+        return ""
+    if name == "symbol":
+        return f"`{text}`"
+    if name == "competitors":
+        return " ".join(f"`{t}`" for t in re.split(r"[,\s]+", text) if t)
+    return text
+
+
+def _markdown_table(rows: list[dict[str, Any]], columns: list[str]) -> str:
+    """A Markdown table; numbers are right-aligned. Always has a header, as Markdown needs one."""
+    out = [
+        "| " + " | ".join(f"`{c}`" for c in columns) + " |",
+        "|"
+        + "|".join("---:" if COLUMNS[c].kind != "TEXT" else "---" for c in columns)
+        + "|",
+    ]
+    out += [
+        "| " + " | ".join(_md_value(c, row[c]) for c in columns) + " |" for row in rows
+    ]
+    return "\n".join(out)
+
+
+def _show_markdown(company: dict[str, Any]) -> str:
+    """One company as a heading and a table of column, value and meaning per section."""
+    out = [f"## {_md(str(company['name']))} (`{company['symbol']}`)"]
+    for title, names in SHOW_GROUPS.items():
+        out += ["", f"### {title}", "", "| Column | Value | Meaning |", "|---|---|---|"]
+        for n in names:
+            out.append(
+                f"| `{n}` | {_md_value(n, company[n])} | {_md(COLUMNS[n].description)} |"
+            )
+    return "\n".join(out)
+
+
+def _show_grid(company: dict[str, Any]) -> str:
+    rows = [[name, _cell(company[name])] for name in COLUMNS]
+    return _grid(["Column", "Value"], rows, [False, False], wrap=70)
 
 
 def _show(company: dict[str, Any]) -> None:
@@ -133,12 +277,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("table", "json", "csv"),
+        choices=FORMATS,
         default="table",
-        help="Output format of show and list (default: table)",
+        help="Output format of show and list: table (plain), grid (box-drawing "
+        "characters), markdown, json or csv (default: table)",
     )
     parser.add_argument(
-        "--no-header", action="store_true", help="Leave out the table/CSV header"
+        "--no-header",
+        action="store_true",
+        help="Leave out the table/CSV header (not for markdown, which needs one)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="Build the database of the bundled companies")
@@ -206,11 +353,16 @@ def run(args: argparse.Namespace) -> None:
                 if company is None:
                     raise CompanyError(f"{symbol.upper()} is not in the database")
                 companies.append(company)
-            if args.format == "table":
+            if args.format in ("table", "grid", "markdown"):
                 for i, company in enumerate(companies):
                     if i:
                         print()
-                    _show(company)
+                    if args.format == "table":
+                        _show(company)
+                    elif args.format == "grid":
+                        print(_show_grid(company))
+                    else:
+                        print(_show_markdown(company))
             else:
                 _render(companies, list(COLUMNS), args.format, args.no_header)
         elif args.command == "list":

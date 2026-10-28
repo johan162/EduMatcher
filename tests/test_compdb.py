@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 import yaml
 
-from edumatcher.compdb.cli import main
+from edumatcher.compdb.cli import SHOW_GROUPS, main
 from edumatcher.compdb.store import (
     COLUMNS,
     FIELDS,
@@ -269,6 +269,76 @@ def test_cli_list_csv_and_json(db: Path, capsys: pytest.CaptureFixture[str]) -> 
         )
     )
     assert list(rows[0]) == list(COLUMNS)
+
+
+def test_cli_list_grid_draws_a_box_with_aligned_columns(
+    db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = _run(
+        capsys, "--db", str(db), "--format", "grid", "list",
+        "-c", "symbol,name,employees", "-w", "symbol=AAPL",
+    )  # fmt: skip
+    lines = out.splitlines()
+    assert lines[0][0] == "┌" and lines[0][-1] == "┐"
+    assert lines[2][0] == "├" and lines[-1][0] == "└"
+    assert len({len(line) for line in lines}) == 1
+    assert lines[1].startswith("│ symbol")
+    assert lines[3].startswith("│ AAPL")
+    assert lines[3].endswith(" │") and lines[3].split("│")[-2].strip().isdigit()
+    assert lines[3].split("│")[-2].startswith(" ")  # numbers right-aligned
+
+
+def test_cli_list_grid_without_header(
+    db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = _run(
+        capsys, "--db", str(db), "--format", "grid", "--no-header", "list",
+        "-c", "symbol", "-w", "symbol=AAPL",
+    )  # fmt: skip
+    assert out.splitlines()[0].startswith("┌") and "├" not in out
+    assert "symbol" not in out
+
+
+def test_cli_list_markdown_table(db: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    out = _run(
+        capsys, "--db", str(db), "--format", "markdown", "list",
+        "-c", "symbol,name,pe_ratio", "-w", "symbol=AAPL",
+    )  # fmt: skip
+    header, rule, row = out.splitlines()
+    assert header == "| `symbol` | `name` | `pe_ratio` |"
+    assert rule == "|---|---|---:|"
+    assert row.startswith("| `AAPL` | ")
+
+
+def test_cli_list_markdown_escapes_pipes_and_reports_no_match(
+    db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = ["--db", str(db)]
+    _run(capsys, *base, "update", "AAPL", "key_risk=a|b")
+    out = _run(
+        capsys, *base, "--format", "markdown", "list", "-c", "key_risk",
+        "-w", "symbol=AAPL",
+    )  # fmt: skip
+    assert out.splitlines()[-1] == "| a\\|b |"
+    out = _run(capsys, *base, "--format", "markdown", "list", "-w", "employees<0")
+    assert out.strip() == "*No companies found.*"
+
+
+def test_cli_show_grid_and_markdown(
+    db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = _run(capsys, "--db", str(db), "--format", "grid", "show", "AAPL")
+    assert out.startswith("┌") and "│ Column" in out and "│ symbol" in out
+    out = _run(capsys, "--db", str(db), "--format", "markdown", "show", "AAPL")
+    assert out.startswith("## ") and "(`AAPL`)" in out
+    for title in SHOW_GROUPS:
+        assert f"### {title}" in out
+    assert "| `pe_ratio` | " in out and "| Column | Value | Meaning |" in out
+
+
+def test_show_groups_cover_every_column_once() -> None:
+    names = [n for group in SHOW_GROUPS.values() for n in group]
+    assert sorted(names) == sorted(COLUMNS)
 
 
 def test_cli_list_reports_no_match(
