@@ -1141,7 +1141,11 @@ class Engine:
                     else None
                 )
             )
-            book.restore_stats(lbp, lsp)
+            # X24: the last trade price comes back too (persisted as
+            # prev_close); a recovery uncross that printed has the newer one.
+            prev_close = persisted.get("prev_close")
+            last = to_ticks(float(prev_close), sym) if prev_close is not None else None
+            book.restore_stats(lbp, lsp, last)
         if stats:
             log.info(f"Restored book statistics for {len(stats)} symbol(s).")
 
@@ -1362,6 +1366,11 @@ class Engine:
                 register_tick_decimals(sym, sym_cfg.tick_decimals)
 
         orders = load_gtc_orders(GTC_ORDERS_FILE)
+        # X26: re-queue in each book's current priority. The file lists orders
+        # in first-arrival order, but an iceberg refill (or an amend that loses
+        # priority) moved an order to the back of its level with a new
+        # arrival_seq; restoring in file order would give it its old place.
+        orders.sort(key=lambda o: (o.symbol, o.arrival_seq))
         # Business day for the TIF=DAY staleness check below: machine-local
         # calendar date, matching pm-scheduler's own notion of "today" (see
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §13.3 — the
@@ -1381,6 +1390,7 @@ class Engine:
         # the QuoteIndex rebuild below. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
         restored_quote_legs: list[Order] = []
+        restored_oco_legs: dict[str, list[Order]] = {}
         for order in orders:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
@@ -1450,15 +1460,30 @@ class Engine:
             )
             if order.origin == OrderOrigin.QUOTE and order.quote_id:
                 restored_quote_legs.append(order)
+            if order.oco_group_id:
+                restored_oco_legs.setdefault(order.oco_group_id, []).append(order)
+        # X23: re-link OCO pairs, as quotes are rebuilt below. Legs come in
+        # priority order, so leg 1 (posted first) comes first. A pair with one
+        # surviving leg is not re-linked: its leg rests as a plain order.
+        for oco_id, legs in restored_oco_legs.items():
+            if len(legs) == 2:
+                self._oco_groups[oco_id] = [leg.id for leg in legs]
+                for leg in legs:
+                    self._order_to_oco[leg.id] = oco_id
         if restored_count:
             log.info(
                 f"Restored {restored_count} resting order(s) from previous session."
             )
             # M3: restore rests orders without matching, so two crossed GTC
             # orders would leave the book crossed at startup.  Uncross each
-            # book at the equilibrium price before continuous trading begins.
-            for symbol in list(self.books.keys()):
-                self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
+            # book at the equilibrium price before continuous trading begins
+            # -- but only if it begins now (sessions disabled). With sessions
+            # the engine starts CLOSED and reaches CONTINUOUS through a
+            # transition that uncrosses; a book crossed in a call phase is
+            # the auction's to print, not the restart's (X25).
+            if is_matching_enabled(self._session_state):
+                for symbol in list(self.books.keys()):
+                    self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))

@@ -458,6 +458,8 @@ def test_new_oco_leg_prices_are_ticks_on_the_wire(gateway: AlfGateway) -> None:
     assert isinstance(fake_push, _FakePush)
     _topic, payload = decode(fake_push.sent[-1])
 
+    # X27: the scale of those ticks travels with them, as on order.new.
+    assert payload["tick_decimals"] == 2
     leg1, leg2 = payload["leg1"], payload["leg2"]
     assert leg1["price_ticks"] == 10150
     assert leg1["stop_price_ticks"] == 10000

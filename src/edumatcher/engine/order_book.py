@@ -958,11 +958,17 @@ class OrderBook:
         return min((px for px, qty in self._ask_qty.items() if qty > 0), default=None)
 
     def restore_stats(
-        self, last_buy_price: Optional[int], last_sell_price: Optional[int]
+        self,
+        last_buy_price: Optional[int],
+        last_sell_price: Optional[int],
+        last_trade_price: Optional[int] = None,
     ) -> None:
-        """Restore persisted side-specific last-trade prices after an engine restart."""
+        """Restore persisted last-trade prices after an engine restart. The
+        last trade price is kept if the book has traded since the restart."""
         self.last_buy_price = last_buy_price
         self.last_sell_price = last_sell_price
+        if self.last_trade_price is None:
+            self.last_trade_price = last_trade_price
 
     def depth_snapshot(self, tolerance_ticks: int) -> "dict[str, Any]":
         """

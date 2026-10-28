@@ -923,6 +923,8 @@ class AlfGateway:
             "oco_id": oco_id,
             "gateway_id": gateway_id,
             "symbol": symbol,
+            # X27: the scale of the legs' ticks, as on order.new.
+            "tick_decimals": get_tick_decimals(symbol),
             "quantity": quantity,
             "tif": tif.value,
             "leg1": leg1,

@@ -42,7 +42,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 18 | S18 | Direct checks on today's data: C9 IOC/FOK/MARKET, C10 quote replace, D10 auction indicative, F6 depth fields | S17 | 1 d | ☑ | 2026-10-28 |
 | 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☑ (E6: X23–X26 for triage) | 2026-10-28 |
 | 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☑ | 2026-10-28 |
-| 20b | S20b | Restart contract: fix X23–X26 (OCO links, last price, no recovery uncross, priority order) and X27 | S20 | 1 d | ☐ | |
+| 20b | S20b | Restart contract: fix X23–X26 (OCO links, last price, no recovery uncross, priority order) and X27 | S20 | 1 d | ☑ | 2026-10-28 |
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☐ | |
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☐ | |
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☐ | |
@@ -769,11 +769,11 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X20 | S15 | every run | every non-new-order fill | Engine drift: `order.fill` lacked `price` outside the new-order path, and `tif`/`is_seed` on it | Fixed 2026-10-25 (S15, uncommitted) |
 | X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Fixed 2026-10-26 (S16, uncommitted) |
 | X22 | D9 | 2026-10-26 | 2 dispatches (4 rows) | Check bug: the replay's stop cascade ran the next trade's aggressor first, not the engine's FIFO order, so a triggered stop-limit that only rested was missing when a later stop traded into it | Fixed 2026-10-26 (uncommitted) |
-| X23 | E6 | 2026-10-28 | every restart with a live OCO | Engine: `_restore_gtc` does not rebuild `_oco_groups`; a restored OCO leg that fills leaves its sibling live | Confirmed engine bug (S20): fix in S20b |
-| X24 | E6 | 2026-10-28 | every traded book at a restart | Engine: `book_stats.json` holds the last trade price (`prev_close`) but the restore sets only the last buy/sell prices; `last_trade_price` stays None (collar reference, a new trailing stop's trigger, depth) until the next trade | Confirmed engine bug (S20): fix in S20b |
-| X25 | E6 | 2026-10-28 | restart 1 (PRE_OPEN): 825 trades, all 300 books | Engine: the restore's M3 RECOVERY uncross runs whatever the phase, so a restart during pre-open or an auction call prints the collected book before the auction | Confirmed engine bug (S20): fix in S20b |
-| X26 | E6 | 2026-10-28 | 2 books at a restart in CONTINUOUS | Engine: the checkpoint lists orders in `_order_index` (first-arrival) order and the restore re-queues them so; a refilled iceberg (and any order that lost priority) gets its old place back | Confirmed engine bug (S20): fix in S20b |
-| X27 | S19 (E5 routing) | 2026-10-28 | every `order.oco` | Wire: `order.oco.tick_decimals` is 0 on every OCO — the ALF gateway never sets it, the generated default goes out; the engine ignores it | Decided (S20): gateways fill it; S20b |
+| X23 | E6 | 2026-10-28 | every restart with a live OCO | Engine: `_restore_gtc` does not rebuild `_oco_groups`; a restored OCO leg that fills leaves its sibling live | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
+| X24 | E6 | 2026-10-28 | every traded book at a restart | Engine: `book_stats.json` holds the last trade price (`prev_close`) but the restore sets only the last buy/sell prices; `last_trade_price` stays None (collar reference, a new trailing stop's trigger, depth) until the next trade | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
+| X25 | E6 | 2026-10-28 | restart 1 (PRE_OPEN): 825 trades, all 300 books | Engine: the restore's M3 RECOVERY uncross runs whatever the phase, so a restart during pre-open or an auction call prints the collected book before the auction | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
+| X26 | E6 | 2026-10-28 | 2 books at a restart in CONTINUOUS | Engine: the checkpoint lists orders in `_order_index` (first-arrival) order and the restore re-queues them so; a refilled iceberg (and any order that lost priority) gets its old place back | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
+| X27 | S19 (E5 routing) | 2026-10-28 | every `order.oco` | Wire: `order.oco.tick_decimals` is 0 on every OCO — the ALF gateway never sets it, the generated default goes out; the engine ignores it | Fixed 2026-10-28 (S20b): the ALF gateway fills it (the API gateway already did) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1796,4 +1796,32 @@ every finding is a fix that does not touch them.
   ran after the per-symbol ones and the cap (50) was full. They now run
   first. For triage of the rest, probe single restarts (`_E6_EVERY`
   patched), as above.
+
+### S20b — done 2026-10-28
+
+- **X23** `_restore_gtc` collects restored legs by `oco_group_id` and
+  re-registers pairs of two in `_oco_groups` and `_order_to_oco` (legs in
+  priority order, so leg 1 first, as `_handle_oco_order` registers them);
+  a lone leg is not re-linked.
+- **X24** `OrderBook.restore_stats` takes the last trade price too
+  (`prev_close`), kept only if the book has not traded since the restart
+  (`_load_config` runs after a recovery uncross may have printed).
+- **X25** the RECOVERY uncross runs only if the engine starts in a
+  matching phase (sessions disabled). With sessions the engine starts
+  CLOSED, and `_handle_session_transition` already uncrosses on every
+  entry into a matching phase from a non-matching one — so continuous
+  trading never starts crossed either way.
+- **X26** restored orders are sorted by `(symbol, arrival_seq)` before
+  they are re-queued (the file stays in `_order_index` order).
+- **X27** `alf_gwy` puts `tick_decimals` on `order.oco`.
+- Tests: `tests/test_engine_restart_contract.py` (5; X23–X26, plus the
+  sessions-disabled restore that must still uncross), all failing before;
+  `test_alf_gwy_gateway_unit.py` pins X27. E6's strict xfail became
+  `test_e6_passes_on_a_day_and_skips_a_designed_reseed`.
+- Operator guide, persistence chapter, "At Startup": OCO pairs re-linked
+  (3b), crossed restored books (5), the last trade price (6), priority
+  (10, which credited "original timestamps").
+- **2026-10-28 run, E6 alone** (sim still running, so more commands than
+  S19's run): 26 restarts, 1 656 books re-seeded by design, **0
+  differences** — state and 20 000 commands after each restart.
 

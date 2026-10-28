@@ -117,22 +117,14 @@ def test_e5_and_e7_pass_on_a_day(tmp_path: Path, open_ds: OpenDataset) -> None:
     assert out["E7"].note == "42 commands; transforms: rename, price shift"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="X23: a restart does not rebuild OCO links; X24: nor the last trade price",
-)
-def test_e6_passes_on_a_day(tmp_path: Path, open_ds: OpenDataset) -> None:
-    out = run_e(open_ds, write_day(tmp_path / "data"), every=10)
-    assert out["E6"].samples == []
-
-
-def test_e6_finds_x23_and_x24_and_not_a_designed_reseed(
+def test_e6_passes_on_a_day_and_skips_a_designed_reseed(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    """Where the MM's quote is gone at a restart the restored engine seeds
-    it again (seed_once, by design): not a finding."""
+    """Restarts with live OCO pairs, after trades, with a refilled iceberg
+    (X23-X26, fixed in S20b). Where the MM's quote is gone at a restart the
+    restored engine seeds it again (seed_once, by design): not a finding."""
     out = run_e(open_ds, write_day(tmp_path / "data"), every=10)["E6"]
-    assert errors(out) == {"restored OCO groups differ", "restored last prices differ"}  # fmt: skip
+    assert out.samples == []
     assert out.note == "4 restarts, every 10 commands, each compared for 5; 8 books re-seeded at a restart (by design) not compared"  # fmt: skip
 
 
