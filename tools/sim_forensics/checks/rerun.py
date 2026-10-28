@@ -35,7 +35,9 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tempfile
 from collections import Counter
+from datetime import date, datetime, tzinfo
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -47,6 +49,7 @@ from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
 from edumatcher.config_artifact import load_compiled_config
+from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.generated.system import TOPIC_GATEWAY_HEARTBEAT
 from edumatcher.models.message import decode
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
@@ -265,18 +268,8 @@ class _Rerun:
         reset_trade_ids_for_tests()
         set_run_seq(1)
         sink = _Sink()
-        with (
-            mock.patch.object(
-                engine_main, "_compiled_engine_config", lambda: compiled.engine
-            ),
-            mock.patch.object(engine_main, "make_puller", lambda _: _Sink()),
-            mock.patch.object(engine_main, "make_publisher", lambda _: sink),
-            mock.patch.object(engine_main, "load_gtc_orders", lambda _: []),
-            mock.patch.object(engine_main, "load_book_stats", lambda _: {}),
-        ):
-            self.engine = engine = engine_main.Engine(config_path=None)
-            engine._restore_gtc()
-            engine._load_config()
+        with tempfile.TemporaryDirectory() as empty:
+            self.engine = fresh_engine(compiled.engine, sink, Path(empty))
         commands = _command_topics()
         startup: list[tuple[str, dict[str, Any]]] = []
         live: list[tuple[str, dict[str, Any]]] = []
@@ -383,6 +376,35 @@ class _Rerun:
                     persisted=persisted.get(oid),
                     rerun=resting.get(oid),
                 )
+
+
+def fresh_engine(
+    config: EngineConfig, sink: _Sink, state_dir: Path, today: date | None = None
+) -> engine_main.Engine:
+    """An engine started as ``Engine.run`` starts one -- restore, then seed --
+    on *config*, publishing into *sink*, restoring from the persistence files
+    in *state_dir* (none there: an empty book). *today* stands in for the
+    wall-clock date the restore judges DAY orders by."""
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> "_Clock":
+            moment = datetime.now(tz)
+            return cls.combine(today or moment.date(), moment.timetz())
+
+    with (
+        mock.patch.object(engine_main, "_compiled_engine_config", lambda: config),
+        mock.patch.object(engine_main, "make_puller", lambda _: _Sink()),
+        mock.patch.object(engine_main, "make_publisher", lambda _: sink),
+        mock.patch.object(engine_main, "GTC_ORDERS_FILE", state_dir / "gtc_orders.json"),  # fmt: skip
+        mock.patch.object(engine_main, "GTC_COMBOS_FILE", state_dir / "gtc_combos.json"),  # fmt: skip
+        mock.patch.object(engine_main, "BOOK_STATS_FILE", state_dir / "book_stats.json"),  # fmt: skip
+        mock.patch.object(engine_main, "datetime", _Clock),
+    ):
+        engine = engine_main.Engine(config_path=None)
+        engine._restore_gtc()
+        engine._load_config()
+    return engine
 
 
 def _engine_version() -> str:

@@ -170,7 +170,8 @@ def statuses(open_ds: OpenDataset, data: Path) -> dict[str, tuple[str, int]]:
 def test_every_e_check_passes_on_a_recorded_run(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    assert sorted(i for i in REGISTRY if i[0] == "E") == E
+    # The slow E5-E7: tests/test_sim_forensics_differential.py.
+    assert sorted(i for i in REGISTRY if i[0] == "E" and not REGISTRY[i].slow) == E
     data = record(tmp_path / "data")
     assert statuses(open_ds, data) == {i: ("PASS", 0) for i in E}
     note = REGISTRY["E1"].fn(open_ds(data)).note

@@ -47,6 +47,8 @@ class Check:
     #: Stores (dataset.STORES) the check reads; a missing one skips it.
     needs: tuple[str, ...]
     fn: Callable[[Dataset], Outcome]
+    #: Costs several engine re-runs: only run when asked for (``--slow``).
+    slow: bool = False
 
 
 @dataclass
@@ -63,7 +65,7 @@ REGISTRY: dict[str, Check] = {}
 
 
 def check(
-    id: str, oracle: str, title: str, needs: tuple[str, ...]
+    id: str, oracle: str, title: str, needs: tuple[str, ...], slow: bool = False
 ) -> Callable[[Callable[[Dataset], Outcome]], Callable[[Dataset], Outcome]]:
     """Register a check function under *id*."""
     if oracle not in ORACLES:
@@ -72,14 +74,24 @@ def check(
     def register(fn: Callable[[Dataset], Outcome]) -> Callable[[Dataset], Outcome]:
         if id in REGISTRY:
             raise ValueError(f"duplicate check id {id}")
-        REGISTRY[id] = Check(id, oracle, title, needs, fn)
+        REGISTRY[id] = Check(id, oracle, title, needs, fn, slow)
         return fn
 
     return register
 
 
-def run_checks(ds: Dataset, checks: Iterable[Check], max_samples: int) -> list[Result]:
-    return [_run_one(ds, c, max_samples) for c in checks]
+def run_checks(
+    ds: Dataset, checks: Iterable[Check], max_samples: int, slow: bool = False
+) -> list[Result]:
+    """Run *checks*; a slow one only if *slow*."""
+    return [
+        (
+            _run_one(ds, c, max_samples)
+            if slow or not c.slow
+            else Result(c, "SKIPPED", 0, [], "slow: run with --slow, or name it with --check", 0.0)  # fmt: skip
+        )
+        for c in checks
+    ]
 
 
 def failed_outcomes(ds: Dataset) -> dict[str, Outcome]:

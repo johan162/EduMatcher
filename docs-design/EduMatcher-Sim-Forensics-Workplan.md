@@ -40,7 +40,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 16 | S16 | X21: a combo leg ending on entry fails the combo; `combo.ack` first | S15 | 0.5 d | ☑ | 2026-10-26 |
 | 17 | S17 | A5 audit completeness (per-topic `seq` gaps) + H5 feature-coverage matrix | — | 0.5 d | ☑ | 2026-10-28 |
 | 18 | S18 | Direct checks on today's data: C9 IOC/FOK/MARKET, C10 quote replace, D10 auction indicative, F6 depth fields | S17 | 1 d | ☑ | 2026-10-28 |
-| 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☐ | |
+| 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☑ (E6: X23–X26 for triage) | 2026-10-28 |
 | 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☐ | |
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20 | 1 d | ☐ | |
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☐ | |
@@ -241,9 +241,9 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | E2 | Replay into a fresh `OrderBook` (canonicalise ids and timestamps as in the System-Trading-Verification doc §9); diff trades, acks, rejects. A diff here means non-determinism or a hidden input (time, collar state). |
 | E3 | Replay into `tests/reference_matcher.py`; diff trade-for-trade. A diff here is a matching bug on one side — shrink it to a minimal scenario and add it to the matching test suite. **Not built (S6 decision):** the reference has no quotes, OCO or sessions; S5's replay is the independent model on the real stream, and the reference differential stays with T3 of the matching plan. |
 | E4 | Final replayed book vs `gtc_orders.json` and the last `book.*` snapshots. |
-| E5 | **Planned (S19).** Symbol isolation: each symbol's commands re-run alone equal that symbol's part of the full re-run (cross-symbol commands — OCO, kill switch, halt-all — grouped or left out). |
-| E6 | **Planned (S19).** Crash recovery: persist the re-run engine at random command k with its own persistence code, restore a fresh engine from it, continue; the output equals the uninterrupted re-run. |
-| E7 | **Planned (S19).** Metamorphic: renaming gateway and client ids gives the same trades; shifting every price of a symbol by k ticks (away from bands) gives the same trades shifted by k. |
+| E5 | (S19, slow) Symbol isolation: each symbol's commands re-run alone equal that symbol's part of the full re-run (cross-symbol commands — OCO, kill switch, halt-all — grouped or left out). |
+| E6 | (S19, slow) Crash recovery: persist the re-run engine at random command k with its own persistence code, restore a fresh engine from it, continue; the output equals the uninterrupted re-run. |
+| E7 | (S19, slow) Metamorphic: renaming gateway and client ids gives the same trades; shifting every price of a symbol by k ticks (away from bands) gives the same trades shifted by k. |
 
 ### F — Derived data and market data
 
@@ -761,6 +761,11 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X20 | S15 | every run | every non-new-order fill | Engine drift: `order.fill` lacked `price` outside the new-order path, and `tif`/`is_seed` on it | Fixed 2026-10-25 (S15, uncommitted) |
 | X21 | S15 (probe) | — | not in a run | Engine: a combo whose child ends while the combo is being accepted (rejected, or cancelled by SMP) is never failed; its other legs rest on | Fixed 2026-10-26 (S16, uncommitted) |
 | X22 | D9 | 2026-10-26 | 2 dispatches (4 rows) | Check bug: the replay's stop cascade ran the next trade's aggressor first, not the engine's FIFO order, so a triggered stop-limit that only rested was missing when a later stop traded into it | Fixed 2026-10-26 (uncommitted) |
+| X23 | E6 | 2026-10-28 | every restart with a live OCO | Engine: `_restore_gtc` does not rebuild `_oco_groups`; a restored OCO leg that fills leaves its sibling live | Open (triage, S19) |
+| X24 | E6 | 2026-10-28 | every traded book at a restart | Engine: `book_stats.json` holds the last trade price (`prev_close`) but the restore sets only the last buy/sell prices; `last_trade_price` stays None (collar reference, a new trailing stop's trigger, depth) until the next trade | Open (triage, S19) |
+| X25 | E6 | 2026-10-28 | restart 1 (PRE_OPEN): 825 trades, all 300 books | Engine: the restore's M3 RECOVERY uncross runs whatever the phase, so a restart during pre-open or an auction call prints the collected book before the auction | Open (triage, S19) |
+| X26 | E6 | 2026-10-28 | 2 books at a restart in CONTINUOUS | Engine: the checkpoint lists orders in `_order_index` (first-arrival) order and the restore re-queues them so; a refilled iceberg (and any order that lost priority) gets its old place back | Open (triage, S19) |
+| X27 | S19 (E5 routing) | 2026-10-28 | every `order.oco` | Wire: `order.oco.tick_decimals` is 0 on every OCO — the ALF gateway never sets it, the generated default goes out; the engine ignores it | Open: decide in S20 (drop or fill the field) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1470,6 +1475,12 @@ units, and which are canonical; for stats/clearing the new columns and the
 schema version. S21–S26 implement exactly that list; any later change
 goes back here first.
 
+Also triage, with the maintainer, S19's findings: X23–X26 are the restart
+contract (what a restart must give back: OCO links, the last trade
+price, no uncross in a call phase, current priority) and touch the
+persistence files that freeze at 1.0 — decide fix WPs before S21; X27
+(`order.oco.tick_decimals` always 0) goes into the frozen field list.
+
 ### S21 — Self-describing audit
 
 - New `system.startup` message, the engine's first on every start:
@@ -1668,4 +1679,54 @@ every finding is a fix that does not touch them.
   all paired. D9 on the whole run (now that the archive is read): 3.1 M
   snapshots, 0 differ. Times: replay (C7, D*) 204 s, F-pass 113 s, C8/C10
   38 s, C9 36 s.
+
+### S19 — done 2026-10-28
+
+- `checks/differential.py`: one lockstep pass — the reference re-run (as
+  E2's, from `rerun.fresh_engine`, now shared and pointing the
+  persistence files into a temp dir, so no re-run reads the host's) plus:
+  - **E5**: an engine per symbol (config with that symbol alone), created
+    when its first command comes, after replaying every symbol-less
+    command so far. Commands route by `symbol`, or by the order / OCO /
+    quote id they name (`order.cancel`, `order.oco_cancel` carry no
+    symbol); symbol-less commands go to every engine. Outputs are grouped
+    by symbol on both sides; a `DUPLICATE_ORDER` difference is excused
+    (order ids are engine-wide); combo symbols are left out.
+  - **E6**: every 100 000 commands the reference checkpoints with its own
+    `_flush_persistence`; a fresh engine restores from the files, with
+    "today" pinned to the run's date (else a later re-run drops every DAY
+    order as stale), the live phase and the connected gateways' connects.
+    Books compared at once (priority order, quantities, shown slices,
+    armed and trailing stops, last prices; OCO groups, quotes, combo
+    links), then outputs for 20 000 commands. A book the restart seeds
+    again is skipped and counted: by design (§5.4 of the quote-persistence
+    design: `seed_once` seeds where no quote is live).
+  - **E7**: (a) gateways shuffled within groups of identical config
+    (`id`/`description` aside) and every order id renamed (md5), mapped
+    back on the outputs, text prefixes too; (b) every price +7 ticks (seed
+    quotes and last prices in the config too), only where no collar,
+    order limit, circuit breaker or risk level is configured; fill prices
+    are VWAPs off the grid, so that lane compares floats to 9 decimals.
+- Slow checks: `@check(..., slow=True)`; `run_checks(..., slow=)`; CLI
+  `--slow`, and a check named with `--check` always runs; `make forensics
+  ... SLOW=1`.
+- Tests: `tests/test_sim_forensics_differential.py` (8 + 1 strict xfail):
+  a day on s3-basic (3 symbols interleaved: crossing, resting, iceberg,
+  stop, trailing stop, OCO, quote replacement, IOC, FOK, cancel, MARKET);
+  E5 and E7 pass; E6 finds X23/X24 and not the designed re-seed; planted
+  faults: a per-engine counter (E5), trailing stops left out of the
+  checkpoint (E6), dropping orders by id or by even price (E7 per lane);
+  `test_e6_passes_on_a_day` is the strict xfail that turns into X23/X24's
+  regression test.
+- **2026-10-28 run** (2 280 194 commands; 22 min, 2.2 GB): **E5 PASS** (300
+  symbols), **E7 PASS** (both transforms), **E6 FAIL 5 097**: restart 1
+  fell in PRE_OPEN → X25 (825 trades on restore) made every book differ;
+  a probe restart at command 300 000 (CONTINUOUS): 206 books re-seeded
+  (by design), 48 only X24, 2 X26 (APH bids, BBY asks: iceberg order).
+  X23 too: at that restart the reference held 232 live OCO groups (464
+  resting legs), the restored engine none.
+- X23 was in the count but not the samples: the engine-wide comparisons
+  ran after the per-symbol ones and the cap (50) was full. They now run
+  first. For triage of the rest, probe single restarts (`_E6_EVERY`
+  patched), as above.
 
