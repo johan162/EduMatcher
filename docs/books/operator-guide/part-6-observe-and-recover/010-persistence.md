@@ -189,6 +189,16 @@ at all — it is only ever written once, at the following startup.
 
 
 
+### At the Close (every trading day)
+
+When the session moves to `CLOSED`, after the day's `DAY` orders have
+expired, the engine copies what it would persist — `gtc_orders.json`,
+`gtc_combos.json` and `book_stats.json` — into
+`<DATA_DIR>/eod/<YYYY-MM-DD>/` (the machine-local business date). The
+regular files are rewritten by every checkpoint; the archive keeps each
+day's closing state, so the next morning's book can be compared with it
+(the simulation forensics check G3 does). Nothing is ever deleted there.
+
 ## Impact of a Business-Day Change
 
 The single fact that governs everything on this page: **a process restart is

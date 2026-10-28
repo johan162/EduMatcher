@@ -187,4 +187,7 @@ class Trade:
             ts_ns=d["ts_ns"],
             tick_decimals=int(d.get("tick_decimals", 2)),
             run_seq=(None if d.get("run_seq") is None else int(d["run_seq"])),
+            match_type=str(d.get("match_type") or "CONTINUOUS"),
+            auction_id=d.get("auction_id"),
+            trigger_order_id=d.get("trigger_order_id"),
         )

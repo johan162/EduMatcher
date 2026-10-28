@@ -1394,6 +1394,20 @@ class Engine:
         self._publish_bands()
         self._publish_checkpoints("STARTUP")
 
+    def _archive_eod(self) -> None:
+        """Keep the day's closing state: the persistence files, written into
+        ``<DATA_DIR>/eod/<date>/`` (the business date the restore judges DAY
+        orders by), where the next day's checkpoint does not overwrite them.
+        Best-effort, like a checkpoint: a failure must not end the day."""
+        target = DATA_DIR / "eod" / datetime.now().date().isoformat()
+        try:
+            save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
+            save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
+            save_book_stats(self.books, target / BOOK_STATS_FILE.name)
+        except Exception as exc:
+            self._dbg_count("eod_archive_errors")
+            log.error("End-of-day archive to %s failed: %s", target, exc)
+
     def _publish_checkpoints(self, reason: str) -> None:
         """``system.book_checkpoint.<SYM>`` for every book: what a replay
         needs to start from here (S25)."""
@@ -5583,6 +5597,7 @@ class Engine:
             # so they do not silently carry into the next trading day (they were
             # previously only expired at process shutdown).
             self._expire_tif(TIF.DAY)
+            self._archive_eod()
             # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
             for symbol, cb in self._circuit_breakers.items():
                 if cb.halted:

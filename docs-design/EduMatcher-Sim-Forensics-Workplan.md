@@ -49,7 +49,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☑ | 2026-10-28 |
 | 24b | S24b | ALF, BALF and API gateways forward `order.triggered` to clients (protocol records, client libraries, docs) | S24 | 1 d | ☐ | |
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☑ | 2026-10-28 |
-| 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☐ | |
+| 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☑ | 2026-10-28 |
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
 | 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☐ | |
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
@@ -1525,7 +1525,9 @@ that do not start with `[`.
 `buy_order_id`, `sell_order_id`, `match_type`; `clearing.trade_events` +
 `msg_id`, `match_type`; schema versions bumped, fresh databases. At
 `system.eod`, `gtc_orders.json`, `gtc_combos.json` and `book_stats.json`
-are copied to `<data>/eod/<session date>/`.
+are copied to `<data>/eod/<session date>/` (changed in S26: at the
+transition to CLOSED, since `system.eod` is published only when the engine
+process exits and a sim runs for days without exiting).
 
 ### S20b — Restart contract (X23–X27)
 
@@ -2005,4 +2007,28 @@ from the trades and circuit-breaker corridors are already on
   orders passes D/C7). The restart-SKIP test became the continue test.
   Counts: system 35 topics, 130 messages; lexicon glosses.
 - Holistic: 11 177 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
+
+### S26 — done 2026-10-28
+
+- **stats.db** (schema 10; an older file is refused, delete it):
+  `trade_log` + `buy_order_id`, `sell_order_id`, `match_type`, `msg_id`;
+  `order_events` + `msg_id` (the X7 sibling row gets its OCO message's).
+  pm-stats reads the envelope and passes `msg_id` through `_dispatch`.
+- **clearing.db**: `trade_events` + `match_type`, `msg_id`; a database
+  without them is refused (as the pre-durable-id one already was) —
+  delete it. The message id rides beside the buffered trade
+  (`_msg_ids`); `Trade.from_dict` now reads the S23 context.
+- **EOD archive**: `Engine._archive_eod` at the CLOSED transition (after
+  the DAY expiries) writes the three persistence files to
+  `<DATA_DIR>/eod/<date>/`; best-effort like a checkpoint.
+- **G3** (`checks/persistence.py`): each archived day's orders (id,
+  remaining) equal that day's CLOSED checkpoint round and the next round
+  (PRE_OPEN, or a restart's STARTUP), seeded quote legs aside.
+- Tests: `tests/test_eod_archive.py` (4); two `_dispatch` fakes and a raw
+  clearing insert updated (a fake with the old signature made a stats test
+  spin forever — the receive loop counts the TypeError and goes on).
+  Schema docs regenerated.
+- Holistic: 11 181 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
+- **Before the next sim run:** delete the data dir's `stats.db` and
+  `clearing.db` (refused otherwise).
 

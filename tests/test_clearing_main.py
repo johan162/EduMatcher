@@ -855,7 +855,7 @@ class TestHandleGatewayDisconnect:
         """retention_days=1 should prune a row from year 2000."""
         conn = open_writer_connection(db_path)
         conn.execute(
-            "INSERT INTO trade_events VALUES ('OLD',1,'2000-01-01','AAPL',1,100,2,null,null,'GW1','GW2',null,2)"
+            "INSERT INTO trade_events VALUES ('OLD',1,'2000-01-01','AAPL',1,100,2,null,null,'GW1','GW2',null,2,null,null)"
         )
         conn.commit()
         conn.close()
