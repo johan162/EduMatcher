@@ -549,6 +549,7 @@ Every topic in the system, and which process puts it on the wire.
 | `depth.{symbol}` | `book` | `engine` |
 | `drop_copy.event.{gateway_id}` | `drop_copy` | `engine` |
 | `drop_copy.replay.{recipient_id}` | `drop_copy` | `engine` |
+| `engine.trace.{symbol}` | `order` | `engine` |
 | `execution_report (no bus topic)` | `order` | `gateway` |
 | `health.beacon` | `health` | `health_reporter` |
 | `health.event` | `health` | `monitor` |
@@ -597,10 +598,12 @@ Every topic in the system, and which process puts it on the wire.
 | `order.orders_request` | `order` | `admin`, `api_gateway`, `gateway` |
 | `order.price_level_orders.{gateway_id}` | `order` | `engine` |
 | `order.price_level_orders_request` | `order` | `admin` |
+| `order.triggered.{gateway_id}` | `order` | `engine` |
 | `quote.ack.{gateway_id}` | `quote` | `engine` |
 | `quote.cancel` | `quote` | `admin`, `api_gateway`, `gateway` |
 | `quote.new` | `quote` | `gateway` |
 | `quote.status.{gateway_id}` | `quote` | `engine` |
+| `risk.band.{symbol}` | `risk` | `engine` |
 | `risk.cancel_symbol` | `risk` | `admin`, `api_gateway` |
 | `risk.cancel_symbol_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.circuit_breaker_halt_all` | `risk` | `admin` |
@@ -2357,6 +2360,58 @@ A DAY order that never filled has expired at session end. Same shape as order.ca
 | `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order expired. |
 | `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it expired. |
 
+### `order.triggered.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+A stop, stop-limit or trailing stop has fired: the trade that reached its trigger, and what the order became. Published before the order's own fills, so a client knows why its stop traded -- the FIX analogue is ExecType=L.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `order_id` | `string` | required | max_len 64 |  |
+| `symbol` | `string` | required | max_len 16 |  |
+| `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed. |
+| `stop_price_ticks` | `ticks` | required | unit `ticks` | The trigger price it fired at (a trailing stop's ratcheted one). |
+| `trigger_trade_id` | `string` | omitted when unset | max_len 64 | The trade that reached the trigger; absent when the last price came from a restart. |
+| `trigger_price_ticks` | `ticks` | omitted when unset | unit `ticks` | That trade's price. |
+| `becomes` | enum: `MARKET`, `LIMIT` | required | — | STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit. |
+| `client_tag` | `string` | omitted when unset | max_len 64 |  |
+
+**See also:** `order.fill.{GW_ID}`, `engine.trace.{SYMBOL}`
+
+### `engine.trace.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `kind` | enum: `RESTED`, `ICEBERG_REFILL`, `TRAILING_RATCHET` | required | — |  |
+| `order_id` | `string` | required | max_len 64 |  |
+| `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` |  |
+| `displayed_qty` | `int` | omitted when unset | ge 0, unit `shares` | ICEBERG_REFILL: the new visible slice. |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the new trigger. |
+| `last_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the trade price that moved it. |
+
+!!! note
+
+    `priority_seq` is the book's arrival sequence; it orders orders at one price, nothing more.
+
+    A trailing stop rests in a list checked in arming order, so its RESTED has no `priority_seq`.
+
+**See also:** `order.triggered.{GW_ID}`, `order.amended.{GW_ID}`
+
 ### `order.amended.{gateway_id}`
 
 **Published by:** `engine`
@@ -2930,6 +2985,27 @@ Engine to ADMIN: what the market-wide kill switch cancelled.
 !!! note
 
     `affected_gateways` is what distinguishes this ack from the other two: the same two counters, plus how many participants they were spread across.
+
+### `risk.band.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+A symbol's collar, as the engine will apply it: published once per collared symbol at startup (a reference reload leaves collars as they are). The static band is fixed from these; the dynamic band is `dynamic_band_pct` around each last trade price, so a reader derives it from the trades rather than from a message per trade. Circuit-breaker corridors travel on circuit_breaker.halt/extend.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `kind` | enum: `COLLAR` | required | — |  |
+| `reference_price_ticks` | `ticks` | required | unit `ticks` | The static band's reference (last close or the config seed). |
+| `static_low_ticks` | `ticks` | required | unit `ticks` |  |
+| `static_high_ticks` | `ticks` | required | unit `ticks` |  |
+| `dynamic_band_pct` | `float` | required | ge 0, unit `dimensionless` | The dynamic band's half-width as a fraction of the last trade price (0.02 = 2 %). |
+
+**See also:** `circuit_breaker.halt.{SYMBOL}`, `system.startup`
 
 ### `risk.symbol_halt`
 

@@ -791,6 +791,84 @@ messages:
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
+  - name: order_triggered
+    topic: "order.triggered.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        A stop, stop-limit or trailing stop has fired: the trade that
+        reached its trigger, and what the order became. Published before
+        the order's own fills, so a client knows why its stop traded --
+        the FIX analogue is ExecType=L.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["order.fill.{GW_ID}", "engine.trace.{SYMBOL}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: order_type
+        type: enum
+        values: [STOP, STOP_LIMIT, TRAILING_STOP]
+        doc: "The order as it was armed."
+      - { name: stop_price_ticks, type: ticks, unit: ticks,
+          doc: "The trigger price it fired at (a trailing stop's ratcheted one)." }
+      - { name: trigger_trade_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "The trade that reached the trigger; absent when the last price came from a restart." }
+      - { name: trigger_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "That trade's price." }
+      - name: becomes
+        type: enum
+        values: [MARKET, LIMIT]
+        doc: "STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit."
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: engine_trace
+    topic: "engine.trace.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        What the book did that no trade or order message shows, for the
+        audit trail (no gateway forwards it): an order resting or arming
+        and the place in the queue it got, an iceberg refilling its slice
+        at the back of its level, a trailing stop ratcheting its trigger.
+        A replay can then compare its model of priority and of trailing
+        triggers with the engine's own, instead of inferring them.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["order.triggered.{GW_ID}", "order.amended.{GW_ID}"]
+      example_note: >
+        `priority_seq` is the book's arrival sequence; it orders orders at
+        one price, nothing more. A trailing stop rests in a list checked
+        in arming order, so its RESTED has no `priority_seq`.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: kind
+        type: enum
+        values: [RESTED, ICEBERG_REFILL, TRAILING_RATCHET]
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: priority_seq, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 } }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "ICEBERG_REFILL: the new visible slice." }
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "TRAILING_RATCHET: the new trigger." }
+      - { name: last_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "TRAILING_RATCHET: the trade price that moved it." }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, kind, order_id, priority_seq, displayed_qty,
+                  stop_price_ticks, last_price_ticks]
+
   - name: order_amended
     topic: "order.amended.{gateway_id}"
     transport: [engine_pub]

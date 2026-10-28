@@ -52,7 +52,11 @@ from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.generated.system import TOPIC_GATEWAY_HEARTBEAT
 from edumatcher.models.message import decode
-from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
+from edumatcher.models.trade import (
+    current_run_seq,
+    reset_trade_ids_for_tests,
+    set_run_seq,
+)
 
 #: Output topics left out of the comparison: market data and replies.
 _SKIP = ("book.", "depth.", "auction.indicative.", "system.", "diagnostic")
@@ -379,7 +383,7 @@ class _Rerun:
 def fresh_engine(
     config: EngineConfig, sink: _Sink, state_dir: Path, today: date | None = None
 ) -> engine_main.Engine:
-    """An engine started as ``Engine.run`` starts one -- restore, then seed --
+    """An engine started as ``Engine.run`` starts one (``Engine._startup``)
     on *config*, publishing into *sink*, restoring from the persistence files
     in *state_dir* (none there: an empty book). *today* stands in for the
     wall-clock date the restore judges DAY orders by."""
@@ -400,8 +404,7 @@ def fresh_engine(
         mock.patch.object(engine_main, "datetime", _Clock),
     ):
         engine = engine_main.Engine(config_path=None)
-        engine._restore_gtc()
-        engine._load_config()
+        engine._startup(current_run_seq() or 0)
     return engine
 
 

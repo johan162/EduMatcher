@@ -2832,6 +2832,531 @@ def describe_order_expired() -> tuple[dict[str, Any], ...]:
     return _ORDER_EXPIRED_FIELDS
 
 
+TOPIC_ORDER_TRIGGERED = "order.triggered.{gateway_id}"
+PREFIX_ORDER_TRIGGERED = "order.triggered."
+_ORDER_TRIGGERED_RE = re.compile("order\\.triggered\\.(?P<gateway_id>[^.]+)")
+_ORDER_TRIGGERED_ORDER_TYPE_VALUES = ("STOP", "STOP_LIMIT", "TRAILING_STOP")
+OrderTriggeredOrderType = Literal["STOP", "STOP_LIMIT", "TRAILING_STOP"]
+_ORDER_TRIGGERED_BECOMES_VALUES = ("MARKET", "LIMIT")
+OrderTriggeredBecomes = Literal["MARKET", "LIMIT"]
+
+
+_ORDER_TRIGGERED_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "order_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "order_type",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "The order as it was armed.",
+        "values": _ORDER_TRIGGERED_ORDER_TYPE_VALUES,
+    },
+    {
+        "name": "stop_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": True,
+        "doc": "The trigger price it fired at (a trailing stop's ratcheted one).",
+    },
+    {
+        "name": "trigger_trade_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The trade that reached the trigger; absent when the last price came from a restart.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "trigger_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "That trade's price.",
+    },
+    {
+        "name": "becomes",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit.",
+        "values": _ORDER_TRIGGERED_BECOMES_VALUES,
+    },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderTriggered:
+    """A stop, stop-limit or trailing stop has fired: the trade that reached its
+    trigger, and what the order became. Published before the order's own fills, so
+    a client knows why its stop traded -- the FIX analogue is ExecType=L.
+    """
+
+    gateway_id: str
+    order_id: str
+    symbol: str
+    order_type: OrderTriggeredOrderType
+    stop_price_ticks: int  # unit: ticks
+    becomes: OrderTriggeredBecomes
+    trigger_trade_id: str | None = None
+    trigger_price_ticks: int | None = None  # unit: ticks
+    client_tag: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.order_type not in _ORDER_TRIGGERED_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_ORDER_TRIGGERED_ORDER_TYPE_VALUES!r}"
+            )
+        if self.trigger_trade_id is not None:
+            if len(self.trigger_trade_id) > 64:
+                raise MessageValidationError(
+                    f"trigger_trade_id: length {len(self.trigger_trade_id)} exceeds max_len 64"
+                )
+        if self.becomes not in _ORDER_TRIGGERED_BECOMES_VALUES:
+            raise MessageValidationError(
+                f"becomes: {self.becomes!r} is not one of {_ORDER_TRIGGERED_BECOMES_VALUES!r}"
+            )
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderTriggered":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            order_id=str(p["order_id"]),
+            symbol=str(p["symbol"]),
+            order_type=cast(OrderTriggeredOrderType, str(p["order_type"])),
+            stop_price_ticks=int(p["stop_price_ticks"]),
+            trigger_trade_id=(
+                None
+                if p.get("trigger_trade_id") is None
+                else str(p["trigger_trade_id"])
+            ),
+            trigger_price_ticks=(
+                None
+                if p.get("trigger_price_ticks") is None
+                else int(p["trigger_price_ticks"])
+            ),
+            becomes=cast(OrderTriggeredBecomes, str(p["becomes"])),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "order_id": self.order_id,
+            "symbol": self.symbol,
+            "order_type": self.order_type,
+            "stop_price_ticks": self.stop_price_ticks,
+            "becomes": self.becomes,
+        }
+        if self.trigger_trade_id is not None:
+            payload["trigger_trade_id"] = self.trigger_trade_id
+        if self.trigger_price_ticks is not None:
+            payload["trigger_price_ticks"] = self.trigger_price_ticks
+        if self.client_tag is not None:
+            payload["client_tag"] = self.client_tag
+        return payload
+
+
+def topic_order_triggered(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"order.triggered.{gateway_id}"
+
+
+def match_order_triggered(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _ORDER_TRIGGERED_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_order_triggered(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderTriggered.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_order_triggered(obj.gateway_id), obj.to_dict())
+
+
+def make_order_triggered_unchecked(
+    *,
+    gateway_id: str,
+    order_id: str,
+    symbol: str,
+    order_type: OrderTriggeredOrderType,
+    stop_price_ticks: int,
+    becomes: OrderTriggeredBecomes,
+    trigger_trade_id: str | None = None,
+    trigger_price_ticks: int | None = None,
+    client_tag: str | None = None,
+) -> list[bytes]:
+    """Identical frames to ``make_order_triggered``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "order_id": str(order_id),
+        "symbol": str(symbol),
+        "order_type": str(order_type),
+        "stop_price_ticks": int(stop_price_ticks),
+        "becomes": str(becomes),
+    }
+    if trigger_trade_id is not None:
+        payload["trigger_trade_id"] = str(trigger_trade_id)
+    if trigger_price_ticks is not None:
+        payload["trigger_price_ticks"] = int(trigger_price_ticks)
+    if client_tag is not None:
+        payload["client_tag"] = str(client_tag)
+    return [
+        topic_order_triggered(gateway_id).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_order_triggered(frames: list[bytes]) -> "OrderTriggered":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_order_triggered(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_ORDER_TRIGGERED!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = OrderTriggered.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_triggered() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_TRIGGERED_FIELDS
+
+
+TOPIC_ENGINE_TRACE = "engine.trace.{symbol}"
+PREFIX_ENGINE_TRACE = "engine.trace."
+_ENGINE_TRACE_RE = re.compile("engine\\.trace\\.(?P<symbol>[^.]+)")
+_ENGINE_TRACE_KIND_VALUES = ("RESTED", "ICEBERG_REFILL", "TRAILING_RATCHET")
+EngineTraceKind = Literal["RESTED", "ICEBERG_REFILL", "TRAILING_RATCHET"]
+
+
+_ENGINE_TRACE_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "kind",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _ENGINE_TRACE_KIND_VALUES,
+    },
+    {
+        "name": "order_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "priority_seq",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "displayed_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "ICEBERG_REFILL: the new visible slice.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "stop_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "TRAILING_RATCHET: the new trigger.",
+    },
+    {
+        "name": "last_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "TRAILING_RATCHET: the trade price that moved it.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class EngineTrace:
+    """What the book did that no trade or order message shows, for the audit trail
+    (no gateway forwards it): an order resting or arming and the place in the
+    queue it got, an iceberg refilling its slice at the back of its level, a
+    trailing stop ratcheting its trigger. A replay can then compare its model of
+    priority and of trailing triggers with the engine's own, instead of inferring
+    them.
+
+    `priority_seq` is the book's arrival sequence; it orders orders at one price,
+    nothing more. A trailing stop rests in a list checked in arming order, so its RESTED
+    has no `priority_seq`.
+    """
+
+    symbol: str
+    kind: EngineTraceKind
+    order_id: str
+    priority_seq: int | None = None  # unit: dimensionless
+    displayed_qty: int | None = None  # unit: shares
+    stop_price_ticks: int | None = None  # unit: ticks
+    last_price_ticks: int | None = None  # unit: ticks
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.kind not in _ENGINE_TRACE_KIND_VALUES:
+            raise MessageValidationError(
+                f"kind: {self.kind!r} is not one of {_ENGINE_TRACE_KIND_VALUES!r}"
+            )
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if self.priority_seq is not None:
+            if self.priority_seq < 0:
+                raise MessageValidationError(
+                    f"priority_seq: {self.priority_seq!r} must be >= 0"
+                )
+        if self.displayed_qty is not None:
+            if self.displayed_qty < 0:
+                raise MessageValidationError(
+                    f"displayed_qty: {self.displayed_qty!r} must be >= 0"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "EngineTrace":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            kind=cast(EngineTraceKind, str(p["kind"])),
+            order_id=str(p["order_id"]),
+            priority_seq=(
+                None if p.get("priority_seq") is None else int(p["priority_seq"])
+            ),
+            displayed_qty=(
+                None if p.get("displayed_qty") is None else int(p["displayed_qty"])
+            ),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
+            last_price_ticks=(
+                None
+                if p.get("last_price_ticks") is None
+                else int(p["last_price_ticks"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+            "kind": self.kind,
+            "order_id": self.order_id,
+        }
+        if self.priority_seq is not None:
+            payload["priority_seq"] = self.priority_seq
+        if self.displayed_qty is not None:
+            payload["displayed_qty"] = self.displayed_qty
+        if self.stop_price_ticks is not None:
+            payload["stop_price_ticks"] = self.stop_price_ticks
+        if self.last_price_ticks is not None:
+            payload["last_price_ticks"] = self.last_price_ticks
+        return payload
+
+
+def topic_engine_trace(symbol: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"engine.trace.{symbol}"
+
+
+def match_engine_trace(topic: str) -> str | None:
+    """Return ``symbol`` when ``topic`` matches, else None."""
+    m = _ENGINE_TRACE_RE.fullmatch(topic)
+    return m.group("symbol") if m else None
+
+
+def make_engine_trace(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = EngineTrace.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_engine_trace(obj.symbol), obj.to_dict())
+
+
+def make_engine_trace_unchecked(
+    *,
+    symbol: str,
+    kind: EngineTraceKind,
+    order_id: str,
+    priority_seq: int | None = None,
+    displayed_qty: int | None = None,
+    stop_price_ticks: int | None = None,
+    last_price_ticks: int | None = None,
+) -> list[bytes]:
+    """Identical frames to ``make_engine_trace``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "symbol": str(symbol),
+        "kind": str(kind),
+        "order_id": str(order_id),
+    }
+    if priority_seq is not None:
+        payload["priority_seq"] = int(priority_seq)
+    if displayed_qty is not None:
+        payload["displayed_qty"] = int(displayed_qty)
+    if stop_price_ticks is not None:
+        payload["stop_price_ticks"] = int(stop_price_ticks)
+    if last_price_ticks is not None:
+        payload["last_price_ticks"] = int(last_price_ticks)
+    return [
+        topic_engine_trace(symbol).encode(),
+        _msg.dumps(payload),
+    ]
+
+
+def parse_engine_trace(frames: list[bytes]) -> "EngineTrace":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_engine_trace(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_ENGINE_TRACE!r}")
+    payload = {**payload, "symbol": matched}
+    obj = EngineTrace.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_engine_trace() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ENGINE_TRACE_FIELDS
+
+
 TOPIC_ORDER_AMENDED = "order.amended.{gateway_id}"
 PREFIX_ORDER_AMENDED = "order.amended."
 _ORDER_AMENDED_RE = re.compile("order\\.amended\\.(?P<gateway_id>[^.]+)")
@@ -5270,6 +5795,8 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_FILL,
     TOPIC_ORDER_CANCELLED,
     TOPIC_ORDER_EXPIRED,
+    TOPIC_ORDER_TRIGGERED,
+    TOPIC_ENGINE_TRACE,
     TOPIC_ORDER_AMENDED,
     TOPIC_ORDER_NEW,
     TOPIC_ORDER_CANCEL,

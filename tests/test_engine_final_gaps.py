@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
+from tests.engine_harness import last_ack
 from edumatcher.engine.config_loader import (
     EngineConfig,
     FixGatewayConfig,
@@ -535,5 +536,5 @@ class TestTrailingStopBuy:
             trail_offset_ticks=5,
         )
         engine._handle_new_order(o.to_dict())
-        _, msg = decode(pub_sock.sent[-1])
+        _, msg = last_ack(pub_sock.sent)
         assert msg["accepted"] is True

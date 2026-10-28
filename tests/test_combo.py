@@ -459,18 +459,20 @@ class TestComboValidation:
         payload = _two_leg_combo()
         engine._handle_combo_order(payload)
 
-        assert len(pub_sock.sent) == 3
+        # The legs' engine.trace RESTED (S24) aside.
+        sent = [f for f in pub_sock.sent if not f[0].startswith(b"engine.trace.")]
+        assert len(sent) == 3
 
-        topic, msg = decode(pub_sock.sent[0])
+        topic, msg = decode(sent[0])
         assert topic == "combo.ack.TRADER01"
         assert msg["accepted"] is True
 
-        leg0_topic, leg0_msg = decode(pub_sock.sent[1])
+        leg0_topic, leg0_msg = decode(sent[1])
         assert leg0_topic == "order.ack.TRADER01"
         assert leg0_msg["accepted"] is True
         assert leg0_msg["symbol"] == "AAPL"
 
-        leg1_topic, leg1_msg = decode(pub_sock.sent[2])
+        leg1_topic, leg1_msg = decode(sent[2])
         assert leg1_topic == "order.ack.TRADER01"
         assert leg1_msg["accepted"] is True
         assert leg1_msg["symbol"] == "MSFT"

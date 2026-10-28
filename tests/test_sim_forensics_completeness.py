@@ -166,9 +166,7 @@ def _record_engine(state: Path) -> list[str]:
         mock.patch.multiple(engine_main, GTC_ORDERS_FILE=state / "gtc_orders.json", GTC_COMBOS_FILE=state / "gtc_combos.json", BOOK_STATS_FILE=state / "book_stats.json"),  # fmt: skip
     ):
         engine = engine_main.Engine(config_path=None)
-        engine._announce_startup(1)
-        engine._restore_gtc()
-        engine._load_config()
+        engine._startup(1)
     ask = compiled.engine.symbols["AAPL"].market_maker_quotes[0].ask_price_ticks / 100
 
     def command(topic: str, payload: dict[str, Any]) -> None:

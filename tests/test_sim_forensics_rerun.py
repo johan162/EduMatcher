@@ -107,9 +107,7 @@ def record(data: Path) -> Path:
         ),
     ):
         engine = engine_main.Engine(config_path=None)
-        engine._announce_startup(1)
-        engine._restore_gtc()
-        engine._load_config()
+        engine._startup(1)
     for gw in ("TRADER01", "TRADER02", "MM01"):
         rec.command(engine, "system.gateway_connect", {"gateway_id": gw})
     buy = order_payload(Side.BUY, OrderType.LIMIT, 10, "TRADER01", price=ask)

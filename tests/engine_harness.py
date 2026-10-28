@@ -234,6 +234,16 @@ def msgs(pub_sock: FakeSock, topic: str) -> list[dict[str, Any]]:
     return out
 
 
+def last_ack(sent: list[list[bytes]]) -> tuple[str, dict[str, Any]]:
+    """The last order or OCO ack among published frames: since S24 a
+    resting order's ack is followed by its engine.trace RESTED."""
+    for frames in reversed(sent):
+        topic, payload = decode(frames)
+        if topic.startswith(("order.ack.", "oco.ack.")):
+            return topic, payload
+    raise AssertionError("no ack published")
+
+
 def all_msgs(pub_sock: FakeSock) -> list[tuple[str, dict[str, Any]]]:
     """Decode every published message as (topic, payload)."""
     return [decode(frames) for frames in pub_sock.sent]

@@ -72,12 +72,14 @@ _E6_EVERY = 100_000
 _E6_SPAN = 20_000
 _E7_SHIFT = 7
 _KEEP = 50
+#: Numbers a restarted engine assigns afresh (E6).
+_RENUMBERED = frozenset({"priority_seq"})
 #: Answers that depend on other symbols' orders: order ids are engine-wide.
 _CROSS_SYMBOL_CODES = frozenset({"DUPLICATE_ORDER"})
 #: Payload keys naming the order, quote or OCO a message is about.
 _ID_KEYS = ("order_id", "id", "quote_id", "oco_id", "cancelled_order_id", "bid_order_id", "ask_order_id", "order_id_1")  # fmt: skip
 #: Prices in ticks a client sends, and display prices the engine publishes.
-_TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks"})  # fmt: skip
+_TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks", "trigger_price_ticks", "last_price_ticks"})  # fmt: skip
 #: Σ price_ticks × qty, and the quantity each shifts with.
 _NOTIONAL_KEYS = {"fill_notional_ticks": "fill_qty", "cum_notional_ticks": "cum_qty"}
 _PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price"})  # fmt: skip
@@ -151,6 +153,7 @@ class _Run:
         ref: Msgs,
         only: set[str | None] | None,
         exact: bool = True,
+        ignore: frozenset[str] = frozenset(),
         **context: object,
     ) -> None:
         """Compare *mine* with the reference's *ref* symbol by symbol (only
@@ -159,6 +162,9 @@ class _Run:
         if not exact:
             mine = [(t, _rounded(p)) for t, p in mine]
             ref = [(t, _rounded(p)) for t, p in ref]
+        if ignore:
+            mine = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in mine]  # fmt: skip
+            ref = [(t, {k: v for k, v in p.items() if k not in ignore}) for t, p in ref]  # fmt: skip
         mg, rg = self.where.group(mine), self.where.group(ref)
         keys = only if only is not None else set(mg) | set(rg)
         for g in sorted(keys, key=str):
@@ -342,7 +348,9 @@ class _Recovery:
             self.connects[str(p.get("gateway_id"))] = p
         if self.lane is not None:
             self.lane.engine._dispatch_pull_message(topic, p)
-            self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
+            # A restart numbers each book's queue afresh: the order of the
+            # queue is compared at the restart, not the numbers after it.
+            self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, ignore=_RENUMBERED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
             self.left -= 1
             if self.left <= 0:
                 self.lane = None

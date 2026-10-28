@@ -392,6 +392,22 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": ("gateway_id",),
         "fields": _order.describe_order_expired(),
     },
+    _order.TOPIC_ORDER_TRIGGERED: {
+        "family": "order",
+        "message": "order_triggered",
+        "prefix": _order.PREFIX_ORDER_TRIGGERED,
+        "transport": ("engine_pub",),
+        "params": ("gateway_id",),
+        "fields": _order.describe_order_triggered(),
+    },
+    _order.TOPIC_ENGINE_TRACE: {
+        "family": "order",
+        "message": "engine_trace",
+        "prefix": _order.PREFIX_ENGINE_TRACE,
+        "transport": ("engine_pub",),
+        "params": ("symbol",),
+        "fields": _order.describe_engine_trace(),
+    },
     _order.TOPIC_ORDER_AMENDED: {
         "family": "order",
         "message": "order_amended",
@@ -567,6 +583,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "transport": ("engine_pub",),
         "params": ("gateway_id",),
         "fields": _risk.describe_kill_switch_global_ack(),
+    },
+    _risk.TOPIC_BAND: {
+        "family": "risk",
+        "message": "band",
+        "prefix": _risk.PREFIX_BAND,
+        "transport": ("engine_pub",),
+        "params": ("symbol",),
+        "fields": _risk.describe_band(),
     },
     _risk.TOPIC_SYMBOL_HALT: {
         "family": "risk",

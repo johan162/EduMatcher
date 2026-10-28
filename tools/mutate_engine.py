@@ -152,9 +152,11 @@ MUTANTS: tuple[Mutant, ...] = (
         OB,
         "            heapq.heappop(self._buy_stops)\n"
         "            stop_order = entry.order\n"
+        "            self._note_trigger(stop_order)\n"
         "            if stop_order.order_type == OrderType.STOP:",
         "            heapq.heappop(self._buy_stops)\n"
         "            stop_order = entry.order\n"
+        "            self._note_trigger(stop_order)\n"
         "            if True:",
     ),
     Mutant(

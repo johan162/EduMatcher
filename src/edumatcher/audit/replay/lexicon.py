@@ -82,6 +82,7 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     "combo_type": {"AON": "all-or-none"},
     "liquidity_flag": {"MAKER": "resting", "TAKER": "aggressing"},
+    "becomes": {"MARKET": "a market order", "LIMIT": "a limit order"},
     "match_type": {
         "CONTINUOUS": "in continuous matching",
         "OPENING_AUCTION": "in the opening auction",
@@ -204,6 +205,11 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     "kind": {
         "ORDER": "order",
         "COMBO": "combo",
+        # engine.trace and risk.band
+        "RESTED": "rested in the book",
+        "ICEBERG_REFILL": "refilled its visible slice",
+        "TRAILING_RATCHET": "moved its trailing trigger",
+        "COLLAR": "a price collar",
         # news.event
         "EARNINGS": "earnings",
         "GUIDANCE": "guidance",

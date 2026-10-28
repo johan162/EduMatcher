@@ -100,9 +100,11 @@ class TestTheAppendixDocumentsEveryMessage:
 
         125 -> 126: system.startup, the first message of every engine start,
         which makes an audit trail self-describing (sim forensics S21).
+
+        126 -> 129: order.triggered, engine.trace and risk.band (S24).
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 126, total
+        assert total == 129, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

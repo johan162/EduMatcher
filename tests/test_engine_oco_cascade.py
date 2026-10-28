@@ -161,11 +161,13 @@ def test_a_triggered_sibling_still_queued_in_the_cascade_is_cancelled(
     assert (fill["buy_order_id"], fill["price"]) == (limit_leg, 95.0)
     assert traded(pub, stop_leg) == []
     assert oco_cancelled(pub, "GW01") == [stop_leg]
-    # Nothing at all reported the stop leg as traded or cancelled otherwise.
+    # Nothing at all reported the stop leg as traded or cancelled otherwise
+    # (it did fire before it was pulled: order.triggered says so).
     assert [
         topic
         for topic, p in all_msgs(pub)
-        if p.get("order_id") == stop_leg and not topic.startswith("order.ack.")
+        if p.get("order_id") == stop_leg
+        and topic.startswith(("order.fill.", "order.cancelled.", "order.expired."))
     ] == []
 
 

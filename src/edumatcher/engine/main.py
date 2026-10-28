@@ -156,6 +156,11 @@ from edumatcher.models.generated.order import (
     topic_order_ack,
 )
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
+from edumatcher.models.generated.order import (
+    make_engine_trace_unchecked,
+    make_order_triggered_unchecked,
+)
+from edumatcher.models.generated.risk import make_band_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
@@ -637,6 +642,9 @@ class Engine:
         self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, CollarConfig] = {}
+        #: What the books report beyond trades and order events, shared by
+        #: every book and published by _flush_trace (S24).
+        self._trace: list[tuple[Any, ...]] = []
         # Order-size / notional caps — keyed by symbol; populated in
         # _load_config(). Absent symbol means no cap is configured.
         self._order_limits: dict[str, OrderLimitsConfig] = {}
@@ -1036,6 +1044,7 @@ class Engine:
             book.on_quote_leg_fill = self._on_quote_leg_filled
             # X15: the same for an OCO leg's sibling.
             book.on_oco_leg_done = self._check_oco_after_event
+            book.trace = self._trace
             self.books[symbol] = book
         return self.books[symbol]
 
@@ -1373,6 +1382,60 @@ class Engine:
     # ------------------------------------------------------------------
     # Startup — restore GTC orders
     # ------------------------------------------------------------------
+
+    def _startup(self, run_seq: int) -> None:
+        """Everything ``run`` does before serving: announce, restore, seed,
+        then publish what that left in the books' trace and the collars."""
+        self._announce_startup(run_seq)
+        self._restore_gtc()
+        self._load_config()  # seed stats + MM orders (after GTC restore)
+        self._flush_trace()
+        self._publish_bands()
+
+    def _flush_trace(self) -> None:
+        """Publish the books' trace: ``order.triggered.<GW>`` for a stop that
+        fired, ``engine.trace.<SYM>`` (audit only) for the rest."""
+        send = self.pub_sock.send_multipart
+        for rec in self._trace:
+            kind = rec[0]
+            if kind == "TRIGGERED":
+                _, symbol, order, armed, stop, trade_id, trade_price, becomes = rec
+                send(
+                    make_order_triggered_unchecked(
+                        gateway_id=order.gateway_id,
+                        order_id=order.id,
+                        symbol=symbol,
+                        order_type=armed,
+                        stop_price_ticks=stop,
+                        trigger_trade_id=trade_id,
+                        trigger_price_ticks=trade_price,
+                        becomes=becomes,
+                        client_tag=order.client_tag,
+                    )
+                )
+            elif kind == "RESTED":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3]))  # fmt: skip
+            elif kind == "ICEBERG_REFILL":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
+            else:  # TRAILING_RATCHET
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4]))  # fmt: skip
+        self._trace.clear()
+
+    def _publish_bands(self) -> None:
+        """``risk.band.<SYM>`` for each collared symbol: the static band and
+        the dynamic band's width, as ``validate_collar`` applies them."""
+        for symbol, c in sorted(self._collars.items()):
+            ref = c.reference_price
+            self.pub_sock.send_multipart(
+                make_band_unchecked(
+                    symbol=symbol,
+                    kind="COLLAR",
+                    reference_price_ticks=ref,
+                    static_low_ticks=int(ref * (1 - c.static_band_pct)),
+                    static_high_ticks=int(ref * (1 + c.static_band_pct)),
+                    dynamic_band_pct=c.dynamic_band_pct,
+                )
+            )
 
     def _announce_startup(self, run_seq: int) -> None:
         """Publish ``system.startup``: which engine, configuration and
@@ -3229,6 +3292,10 @@ class Engine:
           A participant therefore learns of its own fill slightly before the
           public tape shows it.
         """
+        # Step 0: what the book did on the way -- a stop that fired, an order
+        # that rested -- before the fills it explains.
+        if self._trace:
+            self._flush_trace()
         # Step 1: collapse the trade list into "what did each order execute
         # in total", so a sweep that hit 5 resting orders gives the aggressor
         # ONE order.fill (qty summed, VWAP price) and each resting order its own.
@@ -6801,6 +6868,10 @@ class Engine:
             except Exception:
                 log.error("Diagnostic publish for %s failed", topic)
             self._reject_after_error(topic, payload, fills_before)
+        # What the command's book changes did not publish yet (an amend's
+        # new priority, a stop that only armed).
+        if self._trace:
+            self._flush_trace()
 
     def _reject_after_error(
         self, topic: str, payload: dict[str, Any], fills_before: int
@@ -7028,9 +7099,7 @@ class Engine:
         """
         run_seq = load_and_bump_run_seq(RUN_SEQ_FILE)
         set_run_seq(run_seq)
-        self._announce_startup(run_seq)
-        self._restore_gtc()
-        self._load_config()  # seed stats + MM orders (after GTC restore)
+        self._startup(run_seq)
 
         # Create drop copy publisher here (not in __init__) so that unit tests
         # that call handlers directly never attempt to bind ZMQ port 5557.

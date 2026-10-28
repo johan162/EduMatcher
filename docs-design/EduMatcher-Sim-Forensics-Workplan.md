@@ -46,7 +46,8 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☑ | 2026-10-28 |
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☑ | 2026-10-28 |
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☑ | 2026-10-28 |
-| 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☐ | |
+| 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☑ | 2026-10-28 |
+| 24b | S24b | ALF, BALF and API gateways forward `order.triggered` to clients (protocol records, client libraries, docs) | S24 | 1 d | ☐ | |
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☐ | |
 | 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☐ | |
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
@@ -1513,7 +1514,7 @@ stores' `match_type` columns come with S26's schema change.
 | `system.startup` | `format_version`, `engine_version`, `git_commit`, `python_version`, `run_seq`, `config_sha256`, `config` (the compiled engine config), `loaded` (per persistence file: name, `sha256`, entries) | audit; the first message of every start |
 | `order.triggered.<GW>` | `order_id`, `symbol`, `order_type` (as armed), `stop_price_ticks`, `trigger_trade_id`, `trigger_price_ticks`, `becomes` (`MARKET`/`LIMIT`) | owner and audit |
 | `engine.trace.<SYM>` | `kind`: `TRAILING_RATCHET` (`order_id`, `stop_price_ticks`, `last_price_ticks`), `ICEBERG_REFILL` (`order_id`, `displayed_qty`, `priority_seq`) or `RESTED` (`order_id`, `priority_seq`: an order rests or arms; added in S22) | audit only (no gateway forwards it) |
-| `risk.band.<SYM>` | `kind` (`COLLAR`/`CIRCUIT_BREAKER`), `reference_price_ticks`, `low_ticks`, `high_ticks`, `source` | public; on every change |
+| `risk.band.<SYM>` | `kind` (`COLLAR`), `reference_price_ticks`, `static_low_ticks`, `static_high_ticks`, `dynamic_band_pct` — once per collared symbol at startup (changed in S24, decided with the maintainer: the dynamic band follows from the trades, circuit-breaker corridors are on `circuit_breaker.halt/extend`) | public |
 | `system.book_checkpoint.<SYM>` | `reason` (`STARTUP`/`PHASE`/`EOD`), `phase`, resting orders (`Order.to_dict` + `priority_seq`, hidden qty), armed and trailing stops with current trigger, quote ids, OCO groups, combo links, last trade/buy/sell prices | audit |
 
 **Audit file (S21):** first line of every file `# edumatcher-audit
@@ -1935,4 +1936,39 @@ checkpoints), and `order.amended` no `priority_kept` (it has
 - Holistic: 11 150 passed, coverage 88.8 %; `make _check` clean; e2e 15
   of 15 (`aapl[7]` → `aapl[8]` fixed by the maintainer in the working
   tree, uncommitted, not part of S23).
+
+### S24 — done 2026-10-28
+
+Decided with the maintainer: `risk.band` is the collar as applied —
+published once per collared symbol at startup (`reference_price_ticks`,
+`static_low/high_ticks`, `dynamic_band_pct`); the dynamic band follows
+from the trades and circuit-breaker corridors are already on
+`circuit_breaker.halt/extend`. Recorded in S20's list.
+
+- **Book → engine:** `OrderBook.trace` is a list the engine shares across
+  its books (`Engine._trace`); the book appends what no trade or order
+  event shows — `RESTED` where it assigns an arrival sequence (rest, stop
+  arm, an amend that loses priority; a trailing stop's without one: it
+  rests in a list), `ICEBERG_REFILL`, `TRAILING_RATCHET`, and
+  `TRIGGERED` before a stop is converted (as armed, on `last_trade_id`,
+  the new `OrderBook` field set by `_apply_fill`). Mutant M11's pattern
+  now includes the `_note_trigger` line.
+- **Engine:** `_flush_trace` publishes `order.triggered.<GW>` and the
+  audit-only `engine.trace.<SYM>`, first thing in `_publish_dispatch`
+  (before the fills they explain) and at the end of
+  `_dispatch_pull_message`; `_publish_bands`; one `_startup()` (announce,
+  restore, seed, flush, bands) that `Engine.run` and the forensics
+  re-runs (`fresh_engine`) both use.
+- **Forensics:** E6 ignores `priority_seq` (a restart numbers each queue
+  afresh; the restore's order is compared in its state check); E7 shifts
+  `trigger_price_ticks`/`last_price_ticks`. Comparing C7/D5 with these
+  events is S28's.
+- Not yet to clients: the gateways subscribe to an explicit list, so
+  `order.triggered` reaches the bus and the audit only — new **S24b**.
+- Tests: `tests/test_engine_trace.py` (8); ack-reading tests use
+  `engine_harness.last_ack` (a resting order's ack is followed by its
+  RESTED); OCO cascade test: the pulled stop leg did fire
+  (`order.triggered`), it is fills and cancels that must not name it.
+  Counts: 129 messages, 19 risk topics; lexicon glosses.
+- Holistic: 11 167 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
 
