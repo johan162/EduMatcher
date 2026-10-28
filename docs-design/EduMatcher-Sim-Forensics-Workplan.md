@@ -2057,3 +2057,11 @@ from the trades and circuit-breaker corridors are already on
 - **Before the next sim run:** delete the data dir's `stats.db` and
   `clearing.db` (refused otherwise).
 
+#### The SIM-Run
+
+For the 1 h run:
+1. Delete stats.db and clearing.db first.
+2. Regenerate and deploy s300-sim. It now has collars and breakers.
+3. Once continuous trading starts, run PYTHONPATH=tools poetry run python -m sim_ops and restart the engine by hand when it prints the reminder.
+4. Then run make forensics SLOW=1 and look at H5.
+
