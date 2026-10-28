@@ -489,6 +489,17 @@ class AlfClient:
                         self._orders[oid][k.lower()] = f[k]
             return
 
+        if t == "TRIGGERED":
+            # A stop fired; its fills follow.
+            trade = f"  on {f['TRADE_PRICE']}" if f.get("TRADE_PRICE") else ""
+            tag = f"  tag={f['TAG']}" if f.get("TAG") else ""
+            self._pr(
+                f"[{ts}] {_MAGENTA}TRIGGERED{_RESET} {f.get('ORDER_ID', '?')}  "
+                f"{f.get('TYPE', '-')} stop={f.get('STOP', '-')}{trade}  "
+                f"-> {f.get('BECOMES', '-')}{tag}"
+            )
+            return
+
         if t == "CANCELLED":
             oid = f.get("ORDER_ID", "?")
             tag = f"  tag={f.get('TAG')}" if f.get("TAG") else ""

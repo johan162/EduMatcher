@@ -104,9 +104,10 @@ class TestTheAppendixDocumentsEveryMessage:
         126 -> 129: order.triggered, engine.trace and risk.band (S24).
 
         129 -> 130: system.book_checkpoint (S25).
+        130 -> 131: BALF stop_triggered (S24b).
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 130, total
+        assert total == 131, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

@@ -643,7 +643,9 @@ sense that matters — the spec is authoritative for its bytes and the gateway c
 the generated code — and listed as an exception only because the enumeration keys
 on the JSON `make_*` builder a binary frame does not have. The deviation is a
 property of *how binary messages are built* (packing a struct, not calling a JSON
-builder), not a gap in coverage.
+builder), not a gap in coverage. `order.stop_triggered` (BALF `0x21`, the
+gateway's rendering of `order.triggered`) is the second binary frame and is
+listed for the same reason: `serialise_stop_triggered_balf` is its builder.
 
 **Formerly two: `index.index_history`.** The history reply once took only its topic
 constant, on the reasoning that it replays records verbatim from an append-only

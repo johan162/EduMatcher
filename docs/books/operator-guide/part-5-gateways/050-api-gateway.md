@@ -1307,6 +1307,13 @@ own `order.fill` event (see [Drop Copy](../../protocols-and-clients/part-3-sessi
 on this path it now needs no cross-reference — a client reading only its own
 private fills can tell which side of the spread it was on.
 
+When a STOP, STOP_LIMIT or TRAILING_STOP fires, the private stream carries an
+`order.triggered` event *before* the order's fills: `order_type` as armed,
+`stop_price_ticks` it fired at, the trade that reached it
+(`trigger_trade_id`, `trigger_price_ticks`; both absent when the last price
+came from a restart) and what it `becomes` (`MARKET` or `LIMIT`). Prices are
+integer ticks.
+
 Order lifecycle events — `order.ack`, `order.fill`, `order.cancelled`,
 `order.expired` — additionally carry the identifiers that tie the order to the
 structure it belongs to, when it belongs to one:

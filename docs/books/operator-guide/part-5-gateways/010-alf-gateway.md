@@ -701,6 +701,7 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | `ACK` | `ORDER_ID`, `ACCEPTED`, `REASON`, `REJECT_CODE`, `SYMBOL`, `SIDE`, `TYPE`, `TAG`, `RTAG` |
 | `FILL` | `ORDER_ID`, `FILL_QTY`, `FILL_PRICE`, `REMAINING`, `STATUS`, `SYMBOL`, `SIDE`, `TRADE_IDS`, `LIQUIDITY`, `TAG` |
 | `AMENDED` | `ORDER_ID`, `PRICE`, `QTY`, `REMAINING`, `PRIORITY_RESET`, `TAG`, `RTAG` |
+| `TRIGGERED` | `ORDER_ID`, `SYMBOL`, `TYPE`, `STOP`, `BECOMES`, `TRADE_ID`, `TRADE_PRICE`, `TAG` — a stop fired, sent before its `FILL`s; see [TRAILING_STOP](../../protocols-and-clients/part-2-specifications/010-alf.md#trailing_stop) |
 | `CANCELLED` | `ORDER_ID`, `TAG`, `RTAG`, `CANCEL_REASON` — see [Unsolicited cancels](#unsolicited-cancels) |
 | `EXPIRED` | `ORDER_ID`, `TAG` |
 | `QUOTE_ACK` | `QUOTE_ID`, `SYM`, `ACCEPTED`, `REASON`, `BID_ID`, `ASK_ID` |

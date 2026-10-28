@@ -23,19 +23,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_ROOT = REPO_ROOT / "spec"
 SRC = REPO_ROOT / "src" / "edumatcher"
 
-#: The one message deliberately built without a generated ``make_*`` builder.
-#: It is a documented exclusion (design section 9), not an omission:
+#: The messages deliberately built without a generated ``make_*`` builder.
+#: They are documented exclusions (design section 9), not omissions:
 #:
 #:   * ``order.execution_report`` — the BALF binary frame. It has no bus topic
 #:     and makes no ``make_*`` call; its layout already comes from the spec via
 #:     the generated C/Python projections (``test_msgen_balf_roundtrip.py``), so
 #:     it is generated where it counts, just not as a JSON builder call.
+#:   * ``order.stop_triggered`` — BALF's rendering of ``order.triggered``, for
+#:     the same reason (S24b).
 #:
 #: ``index.index_history`` was the second exclusion until its archive was made
 #: canonical by validating on write, letting the reply adopt the checked builder
 #: (design section 9). Anything else unadopted is a regression. To adopt this
 #: one, delete it here in the same change that routes it through its builder.
-ADOPTION_EXCLUSIONS = frozenset({"execution_report"})
+ADOPTION_EXCLUSIONS = frozenset({"execution_report", "stop_triggered"})
 
 #: Messages whose spec has landed but whose producer is a later work package.
 #: Empty since the operator dashboard plan adopted all three of its messages

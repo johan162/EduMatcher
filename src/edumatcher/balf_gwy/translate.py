@@ -27,7 +27,12 @@ from edumatcher.balf_gwy.protocol import (
 )
 from edumatcher.models.clock import now_ns
 from edumatcher.models.ids import new_order_id
-from edumatcher.models.price import TickViolation, get_tick_decimals, to_ticks_exact
+from edumatcher.models.price import (
+    TickViolation,
+    from_ticks,
+    get_tick_decimals,
+    to_ticks_exact,
+)
 
 # ---------------------------------------------------------------------------
 # NEW_ORDER → engine order dict
@@ -146,6 +151,28 @@ def engine_fill_to_execution_report_dict(
         "symbol": str(payload.get("symbol") or ""),
         "side": str(payload.get("side") or "BUY").upper(),
         "status": str(payload.get("status") or "PARTIAL").upper(),
+    }
+
+
+def engine_triggered_to_stop_triggered_dict(
+    payload: dict[str, Any],
+    balf_order_id: int,
+    client_order_id: int,
+) -> dict[str, Any]:
+    """Map an engine order.triggered payload to a spec-level stop_triggered
+    dict (display prices; 0 for a trigger price the engine did not give)."""
+    symbol = str(payload.get("symbol") or "")
+    trigger = payload.get("trigger_price_ticks")
+    return {
+        "client_order_id": client_order_id,
+        "order_id": balf_order_id,
+        "stop_price": from_ticks(int(payload["stop_price_ticks"]), symbol),
+        "trigger_price": (
+            from_ticks(int(trigger), symbol) if trigger is not None else 0.0
+        ),
+        "symbol": symbol,
+        "order_type": str(payload.get("order_type") or ""),
+        "becomes": str(payload.get("becomes") or ""),
     }
 
 

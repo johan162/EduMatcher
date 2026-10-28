@@ -740,6 +740,30 @@ def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> N
     peer.close()
 
 
+def test_a_fired_stop_reaches_its_session_as_triggered(gateway: AlfGateway) -> None:
+    from edumatcher.models.price import register_tick_decimals
+
+    register_tick_decimals("AAPL", 2)
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    base = {"gateway_id": "TRADER01", "order_id": "ORD1", "symbol": "AAPL", "order_type": "STOP_LIMIT", "stop_price_ticks": 14800, "becomes": "LIMIT"}  # fmt: skip
+    fake_sub._queue.append(encode("order.triggered.TRADER01", {**base, "trigger_trade_id": "T9", "trigger_price_ticks": 14795, "client_tag": "TAG-1"}))  # fmt: skip
+    fake_sub._queue.append(encode("order.triggered.TRADER01", base))  # after a restart
+
+    gateway._poll_engine_events()
+
+    first, second = (parse_alf_line(x.decode("utf-8")) for x in session.out_queue)
+    assert first.command == "TRIGGERED"
+    assert first.fields == {"ORDER_ID": "ORD1", "SYMBOL": "AAPL", "TYPE": "STOP_LIMIT", "STOP": "148.00", "BECOMES": "LIMIT", "TRADE_ID": "T9", "TRADE_PRICE": "147.95", "TAG": "TAG-1"}  # fmt: skip
+    assert "TRADE_ID" not in second.fields and "TRADE_PRICE" not in second.fields
+    peer.close()
+
+
 def test_disconnect_sends_gateway_disconnect(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True

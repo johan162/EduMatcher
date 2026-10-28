@@ -604,6 +604,21 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         return;
     }
 
+    if (strcmp(t, "TRIGGERED") == 0) {
+        /* A stop fired; its fills follow. */
+        const char *oid = alf_get_field(msg, "ORDER_ID");
+        const char *trade = alf_get_field(msg, "TRADE_PRICE");
+        const char *tag = alf_get_field(msg, "TAG");
+        event_print("[%s] %sTRIGGERED%s %s  %s stop=%s%s%s  -> %s%s%s",
+                    ts, COL_MAGENTA, COL_RESET, oid ? oid : "?",
+                    alf_get_field(msg, "TYPE") ? alf_get_field(msg, "TYPE") : "-",
+                    alf_get_field(msg, "STOP") ? alf_get_field(msg, "STOP") : "-",
+                    trade ? " on " : "", trade ? trade : "",
+                    alf_get_field(msg, "BECOMES") ? alf_get_field(msg, "BECOMES") : "-",
+                    tag ? " tag=" : "", tag ? tag : "");
+        return;
+    }
+
     if (strcmp(t, "CANCELLED") == 0) {
         const char *oid = alf_get_field(msg, "ORDER_ID");
         const char *tag = alf_get_field(msg, "TAG");

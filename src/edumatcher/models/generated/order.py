@@ -997,6 +997,236 @@ def parse_execution_report_balf(frame: bytes) -> "ExecutionReport":
     )
 
 
+_STOP_TRIGGERED_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
+_STOP_TRIGGERED_ORDER_TYPE_VALUES = ("STOP", "STOP_LIMIT", "TRAILING_STOP")
+StopTriggeredOrderType = Literal["STOP", "STOP_LIMIT", "TRAILING_STOP"]
+_STOP_TRIGGERED_BECOMES_VALUES = ("MARKET", "LIMIT")
+StopTriggeredBecomes = Literal["MARKET", "LIMIT"]
+
+
+_STOP_TRIGGERED_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "client_order_id",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Echoed from the original NEW_ORDER.",
+    },
+    {
+        "name": "order_id",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Session-scoped BALF order id assigned by the gateway.",
+    },
+    {
+        "name": "stop_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": True,
+        "doc": "The trigger price it fired at (a trailing stop's ratcheted one), in display money; i64 x 10^8 on the wire.",
+        "constraints": {"gt": 0},
+    },
+    {
+        "name": "trigger_price",
+        "type": "float",
+        "unit": "display_price",
+        "required": True,
+        "doc": "The price of the trade that reached the trigger; 0 when the last price came from a restart.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 8, "pattern": "^[A-Z0-9._]+$"},
+    },
+    {
+        "name": "order_type",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "The order as it was armed (NEW_ORDER's order_type codes).",
+        "values": _STOP_TRIGGERED_ORDER_TYPE_VALUES,
+    },
+    {
+        "name": "becomes",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT.",
+        "values": _STOP_TRIGGERED_BECOMES_VALUES,
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StopTriggered:
+    """A stop, stop-limit or trailing stop of this session has fired. Sent before the
+    order's own execution reports, so a client knows why its stop traded -- the
+    FIX analogue is ExecType=L.
+    """
+
+    client_order_id: int  # unit: dimensionless
+    order_id: int  # unit: dimensionless
+    stop_price: float  # unit: display_price
+    trigger_price: float  # unit: display_price
+    symbol: str
+    order_type: StopTriggeredOrderType
+    becomes: StopTriggeredBecomes
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.stop_price <= 0:
+            raise MessageValidationError(f"stop_price: {self.stop_price!r} must be > 0")
+        if self.trigger_price < 0:
+            raise MessageValidationError(
+                f"trigger_price: {self.trigger_price!r} must be >= 0"
+            )
+        if len(self.symbol) > 8:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 8"
+            )
+        if not _STOP_TRIGGERED_SYMBOL_RE.fullmatch(self.symbol):
+            raise MessageValidationError(
+                f"symbol: {self.symbol!r} does not match {_STOP_TRIGGERED_SYMBOL_RE.pattern!r}"
+            )
+        if self.order_type not in _STOP_TRIGGERED_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_STOP_TRIGGERED_ORDER_TYPE_VALUES!r}"
+            )
+        if self.becomes not in _STOP_TRIGGERED_BECOMES_VALUES:
+            raise MessageValidationError(
+                f"becomes: {self.becomes!r} is not one of {_STOP_TRIGGERED_BECOMES_VALUES!r}"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "StopTriggered":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            client_order_id=int(p["client_order_id"]),
+            order_id=int(p["order_id"]),
+            stop_price=float(p["stop_price"]),
+            trigger_price=float(p["trigger_price"]),
+            symbol=str(p["symbol"]),
+            order_type=cast(StopTriggeredOrderType, str(p["order_type"])),
+            becomes=cast(StopTriggeredBecomes, str(p["becomes"])),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "client_order_id": self.client_order_id,
+            "order_id": self.order_id,
+            "stop_price": self.stop_price,
+            "trigger_price": self.trigger_price,
+            "symbol": self.symbol,
+            "order_type": self.order_type,
+            "becomes": self.becomes,
+        }
+
+
+def describe_stop_triggered() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _STOP_TRIGGERED_FIELDS
+
+
+MSGTYPE_STOP_TRIGGERED_BALF = 0x21
+FRAME_SIZE_STOP_TRIGGERED_BALF = 56
+_STOP_TRIGGERED_BALF_FMT = "<QQqq8sBB6x"
+_STOP_TRIGGERED_BALF_STRUCT = _struct.Struct(_STOP_TRIGGERED_BALF_FMT)
+PRICE_SCALE_STOP_TRIGGERED_BALF = 100000000
+_STOP_TRIGGERED_BALF_ORDER_TYPE_TO_WIRE = {
+    "STOP": 5,
+    "STOP_LIMIT": 6,
+    "TRAILING_STOP": 8,
+}
+_STOP_TRIGGERED_BALF_ORDER_TYPE_FROM_WIRE = {
+    v: k for k, v in _STOP_TRIGGERED_BALF_ORDER_TYPE_TO_WIRE.items()
+}
+_STOP_TRIGGERED_BALF_BECOMES_TO_WIRE = {"MARKET": 1, "LIMIT": 2}
+_STOP_TRIGGERED_BALF_BECOMES_FROM_WIRE = {
+    v: k for k, v in _STOP_TRIGGERED_BALF_BECOMES_TO_WIRE.items()
+}
+
+
+def serialise_stop_triggered_balf(
+    payload: Mapping[str, Any],
+    *,
+    seq_no: int,
+    flags: int = 0,
+) -> bytes:
+    """Serialise a payload into one BALF frame.
+
+    Returns exactly FRAME_SIZE_STOP_TRIGGERED_BALF bytes: the fixed 8-byte header
+    followed by the body laid out in the spec. The header is the generator's, not the
+    spec's — it must not be declared in `layout` (design section B.13).
+
+    Reads only the laid-out fields, and coerces each to its declared type, so this and
+    the typed binding never disagree.
+    """
+    return _msg_header(
+        MSGTYPE_STOP_TRIGGERED_BALF, seq_no, flags
+    ) + _STOP_TRIGGERED_BALF_STRUCT.pack(
+        int(payload["client_order_id"]),
+        int(payload["order_id"]),
+        round(float(payload["stop_price"]) * 100000000),
+        round(float(payload["trigger_price"]) * 100000000),
+        str(payload["symbol"]).encode(),
+        _STOP_TRIGGERED_BALF_ORDER_TYPE_TO_WIRE[str(payload["order_type"])],
+        _STOP_TRIGGERED_BALF_BECOMES_TO_WIRE[str(payload["becomes"])],
+    )
+
+
+def parse_stop_triggered_balf(frame: bytes) -> "StopTriggered":
+    """Parse one BALF frame into this message.
+
+    Validates the header (magic, version, msg_type) and the frame length, because a
+    wrong-length frame is not this message and reading it as one would silently produce
+    nonsense. Field values are coerced but their declared rules are not checked — call
+    ``validate()`` for that (design section 5.1.1).
+
+    Raises MessageValidationError on a header or length mismatch.
+    """
+    _check_frame(frame, MSGTYPE_STOP_TRIGGERED_BALF, FRAME_SIZE_STOP_TRIGGERED_BALF)
+    (
+        client_order_id,
+        order_id,
+        stop_price,
+        trigger_price,
+        symbol,
+        order_type,
+        becomes,
+    ) = _STOP_TRIGGERED_BALF_STRUCT.unpack_from(frame, 8)
+    return StopTriggered(
+        client_order_id=client_order_id,
+        order_id=order_id,
+        stop_price=stop_price / 100000000,
+        trigger_price=trigger_price / 100000000,
+        symbol=symbol.split(b"\x00")[0].decode(),
+        order_type=cast(
+            StopTriggeredOrderType,
+            _STOP_TRIGGERED_BALF_ORDER_TYPE_FROM_WIRE.get(order_type, ""),
+        ),
+        becomes=cast(
+            StopTriggeredBecomes,
+            _STOP_TRIGGERED_BALF_BECOMES_FROM_WIRE.get(becomes, ""),
+        ),
+    )
+
+
 TOPIC_ORDER_ACK = "order.ack.{gateway_id}"
 PREFIX_ORDER_ACK = "order.ack."
 _ORDER_ACK_RE = re.compile("order\\.ack\\.(?P<gateway_id>[^.]+)")

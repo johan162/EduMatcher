@@ -630,6 +630,7 @@ Every topic in the system, and which process puts it on the wire.
 | `sim.command_ack.{gateway_id}` | `sim` | `market_sim` |
 | `sim.state` | `sim` | `market_sim` |
 | `sim.value` | `sim` | `market_sim` |
+| `stop_triggered (no bus topic)` | `order` | `gateway` |
 | `system.book_checkpoint.{symbol}` | `system` | `engine` |
 | `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
@@ -2227,6 +2228,28 @@ Private per-order fill notification, sent to the gateway session that owns the o
     remaining_qty reaching zero is what marks the order done; status FILLED says the same thing and the two must agree.
 
 **See also:** `trade.executed`
+
+### `stop_triggered` (no bus topic)
+
+**Published by:** `gateway`
+
+**Transport:** `balf`
+
+**Since:** 1.3
+
+A stop, stop-limit or trailing stop of this session has fired. Sent before the order's own execution reports, so a client knows why its stop traded -- the FIX analogue is ExecType=L.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `client_order_id` | `int` | required | unit `dimensionless` | Echoed from the original NEW_ORDER. |
+| `order_id` | `int` | required | unit `dimensionless` | Session-scoped BALF order id assigned by the gateway. |
+| `stop_price` | `float` | required | gt 0, unit `display_price` | The trigger price it fired at (a trailing stop's ratcheted one), in display money; i64 x 10^8 on the wire. |
+| `trigger_price` | `float` | required | ge 0, unit `display_price` | The price of the trade that reached the trigger; 0 when the last price came from a restart. |
+| `symbol` | `string` | required | max_len 8, pattern `^[A-Z0-9._]+$` |  |
+| `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed (NEW_ORDER's order_type codes). |
+| `becomes` | enum: `MARKET`, `LIMIT` | required | — | STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT. |
+
+**See also:** `order.triggered.{GW_ID}`, `execution_report`
 
 ### `order.ack.{gateway_id}`
 

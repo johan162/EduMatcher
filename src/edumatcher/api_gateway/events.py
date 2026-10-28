@@ -11,6 +11,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDER_TRIGGERED,
     PREFIX_ORDERS,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
@@ -76,6 +77,8 @@ PRIVATE_PREFIXES = (
     ORDER_AMENDED_PREFIX,
     ORDER_CANCELLED_PREFIX,
     ORDER_EXPIRED_PREFIX,
+    # A fired stop, ahead of its fills: WebSocket type `order.triggered`.
+    PREFIX_ORDER_TRIGGERED,
     PREFIX_ORDERS,
     PREFIX_COMBO_ACK,
     PREFIX_COMBO_STATUS,

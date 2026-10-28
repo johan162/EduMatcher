@@ -105,3 +105,27 @@ class TestCommandTopicsComeFromTheSpec:
         """The set is matched by equality, so a wildcard entry would silently
         never match and the leak would reopen."""
         assert not any("{" in topic for topic in COMMAND_TOPICS)
+
+
+class TestATriggeredStopIsPrivate:
+    """order.triggered.{GW} (S24b): to its own gateway's stream only."""
+
+    def test_it_reaches_its_gateway_and_no_one_else(self, client: EngineClient) -> None:
+        own: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        other: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        market: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        client._sinks["GW01"].add(own)
+        client._sinks["GW02"].add(other)
+        client._market_data_sinks.add(market)
+        client._handle_event(
+            "order.triggered.GW01",
+            {
+                "gateway_id": "GW01",
+                "order_id": "O1",
+                "symbol": "AAPL",
+                "client_tag": "t",
+            },
+        )
+        event = own.get_nowait()
+        assert (event["type"], event["gateway_id"]) == ("order.triggered", "GW01")
+        assert other.empty() and market.empty()

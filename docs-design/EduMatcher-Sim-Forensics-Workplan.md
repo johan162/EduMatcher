@@ -47,7 +47,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☑ | 2026-10-28 |
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☑ | 2026-10-28 |
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☑ | 2026-10-28 |
-| 24b | S24b | ALF, BALF and API gateways forward `order.triggered` to clients (protocol records, client libraries, docs) | S24 | 1 d | ☐ | |
+| 24b | S24b | ALF, BALF and API gateways forward `order.triggered` to clients (protocol records, client libraries, docs) | S24 | 1 d | ☑ | 2026-10-28 |
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☑ | 2026-10-28 |
 | 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☑ | 2026-10-28 |
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
@@ -1998,6 +1998,25 @@ from the trades and circuit-breaker corridors are already on
   (`order.triggered`), it is fills and cancels that must not name it.
   Counts: 129 messages, 19 risk topics; lexicon glosses.
 - Holistic: 11 167 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
+
+### S24b — done 2026-10-28
+
+- **ALF:** `TRIGGERED|ORDER_ID|SYMBOL|TYPE|STOP|BECOMES[|TRADE_ID|TRADE_PRICE][|TAG]`,
+  display prices from the tick registry, sent ahead of the fills.
+- **BALF:** new server frame `STOP_TRIGGERED` (0x21, 56 bytes: ids, stop and
+  trigger price x 10^8, symbol, order type, becomes), spec'd in
+  `spec/messages/order.yaml` like `execution_report` (generated Python and C
+  bindings; second documented adoption exclusion). Existing BALF clients
+  reject an unknown `msg_type` by the spec's rule: pre-1.0, no compatibility
+  shim; the example parsers know it.
+- **API:** `order.triggered` joins `PRIVATE_PREFIXES` (WebSocket type
+  `order.triggered`, own gateway's stream only). Before, it fell through to
+  the market-data branch, where no channel matched, so it reached no one.
+- Clients: pm-admin unchanged; ALF example clients (Python, C) print it; the
+  AI swarm's transport ignores it.
+- Generator fix: a BALF `enum_map` whose one-line dict passes 88 columns is
+  emitted one pair per line (black-clean).
+- Holistic: 11 196 passed, coverage 88.66 %; `make _check` clean; e2e 15/15.
 
 ### S25 — done 2026-10-28
 
