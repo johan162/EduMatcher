@@ -5,6 +5,7 @@
  */
 
 import type {
+  CompanyProfile,
   DailyBar,
   IndexDailyRow,
   IndexEventRow,
@@ -18,16 +19,29 @@ import type {
 /** Largest page the history endpoints allow. */
 const MAX_LIMIT = 5000;
 
+/** A non-2xx answer, with its status for callers that tell the cases apart. */
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(body.error?.message ?? `${res.status} ${res.statusText}`);
+    throw new HttpError(body.error?.message ?? `${res.status} ${res.statusText}`, res.status);
   }
   return res.json() as Promise<T>;
 }
 
 export const api = {
+  /** One company profile; 404 when the symbol has none, 503 when the database is missing. */
+  company: (symbol: string) => getJson<CompanyProfile>(`/api/companies/${encodeURIComponent(symbol)}`),
+
   /**
    * Today's daily rollup for every symbol, in one request.
    *

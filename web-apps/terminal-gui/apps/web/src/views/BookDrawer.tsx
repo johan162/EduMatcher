@@ -6,8 +6,10 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import clsx from "clsx";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { CompanyPanel } from "../components/CompanyPanel.js";
 import { Drawer } from "../components/layout/Drawer.js";
 import { MinuteBars } from "../components/MinuteBars.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
@@ -46,6 +48,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+const TABS = [
+  { id: "overview", label: "OVERVIEW" },
+  { id: "company", label: "COMPANY" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+
 export interface BookDrawerProps {
   symbol: string;
   /** The symbol's row, absent when the gateway's symbol list does not hold it. */
@@ -57,6 +65,7 @@ export interface BookDrawerProps {
 }
 
 export function BookDrawer({ symbol, row, tradeCount, decimals, onClose }: BookDrawerProps) {
+  const [tab, setTab] = useState<TabId>("overview");
   const theme = usePrefsStore((s) => s.theme);
   const sessionPhase = useLiveStore((s) => s.sessionPhase);
   const { data } = useQuery({
@@ -69,7 +78,10 @@ export function BookDrawer({ symbol, row, tradeCount, decimals, onClose }: BookD
   const activity = perMinute(data?.trades ?? []);
 
   const link = (
-    <Link to={`/symbol/${encodeURIComponent(symbol)}`} className="whitespace-nowrap text-accent hover:underline">
+    <Link
+      to={`/symbol/${encodeURIComponent(symbol)}`}
+      className="whitespace-nowrap text-accent hover:underline"
+    >
       Symbol detail
     </Link>
   );
@@ -86,25 +98,53 @@ export function BookDrawer({ symbol, row, tradeCount, decimals, onClose }: BookD
   const state = row.halted ? "HALTED" : (sessionPhase?.replaceAll("_", " ").toLowerCase() ?? ABSENT);
   return (
     <Drawer kind="Order book" title={symbol} actions={link} onClose={onClose}>
-      <Facts
-        label="Book figures"
-        items={[
-          ["State", state],
-          ["Last", price(row.last, decimals)],
-          ["Bid", `${price(row.bid, decimals)} × ${qty(row.bidSz)}`],
-          ["Ask", `${price(row.ask, decimals)} × ${qty(row.askSz)}`],
-          ["Spread", price(row.spread, decimals)],
-          ["Volume", qty(row.volume)],
-          ["Turnover", compact(row.turnover)],
-          ["Trades today", qty(tradeCount)],
-        ]}
-      />
-      <Section title="Activity">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <MinuteBars label="Trades per minute" points={activity.trades} format={qty} theme={theme} />
-          <MinuteBars label="Traded value per minute" points={activity.value} format={compact} theme={theme} />
-        </div>
-      </Section>
+      <div role="tablist" aria-label="Order book views" className="-mt-1 mb-4 flex border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={clsx(
+              "-mb-px border-b-2 px-3 py-2 text-xs font-semibold tracking-wide",
+              tab === t.id ? "border-accent text-fg" : "border-transparent text-fg-subtle hover:text-fg",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "company" ? (
+        <CompanyPanel symbol={symbol} />
+      ) : (
+        <>
+          <Facts
+            label="Book figures"
+            items={[
+              ["State", state],
+              ["Last", price(row.last, decimals)],
+              ["Bid", `${price(row.bid, decimals)} × ${qty(row.bidSz)}`],
+              ["Ask", `${price(row.ask, decimals)} × ${qty(row.askSz)}`],
+              ["Spread", price(row.spread, decimals)],
+              ["Volume", qty(row.volume)],
+              ["Turnover", compact(row.turnover)],
+              ["Trades today", qty(tradeCount)],
+            ]}
+          />
+          <Section title="Activity">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <MinuteBars label="Trades per minute" points={activity.trades} format={qty} theme={theme} />
+              <MinuteBars
+                label="Traded value per minute"
+                points={activity.value}
+                format={compact}
+                theme={theme}
+              />
+            </div>
+          </Section>
+        </>
+      )}
     </Drawer>
   );
 }
