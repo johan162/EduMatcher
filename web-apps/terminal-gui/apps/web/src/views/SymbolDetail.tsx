@@ -355,7 +355,6 @@ function SymbolDetail({ sym }: { sym: string }) {
             top={top}
             today={todayRow}
             prevClose={prevClose}
-            phase={phase}
             rowClass={rowClass}
             decimals={decimals}
             notExecutable={quoteNotExecutable}
@@ -566,7 +565,7 @@ interface ValueRow {
 }
 
 /**
- * The instrument's numbers, in four reading groups.
+ * The instrument's numbers, in three reading groups.
  *
  * Previously one flat eleven-row list, which meant re-scanning all eleven to
  * find any one of them — Open sat above Last, and the quote sat between them.
@@ -575,7 +574,6 @@ interface ValueRow {
  *   Quote      what can be traded against right now
  *   Session    where the price has been today
  *   Activity   how much has actually changed hands
- *   Status     what the exchange says the instrument is doing
  *
  * "Prev close" also used to be `close_price` from *today's* rollup row, which
  * is today's running close — the last price under a second name. The real
@@ -586,7 +584,6 @@ function Values({
   top,
   today,
   prevClose,
-  phase,
   rowClass,
   decimals,
   notExecutable,
@@ -596,7 +593,6 @@ function Values({
   top: TopOfBook | undefined;
   today: DailyBar | undefined;
   prevClose: number | undefined;
-  phase: string | null;
   rowClass: string;
   decimals: number;
   /** Why the quote group cannot be traded on, or null if it can (§ T-M2). */
@@ -704,8 +700,6 @@ function Values({
         <DayRangeBar low={today?.low_price} high={today?.high_price} last={top?.last} decimals={decimals} />
       </Group>
       <Group title="Activity" rows={activity} rowClass={rowClass} />
-      {/* "Phase", not "Session" — the group above already owns that word here. */}
-      <Group title="Status" rows={[{ label: "Phase", value: phase ?? ABSENT }]} rowClass={rowClass} />
     </table>
   );
 }
