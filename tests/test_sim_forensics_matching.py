@@ -21,6 +21,14 @@ from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
 CHECKS = ["C7", "D1", "D10", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
 SYM = "AAPL"
+CONFIG = {
+    "engine": {
+        "symbols": {SYM: {"tick_decimals": 2}},
+        "fix_gateways": {
+            gw: {"smp_action": "CANCEL_AGGRESSOR"} for gw in ("GW1", "GW2")
+        },
+    }
+}
 
 
 @pytest.fixture
@@ -39,6 +47,9 @@ class Tape:
         # The replay's view kept here too, for snapshots: id → [side, price,
         # shown, peak, remaining].
         self.book: dict[str, list[Any]] = {}
+        # The engine's first message carries the run's config: tick sizes and
+        # the gateways' SMP modes, all the replay reads from it.
+        self.put("system.startup", {"config": json.dumps(CONFIG)}, new_chain=True)
         self.put("system.startup_recovery", {"restored_orders": 0}, new_chain=True)
 
     def _msg(self) -> str:
@@ -178,16 +189,7 @@ class Tape:
         self.put(f"book.{SYM}", payload, new_chain=True)
 
     def write(self, data: Path) -> Path:
-        (data / "ref_data").mkdir(parents=True)
-        config = {
-            "engine": {
-                "symbols": {SYM: {"tick_decimals": 2}},
-                "fix_gateways": {
-                    gw: {"smp_action": "CANCEL_AGGRESSOR"} for gw in ("GW1", "GW2")
-                },
-            }
-        }
-        (data / "ref_data" / "engine_config.json").write_text(json.dumps(config))
+        data.mkdir(parents=True)
         (data / "audit.log").write_text("".join(self.lines))
         return data
 
@@ -707,7 +709,7 @@ def test_the_checks_skip_a_run_with_an_engine_restart(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
     t = continuous_day()
-    t.put("system.startup_recovery", {"restored_orders": 3}, new_chain=True)
+    t.put("system.startup", {"config": json.dumps(CONFIG)}, new_chain=True)
     data = t.write(tmp_path / "data")
     (result,) = run_checks(open_ds(data), [REGISTRY["D9"]], 10)
     assert (result.status, "restarted" in result.note) == ("SKIPPED", True)

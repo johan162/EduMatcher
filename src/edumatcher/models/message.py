@@ -1658,6 +1658,31 @@ def make_admin_action_msg(
     )
 
 
+def make_startup_msg(
+    *,
+    engine_version: str,
+    git_commit: str,
+    python_version: str,
+    run_seq: int,
+    config_sha256: str | None,
+    config: str | None,
+    loaded: list[dict[str, Any]],
+) -> list[bytes]:
+    """Engine → all subscribers, the first message of every start: which
+    engine, configuration and persisted state it began from — see
+    spec/messages/system.yaml::startup."""
+    return _gen_system.make_startup(
+        format_version=1,
+        engine_version=engine_version,
+        git_commit=git_commit,
+        python_version=python_version,
+        run_seq=run_seq,
+        config_sha256=config_sha256,
+        config=config,
+        loaded=loaded,
+    )
+
+
 def make_startup_recovery_msg(
     restored_orders: int = 0,
     discarded_stale_day_orders: int = 0,

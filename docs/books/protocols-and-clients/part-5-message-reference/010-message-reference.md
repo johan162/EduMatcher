@@ -655,6 +655,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.session_schedule_request` | `system` | `admin`, `api_gateway` |
 | `system.session_state_request` | `system` | `admin`, `api_gateway`, `gateway`, `scheduler` |
 | `system.session_status.{gateway_id}` | `system` | `engine` |
+| `system.startup` | `system` | `engine` |
 | `system.startup_recovery` | `system` | `engine` |
 | `system.symbols.{gateway_id}` | `system` | `engine` |
 | `system.symbols_request` | `system` | `admin`, `api_gateway`, `gateway`, `stats` |
@@ -3614,6 +3615,16 @@ A symbol's configured circuit-breaker ladder and its lookback.
 | `reference_window_ns` | `int` | required | ge 0, unit `duration_nanos` | Lookback window for the reference price. A duration. |
 | `levels` | list of [`CircuitBreakerLevel`](#circuitbreakerlevel) | required | — |  |
 
+#### `LoadedFile`
+
+One persistence file the engine read at startup, identified by its bytes: a replay can tell which state the run started from.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `name` | `string` | required | max_len 64 | File name in the data dir, e.g. gtc_orders.json. |
+| `sha256` | `string` | `null` when unset | max_len 64 | SHA-256 of the file's bytes; null when the file did not exist. |
+| `entries` | `int` | required | ge 0, unit `dimensionless` | Orders, combos or symbols the file holds (0 when absent). |
+
 #### `ReferenceSymbol`
 
 One instrument's static configuration. Distinct from `SymbolInfo`, which is the same instrument as a *caller* sees it: this record is identical for every caller and changes only on reload, which is why the bundle can be cached and hashed and the symbols reply cannot.
@@ -3993,6 +4004,33 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
     That is why it has no `_request` sibling and why it is in this half rather than 6.1f's request/reply pairs.
 
 **See also:** `book.{SYMBOL}`, `session.state`
+
+### `system.startup`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+Engine to all subscribers, the first message of every start, before the restore: which engine, which configuration and which persisted state this run began from. Makes an audit trail self-describing -- a replay rebuilds the engine from this message alone, years later, without the data dir's `ref_data/` (which the next deploy overwrites) or a guess at the engine version. Also the marker of an engine start: every per-topic `seq` begins again after it.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `format_version` | `int` | required | ge 1, unit `dimensionless` | Version of this message's meaning; 1 at EduMatcher 1.0. |
+| `engine_version` | `string` | required | max_len 64 | The installed edumatcher package version. |
+| `git_commit` | `string` | required | max_len 64 | `git describe --always --dirty` of the source the engine runs from; "unknown" for an installed wheel. The package version stays put between releases, the commit does not. |
+| `python_version` | `string` | required | max_len 32 |  |
+| `run_seq` | `int` | required | ge 0, unit `dimensionless` | The engine-run sequence this start took (trade id prefix). |
+| `config_sha256` | `string` | `null` when unset | max_len 64 | SHA-256 of the compiled config artifact; null when none is deployed. |
+| `config` | `string` | `null` when unset | — | The compiled config artifact, verbatim JSON text; null when the engine runs on a YAML config or none. |
+| `loaded` | list of [`LoadedFile`](#loadedfile) | required | max_items 8 | The persistence files the restore reads: orders, combos, book statistics. |
+
+!!! note
+
+    `config` is the compiled artifact as `pm-config-deploy` wrote it, verbatim (about 250 KB for 300 symbols), so `config_sha256` is the artifact file's hash and `config_artifact.decode(config)` gives back exactly what the engine loaded.
+
+**See also:** `system.startup_recovery`, `system.recovery_item`
 
 ### `system.startup_recovery`
 

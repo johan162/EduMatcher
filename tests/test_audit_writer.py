@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone, tzinfo
@@ -11,13 +12,17 @@ from zoneinfo import ZoneInfo
 
 from edumatcher.audit.main import AuditProcess
 from edumatcher.audit.query import discover_log_files
-from edumatcher.audit.writer import AuditFile
+from edumatcher.audit.writer import AuditFile, file_day, header_line
 
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 
 def _lines(path: Path) -> list[str]:
-    return path.read_text(encoding="utf-8").splitlines()
+    """A file's records; every non-empty file starts with the header."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if lines:
+        assert lines[0].startswith("# edumatcher-audit format=1 pm-audit="), lines[0]
+    return lines[1:]
 
 
 def _parts(root: Path) -> list[str]:
@@ -84,7 +89,8 @@ class TestAuditFile:
         self, tmp_path: Path
     ) -> None:
         log = tmp_path / "audit.log"
-        log.write_text("[2026-10-24T23:30:00.000+00:00] [x] {}\n")  # 01:30 on the 25th
+        # 01:30 on the 25th, after the header a previous pm-audit wrote.
+        log.write_text(f"{header_line()}\n[2026-10-24T23:30:00.000+00:00] [x] {{}}\n")
         f = AuditFile(log, 1 << 20, STOCKHOLM)
         f.write("2026-10-25", ["next"])
         f.close()
@@ -244,3 +250,20 @@ class TestAuditProcessDay:
         assert [int(x.rsplit("n=", 1)[1]) for x in got] == list(range(total))
         for path in (tmp_path / "audit").glob("audit-2026-10-24.*.log"):
             assert all("2026-10-24T" in x for x in _lines(path))
+
+
+def test_each_file_starts_with_a_header_its_day_reads_past(tmp_path: Path) -> None:
+    """The header names the format; file_day still takes the first record's
+    stamp, and query.parse_line skips the header."""
+    from edumatcher.audit.query import parse_line
+
+    path = tmp_path / "audit.log"
+    f = AuditFile(path, max_bytes=10_000, tz=STOCKHOLM)
+    rec = '[2026-03-29T22:30:00.000+00:00] [order.new] [seq=1] {"id": "o1"}'
+    f.write("2026-03-30", [rec])
+    f.close()
+    header, first = path.read_text(encoding="utf-8").splitlines()
+    assert re.fullmatch(r"# edumatcher-audit format=1 pm-audit=\S+ started=\S+", header)
+    assert file_day(path, STOCKHOLM) == "2026-03-30"  # 00:30 local, not the header's
+    assert parse_line(header) is None
+    assert parse_line(first) is not None

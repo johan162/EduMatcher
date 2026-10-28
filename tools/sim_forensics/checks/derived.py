@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
-from sim_forensics.audit import Line, audit_files, lines
+from sim_forensics.audit import STARTUP, Line, audit_files, lines
 from sim_forensics.dataset import Dataset, iso_ns
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
@@ -191,7 +191,7 @@ class _Market:
         self.eod_ts = ""
         self.start_ts = ""
         self.from_start = False
-        #: When each engine start (system.startup_recovery) was written.
+        #: When each engine start (system.startup) was written.
         self.starts: list[str] = []
         self.snapshots = self.checked = self.outside = 0
         self.f6: list[Sample] = []
@@ -265,7 +265,7 @@ class _Market:
         for ln in stream:
             if not self.start_ts:
                 self.start_ts = ln.ts
-                self.from_start = ln.topic == "system.startup_recovery"
+                self.from_start = ln.topic == STARTUP
             topic = ln.topic
             book, prev_book = prev_book, None
             if topic == "trade.executed":
@@ -277,7 +277,7 @@ class _Market:
                 self._depth(topic[6:], ln, book)
             elif topic == "system.eod":
                 self.eod, self.eod_ts = json.loads(ln.body), ln.ts
-            elif topic == "system.startup_recovery":
+            elif topic == STARTUP:
                 self.starts.append(ln.ts)
         for symbol in self.rows:
             self._close_rows(symbol, "~")

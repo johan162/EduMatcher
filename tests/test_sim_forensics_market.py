@@ -54,7 +54,7 @@ def tape() -> list[tuple[str, str, dict[str, Any]]]:
     """(audit time, topic, payload). The auction print moves last_price but
     neither side price; the BUY trade moves last_buy_price."""
     return [
-        ("07:00:00.000", "system.startup_recovery", {"restored_orders": 0}),
+        ("07:00:00.000", "system.startup", {"run_seq": 1}),
         ("07:00:00.100", "book.AAPL", book("07:00:00.100", 99.0, 101.0)),
         ("07:30:00.000", "trade.executed", T1),
         ("08:00:00.000", "trade.executed", T2),

@@ -87,9 +87,10 @@ def _symbol_day(sym: str, cfg: Any) -> list[tuple[str, dict[str, Any]]]:
 
 def write_day(data: Path) -> Path:
     data.mkdir()
-    (data / "ref_data").mkdir()
-    compiled = deploy(resolve_example("s3-basic"), data / "ref_data" / "engine_config.json")  # fmt: skip
-    lines = ['[2026-10-28T07:00:00.000+00:00] [system.startup_recovery] [seq=1 msg=M0 chain=M0] {"restored_orders": 0}\n']  # fmt: skip
+    artifact = data.parent / "deployed" / "engine_config.json"
+    compiled = deploy(resolve_example("s3-basic"), artifact)
+    startup = {"run_seq": 1, "config": artifact.read_text(encoding="utf-8")}
+    lines = [f"[2026-10-28T07:00:00.000+00:00] [system.startup] [seq=1 msg=M0 chain=M0] {json.dumps(startup)}\n"]  # fmt: skip
     for i, (topic, p) in enumerate(_day(compiled.engine), 1):
         lines.append(f"[2026-10-28T07:00:{i % 60:02d}.000+00:00] [{topic}] [seq={i} msg=M{i} chain=M{i}] {json.dumps(p)}\n")  # fmt: skip
     (data / "audit.log").write_text("".join(lines))

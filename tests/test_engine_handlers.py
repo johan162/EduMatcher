@@ -1007,9 +1007,7 @@ class TestGatewayStatus:
             "edumatcher.engine.main.load_engine_config",
             lambda _: (_ for _ in ()).throw(FileNotFoundError()),
         )
-        monkeypatch.setattr(
-            "edumatcher.engine.main._compiled_engine_config", lambda: None
-        )
+        monkeypatch.setattr("edumatcher.engine.main._deployed_config", lambda: None)
         monkeypatch.setattr(
             "edumatcher.engine.main.ENGINE_CONFIG_FILE",
             tmp_path / "missing" / "engine_config.yaml",

@@ -50,7 +50,7 @@ FEATURES = (
     "risk.circuit_breaker_halt_all",
     "risk.circuit_breaker_resume_all",
     "system.reference_reload",
-    "system.startup_recovery",
+    "system.startup",
 )
 _EXACT = frozenset(f for f in FEATURES if not f.endswith("."))
 _PREFIXES = tuple(f for f in FEATURES if f.endswith("."))

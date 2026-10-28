@@ -40,7 +40,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import Line, audit_files, lines
+from sim_forensics.audit import Line, audit_files, lines, run_config_text
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
@@ -59,7 +59,7 @@ _EXACT = {
     "order.oco": "oco",
     "trade.executed": "trade",
     "session.state": "phase",
-    "system.startup_recovery": "startup",
+    "system.startup": "startup",
 }
 _PREFIX = {
     "order.ack.": "ack",
@@ -1059,10 +1059,7 @@ def _replay(ds: Dataset) -> _Replay:
         files = audit_files(ds.data_dir)
         if not files:
             raise Skipped("no audit.log in the data dir")
-        config_path = ds.data_dir / "ref_data" / "engine_config.json"
-        if not config_path.is_file():
-            raise Skipped("no ref_data/engine_config.json (tick sizes, SMP modes)")
-        engine = json.loads(config_path.read_text())["engine"]
+        engine = json.loads(run_config_text(files))["engine"]
         smp = {
             gw: str(c.get("smp_action") or "NONE")
             for gw, c in engine.get("fix_gateways", {}).items()

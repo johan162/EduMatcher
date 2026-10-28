@@ -43,7 +43,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☑ (E6: X23–X26 for triage) | 2026-10-28 |
 | 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☑ | 2026-10-28 |
 | 20b | S20b | Restart contract: fix X23–X26 (OCO links, last price, no recovery uncross, priority order) and X27 | S20 | 1 d | ☑ | 2026-10-28 |
-| 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☐ | |
+| 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☑ | 2026-10-28 |
 | 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☐ | |
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☐ | |
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☐ | |
@@ -1824,4 +1824,42 @@ every finding is a fix that does not touch them.
 - **2026-10-28 run, E6 alone** (sim still running, so more commands than
   S19's run): 26 restarts, 1 656 books re-seeded by design, **0
   differences** — state and 20 000 commands after each restart.
+
+### S21 — done 2026-10-28
+
+- **`system.startup`** (spec `system.yaml`, new record type `LoadedFile`;
+  `make_startup_msg`): `format_version` 1, `engine_version`,
+  `git_commit` (`cli_version.source_commit()`, also used by E2's note now),
+  `python_version`, `run_seq`, `config_sha256`, `config`, `loaded`. The
+  spec has no free-form object type, so `config` is the artifact's JSON
+  *text*, verbatim: its hash is the file's and `config_artifact.decode`
+  gives back what the engine loaded. `Engine.run` publishes it right after
+  the run_seq bump, before `_restore_gtc` — necessary, because
+  `recovery_item` lines precede `startup_recovery`, so after a restart
+  with restored orders the latter was never the first line (A5, the
+  replay and the re-runs assumed it was).
+- One read for config and text: `config_artifact.load_compiled_text()`
+  (`load_compiled_config` now uses it); the engine's
+  `_compiled_engine_config()` became `_deployed_config()` → (engine
+  config, text). A YAML-configured engine announces `config: null`.
+- **Audit header:** `AuditFile.write` starts every new file (first and
+  after each roll) with `# edumatcher-audit format=1 pm-audit=<version>
+  started=<iso>`; `file_day` reads past it; `query.parse_line` already
+  skips it.
+- **Forensics:** `audit.STARTUP` and `run_config_text(files)`: A5 resets
+  on `system.startup`, the replay (C7, D*), E1–E7 and the F pass take it
+  as the run's start, and the replay and re-runs build from its config —
+  `ref_data/` is no longer read. An audit written before S21 has no
+  `system.startup`, so those checks now SKIP on it (no compatibility path,
+  by policy); the 2026-10-28 run's results stand as recorded above.
+- Tests: `tests/test_engine_startup_announcement.py` (2: content against a
+  deployed artifact; first before the restore's messages), the writer's
+  header test, every forensics recording now starts as `Engine.run` does,
+  and the E tests deploy outside the data dir (`ref_data/` absent).
+  Message counts: system family 34, reference 126. Operator guide,
+  audit trail chapter: the header line and `system.startup`.
+- Holistic: full suite 11 114 passed; `make _check` clean; e2e (sim
+  stopped) 14 of 15 — `test_all_nine_rows_show_the_live_exchange` fails
+  at HEAD too: 1394a847 added the dashboard's "Long" column, so the
+  order-books row's "Trades" is cell 8, not 7 (test not updated then).
 

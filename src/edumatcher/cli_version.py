@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
 def package_version() -> str:
@@ -12,6 +14,23 @@ def package_version() -> str:
     try:
         return version("edumatcher")
     except PackageNotFoundError:
+        return "unknown"
+
+
+def source_commit() -> str:
+    """``git describe --always --dirty`` of the source this code runs from,
+    or "unknown" (an installed wheel, no git). The package version stays put
+    between releases; the commit says which code it was."""
+    src = Path(__file__).resolve().parent
+    try:
+        return subprocess.run(
+            ["git", "-C", str(src), "describe", "--always", "--dirty"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+    except OSError, subprocess.SubprocessError:
         return "unknown"
 
 

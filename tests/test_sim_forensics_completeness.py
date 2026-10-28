@@ -81,7 +81,7 @@ def test_audit_files_start_with_the_daily_archives(tmp_path: Path) -> None:
 
 
 def start() -> str:
-    return line("system.startup_recovery", 1)
+    return line("system.startup", 1)
 
 
 def test_a5_passes_contiguous_topics(open_ds: OpenDataset, tmp_path: Path) -> None:
@@ -147,23 +147,25 @@ class _AuditSock:
         self.lines.append(f"[{TS}] [{topic}] [{_meta_section(frames)}] {json.dumps(payload)}\n")  # fmt: skip
 
 
-def _record_engine(ref_data: Path) -> list[str]:
+def _record_engine(state: Path) -> list[str]:
     """A real Engine on s1-basic behind the real sequenced, causal PUB
-    socket; commands go in as the engine's receive loop takes them (echo,
-    then dispatch)."""
-    compiled = deploy(resolve_example("s1-basic"), ref_data / "engine_config.json")
+    socket, started as ``Engine.run`` starts it (announce, restore, seed);
+    commands go in as the engine's receive loop takes them (echo, then
+    dispatch)."""
+    artifact = state / "engine_config.json"
+    compiled = deploy(resolve_example("s1-basic"), artifact)
     sock = _AuditSock()
     pub = CausalPublisher(SequencedPublisher(sock))
     reset_trade_ids_for_tests()
     set_run_seq(1)
     with (
-        mock.patch.object(engine_main, "_compiled_engine_config", lambda: compiled.engine),  # fmt: skip
+        mock.patch.object(engine_main, "_deployed_config", lambda: (compiled.engine, artifact.read_text(encoding="utf-8"))),  # fmt: skip
         mock.patch.object(engine_main, "make_puller", lambda _: mock.Mock()),
         mock.patch.object(engine_main, "make_publisher", lambda _: pub),
-        mock.patch.object(engine_main, "load_gtc_orders", lambda _: []),
-        mock.patch.object(engine_main, "load_book_stats", lambda _: {}),
+        mock.patch.multiple(engine_main, GTC_ORDERS_FILE=state / "gtc_orders.json", GTC_COMBOS_FILE=state / "gtc_combos.json", BOOK_STATS_FILE=state / "book_stats.json"),  # fmt: skip
     ):
         engine = engine_main.Engine(config_path=None)
+        engine._announce_startup(1)
         engine._restore_gtc()
         engine._load_config()
     ask = compiled.engine.symbols["AAPL"].market_maker_quotes[0].ask_price_ticks / 100
@@ -186,8 +188,8 @@ def _record_engine(ref_data: Path) -> list[str]:
 def test_a5_passes_a_real_engine_recording_and_finds_a_dropped_line(
     open_ds: OpenDataset, tmp_path: Path
 ) -> None:
-    tape = _record_engine(tmp_path / "ref_data")
-    assert tape[0].split("] [")[1] == "system.startup_recovery"
+    tape = _record_engine(tmp_path / "state")
+    assert tape[0].split("] [")[1] == "system.startup"
     out = a5(open_ds, write(tmp_path, "".join(tape)))
     assert out.violations == 0, out.samples
 

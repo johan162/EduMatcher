@@ -105,8 +105,8 @@ def test_g1_finds_a_finished_combo(world: Path, open_ds: OpenDataset) -> None:
 
 def start_engine_at(data: Path, at: str) -> None:
     (data / "audit.log").write_text(
-        f"[2026-06-15T{at}+00:00] [system.startup_recovery] "
-        '[seq=1 msg=M1 chain=M1] {"restored_orders": 0}\n'
+        f"[2026-06-15T{at}+00:00] [system.startup] "
+        '[seq=1 msg=M1 chain=M1] {"run_seq": 1}\n'
     )
 
 

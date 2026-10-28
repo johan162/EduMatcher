@@ -60,6 +60,7 @@ from collections import defaultdict
 from datetime import datetime
 import hashlib
 import json
+import platform
 import logging
 import random
 import signal
@@ -87,7 +88,7 @@ from edumatcher.engine.auction import (
     execute_uncross,
     executable_at,
 )
-from edumatcher.cli_version import add_version_argument
+from edumatcher.cli_version import add_version_argument, package_version, source_commit
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, validate_collar
 from edumatcher.engine.order_limits import (
@@ -203,6 +204,7 @@ from edumatcher.models.message import (
     make_reference_reload_ack_msg,
     make_admin_action_msg,
     make_risk_state_msg,
+    make_startup_msg,
     make_startup_recovery_msg,
     make_recovery_item_msg,
     make_diagnostic_msg,
@@ -478,16 +480,17 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
-def _compiled_engine_config() -> "EngineConfig | None":
-    """Return the engine section of the deployed artifact, if one is deployed.
+def _deployed_config() -> "tuple[EngineConfig, str] | None":
+    """The engine section of the deployed artifact and the artifact's text,
+    from one read, if one is deployed.
 
     Deferred import: ``config_artifact`` imports the subsystem config modules
     to describe the artifact's shape.
     """
-    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.config_artifact import load_compiled_text
 
-    compiled = load_compiled_config()
-    return None if compiled is None else compiled.engine
+    loaded = load_compiled_text()
+    return None if loaded is None else (loaded[0].engine, loaded[1])
 
 
 #: Longest identifier the engine will echo from an inbound payload back into a
@@ -689,7 +692,10 @@ class Engine:
         # and every gateway resolve the same defaults from the same validated
         # file. An explicit path still parses YAML directly: tests construct an
         # Engine from a fixture without compiling one first.
-        engine_config = _compiled_engine_config() if config_path is None else None
+        deployed = _deployed_config() if config_path is None else None
+        engine_config = deployed[0] if deployed is not None else None
+        #: The artifact the engine runs on, verbatim (``system.startup``).
+        self._config_text = deployed[1] if deployed is not None else None
         path = Path(config_path) if config_path else ENGINE_CONFIG_FILE
         if engine_config is not None or path.exists():
             try:
@@ -1354,6 +1360,38 @@ class Engine:
     # ------------------------------------------------------------------
     # Startup — restore GTC orders
     # ------------------------------------------------------------------
+
+    def _announce_startup(self, run_seq: int) -> None:
+        """Publish ``system.startup``: which engine, configuration and
+        persisted state this start began from. First, before the restore
+        publishes anything: an audit reader takes it as the start of a run."""
+        loaded = []
+        for path in (GTC_ORDERS_FILE, GTC_COMBOS_FILE, BOOK_STATS_FILE):
+            try:
+                data = path.read_bytes()
+            except FileNotFoundError:
+                loaded.append({"name": path.name, "sha256": None, "entries": 0})
+                continue
+            try:
+                entries = len(json.loads(data))
+            except ValueError, TypeError:
+                entries = 0  # the restore reports what it could not read
+            sha = hashlib.sha256(data).hexdigest()
+            loaded.append({"name": path.name, "sha256": sha, "entries": entries})
+        text = self._config_text
+        self.pub_sock.send_multipart(
+            make_startup_msg(
+                engine_version=package_version(),
+                git_commit=source_commit(),
+                python_version=platform.python_version(),
+                run_seq=run_seq,
+                config_sha256=(
+                    hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
+                ),
+                config=text,
+                loaded=loaded,
+            )
+        )
 
     def _restore_gtc(self) -> None:
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
@@ -6941,7 +6979,9 @@ class Engine:
         socket.  The 200 ms poll timeout only bounds how long maintenance can
         be delayed on an idle exchange; under load the loop never waits.
         """
-        set_run_seq(load_and_bump_run_seq(RUN_SEQ_FILE))
+        run_seq = load_and_bump_run_seq(RUN_SEQ_FILE)
+        set_run_seq(run_seq)
+        self._announce_startup(run_seq)
         self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
 

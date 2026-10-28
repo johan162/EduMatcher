@@ -808,6 +808,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": (),
         "fields": _system.describe_eod(),
     },
+    _system.TOPIC_STARTUP: {
+        "family": "system",
+        "message": "startup",
+        "prefix": _system.TOPIC_STARTUP,
+        "transport": ("engine_pub",),
+        "params": (),
+        "fields": _system.describe_startup(),
+    },
     _system.TOPIC_STARTUP_RECOVERY: {
         "family": "system",
         "message": "startup_recovery",

@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import STARTUP, audit_files, lines, run_config_text
 from sim_forensics.checks.rerun import (
     _ID_PREFIX,
     _ORDER_ID,
@@ -62,7 +62,7 @@ from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
-from edumatcher.config_artifact import load_compiled_config
+from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.engine.order_book import _DEAD_STATUSES, OrderBook
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
@@ -178,9 +178,7 @@ class _Run:
         files = audit_files(data)
         if not files:
             raise Skipped("no audit.log in the data dir")
-        compiled = load_compiled_config(data / "ref_data" / "engine_config.json")
-        if compiled is None:
-            raise Skipped("no ref_data/engine_config.json (the run's compiled config)")
+        compiled = decode_artifact(run_config_text(files))
         self.config = config = compiled.engine
         reset_trade_ids_for_tests()
         set_run_seq(1)
@@ -219,13 +217,13 @@ def _commands(files: list[Path]) -> Iterator[tuple[str, str, str, dict[str, Any]
     for ln in lines(files):
         if first:
             first = False
-            if ln.topic != "system.startup_recovery":
+            if ln.topic != STARTUP:
                 raise Skipped(
                     "the audit does not reach back to the engine's start "
                     f"(first line: {ln.topic}); its input is incomplete"
                 )
             continue
-        if ln.topic == "system.startup_recovery":
+        if ln.topic == STARTUP:
             raise Skipped("the engine restarted during the run")
         if ln.topic in commands:
             yield ln.ts, ln.topic, ln.chain, json.loads(ln.body)

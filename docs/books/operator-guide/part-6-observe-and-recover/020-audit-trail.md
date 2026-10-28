@@ -166,6 +166,24 @@ The section is omitted entirely for a message whose publisher stamps no
 envelope, and lines archived before the section existed are still read
 correctly, so a mixed archive needs no flag.
 
+**The header line and the engine's start**
+
+Every file — `audit.log` and each day part — begins with one header line
+that names the format and the recorder:
+
+```
+# edumatcher-audit format=1 pm-audit=1.0.0 started=2026-07-08T00:00:00.002+00:00
+```
+
+Readers skip it (it does not start with `[`). The first record the engine
+publishes on every start is `system.startup`: its version and source
+commit, the `run_seq` it took, the hashes of the persistence files it is
+about to restore from, and the compiled configuration it runs on,
+verbatim. An audit trail therefore describes its own run — a replay can
+rebuild the engine from that one message, after the data directory's
+`ref_data/` has been redeployed. Every per-topic `seq` starts again at 1
+after it.
+
 This is what makes a post-mortem tractable. To follow one order submission
 through everything it caused:
 

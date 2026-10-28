@@ -207,6 +207,26 @@ types:
         doc: "Lookback window for the reference price. A duration."
       - { name: levels, type: list, ref: CircuitBreakerLevel }
 
+  LoadedFile:
+    doc: >
+      One persistence file the engine read at startup, identified by its
+      bytes: a replay can tell which state the run started from.
+    fields:
+      - { name: name, type: string, validate: { max_len: 64 },
+          doc: "File name in the data dir, e.g. gtc_orders.json." }
+      - name: sha256
+        type: string
+        required: false
+        nullable: true
+        validate: { max_len: 64 }
+        doc: "SHA-256 of the file's bytes; null when the file did not exist."
+      - name: entries
+        type: int
+        unit: dimensionless
+        default: 0
+        validate: { ge: 0 }
+        doc: "Orders, combos or symbols the file holds (0 when absent)."
+
   ReferenceSymbol:
     doc: >
       One instrument's static configuration. Distinct from `SymbolInfo`, which
@@ -781,6 +801,64 @@ messages:
       engine_pub: { frames: [topic, json_payload] }
 
   # ======================================================= startup recovery
+  - name: startup
+    topic: "system.startup"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers, the first message of every start, before
+        the restore: which engine, which configuration and which persisted
+        state this run began from. Makes an audit trail self-describing -- a
+        replay rebuilds the engine from this message alone, years later,
+        without the data dir's `ref_data/` (which the next deploy overwrites)
+        or a guess at the engine version. Also the marker of an engine start:
+        every per-topic `seq` begins again after it.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["system.startup_recovery", "system.recovery_item"]
+      example_note: >
+        `config` is the compiled artifact as `pm-config-deploy` wrote it,
+        verbatim (about 250 KB for 300 symbols), so `config_sha256` is the
+        artifact file's hash and `config_artifact.decode(config)` gives back
+        exactly what the engine loaded.
+    fields:
+      - { name: format_version, type: int, unit: dimensionless, required: true,
+          validate: { ge: 1 },
+          doc: "Version of this message's meaning; 1 at EduMatcher 1.0." }
+      - { name: engine_version, type: string, required: true,
+          validate: { max_len: 64 },
+          doc: "The installed edumatcher package version." }
+      - name: git_commit
+        type: string
+        default: "unknown"
+        validate: { max_len: 64 }
+        doc: >
+          `git describe --always --dirty` of the source the engine runs
+          from; "unknown" for an installed wheel. The package version stays
+          put between releases, the commit does not.
+      - { name: python_version, type: string, required: true,
+          validate: { max_len: 32 } }
+      - { name: run_seq, type: int, unit: dimensionless, required: true,
+          validate: { ge: 0 },
+          doc: "The engine-run sequence this start took (trade id prefix)." }
+      - name: config_sha256
+        type: string
+        required: false
+        nullable: true
+        validate: { max_len: 64 }
+        doc: "SHA-256 of the compiled config artifact; null when none is deployed."
+      - name: config
+        type: string
+        required: false
+        nullable: true
+        doc: >
+          The compiled config artifact, verbatim JSON text; null when the
+          engine runs on a YAML config or none.
+      - { name: loaded, type: list, ref: LoadedFile, validate: { max_items: 8 },
+          doc: "The persistence files the restore reads: orders, combos, book statistics." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
   - name: startup_recovery
     topic: "system.startup_recovery"
     transport: [engine_pub]

@@ -316,6 +316,58 @@ class SymbolCircuitBreaker:
 
 
 @dataclass(frozen=True, slots=True)
+class LoadedFile:
+    """One persistence file the engine read at startup, identified by its bytes: a
+    replay can tell which state the run started from.
+    """
+
+    name: str
+    entries: int  # unit: dimensionless
+    sha256: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.name) > 64:
+            raise MessageValidationError(
+                f"name: length {len(self.name)} exceeds max_len 64"
+            )
+        if self.sha256 is not None:
+            if len(self.sha256) > 64:
+                raise MessageValidationError(
+                    f"sha256: length {len(self.sha256)} exceeds max_len 64"
+                )
+        if self.entries < 0:
+            raise MessageValidationError(f"entries: {self.entries!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "LoadedFile":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            name=str(p["name"]),
+            sha256=None if p.get("sha256") is None else str(p["sha256"]),
+            entries=int(p["entries"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "name": self.name,
+            "sha256": self.sha256,
+            "entries": self.entries,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ReferenceSymbol:
     """One instrument's static configuration. Distinct from `SymbolInfo`, which is
     the same instrument as a *caller* sees it: this record is identical for every
@@ -2588,6 +2640,208 @@ def parse_eod(frames: list[bytes]) -> "Eod":
 def describe_eod() -> tuple[dict[str, Any], ...]:
     """Return field metadata, for spy tools and runtime pretty-printing."""
     return _EOD_FIELDS
+
+
+TOPIC_STARTUP = "system.startup"
+_TOPIC_STARTUP_BYTES = "system.startup".encode()
+
+
+_STARTUP_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "format_version",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "Version of this message's meaning; 1 at EduMatcher 1.0.",
+        "constraints": {"ge": 1},
+    },
+    {
+        "name": "engine_version",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The installed edumatcher package version.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "git_commit",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": '`git describe --always --dirty` of the source the engine runs from; "unknown" for an installed wheel. The package version stays put between releases, the commit does not.',
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "python_version",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "run_seq",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "The engine-run sequence this start took (trade id prefix).",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "config_sha256",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "SHA-256 of the compiled config artifact; null when none is deployed.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "config",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The compiled config artifact, verbatim JSON text; null when the engine runs on a YAML config or none.",
+    },
+    {
+        "name": "loaded",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "The persistence files the restore reads: orders, combos, book statistics.",
+        "constraints": {"max_items": 8},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Startup:
+    """Engine to all subscribers, the first message of every start, before the
+    restore: which engine, which configuration and which persisted state this run
+    began from. Makes an audit trail self-describing -- a replay rebuilds the
+    engine from this message alone, years later, without the data dir's
+    `ref_data/` (which the next deploy overwrites) or a guess at the engine
+    version. Also the marker of an engine start: every per-topic `seq` begins
+    again after it.
+
+    `config` is the compiled artifact as `pm-config-deploy` wrote it, verbatim (about
+    250 KB for 300 symbols), so `config_sha256` is the artifact file's hash and
+    `config_artifact.decode(config)` gives back exactly what the engine loaded.
+    """
+
+    format_version: int  # unit: dimensionless
+    engine_version: str
+    git_commit: str
+    python_version: str
+    run_seq: int  # unit: dimensionless
+    loaded: list[LoadedFile]
+    config_sha256: str | None = None
+    config: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.format_version < 1:
+            raise MessageValidationError(
+                f"format_version: {self.format_version!r} must be >= 1"
+            )
+        if len(self.engine_version) > 64:
+            raise MessageValidationError(
+                f"engine_version: length {len(self.engine_version)} exceeds max_len 64"
+            )
+        if len(self.git_commit) > 64:
+            raise MessageValidationError(
+                f"git_commit: length {len(self.git_commit)} exceeds max_len 64"
+            )
+        if len(self.python_version) > 32:
+            raise MessageValidationError(
+                f"python_version: length {len(self.python_version)} exceeds max_len 32"
+            )
+        if self.run_seq < 0:
+            raise MessageValidationError(f"run_seq: {self.run_seq!r} must be >= 0")
+        if self.config_sha256 is not None:
+            if len(self.config_sha256) > 64:
+                raise MessageValidationError(
+                    f"config_sha256: length {len(self.config_sha256)} exceeds max_len 64"
+                )
+        if len(self.loaded) > 8:
+            raise MessageValidationError("loaded: more than 8 item(s)")
+        for loaded_item in self.loaded:
+            loaded_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Startup":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            format_version=int(p["format_version"]),
+            engine_version=str(p["engine_version"]),
+            git_commit=str(p["git_commit"]),
+            python_version=str(p["python_version"]),
+            run_seq=int(p["run_seq"]),
+            config_sha256=(
+                None if p.get("config_sha256") is None else str(p["config_sha256"])
+            ),
+            config=None if p.get("config") is None else str(p["config"]),
+            loaded=[LoadedFile.from_dict(item) for item in p["loaded"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "format_version": self.format_version,
+            "engine_version": self.engine_version,
+            "git_commit": self.git_commit,
+            "python_version": self.python_version,
+            "run_seq": self.run_seq,
+            "config_sha256": self.config_sha256,
+            "config": self.config,
+            "loaded": [item.to_dict() for item in self.loaded],
+        }
+
+
+def is_startup(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_STARTUP
+
+
+def make_startup(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = Startup.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_STARTUP, obj.to_dict())
+
+
+def parse_startup(frames: list[bytes]) -> "Startup":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = Startup.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_startup() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _STARTUP_FIELDS
 
 
 TOPIC_STARTUP_RECOVERY = "system.startup_recovery"
@@ -6386,6 +6640,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_GATEWAY_BYE,
     TOPIC_EOD,
+    TOPIC_STARTUP,
     TOPIC_STARTUP_RECOVERY,
     TOPIC_RECOVERY_ITEM,
     TOPIC_DIAGNOSTIC,

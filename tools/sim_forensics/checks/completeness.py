@@ -7,8 +7,8 @@ its high-water mark, and a lost or deleted audit file leaves no trace
 either: a hole in a topic's sequence is the only evidence. Every other check
 that reads the audit assumes there is none.
 
-The engine's first message on every start is ``system.startup_recovery``
-with seq 1; there all topics start again at 1. An audit that begins after
+The engine's first message on every start is ``system.startup`` with
+seq 1; there all topics start again at 1. An audit that begins after
 the engine's start cannot say where each topic began, so a topic's first
 line then only sets the baseline.
 """
@@ -19,12 +19,11 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import STARTUP, audit_files, lines
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 _KEEP = 50
-_STARTUP = "system.startup_recovery"
 
 
 @dataclass
@@ -49,7 +48,7 @@ class _Pass:
         if seq is None:
             self.flag("line without seq", topic=topic, ts=ts)
             return
-        if topic == _STARTUP and seq == 1:
+        if topic == STARTUP and seq == 1:
             self.last.clear()
             self.starts += 1
             self.from_start = True

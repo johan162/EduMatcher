@@ -12,11 +12,17 @@ holds ~15 M lines, most of them book snapshots a check may skip unparsed.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
+from sim_forensics.registry import Skipped
+
 from edumatcher.audit.query import discover_log_files, open_log_file
+
+#: The engine's first message on every start (it carries the run's config).
+STARTUP = "system.startup"
 
 
 class Line(NamedTuple):
@@ -55,3 +61,21 @@ def lines(files: list[Path]) -> Iterator[Line]:
                 end = meta.find(" ")
                 seq = int(meta[4 : end if end > 0 else None])
             yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq)
+
+
+def run_config_text(files: list[Path]) -> str:
+    """The compiled config artifact the run's engine announced in its first
+    message, ``system.startup``: the audit describes its own run."""
+    for ln in lines(files):
+        if ln.topic != STARTUP:
+            raise Skipped(
+                f"the audit does not begin with the engine's start ({STARTUP}); "
+                f"first line: {ln.topic}"
+            )
+        text = json.loads(ln.body).get("config")
+        if not text:
+            raise Skipped(
+                f"{STARTUP} carries no config (the engine ran on a YAML file)"
+            )
+        return str(text)
+    raise Skipped("the audit is empty")

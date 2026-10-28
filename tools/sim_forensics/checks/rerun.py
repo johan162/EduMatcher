@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import tempfile
 from collections import Counter
 from datetime import date, datetime, tzinfo
@@ -43,12 +42,13 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import STARTUP, audit_files, lines, run_config_text
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
-from edumatcher.config_artifact import load_compiled_config
+from edumatcher.cli_version import source_commit
+from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.generated.system import TOPIC_GATEWAY_HEARTBEAT
 from edumatcher.models.message import decode
@@ -261,9 +261,7 @@ class _Rerun:
         files = audit_files(data)
         if not files:
             raise Skipped("no audit.log in the data dir")
-        compiled = load_compiled_config(data / "ref_data" / "engine_config.json")
-        if compiled is None:
-            raise Skipped("no ref_data/engine_config.json (the run's compiled config)")
+        compiled = decode_artifact(run_config_text(files))
         self.versions = (compiled.meta.compiler_version, _engine_version())
         reset_trade_ids_for_tests()
         set_run_seq(1)
@@ -278,13 +276,13 @@ class _Rerun:
         for ln in lines(files):
             if first:
                 first = False
-                if ln.topic != "system.startup_recovery":
+                if ln.topic != STARTUP:
                     raise Skipped(
                         "the audit does not reach back to the engine's start "
                         f"(first line: {ln.topic}); its input is incomplete"
                     )
                 continue
-            if ln.topic == "system.startup_recovery":
+            if ln.topic == STARTUP:
                 raise Skipped("the engine restarted during the run")
             if ln.topic in commands:
                 if command is None:
@@ -393,7 +391,7 @@ def fresh_engine(
             return cls.combine(today or moment.date(), moment.timetz())
 
     with (
-        mock.patch.object(engine_main, "_compiled_engine_config", lambda: config),
+        mock.patch.object(engine_main, "_deployed_config", lambda: (config, "")),
         mock.patch.object(engine_main, "make_puller", lambda _: _Sink()),
         mock.patch.object(engine_main, "make_publisher", lambda _: sink),
         mock.patch.object(engine_main, "GTC_ORDERS_FILE", state_dir / "gtc_orders.json"),  # fmt: skip
@@ -410,18 +408,12 @@ def fresh_engine(
 def _engine_version() -> str:
     """The re-running engine's version, and its source commit if it runs
     from a git checkout (the package version stays put between releases)."""
-    src = Path(engine_main.__file__).resolve().parents[2]
-    try:
-        commit = subprocess.run(
-            ["git", "-C", str(src), "describe", "--always", "--dirty"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        ).stdout.strip()
-    except OSError, subprocess.SubprocessError:
-        return version("edumatcher")
-    return f"{version('edumatcher')} ({commit})"
+    commit = source_commit()
+    return (
+        version("edumatcher")
+        if commit == "unknown"
+        else f"{version('edumatcher')} ({commit})"
+    )
 
 
 def _command_topics() -> frozenset[str]:

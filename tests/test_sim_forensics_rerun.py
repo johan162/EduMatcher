@@ -79,11 +79,13 @@ class Recorder:
 
 def record(data: Path) -> Path:
     """A short run on the s1-basic example: seeds, connects, a crossing buy
-    against the seed ask, a resting sell, a cancel, an MM quote, an OCO."""
-    (data / "ref_data").mkdir(parents=True)
-    compiled = deploy(
-        resolve_example("s1-basic"), data / "ref_data" / "engine_config.json"
-    )
+    against the seed ask, a resting sell, a cancel, an MM quote, an OCO.
+
+    The config is deployed outside *data*: the checks take it from the
+    audit's system.startup, as a run's own ref_data/ may be gone."""
+    data.mkdir(parents=True)
+    artifact = data.parent / "deployed" / "engine_config.json"
+    compiled = deploy(resolve_example("s1-basic"), artifact)
     seed = compiled.engine.symbols["AAPL"].market_maker_quotes[0]
     ask = seed.ask_price_ticks / 100
     reset_trade_ids_for_tests()
@@ -91,14 +93,21 @@ def record(data: Path) -> Path:
     rec = Recorder()
     with (
         mock.patch.object(
-            engine_main, "_compiled_engine_config", lambda: compiled.engine
+            engine_main,
+            "_deployed_config",
+            lambda: (compiled.engine, artifact.read_text(encoding="utf-8")),
         ),
         mock.patch.object(engine_main, "make_puller", lambda _: Recorder()),
         mock.patch.object(engine_main, "make_publisher", lambda _: rec),
-        mock.patch.object(engine_main, "load_gtc_orders", lambda _: []),
-        mock.patch.object(engine_main, "load_book_stats", lambda _: {}),
+        mock.patch.multiple(
+            engine_main,
+            GTC_ORDERS_FILE=data / "gtc_orders.json",
+            GTC_COMBOS_FILE=data / "gtc_combos.json",
+            BOOK_STATS_FILE=data / "book_stats.json",
+        ),
     ):
         engine = engine_main.Engine(config_path=None)
+        engine._announce_startup(1)
         engine._restore_gtc()
         engine._load_config()
     for gw in ("TRADER01", "TRADER02", "MM01"):
@@ -173,6 +182,7 @@ def test_every_e_check_passes_on_a_recorded_run(
     # The slow E5-E7: tests/test_sim_forensics_differential.py.
     assert sorted(i for i in REGISTRY if i[0] == "E" and not REGISTRY[i].slow) == E
     data = record(tmp_path / "data")
+    assert not (data / "ref_data").exists()  # the config comes from the audit
     assert statuses(open_ds, data) == {i: ("PASS", 0) for i in E}
     note = REGISTRY["E1"].fn(open_ds(data)).note
     assert note.startswith("8 commands (")
@@ -231,6 +241,6 @@ def test_the_e_checks_skip_without_the_engine_start(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
     data = record(tmp_path / "data")
-    edit(data, "[system.startup_recovery]", lambda ln: [])
+    edit(data, "[system.startup]", lambda ln: [])
     results = run_checks(open_ds(data), [REGISTRY[i] for i in E], 10)
     assert {r.status for r in results} == {"SKIPPED"}
