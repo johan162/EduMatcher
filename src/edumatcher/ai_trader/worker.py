@@ -28,7 +28,7 @@ from typing import Any, cast
 
 import zmq
 
-from edumatcher.ai_trader.actions import Action, NewOco, NewOrder
+from edumatcher.ai_trader.actions import Action, AmendOrder, NewOco, NewOrder
 from edumatcher.ai_trader.agent import Agent
 from edumatcher.ai_trader.clock import Clock, WallClock
 from edumatcher.ai_trader.market_state import MarketState
@@ -36,6 +36,7 @@ from edumatcher.ai_trader.preset import Preset
 from edumatcher.ai_trader.transport import (
     AckEvent,
     AgentEvent,
+    AmendedEvent,
     DoneEvent,
     FillEvent,
     OcoAckEvent,
@@ -392,6 +393,19 @@ class Worker:
             )
         elif isinstance(event, DoneEvent):
             agent.on_done(order_id=event.order_id, tag=event.tag)
+        elif isinstance(event, AmendedEvent):
+            sym = agent.orders.symbol_of(event.order_id, event.tag)
+            if sym is not None:  # an untracked order needs no update
+                st = self.market.get(sym)
+                agent.on_amended(
+                    now,
+                    order_id=event.order_id,
+                    tag=event.tag,
+                    price_ticks=(
+                        st.ticks(event.price) if event.price is not None else None
+                    ),
+                    remaining=event.remaining,
+                )
         elif isinstance(event, OcoAckEvent):
             agent.on_oco_ack(event.oco_tag, event.accepted, event.leg_ids, event.reason)
         elif isinstance(event, SessionEvent):
@@ -455,6 +469,8 @@ class Worker:
                 n += 1
             elif isinstance(action, (NewOrder, NewOco)):
                 agent.on_done(order_id=None, tag=action.tag)  # never left
+            elif isinstance(action, AmendOrder):
+                agent.orders.on_amend_reject(action.order_id, action.tag, gone=False)
         return n
 
     def _sync_selector(

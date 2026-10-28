@@ -1545,3 +1545,32 @@ def test_no_probe_without_sessions(gateway: AlfGateway) -> None:
     fake_push.sent.clear()
     gateway._probe_engine_sessions_if_due(100.0)
     assert fake_push.sent == []
+
+
+def test_the_ai_swarms_amend_combo_and_smp_lines_reach_the_engine(
+    gateway: AlfGateway,
+) -> None:
+    """The lines alf_client.protocol builds for S27's actions parse."""
+    from edumatcher.alf_client import protocol as alf
+
+    session, peer = _make_session()
+    session.authenticated, session.gateway_id, session.role = True, "TRADER01", "TRADER"
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL", "MSFT"}
+    for line in (
+        alf.new_order(tag="T1", symbol="AAPL", side="BUY", order_type="LIMIT", tif="DAY", qty=5, tick_decimals=2, price_ticks=10000, smp="CANCEL_RESTING"),  # fmt: skip
+        alf.amend("OID1", rtag="AMD-T1", price_ticks=10005, tick_decimals=2),
+        alf.new_combo(combo_id="C1", tif="DAY", legs=(
+            {"symbol": "AAPL", "side": "BUY", "qty": 2, "price_ticks": 10010, "tick_decimals": 2},
+            {"symbol": "MSFT", "side": "SELL", "qty": 2, "price_ticks": 20000, "tick_decimals": 2},
+        )),  # fmt: skip
+    ):
+        session.rate_tokens = 10.0
+        gateway._handle_client_line(session, line.decode().strip())
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    (t1, new), (t2, amend), (t3, combo) = [decode(f) for f in fake_push.sent[-3:]]
+    assert (t1, new["smp_action"]) == ("order.new", "CANCEL_RESTING")
+    assert (t2, amend["order_id"], amend["price"], amend["request_tag"]) == ("order.amend", "OID1", 100.05, "AMD-T1")  # fmt: skip
+    assert t3 == "order.combo" and [leg["symbol"] for leg in combo["legs"]] == ["AAPL", "MSFT"]  # fmt: skip
+    peer.close()

@@ -163,13 +163,15 @@ def parse_preset(raw: Any, source: str) -> Preset:
             ex_kwargs[key] = _choice(source, path, value, tuple(SWEEP_TYPES))
         elif key == "tif":
             ex_kwargs[key] = _choice(source, path, value, ("DAY", "GTC"))
+        elif key == "smp":
+            ex_kwargs[key] = _choice(source, path, value, ("", "NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"))  # fmt: skip
         elif key in ("offset_ticks", "offset_max", "cross_ticks"):
             ex_kwargs[key] = _integer(source, path, value, 0, 1000)
         elif key == "slices":
             ex_kwargs[key] = _integer(source, path, value, 1, 1000)
         elif key == "horizon_sec":
             ex_kwargs[key] = _number(source, path, value, 1.0, 86_400.0)
-        else:  # visible_fraction, urgency_cross, auction_participation
+        else:  # visible_fraction, urgency_cross, auction_participation, *_fraction
             ex_kwargs[key] = _number(source, path, value, 0.0, 1.0)
     execution = ExecutionSpec(**ex_kwargs)
     if "offset_max" in ex and execution.offset_max < execution.offset_ticks:

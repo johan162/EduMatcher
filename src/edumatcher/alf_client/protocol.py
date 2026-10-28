@@ -77,6 +77,7 @@ def new_order(
     stop_price_ticks: int | None = None,
     trail_offset_ticks: int | None = None,
     visible_qty: int | None = None,
+    smp: str | None = None,
 ) -> bytes:
     fields = {
         "SYM": symbol,
@@ -94,6 +95,8 @@ def new_order(
         fields["TRAIL"] = price(trail_offset_ticks, tick_decimals)
     if visible_qty is not None:
         fields["VISIBLE"] = str(visible_qty)
+    if smp is not None:
+        fields["SMP"] = smp
     return build_line("NEW", fields)
 
 
@@ -124,6 +127,49 @@ def new_oco(
             if value is not None:
                 fields[p + wire] = price(int(value), tick_decimals)  # type: ignore[call-overload]
     fields["TAG"] = oco_id
+    return build_line("NEW", fields)
+
+
+def amend(
+    order_id: str,
+    *,
+    rtag: str | None = None,
+    price_ticks: int | None = None,
+    qty: int | None = None,
+    tick_decimals: int = 2,
+) -> bytes:
+    fields = {"ID": order_id}
+    if price_ticks is not None:
+        fields["PRICE"] = price(price_ticks, tick_decimals)
+    if qty is not None:
+        fields["QTY"] = str(qty)
+    if rtag:
+        fields["RTAG"] = rtag
+    return build_line("AMEND", fields)
+
+
+def new_combo(
+    *,
+    combo_id: str,
+    tif: str,
+    legs: tuple[Mapping[str, object], ...],
+) -> bytes:
+    """An all-or-none combo; ``legs``: mappings with symbol, side, qty,
+    price_ticks and tick_decimals."""
+    fields = {
+        "TYPE": "COMBO",
+        "COMBO_ID": combo_id,
+        "COMBO_TYPE": "AON",
+        "TIF": tif,
+        "LEG_COUNT": str(len(legs)),
+    }
+    for i, leg in enumerate(legs):
+        p = f"LEG{i}."
+        fields[p + "SYM"] = str(leg["symbol"])
+        fields[p + "SIDE"] = str(leg["side"])
+        fields[p + "QTY"] = str(leg["qty"])
+        fields[p + "PRICE"] = price(int(leg["price_ticks"]), int(leg["tick_decimals"]))  # type: ignore[call-overload]
+    fields["TAG"] = combo_id
     return build_line("NEW", fields)
 
 

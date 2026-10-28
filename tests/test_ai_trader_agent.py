@@ -8,7 +8,14 @@ from typing import Any
 
 import pytest
 
-from edumatcher.ai_trader.actions import CancelOco, CancelOrder, NewOco, NewOrder
+from edumatcher.ai_trader.actions import (
+    AmendOrder,
+    CancelOco,
+    CancelOrder,
+    NewCombo,
+    NewOco,
+    NewOrder,
+)
 from edumatcher.ai_trader.agent import Agent, intraday_multiplier
 from edumatcher.ai_trader.market_state import MarketState
 from edumatcher.ai_trader.orders import LiveOrder, OrderState
@@ -198,6 +205,10 @@ class TestHousekeeping:
 
     def test_unanswered_cancel_is_forgotten(self) -> None:
         agent = _agent(max_order_age_sec=1.0, max_live_orders_per_symbol=1)
+        # Every stale order cancelled, none re-priced instead.
+        agent.preset = replace(
+            agent.preset, execution=replace(agent.preset.execution, amend_fraction=0.0)
+        )
         m = _market()
         _ack_all(agent, _run(agent, m, 0.5))
         _run(agent, m, 2.0, t0=0.5)
@@ -474,3 +485,59 @@ class TestEndOfDay:
         agent.stats.submitted = 5
         nxt = agent.end_of_day(market)
         assert (nxt["submitted"], nxt["fills"], nxt["unseen_expiries"]) == (2, 0, 0)
+
+
+class TestAmendsCombosAndSmp:
+    """S27: what the sim never exercised before -- amends, combos, explicit
+    SMP modes."""
+
+    def _agent_with(self, **execution: Any) -> Agent:
+        agent = _agent(max_live_orders_per_symbol=1, max_order_age_sec=1.0)
+        agent.preset = replace(agent.preset, execution=replace(agent.preset.execution, **execution))  # fmt: skip
+        agent.executor.spec = agent.preset.execution
+        return agent
+
+    def test_a_preset_smp_mode_rides_on_every_order(self) -> None:
+        agent = self._agent_with(smp="CANCEL_BOTH")
+        sent = [a for a in _run(agent, _market(), 5.0) if isinstance(a, NewOrder)]
+        assert sent and {a.smp for a in sent} == {"CANCEL_BOTH"}
+
+    def test_a_stale_limit_is_repriced_to_the_touch_instead_of_cancelled(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        m = _market()
+        _ack_all(agent, _run(agent, m, 0.5))
+        for st in m.symbols.values():
+            st.best_bid, st.best_ask = 995, 1015  # the touch moved
+        out = _run(agent, m, 3.0, t0=0.5)
+        amends = [a for a in out if isinstance(a, AmendOrder)]
+        assert amends and not any(isinstance(a, CancelOrder) for a in out)
+        a = amends[0]
+        o = agent.orders.orders[a.tag]
+        assert o.state == OrderState.AMEND_PENDING
+        assert a.price_ticks == (995 if o.side == "BUY" else 1015)
+        agent.on_amended(9.0, order_id=a.order_id, tag=a.tag, price_ticks=a.price_ticks, remaining=None)  # fmt: skip
+        assert (o.state, o.price_ticks, o.submitted_at) == (OrderState.LIVE, a.price_ticks, 9.0)  # fmt: skip
+
+    def test_a_refused_amend_leaves_the_order_or_drops_it_if_gone(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        m = _market()
+        _ack_all(agent, _run(agent, m, 0.5))
+        for st in m.symbols.values():
+            st.best_bid, st.best_ask = 995, 1015
+        first, second = [a for a in _run(agent, m, 3.0, t0=0.5) if isinstance(a, AmendOrder)][:2]  # fmt: skip
+        for a, code in ((first, "PRICE_OUT_OF_RANGE"), (second, "ORDER_NOT_FOUND")):
+            agent.on_ack(4.0, order_id=a.order_id, tag=None, accepted=False, code=code, reason="", request_tag=f"AMD-{a.tag}")  # fmt: skip
+        assert agent.orders.orders[first.tag].state == OrderState.LIVE
+        assert second.tag not in agent.orders.orders
+
+    def test_a_combo_pairs_the_intent_with_the_other_side_elsewhere(self) -> None:
+        agent = self._agent_with(combo_fraction=1.0)
+        combos = [a for a in _run(agent, _market(), 5.0) if isinstance(a, NewCombo)]
+        assert combos
+        c = combos[0]
+        one, two = c.legs
+        assert one.symbol != two.symbol and {one.side, two.side} == {"BUY", "SELL"}
+        for leg in c.legs:
+            assert leg.price_ticks == (
+                1010 if leg.side == "BUY" else 990
+            )  # at the touch

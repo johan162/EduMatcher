@@ -20,9 +20,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from edumatcher.ai_trader.actions import (
+    AMEND_RTAG_PREFIX,
     Action,
+    AmendOrder,
     CancelOco,
     CancelOrder,
+    ComboLegSpec,
+    NewCombo,
     NewOco,
     NewOrder,
     OcoLegSpec,
@@ -80,6 +84,8 @@ class AgentStats:
     order_types: Counter[str] = field(default_factory=Counter)
     breaker_trips: int = 0
     killed: int = 0
+    amends: int = 0
+    combos: int = 0
 
 
 class Agent:
@@ -162,10 +168,42 @@ class Agent:
             return []
         size = max(1, round(self.preset.tempo.sample_qty(self.rng) * intent.size))
         qty = self._risk_qty(intent.symbol, intent.side, size)
+        combo = self._combo(intent.symbol, intent.side, qty, phase, market)
+        if combo is not None:
+            return [combo]
         orders = self.executor.orders_for(
             intent, st, qty, phase, now, self.rng, self.new_tag
         )
         return self._send_trade_orders(orders, now)
+
+    def _combo(
+        self, symbol: str, side: str, qty: int, phase: str, market: MarketState
+    ) -> NewCombo | None:
+        """For the preset's ``combo_fraction`` of continuous decisions: an
+        all-or-none pair -- this leg, and the opposite side of another of
+        the agent's symbols -- both at the touch, a quarter of the size."""
+        fraction = self.preset.execution.combo_fraction
+        if not fraction or phase != "CONTINUOUS" or qty <= 0 or self.rng.random() >= fraction:  # fmt: skip
+            return None
+        others = [s for s in self.universe if s != symbol and s in market.symbols]
+        if not others:
+            return None
+        other = self.rng.choice(others)
+        legs = []
+        for sym, sd in ((symbol, side), (other, "SELL" if side == "BUY" else "BUY")):
+            st = market.symbols[sym]
+            if st.halted:
+                return None
+            price = st.best_ask if sd == "BUY" else st.best_bid
+            if price is None:
+                return None
+            legs.append(
+                ComboLegSpec(sym, sd, max(1, qty // 4), price, st.tick_decimals)
+            )
+        self.stats.combos += 1
+        return NewCombo(
+            tag=self.new_tag(), symbol=symbol, legs=tuple(legs), tif=TIF.DAY
+        )
 
     def _twap(self, now: float, market: MarketState) -> list[Action]:
         if not self.executor.twaps:
@@ -240,7 +278,9 @@ class Agent:
             )
         )
         for o in stale:
-            out += self._cancel(o, now)
+            out += self._amend(o, touch, now) or self._cancel(o, now)
+        for o in self.orders.unanswered_amends(now, CANCEL_TIMEOUT):
+            o.state = OrderState.LIVE  # lost; the next sweep decides again
         for o in self.orders.unanswered_cancels(now, CANCEL_TIMEOUT):
             log.warning(
                 "[%s] cancel of %s never answered; forgetting it",
@@ -249,6 +289,28 @@ class Agent:
             )
             self.orders.on_done(o.order_id, o.tag)
         return out
+
+    def _amend(
+        self, o: LiveOrder, touch: dict[str, tuple[int | None, int | None]], now: float
+    ) -> list[Action]:
+        """Re-price a stale limit order to its own side's touch instead of
+        cancelling it, for the preset's ``amend_fraction`` of them."""
+        fraction = self.preset.execution.amend_fraction
+        if (
+            not fraction
+            or o.order_type != OrderType.LIMIT
+            or o.order_id is None
+            or o.oco_tag is not None
+            or self.rng.random() >= fraction
+        ):
+            return []
+        bid, ask = touch.get(o.symbol, (None, None))
+        price = bid if o.side == "BUY" else ask
+        if price is None or price == o.price_ticks:
+            return []
+        self.orders.mark_amend(o, now)
+        self.stats.amends += 1
+        return [AmendOrder(order_id=o.order_id, tag=o.tag, symbol=o.symbol, price_ticks=price)]  # fmt: skip
 
     def _cancel(self, o: LiveOrder, now: float) -> list[Action]:
         if o.state == OrderState.CANCEL_PENDING:
@@ -436,6 +498,14 @@ class Agent:
             if self.orders.on_ack(order_id, tag) is not None:
                 self.stats.acked += 1
             return
+        if request_tag is not None and request_tag.startswith(AMEND_RTAG_PREFIX):
+            # A refused amend: live as it was, or gone (ORDER_NOT_FOUND).
+            self.orders.on_amend_reject(
+                order_id,
+                request_tag[len(AMEND_RTAG_PREFIX) :],
+                gone=code == "ORDER_NOT_FOUND",
+            )
+            return
         if request_tag is not None:
             # A refused cancel. ORDER_NOT_FOUND: the order already ended.
             if code == "ORDER_NOT_FOUND":
@@ -479,6 +549,17 @@ class Agent:
             fill_price_ticks=fill_price_ticks,
             remaining=remaining,
         )
+
+    def on_amended(
+        self,
+        now: float,
+        *,
+        order_id: str | None,
+        tag: str | None,
+        price_ticks: int | None,
+        remaining: int | None,
+    ) -> None:
+        self.orders.on_amended(order_id, tag, price_ticks, remaining, now)
 
     def on_done(self, *, order_id: str | None, tag: str | None) -> None:
         self.orders.on_done(order_id, tag)
@@ -559,7 +640,7 @@ class Agent:
         return (
             f"preset={self.preset.name} decisions={s.decisions} submitted={s.submitted} "
             f"acked={s.acked} cancels={s.cancels} fills={self.orders.fills} "
-            f"killed={s.killed} "
+            f"killed={s.killed} amends={s.amends} combos={s.combos} "
             f"rejected={sum(s.rejected.values())}{f' ({rejects})' if rejects else ''} "
             f"live={len(self.orders.orders)} gross_pos={pos} "
             f"types={','.join(f'{k}:{v}' for k, v in sorted(s.order_types.items()))}"

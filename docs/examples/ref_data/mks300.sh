@@ -14,10 +14,16 @@ cd "$setup_dir"
 # finished orders 5 minutes instead of an hour, and the post-trade gateway's
 # replay journal 15 minutes instead of a day, or both would hold gigabytes.
 case "$(basename "$(pwd)")" in
-  s300-load-setup) ai_count=500; market_makers=(MM01 MM02); long_run=() ;;
+  s300-load-setup) ai_count=500; market_makers=(MM01 MM02); long_run=()
+    risk=(--no-collars) ;;
+  # The sim runs with collars and circuit breakers a news-driven move can
+  # reach, so the forensics see band rejects, halts and reopening auctions
+  # (sim forensics S27).
   s300-sim-setup) ai_count=100; market_makers=(MM01)
     long_run=(--api-gateway-order-retention-sec 300 --post-trade-gateway
-              --post-trade-replay-retention-sec 900) ;;
+              --post-trade-replay-retention-sec 900)
+    risk=(--static-band 0.20 --dynamic-band 0.03
+          --cb-levels L1:0.04:3 L2:0.08:10 L3:0.15:0 --cb-window-ns 300000000000) ;;
   *) echo "Error: unknown setup directory $(pwd)" >&2; exit 1 ;;
 esac
 
@@ -119,7 +125,7 @@ done
   --api-gateway-readonly-key \
   --seed-mm-mid-range 20:300 --mm-seed-spread-ticks 10 --seed-last-prices-from-mm \
   --enforce-mm-obligations \
-  --no-collars \
+  "${risk[@]}" \
   --sessions-enabled \
   --pre-open 09:00 --opening-auction 09:25 --continuous 09:30 \
   --closing-auction 16:00 --closing-end 16:05 \
