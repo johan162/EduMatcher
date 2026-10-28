@@ -33,6 +33,26 @@ class _Client:
         self.calls.append(("kill", target_gw))
         return {"accepted": True}
 
+    def kill_switch_gateway(self, target_gw: str, note: str = "") -> dict[str, Any]:
+        self.calls.append(("kill_gw", target_gw))
+        return {"accepted": True}
+
+    def kill_switch_global(self, note: str = "") -> dict[str, Any]:
+        self.calls.append(("kill_all",))
+        return {"accepted": True}
+
+    def halt_all(self) -> dict[str, Any]:
+        self.calls.append(("halt_all",))
+        return {"accepted": True}
+
+    def resume_all(self) -> dict[str, Any]:
+        self.calls.append(("resume_all",))
+        return {"accepted": True}
+
+    def reference_reload(self) -> dict[str, Any]:
+        self.calls.append(("reload",))
+        return {"accepted": False, "reason": "No reloadable config file"}
+
     def cancel_symbol(self, symbol: str) -> dict[str, Any]:
         self.calls.append(("cancel", symbol))
         raise TimeoutError("no reply")
@@ -54,12 +74,15 @@ def test_the_schedule_is_seeded_and_runs_in_order_through_refusals() -> None:
 
     client = _Client()
     refused = run(client, steps, 1.0, sleep=sleep, clock=lambda: now[0], out=lines.append)  # fmt: skip
-    halted = client.calls[0][1]
-    assert [c[0] for c in client.calls] == ["halt", "resume", "kill", "cancel", "halt", "uncross"]  # fmt: skip
-    assert client.calls[1] == ("resume", halted) and client.calls[2][1] in gateways
-    assert len({halted, client.calls[3][1], client.calls[4][1]}) == 3
-    assert client.calls[4][1] == client.calls[5][1]
-    assert refused == 2  # the timeout and the refused uncross
-    assert now[0] == 31 * 60  # one minute's delay, then the restart reminder at +30
-    assert "REFUSED TimeoutError: no reply" in lines[3]
-    assert lines[-1].startswith("[+30 min] RESTART THE ENGINE")
+    calls = client.calls
+    assert [c[0] for c in calls] == ["halt", "resume", "kill", "kill_gw", "cancel", "halt", "uncross", "halt_all", "resume_all", "reload", "kill_all"]  # fmt: skip
+    halted = calls[0][1]
+    assert calls[1] == ("resume", halted)
+    assert {calls[2][1], calls[3][1]} <= set(gateways) and calls[2][1] != calls[3][1]
+    assert len({halted, calls[4][1], calls[5][1]}) == 3
+    assert calls[5][1] == calls[6][1]
+    # the timeout and the refused uncross; the reload's refusal is expected
+    assert refused == 2
+    assert now[0] == 46 * 60  # one minute's delay, the last step at +45
+    assert "REFUSED TimeoutError: no reply" in lines[4]
+    assert lines[-2].startswith("[+30 min] RESTART THE ENGINE")

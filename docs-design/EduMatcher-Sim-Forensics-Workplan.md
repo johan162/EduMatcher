@@ -1666,26 +1666,30 @@ once mid-session. Rates low enough not to change the market's character
 
 Done when: H5 on a 1 h run shows no zero row the engine supports.
 
-**Progress 2026-10-28 (uncommitted).** Agents: `ExecutionSpec.smp`
+**Progress 2026-10-28.** Committed (668da9a6): agents' `ExecutionSpec.smp`
 (explicit SMP on every order: contrarian CANCEL_AGGRESSOR, block-taker
 CANCEL_BOTH, market-taker and trend-follower CANCEL_RESTING, noise-retail
-NONE), `amend_fraction` (a stale DAY limit re-priced to its own side's
-touch by `AMEND` instead of cancelled; `AMEND_PENDING` state, `AMENDED`
-→ `AmendedEvent`, refusals by `AMD-` request tag, ORDER_NOT_FOUND drops
-the order) and `combo_fraction` (an AON pair at the touch: the intent's
-leg plus the opposite side of another symbol, a quarter of the size; fire
-and forget); iceberg-seller sends GTC icebergs. ATC was already sent in
-CLOSING_AUCTION. Profile: s300-sim gets `--static-band 0.20 --dynamic-band
-0.03` and CB `L1:0.04:3 L2:0.08:10 L3:0.15:0` (s300-load keeps
-`--no-collars`). Operator events: `tools/sim_ops.py` (halt/resume, kill
-switch on a seeded AI gateway, cancel a symbol, halt + force uncross, then
-prints when to restart the engine by hand). Not done: amend qty down,
-more STOP_LIMIT, the `risk.*` commands and reference reload; E7's price
-shift with bands (open: percentage edges rounded down are not
+NONE), `amend_fraction` (stale orders amended instead of cancelled;
+`AMEND_PENDING` state, `AMENDED` → `AmendedEvent`, refusals by `AMD-`
+request tag, ORDER_NOT_FOUND drops the order) and `combo_fraction` (an AON
+pair at the touch: the intent's leg plus the opposite side of another
+symbol, a quarter of the size; fire and forget); iceberg-seller sends GTC
+icebergs; s300-sim gets `--static-band 0.20 --dynamic-band 0.03` and CB
+`L1:0.04:3 L2:0.08:10 L3:0.15:0` (s300-load keeps `--no-collars`);
+`tools/sim_ops.py` operator schedule. ATC was already sent in
+CLOSING_AUCTION. Then (uncommitted): an amend re-prices an order left
+behind, or trims one still at the touch to half its unfilled quantity
+(same price: priority kept), icebergs included; value-investor and
+institutional protect with STOP_LIMIT; pm-admin's client gets
+`kill_switch_gateway`, `kill_switch_global`, `reference_reload`, and the
+schedule sends them with `halt_all`/`resume_all` (reference reload is
+refused on a compiled artifact -- expected; the global kill switch comes
+last, after the restart reminder at +30 min). Open: the 1 h run. E7's
+price shift with bands: percentage edges rounded down are not
 shift-invariant; decided 2026-10-28: in S28, the shifted lane evaluates
 collars and the circuit breaker in original prices -- patched to un-shift
 before checking -- while matching, auctions, stops, pegs and notionals run
-shifted); the 1 h run.
+shifted.
 
 ### S28 — Replay models the rest
 

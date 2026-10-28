@@ -37,11 +37,14 @@ from edumatcher.models.message import (
     make_gateway_auth_msg,
     make_gateways_msg,
     make_kill_switch_ack_msg,
+    make_kill_switch_gateway_ack_msg,
+    make_kill_switch_global_ack_msg,
     make_orders_msg,
     make_position_snapshot_msg,
     make_price_level_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
+    make_reference_reload_ack_msg,
     make_index_error_msg,
     make_index_history_msg,
     make_index_corp_action_ack_msg,
@@ -253,6 +256,51 @@ class TestAdminRiskControls:
         result = client.resume_all()
         assert result["accepted"] is True
         assert result["resumed_symbols"] == 0
+
+    def test_kill_switch_gateway_targets_another_gateway(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_kill_switch_gateway_ack_msg(
+                    "GW_ADMIN", "AI001", True, cancelled_orders=4
+                )
+            )
+        )
+        result = client.kill_switch_gateway("ai001", note="drill")
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.kill_switch_gateway"
+        assert (payload["gateway_id"], payload["target_gateway_id"]) == ("GW_ADMIN", "AI001")  # fmt: skip
+        assert payload["note"] == "drill" and payload["command_id"]
+        assert result["accepted"] is True
+        assert result["cancelled_orders"] == 4
+
+    def test_kill_switch_global_sends_correct_frames(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_kill_switch_global_ack_msg("GW_ADMIN", True, affected_gateways=7)
+            )
+        )
+        result = client.kill_switch_global()
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.kill_switch_global"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert result["affected_gateways"] == 7
+
+    def test_reference_reload_returns_the_verdict(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_reference_reload_ack_msg(
+                    "GW_ADMIN", "C1", False, reason="No reloadable config file"
+                )
+            )
+        )
+        result = client.reference_reload()
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.reference_reload"
+        assert payload["command_id"]
+        assert result["accepted"] is False
 
 
 # ---------------------------------------------------------------------------

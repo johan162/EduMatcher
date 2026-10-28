@@ -29,6 +29,11 @@ class Client(Protocol):
     def symbol_halt(self, symbol: str) -> dict[str, Any]: ...
     def symbol_resume(self, symbol: str) -> dict[str, Any]: ...
     def kill_switch(self, target_gw: str, symbol: str = "") -> dict[str, Any]: ...
+    def kill_switch_gateway(self, target_gw: str, note: str = "") -> dict[str, Any]: ...
+    def kill_switch_global(self, note: str = "") -> dict[str, Any]: ...
+    def halt_all(self) -> dict[str, Any]: ...
+    def resume_all(self) -> dict[str, Any]: ...
+    def reference_reload(self) -> dict[str, Any]: ...
     def cancel_symbol(self, symbol: str) -> dict[str, Any]: ...
 
     def force_uncross(self, symbol: str, price: float | None = None) -> dict[str, Any]: ...  # fmt: skip
@@ -40,22 +45,32 @@ class Step:
     what: str
     #: None: a reminder for the operator, not a command.
     run: Callable[[Client], dict[str, Any]] | None
+    #: A refusal is a legitimate outcome (not counted as a failure).
+    may_refuse: bool = False
 
 
 def schedule(symbols: list[str], gateways: list[str], seed: int) -> list[Step]:
-    """The events, minutes after the start, on symbols and a gateway the
-    seed picks (three distinct symbols)."""
+    """The events, minutes after the start, on symbols and gateways the
+    seed picks (three distinct symbols, two distinct gateways)."""
     rng = random.Random(seed)
     halt, cancel, uncross = rng.sample(sorted(symbols), 3)
-    victim = rng.choice(sorted(gateways))
+    victim, other = rng.sample(sorted(gateways), 2)
     return [
         Step(0, f"halt {halt}", lambda c: c.symbol_halt(halt)),
         Step(5, f"resume {halt}", lambda c: c.symbol_resume(halt)),
         Step(8, f"kill switch {victim} (cancel all its orders)", lambda c: c.kill_switch(victim)),  # fmt: skip
+        Step(10, f"gateway kill switch {other}", lambda c: c.kill_switch_gateway(other, note="sim_ops")),  # fmt: skip
         Step(12, f"cancel every order on {cancel}", lambda c: c.cancel_symbol(cancel)),
         Step(15, f"halt {uncross}", lambda c: c.symbol_halt(uncross)),
         Step(20, f"force uncross {uncross} (reopens it)", lambda c: c.force_uncross(uncross)),  # fmt: skip
+        Step(22, "halt every symbol", lambda c: c.halt_all()),
+        Step(24, "resume every symbol", lambda c: c.resume_all()),
+        # Refused when the engine runs from a compiled artifact: the command
+        # and its ack are still exercised.
+        Step(26, "reload reference data", lambda c: c.reference_reload(), may_refuse=True),  # fmt: skip
         Step(30, "RESTART THE ENGINE NOW (by hand: e.g. podman restart the engine container)", None),  # fmt: skip
+        # Last: it empties every book, market makers' quotes included.
+        Step(45, "global kill switch (every gateway's orders)", lambda c: c.kill_switch_global(note="sim_ops")),  # fmt: skip
     ]
 
 
@@ -82,7 +97,7 @@ def run(
         except Exception as exc:  # a timeout must not end the schedule
             ack = {"accepted": False, "reason": f"{type(exc).__name__}: {exc}"}
         ok = bool(ack.get("accepted", True))
-        refused += not ok
+        refused += not ok and not step.may_refuse
         out(f"[+{step.at_min:g} min] {step.what}: {'ok' if ok else 'REFUSED'} {ack.get('reason', '')}".rstrip())  # fmt: skip
     return refused
 

@@ -165,6 +165,9 @@ What each lever does:
 | `auction_participation` | takes part in more auction decisions |
 | `tif: GTC` | leaves orders on the book overnight |
 | `gtc_fraction` | sends that share of its resting orders as GTC, whatever `tif` says: a few long orders that outlive the day (a trader keeps at most one per symbol, and never cancels it as stale) |
+| `amend_fraction` | amends more of its stale orders instead of cancelling them: re-priced to the touch, or trimmed when still at it |
+| `combo_fraction` | sends more of its continuous decisions as two-symbol all-or-none combos |
+| `smp` | (not a number) picks the self-match prevention mode on its orders |
 
 ### Tempo
 

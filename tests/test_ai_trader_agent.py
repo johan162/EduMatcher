@@ -518,6 +518,17 @@ class TestAmendsCombosAndSmp:
         agent.on_amended(9.0, order_id=a.order_id, tag=a.tag, price_ticks=a.price_ticks, remaining=None)  # fmt: skip
         assert (o.state, o.price_ticks, o.submitted_at) == (OrderState.LIVE, a.price_ticks, 9.0)  # fmt: skip
 
+    def test_an_old_order_still_at_the_touch_is_trimmed_not_repriced(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        o = LiveOrder(tag="T1", symbol="AAPL", side="BUY", order_type=OrderType.LIMIT, tif=TIF.DAY, qty=10, remaining=7, price_ticks=990, submitted_at=0.0, order_id="O1", state=OrderState.LIVE)  # fmt: skip
+        agent.orders.track(o)
+        (a,) = agent._amend(o, {"AAPL": (990, 1010)}, 5.0)
+        # Same price, new total = 3 filled + half the 7 unfilled: keeps priority.
+        assert a == AmendOrder(order_id="O1", tag="T1", symbol="AAPL", qty=6)
+        assert o.state == OrderState.AMEND_PENDING
+        o.state, o.remaining = OrderState.LIVE, 1
+        assert agent._amend(o, {"AAPL": (990, 1010)}, 6.0) == []  # nothing to trim
+
     def test_a_refused_amend_leaves_the_order_or_drops_it_if_gone(self) -> None:
         agent = self._agent_with(amend_fraction=1.0)
         m = _market()

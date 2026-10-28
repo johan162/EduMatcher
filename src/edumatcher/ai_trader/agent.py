@@ -293,12 +293,14 @@ class Agent:
     def _amend(
         self, o: LiveOrder, touch: dict[str, tuple[int | None, int | None]], now: float
     ) -> list[Action]:
-        """Re-price a stale limit order to its own side's touch instead of
-        cancelling it, for the preset's ``amend_fraction`` of them."""
+        """For the preset's ``amend_fraction`` of stale orders, amend instead
+        of cancelling: one left behind is re-priced to its own side's touch
+        (losing priority); one still at the touch, only old, is trimmed to
+        half its unfilled quantity (keeping priority)."""
         fraction = self.preset.execution.amend_fraction
         if (
             not fraction
-            or o.order_type != OrderType.LIMIT
+            or o.order_type not in (OrderType.LIMIT, OrderType.ICEBERG)
             or o.order_id is None
             or o.oco_tag is not None
             or self.rng.random() >= fraction
@@ -306,11 +308,18 @@ class Agent:
             return []
         bid, ask = touch.get(o.symbol, (None, None))
         price = bid if o.side == "BUY" else ask
-        if price is None or price == o.price_ticks:
+        if price is None:
+            return []
+        if price != o.price_ticks:
+            amend = AmendOrder(order_id=o.order_id, tag=o.tag, symbol=o.symbol, price_ticks=price)  # fmt: skip
+        elif o.remaining >= 2:
+            filled = o.qty - o.remaining
+            amend = AmendOrder(order_id=o.order_id, tag=o.tag, symbol=o.symbol, qty=filled + o.remaining // 2)  # fmt: skip
+        else:
             return []
         self.orders.mark_amend(o, now)
         self.stats.amends += 1
-        return [AmendOrder(order_id=o.order_id, tag=o.tag, symbol=o.symbol, price_ticks=price)]  # fmt: skip
+        return [amend]
 
     def _cancel(self, o: LiveOrder, now: float) -> list[Action]:
         if o.state == OrderState.CANCEL_PENDING:

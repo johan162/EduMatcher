@@ -102,6 +102,14 @@ the auctions), so that buyers and sellers overlap at the uncross. Prices are
 kept inside the symbol's price collar and quantities inside its order
 limits: an AI trader does not send what the engine would refuse.
 
+Three more execution settings, off unless a preset sets them:
+
+| Setting | Effect |
+|---|---|
+| `smp` | The self-match prevention mode sent on every order (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); unset, the gateway's default applies |
+| `amend_fraction` | That share of the orders the risk rules would cancel is amended instead: one left behind is re-priced to its own side's touch (losing priority), one still at the touch is trimmed to half its unfilled quantity (keeping priority) |
+| `combo_fraction` | That share of continuous-trading decisions is sent as a small all-or-none COMBO: the intended order and the opposite side of another of the trader's symbols, both at the touch, a quarter of the size |
+
 ## Tempo: how often and how big
 
 | Tempo | Decisions per minute | Order size | Sizes |
