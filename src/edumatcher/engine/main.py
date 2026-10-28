@@ -3649,10 +3649,17 @@ class Engine:
             expansions = cb.expansion_index
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            self._run_uncross(symbol_filter=symbol, reason="REOPEN")
-            self.pub_sock.send_multipart(
-                make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
-            )
+            # No command caused the reopen, but it is one piece of work: its
+            # auction.result, prints, fills and resume share one chain, so an
+            # audit reader sees one uncross rather than scattered roots.
+            self.pub_sock.begin_unit()
+            try:
+                self._run_uncross(symbol_filter=symbol, reason="REOPEN")
+                self.pub_sock.send_multipart(
+                    make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
+                )
+            finally:
+                self.pub_sock.end_unit()
             self._mark_dirty(symbol)
             log.info(
                 f"CIRCUIT BREAKER RESUME {symbol}: after {expansions} ACE extension(s)"

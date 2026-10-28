@@ -56,6 +56,12 @@ class FakeSock:
     def clear_cause(self) -> None:
         pass
 
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
+
     def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> None:
         """Record a re-published message the way the real wrapper sends it.
 

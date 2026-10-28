@@ -57,6 +57,7 @@ _EXACT = {
     "order.new": "new",
     "quote.new": "quote",
     "order.oco": "oco",
+    "order.combo": "combo",
     "trade.executed": "trade",
     "session.state": "phase",
     "system.startup": "startup",
@@ -73,10 +74,13 @@ _PREFIX = {
     "book.": "book",
     "auction.indicative.": "indicative",
     "system.book_checkpoint.": "checkpoint",
+    "order.amended.": "amended",
+    "circuit_breaker.halt.": "halt",
+    "circuit_breaker.resume.": "resume",
+    "risk.band.": "band",
+    "order.triggered.": "triggered",
+    "engine.trace.": "trace",
 }
-#: Engine features this replay does not model; a run that uses them is
-#: still replayed, and the D9 note says so.
-_UNMODELLED = ("order.amended.", "combo.", "circuit_breaker.")
 
 
 @dataclass(slots=True)
@@ -219,6 +223,14 @@ class _Dispatch:
     auctions: dict[str, dict[str, Any]] = field(default_factory=dict)
     phase: str | None = None
     startup: bool = False
+    combo: dict[str, Any] | None = None
+    amends: list[dict[str, Any]] = field(default_factory=list)
+    #: (symbol, halted) for each halt and resume, in order (in effect after
+    #: the dispatch: a reopen's prints come before its resume).
+    halts: list[tuple[str, bool]] = field(default_factory=list)
+    #: order.triggered and engine.trace payloads, in publish order.
+    triggered: list[dict[str, Any]] = field(default_factory=list)
+    traces: list[dict[str, Any]] = field(default_factory=list)
 
 
 class _Replay:
@@ -247,7 +259,21 @@ class _Replay:
         self.trades_replayed = 0
         self.stops_triggered = 0
         self.uncrosses = 0
-        self.unmodelled: Counter[str] = Counter()
+        self.amends = 0
+        self.combo_legs = 0
+        #: Whether the audit carries S24's explicit events (engine.trace on
+        #: every resting order, so any run has them): C7 then compares the
+        #: replay's triggers with the engine's order.triggered, per dispatch.
+        self.explicit = False
+        self.halts = 0
+        self.entries_banded = 0
+        #: Symbols halted now (circuit breaker or administrator).
+        self.halted: set[str] = set()
+        #: Symbol → (static low, static high, dynamic band fraction), from risk.band.
+        self.bands: dict[str, tuple[int, int, float]] = {}
+        #: Order id → the engine's own priority_seq (engine.trace, amends,
+        #: checkpoints), against which the replay's queue order is checked.
+        self.engine_seq: dict[str, int] = {}
         self.symbol_of: dict[str, str] = {}
         self.indicatives = 0
         self.indicatives_skipped = 0
@@ -270,8 +296,6 @@ class _Replay:
         for topic, line_chain, body, *_ in stream:
             kind = _EXACT.get(topic) or _PREFIX.get(topic[: topic.rfind(".") + 1])
             if kind is None:
-                if topic.startswith(_UNMODELLED):
-                    self.unmodelled[topic[: topic.rfind(".") + 1]] += 1
                 continue
             if not self.started and not pending:
                 # Until the engine's start or a checkpoint, no book is known.
@@ -336,6 +360,19 @@ class _Replay:
                 d.phase = p["state"]
             elif kind == "startup":
                 d.startup = True
+            elif kind == "combo":
+                d.combo = p
+            elif kind == "amended":
+                d.amends.append(p)
+            elif kind in ("halt", "resume"):
+                d.halts.append((p["symbol"], kind == "halt"))
+            elif kind == "band":
+                self.bands[p["symbol"]] = (int(p["static_low_ticks"]), int(p["static_high_ticks"]), float(p["dynamic_band_pct"]))  # fmt: skip
+            elif kind == "triggered":
+                d.triggered.append(p)
+            elif kind == "trace":
+                d.traces.append(p)
+                self.explicit = True
         if d.startup:
             if self.started:
                 # A restart: the books come back from what the engine
@@ -345,6 +382,8 @@ class _Replay:
                 self.symbol_of.clear()
                 self.diverged.clear()
                 self._uncross_at.clear()
+                self.halted.clear()
+                self.engine_seq.clear()
                 self.phase = None
             self.started = True
             self.synced_all = self.restarts == 0
@@ -353,6 +392,10 @@ class _Replay:
         self._dispatch(d)
         if d.phase is not None:
             self.phase = d.phase
+        for symbol, halted in d.halts:
+            if halted and symbol not in self.halted:
+                self.halts += 1
+            (self.halted.add if halted else self.halted.discard)(symbol)
 
     def _dispatch(self, d: _Dispatch) -> None:
         self.chain = d.chain
@@ -373,6 +416,21 @@ class _Replay:
         fills: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for f in d.fills:
             fills[f["symbol"]].append(f)
+        amends: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for a in d.amends:
+            amends[a["symbol"]].append(a)
+        fired: dict[str, list[str]] = defaultdict(list)
+        for t in d.triggered:
+            fired[t["symbol"]].append(t["order_id"])
+        traces: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for t in d.traces:
+            traces[t["symbol"]].append(t)
+        # A halt or resume touches no order, but the book it leaves must be
+        # checked (D2) like any other.
+        symbols |= set(amends) | set(fired) | {s for s, _ in d.halts}
+        halted_after = set(self.halted)
+        for symbol, halted in d.halts:
+            (halted_after.add if halted else halted_after.discard)(symbol)
         after = d.phase or self.phase
         for symbol in sorted(symbols):
             book = self._book(symbol)
@@ -382,8 +440,12 @@ class _Replay:
                 sorted(trades.get(symbol, []), key=lambda t: t["id"]),
                 d.auctions.get(symbol),
                 fills.get(symbol, []),
-                after,
+                after if symbol not in halted_after else "HALTED",
+                amends.get(symbol, []),
+                fired.get(symbol),
             )
+        for symbol, rows in traces.items():
+            self._queue_order(symbol, rows)
 
     def _book(self, symbol: str) -> _Book:
         book = self.books.get(symbol)
@@ -408,6 +470,10 @@ class _Replay:
         if d.new is not None:
             p = d.new
             ack = next((a for _, a in d.acks if a.get("order_id") == p["id"]), None)
+            if ack is not None and p.get("price_ticks") is not None:
+                self._band(
+                    p["symbol"], int(p["price_ticks"]), "order.new", p["id"], ack
+                )
             if ack is not None and ack.get("accepted"):
                 td = int(p.get("tick_decimals") or self.td.get(p["symbol"], 2))
                 stop = p.get("stop_price_ticks")
@@ -460,6 +526,13 @@ class _Replay:
             ):
                 o = _Order(oid, side, "LIMIT", price, int(qty), q["gateway_id"], smp)
                 out.append((q["symbol"], o))
+        if d.combo is not None:
+            # Each leg is acked with its whole record, in posting order.
+            known = {o.id for _, o in out}
+            for gw, ack in d.acks:
+                if ack.get("accepted") and ack.get("order_type") and ack["order_id"] not in known:  # fmt: skip
+                    out.append((ack["symbol"], self._from_ack(gw, ack)))
+                    self.combo_legs += 1
         if d.oco is not None and d.oco_ack is not None and d.oco_ack.get("accepted"):
             p, a = d.oco, d.oco_ack
             smp = self.smp.get(p["gateway_id"], "NONE")
@@ -481,7 +554,33 @@ class _Replay:
                 out.append((p["symbol"], o))
         for symbol, o in out:
             self.symbol_of[o.id] = symbol
+            if o.price is not None and d.new is None:
+                # Quote, OCO and combo legs: the collar applies to every
+                # priced order, whichever way it entered.
+                entry = "quote" if d.quote else "order.oco" if d.oco else "order.combo" if d.combo else "seed"  # fmt: skip
+                self._band(symbol, o.price, entry, o.id, None)
         return out
+
+    def _band(self, symbol: str, price: int, entry: str, order_id: str, ack: dict[str, Any] | None) -> None:  # fmt: skip
+        """D8: an accepted priced order lies inside its symbol's collar
+        (risk.band's static band, ``dynamic_band_pct`` around the last
+        trade, each edge truncated to a tick); one refused with
+        COLLAR_BREACH lies outside it."""
+        band = self.bands.get(symbol)
+        if band is None or entry == "seed":
+            return
+        low, high, pct = band
+        last = self._book(symbol).last
+        inside = low <= price <= high and (
+            last is None or int(last * (1 - pct)) <= price <= int(last * (1 + pct))
+        )
+        refused = ack is not None and ack.get("reject_code") == "COLLAR_BREACH"
+        if ack is None or ack.get("accepted") or refused:
+            self.entries_banded += 1
+        if refused and inside:
+            self._flag("D8", error="refused as a collar breach inside the collar", order_id=order_id, symbol=symbol, price=price, static=(low, high), last=last)  # fmt: skip
+        elif not inside and not refused and (ack is None or ack.get("accepted")):
+            self._flag("D8", error="accepted outside the collar", entry=entry, order_id=order_id, symbol=symbol, price=price, static=(low, high), last=last)  # fmt: skip
 
     # --- one symbol's part of a dispatch ---------------------------------
 
@@ -493,15 +592,24 @@ class _Replay:
         auction: dict[str, Any] | None,
         fills: list[dict[str, Any]],
         after: str | None,
+        amends: list[dict[str, Any]],
+        fired: list[str] | None,
     ) -> None:
         self.trades, self.ti = trades, 0
         self.triggered = []
         self.remaining_after = {}
         dying = set(self.dead)
-        matching = self.phase in ("CONTINUOUS", None)
+        halted = book.symbol in self.halted
+        matching = self.phase in ("CONTINUOUS", None) and not halted
+        if halted:
+            for t in trades:
+                if t["aggressor_side"] != "AUCTION":
+                    self._flag("D11", trade_id=t["id"], symbol=book.symbol, aggressor=_aggressor(t))  # fmt: skip
         if auction is not None or (trades and trades[0]["aggressor_side"] == "AUCTION"):
             self._uncross(book, auction, dying)
         queue = list(commands)
+        for amended in amends:
+            self._amend(book, amended, queue)
         while queue:
             self._process(book, self._pick(queue), matching, dying, cascade=True)
         while self.ti < len(self.trades):
@@ -559,6 +667,15 @@ class _Replay:
                     engine=f["remaining_qty"],
                     replay=mine,
                 )
+        replayed = [o.id for o in self.triggered]
+        if (self.explicit or fired is not None) and replayed != (fired or []):
+            self._flag(
+                "C7",
+                error="the replay's triggered stops are not the engine's order.triggered",
+                symbol=book.symbol,
+                engine=fired or [],
+                replay=replayed,
+            )
         for o in self.triggered:
             if o.remaining <= 0 or o.id in self.dead or o.kind == "MARKET":
                 if not (o.kind in _STOP_TYPES and not o.triggered):
@@ -579,6 +696,58 @@ class _Replay:
                     ask_order=a.id if a else None,
                     rested_last=newest.id if newest else None,
                 )
+
+    def _amend(self, book: _Book, a: dict[str, Any], queue: list[_Order]) -> None:
+        """``order.amended``: a price change or a bigger quantity goes to the
+        back of the queue (an iceberg refilling its slice), a smaller
+        quantity keeps its place (and can only shrink the slice). A
+        marketable amend is pulled and matched as an aggressor."""
+        self.amends += 1
+        o = book.orders.get(a["order_id"])
+        if o is None:
+            self._flag("D9", error="amend of an order the replayed book does not hold", order_id=a["order_id"], symbol=book.symbol)  # fmt: skip
+            return
+        price = a.get("price_ticks", o.price)
+        if price != o.price and price is not None:
+            self._band(book.symbol, int(price), "order.amend", o.id, None)
+        rule = price != o.price or int(a["qty"]) > int(a.get("old_qty") or a["qty"])
+        if bool(a["priority_reset"]) != rule:
+            self._flag("D5", error="amend's priority_reset is not the rule's", order_id=o.id, priority_reset=a["priority_reset"], old_price=o.price, price=price, old_qty=a.get("old_qty"), qty=a["qty"])  # fmt: skip
+        if a.get("priority_seq") is not None:
+            self.engine_seq[o.id] = int(a["priority_seq"])
+        left = int(a["remaining_qty"])
+        if a["priority_reset"]:
+            book.remove(o.id)
+            o.price, o.remaining = price, left
+            book.rest(o, self._next_seq())
+        else:
+            book.version += 1
+            shown = min(o.shown, left) if o.peak else left
+            book.qty[o.side] += shown - o.shown
+            o.remaining, o.shown = left, shown
+        if any(_aggressor(t) == o.id for t in self.trades[self.ti :]):
+            book.remove(o.id)
+            queue.append(o)
+
+    def _queue_order(self, symbol: str, traces: list[dict[str, Any]]) -> None:
+        """D5 against the engine's own word: where an order rested or an
+        iceberg refilled, the replayed level must queue its orders in the
+        engine's priority_seq order."""
+        book = self.books.get(symbol)
+        if book is None or symbol in self.diverged:
+            return
+        levels = set()
+        for t in traces:
+            if t["kind"] in ("RESTED", "ICEBERG_REFILL") and t.get("priority_seq") is not None:  # fmt: skip
+                self.engine_seq[t["order_id"]] = int(t["priority_seq"])
+                o = book.orders.get(t["order_id"])
+                if o is not None and o.price is not None:
+                    levels.add((o.side, o.price))
+        for side, price in levels:
+            seqs = [(self.engine_seq.get(oid), oid) for oid in book.levels[side].get(price, {})]  # fmt: skip
+            known = [q for q in seqs if q[0] is not None]
+            if known != sorted(known):
+                self._flag("D5", error="replayed queue differs from the engine's priority_seq", symbol=symbol, side=side, price=price, queue=[oid[:8] for _, oid in known])  # fmt: skip
 
     def _pick(self, queue: list[_Order]) -> _Order:
         """The next order the engine matched: the next trade's aggressor if
@@ -989,6 +1158,8 @@ class _Replay:
             for r in p.get(key) or []:
                 o = self._from_record(r)
                 book.rest(o, int(r.get("priority_seq") or 0))
+                if r.get("priority_seq") is not None:
+                    self.engine_seq[o.id] = int(r["priority_seq"])
                 shown = r.get("displayed_qty")
                 if shown is not None and o.peak:
                     book.qty[side] += int(shown) - o.shown
@@ -1004,6 +1175,20 @@ class _Replay:
         self.seq = top
         self.diverged.discard(sym)
         self.synced.add(sym)
+
+    def _from_ack(self, gw: str, a: dict[str, Any]) -> _Order:
+        return _Order(
+            id=a["order_id"],
+            side=a["side"],
+            kind=a["order_type"],
+            price=a.get("price_ticks"),
+            remaining=int(a["qty"]),
+            gw=gw,
+            smp=a.get("smp_action") or self.smp.get(gw, "NONE"),
+            peak=a.get("visible_qty"),
+            stop=a.get("stop_price_ticks"),
+            offset=a.get("trail_offset_ticks"),
+        )
 
     def _from_record(self, r: dict[str, Any]) -> _Order:
         o = _Order(
@@ -1276,9 +1461,22 @@ def self_trades(ds: Dataset) -> Outcome:
     return _outcome(ds, "D7", f"auction self-trades (X2, Q2): {r.auction_self_trades}")
 
 
-@check("D8", "book-state", "Trade prices lie on the tick grid", needs=())
+@check(
+    "D8",
+    "book-state",
+    "Trade prices lie on the tick grid; every priced order enters inside its collar",
+    needs=(),
+)
 def tick_grid(ds: Dataset) -> Outcome:
-    return _outcome(ds, "D8", "collar / circuit-breaker bands not checked")
+    r = _replay(ds)
+    note = f"{r.entries_banded} entries checked against a collar" if r.bands else "no collar in this run"  # fmt: skip
+    return _outcome(ds, "D8", note)
+
+
+@check("D11", "book-state", "No continuous trade in a halted symbol", needs=())
+def halted_trades(ds: Dataset) -> Outcome:
+    r = _replay(ds)
+    return _outcome(ds, "D11", f"{r.halts} halts")
 
 
 @check(
@@ -1309,10 +1507,7 @@ def replay_agrees(ds: Dataset) -> Outcome:
     )
     if r.skipped_lines:
         note += f"; {r.skipped_lines} lines before the first checkpoint not replayed"
-    if r.unmodelled:
-        note += "; not modelled: " + ", ".join(
-            f"{t}* {n}" for t, n in r.unmodelled.items()
-        )
+    note += f"; {r.amends} amends, {r.combo_legs} combo legs, {r.halts} halts replayed"
     return _outcome(ds, "D9", note)
 
 

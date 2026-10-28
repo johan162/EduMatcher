@@ -10,7 +10,10 @@ published for that command (its ``chain``):
 - E1: every state-changing message the live engine published belongs to a
   command (or to startup). One that does not came from an input the audit
   does not hold -- a silent-gateway expiry, a timer -- and the re-run cannot
-  reproduce it.
+  reproduce it. The one timer the audit does name is the circuit breaker's:
+  its reopen or ACE extension is one chain (S28) ending in
+  ``circuit_breaker.resume/extend.<SYM>``, which the re-run reproduces by
+  firing that symbol's timer (``BREAKER_TIMER``) and compares like a command.
 - E2: the outputs agree, message for message. Engine-generated ids (quote,
   OCO and seed legs) and trade ids are bound live ↔ re-run at first sight. A
   difference is non-determinism, a hidden input, or a behaviour change in
@@ -36,6 +39,7 @@ import json
 import re
 import tempfile
 from collections import Counter
+from collections.abc import Iterator
 from datetime import date, datetime, tzinfo
 from importlib.metadata import version
 from pathlib import Path
@@ -75,7 +79,10 @@ _STATE = (
     "session.state",
 )
 #: Clock readings, never equal between runs.
-_TIME_KEYS = frozenset({"ts_ns", "ts", "removed_at_ns"})
+_TIME_KEYS = frozenset({"ts_ns", "ts", "removed_at_ns", "resume_at_ns"})
+#: The pseudo-command for a circuit breaker's timer firing on one symbol.
+BREAKER_TIMER = "circuit_breaker.timer"
+_TIMER_ENDS = ("circuit_breaker.resume.", "circuit_breaker.extend.")
 _ORDER_ID = re.compile(r"^[0-9a-f]{32}$")
 _TRADE_ID = re.compile(r"^\d{6}-\d{9}$")
 #: An order id's 8-character prefix, as messages quote it in reason text.
@@ -99,6 +106,12 @@ class _Sink:
         pass
 
     def clear_cause(self) -> None:
+        pass
+
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
         pass
 
     def close(self) -> None:
@@ -272,42 +285,19 @@ class _Rerun:
         sink = _Sink()
         with tempfile.TemporaryDirectory() as empty:
             self.engine = fresh_engine(compiled.engine, sink, Path(empty))
-        commands = _command_topics()
-        startup: list[tuple[str, dict[str, Any]]] = []
-        live: list[tuple[str, dict[str, Any]]] = []
-        command: tuple[str, str, dict[str, Any]] | None = None
-        first = True
-        for ln in lines(files):
-            if first:
-                first = False
-                if ln.topic != STARTUP:
-                    raise Skipped(
-                        "the audit does not reach back to the engine's start "
-                        f"(first line: {ln.topic}); its input is incomplete"
-                    )
+        for topic, chain, payload, live, _ts in inputs(files):
+            if topic == "startup":
+                self.step("startup", "", {}, sink.take(), live)
                 continue
-            if ln.topic == STARTUP:
-                raise Skipped("the engine restarted during the run")
-            if ln.topic in commands:
-                if command is None:
-                    self.step("startup", "", {}, sink.take(), startup)
-                else:
-                    self.dispatch(sink, *command, live)
-                command, live = (ln.topic, ln.chain, json.loads(ln.body)), []
+            if topic is None:
+                for t, body in live:
+                    if t.startswith(_STATE):
+                        self.flag("E1", topic=t, chain=chain, body=json.dumps(body)[:200])  # fmt: skip
                 continue
-            if ln.topic.startswith("book."):
-                self.snapshot(json.loads(ln.body))
+            if topic.startswith("book."):
+                self.snapshot(payload)
                 continue
-            if ln.topic.startswith(_SKIP):
-                continue
-            if command is None:
-                startup.append((ln.topic, json.loads(ln.body)))
-            elif ln.chain == command[1]:
-                live.append((ln.topic, json.loads(ln.body)))
-            elif ln.topic.startswith(_STATE):
-                self.flag("E1", topic=ln.topic, chain=ln.chain, body=ln.body[:200])
-        if command is not None:
-            self.dispatch(sink, *command, live)
+            self.dispatch(sink, topic, chain, payload, live)
         self.final_book()
 
     def dispatch(
@@ -319,7 +309,7 @@ class _Rerun:
         live: list[tuple[str, dict[str, Any]]],
     ) -> None:
         self.commands[topic] += 1
-        self.engine._dispatch_pull_message(topic, self.ids.inbound(payload))
+        apply(self.engine, topic, self.ids.inbound(payload))
         self.step(topic, chain, payload, sink.take(), live)
 
     def step(
@@ -378,6 +368,97 @@ class _Rerun:
                     persisted=persisted.get(oid),
                     rerun=resting.get(oid),
                 )
+
+
+Live = list[tuple[str, dict[str, Any]]]
+
+
+Input = tuple[str | None, str, dict[str, Any], Live, str]
+
+
+def inputs(files: list[Path]) -> Iterator[Input]:
+    """The engine's inputs in the audit, in order, each with what the live
+    engine published for it: (topic, chain, payload, outputs, audit time) per echoed
+    command or breaker timer (BREAKER_TIMER, payload {"symbol"}); first
+    ("startup", "", {}, what startup published); a ``book.<SYM>`` snapshot
+    as (topic, "", snapshot, []); and messages no input explains as
+    (None, chain, {}, those messages)."""
+    commands = _command_topics()
+    first = True
+    startup: Live | None = []
+    command: tuple[str, str, dict[str, Any], str] | None = None
+    live: Live = []
+    unit: tuple[str, Live, str] | None = None
+
+    def unit_input(unit: tuple[str, Live, str]) -> Input:
+        chain, msgs, ts = unit
+        end = msgs[-1][0]
+        if end.startswith(_TIMER_ENDS):
+            return BREAKER_TIMER, chain, {"symbol": end.rsplit(".", 1)[1]}, msgs, ts
+        return None, chain, {}, msgs, ts
+
+    for ln in lines(files):
+        if first:
+            first = False
+            if ln.topic != STARTUP:
+                raise Skipped(
+                    "the audit does not reach back to the engine's start "
+                    f"(first line: {ln.topic}); its input is incomplete"
+                )
+            continue
+        if ln.topic == STARTUP:
+            raise Skipped("the engine restarted during the run")
+        if ln.topic in commands and startup is not None:
+            yield "startup", "", {}, startup, ln.ts
+            startup = None
+        if ln.topic in commands or ln.topic.startswith("book."):
+            if command is not None:
+                yield command[0], command[1], command[2], live, command[3]
+                command = None
+            if unit is not None:
+                yield unit_input(unit)
+                unit = None
+            if ln.topic in commands:
+                command, live = (ln.topic, ln.chain, json.loads(ln.body), ln.ts), []
+            else:
+                yield ln.topic, "", json.loads(ln.body), [], ln.ts
+            continue
+        if ln.topic.startswith(_SKIP):
+            continue
+        if startup is not None:
+            startup.append((ln.topic, json.loads(ln.body)))
+            continue
+        if command is not None and ln.chain == command[1]:
+            live.append((ln.topic, json.loads(ln.body)))
+            continue
+        # Outside the current command: what it published is complete (the
+        # engine finishes one input before the next), and a new unit begins.
+        if command is not None:
+            yield command[0], command[1], command[2], live, command[3]
+            command = None
+        if unit is not None and unit[0] != ln.chain:
+            yield unit_input(unit)
+            unit = None
+        if unit is None:
+            unit = (ln.chain, [], ln.ts)
+        unit[1].append((ln.topic, json.loads(ln.body)))
+    if startup is not None:
+        yield "startup", "", {}, startup, ""
+    if command is not None:
+        yield command[0], command[1], command[2], live, command[3]
+    if unit is not None:
+        yield unit_input(unit)
+
+
+def apply(engine: engine_main.Engine, topic: str, payload: dict[str, Any]) -> None:
+    """Feed *engine* one input: a command, or a breaker timer firing."""
+    if topic != BREAKER_TIMER:
+        engine._dispatch_pull_message(topic, payload)
+        return
+    cb = engine._circuit_breakers.get(payload["symbol"])
+    if cb is not None and cb.halted:
+        cb.resume_at_ns = 0  # due now; the engine decides: reopen or extend
+        engine._flush_circuit_breakers()
 
 
 def fresh_engine(

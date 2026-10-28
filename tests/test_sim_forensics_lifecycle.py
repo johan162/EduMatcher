@@ -336,6 +336,38 @@ def test_c5_accepts_the_sibling_pulled_before_the_legs_fill_is_published(
     assert "0 siblings closed only by OCO_CANCEL" in out.note
 
 
+def combo(data: Path, *legs: str) -> None:
+    for leg in legs:
+        event(data, "ACK", leg, "GW1", quantity=10, combo_parent_id="K")
+
+
+def test_c5_accepts_a_failed_combo_whose_other_legs_were_cancelled(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "CANCEL", "A", "GW1", combo_parent_id="K")
+    event(world, "CANCEL", "B", "GW1", reason="COMBO_FAILED", combo_parent_id="K")
+    out = run(open_ds, world, "C5")
+    assert out.violations == 0 and out.note.endswith("1 combos")
+
+
+def test_c5_finds_a_combo_leg_live_after_the_combo_failed(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "EXPIRE", "A", "GW1", combo_parent_id="K")
+    assert errors(run(open_ds, world, "C5")) == [("B", "leg still live after the combo failed")]  # fmt: skip
+
+
+def test_c5_finds_a_combo_leg_filling_after_the_combo_failed(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "CANCEL", "A", "GW1", combo_parent_id="K")
+    event(world, "FILL", "B", "GW1", quantity=10, fill_qty=10, remaining_qty=0, status="FILLED", combo_parent_id="K")  # fmt: skip
+    assert errors(run(open_ds, world, "C5")) == [("B", "fill after leg A ended the combo")]  # fmt: skip
+
+
 def test_c5_finds_a_group_without_two_legs(world: Path, open_ds: OpenDataset) -> None:
     oco(world, "A", "B", "C")
     assert run(open_ds, world, "C5").samples == [

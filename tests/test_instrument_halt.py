@@ -37,6 +37,13 @@ class _DummySocket:
     def close(self) -> None:
         self.closed = True
 
+    # A circuit-breaker reopen is one causal unit (CausalPublisher).
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
+
 
 @pytest.fixture()
 def engine(monkeypatch, tmp_path) -> tuple[Engine, _DummySocket]:

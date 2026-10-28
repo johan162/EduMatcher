@@ -41,6 +41,7 @@ class Recorder:
         self.lines: list[str] = []
         self.n = 0
         self.chain: str | None = None
+        self.unit_chain: str | None = None
 
     def _line(self, topic: str, msg: str, chain: str, payload: Any) -> None:
         self.lines.append(
@@ -55,7 +56,9 @@ class Recorder:
     def send_multipart(self, frames: list[bytes]) -> None:
         topic, payload = decode(frames)
         msg = self._msg()
-        self._line(topic, msg, self.chain or msg, payload)
+        if self.unit_chain == "":
+            self.unit_chain = msg
+        self._line(topic, msg, self.chain or self.unit_chain or msg, payload)
 
     def send_with_envelope(self, frames: list[bytes], envelope: bytes) -> None:
         pass
@@ -65,6 +68,14 @@ class Recorder:
 
     def clear_cause(self) -> None:
         pass
+
+    def begin_unit(self) -> None:
+        """Messages until end_unit share the first one's chain, as the
+        real CausalPublisher's do."""
+        self.unit_chain = ""
+
+    def end_unit(self) -> None:
+        self.unit_chain = None
 
     def close(self) -> None:
         pass

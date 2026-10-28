@@ -20,7 +20,7 @@ from tests.sim_forensics_world import OpenDataset, opener
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
-CHECKS = ["C7", "D1", "D10", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
+CHECKS = ["C7", "D1", "D10", "D11", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
 SYM = "AAPL"
 CONFIG = {
     "engine": {

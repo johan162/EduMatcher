@@ -51,7 +51,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☑ | 2026-10-28 |
 | 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☑ | 2026-10-28 |
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
-| 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☐ | |
+| 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☑ (D9 on an S27 run open) | 2026-10-29 |
 | 29 | S29 | Long run on the 1.0 formats, full report, triage; then freeze | S21–S28 | open | ☐ | |
 
 Total ≈ 10 d plus fix WPs. S0 is **urgent** (see §2, R3: order events are
@@ -214,10 +214,10 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C2 | Nothing after a terminal event (FILLED, CANCELLED, EXPIRED, REJECTED). |
 | C3 | `remaining_qty = qty − cumulative fill` at every FILL; final status consistent with remaining. |
 | C4 | Every ACKed order ends terminal, or is still resting at the cut; resting GTC orders = `gtc_orders.json`; DAY orders all EXPIRE at close. |
-| C5 | OCO: no leg fills after its sibling ended (filled, or cancelled for a reason of its own — not the OCO rule's X7 row); a done leg ends its sibling. Quotes: leg-filled semantics (R5). Combos: legs fill together. |
+| C5 | OCO: no leg fills after its sibling ended (filled, or cancelled for a reason of its own — not the OCO rule's X7 row); a done leg ends its sibling. Quotes: leg-filled semantics (R5). Combos (S28, from stats): a leg ending unfilled ends the others, and none fills after (participant guide, step 6). |
 | C6 | Reject / cancel reason codes are canonical (not the X7 OCO sibling rows, which carry `oco.cancelled`'s free text); reject-rate time series per code (spikes → H). |
 | C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
-| C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
+| C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. (S28) Also: the replay's triggered stops, per dispatch and in order, are the engine's `order.triggered`. |
 | C9 | (S18) IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
 | C10 | (S18) One quote per (gateway, symbol): when a quote is accepted no earlier leg of that gateway and symbol is live (the engine cancels them `QUOTE_REPLACED` first, a filled leg's remainder included), and a replaced leg never trades. |
 
@@ -229,10 +229,11 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | D2 | **Marketable order rested:** an ACKed limit order that rests while the opposite best was at or through its limit (from the reconstructed book). |
 | D3 | Limit respected: buy fill price ≤ limit, sell ≥ limit; market orders within collar. |
 | D4 | No trade-through: each fill is at the best available opposite price at that moment. |
-| D5 | Price-time priority: within a level, resting orders fill in `arrival_seq` order (iceberg refills lose priority; amend-down keeps it). |
+| D5 | Price-time priority: within a level, resting orders fill in `arrival_seq` order (iceberg refills lose priority; amend-down keeps it). (S28) An amend's `priority_reset` is the rule's (price change or qty up); every level a RESTED/ICEBERG_REFILL touched queues in the engine's own `priority_seq` order. |
 | D6 | Auction uncross: one price per symbol per auction, maximises executable volume, tie-breaks per the spec; book uncrossed afterwards; all prints `aggressor_side = AUCTION`. |
 | D7 | SMP: no continuous self-trades; auction self-trade policy per Q2 (R4). |
-| D8 | All prices on the tick grid; trades inside collar / circuit-breaker bands; halts honoured. (Built: tick grid only; bands and halts in S28, after S24 publishes the bands.) |
+| D8 | All prices on the tick grid; every priced order enters inside its collar (risk.band's static band, the dynamic band around the last trade), whichever way it entered (order.new, amend, quote, OCO, combo); a COLLAR_BREACH refusal lies outside it. (S28) |
+| D11 | (S28) No continuous trade in a halted symbol (circuit breaker or administrator); a reopen prints only as an uncross. |
 | D10 | (S18) Each `auction.indicative.*` (price, executable qty, imbalance qty and side) equals the uncross the replayed book makes at that point of the stream. ("`auction.result` = last indicative" dropped: D10 + D6 imply it.) |
 
 ### E — Replay differential
@@ -775,6 +776,9 @@ Finding ids are X*n* (the catalogue's E1–E4 are replay checks).
 | X25 | E6 | 2026-10-28 | restart 1 (PRE_OPEN): 825 trades, all 300 books | Engine: the restore's M3 RECOVERY uncross runs whatever the phase, so a restart during pre-open or an auction call prints the collected book before the auction | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
 | X26 | E6 | 2026-10-28 | 2 books at a restart in CONTINUOUS | Engine: the checkpoint lists orders in `_order_index` (first-arrival) order and the restore re-queues them so; a refilled iceberg (and any order that lost priority) gets its old place back | Fixed 2026-10-28 (S20b); E6 on the 2026-10-28 run: 26 restarts, 0 differences |
 | X27 | S19 (E5 routing) | 2026-10-28 | every `order.oco` | Wire: `order.oco.tick_decimals` is 0 on every OCO — the ALF gateway never sets it, the generated default goes out; the engine ignores it | Fixed 2026-10-28 (S20b): the ALF gateway fills it (the API gateway already did) |
+| X28 | S28 (recorded run) | 2026-10-29 | AON combo whose legs are not all fillable | Engine vs docs: `_accept_combo`'s AON pre-check posts every leg *without matching* -- in CONTINUOUS a marketable leg rests crossed (D2), and other orders, or a reopen uncross, then fill legs alone (`PARTIALLY_MATCHED`). The participant guide (combo orders) says such a leg "is rejected with `INSUFFICIENT_LIQUIDITY`" and the combo fails | Open: decide with Johan (engine follows the docs?) |
+| X29 | S28 (recorded run) | 2026-10-29 | administrator halt with crossing interest, then `risk.symbol_resume` / `resume_all` | Engine: an administrator's resume clears the halt with no uncross, so interest that crossed during it resumes into CONTINUOUS crossed (D2). `CircuitBreakerState.halt_source`'s docstring: a halt "always ends in an uncross ... resuming without one would start continuous trading on a crossed book"; the breaker's timed reopen does uncross | Open: decide with Johan |
+| X30 | S28 (reading the engine) | 2026-10-29 | quotes, OCO legs, combo legs | Engine: the collar is applied in `order.new` and amend only; quotes, OCO legs and combo legs enter without it. D8 reports each one outside its collar, by entry | Open: confirm on a run, then decide (by design for MM quotes?) |
 
 **X1 — triggered stop orders trade without an `order.fill`.** B2: 749 orders
 traded but have no FILL event in pm-stats (traded − filled = +95 132; top
@@ -1998,6 +2002,47 @@ from the trades and circuit-breaker corridors are already on
   (`order.triggered`), it is fills and cancels that must not name it.
   Counts: 129 messages, 19 risk topics; lexicon glosses.
 - Holistic: 11 167 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
+
+### S28 — done 2026-10-29 (D9 on an S27 run still to see)
+
+- **Engine (decided with Johan):** a circuit-breaker reopen is one causal
+  unit: `CausalPublisher.begin_unit()/end_unit()`, the first message is the
+  root and the rest are caused by it. Before, its auction.result, prints,
+  fills and resume each began a chain of their own, so no audit reader (the
+  replay, pm-audit-replay) saw one uncross. ACE extend is one message.
+- **Replay (`matching.py`):** reads `order.amended` (price change or qty up
+  re-queues, an iceberg refilling; qty down keeps its place and can only
+  shrink the slice; a marketable amend is pulled and matched as an
+  aggressor), combo legs (from their acks' records, in posting order),
+  `circuit_breaker.halt/resume` (no matching while halted; the reopen's
+  prints are an uncross; halts in effect after the dispatch, in order),
+  `risk.band` (D8), `order.triggered` (C7) and `engine.trace` (D5).
+  `_UNMODELLED` is gone. New **D11**: no continuous trade in a halted
+  symbol. A halt or resume steps its symbol, so D2 sees the book it leaves.
+- **C5** (stats): combo legs by `combo_parent_id` -- a leg ending unfilled
+  ends the others; none fills after.
+- **E1/E2/E5–E7:** `rerun.inputs()` yields the engine's inputs: commands,
+  and a breaker timer (`circuit_breaker.timer`, a chain ending in
+  `circuit_breaker.resume/extend.<SYM>`), which `rerun.apply()` fires in the
+  re-run engine (resume due now); E1 no longer reports a reopen as a hidden
+  input. `resume_at_ns` is a clock reading. E5 leaves seeded combos' symbols
+  out from the start.
+- **E7 with bands (decided):** the shifted lane's collars are
+  `_ShiftedCollar`s, which a patched `validate_collar` applies at the
+  un-shifted price, last and reference; each breaker sits behind
+  `_ShiftedBreaker` (prices un-shifted in, shifted out; its seeded history
+  un-shifted). The shift also moves seeded combo legs, and each lane has
+  its own `CollarConfig` (the engine writes the reference into it --
+  shared, the shifted lane overwrote the reference lane's). Only order
+  limits still keep the shift off. `_PRICE_KEYS` gains `old_price` and the
+  breaker's display prices.
+- **Tests:** `tests/sim_forensics_features.py` records a real engine on
+  s3-complex through every feature (`consistent()`); every C/D/E check
+  passes on it, and a planted fault per feature is found
+  (`tests/test_sim_forensics_features.py`), with the collar edge a naive
+  shift gets wrong. Recorded too: **X28**, **X29** (D2 finds both); X30 read
+  from the engine.
+- Holistic: 11 216 passed, coverage 88.74 %; `make _check` clean; e2e 15/15.
 
 ### S24b — done 2026-10-28
 

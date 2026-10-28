@@ -25,9 +25,13 @@ makes every later one likely).
   commands.
 - **E7, metamorphic.** (a) Gateways swapped within groups of identical
   configuration, and every order id renamed; (b) every price of every
-  symbol shifted up by ``_E7_SHIFT`` ticks (only where the configuration
-  has no price-dependent rule: collars, order limits, circuit breakers).
-  Outputs are mapped back before the comparison.
+  symbol shifted up by ``_E7_SHIFT`` ticks. Collars and circuit breakers
+  are percentages of a price, rounded down, so no shift leaves them as
+  they were: the shifted engine applies them in the original prices (its
+  collars and breakers see every price un-shifted), and the check shows
+  that everything else -- matching, auctions, stops, notionals -- does not
+  depend on the price level. Not run where order limits (a notional cap)
+  are configured. Outputs are mapped back before the comparison.
 
 Together these cost several E2 re-runs, so they are *slow* checks.
 """
@@ -40,29 +44,31 @@ import hashlib
 import json
 import random
 import tempfile
-from collections import Counter, defaultdict
-from collections.abc import Iterator
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from sim_forensics.audit import STARTUP, audit_files, lines, run_config_text
+from sim_forensics.audit import audit_files, run_config_text
 from sim_forensics.checks.rerun import (
     _ID_PREFIX,
     _ORDER_ID,
-    _command_topics,
     _compare,
     _Ids,
     _Sink,
+    apply,
     fresh_engine,
+    inputs,
 )
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
 from edumatcher.config_artifact import decode as decode_artifact
+from edumatcher.engine.circuit_breaker import CircuitBreakerState
+from edumatcher.engine.collar import CollarConfig, CollarResult, validate_collar
 from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.engine.order_book import _DEAD_STATUSES, OrderBook
 from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
@@ -82,7 +88,7 @@ _ID_KEYS = ("order_id", "id", "quote_id", "oco_id", "cancelled_order_id", "bid_o
 _TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks", "trigger_price_ticks", "last_price_ticks"})  # fmt: skip
 #: Σ price_ticks × qty, and the quantity each shifts with.
 _NOTIONAL_KEYS = {"fill_notional_ticks": "fill_qty", "cum_notional_ticks": "cum_qty"}
-_PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price"})  # fmt: skip
+_PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price", "old_price", "trigger_price", "reference_price", "corridor_low", "corridor_high", "print_price"})  # fmt: skip
 #: A display price that is a VWAP, off the tick grid.
 _VWAP_KEYS = frozenset({"fill_price"})
 
@@ -190,7 +196,12 @@ class _Run:
         self.config = config = compiled.engine
         reset_trade_ids_for_tests()
         set_run_seq(1)
-        with tempfile.TemporaryDirectory() as tmp:
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(
+                engine_main, "validate_collar", _collar_in_original_prices
+            ),
+        ):
             self.tmp = Path(tmp)
             empty = self.tmp / "empty"
             empty.mkdir()
@@ -200,10 +211,12 @@ class _Run:
             self.e5 = _Isolation(self, empty)
             self.e6 = _Recovery(self)
             self.e7 = _Metamorphic(self, empty)
-            for ts, topic, chain, payload in _commands(files):
+            for topic, chain, payload, _live, ts in inputs(files):
+                if topic is None or topic == "startup" or topic.startswith("book."):
+                    continue
                 self.n += 1
                 self.where.learn(payload)
-                self.ref.engine._dispatch_pull_message(topic, payload)
+                apply(self.ref.engine, topic, payload)
                 ref = self.ref.sink.take()
                 self.e5.step(topic, payload, ref, chain)
                 self.e6.step(ts, topic, payload, ref, chain)
@@ -218,25 +231,6 @@ def _rounded(v: Any) -> Any:
     return round(v, 9) if isinstance(v, float) else v
 
 
-def _commands(files: list[Path]) -> Iterator[tuple[str, str, str, dict[str, Any]]]:
-    """(audit time, topic, chain, payload) of each echoed command, in order."""
-    commands = _command_topics()
-    first = True
-    for ln in lines(files):
-        if first:
-            first = False
-            if ln.topic != STARTUP:
-                raise Skipped(
-                    "the audit does not reach back to the engine's start "
-                    f"(first line: {ln.topic}); its input is incomplete"
-                )
-            continue
-        if ln.topic == STARTUP:
-            raise Skipped("the engine restarted during the run")
-        if ln.topic in commands:
-            yield ln.ts, ln.topic, ln.chain, json.loads(ln.body)
-
-
 # --- E5 ----------------------------------------------------------------------
 
 
@@ -247,7 +241,9 @@ class _Isolation:
         #: Commands that named no symbol, for engines started later.
         self.broadcast: list[tuple[str, dict[str, Any]]] = []
         #: Symbols a combo touched: not isolated.
-        self.combined: set[str] = set()
+        self.combined: set[str] = {
+            leg.symbol for c in run.config.market_maker_combos for leg in c.legs
+        }
 
     def lane(self, symbol: str) -> _Lane | None:
         if symbol in self.lanes:
@@ -259,7 +255,7 @@ class _Isolation:
         sink = _Sink()
         lane = self.lanes[symbol] = _Lane(fresh_engine(config, sink, self.empty), sink)
         for topic, p in self.broadcast:
-            lane.engine._dispatch_pull_message(topic, p)
+            apply(lane.engine, topic, p)
         sink.take()
         return lane
 
@@ -272,7 +268,7 @@ class _Isolation:
         if symbol is None:
             self.broadcast.append((topic, p))
             for s, each in self.lanes.items():
-                each.engine._dispatch_pull_message(topic, p)
+                apply(each.engine, topic, p)
                 if s not in self.combined:
                     self.run.compare("E5", each, each.sink.take(), ref, {s}, command=topic, chain=chain)  # fmt: skip
                 else:
@@ -281,7 +277,7 @@ class _Isolation:
         lane = self.lane(symbol)
         if lane is None or symbol in self.combined:
             return
-        lane.engine._dispatch_pull_message(topic, p)
+        apply(lane.engine, topic, p)
         mine = lane.sink.take()
         others = set(self.run.where.group(ref)) - {symbol, None}
         if others and "E5-other" not in lane.diverged:
@@ -347,7 +343,7 @@ class _Recovery:
         if topic == "system.gateway_connect":
             self.connects[str(p.get("gateway_id"))] = p
         if self.lane is not None:
-            self.lane.engine._dispatch_pull_message(topic, p)
+            apply(self.lane.engine, topic, p)
             # A restart numbers each book's queue afresh: the order of the
             # queue is compared at the restart, not the numbers after it.
             self.run.compare("E6", self.lane, self.lane.sink.take(), ref, None, ignore=_RENUMBERED, restart=self.restarts, command=topic, chain=chain)  # fmt: skip
@@ -485,6 +481,56 @@ class _Rename(_Transform):
         return self._topic(topic, False), self._map(p, False)
 
 
+_validate_collar = validate_collar
+#: The breaker's prices, in ticks.
+_BREAKER_PRICES = ("reference_price", "trigger_price", "corridor_reference")
+
+
+@dataclass
+class _ShiftedCollar(CollarConfig):
+    """A collar the E7-shifted engine applies in the original prices."""
+
+    e7_shift: int = 0
+
+
+def _collar_in_original_prices(
+    price: int, collar: CollarConfig, last: int | None
+) -> CollarResult:
+    k = collar.e7_shift if isinstance(collar, _ShiftedCollar) else 0
+    return _validate_collar(price - k, collar, None if last is None else last - k)
+
+
+class _ShiftedBreaker:
+    """A circuit breaker running in the original prices behind a shifted
+    engine: prices in are un-shifted, prices out shifted back."""
+
+    def __init__(self, inner: CircuitBreakerState, k: int) -> None:
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_k", k)
+
+    def __getattr__(self, name: str) -> Any:
+        v = getattr(self._inner, name)
+        return v + self._k if name in _BREAKER_PRICES and v is not None else v
+
+    def __setattr__(self, name: str, v: Any) -> None:
+        if name in _BREAKER_PRICES and v is not None:
+            v -= self._k
+        setattr(self._inner, name, v)
+
+    def seed_reference(self, price: int, now: int) -> None:
+        self._inner.seed_reference(price - self._k, now)
+
+    def record_trade(self, price: int, now: int) -> Any:
+        return self._inner.record_trade(price - self._k, now)
+
+    def within_corridor(self, price: int) -> bool:
+        return bool(self._inner.within_corridor(price - self._k))
+
+    def corridor(self) -> tuple[int, int] | None:
+        bounds = self._inner.corridor()
+        return None if bounds is None else (bounds[0] + self._k, bounds[1] + self._k)
+
+
 class _Shift(_Transform):
     """Every price of every symbol up by ``_E7_SHIFT`` ticks."""
 
@@ -500,12 +546,25 @@ class _Shift(_Transform):
     @staticmethod
     def unsupported(config: EngineConfig) -> str:
         """Why a shift could change outcomes here ("" if it cannot)."""
-        if config.risk_control_levels:
-            return "risk control levels configured"
         for s, c in config.symbols.items():
-            if c.collar or c.order_limits or c.circuit_breaker:
-                return f"{s} has a collar, order limits or a circuit breaker"
+            if c.order_limits:
+                return f"{s} has order limits"
         return ""
+
+    def adopt(self, engine: engine_main.Engine) -> None:
+        """Make the shifted engine apply its collars and circuit breakers in
+        the original prices."""
+        k = _E7_SHIFT
+        for sym, collar in engine._collars.items():
+            engine._collars[sym] = _ShiftedCollar(**{**vars(collar), "reference_price": collar.reference_price - k}, e7_shift=k)  # fmt: skip
+        for sym, cb in engine._circuit_breakers.items():
+            # Startup seeded each breaker from the shifted last prices.
+            cb.trade_history = deque((t, p - k) for t, p in cb.trade_history)
+            cb._trade_price_sum -= k * len(cb.trade_history)
+            for name in _BREAKER_PRICES:
+                if getattr(cb, name) is not None:
+                    setattr(cb, name, getattr(cb, name) - k)
+            engine._circuit_breakers[sym] = _ShiftedBreaker(cb, k)  # type: ignore[assignment]
 
     def config(self, config: EngineConfig) -> EngineConfig:
         k = _E7_SHIFT
@@ -514,6 +573,8 @@ class _Shift(_Transform):
             scale = 10**c.tick_decimals
             symbols[s] = replace(
                 c,
+                # Its own: the engine writes the collar's reference into it.
+                collar=replace(c.collar) if c.collar else None,
                 market_maker_quotes=[
                     replace(q, bid_price_ticks=q.bid_price_ticks + k, ask_price_ticks=q.ask_price_ticks + k)  # fmt: skip
                     for q in c.market_maker_quotes
@@ -521,7 +582,16 @@ class _Shift(_Transform):
                 last_buy_price=None if c.last_buy_price is None else (round(c.last_buy_price * scale) + k) / scale,  # fmt: skip
                 last_sell_price=None if c.last_sell_price is None else (round(c.last_sell_price * scale) + k) / scale,  # fmt: skip
             )
-        return replace(config, symbols=symbols)
+
+        def leg(x: Any) -> Any:
+            return replace(
+                x,
+                price_ticks=None if x.price_ticks is None else x.price_ticks + k,
+                stop_price_ticks=None if x.stop_price_ticks is None else x.stop_price_ticks + k,  # fmt: skip
+            )
+
+        combos = [replace(c, legs=[leg(x) for x in c.legs]) for c in config.market_maker_combos]  # fmt: skip
+        return replace(config, symbols=symbols, market_maker_combos=combos)
 
     def _shift(self, v: Any, by: int, scale: float) -> Any:
         if isinstance(v, dict):
@@ -573,11 +643,13 @@ class _Metamorphic:
         for t in transforms:
             sink = _Sink()
             self.lanes.append((t, _Lane(fresh_engine(t.config(run.config), sink, empty), sink)))  # fmt: skip
+            if isinstance(t, _Shift):
+                t.adopt(self.lanes[-1][1].engine)
             sink.take()
 
     def step(self, topic: str, p: dict[str, Any], ref: Msgs, chain: str) -> None:
         for t, lane in self.lanes:
-            lane.engine._dispatch_pull_message(*t.command(topic, p))
+            apply(lane.engine, *t.command(topic, p))
             mine = [t.output(tp, x) for tp, x in lane.sink.take()]
             self.run.compare("E7", lane, mine, ref, None, t.exact, transform=t.name, command=topic, chain=chain)  # fmt: skip
 
