@@ -136,6 +136,9 @@ messages:
         doc: Decimal scale for `price`; 1 tick = 10^-tick_decimals.
         validate: { ge: 0, le: 8 }
 
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
     encoding:
       engine_pub:
         # models/message.py::encode returns exactly TWO frames. The per-topic

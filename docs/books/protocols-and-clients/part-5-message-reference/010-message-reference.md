@@ -738,6 +738,7 @@ Engine to all: where one symbol would uncross if the call phase ended now. Publi
 | `eq_qty` | `int` | required | ge 0, unit `shares` | Quantity that would execute. Zero is a true reading and is always emitted, unlike `eq_price`, which has no zero. |
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side would be left unfilled. Absent when the book is balanced at the indicative price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
+| `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 
@@ -774,6 +775,7 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side was left unfilled. Absent when the book was balanced at the uncross price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
 | `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
+| `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 
@@ -2255,6 +2257,9 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` | `trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 
@@ -2296,6 +2301,9 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 | `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
+| `fill_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display). |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order has filled in all, this fill included. |
+| `cum_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price. |
 
 **See also:** `trade.executed`
 
@@ -2322,6 +2330,8 @@ Confirm that a resting order has been cancelled.
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled). |
+| `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order was cancelled. |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it was cancelled. |
 
 ### `order.expired.{gateway_id}`
 
@@ -2343,6 +2353,8 @@ A DAY order that never filled has expired at session end. Same shape as order.ca
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order expired. |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it expired. |
 
 ### `order.amended.{gateway_id}`
 
@@ -2367,6 +2379,8 @@ Confirm an accepted amendment and report the resulting order.
 | `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` | The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`. |
 
 !!! note
 
@@ -4642,6 +4656,7 @@ Public print of a completed match. The authoritative record of what traded, cons
 | `aggressor_side` | enum: `BUY`, `SELL`, `AUCTION` | required | — | Side that removed liquidity. AUCTION when both sides rested, which happens on an uncross print where there is no true aggressor. |
 | `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision. |
 | `tick_decimals` | `int` | defaults to `2` | ge 0, le 8, unit `dimensionless` | Decimal scale for `price`; 1 tick = 10^-tick_decimals. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 

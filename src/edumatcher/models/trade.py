@@ -127,6 +127,7 @@ class Trade:
             "buy_gateway_id": self.buy_gateway_id,
             "sell_gateway_id": self.sell_gateway_id,
             "price": from_ticks(self.price, self.symbol),
+            "price_ticks": self.price,
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
             "ts_ns": self.ts_ns,

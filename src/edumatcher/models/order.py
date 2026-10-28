@@ -208,6 +208,12 @@ class Order:
     # so a back-dated payload timestamp cannot jump the price-time queue.
     # Assigned by OrderBook when the order is placed on a heap; 0 = unassigned.
     arrival_seq: int = 0
+    # Σ price_ticks × qty of every fill so far: with quantity - remaining_qty,
+    # the exact average price (order.fill.cum_notional_ticks). Engine state,
+    # not part of the order a client sends: absent from to_dict() (order.new
+    # is built from it), written by the persistence file and read back by
+    # from_dict, so a restart does not reset it.
+    cum_notional_ticks: int = 0
 
     # Why the *exchange* cancelled this order, set by OrderBook when it makes
     # that decision itself (self-match prevention, an unfillable MARKET/IOC
@@ -343,6 +349,7 @@ class Order:
         o.quote_id = d.get("quote_id")
         o.client_tag = d.get("client_tag")
         o.arrival_seq = d.get("arrival_seq", 0)
+        o.cum_notional_ticks = d.get("cum_notional_ticks", 0)
         # Not carried on the wire (see the field comment): __new__ bypasses the
         # dataclass default, so the slot must be initialised here or the first
         # read raises AttributeError.

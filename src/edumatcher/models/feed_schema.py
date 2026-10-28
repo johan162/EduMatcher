@@ -29,7 +29,8 @@ class TradeExecutedPayload:
     """Payload for topic ``trade.executed``.
 
     Units:
-    - ``price`` is display float.
+    - ``price`` is display float; ``price_ticks`` the same price in engine
+      ticks, canonical (absent on prints from before it existed).
     - ``ts_ns`` is Unix epoch nanoseconds (int), carried through unscaled.
     """
 
@@ -45,6 +46,7 @@ class TradeExecutedPayload:
     aggressor_side: str
     ts_ns: int
     tick_decimals: int = 2
+    price_ticks: int | None = None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TradeExecutedPayload":
@@ -61,10 +63,15 @@ class TradeExecutedPayload:
             aggressor_side=str(payload.get("aggressor_side", "")),
             ts_ns=int(payload["ts_ns"]),
             tick_decimals=int(payload.get("tick_decimals", 2)),
+            price_ticks=(
+                None
+                if payload.get("price_ticks") is None
+                else int(payload["price_ticks"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "id": self.id,
             "run_seq": self.run_seq,
             "symbol": self.symbol,
@@ -78,3 +85,7 @@ class TradeExecutedPayload:
             "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }
+        # Omitted when unset, as the spec's encoder omits it.
+        if self.price_ticks is not None:
+            out["price_ticks"] = self.price_ticks
+        return out

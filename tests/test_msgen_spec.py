@@ -122,6 +122,7 @@ class TestRealSpec:
             quantity=1,
             aggressor_side="BUY",
             ts_ns=0,
+            price_ticks=100,  # omitted when unset, so set: every field compared
         ).to_dict()
         assert [f.name for f in msg.fields] == list(hand)
 

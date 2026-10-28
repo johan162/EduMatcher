@@ -128,6 +128,13 @@ _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Decimal scale for `price`; 1 tick = 10^-tick_decimals.",
         "constraints": {"ge": 0, "le": 8},
     },
+    {
+        "name": "price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
 )
 
 
@@ -152,6 +159,7 @@ class TradeExecuted:
     aggressor_side: str
     ts_ns: int  # unit: epoch_nanos
     tick_decimals: int = 2  # unit: dimensionless
+    price_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -234,11 +242,12 @@ class TradeExecuted:
             aggressor_side=str(p.get("aggressor_side", "")),
             ts_ns=int(p["ts_ns"]),
             tick_decimals=int(p.get("tick_decimals", 2)),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "run_seq": self.run_seq,
             "symbol": self.symbol,
@@ -252,6 +261,9 @@ class TradeExecuted:
             "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        return payload
 
 
 def is_trade_executed(topic: str) -> bool:
@@ -288,6 +300,7 @@ def make_trade_executed_unchecked(
     aggressor_side: str,
     ts_ns: int,
     tick_decimals: int = 2,
+    price_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_trade_executed``, without ``validate()``.
 
@@ -299,24 +312,25 @@ def make_trade_executed_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "id": str(id),
+        "run_seq": int(run_seq),
+        "symbol": str(symbol),
+        "buy_order_id": str(buy_order_id),
+        "sell_order_id": str(sell_order_id),
+        "buy_gateway_id": str(buy_gateway_id),
+        "sell_gateway_id": str(sell_gateway_id),
+        "price": float(price),
+        "quantity": int(quantity),
+        "aggressor_side": str(aggressor_side),
+        "ts_ns": int(ts_ns),
+        "tick_decimals": int(tick_decimals),
+    }
+    if price_ticks is not None:
+        payload["price_ticks"] = int(price_ticks)
     return [
         _TOPIC_TRADE_EXECUTED_BYTES,
-        _msg.dumps(
-            {
-                "id": str(id),
-                "run_seq": int(run_seq),
-                "symbol": str(symbol),
-                "buy_order_id": str(buy_order_id),
-                "sell_order_id": str(sell_order_id),
-                "buy_gateway_id": str(buy_gateway_id),
-                "sell_gateway_id": str(sell_gateway_id),
-                "price": float(price),
-                "quantity": int(quantity),
-                "aggressor_side": str(aggressor_side),
-                "ts_ns": int(ts_ns),
-                "tick_decimals": int(tick_decimals),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -385,6 +399,7 @@ def parse_trade_executed_calf(
         aggressor_side=str(fields["SIDE"]),
         ts_ns=0,
         tick_decimals=2,
+        price_ticks=None,
     )
 
 

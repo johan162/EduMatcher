@@ -1248,6 +1248,27 @@ _ORDER_ACK_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.",
     },
+    {
+        "name": "price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
+    {
+        "name": "stop_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
+    {
+        "name": "trail_offset_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
 )
 
 
@@ -1282,6 +1303,9 @@ class OrderAck:
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     is_seed: bool = False
+    price_ticks: int | None = None  # unit: ticks
+    stop_price_ticks: int | None = None  # unit: ticks
+    trail_offset_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1403,6 +1427,17 @@ class OrderAck:
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             is_seed=bool(p.get("is_seed", False)),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
+            trail_offset_ticks=(
+                None
+                if p.get("trail_offset_ticks") is None
+                else int(p["trail_offset_ticks"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1447,6 +1482,12 @@ class OrderAck:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        if self.stop_price_ticks is not None:
+            payload["stop_price_ticks"] = self.stop_price_ticks
+        if self.trail_offset_ticks is not None:
+            payload["trail_offset_ticks"] = self.trail_offset_ticks
         return payload
 
 
@@ -1500,6 +1541,9 @@ def make_order_ack_unchecked(
     quote_id: str | None = None,
     leg_index: int | None = None,
     is_seed: bool = False,
+    price_ticks: int | None = None,
+    stop_price_ticks: int | None = None,
+    trail_offset_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_ack``, without ``validate()``.
 
@@ -1551,6 +1595,12 @@ def make_order_ack_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if price_ticks is not None:
+        payload["price_ticks"] = int(price_ticks)
+    if stop_price_ticks is not None:
+        payload["stop_price_ticks"] = int(stop_price_ticks)
+    if trail_offset_ticks is not None:
+        payload["trail_offset_ticks"] = int(trail_offset_ticks)
     return [
         topic_order_ack(gateway_id).encode(),
         _msg.dumps(payload),
@@ -1740,6 +1790,30 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.",
         "values": _ORDER_FILL_LIQUIDITY_FLAG_VALUES,
     },
+    {
+        "name": "fill_notional_ticks",
+        "type": "int",
+        "unit": "notional_ticks",
+        "required": False,
+        "doc": "Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display).",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "cum_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity the order has filled in all, this fill included.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "cum_notional_ticks",
+        "type": "int",
+        "unit": "notional_ticks",
+        "required": False,
+        "doc": "Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price.",
+        "constraints": {"ge": 0},
+    },
 )
 
 
@@ -1769,6 +1843,9 @@ class OrderFill:
     is_seed: bool = False
     trade_ids: list[str] = field(default_factory=list)
     liquidity_flag: OrderFillLiquidityFlag | None = None
+    fill_notional_ticks: int | None = None  # unit: notional_ticks
+    cum_qty: int | None = None  # unit: shares
+    cum_notional_ticks: int | None = None  # unit: notional_ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1834,6 +1911,19 @@ class OrderFill:
                 raise MessageValidationError(
                     f"liquidity_flag: {self.liquidity_flag!r} is not one of {_ORDER_FILL_LIQUIDITY_FLAG_VALUES!r}"
                 )
+        if self.fill_notional_ticks is not None:
+            if self.fill_notional_ticks < 0:
+                raise MessageValidationError(
+                    f"fill_notional_ticks: {self.fill_notional_ticks!r} must be >= 0"
+                )
+        if self.cum_qty is not None:
+            if self.cum_qty < 0:
+                raise MessageValidationError(f"cum_qty: {self.cum_qty!r} must be >= 0")
+        if self.cum_notional_ticks is not None:
+            if self.cum_notional_ticks < 0:
+                raise MessageValidationError(
+                    f"cum_notional_ticks: {self.cum_notional_ticks!r} must be >= 0"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderFill":
@@ -1872,6 +1962,17 @@ class OrderFill:
                 if p.get("liquidity_flag") is None
                 else cast(OrderFillLiquidityFlag, str(p["liquidity_flag"]))
             ),
+            fill_notional_ticks=(
+                None
+                if p.get("fill_notional_ticks") is None
+                else int(p["fill_notional_ticks"])
+            ),
+            cum_qty=None if p.get("cum_qty") is None else int(p["cum_qty"]),
+            cum_notional_ticks=(
+                None
+                if p.get("cum_notional_ticks") is None
+                else int(p["cum_notional_ticks"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1909,6 +2010,12 @@ class OrderFill:
             payload["leg_index"] = self.leg_index
         if self.liquidity_flag is not None:
             payload["liquidity_flag"] = self.liquidity_flag
+        if self.fill_notional_ticks is not None:
+            payload["fill_notional_ticks"] = self.fill_notional_ticks
+        if self.cum_qty is not None:
+            payload["cum_qty"] = self.cum_qty
+        if self.cum_notional_ticks is not None:
+            payload["cum_notional_ticks"] = self.cum_notional_ticks
         return payload
 
 
@@ -1960,6 +2067,9 @@ def make_order_fill_unchecked(
     is_seed: bool = False,
     trade_ids: list[str] = [],
     liquidity_flag: OrderFillLiquidityFlag | None = None,
+    fill_notional_ticks: int | None = None,
+    cum_qty: int | None = None,
+    cum_notional_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_fill``, without ``validate()``.
 
@@ -2004,6 +2114,12 @@ def make_order_fill_unchecked(
         payload["leg_index"] = int(leg_index)
     if liquidity_flag is not None:
         payload["liquidity_flag"] = str(liquidity_flag)
+    if fill_notional_ticks is not None:
+        payload["fill_notional_ticks"] = int(fill_notional_ticks)
+    if cum_qty is not None:
+        payload["cum_qty"] = int(cum_qty)
+    if cum_notional_ticks is not None:
+        payload["cum_notional_ticks"] = int(cum_notional_ticks)
     return [
         topic_order_fill(gateway_id).encode(),
         _msg.dumps(payload),
@@ -2144,6 +2260,22 @@ _ORDER_CANCELLED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled).",
         "constraints": {"max_len": 64},
     },
+    {
+        "name": "remaining_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity left unfilled when the order was cancelled.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "cum_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity the order had filled before it was cancelled.",
+        "constraints": {"ge": 0},
+    },
 )
 
 
@@ -2162,6 +2294,8 @@ class OrderCancelled:
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
     command_id: str | None = None
+    remaining_qty: int | None = None  # unit: shares
+    cum_qty: int | None = None  # unit: shares
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2218,6 +2352,14 @@ class OrderCancelled:
                 raise MessageValidationError(
                     f"command_id: length {len(self.command_id)} exceeds max_len 64"
                 )
+        if self.remaining_qty is not None:
+            if self.remaining_qty < 0:
+                raise MessageValidationError(
+                    f"remaining_qty: {self.remaining_qty!r} must be >= 0"
+                )
+        if self.cum_qty is not None:
+            if self.cum_qty < 0:
+                raise MessageValidationError(f"cum_qty: {self.cum_qty!r} must be >= 0")
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCancelled":
@@ -2247,6 +2389,10 @@ class OrderCancelled:
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
             command_id=None if p.get("command_id") is None else str(p["command_id"]),
+            remaining_qty=(
+                None if p.get("remaining_qty") is None else int(p["remaining_qty"])
+            ),
+            cum_qty=None if p.get("cum_qty") is None else int(p["cum_qty"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -2272,6 +2418,10 @@ class OrderCancelled:
             payload["leg_index"] = self.leg_index
         if self.command_id is not None:
             payload["command_id"] = self.command_id
+        if self.remaining_qty is not None:
+            payload["remaining_qty"] = self.remaining_qty
+        if self.cum_qty is not None:
+            payload["cum_qty"] = self.cum_qty
         return payload
 
 
@@ -2314,6 +2464,8 @@ def make_order_cancelled_unchecked(
     quote_id: str | None = None,
     leg_index: int | None = None,
     command_id: str | None = None,
+    remaining_qty: int | None = None,
+    cum_qty: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_cancelled``, without ``validate()``.
 
@@ -2346,6 +2498,10 @@ def make_order_cancelled_unchecked(
         payload["leg_index"] = int(leg_index)
     if command_id is not None:
         payload["command_id"] = str(command_id)
+    if remaining_qty is not None:
+        payload["remaining_qty"] = int(remaining_qty)
+    if cum_qty is not None:
+        payload["cum_qty"] = int(cum_qty)
     return [
         topic_order_cancelled(gateway_id).encode(),
         _msg.dumps(payload),
@@ -2444,6 +2600,22 @@ _ORDER_EXPIRED_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "remaining_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity left unfilled when the order expired.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "cum_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Quantity the order had filled before it expired.",
+        "constraints": {"ge": 0},
+    },
 )
 
 
@@ -2462,6 +2634,8 @@ class OrderExpired:
     combo_parent_id: str | None = None
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
+    remaining_qty: int | None = None  # unit: shares
+    cum_qty: int | None = None  # unit: shares
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2503,6 +2677,14 @@ class OrderExpired:
                 raise MessageValidationError(
                     f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
                 )
+        if self.remaining_qty is not None:
+            if self.remaining_qty < 0:
+                raise MessageValidationError(
+                    f"remaining_qty: {self.remaining_qty!r} must be >= 0"
+                )
+        if self.cum_qty is not None:
+            if self.cum_qty < 0:
+                raise MessageValidationError(f"cum_qty: {self.cum_qty!r} must be >= 0")
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderExpired":
@@ -2525,6 +2707,10 @@ class OrderExpired:
             ),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            remaining_qty=(
+                None if p.get("remaining_qty") is None else int(p["remaining_qty"])
+            ),
+            cum_qty=None if p.get("cum_qty") is None else int(p["cum_qty"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -2544,6 +2730,10 @@ class OrderExpired:
             payload["quote_id"] = self.quote_id
         if self.leg_index is not None:
             payload["leg_index"] = self.leg_index
+        if self.remaining_qty is not None:
+            payload["remaining_qty"] = self.remaining_qty
+        if self.cum_qty is not None:
+            payload["cum_qty"] = self.cum_qty
         return payload
 
 
@@ -2583,6 +2773,8 @@ def make_order_expired_unchecked(
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
     leg_index: int | None = None,
+    remaining_qty: int | None = None,
+    cum_qty: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_expired``, without ``validate()``.
 
@@ -2609,6 +2801,10 @@ def make_order_expired_unchecked(
         payload["quote_id"] = str(quote_id)
     if leg_index is not None:
         payload["leg_index"] = int(leg_index)
+    if remaining_qty is not None:
+        payload["remaining_qty"] = int(remaining_qty)
+    if cum_qty is not None:
+        payload["cum_qty"] = int(cum_qty)
     return [
         topic_order_expired(gateway_id).encode(),
         _msg.dumps(payload),
@@ -2724,6 +2920,21 @@ _ORDER_AMENDED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null.",
         "constraints": {"max_len": 64},
     },
+    {
+        "name": "price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
+    {
+        "name": "priority_seq",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`.",
+        "constraints": {"ge": 0},
+    },
 )
 
 
@@ -2748,6 +2959,8 @@ class OrderAmended:
     old_qty: int | None = None  # unit: shares
     client_tag: str | None = None
     request_tag: str | None = None
+    price_ticks: int | None = None  # unit: ticks
+    priority_seq: int | None = None  # unit: dimensionless
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -2779,6 +2992,11 @@ class OrderAmended:
                 raise MessageValidationError(
                     f"request_tag: length {len(self.request_tag)} exceeds max_len 64"
                 )
+        if self.priority_seq is not None:
+            if self.priority_seq < 0:
+                raise MessageValidationError(
+                    f"priority_seq: {self.priority_seq!r} must be >= 0"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderAmended":
@@ -2800,6 +3018,10 @@ class OrderAmended:
             old_qty=None if p.get("old_qty") is None else int(p["old_qty"]),
             client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
             request_tag=None if p.get("request_tag") is None else str(p["request_tag"]),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            priority_seq=(
+                None if p.get("priority_seq") is None else int(p["priority_seq"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -2821,6 +3043,10 @@ class OrderAmended:
             payload["client_tag"] = self.client_tag
         if self.request_tag is not None:
             payload["request_tag"] = self.request_tag
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        if self.priority_seq is not None:
+            payload["priority_seq"] = self.priority_seq
         return payload
 
 
@@ -2863,6 +3089,8 @@ def make_order_amended_unchecked(
     old_qty: int | None = None,
     client_tag: str | None = None,
     request_tag: str | None = None,
+    price_ticks: int | None = None,
+    priority_seq: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_order_amended``, without ``validate()``.
 
@@ -2891,6 +3119,10 @@ def make_order_amended_unchecked(
         payload["client_tag"] = str(client_tag)
     if request_tag is not None:
         payload["request_tag"] = str(request_tag)
+    if price_ticks is not None:
+        payload["price_ticks"] = int(price_ticks)
+    if priority_seq is not None:
+        payload["priority_seq"] = int(priority_seq)
     return [
         topic_order_amended(gateway_id).encode(),
         _msg.dumps(payload),

@@ -44,7 +44,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☑ | 2026-10-28 |
 | 20b | S20b | Restart contract: fix X23–X26 (OCO links, last price, no recovery uncross, priority order) and X27 | S20 | 1 d | ☑ | 2026-10-28 |
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20b | 1 d | ☑ | 2026-10-28 |
-| 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☐ | |
+| 22 | S22 | Execution messages: integer ticks; cum qty / avg price / remaining on every report; priority seq | S20 | 1.5 d | ☑ | 2026-10-28 |
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☐ | |
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☐ | |
 | 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☐ | |
@@ -1487,8 +1487,8 @@ is new: an integer count of the symbol's tick).
 
 | Message | Add |
 |---|---|
-| `order.ack` | `price_ticks`, `stop_price_ticks`, `trail_offset_ticks`; `priority_seq` (the book's `arrival_seq`, for an accepted order that rests or arms; null otherwise) |
-| `order.amended` | `price_ticks`, `priority_seq`, `priority_kept` (bool) |
+| `order.ack` | `price_ticks`, `stop_price_ticks`, `trail_offset_ticks`. (`priority_seq` struck in S22, decided with the maintainer: the ack precedes the book, which assigns `arrival_seq` only when the order rests or arms — see `engine.trace` `RESTED`) |
+| `order.amended` | `price_ticks`, `priority_seq` (`priority_kept` struck in S22: the message already carries `priority_reset`) |
 | `order.fill` | `fill_notional_ticks` (Σ price_ticks × qty of the fill's trades: a VWAP is no whole tick, the notional is exact), `cum_qty`, `cum_notional_ticks` |
 | `order.cancelled`, `order.expired` | `remaining_qty`, `cum_qty` |
 | `trade.executed` | `price_ticks` |
@@ -1508,7 +1508,7 @@ the aggressor was a triggered stop).
 |---|---|---|
 | `system.startup` | `format_version`, `engine_version`, `git_commit`, `python_version`, `run_seq`, `config_sha256`, `config` (the compiled engine config), `loaded` (per persistence file: name, `sha256`, entries) | audit; the first message of every start |
 | `order.triggered.<GW>` | `order_id`, `symbol`, `order_type` (as armed), `stop_price_ticks`, `trigger_trade_id`, `trigger_price_ticks`, `becomes` (`MARKET`/`LIMIT`) | owner and audit |
-| `engine.trace.<SYM>` | `kind`: `TRAILING_RATCHET` (`order_id`, `stop_price_ticks`, `last_price_ticks`) or `ICEBERG_REFILL` (`order_id`, `displayed_qty`, `priority_seq`) | audit only (no gateway forwards it) |
+| `engine.trace.<SYM>` | `kind`: `TRAILING_RATCHET` (`order_id`, `stop_price_ticks`, `last_price_ticks`), `ICEBERG_REFILL` (`order_id`, `displayed_qty`, `priority_seq`) or `RESTED` (`order_id`, `priority_seq`: an order rests or arms; added in S22) | audit only (no gateway forwards it) |
 | `risk.band.<SYM>` | `kind` (`COLLAR`/`CIRCUIT_BREAKER`), `reference_price_ticks`, `low_ticks`, `high_ticks`, `source` | public; on every change |
 | `system.book_checkpoint.<SYM>` | `reason` (`STARTUP`/`PHASE`/`EOD`), `phase`, resting orders (`Order.to_dict` + `priority_seq`, hidden qty), armed and trailing stops with current trigger, quote ids, OCO groups, combo links, last trade/buy/sell prices | audit |
 
@@ -1598,7 +1598,7 @@ B8/C3 PASS with the new fields.
   / trailing stop fires.
 - Per Q7, an audit-only trace topic for a trailing stop's new trigger
   level and an iceberg's refill (order id, new displayed qty, new
-  priority).
+  priority), and (S22) an order resting or arming with its priority.
 - Collar / circuit-breaker bands published when they change (symbol,
   reference price ticks, low, high, source), and the band on a band
   reject's ack.
@@ -1862,4 +1862,41 @@ every finding is a fix that does not touch them.
   stopped) 14 of 15 — `test_all_nine_rows_show_the_live_exchange` fails
   at HEAD too: 1394a847 added the dashboard's "Long" column, so the
   order-books row's "Trades" is cell 8, not 7 (test not updated then).
+
+### S22 — done 2026-10-28
+
+Two changes to S20's list, recorded there: `order.ack` carries no
+`priority_seq` (decided with the maintainer — the ack precedes the book;
+priority becomes visible as `engine.trace` `RESTED` in S24 and in the
+checkpoints), and `order.amended` no `priority_kept` (it has
+`priority_reset`).
+
+- Spec: `order.ack` + `price_ticks`/`stop_price_ticks`/`trail_offset_ticks`;
+  `order.fill` + `fill_notional_ticks`, `cum_qty`, `cum_notional_ticks`
+  (new unit `notional_ticks`); `order.cancelled`/`order.expired` +
+  `remaining_qty`, `cum_qty`; `order.amended` + `price_ticks`,
+  `priority_seq`; `trade.executed` + `price_ticks`; `auction.indicative`/
+  `auction.result` + `eq_price_ticks` (their `include:` lists name it —
+  a field left out is read as topic-only and coerced with `0`).
+- Engine: the new-order fast-path ack and `ack_detail()` (display dict +
+  ticks; seed, combo and OCO acks); `_fill_frames` adds the execution to
+  the new `Order.cum_notional_ticks`; dispatch cancels and
+  `make_cancelled_msg`/`make_expired_msg` (`left_and_filled`) carry the
+  quantities; amend, trade (`Trade.to_wire`), auction calls the ticks.
+  `cum_notional_ticks` is engine state: not in `Order.to_dict()` (clients
+  build `order.new` from it), written beside it by `save_gtc_orders`, read
+  by `from_dict` — a restart keeps it. `feed_schema.TradeExecutedPayload`
+  (the spec's hand-written twin) has `price_ticks`, omitted when unset.
+- Forensics: new **C11** (`checks/cumulative.py`): running `cum_qty` /
+  `cum_notional_ticks`, each fill's notional against its trades, a
+  cancel's or expiry's `cum_qty`; SKIPPED on an audit without the fields.
+  **D8** also flags a display price that is not `price_ticks`, and the
+  replay prices trades by `price_ticks`. E7's price shift moves the new
+  tick fields and the notionals (by k × qty).
+- Tests: `tests/test_engine_execution_fields.py` (9, every field on real
+  engine output, the running notional across a restart),
+  `tests/test_sim_forensics_cumulative.py` (6); message-count and
+  field-order tests updated.
+- Holistic: 11 129 passed, coverage 88.8 %; `make _check` clean; e2e 14 of
+  15 (the pre-existing `aapl[7]`, S21).
 

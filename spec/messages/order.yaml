@@ -537,6 +537,15 @@ messages:
           same fact, since order.ack — not order.new, which never reaches
           the engine's PUB feed — is the first audit-visible event for any
           order, seeded or live.
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: trail_offset_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -640,6 +649,15 @@ messages:
           call site only publishes order_fill from a real trade, so this is
           never actually absent today, but nothing enforces that a future
           fill notification always has a trade behind it.
+      - { name: fill_notional_ticks, type: int, unit: notional_ticks, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display)." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order has filled in all, this fill included." }
+      - { name: cum_notional_ticks, type: int, unit: notional_ticks, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -722,6 +740,12 @@ messages:
           client-requested cancel and for engine-initiated cancels with no
           originating command (e.g. self-match prevention, insufficient
           liquidity, a quote leg cancelled because its sibling filled).
+      - { name: remaining_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity left unfilled when the order was cancelled." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order had filled before it was cancelled." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -758,6 +782,12 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - { name: remaining_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity left unfilled when the order expired." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order had filled before it expired." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -826,6 +856,12 @@ messages:
         doc: >
           Client correlation tag for this amend request. Engine-initiated
           cancels publish with request_tag=null.
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: priority_seq, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

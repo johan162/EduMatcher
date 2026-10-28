@@ -480,6 +480,16 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
+def ack_detail(order: Order) -> dict[str, Any]:
+    """The order record an ``order.ack`` carries: the display projection
+    plus the tick prices, which are canonical on the ack (S22)."""
+    d = order_to_display_dict(order)
+    d["price_ticks"] = order.price_ticks
+    d["stop_price_ticks"] = order.stop_price_ticks
+    d["trail_offset_ticks"] = order.trail_offset_ticks
+    return d
+
+
 def _deployed_config() -> "tuple[EngineConfig, str] | None":
     """The engine section of the deployed artifact and the artifact's text,
     from one read, if one is deployed.
@@ -1074,6 +1084,7 @@ class Engine:
                     indicative.eq_qty,
                     indicative.imbalance_side,
                     indicative.surplus,
+                    eq_price_ticks=indicative.eq_price,
                 )
             )
 
@@ -1258,7 +1269,7 @@ class Engine:
                             gateway_id,
                             leg.id,
                             accepted=True,
-                            order=order_to_display_dict(leg),
+                            order=ack_detail(leg),
                         )
                     )
                 # _handle_quote_new (the runtime PUSH-driven equivalent of
@@ -2006,6 +2017,9 @@ class Engine:
                     "stop_price": _ack_stop_price,
                     "visible_qty": order.visible_qty,
                     "trail_offset": _ack_trail_offset,
+                    "price_ticks": _tick_px,
+                    "stop_price_ticks": order.stop_price_ticks,
+                    "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
                 }
@@ -3240,6 +3254,8 @@ class Engine:
                         symbol=evt.symbol,
                         client_tag=evt.client_tag,
                         cancel_reason=self._cancel_reason_of(evt),
+                        remaining_qty=evt.remaining_qty,
+                        cum_qty=evt.quantity - evt.remaining_qty,
                         oco_group_id=evt.oco_group_id,
                         combo_parent_id=evt.combo_parent_id,
                         quote_id=evt.quote_id,
@@ -3277,9 +3293,11 @@ class Engine:
 
         Built from the order itself rather than ``Order.to_dict()``, which
         has no display ``price`` (every path but the new-order one lost it)
-        and costs a dict of 25 fields per fill.
+        and costs a dict of 25 fields per fill. Adds the execution to the
+        order's running notional, so call it once per execution.
         """
         symbol = order.symbol
+        order.cum_notional_ticks += ex.notional
         return make_order_fill_unchecked(
             gateway_id=order.gateway_id,
             order_id=order.id,
@@ -3305,6 +3323,9 @@ class Engine:
             is_seed=order.is_seed,
             trade_ids=ex.trade_ids,
             liquidity_flag=ex.flag,
+            fill_notional_ticks=ex.notional,
+            cum_qty=order.quantity - order.remaining_qty,
+            cum_notional_ticks=order.cum_notional_ticks,
         )
 
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
@@ -5154,7 +5175,7 @@ class Engine:
                 combo.gateway_id,
                 child.id,
                 accepted=True,
-                order=order_to_display_dict(child),
+                order=ack_detail(child),
             )
             defer_ack = _book_may_reject(child, do_match)
             if not defer_ack:
@@ -5676,6 +5697,7 @@ class Engine:
                     imbalance_side=result.imbalance_side,
                     imbalance_qty=result.surplus,
                     reason=reason,
+                    eq_price_ticks=result.eq_price,
                 )
             )
             outcomes[symbol] = (
@@ -5922,7 +5944,7 @@ class Engine:
                 # EduMatcher-Trader-GUI-Review.md. Safe to call here,
                 # before book.process(leg, ...) below: remaining_qty
                 # still equals quantity at this pre-match moment.
-                order=order_to_display_dict(leg),
+                order=ack_detail(leg),
             )
             if leg is leg2 and leg1.status in _ENDED_STATUSES:
                 # X17: leg 1 ended on entry -- filled, cancelled or rejected
@@ -6387,6 +6409,8 @@ class Engine:
                 ),
                 old_qty=old_qty,
                 symbol=amended.symbol,
+                price_ticks=amended.price_ticks,
+                priority_seq=amended.arrival_seq,
             )
         )
         self._dbg_count("amend_accepted")

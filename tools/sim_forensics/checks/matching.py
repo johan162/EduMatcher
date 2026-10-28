@@ -968,12 +968,19 @@ class _Replay:
             )
 
     def _price(self, book: _Book, t: dict[str, Any]) -> int:
+        """The trade's price in ticks: ``price_ticks``, canonical, when the
+        trade carries it; the display price must lie on the grid and agree."""
         td = int(t.get("tick_decimals", book.td))
         raw = float(t["price"]) * 10.0**td
         ticks = round(raw)
         if abs(raw - ticks) > 1e-6:
             self._flag("D8", trade_id=t["id"], price=t["price"], tick_decimals=td)
-        return ticks
+        canonical = t.get("price_ticks")
+        if canonical is None:
+            return ticks
+        if canonical != ticks:
+            self._flag("D8", error="display price is not price_ticks", trade_id=t["id"], price=t["price"], price_ticks=canonical)  # fmt: skip
+        return int(canonical)
 
 
 class _Nobody:

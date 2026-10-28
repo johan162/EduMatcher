@@ -82,6 +82,13 @@ _AUCTION_INDICATIVE_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Surplus on `imbalance_side`; zero when balanced.",
         "constraints": {"ge": 0},
     },
+    {
+        "name": "eq_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
 )
 
 
@@ -107,6 +114,7 @@ class AuctionIndicative:
     imbalance_qty: int  # unit: shares
     eq_price: float | None = None  # unit: display_price
     imbalance_side: AuctionIndicativeImbalanceSide | None = None
+    eq_price_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -157,6 +165,9 @@ class AuctionIndicative:
                 else cast(AuctionIndicativeImbalanceSide, str(p["imbalance_side"]))
             ),
             imbalance_qty=int(p["imbalance_qty"]),
+            eq_price_ticks=(
+                None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -170,6 +181,8 @@ class AuctionIndicative:
         }
         if self.imbalance_side is not None:
             payload["imbalance_side"] = self.imbalance_side
+        if self.eq_price_ticks is not None:
+            payload["eq_price_ticks"] = self.eq_price_ticks
         return payload
 
 
@@ -207,6 +220,7 @@ def make_auction_indicative_unchecked(
     imbalance_qty: int,
     eq_price: float | None = None,
     imbalance_side: AuctionIndicativeImbalanceSide | None = None,
+    eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_auction_indicative``, without ``validate()``.
 
@@ -227,6 +241,8 @@ def make_auction_indicative_unchecked(
     }
     if imbalance_side is not None:
         payload["imbalance_side"] = str(imbalance_side)
+    if eq_price_ticks is not None:
+        payload["eq_price_ticks"] = int(eq_price_ticks)
     return [
         topic_auction_indicative(symbol).encode(),
         _msg.dumps(payload),
@@ -334,6 +350,13 @@ _AUCTION_RESULT_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Which of the five uncross paths produced this event.",
         "values": _AUCTION_RESULT_REASON_VALUES,
     },
+    {
+        "name": "eq_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
 )
 
 
@@ -361,6 +384,7 @@ class AuctionResult:
     reason: AuctionResultReason
     eq_price: float | None = None  # unit: display_price
     imbalance_side: AuctionResultImbalanceSide | None = None
+    eq_price_ticks: int | None = None  # unit: ticks
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -416,6 +440,9 @@ class AuctionResult:
             ),
             imbalance_qty=int(p["imbalance_qty"]),
             reason=cast(AuctionResultReason, str(p["reason"])),
+            eq_price_ticks=(
+                None if p.get("eq_price_ticks") is None else int(p["eq_price_ticks"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -430,6 +457,8 @@ class AuctionResult:
         }
         if self.imbalance_side is not None:
             payload["imbalance_side"] = self.imbalance_side
+        if self.eq_price_ticks is not None:
+            payload["eq_price_ticks"] = self.eq_price_ticks
         return payload
 
 
@@ -468,6 +497,7 @@ def make_auction_result_unchecked(
     reason: AuctionResultReason,
     eq_price: float | None = None,
     imbalance_side: AuctionResultImbalanceSide | None = None,
+    eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_auction_result``, without ``validate()``.
 
@@ -489,6 +519,8 @@ def make_auction_result_unchecked(
     }
     if imbalance_side is not None:
         payload["imbalance_side"] = str(imbalance_side)
+    if eq_price_ticks is not None:
+        payload["eq_price_ticks"] = int(eq_price_ticks)
     return [
         topic_auction_result(symbol).encode(),
         _msg.dumps(payload),

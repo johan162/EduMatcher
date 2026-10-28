@@ -83,6 +83,9 @@ messages:
         unit: shares
         validate: { ge: 0 }
         doc: "Surplus on `imbalance_side`; zero when balanced."
+      - { name: eq_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
     encoding:
       # `symbol` is named in the topic AND carried in the body, so it is listed
       # explicitly: `include: all` means "every field except the topic
@@ -91,7 +94,7 @@ messages:
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, phase, eq_price, eq_qty, imbalance_side,
-                  imbalance_qty]
+                  imbalance_qty, eq_price_ticks]
 
   - name: auction_result
     topic: "auction.result.{symbol}"
@@ -157,9 +160,12 @@ messages:
         type: enum
         values: [SCHEDULED, REOPEN, RECOVERY, BACKSTOP, ADMIN_MANUAL]
         doc: "Which of the five uncross paths produced this event."
+      - { name: eq_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
     encoding:
       # `symbol` in the body as well as the topic — see `auction_indicative`.
       engine_pub:
         frames: [topic, json_payload]
         include: [symbol, eq_price, eq_qty, trades_count, imbalance_side,
-                  imbalance_qty, reason]
+                  imbalance_qty, reason, eq_price_ticks]

@@ -77,7 +77,9 @@ _CROSS_SYMBOL_CODES = frozenset({"DUPLICATE_ORDER"})
 #: Payload keys naming the order, quote or OCO a message is about.
 _ID_KEYS = ("order_id", "id", "quote_id", "oco_id", "cancelled_order_id", "bid_order_id", "ask_order_id", "order_id_1")  # fmt: skip
 #: Prices in ticks a client sends, and display prices the engine publishes.
-_TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks"})  # fmt: skip
+_TICK_KEYS = frozenset({"price_ticks", "stop_price_ticks", "bid_price_ticks", "ask_price_ticks", "eq_price_ticks"})  # fmt: skip
+#: Σ price_ticks × qty, and the quantity each shifts with.
+_NOTIONAL_KEYS = {"fill_notional_ticks": "fill_qty", "cum_notional_ticks": "cum_qty"}
 _PRICE_KEYS = frozenset({"price", "stop_price", "eq_price", "indicative_price", "last_price"})  # fmt: skip
 #: A display price that is a VWAP, off the tick grid.
 _VWAP_KEYS = frozenset({"fill_price"})
@@ -515,6 +517,10 @@ class _Shift(_Transform):
 
     def _shift(self, v: Any, by: int, scale: float) -> Any:
         if isinstance(v, dict):
+            v = {
+                k: x + by * int(v.get(_NOTIONAL_KEYS[k]) or 0) if k in _NOTIONAL_KEYS and isinstance(x, int) else x  # fmt: skip
+                for k, x in v.items()
+            }
             return {
                 k: (
                     x + by

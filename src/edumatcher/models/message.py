@@ -264,6 +264,8 @@ def make_amended_msg(
     old_price: float | None = None,
     old_qty: int | None = None,
     symbol: str | None = None,
+    price_ticks: int | None = None,
+    priority_seq: int | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -289,6 +291,8 @@ def make_amended_msg(
         request_tag=request_tag,
         old_price=old_price,
         old_qty=old_qty,
+        price_ticks=price_ticks,
+        priority_seq=priority_seq,
     )
 
 
@@ -356,6 +360,15 @@ def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def left_and_filled(order: dict[str, Any] | None) -> dict[str, Any]:
+    """``remaining_qty`` and ``cum_qty`` of an ended order, from its dict
+    (empty without one: the event then carries neither)."""
+    if not order or order.get("remaining_qty") is None:
+        return {}
+    left = int(order["remaining_qty"])
+    return {"remaining_qty": left, "cum_qty": int(order["quantity"]) - left}
+
+
 def make_ack_msg(
     gateway_id: str,
     order_id: str,
@@ -390,6 +403,9 @@ def make_ack_msg(
         stop_price=detail.get("stop_price"),
         visible_qty=detail.get("visible_qty"),
         trail_offset=detail.get("trail_offset"),
+        price_ticks=detail.get("price_ticks"),
+        stop_price_ticks=detail.get("stop_price_ticks"),
+        trail_offset_ticks=detail.get("trail_offset_ticks"),
         smp_action=detail.get("smp_action"),
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
@@ -490,6 +506,7 @@ def make_cancelled_msg(
         request_tag=request_tag,
         cancel_reason=cancel_reason,
         command_id=command_id or None,
+        **left_and_filled(order),
         **group_ids(order),
     )
 
@@ -513,6 +530,7 @@ def make_expired_msg(
         order_id=order_id,
         symbol=order_symbol(symbol, order),
         client_tag=order_client_tag(client_tag, order),
+        **left_and_filled(order),
         **group_ids(order),
     )
 
@@ -1038,6 +1056,7 @@ def make_auction_indicative_msg(
     eq_qty: int,
     imbalance_side: str,
     imbalance_qty: int,
+    eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Engine → all: where a symbol *would* uncross, mid-call-phase.
 
@@ -1067,6 +1086,7 @@ def make_auction_indicative_msg(
         eq_qty=eq_qty,
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
+        eq_price_ticks=eq_price_ticks,
     )
 
 
@@ -1078,6 +1098,7 @@ def make_auction_result_msg(
     imbalance_side: str,
     imbalance_qty: int,
     reason: str,
+    eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Engine → all: auction uncross result for one symbol.
 
@@ -1101,6 +1122,7 @@ def make_auction_result_msg(
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
         reason=reason,
+        eq_price_ticks=eq_price_ticks,
     )
 
 
