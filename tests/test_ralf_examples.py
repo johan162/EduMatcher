@@ -50,6 +50,17 @@ def _load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
+@pytest.fixture()
+def example_subscriber_module() -> Generator[ModuleType, None, None]:
+    _load_module("ralf_parser", EXAMPLE_DIR / "ralf_parser.py")
+    module = _load_module("ralf_subscriber_example", EXAMPLE_DIR / "ralf_subscriber.py")
+    try:
+        yield module
+    finally:
+        sys.modules.pop("ralf_parser", None)
+        sys.modules.pop("ralf_subscriber_example", None)
+
+
 def _read_pty_output(
     fd: int,
     predicate: Callable[[str], bool],
@@ -220,6 +231,61 @@ def test_python_example_subscribes_and_parses_gateway_exec(
         assert exec_msg.fields["SYM"] == "AAPL"
 
 
+def test_python_example_eod_tally_resets_per_channel(
+    example_subscriber_module: ModuleType,
+) -> None:
+    subscriber_module = example_subscriber_module
+    tracker = subscriber_module.ExecTracker()
+    fields = {"EXEC_ID": "EX-1", "SYM": "AAPL", "QTY": "100"}
+
+    tracker.observe("CLEARING", fields)
+    tracker.observe("AUDIT", fields)
+    clearing_eod = tracker.take_eod_tally("CLEARING", "AAPL")
+    audit_eod = tracker.take_eod_tally("AUDIT", "AAPL")
+    assert clearing_eod.unique_trades == audit_eod.unique_trades == 1
+    assert clearing_eod.total_qty == audit_eod.total_qty == 100
+    assert tracker.tally_for("AAPL").unique_trades == 1
+
+    tracker.observe("CLEARING", {"EXEC_ID": "EX-2", "SYM": "AAPL", "QTY": "50"})
+    second_eod = tracker.take_eod_tally("CLEARING", "AAPL")
+    assert second_eod.unique_trades == 1
+    assert second_eod.total_qty == 50
+    assert tracker.take_eod_tally("CLEARING", "AAPL").unique_trades == 0
+
+
+def test_python_example_combined_snapshot_does_not_consume_channel_tracker(
+    example_subscriber_module: ModuleType,
+) -> None:
+    subscriber_module = example_subscriber_module
+    seq_tracker = subscriber_module.ChannelSequenceTracker()
+    exec_tracker = subscriber_module.ExecTracker()
+
+    subscriber_module._handle_message(
+        subscriber_module.RalfMessage(
+            "SNAP", {"CH": "CLEARING,DROP_COPY,AUDIT", "SEQ": "9"}
+        ),
+        seq_tracker,
+        exec_tracker,
+    )
+    for channel in ("CLEARING", "DROP_COPY", "AUDIT"):
+        subscriber_module._handle_message(
+            subscriber_module.RalfMessage(
+                "EXEC",
+                {
+                    "CH": channel,
+                    "SYM": "AAPL",
+                    "SEQ": "1",
+                    "EXEC_ID": f"EX-{channel}",
+                    "QTY": "1",
+                },
+            ),
+            seq_tracker,
+            exec_tracker,
+        )
+
+    assert set(seq_tracker._last_seq) == {"CLEARING", "DROP_COPY", "AUDIT"}
+
+
 def test_c_example_builds_and_receives_gateway_exec(
     running_gateway: tuple[zmq.Socket[bytes], int],
 ) -> None:
@@ -251,34 +317,53 @@ def test_c_example_builds_and_receives_gateway_exec(
     try:
         startup_output = _read_pty_output(
             master_fd,
-            lambda text: "WELCOME type=WELCOME" in text and "as role=CLEARING" in text,
+            lambda text: (
+                "WELCOME type=WELCOME" in text
+                and "as role=CLEARING" in text
+                and "SNAP  CH=CLEARING" in text
+            ),
             timeout=10.0,
             proc=proc,
         )
         assert "WELCOME type=WELCOME" in startup_output
         assert "as role=CLEARING" in startup_output
+        assert "SNAP  CH=CLEARING" in startup_output
 
         # handle_message()'s real EXEC format is
         # "EXEC  %-8s %6s @ %10s %-4s ch=%s%s\n" (ralf_subscriber.c) --
         # e.g. "EXEC  AAPL       100 @     150.25 BUY  ch=CLEARING" --
         # not "MSG type=EXEC CH=...".
-        event_output = ""
-        for _ in range(20):
-            _send_trade_executed(pub, "EX-C-1")
-            try:
-                event_output += _read_pty_output(
-                    master_fd,
-                    lambda text: "EXEC  AAPL" in text and "ch=CLEARING" in text,
-                    timeout=0.6,
-                    proc=proc,
-                )
-                break
-            except AssertionError as exc:
-                event_output += str(exc)
-                time.sleep(0.05)
-
+        _send_trade_executed(pub, "EX-C-1")
+        event_output = _read_pty_output(
+            master_fd,
+            lambda text: "EXEC  AAPL" in text and "ch=CLEARING" in text,
+            timeout=5.0,
+            proc=proc,
+        )
         assert "EXEC  AAPL" in event_output
         assert "ch=CLEARING" in event_output
+
+        for exec_id in ("EX-C-1", "EX-C-2"):
+            if exec_id == "EX-C-2":
+                _send_trade_executed(pub, exec_id)
+                _read_pty_output(
+                    master_fd,
+                    lambda text: "EXEC  AAPL" in text and "ch=CLEARING" in text,
+                    timeout=5.0,
+                    proc=proc,
+                )
+            pub.send_multipart([b"system.eod", dumps({"books": [{"symbol": "AAPL"}]})])
+            eod_output = _read_pty_output(
+                master_fd,
+                lambda text: (
+                    "EOD   AAPL" in text
+                    and "gateway TRADE_COUNT=1" in text
+                    and "client tallied 1 unique trade(s), 100 total qty" in text
+                ),
+                timeout=5.0,
+                proc=proc,
+            )
+            assert "gateway TRADE_COUNT=1" in eod_output
     finally:
         proc.terminate()
         proc.wait(timeout=5)
