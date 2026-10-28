@@ -276,3 +276,66 @@ def test_f4_finds_a_traded_symbol_missing_from_book_stats(
 ) -> None:
     (data / "book_stats.json").write_text("{}")
     assert errors(run(open_ds, data, "F4")) == ["traded, not in book_stats.json"]
+
+
+# --- F6 -------------------------------------------------------------------------
+
+
+def real_book_and_depth(tolerance: int = 100) -> tuple[dict[str, Any], dict[str, Any]]:
+    """book.AAPL and depth.AAPL as the engine builds them from one real
+    OrderBook: levels inside and outside the window, an iceberg showing
+    only its slice, a trade to anchor the window."""
+    from edumatcher.engine.order_book import OrderBook
+    from edumatcher.models.order import OrderType, Side
+    from tests.conftest import make_order
+
+    b = OrderBook("AAPL")
+    for side, price, qty, peak in (
+        (Side.BUY, 9990, 30, None), (Side.BUY, 9950, 20, None), (Side.BUY, 9800, 99, None),
+        (Side.SELL, 10010, 40, 10), (Side.SELL, 10060, 25, None), (Side.SELL, 10300, 7, None),
+        (Side.SELL, 10000, 5, None),
+    ):  # fmt: skip
+        otype = OrderType.ICEBERG if peak else OrderType.LIMIT
+        b.process(make_order(side=side, order_type=otype, qty=qty, gateway_id="GW1", price=price, visible_qty=peak))  # fmt: skip
+    b.process(make_order(side=Side.BUY, order_type=OrderType.LIMIT, qty=5, gateway_id="GW2", price=10000))  # fmt: skip
+    return b.snapshot(), b.depth_snapshot(tolerance)
+
+
+def f6(open_ds: OpenDataset, tmp_path: Path, lines: list[tuple[str, str, dict[str, Any]]]) -> Outcome:  # fmt: skip
+    data = tmp_path / "data"
+    data.mkdir()
+    write_audit(data, lines)
+    return REGISTRY["F6"].fn(open_ds(data))
+
+
+def test_f6_passes_the_engines_own_book_and_depth(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    book_p, depth_p = json.loads(json.dumps(real_book_and_depth(), default=str))
+    assert depth_p["bid_depth"] == 50 and depth_p["ask_depth"] == 35  # iceberg: 10
+    out = f6(open_ds, tmp_path, [("07:00:00.000", "book.AAPL", book_p), ("07:00:00.000", "depth.AAPL", depth_p)])  # fmt: skip
+    assert out.violations == 0, out.samples
+    assert out.note == "1 depth messages, 0 not right after their book"
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [("bid_depth", 51), ("ask_depth", 75), ("imbalance", 0.5), ("microprice", 100.0), ("cost_to_move", 1.0), ("mid_price_ticks", 10010)],  # fmt: skip
+)
+def test_f6_finds_a_depth_figure_its_book_does_not_give(
+    tmp_path: Path, open_ds: OpenDataset, field: str, value: object
+) -> None:
+    book_p, depth_p = json.loads(json.dumps(real_book_and_depth(), default=str))
+    depth_p[field] = value
+    out = f6(open_ds, tmp_path, [("07:00:00.000", "book.AAPL", book_p), ("07:00:00.000", "depth.AAPL", depth_p)])  # fmt: skip
+    (sample,) = out.samples
+    assert field in sample["diffs"]  # type: ignore[operator]
+
+
+def test_f6_counts_a_depth_not_right_after_its_book(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    book_p, depth_p = json.loads(json.dumps(real_book_and_depth(), default=str))
+    out = f6(open_ds, tmp_path, [("07:00:00.000", "book.AAPL", book_p), ("07:00:00.000", "trade.executed", T1), ("07:00:00.000", "depth.AAPL", depth_p)])  # fmt: skip
+    assert out.violations == 1
+    assert out.note.endswith("1 not right after their book")

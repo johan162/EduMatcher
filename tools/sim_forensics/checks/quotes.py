@@ -1,10 +1,14 @@
-"""C8 — a quote's lifecycle, from the audit trail.
+"""C8, C10 — a quote's lifecycle, from the audit trail.
 
 A quote is live from its accepting ``quote.ack`` until ``quote.status``
 says INACTIVE_* or CANCELLED. When a leg's fill inactivates it
 (INACTIVE_BID_FILLED / INACTIVE_ASK_FILLED), the refresh policy cancels the
 *other* leg in the same dispatch (QUOTE_LEG_FILLED); the filled leg's own
 remainder may stay live until a new quote replaces it.
+
+A gateway has one quote per symbol: a new one replaces the old, whose
+surviving legs (that remainder included) the engine cancels
+(QUOTE_REPLACED) before it acks the new quote (C10).
 """
 
 from __future__ import annotations
@@ -46,11 +50,33 @@ class _Pass:
     owed: list[tuple[str, str, str]] = field(default_factory=list)
     chain = ""
     inactivated = 0
+    #: C10: live legs per (gateway, symbol), the key of each, the legs a
+    #: replacement cancelled, and what was found.
+    live_legs: dict[tuple[str, str], set[str]] = field(default_factory=dict)
+    leg_key: dict[str, tuple[str, str]] = field(default_factory=dict)
+    replaced: set[str] = field(default_factory=set)
+    c10_samples: list[Sample] = field(default_factory=list)
+    c10_errors: Counter[str] = field(default_factory=Counter)
 
     def flag(self, error: str, **keys: Any) -> None:
         self.errors[error] += 1
         if len(self.samples) < _KEEP:
             self.samples.append({"error": error, "chain": self.chain, **keys})
+
+    def flag10(self, error: str, **keys: Any) -> None:
+        self.c10_errors[error] += 1
+        if len(self.c10_samples) < _KEEP:
+            self.c10_samples.append({"error": error, "chain": self.chain, **keys})
+
+    def legs_live(self, key: tuple[str, str], legs: list[str], qid: str) -> None:
+        """A quote's legs go live: no earlier leg of its gateway and symbol
+        may still be."""
+        stale = self.live_legs.get(key, set()) - set(legs)
+        for leg in sorted(stale):
+            self.flag10("an earlier leg still live when a new quote was accepted", gateway_id=key[0], symbol=key[1], quote_id=qid, order_id=leg)  # fmt: skip
+        self.live_legs[key] = set(legs)
+        for leg in legs:
+            self.leg_key[leg] = key
 
     def end_chain(self) -> None:
         for gw, qid, leg in self.owed:
@@ -67,6 +93,8 @@ class _Pass:
         q.legs = {"bid": p["bid_order_id"], "ask": p["ask_order_id"]}
         for leg in q.legs.values():
             self.leg_of[leg] = (gw, p["quote_id"])
+        if p.get("symbol"):
+            self.legs_live((gw, p["symbol"]), list(q.legs.values()), p["quote_id"])
         if q.early:
             self.flag("quote.status before the quote's ack", gateway_id=gw, quote_id=p["quote_id"], status=q.early)  # fmt: skip
             self.inactivate(gw, p["quote_id"], q, q.early)
@@ -98,6 +126,8 @@ class _Pass:
     def trade(self, p: dict[str, Any]) -> None:
         for key in ("buy_order_id", "sell_order_id"):
             oid = p[key]
+            if oid in self.replaced:
+                self.flag10("a replaced leg traded", order_id=oid, trade_id=p["id"])  # fmt: skip
             if oid in self.dead:
                 gw, qid = self.leg_of[oid]
                 self.flag("sibling leg traded after its quote went inactive", gateway_id=gw, quote_id=qid, order_id=oid, trade_id=p["id"])  # fmt: skip
@@ -106,10 +136,19 @@ class _Pass:
         q = self.quotes.setdefault((gw, p["quote_id"]), _Quote(gw))
         q.legs["bid" if p["side"] == "BUY" else "ask"] = p["order_id"]
         self.leg_of[p["order_id"]] = (gw, p["quote_id"])
+        if p.get("symbol"):
+            key = (gw, p["symbol"])
+            self.live_legs[key] = self.live_legs.get(key, set()) | {p["order_id"]}
+            self.leg_key[p["order_id"]] = key
 
-    def leg_done(self, oid: str) -> None:
+    def leg_done(self, oid: str, reason: str = "") -> None:
         if oid in self.leg_of:
             self.gone.add(oid)
+        key = self.leg_key.pop(oid, None)
+        if key is not None:
+            self.live_legs[key].discard(oid)
+            if reason == "QUOTE_REPLACED":
+                self.replaced.add(oid)
 
 
 def _quote_pass(ds: Dataset) -> _Pass:
@@ -136,6 +175,9 @@ def _quote_pass(ds: Dataset) -> _Pass:
         elif topic == "trade.executed":
             qp.trade(json.loads(ln.body))
         elif topic.startswith("order.cancelled."):
+            p = json.loads(ln.body)
+            qp.leg_done(p["order_id"], p.get("cancel_reason") or "")
+        elif topic.startswith("order.expired."):
             qp.leg_done(json.loads(ln.body)["order_id"])
         elif topic.startswith("order.fill."):
             p = json.loads(ln.body)
@@ -162,3 +204,20 @@ def quote_lifecycle(ds: Dataset) -> Outcome:
         f"; {e}: {n}" for e, n in qp.errors.most_common()
     )
     return Outcome(sum(qp.errors.values()), qp.samples, note)
+
+
+@check(
+    "C10",
+    "lifecycle",
+    "One quote per gateway and symbol: a replacement ends every earlier leg first",
+    needs=(),
+)
+def quote_replacement(ds: Dataset) -> Outcome:
+    """When a quote is accepted, no earlier leg of its gateway and symbol is
+    live (the old quote's legs and a filled leg's remainder are cancelled
+    QUOTE_REPLACED first); a leg cancelled so never trades."""
+    qp = _quote_pass(ds)
+    note = f"{len(qp.replaced)} legs cancelled QUOTE_REPLACED" + "".join(
+        f"; {e}: {n}" for e, n in qp.c10_errors.most_common()
+    )
+    return Outcome(sum(qp.c10_errors.values()), qp.c10_samples, note)

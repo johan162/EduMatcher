@@ -125,6 +125,7 @@ _TRADE_KEYS = (
     "ts_ns",
 )
 _UNSET = object()
+_KEEP_F6 = 50
 SEC = 1_000_000_000
 
 
@@ -134,6 +135,14 @@ def _ticks(price: float | None, td: int) -> int | None:
 
 def _best(levels: list[dict[str, Any]], td: int) -> int | None:
     return _ticks(levels[0]["price"], td) if levels else None
+
+
+def _same(got: Any, want: Any) -> bool:
+    """Equal; floats to within float noise (the engine sums in another
+    order than this replay might)."""
+    if isinstance(want, float) and isinstance(got, (int, float)):
+        return math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-9)
+    return bool(got == want)
 
 
 @dataclass
@@ -167,7 +176,7 @@ class _Tape:
 
 
 class _Market:
-    """One pass over the audit for F2 and F3 (and G2's engine starts)."""
+    """One pass over the audit for F2, F3 and F6 (and G2's engine starts)."""
 
     def __init__(self, ds: Dataset) -> None:
         self.ds = ds
@@ -185,6 +194,8 @@ class _Market:
         #: When each engine start (system.startup_recovery) was written.
         self.starts: list[str] = []
         self.snapshots = self.checked = self.outside = 0
+        self.f6: list[Sample] = []
+        self.f6_count = self.depths = self.depths_unpaired = 0
         self._days: dict[str, str] = {}
         if "stats" in ds.stores:
             self._load_rows()
@@ -248,15 +259,22 @@ class _Market:
         return self._days[hour]
 
     def run(self, stream: Iterable[Line]) -> None:
+        # The engine publishes depth.<SYM> right after book.<SYM>, from the
+        # same book state (Engine._flush_snapshots).
+        prev_book: Line | None = None
         for ln in stream:
             if not self.start_ts:
                 self.start_ts = ln.ts
                 self.from_start = ln.topic == "system.startup_recovery"
             topic = ln.topic
+            book, prev_book = prev_book, None
             if topic == "trade.executed":
                 self._trade(json.loads(ln.body))
             elif topic.startswith("book.") and "." not in topic[5:]:
                 self._book(topic[5:], ln)
+                prev_book = ln
+            elif topic.startswith("depth."):
+                self._depth(topic[6:], ln, book)
             elif topic == "system.eod":
                 self.eod, self.eod_ts = json.loads(ln.body), ln.ts
             elif topic == "system.startup_recovery":
@@ -306,6 +324,46 @@ class _Market:
             return  # same trades, same fields: the verdict cannot change
         tape.dirty, tape.tail = False, tail
         self._tape(symbol, tape, payload(), ln.ts)
+
+    def _depth(self, symbol: str, ln: Line, book: Line | None) -> None:
+        """F6: a depth message's figures recomputed from its book message,
+        as ``OrderBook.depth_snapshot`` computes them."""
+        self.depths += 1
+        if book is None or book.topic != f"book.{symbol}":
+            self.depths_unpaired += 1
+            return
+        d, b = json.loads(ln.body), json.loads(book.body)
+        td, tol, mid = b["tick_decimals"], d["tolerance_ticks"], d["mid_price_ticks"]
+        scale = float(10**td)
+        bids = {round(lv["price"] * 10**td): lv["qty"] for lv in b["bids"] if lv["qty"] > 0}  # fmt: skip
+        asks = {round(lv["price"] * 10**td): lv["qty"] for lv in b["asks"] if lv["qty"] > 0}  # fmt: skip
+        bid_depth = sum(q for px, q in bids.items() if mid - tol <= px <= mid)
+        ask_depth = sum(q for px, q in asks.items() if mid <= px <= mid + tol)
+        total = bid_depth + ask_depth
+        imbalance = (bid_depth - ask_depth) / total if total > 0 else 0.0
+        cost = sum(px * q for px, q in asks.items() if mid <= px <= mid + tol)
+        micro = mid / scale
+        if bids and asks:
+            bid, ask = max(bids) / scale, min(asks) / scale
+            micro = (bid + ask) / 2 + imbalance * (ask - bid) / 2
+        expected: dict[str, Any] = {
+            "mid_price_ticks": _ticks(b["last_price"], td),
+            "mid_price": mid / scale,
+            "bid_depth": bid_depth,
+            "ask_depth": ask_depth,
+            "imbalance": imbalance,
+            "microprice": micro,
+            "cost_to_move": cost / scale,
+        }
+        diffs = {
+            k: {"depth": d.get(k), "book": v}
+            for k, v in expected.items()
+            if not _same(d.get(k), v)
+        }
+        if diffs:
+            self.f6_count += 1
+            if len(self.f6) < _KEEP_F6:
+                self.f6.append({"symbol": symbol, "ts": ln.ts, "diffs": diffs})
 
     def _close_rows(self, symbol: str, ts: str) -> None:
         """Settle the symbol's rows whose window has passed by *ts*."""
@@ -492,3 +550,17 @@ def book_stats_match_trades(ds: Dataset) -> Outcome:
         samples.append({"symbol": symbol, "error": "traded, not in book_stats.json"})
     note = f"{len(stats)} symbols, {len(last)} traded"
     return Outcome(len(samples), samples, note)
+
+
+@check(
+    "F6",
+    "cross-store",
+    "depth.* figures (depth, imbalance, microprice, cost to move) follow from book.*",
+    needs=(),
+)
+def depth_follows_book(ds: Dataset) -> Outcome:
+    """Each depth.<SYM> recomputed from the book.<SYM> published just before
+    it: the window is the book's last price ± tolerance_ticks."""
+    m = market_pass(ds)
+    note = f"{m.depths} depth messages, {m.depths_unpaired} not right after their book"
+    return Outcome(m.f6_count + m.depths_unpaired, m.f6, note)

@@ -19,7 +19,7 @@ from tests.sim_forensics_world import OpenDataset, opener
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
-CHECKS = ["C7", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
+CHECKS = ["C7", "D1", "D10", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
 SYM = "AAPL"
 
 
@@ -387,6 +387,78 @@ def test_d6_finds_an_auction_result_that_disagrees_with_the_prints(
     data = t.write(tmp_path / "data")
     errors = [s["error"] for s in run(open_ds, data, "D6").samples]
     assert errors == ["auction.result differs from the prints"]
+
+
+def indicative(t: Tape, price: float | None, qty: int, surplus: int, side: str) -> None:
+    """An auction.indicative as the engine's timer publishes it."""
+    t.put(
+        f"auction.indicative.{SYM}",
+        {"symbol": SYM, "phase": "OPENING_AUCTION", "eq_price": price, "eq_qty": qty, "imbalance_qty": surplus, "imbalance_side": side},  # fmt: skip
+        new_chain=True,
+    )
+
+
+def auction_with_indicatives(final: tuple[float | None, int, int, str]) -> Tape:
+    """The opening auction, with an indicative after the first order (no
+    cross yet) and one after the last: 100.00 executes 60, 20 more to buy."""
+    t = Tape()
+    t.phase("OPENING_AUCTION")
+    t.order("B1", "BUY", 50, 10100, gw="GW2")
+    indicative(t, None, 0, 0, "")
+    t.order("B2", "BUY", 30, 10000, gw="GW2")
+    t.order("S1", "SELL", 40, 9900)
+    t.order("S2", "SELL", 20, 10000)
+    indicative(t, *final)
+    return t
+
+
+def test_d10_passes_indicatives_that_are_the_books_uncross(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = auction_with_indicatives((100.0, 60, 20, "BUY")).write(tmp_path / "data")
+    out = run(open_ds, data, "D10")
+    assert out.violations == 0, out.samples
+    assert out.note == "2 indicatives compared"
+
+
+@pytest.mark.parametrize(
+    "final",
+    [(101.0, 60, 20, "BUY"), (100.0, 50, 20, "BUY"), (100.0, 60, 0, ""), (100.0, 60, 20, "SELL")],  # fmt: skip
+)
+def test_d10_finds_an_indicative_the_book_does_not_make(
+    tmp_path: Path, open_ds: OpenDataset, final: tuple[float, int, int, str]
+) -> None:
+    data = auction_with_indicatives(final).write(tmp_path / "data")
+    (sample,) = run(open_ds, data, "D10").samples
+    assert sample["replay"] == [10000, 60, 20, "BUY"]
+
+
+def test_the_linear_uncross_is_the_definition() -> None:
+    """``_uncross_of`` against the definition, summed price by price."""
+    import random
+
+    from sim_forensics.checks.matching import _Book, _Order, _uncross_of
+
+    rng = random.Random(7)
+    for _ in range(300):
+        book = _Book(SYM, 2)
+        bids: list[tuple[int, int]] = []
+        asks: list[tuple[int, int]] = []
+        for i in range(rng.randint(0, 12)):
+            side, price, qty = rng.choice(("BUY", "SELL")), rng.randint(95, 105), rng.randint(1, 50)  # fmt: skip
+            book.rest(_Order(f"O{i}", side, "LIMIT", price, qty, "GW", "NONE"), i)
+            (bids if side == "BUY" else asks).append((price, qty))
+        want = None
+        if bids and asks:
+            keys = []
+            for p in sorted({p for p, _ in bids + asks}):
+                b = sum(q for x, q in bids if x >= p)
+                a = sum(q for x, q in asks if x <= p)
+                side = "BUY" if b > a else "SELL" if a > b else ""
+                keys.append((-min(b, a), abs(b - a), p, side))
+            best = min(keys)
+            want = None if best[0] == 0 else (best[2], -best[0], best[1], best[3])
+        assert _uncross_of(book) == want
 
 
 def test_d7_finds_a_continuous_self_trade(tmp_path: Path, open_ds: OpenDataset) -> None:

@@ -25,6 +25,10 @@ not say whether the cancel came before or after a given trade.
 The engine's own full-book snapshots (``book.<SYM>``) are the oracle for the
 replay itself (D9): wherever replay and engine disagree, one of them is
 wrong, and the first snapshot after the divergence names the place.
+
+In a call phase the engine publishes each symbol's indicative uncross
+(``auction.indicative.<SYM>``) on a timer, between dispatches; D10 compares
+it with the uncross the replayed book would make at that point.
 """
 
 from __future__ import annotations
@@ -67,6 +71,7 @@ _PREFIX = {
     "oco.cancelled.": "oco_cancelled",
     "auction.result.": "auction",
     "book.": "book",
+    "auction.indicative.": "indicative",
 }
 #: Engine features this replay does not model; a run that uses them is
 #: still replayed, and the D9 note says so.
@@ -110,6 +115,8 @@ class _Book:
         self.last: int | None = None
         self.qty = {BUY: 0, SELL: 0}
         self.count = {BUY: 0, SELL: 0}
+        #: Bumped by every change to the resting orders.
+        self.version = 0
 
     def best(self, side: str) -> int | None:
         heap, levels = self._heaps[side], self.levels[side]
@@ -137,6 +144,7 @@ class _Book:
 
     def rest(self, o: _Order, seq: int) -> None:
         assert o.price is not None
+        self.version += 1
         o.seq = seq
         o.shown = min(o.peak, o.remaining) if o.peak else o.remaining
         levels = self.levels[o.side]
@@ -156,6 +164,7 @@ class _Book:
         o = self.orders.pop(order_id, None)
         if o is None:
             return self.stops.pop(order_id, None) or self.trailing.pop(order_id, None)
+        self.version += 1
         assert o.price is not None
         level = self.levels[o.side][o.price]
         del level[order_id]
@@ -169,6 +178,7 @@ class _Book:
         """A resting order trades *qty*; a used-up iceberg slice refills at
         the back of its level."""
         assert o.price is not None
+        self.version += 1
         o.remaining -= qty
         o.shown -= qty
         self.qty[o.side] -= qty
@@ -230,6 +240,10 @@ class _Replay:
         self.uncrosses = 0
         self.unmodelled: Counter[str] = Counter()
         self.symbol_of: dict[str, str] = {}
+        self.indicatives = 0
+        self.indicatives_skipped = 0
+        #: Symbol → (book version, the uncross it makes).
+        self._uncross_at: dict[str, tuple[int, _Uncross | None]] = {}
         # Per dispatch:
         self.chain = ""
         self.trades: list[dict[str, Any]] = []
@@ -256,10 +270,13 @@ class _Replay:
                         "the audit does not reach back to the engine's start "
                         f"(first line: {topic}); the books cannot be rebuilt"
                     )
-            if kind == "book":
+            if kind in ("book", "indicative"):
                 self._flush(chain, pending)
                 pending = []
-                self._snapshot(json.loads(body))
+                if kind == "book":
+                    self._snapshot(json.loads(body))
+                else:
+                    self._indicative(json.loads(body))
                 continue
             if line_chain != chain:
                 self._flush(chain, pending)
@@ -919,6 +936,37 @@ class _Replay:
             ),
         )
 
+    def _indicative(self, p: dict[str, Any]) -> None:
+        """D10: the engine's indicative uncross is the replayed book's."""
+        sym = p["symbol"]
+        if sym in self.diverged:
+            self.indicatives_skipped += 1  # D9 already names the divergence
+            return
+        self.indicatives += 1
+        book = self._book(sym)
+        cached = self._uncross_at.get(sym)
+        if cached is not None and cached[0] == book.version:
+            mine = cached[1]
+        else:
+            mine = _uncross_of(book)
+            self._uncross_at[sym] = (book.version, mine)
+        price = p.get("eq_price")
+        engine = (
+            _ticks(price, book.td) if price is not None else None,
+            p.get("eq_qty") or 0,
+            p.get("imbalance_qty") or 0,
+            p.get("imbalance_side") or "",
+        )
+        replay = mine if mine is not None else (None, 0, 0, "")
+        if engine != replay:
+            self._flag(
+                "D10",
+                symbol=sym,
+                phase=p.get("phase"),
+                engine=list(engine),
+                replay=list(replay),
+            )
+
     def _price(self, book: _Book, t: dict[str, Any]) -> int:
         td = int(t.get("tick_decimals", book.td))
         raw = float(t["price"]) * 10.0**td
@@ -959,10 +1007,13 @@ def _breached(o: _Order, last: int) -> bool:
     return last >= o.stop if o.side == BUY else last <= o.stop
 
 
-def _equilibrium(book: _Book) -> tuple[int, int] | None:
-    """(price, qty) an uncross must print: the most executable quantity,
-    then the least surplus, then the lowest price; hidden iceberg quantity
-    counts."""
+#: (price, executable qty, surplus, imbalance side "BUY"/"SELL"/"").
+_Uncross = tuple[int, int, int, str]
+
+
+def _uncross_of(book: _Book) -> _Uncross | None:
+    """The uncross the book makes: the most executable quantity, then the
+    least surplus, then the lowest price; hidden iceberg quantity counts."""
     bids: dict[int, int] = defaultdict(int)
     asks: dict[int, int] = defaultdict(int)
     for o in book.orders.values():
@@ -970,15 +1021,32 @@ def _equilibrium(book: _Book) -> tuple[int, int] | None:
         (bids if o.side == BUY else asks)[o.price] += o.remaining
     if not bids or not asks:
         return None
-    best: tuple[int, int, int] | None = None  # (-qty, surplus, price)
-    for price in sorted(set(bids) | set(asks)):
-        buy = sum(q for p, q in bids.items() if p >= price)
-        sell = sum(q for p, q in asks.items() if p <= price)
-        key = (-min(buy, sell), abs(buy - sell), price)
-        if best is None or key < best:
-            best = key
-    assert best is not None
-    return None if best[0] == 0 else (best[2], -best[0])
+    prices = sorted(set(bids) | set(asks))
+    # buy[i]: bids at prices[i] or above; sell[i]: asks at prices[i] or below.
+    buy, sell = [0] * len(prices), [0] * len(prices)
+    running = 0
+    for i in range(len(prices) - 1, -1, -1):
+        running += bids.get(prices[i], 0)
+        buy[i] = running
+    running = 0
+    for i, price in enumerate(prices):
+        running += asks.get(price, 0)
+        sell[i] = running
+    i = min(
+        range(len(prices)),
+        key=lambda j: (-min(buy[j], sell[j]), abs(buy[j] - sell[j]), prices[j]),
+    )
+    qty = min(buy[i], sell[i])
+    if qty == 0:
+        return None
+    side = "BUY" if buy[i] > sell[i] else "SELL" if sell[i] > buy[i] else ""
+    return prices[i], qty, abs(buy[i] - sell[i]), side
+
+
+def _equilibrium(book: _Book) -> tuple[int, int] | None:
+    """(price, qty) an uncross must print."""
+    u = _uncross_of(book)
+    return None if u is None else (u[0], u[1])
 
 
 def _replay(ds: Dataset) -> _Replay:
@@ -1082,6 +1150,20 @@ def self_trades(ds: Dataset) -> Outcome:
 @check("D8", "book-state", "Trade prices lie on the tick grid", needs=())
 def tick_grid(ds: Dataset) -> Outcome:
     return _outcome(ds, "D8", "collar / circuit-breaker bands not checked")
+
+
+@check(
+    "D10",
+    "book-state",
+    "Each indicative uncross the engine publishes in a call phase is the replayed book's",
+    needs=(),
+)
+def indicatives(ds: Dataset) -> Outcome:
+    r = _replay(ds)
+    note = f"{r.indicatives} indicatives compared"
+    if r.indicatives_skipped:
+        note += f", {r.indicatives_skipped} skipped on symbols D9 found diverged"
+    return _outcome(ds, "D10", note)
 
 
 @check(

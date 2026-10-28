@@ -5,6 +5,7 @@ from sim_forensics.checks import (  # noqa: F401
     completeness,
     coverage,
     derived,
+    immediate,
     lifecycle,
     matching,
     ops,

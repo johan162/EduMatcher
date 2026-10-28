@@ -39,7 +39,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 15 | S15 | X8d: one publisher for every `book.process()` result; X12, X18–X20 | S14 | 1 d | ☑ | 2026-10-25 |
 | 16 | S16 | X21: a combo leg ending on entry fails the combo; `combo.ack` first | S15 | 0.5 d | ☑ | 2026-10-26 |
 | 17 | S17 | A5 audit completeness (per-topic `seq` gaps) + H5 feature-coverage matrix | — | 0.5 d | ☑ | 2026-10-28 |
-| 18 | S18 | Direct checks on today's data: C9 IOC/FOK/MARKET, C10 quote replace, D10 auction indicative, F6 depth fields | S17 | 1 d | ☐ | |
+| 18 | S18 | Direct checks on today's data: C9 IOC/FOK/MARKET, C10 quote replace, D10 auction indicative, F6 depth fields | S17 | 1 d | ☑ | 2026-10-28 |
 | 19 | S19 | Re-run differentials: E5 symbol isolation, E6 crash recovery, E7 metamorphic | — | 2 d | ☐ | |
 | 20 | S20 | Pre-1.0 decisions: Q5–Q10, frozen field list for audit, bus and DBs (doc only) | S17–S19 | 0.5 d | ☐ | |
 | 21 | S21 | Self-describing audit: `system.startup` (version, sha, config) + audit format header | S20 | 1 d | ☐ | |
@@ -216,8 +216,8 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | C6 | Reject / cancel reason codes are canonical (not the X7 OCO sibling rows, which carry `oco.cancelled`'s free text); reject-rate time series per code (spikes → H). |
 | C8 | Quote lifecycle from the audit: no `ACTIVE` after a quote ended, no status before its ack, and an inactivating fill cancels the sibling leg in the same dispatch, after which it never trades (S10, finding X8a). |
 | C7 | Stops/trailing stops trigger only after a trade crossed the (trailing) stop price; icebergs: displayed ≤ peak, refill after peak exhausted. **Moved to S5**: `order_events` stores neither stop prices nor display quantities; needs the audit. |
-| C9 | **Planned (S18).** IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
-| C10 | **Planned (S18).** At most one active quote per (gateway, symbol); a replacing quote's old legs have ended before its new legs trade. |
+| C9 | (S18) IOC, FOK and MARKET end within their own dispatch (chain) and never rest; a FOK fills completely or not at all (or, accepted, ends CANCELLED `SELF_MATCH_PREVENTED` with no fill — the documented SMP case, see S17). |
+| C10 | (S18) One quote per (gateway, symbol): when a quote is accepted no earlier leg of that gateway and symbol is live (the engine cancels them `QUOTE_REPLACED` first, a filled leg's remainder included), and a replaced leg never trades. |
 
 ### D — Matching correctness (audit episodes; needs S1 retention)
 
@@ -231,7 +231,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | D6 | Auction uncross: one price per symbol per auction, maximises executable volume, tie-breaks per the spec; book uncrossed afterwards; all prints `aggressor_side = AUCTION`. |
 | D7 | SMP: no continuous self-trades; auction self-trade policy per Q2 (R4). |
 | D8 | All prices on the tick grid; trades inside collar / circuit-breaker bands; halts honoured. (Built: tick grid only; bands and halts in S28, after S24 publishes the bands.) |
-| D10 | **Planned (S18).** Each `auction.indicative.*` equals the uncross the replayed book would make at that moment; the `auction.result` equals the last indicative when the book did not change after it. |
+| D10 | (S18) Each `auction.indicative.*` (price, executable qty, imbalance qty and side) equals the uncross the replayed book makes at that point of the stream. ("`auction.result` = last indicative" dropped: D10 + D6 imply it.) |
 
 ### E — Replay differential
 
@@ -254,7 +254,7 @@ Status column of the report = PASS / FAIL(n) / SKIPPED(reason).
 | F3 | `book.*` `last_price`/`last_qty`/`recent_trades` consistent with `trade.executed`. |
 | F4 | `book_stats.json` `prev_close` = previous day's `close_price`. |
 | F5 | Index levels recomputable from constituent prices (once R7 is fixed). **Not built (S7 decision):** the s300-sim profile defines no index (R7), so there is no data to check; build it with the first run that has indexes. |
-| F6 | **Planned (S18).** `depth.*` derived fields (mid, bid/ask depth within tolerance, imbalance, microprice, cost to move) recomputed from the `book.*` snapshot of the same instant. |
+| F6 | (S18) `depth.*` derived fields (mid, bid/ask depth within tolerance, imbalance, microprice, cost to move) recomputed from the `book.*` snapshot of the same instant. |
 
 ### G — Persistence
 
@@ -1635,4 +1635,37 @@ every finding is a fix that does not touch them.
 - Not from S17: `test_shell_completion` failed at HEAD (871fa8d1 added
   pm-compdb-cli `--format grid/markdown` without `make completion`);
   `make _check` regenerated `src/edumatcher/completion/*` — commit apart.
+
+### S18 — done 2026-10-28
+
+- **C9** (`checks/immediate.py`): per `order.new` of type IOC/FOK/MARKET,
+  its chain must end it (rejected, filled, cancelled, expired); a FOK
+  that traded part, was cancelled for a reason other than
+  `SELF_MATCH_PREVENTED`, expired, or was acked and then rejected (X5) is
+  flagged. Other orders' messages are skipped unparsed.
+- **C10** (`checks/quotes.py`, in C8's pass): live legs per (gateway,
+  symbol), seeded legs included. The engine publishes no `quote.status`
+  for a replaced quote, so the rule is on legs, not statuses.
+- **D10** (`checks/matching.py`): `auction.indicative.*` lines are read
+  like book snapshots (timer messages between dispatches) and compared
+  with `_uncross_of(book)`; symbols D9 found diverged are skipped and
+  counted. `_equilibrium` (D6) now uses the same `_uncross_of`, linear in
+  the price levels instead of quadratic, and cached per book version
+  (`_Book.version`) — 85 500 indicatives per opening auction.
+  `tests/…matching.py` checks it against the price-by-price definition on
+  300 random books.
+- **F6** (`checks/derived.py`, in F2/F3's pass): a `depth.<SYM>` must
+  directly follow its `book.<SYM>` (both from `Engine._flush_snapshots`);
+  its figures are recomputed from the book's levels (shown quantities)
+  with the window around the book's `last_price`. Tested against a real
+  `OrderBook`'s own `snapshot()` and `depth_snapshot()`, iceberg included.
+- Tests: `test_sim_forensics_immediate.py` (3), C10 (2), D10 (6), F6 (8);
+  the lifecycle pin test excludes the audit-based C7–C10.
+- **2026-10-28 run (sim still running): all PASS.** C9: FOK 360 filled /
+  7 905 rejected / 12 cancelled (SMP), IOC 104 249 filled / 48 842
+  cancelled, MARKET 30 872 / 1 711. C10: 147 297 legs cancelled
+  `QUOTE_REPLACED`. D10: 85 500 indicatives. F6: 1 668 653 depth messages,
+  all paired. D9 on the whole run (now that the archive is read): 3.1 M
+  snapshots, 0 differ. Times: replay (C7, D*) 204 s, F-pass 113 s, C8/C10
+  38 s, C9 36 s.
 
