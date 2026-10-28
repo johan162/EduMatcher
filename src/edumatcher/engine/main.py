@@ -161,6 +161,7 @@ from edumatcher.models.generated.order import (
     make_order_triggered_unchecked,
 )
 from edumatcher.models.generated.risk import make_band_unchecked
+from edumatcher.models.generated.system import make_book_checkpoint
 from edumatcher.models.message import (
     dumps,
     decode,
@@ -1391,6 +1392,18 @@ class Engine:
         self._load_config()  # seed stats + MM orders (after GTC restore)
         self._flush_trace()
         self._publish_bands()
+        self._publish_checkpoints("STARTUP")
+
+    def _publish_checkpoints(self, reason: str) -> None:
+        """``system.book_checkpoint.<SYM>`` for every book: what a replay
+        needs to start from here (S25)."""
+        phase = self._session_state.value
+        for symbol in sorted(self.books):
+            self.pub_sock.send_multipart(
+                make_book_checkpoint(
+                    **self.books[symbol].checkpoint(), reason=reason, phase=phase
+                )
+            )
 
     def _flush_trace(self) -> None:
         """Publish the books' trace: ``order.triggered.<GW>`` for a stop that
@@ -5604,6 +5617,7 @@ class Engine:
         # After the broadcast, so a requester that sees its ack knows the
         # public state has already been published.
         self._reply_session_transition(payload, True, to_state=to_state.value)
+        self._publish_checkpoints("PHASE")
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
     def _handle_session_next(self, payload: dict[str, Any]) -> None:
@@ -6654,7 +6668,9 @@ class Engine:
             f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
         )
 
-        # Broadcast EOD — subscribers record closing prices before sockets close
+        # The books as they end, for the audit (S25), then the broadcast EOD
+        # -- subscribers record closing prices before sockets close.
+        self._publish_checkpoints("EOD")
         eod_books = [book.snapshot() for book in self.books.values()]
         self.pub_sock.send_multipart(make_eod_msg(eod_books))
 

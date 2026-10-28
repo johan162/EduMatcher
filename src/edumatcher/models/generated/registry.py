@@ -832,6 +832,14 @@ TOPIC_REGISTRY: Mapping[str, Mapping[str, Any]] = {
         "params": (),
         "fields": _system.describe_eod(),
     },
+    _system.TOPIC_BOOK_CHECKPOINT: {
+        "family": "system",
+        "message": "book_checkpoint",
+        "prefix": _system.PREFIX_BOOK_CHECKPOINT,
+        "transport": ("engine_pub",),
+        "params": ("symbol",),
+        "fields": _system.describe_book_checkpoint(),
+    },
     _system.TOPIC_STARTUP: {
         "family": "system",
         "message": "startup",

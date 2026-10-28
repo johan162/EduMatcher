@@ -315,6 +315,169 @@ class SymbolCircuitBreaker:
         }
 
 
+_CHECKPOINT_ORDER_SIDE_VALUES = ("BUY", "SELL")
+CheckpointOrderSide = Literal["BUY", "SELL"]
+_CHECKPOINT_ORDER_ORDER_TYPE_VALUES = (
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+)
+CheckpointOrderOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+]
+_CHECKPOINT_ORDER_TIF_VALUES = ("DAY", "GTC", "ATO", "ATC")
+CheckpointOrderTif = Literal["DAY", "GTC", "ATO", "ATC"]
+
+
+@dataclass(frozen=True, slots=True)
+class CheckpointOrder:
+    """One order as a book checkpoint holds it: enough to rebuild the book exactly --
+    its place in the queue, hidden iceberg quantity, its stop and trailing
+    triggers, and the links to its quote, OCO pair or combo.
+    """
+
+    order_id: str
+    gateway_id: str
+    side: CheckpointOrderSide
+    order_type: CheckpointOrderOrderType
+    tif: CheckpointOrderTif
+    quantity: int  # unit: shares
+    remaining_qty: int  # unit: shares
+    price_ticks: int | None = None  # unit: ticks
+    stop_price_ticks: int | None = None  # unit: ticks
+    trail_offset_ticks: int | None = None  # unit: ticks
+    visible_qty: int | None = None  # unit: shares
+    displayed_qty: int | None = None  # unit: shares
+    priority_seq: int | None = None  # unit: dimensionless
+    smp_action: str | None = None
+    oco_group_id: str | None = None
+    quote_id: str | None = None
+    combo_parent_id: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if self.side not in _CHECKPOINT_ORDER_SIDE_VALUES:
+            raise MessageValidationError(
+                f"side: {self.side!r} is not one of {_CHECKPOINT_ORDER_SIDE_VALUES!r}"
+            )
+        if self.order_type not in _CHECKPOINT_ORDER_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_CHECKPOINT_ORDER_ORDER_TYPE_VALUES!r}"
+            )
+        if self.tif not in _CHECKPOINT_ORDER_TIF_VALUES:
+            raise MessageValidationError(
+                f"tif: {self.tif!r} is not one of {_CHECKPOINT_ORDER_TIF_VALUES!r}"
+            )
+        if self.quantity < 0:
+            raise MessageValidationError(f"quantity: {self.quantity!r} must be >= 0")
+        if self.remaining_qty < 0:
+            raise MessageValidationError(
+                f"remaining_qty: {self.remaining_qty!r} must be >= 0"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "CheckpointOrder":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            order_id=str(p["order_id"]),
+            gateway_id=str(p["gateway_id"]),
+            side=cast(CheckpointOrderSide, str(p["side"])),
+            order_type=cast(CheckpointOrderOrderType, str(p["order_type"])),
+            tif=cast(CheckpointOrderTif, str(p["tif"])),
+            quantity=int(p["quantity"]),
+            remaining_qty=int(p["remaining_qty"]),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            stop_price_ticks=(
+                None
+                if p.get("stop_price_ticks") is None
+                else int(p["stop_price_ticks"])
+            ),
+            trail_offset_ticks=(
+                None
+                if p.get("trail_offset_ticks") is None
+                else int(p["trail_offset_ticks"])
+            ),
+            visible_qty=None if p.get("visible_qty") is None else int(p["visible_qty"]),
+            displayed_qty=(
+                None if p.get("displayed_qty") is None else int(p["displayed_qty"])
+            ),
+            priority_seq=(
+                None if p.get("priority_seq") is None else int(p["priority_seq"])
+            ),
+            smp_action=None if p.get("smp_action") is None else str(p["smp_action"]),
+            oco_group_id=(
+                None if p.get("oco_group_id") is None else str(p["oco_group_id"])
+            ),
+            quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
+            combo_parent_id=(
+                None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "order_id": self.order_id,
+            "gateway_id": self.gateway_id,
+            "side": self.side,
+            "order_type": self.order_type,
+            "tif": self.tif,
+            "quantity": self.quantity,
+            "remaining_qty": self.remaining_qty,
+        }
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        if self.stop_price_ticks is not None:
+            payload["stop_price_ticks"] = self.stop_price_ticks
+        if self.trail_offset_ticks is not None:
+            payload["trail_offset_ticks"] = self.trail_offset_ticks
+        if self.visible_qty is not None:
+            payload["visible_qty"] = self.visible_qty
+        if self.displayed_qty is not None:
+            payload["displayed_qty"] = self.displayed_qty
+        if self.priority_seq is not None:
+            payload["priority_seq"] = self.priority_seq
+        if self.smp_action is not None:
+            payload["smp_action"] = self.smp_action
+        if self.oco_group_id is not None:
+            payload["oco_group_id"] = self.oco_group_id
+        if self.quote_id is not None:
+            payload["quote_id"] = self.quote_id
+        if self.combo_parent_id is not None:
+            payload["combo_parent_id"] = self.combo_parent_id
+        return payload
+
+
 @dataclass(frozen=True, slots=True)
 class LoadedFile:
     """One persistence file the engine read at startup, identified by its bytes: a
@@ -2640,6 +2803,273 @@ def parse_eod(frames: list[bytes]) -> "Eod":
 def describe_eod() -> tuple[dict[str, Any], ...]:
     """Return field metadata, for spy tools and runtime pretty-printing."""
     return _EOD_FIELDS
+
+
+TOPIC_BOOK_CHECKPOINT = "system.book_checkpoint.{symbol}"
+PREFIX_BOOK_CHECKPOINT = "system.book_checkpoint."
+_BOOK_CHECKPOINT_RE = re.compile("system\\.book_checkpoint\\.(?P<symbol>[^.]+)")
+_BOOK_CHECKPOINT_REASON_VALUES = ("STARTUP", "PHASE", "EOD")
+BookCheckpointReason = Literal["STARTUP", "PHASE", "EOD"]
+
+
+_BOOK_CHECKPOINT_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "reason",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _BOOK_CHECKPOINT_REASON_VALUES,
+    },
+    {
+        "name": "phase",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "The session state the book is in.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "bids",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "asks",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "buy_stops",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "sell_stops",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "trailing_stops",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "last_trade_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "",
+    },
+    {
+        "name": "last_buy_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "",
+    },
+    {
+        "name": "last_sell_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "",
+    },
+    {
+        "name": "last_trade_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The trade that set the last trade price.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class BookCheckpoint:
+    """One symbol's whole book, for the audit: every resting order in priority order
+    with its hidden quantity, every armed stop with its current trigger, the last
+    prices. Published for every symbol after startup (what the restore and the
+    seeds made), after each session transition, and at shutdown. A replay can
+    start from any of them -- an audit that begins mid-day, or continues after an
+    engine restart -- and, where it already holds the book, compare order by
+    order.
+
+    `bids` and `asks` are in matching priority (best price first, then arrival);
+    `buy_stops` and `sell_stops` in the order they would trigger; `trailing_stops` in
+    the order they are checked.
+    """
+
+    symbol: str
+    reason: BookCheckpointReason
+    phase: str
+    bids: list[CheckpointOrder]
+    asks: list[CheckpointOrder]
+    buy_stops: list[CheckpointOrder]
+    sell_stops: list[CheckpointOrder]
+    trailing_stops: list[CheckpointOrder]
+    last_trade_price_ticks: int | None = None  # unit: ticks
+    last_buy_price_ticks: int | None = None  # unit: ticks
+    last_sell_price_ticks: int | None = None  # unit: ticks
+    last_trade_id: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.reason not in _BOOK_CHECKPOINT_REASON_VALUES:
+            raise MessageValidationError(
+                f"reason: {self.reason!r} is not one of {_BOOK_CHECKPOINT_REASON_VALUES!r}"
+            )
+        if len(self.phase) > 32:
+            raise MessageValidationError(
+                f"phase: length {len(self.phase)} exceeds max_len 32"
+            )
+        for bids_item in self.bids:
+            bids_item.validate()
+        for asks_item in self.asks:
+            asks_item.validate()
+        for buy_stops_item in self.buy_stops:
+            buy_stops_item.validate()
+        for sell_stops_item in self.sell_stops:
+            sell_stops_item.validate()
+        for trailing_stops_item in self.trailing_stops:
+            trailing_stops_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "BookCheckpoint":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            reason=cast(BookCheckpointReason, str(p["reason"])),
+            phase=str(p["phase"]),
+            bids=[CheckpointOrder.from_dict(item) for item in p["bids"]],
+            asks=[CheckpointOrder.from_dict(item) for item in p["asks"]],
+            buy_stops=[CheckpointOrder.from_dict(item) for item in p["buy_stops"]],
+            sell_stops=[CheckpointOrder.from_dict(item) for item in p["sell_stops"]],
+            trailing_stops=(
+                [CheckpointOrder.from_dict(item) for item in p["trailing_stops"]]
+            ),
+            last_trade_price_ticks=(
+                None
+                if p.get("last_trade_price_ticks") is None
+                else int(p["last_trade_price_ticks"])
+            ),
+            last_buy_price_ticks=(
+                None
+                if p.get("last_buy_price_ticks") is None
+                else int(p["last_buy_price_ticks"])
+            ),
+            last_sell_price_ticks=(
+                None
+                if p.get("last_sell_price_ticks") is None
+                else int(p["last_sell_price_ticks"])
+            ),
+            last_trade_id=(
+                None if p.get("last_trade_id") is None else str(p["last_trade_id"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+            "reason": self.reason,
+            "phase": self.phase,
+            "bids": [item.to_dict() for item in self.bids],
+            "asks": [item.to_dict() for item in self.asks],
+            "buy_stops": [item.to_dict() for item in self.buy_stops],
+            "sell_stops": [item.to_dict() for item in self.sell_stops],
+            "trailing_stops": [item.to_dict() for item in self.trailing_stops],
+        }
+        if self.last_trade_price_ticks is not None:
+            payload["last_trade_price_ticks"] = self.last_trade_price_ticks
+        if self.last_buy_price_ticks is not None:
+            payload["last_buy_price_ticks"] = self.last_buy_price_ticks
+        if self.last_sell_price_ticks is not None:
+            payload["last_sell_price_ticks"] = self.last_sell_price_ticks
+        if self.last_trade_id is not None:
+            payload["last_trade_id"] = self.last_trade_id
+        return payload
+
+
+def topic_book_checkpoint(symbol: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.book_checkpoint.{symbol}"
+
+
+def match_book_checkpoint(topic: str) -> str | None:
+    """Return ``symbol`` when ``topic`` matches, else None."""
+    m = _BOOK_CHECKPOINT_RE.fullmatch(topic)
+    return m.group("symbol") if m else None
+
+
+def make_book_checkpoint(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = BookCheckpoint.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_book_checkpoint(obj.symbol), obj.to_dict())
+
+
+def parse_book_checkpoint(frames: list[bytes]) -> "BookCheckpoint":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_book_checkpoint(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_BOOK_CHECKPOINT!r}"
+        )
+    payload = {**payload, "symbol": matched}
+    obj = BookCheckpoint.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_book_checkpoint() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _BOOK_CHECKPOINT_FIELDS
 
 
 TOPIC_STARTUP = "system.startup"
@@ -6640,6 +7070,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_HEARTBEAT,
     TOPIC_GATEWAY_BYE,
     TOPIC_EOD,
+    TOPIC_BOOK_CHECKPOINT,
     TOPIC_STARTUP,
     TOPIC_STARTUP_RECOVERY,
     TOPIC_RECOVERY_ITEM,

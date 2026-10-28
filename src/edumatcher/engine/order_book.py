@@ -887,6 +887,55 @@ class OrderBook:
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
 
+    def checkpoint(self) -> dict[str, Any]:
+        """The whole book for ``system.book_checkpoint`` (S25): resting
+        orders in matching priority, armed stops in trigger order, trailing
+        stops in checking order, and the last prices."""
+
+        def live(heap: list[_HeapEntry]) -> list[Order]:
+            entries = [
+                e for e in heap if e.valid and e.order.status not in _DEAD_STATUSES
+            ]
+            return [e.order for e in sorted(entries, key=lambda e: e.key)]
+
+        def record(o: Order, seq: bool = True) -> dict[str, Any]:
+            return {
+                "order_id": o.id,
+                "gateway_id": o.gateway_id,
+                "side": o.side.value,
+                "order_type": o.order_type.value,
+                "tif": o.tif.value,
+                "quantity": o.quantity,
+                "remaining_qty": o.remaining_qty,
+                "price_ticks": o.price_ticks,
+                "stop_price_ticks": o.stop_price_ticks,
+                "trail_offset_ticks": o.trail_offset_ticks,
+                "visible_qty": o.visible_qty,
+                "displayed_qty": o.displayed_qty,
+                "priority_seq": o.arrival_seq if seq else None,
+                "smp_action": o.smp_action.value if o.smp_action else None,
+                "oco_group_id": o.oco_group_id,
+                "quote_id": o.quote_id,
+                "combo_parent_id": o.combo_parent_id,
+            }
+
+        return {
+            "symbol": self.symbol,
+            "bids": [record(o) for o in live(self._bids)],
+            "asks": [record(o) for o in live(self._asks)],
+            "buy_stops": [record(o) for o in live(self._buy_stops)],
+            "sell_stops": [record(o) for o in live(self._sell_stops)],
+            "trailing_stops": [
+                record(o, seq=False)
+                for o in self._trailing_stops
+                if o.status not in _DEAD_STATUSES
+            ],
+            "last_trade_price_ticks": self.last_trade_price,
+            "last_buy_price_ticks": self.last_buy_price,
+            "last_sell_price_ticks": self.last_sell_price,
+            "last_trade_id": self.last_trade_id,
+        }
+
     def book_stats(self) -> BookStats:
         """Sizes for the health beacon. O(levels + stops), never O(orders):
         every figure is a container length except the live-stop count, which

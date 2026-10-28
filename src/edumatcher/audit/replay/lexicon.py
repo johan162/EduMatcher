@@ -174,6 +174,10 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     # `auction.result.reason`: why the uncross ran.
     "reason": {
+        # system.book_checkpoint
+        "STARTUP": "at engine startup",
+        "PHASE": "at a session transition",
+        "EOD": "at shutdown",
         "SCHEDULED": "on schedule",
         "ADMIN_MANUAL": "on an admin instruction",
         "REOPEN": "to reopen a halted instrument",

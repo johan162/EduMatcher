@@ -102,9 +102,11 @@ class TestTheAppendixDocumentsEveryMessage:
         which makes an audit trail self-describing (sim forensics S21).
 
         126 -> 129: order.triggered, engine.trace and risk.band (S24).
+
+        129 -> 130: system.book_checkpoint (S25).
         """
         total = sum(len(f.messages) for f in families)
-        assert total == 129, total
+        assert total == 130, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

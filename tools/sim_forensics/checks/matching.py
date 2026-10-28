@@ -72,6 +72,7 @@ _PREFIX = {
     "auction.result.": "auction",
     "book.": "book",
     "auction.indicative.": "indicative",
+    "system.book_checkpoint.": "checkpoint",
 }
 #: Engine features this replay does not model; a run that uses them is
 #: still replayed, and the D9 note says so.
@@ -229,6 +230,14 @@ class _Replay:
         self.samples: dict[str, list[Sample]] = defaultdict(list)
         self.phase: str | None = None
         self.started = False
+        #: Symbols whose replayed book is known to be the engine's (D9 then
+        #: compares it with a checkpoint); every symbol when the replay began
+        #: at the engine's start, none right after a restart.
+        self.synced: set[str] = set()
+        self.synced_all = False
+        self.checkpoints = 0
+        self.restarts = 0
+        self.skipped_lines = 0
         self.seq = 0
         self.dispatches = 0
         self.snapshots = 0
@@ -265,24 +274,31 @@ class _Replay:
                     self.unmodelled[topic[: topic.rfind(".") + 1]] += 1
                 continue
             if not self.started and not pending:
-                if kind != "startup":
-                    raise Skipped(
-                        "the audit does not reach back to the engine's start "
-                        f"(first line: {topic}); the books cannot be rebuilt"
-                    )
-            if kind in ("book", "indicative"):
+                # Until the engine's start or a checkpoint, no book is known.
+                if kind == "checkpoint":
+                    self.started = True
+                elif kind != "startup":
+                    self.skipped_lines += 1
+                    continue
+            if kind in ("book", "indicative", "checkpoint"):
                 self._flush(chain, pending)
                 pending = []
                 if kind == "book":
                     self._snapshot(json.loads(body))
-                else:
+                elif kind == "indicative":
                     self._indicative(json.loads(body))
+                else:
+                    self._adopt(json.loads(body))
                 continue
             if line_chain != chain:
                 self._flush(chain, pending)
                 pending, chain = [], line_chain
             pending.append((kind, topic, json.loads(body)))
         self._flush(chain, pending)
+        if not self.started:
+            raise Skipped(
+                "the audit holds neither the engine's start nor a book checkpoint"
+            )
 
     def _flush(self, chain: str, msgs: list[tuple[str, str, dict[str, Any]]]) -> None:
         if not msgs:
@@ -322,11 +338,17 @@ class _Replay:
                 d.startup = True
         if d.startup:
             if self.started:
-                raise Skipped(
-                    "the engine restarted during the run; replaying across a "
-                    "restart (restored GTC orders) is not supported"
-                )
+                # A restart: the books come back from what the engine
+                # restored, which its STARTUP checkpoints will say.
+                self.restarts += 1
+                self.books.clear()
+                self.symbol_of.clear()
+                self.diverged.clear()
+                self._uncross_at.clear()
+                self.phase = None
             self.started = True
+            self.synced_all = self.restarts == 0
+            self.synced.clear()
         self.dispatches += 1
         self._dispatch(d)
         if d.phase is not None:
@@ -896,6 +918,8 @@ class _Replay:
 
     def _snapshot(self, p: dict[str, Any]) -> None:
         sym = p["symbol"]
+        if not (self.synced_all or sym in self.synced):
+            return  # after a restart, before its checkpoint: no book to compare
         td = int(p.get("tick_decimals", self.td.get(sym, 2)))
         book = self._book(sym)
         bids, asks = p["bids"], p["asks"]
@@ -943,6 +967,58 @@ class _Replay:
                 f"{s} {price}: engine {e} replay {m}" for s, price, e, m in diff[:4]
             ),
         )
+
+    def _adopt(self, p: dict[str, Any]) -> None:
+        """A book checkpoint: compare it with the replayed book where that is
+        in sync (D9, order by order), then take it as the book."""
+        sym = p["symbol"]
+        self.checkpoints += 1
+        if self.phase is None and p.get("phase"):
+            self.phase = p["phase"]
+        mine = self.books.get(sym)
+        if mine is not None and (self.synced_all or sym in self.synced) and sym not in self.diverged:  # fmt: skip
+            theirs = _checkpoint_view(p)
+            ours = _book_view(mine)
+            for key in theirs:
+                if ours[key] != theirs[key]:
+                    self._flag("D9", error=f"replayed {key} differ from the engine's checkpoint", symbol=sym, reason=p.get("reason"), engine=str(theirs[key])[:300], replay=str(ours[key])[:300])  # fmt: skip
+                    break
+        book = self.books[sym] = _Book(sym, self.td.get(sym, 2))
+        top = self.seq
+        for side, key in ((BUY, "bids"), (SELL, "asks")):
+            for r in p.get(key) or []:
+                o = self._from_record(r)
+                book.rest(o, int(r.get("priority_seq") or 0))
+                shown = r.get("displayed_qty")
+                if shown is not None and o.peak:
+                    book.qty[side] += int(shown) - o.shown
+                    o.shown = int(shown)
+                top = max(top, o.seq)
+        for key in ("buy_stops", "sell_stops", "trailing_stops"):
+            for r in p.get(key) or []:
+                o = self._from_record(r)
+                book.arm(o, int(r.get("priority_seq") or 0))
+                top = max(top, o.seq)
+        book.last = p.get("last_trade_price_ticks")
+        # New orders must queue behind every adopted one.
+        self.seq = top
+        self.diverged.discard(sym)
+        self.synced.add(sym)
+
+    def _from_record(self, r: dict[str, Any]) -> _Order:
+        o = _Order(
+            id=r["order_id"],
+            side=r["side"],
+            kind=r["order_type"],
+            price=r.get("price_ticks"),
+            remaining=int(r["remaining_qty"]),
+            gw=r["gateway_id"],
+            smp=r.get("smp_action") or self.smp.get(r["gateway_id"], "NONE"),
+            peak=r.get("visible_qty"),
+            stop=r.get("stop_price_ticks"),
+            offset=r.get("trail_offset_ticks"),
+        )
+        return o
 
     def _indicative(self, p: dict[str, Any]) -> None:
         """D10: the engine's indicative uncross is the replayed book's."""
@@ -996,6 +1072,42 @@ class _Nobody:
 
 
 _NOBODY: Any = _Nobody()
+
+
+def _book_view(book: _Book) -> dict[str, Any]:
+    """The replayed book as a checkpoint lists it: each side in priority
+    order (id, remaining, shown), stops (id, trigger) in trigger order,
+    trailing stops in arming order."""
+    side = {
+        s: [
+            (o.id, o.remaining, o.shown)
+            for price in sorted(book.levels[s], reverse=s == BUY)
+            for o in book.levels[s][price].values()
+        ]
+        for s in (BUY, SELL)
+    }
+    stops = sorted(book.stops.values(), key=lambda o: (o.side, o.stop if o.side == BUY else -(o.stop or 0), o.seq))  # fmt: skip
+    return {
+        "bids": side[BUY],
+        "asks": side[SELL],
+        "stops": [(o.id, o.stop) for o in stops],
+        "trailing stops": [(o.id, o.stop) for o in book.trailing.values()],
+    }
+
+
+def _checkpoint_view(p: dict[str, Any]) -> dict[str, Any]:
+    def side(rows: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
+        return [
+            (r["order_id"], r["remaining_qty"], r["displayed_qty"] if r.get("visible_qty") else r["remaining_qty"])  # fmt: skip
+            for r in rows
+        ]
+
+    return {
+        "bids": side(p.get("bids") or []),
+        "asks": side(p.get("asks") or []),
+        "stops": [(r["order_id"], r["stop_price_ticks"]) for r in (p.get("buy_stops") or []) + (p.get("sell_stops") or [])],  # fmt: skip
+        "trailing stops": [(r["order_id"], r["stop_price_ticks"]) for r in p.get("trailing_stops") or []],  # fmt: skip
+    }
 
 
 def _fingerprint(
@@ -1074,7 +1186,12 @@ def _replay(ds: Dataset) -> _Replay:
         files = audit_files(ds.data_dir)
         if not files:
             raise Skipped("no audit.log in the data dir")
-        engine = json.loads(run_config_text(files))["engine"]
+        try:
+            engine = json.loads(run_config_text(files))["engine"]
+        except Skipped:
+            # An audit from mid-run: tick sizes then come from the messages
+            # (trades and books carry them), SMP modes from acks and checkpoints.
+            engine = {}
         smp = {
             gw: str(c.get("smp_action") or "NONE")
             for gw, c in engine.get("fix_gateways", {}).items()
@@ -1186,7 +1303,12 @@ def indicatives(ds: Dataset) -> Outcome:
 )
 def replay_agrees(ds: Dataset) -> Outcome:
     r = _replay(ds)
-    note = f"{r.snapshots} snapshots compared, {r.snapshots_differing} differ"
+    note = (
+        f"{r.snapshots} snapshots compared, {r.snapshots_differing} differ; "
+        f"{r.checkpoints} checkpoints, {r.restarts} engine restart(s)"
+    )
+    if r.skipped_lines:
+        note += f"; {r.skipped_lines} lines before the first checkpoint not replayed"
     if r.unmodelled:
         note += "; not modelled: " + ", ".join(
             f"{t}* {n}" for t, n in r.unmodelled.items()

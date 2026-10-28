@@ -630,6 +630,7 @@ Every topic in the system, and which process puts it on the wire.
 | `sim.command_ack.{gateway_id}` | `sim` | `market_sim` |
 | `sim.state` | `sim` | `market_sim` |
 | `sim.value` | `sim` | `market_sim` |
+| `system.book_checkpoint.{symbol}` | `system` | `engine` |
 | `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
 | `system.gateway_auth.{gateway_id}` | `system` | `engine` |
@@ -3706,6 +3707,30 @@ A symbol's configured circuit-breaker ladder and its lookback.
 | `reference_window_ns` | `int` | required | ge 0, unit `duration_nanos` | Lookback window for the reference price. A duration. |
 | `levels` | list of [`CircuitBreakerLevel`](#circuitbreakerlevel) | required | — |  |
 
+#### `CheckpointOrder`
+
+One order as a book checkpoint holds it: enough to rebuild the book exactly -- its place in the queue, hidden iceberg quantity, its stop and trailing triggers, and the links to its quote, OCO pair or combo.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `order_id` | `string` | required | max_len 64 |  |
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `side` | enum: `BUY`, `SELL` | required | — |  |
+| `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
+| `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
+| `quantity` | `int` | required | ge 0, unit `shares` |  |
+| `remaining_qty` | `int` | required | ge 0, unit `shares` | Hidden iceberg quantity included. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | The current trigger (a trailing stop's ratcheted one). |
+| `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `visible_qty` | `int` | omitted when unset | unit `shares` | An iceberg's slice size. |
+| `displayed_qty` | `int` | omitted when unset | unit `shares` | What an iceberg shows now. |
+| `priority_seq` | `int` | omitted when unset | unit `dimensionless` | The book's arrival sequence; absent for a trailing stop (checked in list order). |
+| `smp_action` | `string` | omitted when unset | — |  |
+| `oco_group_id` | `string` | omitted when unset | — |  |
+| `quote_id` | `string` | omitted when unset | — |  |
+| `combo_parent_id` | `string` | omitted when unset | — |  |
+
 #### `LoadedFile`
 
 One persistence file the engine read at startup, identified by its bytes: a replay can tell which state the run started from.
@@ -4095,6 +4120,37 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
     That is why it has no `_request` sibling and why it is in this half rather than 6.1f's request/reply pairs.
 
 **See also:** `book.{SYMBOL}`, `session.state`
+
+### `system.book_checkpoint.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+One symbol's whole book, for the audit: every resting order in priority order with its hidden quantity, every armed stop with its current trigger, the last prices. Published for every symbol after startup (what the restore and the seeds made), after each session transition, and at shutdown. A replay can start from any of them -- an audit that begins mid-day, or continues after an engine restart -- and, where it already holds the book, compare order by order.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `reason` | enum: `STARTUP`, `PHASE`, `EOD` | required | — |  |
+| `phase` | `string` | required | max_len 32 | The session state the book is in. |
+| `bids` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `asks` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `buy_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `sell_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `trailing_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `last_trade_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_buy_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_sell_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_trade_id` | `string` | omitted when unset | — | The trade that set the last trade price. |
+
+!!! note
+
+    `bids` and `asks` are in matching priority (best price first, then arrival); `buy_stops` and `sell_stops` in the order they would trigger; `trailing_stops` in the order they are checked.
+
+**See also:** `system.startup`, `engine.trace.{SYMBOL}`, `book.{SYMBOL}`
 
 ### `system.startup`
 

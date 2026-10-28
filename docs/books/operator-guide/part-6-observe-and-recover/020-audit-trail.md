@@ -185,6 +185,14 @@ rebuild the engine from that one message, after the data directory's
 `ref_data/` has been redeployed. Every per-topic `seq` starts again at 1
 after it.
 
+The engine also records every book whole, as `system.book_checkpoint.<SYM>`:
+after startup (what the restore and the seeds made), after each session
+transition, and at shutdown — each resting order in priority order with
+its hidden iceberg quantity, each armed stop with its current trigger, and
+the last prices. A replay can start from any of them, so a day's audit
+file, or an audit that runs across an engine restart, can be checked on
+its own.
+
 This is what makes a post-mortem tractable. To follow one order submission
 through everything it caused:
 

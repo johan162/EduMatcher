@@ -48,7 +48,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 23 | S23 | Global engine sequence; trade context (`match_type`, `auction_id`, `trigger_order_id`) | S20 | 1 d | ☑ | 2026-10-28 |
 | 24 | S24 | Explicit engine events: `order.triggered`, trailing ratchet / iceberg refill trace; collar band publication | S20 | 1.5 d | ☑ | 2026-10-28 |
 | 24b | S24b | ALF, BALF and API gateways forward `order.triggered` to clients (protocol records, client libraries, docs) | S24 | 1 d | ☐ | |
-| 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☐ | |
+| 25 | S25 | Book checkpoints at startup/recovery, phase changes, EOD; replay starts from a checkpoint | S22–S24 | 2 d | ☑ | 2026-10-28 |
 | 26 | S26 | Stores: EOD archive of state files (+ G3), audit link keys in stats/clearing, order ids in `trade_log` | S20 | 1 d | ☐ | |
 | 27 | S27 | Sim feature coverage: amend, combos, ATC, explicit SMP, bands/CB, halts, kill switch, one restart | S17 | 1.5 d | ☐ | |
 | 28 | S28 | Replay models amend, combos, circuit breaker/halts; D8 checks bands; C7/D5 use explicit events | S24, S27 | 2 d | ☐ | |
@@ -1971,4 +1971,38 @@ from the trades and circuit-breaker corridors are already on
   (`order.triggered`), it is fills and cancels that must not name it.
   Counts: 129 messages, 19 risk topics; lexicon glosses.
 - Holistic: 11 167 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
+
+### S25 — done 2026-10-28
+
+- **`system.book_checkpoint.<SYM>`** (spec `system.yaml`, record type
+  `CheckpointOrder`): `reason` STARTUP / PHASE / EOD, `phase`, `bids` and
+  `asks` in matching priority, `buy_stops`/`sell_stops` in trigger order,
+  `trailing_stops` in checking order — each order with type, TIF, prices
+  in ticks, quantity and remaining (hidden iceberg included), visible and
+  displayed slice, `priority_seq`, SMP mode and its OCO, quote and combo
+  links — and the last trade/buy/sell prices and `last_trade_id`.
+  `OrderBook.checkpoint()` builds it; `Engine._publish_checkpoints` sends
+  one per book at the end of `_startup()`, after each session transition
+  (after its uncross and expiries), and in `_shutdown` before
+  `system.eod` (the EOD reason).
+- **Replay** (`matching.py`): a checkpoint is adopted as the symbol's book
+  (`_adopt`), after D9 compares the replayed book with it order by order
+  where the replay is in sync (`_book_view` / `_checkpoint_view`). Before
+  the engine's start or a checkpoint, lines are skipped (counted in D9's
+  note); an audit without `system.startup` takes tick sizes from the
+  messages; an engine **restart no longer SKIPs** — the books are reset and
+  refilled from the restart's STARTUP checkpoints, and snapshots of a book
+  not yet refilled are not compared. D9's note gives checkpoints, restarts
+  and lines skipped.
+- Not done: **E1–E7 still SKIP across a restart** (the re-run would have
+  to rebuild its engine from the checkpoint; `fresh_engine` with a state
+  dir written from it would do). No WP yet — decide in S29's triage.
+- Tests: `tests/test_engine_checkpoints.py` (2: per-book on a transition;
+  priority, hidden quantity, stop order), `tests/test_sim_forensics_
+  checkpoints.py` (4, real engines on s3-basic: a full day passes with
+  three checkpoint rounds; the same audit cut at the mid-day checkpoint
+  passes; a planted checkpoint mismatch is D9; a restart with restored
+  orders passes D/C7). The restart-SKIP test became the continue test.
+  Counts: system 35 topics, 130 messages; lexicon glosses.
+- Holistic: 11 177 passed, coverage 88.7 %; `make _check` clean; e2e 15/15.
 

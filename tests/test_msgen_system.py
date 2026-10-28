@@ -501,7 +501,7 @@ class TestTheFourFieldsNamedSymbols:
 
 
 class TestTheFamilyIsComplete:
-    def test_all_thirty_four_topics_are_declared(self) -> None:
+    def test_all_thirty_five_topics_are_declared(self) -> None:
         """29 -> 31 -> 32: startup_recovery and diagnostic (see
         ../docs/books/operator-guide/part-6-observe-and-recover/020-audit-trail.md) — the GTC-restore summary and the
         absorbed-internal-failure marker, both broadcasts with no request
@@ -510,9 +510,10 @@ class TestTheFamilyIsComplete:
         gateway_heartbeat, the one-way liveness beat that frees an ID whose
         process died without a gateway_disconnect. 33 -> 34: startup, the
         first message of every engine start, which makes an audit trail
-        self-describing (sim forensics S21)."""
+        self-describing (sim forensics S21). 34 -> 35: book_checkpoint, a
+        symbol's whole book for a replay to start from (S25)."""
         topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
-        assert len(topics) == 34, sorted(topics)
+        assert len(topics) == 35, sorted(topics)
 
 
 class TestQuoteLegSnapshotPrice:

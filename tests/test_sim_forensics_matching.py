@@ -706,14 +706,17 @@ def test_d9_finds_a_fill_whose_remaining_qty_differs(
     assert (sample["engine"], sample["replay"]) == (66, 65)
 
 
-def test_the_checks_skip_a_run_with_an_engine_restart(
+def test_the_replay_continues_across_an_engine_restart(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
+    """Its books come back from the restart's checkpoints (S25; a real
+    restart is in test_sim_forensics_checkpoints.py)."""
     t = continuous_day()
     t.put("system.startup", {"config": json.dumps(CONFIG)}, new_chain=True)
     data = t.write(tmp_path / "data")
     (result,) = run_checks(open_ds(data), [REGISTRY["D9"]], 10)
-    assert (result.status, "restarted" in result.note) == ("SKIPPED", True)
+    assert result.status == "PASS"
+    assert "1 engine restart(s)" in result.note
 
 
 def test_d9_finds_a_trade_by_an_order_the_replay_was_not_matching(
