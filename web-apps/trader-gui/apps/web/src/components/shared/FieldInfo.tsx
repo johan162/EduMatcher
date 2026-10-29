@@ -9,6 +9,8 @@ interface FieldInfoProps {
   label: string;
   /** Lines of help text: requirement, valid range, example, live constraint. */
   lines: string[];
+  /** Open under the icon instead of to its right, so the tip never covers the icon (table headings). */
+  below?: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ interface FieldInfoProps {
  * button labelled "{field} help", and the tooltip is a `role="tooltip"` element
  * linked by `aria-describedby` while shown.
  */
-export function FieldInfo({ label, lines }: FieldInfoProps) {
+export function FieldInfo({ label, lines, below = false }: FieldInfoProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const id = useId();
   const open = pos !== null;
@@ -29,8 +31,8 @@ export function FieldInfo({ label, lines }: FieldInfoProps) {
   const show = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     const zoom = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
-    const x = Math.min(r.right / zoom + 4, window.innerWidth / zoom - TIP_WIDTH - 8);
-    setPos({ x: Math.max(8, x), y: r.top / zoom });
+    const x = Math.min((below ? r.left : r.right + 4) / zoom, window.innerWidth / zoom - TIP_WIDTH - 8);
+    setPos({ x: Math.max(8, x), y: below ? r.bottom / zoom + 4 : r.top / zoom });
   };
 
   return (
@@ -52,7 +54,7 @@ export function FieldInfo({ label, lines }: FieldInfoProps) {
           role="tooltip"
           id={id}
           style={{ left: pos.x, top: pos.y }}
-          className="fixed z-50 w-56 rounded border border-line bg-panel p-2 text-[10px] leading-snug text-fg-soft shadow-xl"
+          className="fixed z-50 w-56 whitespace-normal rounded border border-line bg-panel p-2 text-left text-[10px] font-normal normal-case leading-snug tracking-normal text-fg-soft shadow-xl"
         >
           <span className="mb-0.5 block font-semibold text-fg">{label}</span>
           {lines.map((l, i) => (
