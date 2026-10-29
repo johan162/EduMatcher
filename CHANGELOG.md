@@ -1,3 +1,15 @@
+## [v0.65.4] - 2026-10-29
+
+Release Type: patch
+
+### 📋 Summary
+This release fixes race condition in tests that could sometimes fail depending on in which order
+ndist would run the tests.
+
+### 🐛 Bug Fixes
+-  Monkeypatch saves and restores the clock's high-water mark before `test_old_gtc_orders_come_back_and_still_trade`
+
+
 ## [v0.65.3] - 2026-10-29
 
 Release Type: patch

@@ -434,6 +434,9 @@ class TestM9MonotonicEngineClock:
 
         # Wall clock that jumps back one second between the two orders.
         wall = types.SimpleNamespace(ns=1_800_000_000_000_000_000)
+        # now_ns() keeps a high-water mark; restore it too, or every later
+        # test on this worker gets timestamps in 2027.
+        monkeypatch.setattr(clock, "_last_ns", clock._last_ns)
         monkeypatch.setattr(
             clock, "time", types.SimpleNamespace(time_ns=lambda: wall.ns)
         )
