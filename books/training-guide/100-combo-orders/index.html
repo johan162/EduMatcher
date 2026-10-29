@@ -7448,13 +7448,17 @@ chapter teaches:</p>
 <div class="admonition important">
 <p class="admonition-title">AON is atomic <strong>at entry</strong>, not for the combo's lifetime</p>
 <p>When you submit an AON combo the engine checks, at that instant, whether
-<em>every</em> leg can fill completely. Two outcomes, and only two:</p>
+<em>every</em> leg can fill completely. Three outcomes, and only three:</p>
 <ul>
 <li><strong>All legs can fill</strong> → all legs execute together. No partial.</li>
-<li><strong>Any leg is short</strong> → <strong>no leg matches at all</strong>. Every leg is posted to
-  its book as an ordinary resting order.</li>
+<li><strong>A leg is short, and another would trade at once</strong> → the combo is
+  <strong>rejected</strong>: its first leg with <code>INSUFFICIENT_LIQUIDITY</code>, and the
+  combo <code>FAILED</code>. Resting the leg that would trade would leave its book
+  crossed.</li>
+<li><strong>A leg is short, and no leg would trade</strong> → <strong>no leg matches at all</strong>.
+  Every leg is posted to its book as an ordinary resting order.</li>
 </ul>
-<p>That second outcome is where the nuance lives. Those resting legs are now
+<p>That third outcome is where the nuance lives. Those resting legs are now
 normal orders. Nothing stops another participant from hitting one of them
 later, and when that happens the combo moves to <code>PARTIALLY_MATCHED</code> — one
 leg filled, the others still resting. <strong>You have leg risk again.</strong></p>
@@ -7488,7 +7492,7 @@ engine can fill both legs simultaneously.</p>
 this is the case the AON guarantee is designed for.</p>
 <h2 id="exercise-2-atomicity-at-entry-one-short-leg-blocks-every-leg">Exercise 2: Atomicity at Entry — One Short Leg Blocks Every Leg<a class="headerlink" href="#exercise-2-atomicity-at-entry-one-short-leg-blocks-every-leg" title="Permanent link">&para;</a></h2>
 <p>Now check the pre-check: when liquidity is missing on <strong>one</strong> leg, <em>no</em> leg
-matches, even the one that could have:</p>
+matches, even the one that could have — and the combo is rejected:</p>
 <ol>
 <li>Exercise 1 used up the AAPL sell, so place a new one:
    <code>[TRADER02]&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY</code>.</li>
@@ -7499,22 +7503,28 @@ matches, even the one that could have:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-002|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 </code></pre></div>
 <ol>
-<li>It should rest in full — check <code>BOOK|SYM=AAPL</code> in the operator console and confirm the AAPL sell at
-   150.10 is <strong>still resting, unfilled</strong>, proving the combo did not execute
-   the AAPL leg alone even though a matching counter-order existed for it.</li>
+<li>The AAPL leg is rejected with <code>INSUFFICIENT_LIQUIDITY</code> and the combo
+   <code>FAILED</code>; the MSFT leg is never posted. Check <code>BOOK|SYM=AAPL</code> in the
+   operator console and confirm the AAPL sell at 150.10 is <strong>still resting,
+   unfilled</strong>, proving the combo did not execute the AAPL leg alone even
+   though a matching counter-order existed for it.</li>
 </ol>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the combo did not execute the
-AAPL leg even though a matching counter-order was sitting there. Both combo
-legs are now resting, and the combo is <code>PENDING</code>.</p>
+AAPL leg even though a matching counter-order was sitting there, and nothing of
+the combo rests.</p>
 <p>Operational rationale: without the entry pre-check you would pick up accidental
-directional inventory the moment you submitted an unbalanced combo.</p>
+directional inventory the moment you submitted an unbalanced combo. And the
+AAPL leg could not rest instead: a buy at 150.10 resting against a sell at
+150.10 would leave the book crossed.</p>
 <h2 id="exercise-3-leg-risk-returns-once-the-combo-rests">Exercise 3: Leg Risk Returns Once the Combo Rests<a class="headerlink" href="#exercise-3-leg-risk-returns-once-the-combo-rests" title="Permanent link">&para;</a></h2>
-<p>Exercise 2 left <code>PAIR-002</code> resting with both legs in their books. This is the
-case people are surprised by, so cause it deliberately.</p>
-<p><strong>1.</strong> Confirm the combo is resting and <code>PENDING</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; ORDERS
+<p>A combo with no leg that can trade yet rests with both legs in their books.
+This is the case people are surprised by, so cause it deliberately.</p>
+<p><strong>1.</strong> Submit a combo whose AAPL leg bids below TRADER02's AAPL sell at
+150.10, and confirm it is resting and <code>PENDING</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[TRADER01]&gt; ORDERS
 </code></pre></div>
-<p>You should see both child legs — the AAPL buy at 150.10 and the MSFT sell at
+<p>You should see both child legs — the AAPL buy at 150.00 and the MSFT sell at
 420.50 — with status <code>NEW</code>.</p>
 <p><strong>2.</strong> From <code>TRADER02</code>, hit <strong>only the MSFT leg</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TRADER02]&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
@@ -7535,23 +7545,23 @@ why this does not contradict "all-or-none".</p>
 <p>Because a resting AON combo can be picked apart, desks do not leave them
 resting. They either submit only when both sides are already fillable, or
 they cancel the whole combo the moment it fails to execute at entry:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-002
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
 </code></pre></div>
 <p>That cancels every remaining leg. Fills that already happened are <strong>not</strong>
 reversed — cancel the combo before someone hits a leg, not after.</p>
 </div>
 <p>Clean up before continuing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-002
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
 </code></pre></div>
 <h2 id="exercise-4-cancel-a-resting-combo">Exercise 4: Cancel a Resting Combo<a class="headerlink" href="#exercise-4-cancel-a-resting-combo" title="Permanent link">&para;</a></h2>
-<p>Exercise 3's clean-up already cancelled <code>PAIR-002</code>. Submit one more combo that
-cannot fill — there is no MSFT bid at 420.50 now — so it rests, then cancel
-it as a whole:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-003
+<p>Exercise 3's clean-up already cancelled <code>PAIR-003</code>. Submit one more combo that
+cannot fill — there is no MSFT bid at 420.50 now, and the AAPL leg bids below
+the AAPL sell — so it rests, then cancel it as a whole:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[TRADER01]&gt; NEW|TYPE=COMBO|COMBO_ID=PAIR-004|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[TRADER01]&gt; CANCEL|COMBO_ID=PAIR-004
 </code></pre></div>
 <p>All legs are cancelled together, and the console reports
-<code>COMBO CANCELLED  PAIR-003</code>.</p>
+<code>COMBO CANCELLED  PAIR-004</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> full combo cancellation confirmed.</p>
 <h2 id="exercise-5-oco-one-cancels-other">Exercise 5: OCO — One-Cancels-Other<a class="headerlink" href="#exercise-5-oco-one-cancels-other" title="Permanent link">&para;</a></h2>
 <p>Link two independent orders so that when one fills or is cancelled, the other

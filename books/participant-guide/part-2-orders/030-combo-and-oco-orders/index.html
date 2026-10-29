@@ -8035,9 +8035,13 @@ accept an inconsistent leg.</p>
 <p>A <code>MARKET</code>, <code>IOC</code> or <code>FOK</code> leg cannot rest, so while its symbol is not
 matching it is rejected, with the code an ordinary order of that type would
 get: <code>INSTRUMENT_HALTED</code> (or <code>CIRCUIT_BREAKER_ACTIVE</code>) on a halted symbol,
-<code>SESSION_NOT_PERMITTED</code> outside continuous trading. A leg of an all-or-none
-combo held back because another leg cannot fill is rejected with
-<code>INSUFFICIENT_LIQUIDITY</code>, as is a <code>FOK</code> leg short of liquidity. Either
+<code>SESSION_NOT_PERMITTED</code> outside continuous trading. An all-or-none combo
+that cannot fill every leg in full is held back: no leg matches, and the
+legs rest as interest. If a leg would trade at once, the combo is rejected
+instead: its first leg gets <code>INSUFFICIENT_LIQUIDITY</code> and no other leg is
+posted, since a held-back marketable leg would rest crossed with the book.
+A <code>MARKET</code>, <code>IOC</code> or <code>FOK</code> leg of a held-back combo is rejected with
+<code>INSUFFICIENT_LIQUIDITY</code> too, as is a <code>FOK</code> leg short of liquidity. Each
 way the combo fails (step 6).</p>
 <h3 id="cancelling-a-combo">Cancelling a Combo<a class="headerlink" href="#cancelling-a-combo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|COMBO_ID=PAIR-001
