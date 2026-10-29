@@ -156,7 +156,9 @@ rest of the site (`localStorage["em-theme"]`). `docs/` itself and the normal `mk
   downloads and deleted pages therefore disappear, but the site is incomplete for the duration of the upload.
   `./scripts/mkweb.sh --dry-run` lists what would be removed; `--no-clean` uploads without removing anything.
 * The decorative ticker, the live order book, the price-discovery chart and the AI-swarm grid are
-  illustrations generated in the browser, and are labelled as such.
+  illustrations generated in the browser, and are labelled as such. The order-book debugger on the
+  Learn page (`#obd` in `site.js`) is a scripted replay of the worked example in *The Order Book:
+  Deep Dive*; if that example changes, update its `STEPS` to match.
 * The Training Guide cover in `assets/img/covers/` was rendered from the Quick Start cover template
   so that all eight covers share the look of the print books.
 * Fonts (Bebas Neue, Barlow, DM Mono, Playfair Display) load from Google Fonts with system fallbacks.

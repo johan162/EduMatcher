@@ -57,6 +57,9 @@ VERB|KEY=VALUE|KEY=VALUE\n
 
 Command verbs and field keys are case-insensitive (normalized to uppercase).
 Segments without `=` are silently skipped.  Duplicate keys: last value wins.
+Response values preserve case: keep the complete `ORDER_ID` unchanged when
+sending `AMEND` or `CANCEL`. Prices on this TCP connection are decimal display
+prices, not the engine's internal integer ticks.
 
 ### Python API — `alf_parser.py`
 
@@ -66,17 +69,25 @@ Segments without `=` are silently skipped.  Duplicate keys: last value wins.
 
 **`build_alf_line(msg_type: str, fields: dict | None) → str`**
 : Build one `\n`-terminated ALF line.  Raises `AlfParseError` if the
-  message type contains invalid characters or any field contains `|`.
+  message type is invalid, a key is empty or contains `|`, `=`, CR or LF,
+  or a value contains `|`. CR/LF in values are replaced with spaces.
 
 **`AlfSession.connect(host, port, gateway_id, client_name, timeout) → AlfSession`**
 : Open a TCP connection and complete the `HELLO`/`WELCOME` handshake.
-  Returns an authenticated session object.
+  Validates `WELCOME`, bounds the handshake with `timeout` (default five
+  seconds), and closes the socket on failure. After success reads block.
+  It does not start a receive loop, keepalives, or automatic reconnects.
 
 **`AlfSession.send(msg_type, fields)`**
 : Build and send one ALF line over the established connection.
 
 **`AlfSession.recv_msg() → AlfMessage`**
 : Block until one complete `\n`-terminated line arrives and parse it.
+  Buffers fragmented and coalesced TCP data. Use one reader per session.
+
+**`AlfSession.send_raw(line)`**
+: Send one line without a trailing newline; embedded CR/LF are rejected.
+  Both send methods serialize socket writes with a lock.
 
 **`AlfSession.close()`**
 : Send `EXIT` and close the socket.
@@ -96,15 +107,11 @@ line: str = build_alf_line("NEW", {
     "SYM": "AAPL", "SIDE": "BUY", "TYPE": "LIMIT",
     "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001",
 })
-  # → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
-
-# Full session: connect, perform HELLO/WELCOME handshake, send and receive
-session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
-print(session.welcome.gw_name)          # "alf-gwy01"
-session.send("SYMBOLS")
-msg = session.recv_msg()                # first line of SYMBOLS response
-session.close()
+# → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
 ```
+
+For a complete query session, including interleaved events and keepalives,
+use the [application example below](#use-alf-as-a-foundation-for-your-own-program).
 
 ### Run Python interactive client
 
@@ -143,14 +150,16 @@ values.  Command history is persisted to `~/.alf_client_history`.
 **`int alf_parse_line(char *line, alf_message_t *out)`**
 : Parse one mutable ALF line in-place.  Returns 0 on success, negative
   on error (`-1` null args, `-2` empty line, `-3` invalid verb,
-  `-4` too many fields).
+  `-4` too many fields, `-6` verb/key/value exceeds storage).
 
 **`const char *alf_get_field(const alf_message_t *msg, const char *key)`**
 : Return the value for `key` (case-insensitive), or `NULL` if absent.
 
 **`int alf_build_line(char *out, size_t cap, const char *msg_type, const char * const *kv)`**
 : Write one ALF line into `out`.  `kv` is a `NULL`-terminated array of
-  alternating key/value strings.  Returns bytes written or `-1` on overflow.
+  alternating key/value strings. Returns bytes written, including the
+  newline, or `-1` on invalid arguments or overflow. Rejects delimiter-bearing
+  keys/values and replaces CR/LF in values with spaces.
 
 ### C usage pattern
 
@@ -160,9 +169,13 @@ values.  Command history is persisted to `~/.alf_client_history`.
 /* Parse */
 char line[] = "ACK|ORDER_ID=abc|ACCEPTED=TRUE";
 alf_message_t msg;
-alf_parse_line(line, &msg);
+if (alf_parse_line(line, &msg) != 0) {
+    fprintf(stderr, "Invalid ALF response\n");
+    return 1;
+}
 printf("%s\n", msg.msg_type);                    /* "ACK" */
-printf("%s\n", alf_get_field(&msg, "ACCEPTED")); /* "TRUE" */
+const char *accepted = alf_get_field(&msg, "ACCEPTED");
+if (accepted) printf("%s\n", accepted);           /* "TRUE" */
 
 /* Build */
 const char *kv[] = {
@@ -170,9 +183,17 @@ const char *kv[] = {
     "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-001", NULL,
 };
 char buf[4096];
-alf_build_line(buf, sizeof(buf), "NEW", kv);
+int len = alf_build_line(buf, sizeof(buf), "NEW", kv);
+if (len < 0) {
+    fprintf(stderr, "Cannot build ALF command\n");
+    return 1;
+}
 /* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */
 ```
+
+This fragment belongs inside your application's function; include `<stdio.h>`
+for its diagnostics. Send all `len` bytes using a partial-write loop, not a
+single unchecked `write()`.
 
 ### Build and run C client
 
@@ -188,6 +209,122 @@ make
 ```
 
 The C client supports the same commands and tab-completion as the Python client.
+
+### Use ALF as a foundation for your own program
+
+The examples are standalone source, not an installed `edumatcher` SDK.
+Download or copy the files from the table above into your project:
+
+- **Python:** copy `alf_parser.py` beside your application and import it.
+  The parser/session module uses only the standard library and does not
+  require readline. Python 3.9+ is sufficient for these examples; the
+  installed engine has its own runtime requirements.
+- **C:** copy `alf_parser.h` and `alf_parser.c`, include the header, and
+  compile the implementation with your sources, for example
+  `cc -std=c11 -Wall -Wextra my_bot.c alf_parser.c -o my_bot`.
+  The parser has no readline dependency. Readline is needed only for the
+  interactive client.
+- Treat the interactive clients as lifecycle/event-dispatch references.
+  Replace their terminal display and local caches with your application's
+  handlers and state; do not make a headless bot depend on the REPL.
+
+Configure the participant ID in the engine before connecting. The examples
+below assume `TRADER01` is authorized, the engine and gateway are running,
+and no other client is using that ID. `QUOTE` additionally requires the
+`MARKET_MAKER` role.
+
+This runnable Python query illustrates one socket reader, periodic inbound
+activity, a bounded response wait, and matching multiline termination.
+Save it beside `alf_parser.py` and run `python3 my_bot.py`:
+
+```python
+import time
+
+from alf_parser import AlfSession
+
+session = AlfSession.connect("127.0.0.1", 5565, "TRADER01", timeout=5.0)
+try:
+    interval = session.welcome.idle_timeout / 3
+    next_ping = time.monotonic() + interval
+    deadline = time.monotonic() + 10.0
+    session.send("SYMBOLS")
+    while True:
+        now = time.monotonic()
+        if now >= deadline:
+            raise TimeoutError("SYMBOLS response did not complete")
+        if now >= next_ping:
+            session.send("PING")
+            next_ping = now + interval
+        session.sock.settimeout(min(next_ping - now, deadline - now))
+        try:
+            msg = session.recv_msg()
+        except TimeoutError:
+            continue
+        print(msg.msg_type, msg.fields)
+        if msg.msg_type == "ERR":
+            raise RuntimeError(f"Gateway error: {msg.fields}")
+        if msg.msg_type == "END" and msg.fields.get("TYPE") == "SYMBOLS":
+            break
+finally:
+    session.close()
+```
+
+The timeout here is an application policy, not the gateway's idle timeout.
+The helper retains incomplete lines across receive timeouts. For a long-lived
+bot, continue receiving and dispatching after the initial query. The interactive
+Python client's `_recv_loop` and `_keepalive_loop` show a threaded alternative;
+its send lock prevents command/keepalive bytes from interleaving.
+
+For a C bot, `alf_parser.c` only parses/builds messages: it does not connect,
+authenticate, buffer TCP, schedule keepalives, or reconnect. Start from
+`connect_gateway`, `do_handshake`, `gwy_send`, `process_socket_data`, and the
+`select()` loop in `alf_client.c`. These are internal example functions, not
+exported library APIs. Adapt them into your own transport/event loop:
+
+1. Connect and send `HELLO`; validate `WELCOME` before sending commands.
+2. Buffer bytes until newline; one read can contain part of a line or many
+   lines. Retry interrupted I/O and handle partial writes and disconnects.
+3. Check every parser/builder return code and nullable field lookup.
+4. Send `PING` more frequently than `WELCOME|IDLE`, even while receiving
+   heartbeats or broadcasts. Receiving data does not reset gateway idle time.
+5. Dispatch unsolicited events while collecting query rows. Finish only on
+   the matching `END|TYPE=...`; serialize multiline queries because the example
+   collectors track only one active query at a time.
+6. On shutdown send `EXIT` and close the socket. On connection loss report the
+   failure, reconnect explicitly, and reconcile engine state before resuming.
+
+Keep the following application responsibilities explicit:
+
+- Correlate order entry with `TAG` and amend/cancel requests with `RTAG`;
+  handle both gateway `ERR` and engine rejection `ACK|ACCEPTED=FALSE`.
+  Do not assume the next message after a send is its response or blindly
+  replay an order whose outcome is unknown after disconnect.
+- Preserve full order IDs. `FILL` includes `SYMBOL`/`SIDE` for orders not in
+  your cache and may include `LIQUIDITY`/`TRADE_IDS`; stops emit `TRIGGERED`.
+  Keep ALF decimal prices separate from internal tick representations.
+- `DC_FILL` is a second report of an execution, not another position change.
+  The demos display it without booking it again.
+- Bare `POS` and its realized P&L are client-local, starting with fills seen
+  by this connection. Use `ORDERS` and `POS|GW=TRADER01` to reconcile engine
+  orders/positions after reconnect; the query returns `POSITION`, `POS_ENTRY`,
+  then `END|TYPE=POSITION`. `STATUS` is also a local display, not a wire command.
+- The C demo is bounded: 256 cached orders, 512 symbols/positions and query
+  rows, 64 fields per message, 63-byte keys and 511-byte values. It reports
+  capacity errors instead of silently truncating protocol data. Review these
+  limits and add persistence/reconciliation appropriate to your workload.
+- The examples use plain TCP, not TLS; use a trusted network or a protected
+  transport when deploying outside a local development environment.
+
+From a repository checkout, validate adaptations against the real gateway
+and engine workflows with:
+
+```bash
+poetry run pytest tests/test_alf_examples.py --no-cov
+```
+
+The suite includes compiled C behavior checks and interactive Python/C
+round trips through real engine handlers. C checks require a compiler,
+make, and GNU readline development files; they are skipped if unavailable.
 
 ### Manual gateway sanity check
 

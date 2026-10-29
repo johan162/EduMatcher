@@ -22,7 +22,7 @@ nav: learn
   </div>
 </section>
 <nav class="subnav" aria-label="On this page"><div class="wrap">
-  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#library">Library</a><a href="#intro">Intro book</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
+  <a href="#approach">Approach</a><a href="#paths">Learning paths</a><a href="#engine">Order book</a><a href="#library">Library</a><a href="#intro">Intro book</a><a href="#training">Training</a><a href="#classroom">Classroom</a><a href="#decks">Slide decks</a><a href="#experiments">Experiments</a>
 </div></nav>
 
 <section class="section" id="approach">
@@ -44,6 +44,28 @@ nav: learn
     </div>
     <div class="rv">{{> diagram-paths}}</div>
     <p class="center muted small rv" style="margin-top:14px">Every box in the map is a link.</p>
+  </div>
+</section>
+
+<section class="section" id="engine">
+  <div class="wrap">
+    <div class="feature" style="margin-bottom:0">
+      <div class="copy-col rv">
+        <div class="eyebrow">Inside the engine</div>
+        <h2 class="display">The heart of<br><span class="accent">a matching engine</span></h2>
+        <p class="lede">Every trade on the exchange is born in one file, <code>order_book.py</code>. The chapter <a href="docs/books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive/">The Order Book: Deep Dive</a> in the Architecture &amp; Development Guide walks through it function by function, quoting the real code.</p>
+        <p class="muted">The book needs no network, so a ten-line script can drive it. Set one breakpoint, press <i>Step Into</i>, and follow an order through <code>process</code> → <code>_match_limit</code> → <code>_sweep</code> → <code>_apply_fill</code> → <code>_rest</code>. Once you have watched that sequence of events, the rest of the exchange is plumbing around it.</p>
+        <ul class="checks">
+          <li>Price-time priority as one tuple key, <code>(±price, arrival_seq)</code>, on a min-heap</li>
+          <li>Five side indexes, and the question each one answers</li>
+          <li>Lazy deletion: a cancel is O(1), and <code>_peek</code> clears dead entries off the top</li>
+          <li>Icebergs, self-match prevention, stop cascades, OCO legs and auction mode</li>
+          <li>A book-lab script, launch configurations, breakpoints and experiments to try</li>
+        </ul>
+        <div class="btn-row" style="margin-top:22px"><a class="btn primary sm" href="docs/books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive/">Read the deep dive</a><a class="btn ghost sm" href="docs/books/architecture-and-development/part-2-inside-the-engine/010-order-book-deep-dive/#learning-by-debugging">Learning by debugging</a></div>
+      </div>
+      <div class="rv d1">{{> diagram-orderbook}}</div>
+    </div>
   </div>
 </section>
 
@@ -84,6 +106,7 @@ nav: learn
     </div>
   </div>
 </section>
+
 
 <section class="section" id="classroom">
   <div class="wrap">

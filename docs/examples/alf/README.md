@@ -69,15 +69,10 @@ print(msg.fields)      # {"ORDER_ID": "abc", "ACCEPTED": "FALSE", "REJECT_CODE":
 line: str = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
                                     "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001"})
 # → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
-
-# Full session: connect, HELLO/WELCOME handshake, send/recv
-session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
-print(session.gateway_id)          # "TRADER01"
-print(session.welcome.gw_name)     # "alf-gwy01"
-session.send("SYMBOLS")
-msg = session.recv_msg()           # first line of SYMBOLS response
-session.close()
 ```
+
+For a complete session example, including a full multiline query and cleanup,
+see [Using the examples in your own programs](#using-the-examples-in-your-own-programs).
 
 `connect(..., timeout=5.0)` bounds the Python handshake and closes the socket
 on failure. After a successful handshake, reads are blocking. Library users
@@ -168,18 +163,56 @@ values; overlong fields and lines are rejected rather than silently truncated.
 /* Parse */
 char line[] = "ACK|ORDER_ID=abc|ACCEPTED=TRUE";
 alf_message_t msg;
-alf_parse_line(line, &msg);
+if (alf_parse_line(line, &msg) != 0) {
+    fprintf(stderr, "Invalid ALF response\n");
+    return 1;
+}
 printf("%s\n", msg.msg_type);                       /* "ACK" */
-printf("%s\n", alf_get_field(&msg, "ACCEPTED"));    /* "TRUE" */
+const char *accepted = alf_get_field(&msg, "ACCEPTED");
+if (accepted) printf("%s\n", accepted);             /* "TRUE" */
 
 /* Build */
 const char *kv[] = {"SYM", "AAPL", "SIDE", "BUY",
                     "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-001", NULL};
 char buf[4096];
-alf_build_line(buf, sizeof(buf), "NEW", kv);
+int len = alf_build_line(buf, sizeof(buf), "NEW", kv);
+if (len < 0) {
+    fprintf(stderr, "Cannot build ALF command\n");
+    return 1;
+}
 /* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */
-write(sockfd, buf, strlen(buf));
 ```
+
+Use this fragment inside your own function and include `<stdio.h>`.
+Send all `len` bytes with a partial-write loop; the interactive client's
+`gwy_send` demonstrates this.
+
+## Using the examples in your own programs
+
+- Copy `python/alf_parser.py` beside your Python application. It has no
+  readline or `edumatcher` dependency. `AlfSession` handles the handshake,
+  buffered reads and serialized sends, but your program must run the receive
+  loop, send periodic `PING`, handle errors, and reconnect explicitly.
+- For C, copy `c/alf_parser.h` and `c/alf_parser.c` and compile them with your
+  application, for example
+  `cc -std=c11 -Wall -Wextra my_bot.c alf_parser.c -o my_bot`.
+  This parser/builder needs no readline; it does not provide a TCP session.
+  Adapt the interactive client's handshake, partial-write, buffered receive,
+  and `select()` code rather than assuming a read or write transfers a line.
+- Replace terminal display with application handlers. Keep one reader per
+  connection, process unsolicited events between query rows, and finish a
+  query only on its matching `END|TYPE=...`. Preserve full order IDs, correlate
+  requests with `TAG`/`RTAG`, and reconcile `ORDERS` and engine positions after
+  reconnect instead of blindly resending orders.
+- Review the C capacities above before using the demo with a larger workload.
+  These are teaching clients with plain TCP and in-memory state, not durable
+  trading systems.
+
+The [application integration walkthrough](../../books/protocols-and-clients/part-4-writing-clients/030-example-libraries.md#use-alf-as-a-foundation-for-your-own-program)
+includes a runnable Python query with keepalives, C integration steps,
+error handling, and reconnect/position-accounting responsibilities.
+Use the [ALF protocol reference](../../books/protocols-and-clients/part-2-specifications/010-alf.md)
+for the complete wire contract.
 
 
 ## Differences from `pm-alf-console`
@@ -205,6 +238,8 @@ poetry run pytest tests/test_alf_examples.py --no-cov
 
 The tests compile and run the C code, test parser/session behavior, and drive
 both interactive clients through the TCP gateway into the real engine handlers.
+C tests are skipped if the compiler, make, or GNU readline development files
+are unavailable; Python tests still run.
 Covered workflows include order entry, amendment, fills and position reversals,
 cancellation, OCO/combo orders, quotes, queries, stop triggering, drop-copy
 delivery, validation errors, and clean exit.

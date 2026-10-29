@@ -1,0 +1,24 @@
+<figure class="fig">
+<div class="obd" id="obd" role="group" aria-label="Illustration: stepping one LIMIT order through OrderBook in a debugger">
+  <header><span><i class="live-dot"></i>Debugger · book_lab.py · DEMO</span><span id="obd-n">step 1 / 10</span></header>
+  <div class="obd-in" id="obd-in"></div>
+  <div class="obd-cols"><span>LEVEL QTY</span><span>PRICE</span><span>QUEUE · OLDEST FIRST</span></div>
+  <div id="obd-book"></div>
+  <div class="obd-heap" id="obd-heap"></div>
+  <div class="obd-dbg">
+    <div><div class="obd-h">Call stack</div><ol class="obd-stack" id="obd-stack"></ol></div>
+    <div><div class="obd-h">Locals</div><dl class="obd-loc" id="obd-loc"></dl></div>
+  </div>
+  <div class="obd-line" id="obd-line"></div>
+  <p class="obd-cap" id="obd-cap" aria-live="polite"></p>
+  <div class="obd-foot">
+    <div class="obd-ctl">
+      <button type="button" data-act="prev" aria-label="Step back">◂</button>
+      <button type="button" data-act="play" aria-label="Pause">❚❚</button>
+      <button type="button" data-act="next" aria-label="Step forward">step ▸</button>
+    </div>
+    <div class="obd-tape" id="obd-tape"></div>
+  </div>
+</div>
+<figcaption><b>Fig.</b> The chapter's worked example, frame by frame: <code>BUY LIMIT 400 @ 100.10</code> against three asks. Keys, quantities, calls and lines are those of <code>order_book.py</code>; use the buttons to step like a debugger.</figcaption>
+</figure>

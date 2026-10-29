@@ -806,12 +806,12 @@ When the rejected command carried `TAG` or `RTAG`, the gateway also echoes it as
 
 ## Example libraries and interactive clients
 
-The `examples/alf/` directory contains ready-to-run Python and C libraries that
+The `docs/examples/alf/` directory contains ready-to-run Python and C libraries that
 replicate the workflow of `pm-alf-console` as an **external TCP client** — no
 ZeroMQ, no `edumatcher` package import, only a plain socket.
 
 ```
-examples/alf/
+docs/examples/alf/
 ├── python/
 │   ├── alf_parser.py       # Protocol library: parse, build, AlfSession
 │   └── alf_client.py       # Interactive client (tab-completion, event display, P&L, keepalive PING)
@@ -832,20 +832,18 @@ from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 # Parse one line received from the gateway
 msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL|TAG=ORDER-001")
 print(msg.msg_type)    # "ACK"
-print(msg.fields)      # {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", ...}
+print(msg.fields)      # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", ...}
 
 # Build a line to send
 line = build_alf_line("NEW", {"SYM": "AAPL", "SIDE": "BUY",
                                "TYPE": "LIMIT", "QTY": "100", "PRICE": "150.00", "TAG": "ORDER-001"})
 # → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"
-
-# High-level session: connect, HELLO/WELCOME, send/recv
-session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
-print(session.welcome.gw_name)         # "alf-gwy01"
-session.send("SYMBOLS")
-msg = session.recv_msg()               # first line of SYMBOLS response
-session.close()
 ```
+
+Response values preserve case; use the complete order ID unchanged in
+`AMEND`/`CANCEL`. ALF prices remain decimal display prices, not internal ticks.
+For a complete `AlfSession` query loop with keepalives and cleanup, see
+[Building your own application](#building-your-own-application) below.
 
 **Interactive client — `alf_client.py`**
 
@@ -862,7 +860,11 @@ python3 alf_client.py --host 10.0.0.5 --port 5565 --id TRADER01
 At the prompt the client behaves like `pm-alf-console`:
 Tab completes command verbs, field names, and enum values.
 Background receive thread displays fills, acks, and broadcast events while you type.
-`POS` shows tracked positions.  `STATUS` shows session info.
+`POS` shows positions and realized P&L from fills seen by this connection;
+`POS|GW=TRADER01` queries the engine's position snapshot. `STATUS` is local
+session info. Both interactive clients send keepalive `PING` automatically.
+`DC|STATE=ON` enables drop-copy display; `DC_FILL` is not booked into local
+positions again. Fill displays include `LIQUIDITY` and `TRADE_IDS` when supplied.
 History is saved to `~/.alf_client_history`.
 
 ```
@@ -916,68 +918,50 @@ completion and history.
 /* Parse */
 char line[] = "ACK|ORDER_ID=abc|ACCEPTED=TRUE";
 alf_message_t msg;
-alf_parse_line(line, &msg);
-puts(alf_get_field(&msg, "ACCEPTED"));   /* "TRUE" */
+if (alf_parse_line(line, &msg) != 0) {
+    fprintf(stderr, "Invalid ALF response\n");
+    return 1;
+}
+const char *accepted = alf_get_field(&msg, "ACCEPTED");
+if (accepted) puts(accepted);          /* "TRUE" */
 
 /* Build */
 const char *kv[] = {"SYM", "AAPL", "SIDE", "BUY",
                     "TYPE", "LIMIT", "QTY", "100", "PRICE", "150.00", "TAG", "ORDER-003", NULL};
 char buf[4096];
-alf_build_line(buf, sizeof(buf), "NEW", kv);
-write(sockfd, buf, strlen(buf));
+int len = alf_build_line(buf, sizeof(buf), "NEW", kv);
+if (len < 0) {
+    fprintf(stderr, "Cannot build ALF command\n");
+    return 1;
+}
 ```
 
+This fragment belongs inside your application's function; include `<stdio.h>`.
+Send all `len` bytes with a partial-write loop such as the client's `gwy_send`.
+The parser returns negative errors for invalid/over-capacity input; field
+lookups can return `NULL`.
 
-### Minimal zero-dependency client (Python)
+### Building your own application
 
-For scripts that cannot import anything outside the standard library:
+Copy `python/alf_parser.py` into a Python project and import `AlfSession`.
+It uses only the standard library: no engine package, ZeroMQ, or readline
+is required. Reuse its validated, timeout-bounded handshake and buffered
+line reader instead of maintaining a second ad-hoc socket implementation.
+After connecting, reads are blocking unless your application sets a timeout;
+the helper does not schedule keepalives or reconnect automatically.
 
-```python
-import socket
+For C, copy `alf_parser.h` and `alf_parser.c` and compile them with your
+application. Readline is required only by the interactive client, not the
+parser. Adapt `do_handshake`, `gwy_send`, `process_socket_data`, and the
+`select()` loop in `alf_client.c` for transport and lifecycle handling;
+they are internal example functions, not exported C library APIs.
 
-def alf_connect(host: str, port: int, gateway_id: str, client_name: str = "bot"):
-    sock = socket.create_connection((host, port), timeout=5)
-    buf = bytearray()
-
-    def send(line: str) -> None:
-        sock.sendall((line + "\n").encode("utf-8"))
-
-    def recv_line() -> str:
-        while True:
-            nl = buf.find(b"\n")
-            if nl >= 0:
-                line = bytes(buf[:nl]).decode("utf-8", errors="replace")
-                del buf[:nl + 1]
-                return line
-            chunk = sock.recv(4096)
-            if not chunk:
-                raise RuntimeError("gateway closed connection")
-            buf.extend(chunk)
-
-    send(f"HELLO|CLIENT={client_name}|PROTO=ALF1|ID={gateway_id}")
-    while True:
-        line = recv_line()
-        if line.startswith("WELCOME"):
-            break
-        if line.startswith("ERR"):
-            raise RuntimeError(f"Auth failed: {line}")
-
-    return sock, send, recv_line
-
-
-sock, send, recv_line = alf_connect("127.0.0.1", 5565, "TRADER01")
-send("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-004")
-
-# Read events until ACK arrives — HB/SESSION/TRADE may arrive first
-while True:
-    line = recv_line()
-    print(line)
-    if line.startswith("ACK"):
-        break
-
-send("EXIT")
-sock.close()
-```
+The [application integration walkthrough](../../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#use-alf-as-a-foundation-for-your-own-program)
+provides a runnable Python query and a C integration checklist. It explains
+matching multiline query terminators, unsolicited events, periodic `PING`
+even while receiving broadcasts, request correlation, explicit failures,
+and reconciling orders/positions after reconnect. The C demo has fixed
+capacities; review them before adapting it to a larger workload.
 
 !!! warning "TCP is a byte stream"
     Never assume one `recv()` equals one line.  Always buffer and split on `\n`.
