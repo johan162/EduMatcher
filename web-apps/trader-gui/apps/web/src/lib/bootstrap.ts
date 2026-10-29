@@ -20,6 +20,7 @@ export function hydrateFromBootstrap(payload: BootstrapTrader | BootstrapAdmin):
   if (reference?.symbols) {
     useSymbolStore.getState().hydrateFromReference(reference.symbols);
   }
+  useSessionStore.getState().setTimezone(payload.session_timezone ?? null);
   if (reference?.schedule) {
     useSessionStore.getState().setSchedule(reference.schedule);
   }

@@ -1,16 +1,11 @@
 import { useMemo } from "react";
 import { useQuoteBootstrapQuery, useQuoteLegsQuery } from "@/queries/index.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
-import { formatPrice, formatQty } from "@/lib/formatters.js";
+import { formatClock, formatPrice, formatQty } from "@/lib/formatters.js";
 
 function clock(ms: number | undefined): string {
   if (!ms) return "—";
-  return new Date(ms).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  return formatClock(ms);
 }
 
 /**

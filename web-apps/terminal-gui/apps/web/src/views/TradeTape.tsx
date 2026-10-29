@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import clsx from "clsx";
 import type { GapFrame, TradeFrame } from "@edumatcher/terminal-types";
 import { useLiveStore } from "../store/useLiveStore.js";
-import { clockUtc, price, qty } from "../lib/format.js";
+import { clockInTimezone, price, qty } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
 import { tapeHelp } from "../lib/help.js";
 import { InfoTip } from "../components/shared/InfoTip.js";
@@ -83,6 +83,7 @@ export function TradeTapeView() {
   const trades = useLiveStore((s) => s.trades);
   const tradeGaps = useLiveStore((s) => s.tradeGaps);
   const symbols = useLiveStore((s) => s.symbols);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const [symbol, setSymbol] = useState(ALL);
   const [paused, setPaused] = useState(false);
   // Snapshot taken at the moment of pausing. Live updates keep arriving into
@@ -174,7 +175,7 @@ export function TradeTapeView() {
                 // `halt-bg` is the token that already carries that colour at
                 // that opacity.
                 <tr key={`gap-${t.ch}-${t.sym}-${t.ts}`} className="border-t border-border bg-halt-bg">
-                  <td className="px-3 py-1 tabular text-warning">{clockUtc(t.ts)}</td>
+                  <td className="px-3 py-1 tabular text-warning">{clockInTimezone(t.ts, sessionTimezone)}</td>
                   <td className="px-3 py-1 font-medium text-warning">{t.sym}</td>
                   <td colSpan={3} className="px-3 py-1 text-warning">
                     {/*
@@ -188,7 +189,7 @@ export function TradeTapeView() {
                 </tr>
               ) : (
                 <tr key={`${t.sym}-${t.seq}`} className="border-t border-border">
-                  <td className="px-3 py-1 tabular text-fg-subtle">{clockUtc(t.ts)}</td>
+                  <td className="px-3 py-1 tabular text-fg-subtle">{clockInTimezone(t.ts, sessionTimezone)}</td>
                   <td className="px-3 py-1 font-medium">{t.sym}</td>
                   <td className="px-3 py-1 text-right tabular">{price(t.px, tickDecimals(t.sym))}</td>
                   <td className="px-3 py-1 text-right tabular">{qty(t.qty)}</td>

@@ -1,3 +1,4 @@
+import { formatClock } from "@/lib/formatters.js";
 import { Modal } from "@/components/shared/Modal.js";
 import { useAdminOrderDetailQuery } from "@/queries/index.js";
 import { ApiError } from "@/api/apiFetch.js";
@@ -9,7 +10,7 @@ interface AdminOrderDetailModalProps {
 
 function timeLabel(ts: string): string {
   const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? ts : d.toLocaleTimeString("en-GB", { hour12: false });
+  return Number.isNaN(d.getTime()) ? ts : formatClock(d);
 }
 
 /** Compact one-line rendering of an audited event's stored payload. */

@@ -1,6 +1,37 @@
 /**
  * Formatting utilities for prices, quantities, percentages, and timestamps.
  */
+import { useSessionStore } from "@/store/useSessionStore.js";
+
+/**
+ * The exchange's session timezone, set at login. An unknown name (or none yet)
+ * falls back to the browser's zone rather than throwing.
+ */
+function sessionZone(): string | undefined {
+  return useSessionStore.getState().timezone ?? undefined;
+}
+
+function inSessionZone(date: Date, options: Intl.DateTimeFormatOptions): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: sessionZone() }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("en-GB", options).format(date);
+  }
+}
+
+/** `HH:MM:SS` (or `HH:MM:SS.mmm`) in the session timezone. */
+export function formatClock(date: Date | number, withMs = false): string {
+  const d = typeof date === "number" ? new Date(date) : date;
+  const hms = inSessionZone(d, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  return withMs ? `${hms}.${String(d.getMilliseconds()).padStart(3, "0")}` : hms;
+}
+
+/** `YYYY-MM-DD` in the session timezone. */
+export function formatSessionDate(date: Date | number): string {
+  const d = typeof date === "number" ? new Date(date) : date;
+  const [dd, mm, yyyy] = inSessionZone(d, { day: "2-digit", month: "2-digit", year: "numeric" }).split("/");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 /**
  * Format a price with `tickDecimals` decimal places.
@@ -40,26 +71,12 @@ export function formatChangePct(last: number | null, open: number | null): strin
 
 /** Format an epoch-seconds timestamp as HH:MM:SS. */
 export function formatTime(epochSec: number): string {
-  const d = new Date(epochSec * 1000);
-  return d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  return formatClock(epochSec * 1000);
 }
 
 /** Format an ISO-8601 string as HH:MM:SS.mmm. */
 export function formatIsoTime(iso: string): string {
-  const d = new Date(iso);
-  const hms = d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const ms = String(d.getMilliseconds()).padStart(3, "0");
-  return `${hms}.${ms}`;
+  return formatClock(new Date(iso), true);
 }
 
 /** Truncate a UUID/ID to 8 characters (display-only). */
@@ -80,10 +97,11 @@ export function formatCountdown(remainingMs: number): string {
   return `${mm}:${ss}`;
 }
 
-/** Convert epoch nanoseconds to a human-readable local date/time. */
+/** Convert epoch nanoseconds to a human-readable date/time in the session timezone. */
 export function formatNsTimestamp(ns: number | null | undefined): string {
   if (ns === null || ns === undefined) return "—";
-  return new Date(ns / 1_000_000).toLocaleString();
+  const d = new Date(ns / 1_000_000);
+  return `${formatSessionDate(d)} ${formatClock(d)}`;
 }
 
 /**

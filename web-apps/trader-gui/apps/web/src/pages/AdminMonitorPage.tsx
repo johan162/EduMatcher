@@ -1,3 +1,4 @@
+import { formatClock } from "@/lib/formatters.js";
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { useMonitorStore } from "@/store/useMonitorStore.js";
@@ -24,8 +25,7 @@ const FILTER_KINDS: (MonitorEventKind | "ALL")[] = [
 function timeLabel(ts: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
-  const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  return formatClock(d, true);
 }
 
 function downloadCsv(csv: string, filename: string) {
@@ -75,7 +75,7 @@ export function AdminMonitorPage() {
         <h1 className="text-lg font-semibold text-fg">Monitor Log</h1>
         <span className="text-[11px] text-fg-faint">
           {filtered.length} / {events.length} events
-          {snapshotAt ? ` · reconciled ${new Date(snapshotAt).toLocaleTimeString("en-GB", { hour12: false })}` : ""}
+          {snapshotAt ? ` · reconciled ${formatClock(snapshotAt)}` : ""}
         </span>
         {health.adminMonitor && health.adminMonitor !== "connected" && (
           <span className="text-[11px] text-amber-400">Feed {health.adminMonitor}</span>

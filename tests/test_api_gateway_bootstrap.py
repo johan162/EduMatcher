@@ -198,6 +198,27 @@ async def test_trader_full_payload() -> None:
 
 
 @pytest.mark.anyio
+async def test_bootstrap_carries_the_session_timezone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from zoneinfo import ZoneInfo
+
+    monkeypatch.setattr(
+        bootstrap, "session_timezone", lambda: ZoneInfo("Europe/Stockholm")
+    )
+    trader = await bootstrap.bootstrap_trader(
+        boot_request(BootstrapFakeEngine(role="TRADER")),
+        trading_session(),
+        fills_limit=50,
+    )
+    read_only = await bootstrap.bootstrap_trader(
+        boot_request(BootstrapFakeEngine()), readonly_session(), fills_limit=50
+    )
+    assert trader["session_timezone"] == "Europe/Stockholm"
+    assert read_only["session_timezone"] == "Europe/Stockholm"
+
+
+@pytest.mark.anyio
 async def test_trader_read_only_key() -> None:
     engine = BootstrapFakeEngine()
     result = await bootstrap.bootstrap_trader(

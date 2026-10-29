@@ -10,17 +10,13 @@ import { ConnectionBadge, type ConnectionBadgeState } from "@/components/Connect
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, HelpCircle, Moon, Search, Sun } from "lucide-react";
 import appVersion from "../../version.json";
+import { formatClock } from "@/lib/formatters.js";
 
 const HEALTH_BADGE: Record<"connected" | "reconnecting" | "disconnected", ConnectionBadgeState> = {
   connected: "live",
   reconnecting: "reconnecting",
   disconnected: "offline",
 };
-
-/** Wall clock as HH:MM:SS, for the exchange clock (§9.2). */
-function clockLabel(nowMs: number): string {
-  return new Date(nowMs).toLocaleTimeString("en-GB", { hour12: false });
-}
 
 export function TopBar() {
   const role = useAuthStore((s) => s.role);
@@ -76,7 +72,7 @@ export function TopBar() {
         </span>
         {clockDetail}
         <span className="font-mono text-fg-faint hidden xl:inline" aria-label="exchange clock">
-          {clockLabel(now)}
+          {formatClock(now)}
         </span>
       </div>
 
@@ -84,7 +80,7 @@ export function TopBar() {
       <div className="flex items-center gap-3 w-56 justify-end">
         {health.lastMarketDataAt !== null && (
           <span className="text-[10px] font-mono text-fg-faint hidden xl:inline">
-            Updated {clockLabel(health.lastMarketDataAt)}
+            Updated {formatClock(health.lastMarketDataAt)}
           </span>
         )}
 

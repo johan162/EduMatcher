@@ -36,7 +36,7 @@ import { PriceChart } from "../components/PriceChart.js";
 import { SymbolPicker } from "../components/shared/SymbolPicker.js";
 import { api } from "../lib/api.js";
 import { bucketTrades, dailyToBars, midOf, midpointSeries } from "../lib/bars.js";
-import { ABSENT, clockUtc, compact, price, qty, resumeAt } from "../lib/format.js";
+import { ABSENT, clockInTimezone, compact, price, qty, resumeAt } from "../lib/format.js";
 import { buildRows, type OverviewRow } from "../lib/overview-rows.js";
 import { useSymbolDecimals } from "../lib/precision.js";
 import { avgTradeSize, rangePosition, spreadBps } from "../lib/quote.js";
@@ -102,6 +102,7 @@ function SymbolDetail({ sym }: { sym: string }) {
   const symbols = useLiveStore((s) => s.symbols);
   const top = useLiveStore((s) => s.top[sym]);
   const halted = useLiveStore((s) => s.halted[sym]);
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const haltEnded = useLiveStore((s) => s.haltEnded[sym]);
   const sessionPhase = useLiveStore((s) => s.sessionPhase);
   const depth = useLiveStore((s) => s.depth);
@@ -273,7 +274,7 @@ function SymbolDetail({ sym }: { sym: string }) {
             {qty(auction.eqQty)} sh
             {auction.imbalanceSide && ` · imbalance ${auction.imbalanceSide} ${qty(auction.imbalanceQty)}`}
           </span>
-          <span className="tabular text-fg-subtle">{clockUtc(auction.ts)}</span>
+          <span className="tabular text-fg-subtle">{clockInTimezone(auction.ts, sessionTimezone)}</span>
           <button
             type="button"
             onClick={() => setDismissedAuction(auction.seq)}
@@ -494,6 +495,7 @@ function CorridorBar({ context, decimals }: { context: HaltContextFrame; decimal
 }
 
 function HaltDetail({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
+  const sessionTimezone = useLiveStore((s) => s.sessionTimezone);
   const extended = (context.expansion ?? 0) > 0;
   return (
     <div className="rounded border border-halt bg-halt-bg px-3 py-2 text-sm">
@@ -522,7 +524,7 @@ function HaltDetail({ context, decimals }: { context: HaltContextFrame; decimals
             targeted, and the corridor may extend it further still. Naming an
             exact time would be a promise the exchange does not make.
           */}
-          {context.resumeAt ? `Not before ${resumeAt(context.resumeAt)}` : "Reopens manually"}
+          {context.resumeAt ? `Not before ${resumeAt(context.resumeAt, sessionTimezone)}` : "Reopens manually"}
         </span>
       </div>
       <CorridorBar context={context} decimals={decimals} />

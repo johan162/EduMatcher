@@ -1033,6 +1033,8 @@ export interface BootstrapTrader {
   incomplete: string[];
   gateway_id: string | null;
   gateway_role: GatewayRole | "READ_ONLY";
+  /** IANA name of the exchange session timezone; every clock renders in it. */
+  session_timezone: string;
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
   positions: Position[];
@@ -1049,6 +1051,7 @@ export interface BootstrapAdmin {
   incomplete: string[];
   gateway_id: string;
   gateway_role: "ADMIN";
+  session_timezone: string;
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
   gateways: { gateways: AdminGateway[] } | null;

@@ -12,7 +12,7 @@ import { ChevronDown, ChevronUp, Pencil, Repeat, X } from "lucide-react";
 import { FlashCell } from "@/components/shared/FlashCell.js";
 import { StatusPill } from "./StatusPill.js";
 import { isTerminal } from "@/store/useOrderStore.js";
-import { formatPrice, formatQty, shortId } from "@/lib/formatters.js";
+import { formatClock, formatPrice, formatQty, shortId } from "@/lib/formatters.js";
 import type { Order } from "@/types/index.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
@@ -21,8 +21,7 @@ function formatTime(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  return formatClock(d, true);
 }
 
 export interface OrdersBlotterProps {

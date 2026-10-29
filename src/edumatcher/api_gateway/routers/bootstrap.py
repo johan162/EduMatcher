@@ -30,6 +30,7 @@ from edumatcher.api_gateway.sessions import (
     require_admin,
     require_trading,
 )
+from edumatcher.audit.archive import session_timezone
 from edumatcher.audit.indexer import index_is_available
 from edumatcher.models.generated.order import topic_orders
 from edumatcher.models.generated.system import (
@@ -44,7 +45,7 @@ from edumatcher.stats.query import (
     query_order_events,
     resolve_session_timezone,
 )
-from edumatcher.stats.trading_day import trading_date
+from edumatcher.stats.trading_day import timezone_name, trading_date
 
 log = logging.getLogger(__name__)
 
@@ -166,6 +167,12 @@ async def _fetch_halts(request: Request, gateway_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Common helpers
 # ---------------------------------------------------------------------------
+
+
+def _session_timezone() -> str:
+    """IANA name of the exchange's ``locale.session_timezone``: the zone every
+    client renders wall-clock times in."""
+    return timezone_name(session_timezone())
 
 
 def _capabilities(request: Request, reference: dict[str, Any]) -> dict[str, Any]:
@@ -300,6 +307,7 @@ async def bootstrap_trader(
             "incomplete": [],
             "gateway_id": None,
             "gateway_role": "READ_ONLY",
+            "session_timezone": _session_timezone(),
             "reference": reference,
             "session": None,
             "positions": [],
@@ -339,6 +347,7 @@ async def bootstrap_trader(
         "incomplete": incomplete,
         "gateway_id": gateway_id,
         "gateway_role": gateway_role,
+        "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
         "positions": _positions(request, gateway_id),
@@ -439,6 +448,7 @@ async def bootstrap_mm(
         "incomplete": incomplete,
         "gateway_id": gateway_id,
         "gateway_role": "MARKET_MAKER",
+        "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
         "positions": _positions(request, gateway_id),
@@ -501,6 +511,7 @@ async def bootstrap_admin(
         "incomplete": incomplete,
         "gateway_id": gateway_id,
         "gateway_role": "ADMIN",
+        "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
         "gateways": data.get("gateways"),

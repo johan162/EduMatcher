@@ -1,3 +1,4 @@
+import { formatClock } from "@/lib/formatters.js";
 import { useEffect, useMemo, useState } from "react";
 import { X, ArrowUpRight } from "lucide-react";
 import { useNotificationStore, type NotificationKind } from "@/store/useNotificationStore.js";
@@ -17,7 +18,7 @@ const KIND_META: Record<NotificationKind, { cls: string; label: string }> = {
 const ALL_KINDS = Object.keys(KIND_META) as NotificationKind[];
 
 function timeLabel(ms: number): string {
-  return new Date(ms).toLocaleTimeString("en-GB", { hour12: false });
+  return formatClock(ms);
 }
 
 /**
