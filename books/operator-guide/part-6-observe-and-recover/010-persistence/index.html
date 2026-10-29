@@ -3168,6 +3168,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#at-the-close-every-trading-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        At the Close (every trading day)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -7878,16 +7889,27 @@ at all — it is only ever written once, at the following startup.</p>
 <li>The engine reads <code>&lt;DATA_DIR&gt;/gtc_orders.json</code> (if it exists).</li>
 <li>Each <code>TIF = GTC</code> order is re-injected into its symbol's order book unconditionally, <strong>with its original timestamp preserved</strong>.</li>
 <li>Each <code>TIF = DAY</code> order is re-injected <strong>only if its own timestamp falls on the current business day</strong> (machine-local calendar date). A <code>DAY</code> order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at <code>INFO</code> level. This is the mechanism that ultimately gives <code>TIF = DAY</code> its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
-3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by <code>(gateway_id, quote_id)</code> and re-registered as active quotes in the engine's in-memory <code>QuoteIndex</code>, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale <code>TIF=DAY</code> order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."</li>
+3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by <code>(gateway_id, quote_id)</code> and re-registered as active quotes in the engine's in-memory <code>QuoteIndex</code>, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale <code>TIF=DAY</code> order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
+3b. Restored OCO legs are linked back into their pairs by <code>oco_group_id</code>, so a leg that fills or ends after the restart still ends its sibling. A pair with only one surviving leg is not re-linked: that leg rests as an ordinary order.</li>
 <li>The engine reads <code>&lt;DATA_DIR&gt;/gtc_combos.json</code> (if it exists) and rebuilds parent-child tracking maps for restored <code>GTC</code> combos.</li>
-<li>If any orders were restored, initial book snapshots are published.</li>
-<li>The engine reads <code>&lt;DATA_DIR&gt;/book_stats.json</code> (if it exists) and restores <code>last_buy_price</code> / <code>last_sell_price</code> / <code>prev_close</code> per symbol.  Persisted values take priority over config-seeded values.</li>
+<li>If any orders were restored, initial book snapshots are published. Restoring never matches, so a book saved during pre-open or an auction call comes back crossed. With sessions enabled the engine starts <code>CLOSED</code> and the crossed book waits for its auction, as it would have without the restart. With sessions disabled the engine starts in continuous trading, which must not hold a crossed book, so each crossed book is uncrossed at once (<code>auction.result</code> reason <code>RECOVERY</code>).</li>
+<li>The engine reads <code>&lt;DATA_DIR&gt;/book_stats.json</code> (if it exists) and restores <code>last_buy_price</code> / <code>last_sell_price</code> / <code>prev_close</code> per symbol.  Persisted values take priority over config-seeded values. <code>prev_close</code> is also the book's last trade price again — the collar reference, a new trailing stop's starting point, the depth window's centre — unless a <code>RECOVERY</code> uncross in step 5 has printed a newer one.</li>
 <li>Market-maker quotes from each symbol's <code>market_maker_quotes</code> config section are injected as linked bid/ask quote legs, unless <code>seed_once: true</code> (the default) and this <code>(gateway_id, symbol)</code> pair already has an active entry in <code>QuoteIndex</code> — i.e. a live quote was restored in step 3a. <strong>No gateway connection is required</strong> — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step. This can also happen <strong>between two different market makers</strong>: a restored quote leg from one gateway can cross a freshly-injected seed from a different gateway — e.g. one gateway's quote only partially survived the restart (see <a href="#operational-edge-cases">Operational edge cases</a> below), so <code>seed_once</code> still allows a second gateway's seed to fire, and that seed happens to cross the first gateway's surviving leg. Same startup-crossing behaviour as above, just a new pair of counterparties.</li>
 <li>Market-maker combos from the <code>market_maker_combos</code> config section are injected.</li>
 <li>Book snapshots are published for any symbol where MM quotes were injected.</li>
-<li>Original timestamps ensure that price-time priority carries over correctly — an order
-    submitted yesterday still has seniority over a new order at the same price submitted today.</li>
+<li>Price-time priority carries over: each book's orders are re-injected in their current
+    priority (arrival sequence), so an order submitted yesterday still has seniority over a new
+    order at the same price submitted today, and an order that had lost its place (an iceberg
+    whose slice refilled, an amend that resets priority) does not get it back.</li>
 </ol>
+<h3 id="at-the-close-every-trading-day">At the Close (every trading day)<a class="headerlink" href="#at-the-close-every-trading-day" title="Permanent link">&para;</a></h3>
+<p>When the session moves to <code>CLOSED</code>, after the day's <code>DAY</code> orders have
+expired, the engine copies what it would persist — <code>gtc_orders.json</code>,
+<code>gtc_combos.json</code> and <code>book_stats.json</code> — into
+<code>&lt;DATA_DIR&gt;/eod/&lt;YYYY-MM-DD&gt;/</code> (the machine-local business date). The
+regular files are rewritten by every checkpoint; the archive keeps each
+day's closing state, so the next morning's book can be compared with it
+(the simulation forensics check G3 does). Nothing is ever deleted there.</p>
 <h2 id="impact-of-a-business-day-change">Impact of a Business-Day Change<a class="headerlink" href="#impact-of-a-business-day-change" title="Permanent link">&para;</a></h2>
 <p>The single fact that governs everything on this page: <strong>a process restart is
 not a day boundary.</strong> The engine has no clock of its own that fires at

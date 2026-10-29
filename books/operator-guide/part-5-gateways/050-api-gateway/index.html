@@ -9983,6 +9983,12 @@ today). The same attribution is available today from the drop-copy feed's
 own <code>order.fill</code> event (see <a href="../../../protocols-and-clients/part-3-session-behaviour/060-drop-copy/#orderfill-event">Drop Copy</a>);
 on this path it now needs no cross-reference — a client reading only its own
 private fills can tell which side of the spread it was on.</p>
+<p>When a STOP, STOP_LIMIT or TRAILING_STOP fires, the private stream carries an
+<code>order.triggered</code> event <em>before</em> the order's fills: <code>order_type</code> as armed,
+<code>stop_price_ticks</code> it fired at, the trade that reached it
+(<code>trigger_trade_id</code>, <code>trigger_price_ticks</code>; both absent when the last price
+came from a restart) and what it <code>becomes</code> (<code>MARKET</code> or <code>LIMIT</code>). Prices are
+integer ticks.</p>
 <p>Order lifecycle events — <code>order.ack</code>, <code>order.fill</code>, <code>order.cancelled</code>,
 <code>order.expired</code> — additionally carry the identifiers that tie the order to the
 structure it belongs to, when it belongs to one:</p>

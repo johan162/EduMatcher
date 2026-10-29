@@ -9391,6 +9391,14 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <td></td>
 </tr>
 <tr>
+<td><code>table: order_events</code></td>
+<td><code>msg_id</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
 <td><code>table: price_snapshots</code></td>
 <td><code>ts</code></td>
 <td><code>TEXT</code></td>
@@ -9534,6 +9542,38 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <td></td>
 <td></td>
 </tr>
+<tr>
+<td><code>table: trade_log</code></td>
+<td><code>buy_order_id</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: trade_log</code></td>
+<td><code>sell_order_id</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: trade_log</code></td>
+<td><code>match_type</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: trade_log</code></td>
+<td><code>msg_id</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
 </tbody>
 </table>
 <h3 id="ddl">DDL<a class="headerlink" href="#ddl" title="Permanent link">&para;</a></h3>
@@ -9657,8 +9697,10 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="n">client_tag</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span>
 <a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">    </span><span class="n">combo_parent_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
 <a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="n">oco_group_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="n">priority_reset</span><span class="w">  </span><span class="nb">INTEGER</span>
-<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="p">)</span>
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="n">priority_reset</span><span class="w">  </span><span class="nb">INTEGER</span><span class="p">,</span>
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">    </span><span class="c1">-- The audit message id this row records (its line's msg=).</span>
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">          </span><span class="nb">TEXT</span>
+<a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="table-price_snapshots"><code>table price_snapshots</code><a class="headerlink" href="#table-price_snapshots" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">price_snapshots</span><span class="w"> </span><span class="p">(</span>
@@ -9699,8 +9741,14 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">    </span><span class="c1">-- cannot support trade classification or order-flow imbalance, and</span>
 <a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">    </span><span class="c1">-- auction prints are indistinguishable from continuous ones.</span>
 <a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="n">aggressor_side</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">trade_id</span><span class="p">)</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="p">)</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="n">buy_order_id</span><span class="w">    </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="n">sell_order_id</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">    </span><span class="c1">-- How the trade came about (trade.executed.match_type).</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">    </span><span class="n">match_type</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">    </span><span class="c1">-- The audit message id of the print (its line's msg=).</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">    </span><span class="n">msg_id</span><span class="w">          </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">trade_id</span><span class="p">)</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="index-idx_ds_index_id_date"><code>index idx_ds_index_id_date</code><a class="headerlink" href="#index-idx_ds_index_id_date" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_ds_index_id_date</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">index_daily_stats</span><span class="p">(</span><span class="n">index_id</span><span class="p">,</span><span class="w"> </span><span class="nb">date</span><span class="p">)</span>
@@ -10187,6 +10235,22 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <td></td>
 </tr>
 <tr>
+<td><code>table: trade_events</code></td>
+<td><code>match_type</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>table: trade_events</code></td>
+<td><code>msg_id</code></td>
+<td><code>TEXT</code></td>
+<td>no</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
 <td><code>view: daily_exchange_totals</code></td>
 <td><code>trade_date</code></td>
 <td><code>TEXT</code></td>
@@ -10352,8 +10416,12 @@ constraints, keys, defaults, indexes, and views where defined.</p>
 <a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a><span class="w">  </span><span class="c1">-- auction trades can carry a biased aggressor marker upstream.</span>
 <a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a><span class="w">  </span><span class="n">aggressor_side</span><span class="w">   </span><span class="nb">TEXT</span><span class="p">,</span>
 <a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a><span class="w">  </span><span class="n">ingest_ts_ns</span><span class="w">     </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
-<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="w">  </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">)</span>
-<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a><span class="p">)</span>
+<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a><span class="w">  </span><span class="c1">-- How the trade came about (trade.executed.match_type), and the audit's</span>
+<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a><span class="w">  </span><span class="c1">-- message id of the print: joins a row to its audit line.</span>
+<a id="__codelineno-23-20" name="__codelineno-23-20" href="#__codelineno-23-20"></a><span class="w">  </span><span class="n">match_type</span><span class="w">       </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-23-21" name="__codelineno-23-21" href="#__codelineno-23-21"></a><span class="w">  </span><span class="n">msg_id</span><span class="w">           </span><span class="nb">TEXT</span><span class="p">,</span>
+<a id="__codelineno-23-22" name="__codelineno-23-22" href="#__codelineno-23-22"></a><span class="w">  </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-23-23" name="__codelineno-23-23" href="#__codelineno-23-23"></a><span class="p">)</span>
 </code></pre></div>
 <h4 id="view-daily_exchange_totals"><code>view daily_exchange_totals</code><a class="headerlink" href="#view-daily_exchange_totals" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">daily_exchange_totals</span><span class="w"> </span><span class="k">AS</span>

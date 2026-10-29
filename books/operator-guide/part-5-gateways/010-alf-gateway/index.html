@@ -8586,6 +8586,10 @@ delivered automatically after <code>WELCOME</code>.</p>
 <td><code>ORDER_ID</code>, <code>PRICE</code>, <code>QTY</code>, <code>REMAINING</code>, <code>PRIORITY_RESET</code>, <code>TAG</code>, <code>RTAG</code></td>
 </tr>
 <tr>
+<td><code>TRIGGERED</code></td>
+<td><code>ORDER_ID</code>, <code>SYMBOL</code>, <code>TYPE</code>, <code>STOP</code>, <code>BECOMES</code>, <code>TRADE_ID</code>, <code>TRADE_PRICE</code>, <code>TAG</code> — a stop fired, sent before its <code>FILL</code>s; see <a href="../../../protocols-and-clients/part-2-specifications/010-alf/#trailing_stop">TRAILING_STOP</a></td>
+</tr>
+<tr>
 <td><code>CANCELLED</code></td>
 <td><code>ORDER_ID</code>, <code>TAG</code>, <code>RTAG</code>, <code>CANCEL_REASON</code> — see <a href="#unsolicited-cancels">Unsolicited cancels</a></td>
 </tr>

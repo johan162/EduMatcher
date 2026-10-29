@@ -7390,7 +7390,10 @@ wakes, in this order:</p>
 <ol>
 <li><strong>Housekeeping.</strong> Cancel resting orders older than <code>max_order_age_sec</code>, or
    more than <code>stale_price_ticks</code> behind the touch on their own side (a buy
-   order behind the best bid, a sell order behind the best ask).</li>
+   order behind the best bid, a sell order behind the best ask). Not in
+   pre-open and the auction calls: there an order waits for the uncross,
+   and whatever is left after it goes at the first sweep of continuous
+   trading.</li>
 <li><strong>Slices due</strong> of a <code>twap</code> parent order.</li>
 <li><strong>Protection.</strong> Place, resize or remove the protective orders for each
    open position (continuous trading only).</li>
@@ -7524,6 +7527,29 @@ sends a limit order straddling the reference price (with TIF ATO or ATC in
 the auctions), so that buyers and sellers overlap at the uncross. Prices are
 kept inside the symbol's price collar and quantities inside its order
 limits: an AI trader does not send what the engine would refuse.</p>
+<p>Three more execution settings, off unless a preset sets them:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>smp</code></td>
+<td>The self-match prevention mode sent on every order (<code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>); unset, the gateway's default applies</td>
+</tr>
+<tr>
+<td><code>amend_fraction</code></td>
+<td>That share of the orders the risk rules would cancel is amended instead: one left behind is re-priced to its own side's touch (losing priority), one still at the touch is trimmed to half its unfilled quantity (keeping priority)</td>
+</tr>
+<tr>
+<td><code>combo_fraction</code></td>
+<td>That share of continuous-trading decisions is sent as a small all-or-none COMBO: the intended order and the opposite side of another of the trader's symbols, both at the touch, a quarter of the size</td>
+</tr>
+</tbody>
+</table>
 <h2 id="tempo-how-often-and-how-big">Tempo: how often and how big<a class="headerlink" href="#tempo-how-often-and-how-big" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

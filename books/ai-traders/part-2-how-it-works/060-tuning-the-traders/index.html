@@ -7825,6 +7825,18 @@ the file's path in the composition instead of the built-in name:</p>
 <td><code>gtc_fraction</code></td>
 <td>sends that share of its resting orders as GTC, whatever <code>tif</code> says: a few long orders that outlive the day (a trader keeps at most one per symbol, and never cancels it as stale)</td>
 </tr>
+<tr>
+<td><code>amend_fraction</code></td>
+<td>amends more of its stale orders instead of cancelling them: re-priced to the touch, or trimmed when still at it</td>
+</tr>
+<tr>
+<td><code>combo_fraction</code></td>
+<td>sends more of its continuous decisions as two-symbol all-or-none combos</td>
+</tr>
+<tr>
+<td><code>smp</code></td>
+<td>(not a number) picks the self-match prevention mode on its orders</td>
+</tr>
 </tbody>
 </table>
 <h3 id="tempo">Tempo<a class="headerlink" href="#tempo" title="Permanent link">&para;</a></h3>

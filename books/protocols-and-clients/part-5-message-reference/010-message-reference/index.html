@@ -5651,6 +5651,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#stop_triggered-no-bus-topic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stop_triggered (no bus topic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#orderackgateway_id" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5688,6 +5699,28 @@
     <span class="md-ellipsis">
       
         order.expired.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ordertriggeredgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order.triggered.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enginetracesymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        engine.trace.{symbol}
       
     </span>
   </a>
@@ -5964,6 +5997,17 @@
     <span class="md-ellipsis">
       
         risk.kill_switch_global_ack.{gateway_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#riskbandsymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        risk.band.{symbol}
       
     </span>
   </a>
@@ -6448,6 +6492,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#checkpointorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CheckpointOrder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loadedfile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LoadedFile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#referencesymbol" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6743,6 +6809,28 @@
     <span class="md-ellipsis">
       
         system.eod
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systembook_checkpointsymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.book_checkpoint.{symbol}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemstartup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.startup
       
     </span>
   </a>
@@ -11003,6 +11091,11 @@ wire-format specification in the
 <td><code>engine</code></td>
 </tr>
 <tr>
+<td><code>engine.trace.{symbol}</code></td>
+<td><code>order</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>execution_report (no bus topic)</code></td>
 <td><code>order</code></td>
 <td><code>gateway</code></td>
@@ -11243,6 +11336,11 @@ wire-format specification in the
 <td><code>admin</code></td>
 </tr>
 <tr>
+<td><code>order.triggered.{gateway_id}</code></td>
+<td><code>order</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
 <td><code>quote.ack.{gateway_id}</code></td>
 <td><code>quote</code></td>
 <td><code>engine</code></td>
@@ -11260,6 +11358,11 @@ wire-format specification in the
 <tr>
 <td><code>quote.status.{gateway_id}</code></td>
 <td><code>quote</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
+<td><code>risk.band.{symbol}</code></td>
+<td><code>risk</code></td>
 <td><code>engine</code></td>
 </tr>
 <tr>
@@ -11391,6 +11494,16 @@ wire-format specification in the
 <td><code>sim.value</code></td>
 <td><code>sim</code></td>
 <td><code>market_sim</code></td>
+</tr>
+<tr>
+<td><code>stop_triggered (no bus topic)</code></td>
+<td><code>order</code></td>
+<td><code>gateway</code></td>
+</tr>
+<tr>
+<td><code>system.book_checkpoint.{symbol}</code></td>
+<td><code>system</code></td>
+<td><code>engine</code></td>
 </tr>
 <tr>
 <td><code>system.diagnostic</code></td>
@@ -11529,6 +11642,11 @@ wire-format specification in the
 </tr>
 <tr>
 <td><code>system.session_status.{gateway_id}</code></td>
+<td><code>system</code></td>
+<td><code>engine</code></td>
+</tr>
+<tr>
+<td><code>system.startup</code></td>
 <td><code>system</code></td>
 <td><code>engine</code></td>
 </tr>
@@ -11786,6 +11904,13 @@ wire-format specification in the
 <td>ge 0, unit <code>shares</code></td>
 <td>Surplus on <code>imbalance_side</code>; zero when balanced.</td>
 </tr>
+<tr>
+<td><code>eq_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>eq_price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -11862,6 +11987,20 @@ wire-format specification in the
 <td>required</td>
 <td>—</td>
 <td>Which of the five uncross paths produced this event.</td>
+</tr>
+<tr>
+<td><code>eq_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>eq_price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
+<tr>
+<td><code>auction_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 32</td>
+<td>This uncross, <code>AUC-&lt;run_seq&gt;-&lt;n&gt;</code>: every print it made carries it as <code>trade.executed.auction_id</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -16643,6 +16782,74 @@ wire-format specification in the
 <p>remaining_qty reaching zero is what marks the order done; status FILLED says the same thing and the two must agree.</p>
 </div>
 <p><strong>See also:</strong> <code>trade.executed</code></p>
+<h3 id="stop_triggered-no-bus-topic"><code>stop_triggered</code> (no bus topic)<a class="headerlink" href="#stop_triggered-no-bus-topic" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>gateway</code></p>
+<p><strong>Transport:</strong> <code>balf</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>A stop, stop-limit or trailing stop of this session has fired. Sent before the order's own execution reports, so a client knows why its stop traded -- the FIX analogue is ExecType=L.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>client_order_id</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>unit <code>dimensionless</code></td>
+<td>Echoed from the original NEW_ORDER.</td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>unit <code>dimensionless</code></td>
+<td>Session-scoped BALF order id assigned by the gateway.</td>
+</tr>
+<tr>
+<td><code>stop_price</code></td>
+<td><code>float</code></td>
+<td>required</td>
+<td>gt 0, unit <code>display_price</code></td>
+<td>The trigger price it fired at (a trailing stop's ratcheted one), in display money; i64 x 10^8 on the wire.</td>
+</tr>
+<tr>
+<td><code>trigger_price</code></td>
+<td><code>float</code></td>
+<td>required</td>
+<td>ge 0, unit <code>display_price</code></td>
+<td>The price of the trade that reached the trigger; 0 when the last price came from a restart.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 8, pattern <code>^[A-Z0-9._]+$</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td>enum: <code>STOP</code>, <code>STOP_LIMIT</code>, <code>TRAILING_STOP</code></td>
+<td>required</td>
+<td>—</td>
+<td>The order as it was armed (NEW_ORDER's order_type codes).</td>
+</tr>
+<tr>
+<td><code>becomes</code></td>
+<td>enum: <code>MARKET</code>, <code>LIMIT</code></td>
+<td>required</td>
+<td>—</td>
+<td>STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>See also:</strong> <code>order.triggered.{GW_ID}</code>, <code>execution_report</code></p>
 <h3 id="orderackgateway_id"><code>order.ack.{gateway_id}</code><a class="headerlink" href="#orderackgateway_id" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
@@ -16813,6 +17020,27 @@ wire-format specification in the
 <td>—</td>
 <td>True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live.</td>
 </tr>
+<tr>
+<td><code>price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
+<tr>
+<td><code>stop_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>stop_price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
+<tr>
+<td><code>trail_offset_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>trail_offset</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -16977,6 +17205,27 @@ wire-format specification in the
 <td>—</td>
 <td>Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it.</td>
 </tr>
+<tr>
+<td><code>fill_notional_ticks</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>notional_ticks</code></td>
+<td>Σ price_ticks × quantity of the trades in <code>trade_ids</code>: the fill's money exactly (<code>fill_price</code> is its VWAP, rounded for display).</td>
+</tr>
+<tr>
+<td><code>cum_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity the order has filled in all, this fill included.</td>
+</tr>
+<tr>
+<td><code>cum_notional_ticks</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>notional_ticks</code></td>
+<td>Σ price_ticks × quantity of every fill of the order so far; with <code>cum_qty</code>, the exact average price.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>See also:</strong> <code>trade.executed</code></p>
@@ -17073,6 +17322,20 @@ wire-format specification in the
 <td>max_len 64</td>
 <td>The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled).</td>
 </tr>
+<tr>
+<td><code>remaining_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity left unfilled when the order was cancelled.</td>
+</tr>
+<tr>
+<td><code>cum_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity the order had filled before it was cancelled.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="orderexpiredgateway_id"><code>order.expired.{gateway_id}</code><a class="headerlink" href="#orderexpiredgateway_id" title="Permanent link">&para;</a></h3>
@@ -17147,8 +17410,177 @@ wire-format specification in the
 <td>unit <code>dimensionless</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>remaining_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity left unfilled when the order expired.</td>
+</tr>
+<tr>
+<td><code>cum_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Quantity the order had filled before it expired.</td>
+</tr>
 </tbody>
 </table>
+<h3 id="ordertriggeredgateway_id"><code>order.triggered.{gateway_id}</code><a class="headerlink" href="#ordertriggeredgateway_id" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>A stop, stop-limit or trailing stop has fired: the trade that reached its trigger, and what the order became. Published before the order's own fills, so a client knows why its stop traded -- the FIX analogue is ExecType=L.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td>enum: <code>STOP</code>, <code>STOP_LIMIT</code>, <code>TRAILING_STOP</code></td>
+<td>required</td>
+<td>—</td>
+<td>The order as it was armed.</td>
+</tr>
+<tr>
+<td><code>stop_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>required</td>
+<td>unit <code>ticks</code></td>
+<td>The trigger price it fired at (a trailing stop's ratcheted one).</td>
+</tr>
+<tr>
+<td><code>trigger_trade_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>The trade that reached the trigger; absent when the last price came from a restart.</td>
+</tr>
+<tr>
+<td><code>trigger_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td>That trade's price.</td>
+</tr>
+<tr>
+<td><code>becomes</code></td>
+<td>enum: <code>MARKET</code>, <code>LIMIT</code></td>
+<td>required</td>
+<td>—</td>
+<td>STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit.</td>
+</tr>
+<tr>
+<td><code>client_tag</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>See also:</strong> <code>order.fill.{GW_ID}</code>, <code>engine.trace.{SYMBOL}</code></p>
+<h3 id="enginetracesymbol"><code>engine.trace.{symbol}</code><a class="headerlink" href="#enginetracesymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>enum: <code>RESTED</code>, <code>ICEBERG_REFILL</code>, <code>TRAILING_RATCHET</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>priority_seq</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>displayed_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>ICEBERG_REFILL: the new visible slice.</td>
+</tr>
+<tr>
+<td><code>stop_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td>TRAILING_RATCHET: the new trigger.</td>
+</tr>
+<tr>
+<td><code>last_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td>TRAILING_RATCHET: the trade price that moved it.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>priority_seq</code> is the book's arrival sequence; it orders orders at one price, nothing more.</p>
+<p>A trailing stop rests in a list checked in arming order, so its RESTED has no <code>priority_seq</code>.</p>
+</div>
+<p><strong>See also:</strong> <code>order.triggered.{GW_ID}</code>, <code>order.amended.{GW_ID}</code></p>
 <h3 id="orderamendedgateway_id"><code>order.amended.{gateway_id}</code><a class="headerlink" href="#orderamendedgateway_id" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
@@ -17241,6 +17673,20 @@ wire-format specification in the
 <td>omitted when unset</td>
 <td>max_len 64</td>
 <td>Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null.</td>
+</tr>
+<tr>
+<td><code>price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
+<tr>
+<td><code>priority_seq</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>The order's place in its book after the amendment (the book's arrival sequence): changed when <code>priority_reset</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -18604,6 +19050,67 @@ wire-format specification in the
 <p class="admonition-title">Note</p>
 <p><code>affected_gateways</code> is what distinguishes this ack from the other two: the same two counters, plus how many participants they were spread across.</p>
 </div>
+<h3 id="riskbandsymbol"><code>risk.band.{symbol}</code><a class="headerlink" href="#riskbandsymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>A symbol's collar, as the engine will apply it: published once per collared symbol at startup (a reference reload leaves collars as they are). The static band is fixed from these; the dynamic band is <code>dynamic_band_pct</code> around each last trade price, so a reader derives it from the trades rather than from a message per trade. Circuit-breaker corridors travel on circuit_breaker.halt/extend.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>enum: <code>COLLAR</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reference_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>required</td>
+<td>unit <code>ticks</code></td>
+<td>The static band's reference (last close or the config seed).</td>
+</tr>
+<tr>
+<td><code>static_low_ticks</code></td>
+<td><code>ticks</code></td>
+<td>required</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>static_high_ticks</code></td>
+<td><code>ticks</code></td>
+<td>required</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>dynamic_band_pct</code></td>
+<td><code>float</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>The dynamic band's half-width as a fraction of the last trade price (0.02 = 2 %).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>See also:</strong> <code>circuit_breaker.halt.{SYMBOL}</code>, <code>system.startup</code></p>
 <h3 id="risksymbol_halt"><code>risk.symbol_halt</code><a class="headerlink" href="#risksymbol_halt" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>admin</code>, <code>api_gateway</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code>, <code>engine_push</code></p>
@@ -20318,6 +20825,176 @@ wire-format specification in the
 </tr>
 </tbody>
 </table>
+<h4 id="checkpointorder"><code>CheckpointOrder</code><a class="headerlink" href="#checkpointorder" title="Permanent link">&para;</a></h4>
+<p>One order as a book checkpoint holds it: enough to rebuild the book exactly -- its place in the queue, hidden iceberg quantity, its stop and trailing triggers, and the links to its quote, OCO pair or combo.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td></td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td>enum: <code>BUY</code>, <code>SELL</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td>enum: <code>MARKET</code>, <code>LIMIT</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, <code>TRAILING_STOP</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td>enum: <code>DAY</code>, <code>GTC</code>, <code>ATO</code>, <code>ATC</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>shares</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>remaining_qty</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>shares</code></td>
+<td>Hidden iceberg quantity included.</td>
+</tr>
+<tr>
+<td><code>price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>stop_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td>The current trigger (a trailing stop's ratcheted one).</td>
+</tr>
+<tr>
+<td><code>trail_offset_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>visible_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>shares</code></td>
+<td>An iceberg's slice size.</td>
+</tr>
+<tr>
+<td><code>displayed_qty</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>shares</code></td>
+<td>What an iceberg shows now.</td>
+</tr>
+<tr>
+<td><code>priority_seq</code></td>
+<td><code>int</code></td>
+<td>omitted when unset</td>
+<td>unit <code>dimensionless</code></td>
+<td>The book's arrival sequence; absent for a trailing stop (checked in list order).</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="loadedfile"><code>LoadedFile</code><a class="headerlink" href="#loadedfile" title="Permanent link">&para;</a></h4>
+<p>One persistence file the engine read at startup, identified by its bytes: a replay can tell which state the run started from.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td>File name in the data dir, e.g. gtc_orders.json.</td>
+</tr>
+<tr>
+<td><code>sha256</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td>SHA-256 of the file's bytes; null when the file did not exist.</td>
+</tr>
+<tr>
+<td><code>entries</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>Orders, combos or symbols the file holds (0 when absent).</td>
+</tr>
+</tbody>
+</table>
 <h4 id="referencesymbol"><code>ReferenceSymbol</code><a class="headerlink" href="#referencesymbol" title="Permanent link">&para;</a></h4>
 <p>One instrument's static configuration. Distinct from <code>SymbolInfo</code>, which is the same instrument as a <em>caller</em> sees it: this record is identical for every caller and changes only on reload, which is why the bundle can be cached and hashed and the symbols reply cannot.</p>
 <table>
@@ -21624,6 +22301,192 @@ wire-format specification in the
 <p>That is why it has no <code>_request</code> sibling and why it is in this half rather than 6.1f's request/reply pairs.</p>
 </div>
 <p><strong>See also:</strong> <code>book.{SYMBOL}</code>, <code>session.state</code></p>
+<h3 id="systembook_checkpointsymbol"><code>system.book_checkpoint.{symbol}</code><a class="headerlink" href="#systembook_checkpointsymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>One symbol's whole book, for the audit: every resting order in priority order with its hidden quantity, every armed stop with its current trigger, the last prices. Published for every symbol after startup (what the restore and the seeds made), after each session transition, and at shutdown. A replay can start from any of them -- an audit that begins mid-day, or continues after an engine restart -- and, where it already holds the book, compare order by order.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 16</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>enum: <code>STARTUP</code>, <code>PHASE</code>, <code>EOD</code></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>phase</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td>The session state the book is in.</td>
+</tr>
+<tr>
+<td><code>bids</code></td>
+<td>list of <a href="#checkpointorder"><code>CheckpointOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>asks</code></td>
+<td>list of <a href="#checkpointorder"><code>CheckpointOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>buy_stops</code></td>
+<td>list of <a href="#checkpointorder"><code>CheckpointOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>sell_stops</code></td>
+<td>list of <a href="#checkpointorder"><code>CheckpointOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>trailing_stops</code></td>
+<td>list of <a href="#checkpointorder"><code>CheckpointOrder</code></a></td>
+<td>required</td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_trade_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_buy_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_sell_price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>last_trade_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>The trade that set the last trade price.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>bids</code> and <code>asks</code> are in matching priority (best price first, then arrival); <code>buy_stops</code> and <code>sell_stops</code> in the order they would trigger; <code>trailing_stops</code> in the order they are checked.</p>
+</div>
+<p><strong>See also:</strong> <code>system.startup</code>, <code>engine.trace.{SYMBOL}</code>, <code>book.{SYMBOL}</code></p>
+<h3 id="systemstartup"><code>system.startup</code><a class="headerlink" href="#systemstartup" title="Permanent link">&para;</a></h3>
+<p><strong>Published by:</strong> <code>engine</code></p>
+<p><strong>Transport:</strong> <code>engine_pub</code></p>
+<p><strong>Since:</strong> 1.3</p>
+<p>Engine to all subscribers, the first message of every start, before the restore: which engine, which configuration and which persisted state this run began from. Makes an audit trail self-describing -- a replay rebuilds the engine from this message alone, years later, without the data dir's <code>ref_data/</code> (which the next deploy overwrites) or a guess at the engine version. Also the marker of an engine start: every per-topic <code>seq</code> begins again after it.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Presence</th>
+<th>Rules</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>format_version</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 1, unit <code>dimensionless</code></td>
+<td>Version of this message's meaning; 1 at EduMatcher 1.0.</td>
+</tr>
+<tr>
+<td><code>engine_version</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td>The installed edumatcher package version.</td>
+</tr>
+<tr>
+<td><code>git_commit</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 64</td>
+<td><code>git describe --always --dirty</code> of the source the engine runs from; "unknown" for an installed wheel. The package version stays put between releases, the commit does not.</td>
+</tr>
+<tr>
+<td><code>python_version</code></td>
+<td><code>string</code></td>
+<td>required</td>
+<td>max_len 32</td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_seq</code></td>
+<td><code>int</code></td>
+<td>required</td>
+<td>ge 0, unit <code>dimensionless</code></td>
+<td>The engine-run sequence this start took (trade id prefix).</td>
+</tr>
+<tr>
+<td><code>config_sha256</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>max_len 64</td>
+<td>SHA-256 of the compiled config artifact; null when none is deployed.</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td><code>string</code></td>
+<td><code>null</code> when unset</td>
+<td>—</td>
+<td>The compiled config artifact, verbatim JSON text; null when the engine runs on a YAML config or none.</td>
+</tr>
+<tr>
+<td><code>loaded</code></td>
+<td>list of <a href="#loadedfile"><code>LoadedFile</code></a></td>
+<td>required</td>
+<td>max_items 8</td>
+<td>The persistence files the restore reads: orders, combos, book statistics.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>config</code> is the compiled artifact as <code>pm-config-deploy</code> wrote it, verbatim (about 250 KB for 300 symbols), so <code>config_sha256</code> is the artifact file's hash and <code>config_artifact.decode(config)</code> gives back exactly what the engine loaded.</p>
+</div>
+<p><strong>See also:</strong> <code>system.startup_recovery</code>, <code>system.recovery_item</code></p>
 <h3 id="systemstartup_recovery"><code>system.startup_recovery</code><a class="headerlink" href="#systemstartup_recovery" title="Permanent link">&para;</a></h3>
 <p><strong>Published by:</strong> <code>engine</code></p>
 <p><strong>Transport:</strong> <code>engine_pub</code></p>
@@ -22814,6 +23677,34 @@ wire-format specification in the
 <td>defaults to <code>2</code></td>
 <td>ge 0, le 8, unit <code>dimensionless</code></td>
 <td>Decimal scale for <code>price</code>; 1 tick = 10^-tick_decimals.</td>
+</tr>
+<tr>
+<td><code>price_ticks</code></td>
+<td><code>ticks</code></td>
+<td>omitted when unset</td>
+<td>unit <code>ticks</code></td>
+<td><code>price</code> in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.</td>
+</tr>
+<tr>
+<td><code>match_type</code></td>
+<td>enum: <code>CONTINUOUS</code>, <code>OPENING_AUCTION</code>, <code>CLOSING_AUCTION</code>, <code>REOPEN_AUCTION</code>, <code>RECOVERY_AUCTION</code>, <code>BACKSTOP</code>, <code>FORCE_UNCROSS</code></td>
+<td>omitted when unset</td>
+<td>—</td>
+<td>How the trade came about; the engine sets it on every trade (absent only on prints from before it existed). CONTINUOUS for every match with an aggressor (a stop an uncross triggers included); an uncross print (aggressor_side AUCTION) names its uncross: the scheduled opening or closing auction, a halted symbol's reopening, the restore of a crossed book on an engine without sessions, the closing backstop, or an operator's forced uncross.</td>
+</tr>
+<tr>
+<td><code>auction_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 32</td>
+<td>The uncross this print belongs to: <code>auction.result.auction_id</code>.</td>
+</tr>
+<tr>
+<td><code>trigger_order_id</code></td>
+<td><code>string</code></td>
+<td>omitted when unset</td>
+<td>max_len 64</td>
+<td>The aggressor's order id when the aggressor is a stop that has triggered; absent otherwise.</td>
 </tr>
 </tbody>
 </table>
