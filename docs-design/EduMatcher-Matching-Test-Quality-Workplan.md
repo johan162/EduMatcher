@@ -24,7 +24,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☑ | 2026-10-27 |
 | 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☑ | 2026-10-29 |
 | 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☑ | 2026-10-29 |
-| 9 | T7 | In-process end-to-end trading test (ALF client → gateway → engine → fills/MD/clearing) | — | 2 d | ☐ | |
+| 9 | T7 | In-process end-to-end trading test (ALF client → gateway → engine → fills/MD/clearing) | — | 2 d | ☑ | 2026-10-29 |
 | 10 | T8 | Remove or strengthen weak-assertion tests | — | 1 d | ☐ | |
 | 11 | T9 | Final mutation run, docs, CI gate decision | all | 0.5 d | ☐ | |
 
@@ -51,6 +51,7 @@ comes early because every later test WP measures itself against its baseline.
 | Q1 | Does an iceberg's **hidden** quantity take part in an auction uncross? The docs do not say. | **Yes**, as on most real venues, but ranked behind visible quantity at the same price (the hidden part queues behind displayed orders, peak by peak). The indicative price/volume then has to include hidden quantity too, otherwise the published indicative differs from what the uncross prints. Alternative: hidden quantity sits out the auction, so equilibrium and execution both use displayed quantity only. That is simpler, but it is unusual and leaves hidden quantity unexecuted at a crossing price. |
 | Q2 | After a qty-decrease amend on an iceberg, may the shown slice grow? | **No.** Shown = min(current shown, new remaining), so priority is kept honestly. A refill is a new peak and goes to the back of the queue, as on replenishment. `020-order-types.md:1074` ("displayed_qty is recalculated from `visible_qty`") gets reworded. |
 | Q3 ☑ | The reference matcher must be written from the **documented** rules, not from `order_book.py`. Where the docs are silent (Q1, stop trigger evaluation after a multi-level sweep, iceberg aggressor resting with a partly used peak), whose rule wins? | Write each gap into the participant guide as part of T2, then implement both sides from that text. List each one in the insights log. |
+| Q4 | A `NOT_OWNER` reject (cancel or amend of another gateway's order) carries the resting order's `client_tag` to the gateway that asked, so one firm learns another firm's private order tag (I37). Two tests in `test_engine_handlers.py` pin this deliberately. Keep it? | **Drop it**: send only the requester's own `request_tag`, and change the two tests. Not changed in T7; the maintainer decides. |
 
 ---
 
@@ -536,6 +537,36 @@ the public trade on the MD feed, positions in clearing.
 - Must stay under ~10 s and run in the default suite. If it cannot, mark it
   `e2e` and add it to `make test-e2e`.
 
+**As built (2026-10-29).** `tests/test_trading_e2e.py`, 12 tests, ≈ 3.7 s
+with `-n logical` (≈ 0.4 s each to start an exchange), in the default suite.
+Each test starts its own exchange on threads: the real `Engine.run` loop on
+real ZMQ, `AlfGateway`, `MarketDataGateway` (CALF) and `ClearingProcess`
+(SQLite). Two ALF sessions (TRADER01, TRADER02) and one CALF client
+(`SUB|CH=TRADE|SYM=*`) talk to them over TCP. A warm-up print on its own
+symbol proves the CALF feed and clearing are subscribed before the scenario.
+
+- One crossing scenario per order type: LIMIT, MARKET, IOC and FOK against a
+  resting LIMIT; a resting ICEBERG filled peak by peak; STOP, STOP_LIMIT and
+  TRAILING_STOP triggered by a print (`TRIGGERED` with `TYPE`/`BECOMES`, then
+  the fill). Each asserts both sessions' `FILL` (qty, price, `LIQUIDITY`,
+  status, `TRADE_IDS` against the CALF trade ids), the CALF `TRADE` (price,
+  qty, aggressor), and both gateways' positions in clearing's database (net,
+  bought, sold, notionals).
+- An IOC and a MARKET remainder: `CANCELLED` with
+  `CANCEL_REASON=INSUFFICIENT_LIQUIDITY`.
+- Cancel round trip (`CANCELLED` with `RTAG`, no reason) and the wrong-owner
+  reject (`ACK` `ACCEPTED=FALSE`, `REJECT_CODE=NOT_OWNER`, the `REASON`
+  text, `RTAG`). Amend round trip (`AMENDED`, `PRIORITY_RESET=FALSE`) and a
+  crossing amend that trades (`PRIORITY_RESET=TRUE`, fills, print,
+  positions).
+- Not covered: OCO, COMBO, QUOTE and the drop copy (the engine's drop-copy
+  publisher is faked). They are separate features with their own gateway
+  tests.
+
+Stability: 30 sequential runs and 4 concurrent copies (each `-n logical`)
+all green after the port fix (I36). Mutants killed by this file alone: 9/31
+(M01, M03, M04, M06, M13, M15, M18, M21, M23; I38).
+
 ### T8 — Remove or strengthen weak-assertion tests
 
 About 350 test functions (list from an AST scan; the T8 script should be
@@ -605,3 +636,8 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I31 | T6 | Amend targets were drawn from every order id ever submitted, mostly dead by then, so most amends were skipped: only 11 crossing amends traded in 25 seeds × 200 steps. | Targets come from `book.resting_orders()` (LIMIT/ICEBERG): 115 crossing amends trade. This changes the amend mix of every tier. |
 | I32 | T6 | A book-level driver cannot reach M18, which lives in `Engine._handle_amend`. The driver therefore copies that re-match (≈ 10 lines), and the copy can drift from the engine. | Accepted: T3's engine driver and T5's `test_a_marketable_amend_trades_at_once` test the engine's own path. |
 | I33 | T6 | I6 checked by fault injection: a STOP_LIMIT pushed onto the bid heap with the level index adjusted to match passes I1–I4 and fails I6. No engine failure found by the new tiers. `make _check` stops at mypy errors in `tests/test_alf_examples.py`, which belongs to unrelated uncommitted ALF-example work; the T6 files pass mypy and pyright, and pyright on `src tests` is clean. | None in T6. e2e skipped again (exchange ports in use). |
+| I34 | T7 | `Engine.run()` cannot run off the main thread (it calls `signal.signal`) and binds the module constants `ENGINE_PULL/PUB_BIND_ADDR`. It binds PULL in `__init__` but publishes `system.startup_recovery` in `run()`, so a HELLO that reaches PULL first has its session dropped by the gateway ("engine restarted", `SESSION_LOST`). In production that only happens to a client logging on while the engine starts, and the gateway tells it to log on again. | Test only: a scoped `signal` shim (like engine_harness's `time` shim), the engine waited for (`_running`), and a client that logs on again when its session is dropped. No engine change. |
+| I35 | T7 | A module-scoped exchange escapes the suite's function-scoped autouse fixtures. Observed: the second test's trades restarted at `000000-000000001` with `RUN_SEQ=0` (`_configure_trade_id_run` reset the live engine's counter). Clearing would also have bound the real health port 5563, and the reject tally and health-beacon guards would not apply. | One exchange per test (0.4 s), so every autouse protection applies, and the engine's reject count is checked at teardown like any other. |
+| I36 | T7 | The first mutation baseline failed once: `Address already in use` on the engine's bind. `free_ports()` releases its ports before the engine binds them (its docstring names this race). | The engine is built again with new ports when it exits on a bind failure (checked by forcing a collision); the ALF and CALF gateways bind port 0, and the port is read back. |
+| I37 | T7 | The NOT_OWNER reject to TRADER02 carried `TAG=<TRADER01's client tag>` (plus empty `SYMBOL`/`SIDE`/`TYPE`). `Engine._handle_cancel` and `_handle_amend` pass `client_tag=resting.client_tag` to the non-owner, and two tests pin it. | Open decision Q4. The e2e test asserts only the fields that do not depend on it. |
+| I38 | T7 | The e2e file kills 9/31 mutants: it checks the wiring (gateway, engine loop, feeds, clearing), not the rules, which T3/T5 own. M24 survives even with a MARKET remainder test: a partly filled MARKET already reaches `CANCELLED` through its fill events, so only the zero-fill case (T5's empty-book test) sees M24. | None. |
