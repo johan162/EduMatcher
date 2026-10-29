@@ -46,6 +46,12 @@ VERB|KEY=VALUE|KEY=VALUE\n
 - Fields without `=` are silently skipped
 - Duplicate keys: last value wins
 
+These normalization rules apply to commands received by the gateway. The
+example parsers uppercase response verbs and keys, but preserve value case:
+copy each `ORDER_ID` exactly into subsequent `AMEND` and `CANCEL` requests.
+ALF prices remain decimal display prices; internal engine tick fields and
+message-envelope changes do not change this TCP command format.
+
 
 ## Python
 
@@ -73,6 +79,11 @@ msg = session.recv_msg()           # first line of SYMBOLS response
 session.close()
 ```
 
+`connect(..., timeout=5.0)` bounds the Python handshake and closes the socket
+on failure. After a successful handshake, reads are blocking. Library users
+must send `PING` periodically (more often than `WELCOME|IDLE`) themselves;
+both interactive clients do this automatically.
+
 ### Interactive client: `alf_client.py`
 
 ```bash
@@ -99,6 +110,8 @@ At the prompt:
 [TRADER01]> POS
 [TRADER01]> SESSION
 [TRADER01]> STATUS
+[TRADER01]> DC|STATE=ON
+[TRADER01]> DC|STATE=OFF
 [TRADER01]> HELP
 [TRADER01]> EXIT
 ```
@@ -108,6 +121,14 @@ At the prompt:
 
 Tab completes command verbs, field names, and enum values.
 Command history is saved to `~/.alf_client_history`.
+
+The clients display stop `TRIGGERED` notifications before subsequent fills,
+and show fill trade IDs and maker/taker `LIQUIDITY` when supplied. Drop-copy
+`DC_FILL` messages are displayed separately and never booked into the local
+position ledger a second time. Local `POS` starts with this connection's
+fills, not the gateway's historical holdings; use `POS|GW=<id>` for the
+engine's position snapshot. Local P&L is realized P&L, and average cost is
+reset to the execution price when a fill reverses the position.
 
 
 ## C
@@ -134,6 +155,10 @@ make
 
 The C client supports the same commands as the Python client.
 Tab-completion covers command verbs, field names, and common enum values.
+Its handshake receive timeout is five seconds. As a bounded teaching example,
+it stores up to 256 cached orders, 512 symbols/positions, and 512 rows in one
+query response. Parser storage allows 64 fields, 63-byte keys, and 511-byte
+values; overlong fields and lines are rejected rather than silently truncated.
 
 ### C library usage
 
@@ -163,9 +188,23 @@ write(sockfd, buf, strlen(buf));
 |---------|-----------------|------------------------|
 | Transport | ZMQ PUSH/SUB directly | TCP via `pm-alf-gwy` |
 | Machine | Same host as engine | Any host |
-| Dependencies | `edumatcher` package + ZMQ | stdlib only |
+| Dependencies | `edumatcher` package + ZMQ | Python stdlib (including readline), or C + GNU readline |
 | P&L / POS | From local fill tracking | From local fill tracking |
 | `POS\|GW=<id>` (query another gateway) | Yes | Yes |
 | STATUS | Rich terminal display | Text table |
 | QLEGS | Yes (local cache) | Yes (engine round trip) |
 | Tab completion | Full context-aware | Commands, fields, enums |
+
+## Verification
+
+From the repository root, with the development environment installed:
+
+```bash
+poetry run pytest tests/test_alf_examples.py --no-cov
+```
+
+The tests compile and run the C code, test parser/session behavior, and drive
+both interactive clients through the TCP gateway into the real engine handlers.
+Covered workflows include order entry, amendment, fills and position reversals,
+cancellation, OCO/combo orders, quotes, queries, stop triggering, drop-copy
+delivery, validation errors, and clean exit.
