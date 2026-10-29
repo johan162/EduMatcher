@@ -22,7 +22,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 4b | F3 | Fix bug C: FOK partially fills under SMP CANCEL_AGGRESSOR/BOTH (found in T2) | — | — | ☑ | 2026-10-21 |
 | 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☑ | 2026-10-27 |
 | 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☑ | 2026-10-27 |
-| 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☐ | |
+| 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☑ | 2026-10-29 |
 | 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☐ | |
 | 9 | T7 | In-process end-to-end trading test (ALF client → gateway → engine → fills/MD/clearing) | — | 2 d | ☐ | |
 | 10 | T8 | Remove or strengthen weak-assertion tests | — | 1 d | ☐ | |
@@ -452,6 +452,37 @@ list, not just quantities. Proposed file: `tests/test_matching_spec.py`.
 
 Success: M07, M16 and M17 are killed, and every mutant has ≥ 3 kills.
 
+**As built (2026-10-29).** `tests/test_matching_spec.py`, 87 tests, < 1 s.
+A `Venue` drives the real `Engine` (`engine_harness`, sessions on, starting
+in CONTINUOUS) and reads back what it publishes: the trade tape, the resting
+book with each iceberg's shown slice, dormant stops, `auction.result`,
+`order.fill` / `order.cancelled` / `order.expired` and acks. Each scenario is
+written once and runs `as-written` and `mirrored` (BUY↔SELL, prices reflected
+around 100.00). The `Venue` translates both ways, so expectations are written
+once (I27). Covered: everything in the list above, plus amend priority
+(decrease keeps, increase loses, iceberg decrease never refills: bug B), the
+three SMP modes, FOK bug C, cancel ownership, a crossing amend and the
+breadth-first uncross cascade (I19), so that every mutant has a plain
+specification test (I28). Auctions use the closing auction, so leftover DAY
+orders also show their `order.expired`. No engine change was needed (I29).
+
+Mutants killed by `tests/test_matching_spec.py` alone: **31/31**. Full suite
+(11,305 tests): **31/31, minimum 4 kills** (M19, M21).
+
+| ID | spec | full | ID | spec | full | ID | spec | full | ID | spec | full |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| M01 | 10 | 128 | M09 | 4 | 111 | M17 | 3 | 103 | M25 | 2 | 104 |
+| M02 | 6 | 117 | M10 | 4 | 98 | M18 | 2 | 60 | M26 | 2 | 105 |
+| M03 | 22 | 331 | M11 | 1 | 106 | M19 | 2 | 4 | M27 | 2 | 15 |
+| M04 | 4 | 64 | M12 | 4 | 29 | M20 | 5 | 9 | M28 | 2 | 107 |
+| M05 | 2 | 71 | M13 | 4 | 113 | M21 | 2 | 4 | M29 | 2 | 95 |
+| M06 | 6 | 118 | M14 | 6 | 109 | M22 | 2 | 108 | M30 | 2 | 9 |
+| M07 | 6 | 114 | M15 | 52 | 169 | M23 | 6 | 119 | M31 | 2 | 7 |
+| M08 | 1 | 102 | M16 | 2 | 103 | M24 | 4 | 15 | | | |
+
+M08 and M11 are one-sided mutants (SELL ratchet, BUY STOP_LIMIT), so only
+one orientation of a scenario can see them; 1 is the expected count.
+
 ### T6 — Extend the randomized invariant tests
 
 `tests/test_book_invariants_random_ops.py`:
@@ -544,3 +575,6 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I24 | T4 | The final books are aggregated price levels, so they cannot show who traded with whom: with the reference oracle on books alone, priority (M04, M05, M14) and aggressor (M15) mutants still survived. The trade tape kills them. The remaining 15 survivors are features the dataset never generates (SMP: M12, M22, M30; auctions: M16, M17, M25, M26, M31; trailing stops: M08, M28; sessions and ownership: M19–M21), the event-only M24, and M27, which needs a qty-decrease amend on a partly used iceberg peak and is rare in 1000 lines. | Trade-tape comparison added in-process only. `paper_result.json` / `compare_results.py` (the live ZMQ run) still compare books. The dataset is not widened: T3 covers those features. |
 | I25 | T4 | The dataset for a given seed changed (amend targets are now drawn from the reference's resting orders, which include a triggered STOP_LIMIT resting as a LIMIT). The 10,000-line heavy run takes about 10 s, most of it in the reference's FOK dry run, which deep-copies the matcher. | None. Seed stability across versions was never promised. The FOK cost is acceptable for a heavy test, and making the oracle smarter would cost independence. |
 | I26 | T4 | `verify_matching.sh` was not run end to end (it needs a live engine on 5555/5556 and deploys its config into the data dir). The in-process smoke test runs the same generator and comparison. The verification chapter's "does not verify the order of trade events" box is still true for the shell tool but no longer for the in-process test. | T9's docs pass: describe the in-process smoke test, the reference matcher and the trade-tape comparison. |
+| I27 | T5 | Mirroring (BUY↔SELL, prices reflected) checks every side-symmetric rule with one written scenario, but the auction's last tie-break (lowest price) is not symmetric: a mirrored full tie correctly resolves to the other price. Small auction books tie easily, and one draft scenario (the ATC test) hit a full tie by accident and failed only mirrored. | The tie-break test states its expectation in actual prices (`min` of the two); the documented worked example (a full tie at 99.80 / 100.00) runs as-written only. Any new auction scenario must avoid accidental full ties. |
+| I28 | T5 | T5's list alone left M04, M05, M22, M27, M30 and M31 without a plain specification test (spec run: 25/31). Driving the engine rather than `OrderBook` is what reaches M19–M21 and M24: they live in published events (`order.expired`, `order.cancelled` reasons, the `NOT_OWNER` ack), which T3 does not compare (I23). | Scenarios added for amend priority, iceberg amend (bug B), SMP modes, FOK bug C, ownership and the uncross cascade: 31/31 by the spec file alone, so T9's "at least one plain specification test per mutant" already holds. |
+| I29 | T5 | No engine divergence from the documented rules on either side; the only failures while writing were scenario mistakes (I27, and an `order.fill` to the wrong order of the same gateway in the VWAP check). | None. `make test-e2e` was skipped this WP (exchange ports in use by a running exchange); no production code changed. |
