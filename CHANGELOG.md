@@ -1,3 +1,30 @@
+## [v0.65.2] - 2026-10-29
+
+Release Type: patch
+
+### 📋 Summary
+This release corrects session-time displays and trader tooltips, brings the standalone ALF clients examples into line with the current gateway and engine, and expands matching and end-to-end verification.
+
+### 🚀 Improvements
+- Added `session_timezone` to API bootstrap responses and used the exchange session timezone for trader and terminal clocks, dates, trade timestamps, and auction and halt times
+- Improved ALF example event displays with drop-copy acknowledgements and fills, fill liquidity, and trade IDs, without double-counting drop-copy executions in local positions
+
+### 🐛 Bug Fixes
+- Fixed MARKET OVERVIEW header tooltips overlapping their icons and inheriting inappropriate table-header formatting
+- Fixed Python and C ALF examples retaining the wrong average cost when a fill reverses a position
+- Fixed ALF example handshake validation and timeouts, keepalive scheduling, fragmented TCP handling, and command writes
+- Fixed C ALF parsing of whitespace and duplicate fields, stale cached order statuses, and mismatched multiline response terminators; reported over-capacity input instead of silently truncating it
+
+### 📚 Documentation
+- Updated ALF example, operator, training, and support-library guides with checked snippets and guidance for building applications on the Python and C examples, including keepalives, event handling, error checks, and reconnect reconciliation
+- Added an order-book learning section and diagram to the website
+
+### 🛠 Internal
+- Added matching specification scenarios covering both sides of the book
+- Expanded randomized invariant checks for stops, iceberg auctions, and crossing amendments
+- Added real-engine lifecycle tests for both ALF example clients and compiled C behavioral regression checks
+- Added in-process end-to-end trading coverage through the ALF gateway, matching engine, CALF feed, and clearing
+
 ## [v0.65.1] - 2026-10-29
 
 Release Type: patch

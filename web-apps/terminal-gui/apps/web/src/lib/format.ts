@@ -48,14 +48,6 @@ export function compact(input: number | undefined | null): string {
   return input.toFixed(0);
 }
 
-/** `HH:MM:SS` in UTC — the exchange's own clock, not the viewer's. */
-export function clockUtc(iso: string | undefined | null): string {
-  if (!iso) return ABSENT;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return ABSENT;
-  return date.toISOString().slice(11, 19);
-}
-
 /** `HH:MM:SS` in the exchange's configured session timezone. */
 export function clockInTimezone(iso: string | undefined | null, timeZone: string): string {
   if (!iso) return ABSENT;
@@ -81,12 +73,12 @@ export function clockInTimezone(iso: string | undefined | null, timeZone: string
  * halt often sits a little past its scheduled time while the uncross runs,
  * and showing "-00:00:14" would read as an error rather than as normal.
  */
-export function resumeAt(iso: string | undefined, now = Date.now()): string {
+export function resumeAt(iso: string | undefined, timeZone: string, now = Date.now()): string {
   if (!iso) return ABSENT;
   const target = new Date(iso).getTime();
   if (Number.isNaN(target)) return ABSENT;
 
-  const clock = clockUtc(iso);
+  const clock = clockInTimezone(iso, timeZone);
   const remainingSec = Math.round((target - now) / 1000);
   if (remainingSec <= 0) return clock;
 

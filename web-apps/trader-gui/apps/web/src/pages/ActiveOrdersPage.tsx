@@ -1,3 +1,4 @@
+import { formatClock } from "@/lib/formatters.js";
 import { useCallback, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -97,7 +98,7 @@ export function ActiveOrdersPage() {
         <h1 className="text-lg font-semibold text-fg">Active Orders</h1>
         <span className="text-[11px] text-fg-faint">
           {orders.length} {orders.length === 1 ? "order" : "orders"}
-          {syncedAt ? ` · reconciled ${new Date(syncedAt).toLocaleTimeString()}` : ""}
+          {syncedAt ? ` · reconciled ${formatClock(syncedAt)}` : ""}
         </span>
         <button
           type="button"

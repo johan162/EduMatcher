@@ -74,6 +74,7 @@ _HELP_TEXT = f"""
   QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]
   QUOTE_CANCEL|SYM=<s>
   KILL[|SYM=<s>]                — cancel all exposure (optional symbol scope)
+  DC|STATE=ON|OFF               — toggle this gateway's drop-copy relay
 
 {_BOLD}Queries{_RESET}
   SYMBOLS                        List configured instruments
@@ -84,7 +85,7 @@ _HELP_TEXT = f"""
 {_BOLD}Session{_RESET}
   PING                           Liveness probe
   SESSION                        Ask the exchange for its current session state
-  POS                            Show tracked positions and unrealized P&L
+  POS                            Show tracked positions and realized P&L
   POS|GW=<gateway_id>            Query another gateway's position from the engine
   STATUS                         Show session and connection info
   HELP                           This help text
@@ -105,6 +106,7 @@ _TOP_CMDS = [
     "QBOOT",
     "QLEGS",
     "KILL",
+    "DC",
     "SYMBOLS",
     "ORDERS",
     "PING",
@@ -138,6 +140,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
     "QLEGS": ["SYM=", "SHOW="],
     "KILL": ["SYM="],
     "POS": ["GW="],
+    "DC": ["STATE="],
 }
 
 _VALUE_OPTS: dict[str, list[str]] = {
@@ -158,6 +161,7 @@ _VALUE_OPTS: dict[str, list[str]] = {
     "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
     "COMBO_TYPE": ["AON"],
     "SHOW": ["ACTIVE", "RECENT", "ALL"],
+    "STATE": ["ON", "OFF"],
     # OCO / COMBO leg fields
     "LEG1_SIDE": ["BUY", "SELL"],
     "LEG2_SIDE": ["BUY", "SELL"],
@@ -331,7 +335,7 @@ class AlfClient:
         # Readline setup
         self._completer = _AlfCompleter(self._known_symbols)
         readline.set_completer(self._completer.complete)
-        readline.set_completer_delims("")  # treat entire input as one word
+        readline.set_completer_delims("|")
         readline.parse_and_bind("tab: complete")
         if HISTORY_FILE.exists():
             try:
@@ -376,6 +380,19 @@ class AlfClient:
                 self._pongs_to_hide -= 1
                 return
             self._pr(f"[{ts}] {_DIM}PONG{_RESET}  {f.get('TS', '')}")
+            return
+
+        if t == "DC_ACK":
+            self._pr(f"[{ts}] DC ACK  state={f.get('STATE', '?')}")
+            return
+
+        if t == "DC_FILL":
+            self._pr(
+                f"[{ts}] DC FILL  {f.get('ORDER_ID', '?')}  "
+                f"{f.get('SYMBOL', '?')} qty={f.get('FILL_QTY', '?')} "
+                f"@{f.get('FILL_PRICE', '?')} "
+                f"liquidity={f.get('LIQUIDITY', '?')} seq={f.get('SEQ', '?')}"
+            )
             return
 
         if t == "SESSION":
@@ -438,10 +455,10 @@ class AlfClient:
                     }
                 )
             else:
-                code = f.get("REJECT_CODE")
+                reject_code = f.get("REJECT_CODE")
                 tag = f.get("TAG")
                 rtag = f.get("RTAG")
-                code_text = f" code={code}" if code else ""
+                code_text = f" code={reject_code}" if reject_code else ""
                 tag_text = f" tag={tag}" if tag else ""
                 rtag_text = f" rtag={rtag}" if rtag else ""
                 self._pr(
@@ -456,9 +473,11 @@ class AlfClient:
             rem = f.get("REMAINING", "?")
             st = f.get("STATUS", "?")
             tag = f"  tag={f['TAG']}" if f.get("TAG") else ""
+            liquidity = f" liquidity={f['LIQUIDITY']}" if f.get("LIQUIDITY") else ""
+            trades = f" trades={f['TRADE_IDS']}" if f.get("TRADE_IDS") else ""
             self._pr(
                 f"[{ts}] {_CYAN}FILL{_RESET}     {oid}  "
-                f"qty={qty} @{price}  remaining={rem}  [{st}]{tag}"
+                f"qty={qty} @{price}  remaining={rem}  [{st}]{tag}{liquidity}{trades}"
             )
             # Position update — use cached order for symbol/side
             order = self._orders.get(oid, {})
@@ -467,7 +486,7 @@ class AlfClient:
             if sym and side:
                 try:
                     self._update_position(sym, side, int(qty), float(price))
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
             if oid in self._orders:
                 self._orders[oid].update({"remaining": rem, "status": st})
@@ -721,8 +740,7 @@ class AlfClient:
             recent_rows = [
                 r
                 for r in rows
-                if r.msg_type
-                in ("RECENT_LEG", "RECENT_BID_LEG", "RECENT_ASK_LEG")
+                if r.msg_type in ("RECENT_LEG", "RECENT_BID_LEG", "RECENT_ASK_LEG")
             ]
             if recent_rows:
                 lines.append(f"\n{_BOLD}Recent (inactivated) quotes{_RESET}")
@@ -770,13 +788,14 @@ class AlfClient:
     def _keepalive_loop(self) -> None:
         """Background thread: PING every idle_timeout/3 seconds, so the
         gateway never sees this session as silent (see ``_pongs_to_hide``)."""
-        interval = max(1, self._session.welcome.idle_timeout // 3)
+        interval = self._session.welcome.idle_timeout / 3
         while not self._keepalive_stop.wait(interval):
             log.debug("keepalive PING sent gateway_id=%s", self._session.gateway_id)
             self._pongs_to_hide += 1
             try:
                 self._session.send("PING")
-            except OSError:
+            except OSError as exc:
+                log.warning("keepalive PING failed: %s", exc)
                 return
 
     def _recv_loop(self) -> None:
@@ -784,9 +803,10 @@ class AlfClient:
         while self._running:
             try:
                 msg = self._session.recv_msg()
-            except AlfParseError:
-                continue  # malformed line — skip
-            except Exception as exc:
+            except AlfParseError as exc:
+                self._pr(f"Protocol error: {exc}")
+                continue
+            except (RuntimeError, OSError) as exc:
                 if self._running:
                     self._pr(f"\n{_RED}Connection lost: {exc}{_RESET}\n")
                     self._running = False
@@ -805,12 +825,16 @@ class AlfClient:
                 if t == "QUOTE" and self._collecting == "QBOOT":
                     self._collect_rows.append(msg)
                     continue
-                if t in (
-                    "LEG",
-                    "RECENT_LEG",
-                    "RECENT_BID_LEG",
-                    "RECENT_ASK_LEG",
-                ) and self._collecting == "QLEGS":
+                if (
+                    t
+                    in (
+                        "LEG",
+                        "RECENT_LEG",
+                        "RECENT_BID_LEG",
+                        "RECENT_ASK_LEG",
+                    )
+                    and self._collecting == "QLEGS"
+                ):
                     self._collect_rows.append(msg)
                     continue
                 if t == "POS_ENTRY" and self._collecting == "POSITION":
@@ -884,7 +908,7 @@ class AlfClient:
         elif (old_qty >= 0 and signed_qty > 0) or (old_qty <= 0 and signed_qty < 0):
             total = pos["avg_cost"] * abs(old_qty) + fill_price * abs(signed_qty)
             pos["avg_cost"] = total / abs(new_qty)
-        elif abs(new_qty) > abs(old_qty):
+        elif old_qty * new_qty < 0:
             pos["avg_cost"] = fill_price
 
         pos["net_qty"] = new_qty
@@ -993,7 +1017,8 @@ class AlfClient:
         self._running = True
         recv_thread = threading.Thread(target=self._recv_loop, daemon=True)
         recv_thread.start()
-        threading.Thread(target=self._keepalive_loop, daemon=True).start()
+        keepalive_thread = threading.Thread(target=self._keepalive_loop, daemon=True)
+        keepalive_thread.start()
         # Ask once for the session state, so STATUS is right from the start
         # rather than only after the next phase change.
         self._session.send("SESSION")
@@ -1011,7 +1036,7 @@ class AlfClient:
                     with self._print_lock:
                         pass  # flush any pending output before prompting
                     line = input(self._prompt)
-                except (EOFError, KeyboardInterrupt):
+                except EOFError, KeyboardInterrupt:
                     print()
                     break
                 if not self._dispatch(line):
@@ -1026,6 +1051,8 @@ class AlfClient:
             except OSError:
                 pass
             self._session.close()
+            recv_thread.join(timeout=1)
+            keepalive_thread.join(timeout=1)
             print(f"\n{_BOLD}Disconnected.{_RESET}")
 
 

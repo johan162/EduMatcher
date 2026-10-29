@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABSENT, clockInTimezone, clockUtc, compact, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
+import { ABSENT, clockInTimezone, compact, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
 
 describe("price", () => {
   it("formats to a fixed number of decimals", () => {
@@ -51,17 +51,6 @@ describe("compact", () => {
   });
 });
 
-describe("clockUtc", () => {
-  it("shows the exchange clock, not the viewer's timezone", () => {
-    expect(clockUtc("2026-07-30T11:02:17.000Z")).toBe("11:02:17");
-  });
-
-  it("tolerates a malformed timestamp", () => {
-    expect(clockUtc("not a date")).toBe(ABSENT);
-    expect(clockUtc(undefined)).toBe(ABSENT);
-  });
-});
-
 describe("clockInTimezone", () => {
   it("shows the configured session wall-clock time", () => {
     expect(clockInTimezone("2026-07-30T11:02:17.000Z", "Europe/Stockholm")).toBe("13:02:17");
@@ -76,17 +65,21 @@ describe("resumeAt", () => {
   const now = Date.parse("2026-07-30T11:02:17.000Z");
 
   it("shows the wall-clock time and a countdown", () => {
-    expect(resumeAt("2026-07-30T11:07:17.000Z", now)).toBe("11:07:17 (05:00)");
+    expect(resumeAt("2026-07-30T11:07:17.000Z", "UTC", now)).toBe("11:07:17 (05:00)");
+  });
+
+  it("renders the wall-clock time in the given timezone", () => {
+    expect(resumeAt("2026-07-30T11:07:17.000Z", "Europe/Stockholm", now)).toBe("13:07:17 (05:00)");
   });
 
   it("drops the countdown once the moment has passed", () => {
     // An auction resume often runs a little late; a negative countdown would
     // read as a fault rather than as normal.
-    expect(resumeAt("2026-07-30T11:02:03.000Z", now)).toBe("11:02:03");
+    expect(resumeAt("2026-07-30T11:02:03.000Z", "UTC", now)).toBe("11:02:03");
   });
 
   it("renders a halt with no scheduled resume as absent", () => {
-    expect(resumeAt(undefined, now)).toBe(ABSENT);
+    expect(resumeAt(undefined, "UTC", now)).toBe(ABSENT);
   });
 });
 

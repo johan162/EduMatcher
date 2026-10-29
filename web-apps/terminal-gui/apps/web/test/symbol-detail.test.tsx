@@ -402,6 +402,23 @@ describe("auction banner", () => {
     expect(screen.getByText(/149.85 · 12,400 sh/)).toBeDefined();
   });
 
+  it("shows the uncross time in the session timezone, not UTC", async () => {
+    apply({
+      type: "hello",
+      symbols: ["AAPL"],
+      tickDecimals: {},
+      indexes: [],
+      sessionTimezone: "Europe/Stockholm",
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
+    apply(uncross("AAPL"));
+    show();
+
+    // 09:30:02Z is 11:30:02 in Stockholm (CEST) on 2026-07-30.
+    expect(await screen.findByText("11:30:02")).toBeDefined();
+  });
+
   it("names a circuit-breaker reopening rather than calling it a plain auction", async () => {
     // A reopening uncross and the scheduled closing uncross carry identical
     // fields; REASON is the only thing that distinguishes them.

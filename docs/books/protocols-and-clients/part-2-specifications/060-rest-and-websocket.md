@@ -494,6 +494,7 @@ empty `positions`, and empty `orders`).
 
   "gateway_id": "TRADER01",       // null for read-only keys
   "gateway_role": "TRADER",       // TRADER | MARKET_MAKER | ADMIN | READ_ONLY
+  "session_timezone": "Europe/Stockholm", // IANA name; the zone clients render wall-clock times in
 
   // identical to GET /reference
   "reference": {

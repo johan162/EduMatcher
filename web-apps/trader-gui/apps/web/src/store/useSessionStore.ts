@@ -21,12 +21,15 @@ export interface SessionStoreState {
   nextState: SessionState | null;
   /** Configured venue calendar; drives the countdown when `next` is absent. */
   schedule: ScheduleInfo | null;
+  /** IANA name of the exchange's session timezone; null until bootstrap. */
+  timezone: string | null;
   setPhase: (
     phase: SessionState,
     prev: SessionState | null,
     next?: NextTransitionEvent | null,
   ) => void;
   setSchedule: (schedule: ScheduleInfo | null) => void;
+  setTimezone: (timezone: string | null) => void;
   /**
    * Resolve the countdown target at `nowMs`.
    *
@@ -48,6 +51,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   nextTransitionAt: null,
   nextState: null,
   schedule: null,
+  timezone: null,
 
   setPhase: (phase, prev, next) => {
     const at = next?.at ? new Date(next.at).getTime() : NaN;
@@ -61,6 +65,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   setSchedule: (schedule) => set({ schedule }),
+
+  setTimezone: (timezone) => set({ timezone }),
 
   countdownTarget: (nowMs) => {
     const { nextTransitionAt, nextState, schedule } = get();

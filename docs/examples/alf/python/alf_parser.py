@@ -28,6 +28,8 @@ Parsing rules:
 from __future__ import annotations
 
 import socket
+import threading
+import time
 from dataclasses import dataclass
 
 
@@ -110,7 +112,7 @@ def build_alf_line(msg_type: str, fields: dict[str, str] | None = None) -> str:
             clean_v = str(v).replace("\n", " ").replace("\r", " ")
             if not clean_k:
                 raise AlfParseError("empty field key")
-            if "|" in clean_k or "|" in clean_v:
+            if any(ch in clean_k for ch in "|=\r\n") or "|" in clean_v:
                 raise AlfParseError(f"'|' not allowed in ALF field: {k}={v!r}")
             tokens.append(f"{clean_k}={clean_v}")
 
@@ -128,11 +130,13 @@ class LineReader:
         self._sock = sock
         self._buf = bytearray()
 
-    def recv_line(self) -> str:
+    def recv_line(self, *, deadline: float | None = None) -> str:
         """Block until one complete '\\n'-terminated line is available.
 
         Returns the line without the trailing '\\n', decoded as UTF-8.
         Raises RuntimeError when the server closes the connection.
+        An optional monotonic deadline bounds the entire read, including
+        fragmented lines.
         """
         while True:
             nl = self._buf.find(b"\n")
@@ -140,6 +144,11 @@ class LineReader:
                 raw = bytes(self._buf[:nl])
                 del self._buf[: nl + 1]
                 return raw.decode("utf-8", errors="replace")
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("WELCOME handshake timed out")
+                self._sock.settimeout(remaining)
             chunk = self._sock.recv(4096)
             if not chunk:
                 raise RuntimeError("connection closed by gateway")
@@ -170,6 +179,7 @@ class AlfSession:
         self._reader = reader
         self._gateway_id = gateway_id
         self._welcome = welcome
+        self._send_lock = threading.Lock()
         self._known_symbols: list[str] = []
 
     @classmethod
@@ -183,63 +193,69 @@ class AlfSession:
     ) -> "AlfSession":
         """Open a TCP connection and complete the HELLO/WELCOME handshake.
 
-        Returns an authenticated AlfSession.  Raises RuntimeError when the
-        gateway refuses the gateway ID or when the connection times out.
+        Returns an authenticated AlfSession. Raises RuntimeError for a
+        refused/invalid handshake and TimeoutError if the deadline expires.
         """
         sock = socket.create_connection((host, port), timeout=timeout)
-        sock.settimeout(None)  # switch to blocking mode after connect
         reader = LineReader(sock)
+        deadline = time.monotonic() + timeout
 
-        hello = build_alf_line(
-            "HELLO",
-            {
-                "CLIENT": client_name[:32],
-                "PROTO": "ALF1",
-                "ID": gateway_id.upper(),
-            },
-        )
-        sock.sendall(hello.encode("utf-8"))
+        try:
+            hello = build_alf_line(
+                "HELLO",
+                {
+                    "CLIENT": client_name[:32],
+                    "PROTO": "ALF1",
+                    "ID": gateway_id.upper(),
+                },
+            )
+            sock.sendall(hello.encode("utf-8"))
 
-        # Wait for WELCOME; skip any HB lines that may race ahead
-        for _ in range(20):
-            raw = reader.recv_line()
-            try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("WELCOME handshake timed out")
+                sock.settimeout(remaining)
+                raw = reader.recv_line(deadline=deadline)
                 msg = parse_alf_line(raw)
-            except AlfParseError:
-                continue
 
-            if msg.msg_type == "WELCOME":
-                gw_id = msg.fields.get("ID", gateway_id.upper())
-                try:
-                    hbint = int(msg.fields.get("HBINT", "5"))
-                    idle = int(msg.fields.get("IDLE", "300"))
-                except ValueError:
-                    hbint, idle = 5, 300
+                if msg.msg_type == "WELCOME":
+                    required = {"ID", "GW", "PROTO", "HBINT", "IDLE"}
+                    if not required.issubset(msg.fields):
+                        raise RuntimeError(f"Incomplete WELCOME: {raw!r}")
+                    gw_id = msg.fields["ID"]
+                    hbint = int(msg.fields["HBINT"])
+                    idle = int(msg.fields["IDLE"])
+                    if (
+                        msg.fields.get("PROTO") != "ALF1"
+                        or gw_id != gateway_id.upper()
+                        or hbint <= 0
+                        or idle <= 0
+                    ):
+                        raise RuntimeError(f"Invalid WELCOME: {raw!r}")
+                    welcome = WelcomeInfo(
+                        gateway_id=gw_id,
+                        gw_name=msg.fields["GW"],
+                        proto=msg.fields["PROTO"],
+                        heartbeat_interval=hbint,
+                        idle_timeout=idle,
+                        raw_fields=dict(msg.fields),
+                    )
+                    sock.settimeout(None)
+                    return cls(sock, reader, gw_id, welcome)
 
-                welcome = WelcomeInfo(
-                    gateway_id=gw_id,
-                    gw_name=msg.fields.get("GW", "alf-gwy"),
-                    proto=msg.fields.get("PROTO", "ALF1"),
-                    heartbeat_interval=hbint,
-                    idle_timeout=idle,
-                    raw_fields=dict(msg.fields),
-                )
-                return cls(sock, reader, gw_id, welcome)
+                if msg.msg_type == "ERR":
+                    code = msg.fields.get("CODE", "?")
+                    detail = msg.fields.get("DETAIL", raw)
+                    raise RuntimeError(f"Gateway refused connection [{code}]: {detail}")
 
-            if msg.msg_type == "ERR":
-                code = msg.fields.get("CODE", "?")
-                detail = msg.fields.get("DETAIL", raw)
-                sock.close()
-                raise RuntimeError(f"Gateway refused connection [{code}]: {detail}")
+                if msg.msg_type == "HB":
+                    continue
 
-            if msg.msg_type == "HB":
-                continue
-
+                raise RuntimeError(f"Unexpected message before WELCOME: {raw!r}")
+        except BaseException:
             sock.close()
-            raise RuntimeError(f"Unexpected message before WELCOME: {raw!r}")
-
-        sock.close()
-        raise RuntimeError("WELCOME not received within expected handshake window")
+            raise
 
     # ------------------------------------------------------------------
     # I/O
@@ -247,7 +263,8 @@ class AlfSession:
 
     def send(self, msg_type: str, fields: dict[str, str] | None = None) -> None:
         """Send one ALF line to the gateway."""
-        self._sock.sendall(build_alf_line(msg_type, fields).encode("utf-8"))
+        with self._send_lock:
+            self._sock.sendall(build_alf_line(msg_type, fields).encode("utf-8"))
 
     def send_raw(self, line: str) -> None:
         """Send a pre-built ALF line (without trailing '\\n') to the gateway.
@@ -256,7 +273,10 @@ class AlfSession:
         (e.g. a REPL forwarding a user-typed command) and don't need
         ``send()``'s dict-to-line building. Appends the trailing '\\n'.
         """
-        self._sock.sendall((line + "\n").encode("utf-8"))
+        if "\r" in line or "\n" in line:
+            raise AlfParseError("send_raw expects one line without CR/LF")
+        with self._send_lock:
+            self._sock.sendall((line + "\n").encode("utf-8"))
 
     def recv_msg(self) -> AlfMessage:
         """Receive and parse one ALF message from the gateway.
@@ -268,7 +288,11 @@ class AlfSession:
     def close(self) -> None:
         """Send EXIT and close the TCP connection."""
         try:
-            self._sock.sendall(b"EXIT\n")
+            self.send("EXIT")
+        except OSError:
+            pass
+        try:
+            self._sock.shutdown(socket.SHUT_RDWR)
         except OSError:
             pass
         try:

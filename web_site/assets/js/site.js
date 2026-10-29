@@ -235,6 +235,89 @@
     if (!reduce) setInterval(function () { if (!okL()) return; churn(); if (Math.random() > .35) trade(); render(); }, 650);
   }
 
+  /* ---------- Order-book debugger: the deep-dive chapter's worked example, frame by frame ---------- */
+  var obd = $("#obd");
+  if (obd) {
+    var OB = { a1: [10010, "ask"], a2: [10010, "ask"], a3: [10020, "ask"], b1: [10000, "bid"] }, OBK = { a1: 1, a2: 2, a3: 3 };
+    var MOD = "&lt;module&gt;", SW = [MOD, "process", "_match_limit", "_sweep"];
+    var Q0 = { a1: 300, a2: 200, a3: 500, b1: 400 }, L0 = { 10020: 500, 10010: 500, 10000: 400 };
+    /* each step lists only what differs from the previous one */
+    var STEPS = [
+      { inc: null, q: Q0, gone: [], dead: [], heap: [["a1", 1], ["a2", 1], ["a3", 1]], lvl: L0, hot: null, stack: [], line: null, loc: [], tr: 0,
+        cap: "The starting book: three asks and one bid. Every heap entry carries the key <code>(price, arrival_seq)</code> (bids store <code>−price</code>), so <code>heap[0]</code> is always the best price and, among equal prices, the oldest order." },
+      { inc: 400, stack: [MOD], line: ["book_lab.py", "trades, events = book.process(buy)"], loc: [["buy.side", "BUY"], ["buy.price_ticks", "10010"], ["buy.quantity", "400"]],
+        cap: "Breakpoint hit. A <code>BUY LIMIT 400 @ 100.10</code> from GW3 is about to enter the book. Its limit reaches the best ask, so it will trade. <i>Step Into</i>." },
+      { stack: [MOD, "process"], line: ["process", "self._match_limit(order, trades, events, now)"], loc: [["order.order_type", "LIMIT"], ["match", "True"], ["trades", "[]"]],
+        cap: "<code>process()</code> is the only way into the book. It picks the matcher for the order type; for LIMIT that is <code>_match_limit</code>, which sweeps the opposite side, the <code>_asks</code> heap, with <code>price_limit=10010</code>." },
+      { stack: SW, line: ["_sweep", "best = _peek(opposite_heap)"], hot: "a1", loc: [["aggressor.remaining_qty", "400"], ["best", "a1"], ["best_price", "10010"]],
+        cap: "<code>_sweep</code> asks <code>_peek</code> for the best live ask: <b>a1</b>. Its key <code>(10010, 1)</code> beats a2's <code>(10010, 2)</code> on the second element. Time priority is nothing more than <code>arrival_seq</code>." },
+      { line: ["_sweep", "fill_qty = min(aggressor.remaining_qty, _passive_avail)"], loc: [["aggressor.remaining_qty", "400"], ["_passive_avail", "300"], ["fill_qty", "300"]],
+        cap: "Price check: 100.10 is within the limit. Different gateways, so self-match prevention stays out of it. The fill is the smaller quantity: <code>min(400, 300) = 300</code>." },
+      { stack: SW.concat("_apply_fill"), line: ["_apply_fill", "trades.append(trade)"], inc: 100, q: { a1: 0, a2: 200, a3: 500, b1: 400 }, dead: ["a1"], lvl: { 10020: 500, 10010: 200, 10000: 400 }, tr: 1,
+        loc: [["trade", "300 @ 10010"], ["aggressor", "PARTIAL 100"], ["passive", "a1 FILLED"]],
+        cap: "<code>_apply_fill</code> is where every trade is born. It prints at the <b>resting</b> order's price, then reduces both orders and the level index: <code>_ask_qty[10010]</code> 500 → 200." },
+      { stack: SW.concat("_apply_fill", "_purge_from_indexes"), line: ["_purge_from_indexes", "entry.valid = False"], gone: ["a1"], dead: [], heap: [["a1", 0], ["a2", 1], ["a3", 1]], hot: null,
+        loc: [["order", "a1"], ["entry.valid", "False"], ["len(_asks)", "3"]],
+        cap: "a1 leaves through the single exit door, <code>_purge_from_indexes</code>. Its heap entry is not removed, only flagged <code>valid=False</code>. That is lazy deletion: O(1) now, cleaned up later." },
+      { stack: SW.concat("_peek"), line: ["_peek", "heapq.heappop(heap)"], heap: [["a2", 1], ["a3", 1]], hot: "a2", loc: [["popped", "a1 · valid=False"], ["returns", "a2"], ["len(_asks)", "2"]],
+        cap: "The next pass. <code>_peek</code> finds a dead entry on top, pops it, and returns <b>a2</b> without popping it. Garbage is thrown away only when it reaches the top of the heap." },
+      { stack: SW.concat("_apply_fill"), line: ["_apply_fill", "trades.append(trade)"], inc: 0, q: { a1: 0, a2: 100, a3: 500, b1: 400 }, lvl: { 10020: 500, 10010: 100, 10000: 400 }, tr: 2,
+        loc: [["fill_qty", "100"], ["aggressor", "FILLED 0"], ["passive", "a2 PARTIAL 100"]],
+        cap: "<code>min(100, 200) = 100</code>: a second trade, 100 @ 100.10, and the aggressor is FILLED. a2 keeps 100 and its place at the front of the queue. A partial fill never costs priority." },
+      { stack: [MOD, "process"], line: ["process", "if trades and self._has_stops and _cascade_stops:"], hot: null, loc: [["len(trades)", "2"], ["len(events)", "4"], ["_has_stops", "False"]],
+        cap: "<code>remaining_qty == 0</code> ends the loop, so <code>_match_limit</code> has nothing to <code>_rest</code>. No stops are armed, so there is no cascade. <code>process</code> returns <code>(trades, events)</code> to the engine." }
+    ];
+    for (var si = 1; si < STEPS.length; si++) for (var sk in STEPS[si - 1]) if (!(sk in STEPS[si])) STEPS[si][sk] = STEPS[si - 1][sk];
+    var TR = ["300", "100"], cur = 0, playing = !reduce, timer = null, okO = visible(obd, {});
+    var obPx = function (t) { return (t / 100).toFixed(2); };
+    function obdRender() {
+      var s = STEPS[cur], prev = STEPS[cur - 1] || s, h = "";
+      $("#obd-n").textContent = "step " + (cur + 1) + " / " + STEPS.length;
+      var inc = $("#obd-in");
+      inc.className = "obd-in" + (s.inc === null ? "" : " on");
+      inc.innerHTML = s.inc === null ? "<span>waiting for an incoming order…</span>"
+        : "<span><b>BUY</b> LIMIT 400 @ 100.10 · GW3</span><span>remaining <b>" + s.inc + "</b>" + (s.inc ? "" : " · FILLED") + "</span>";
+      [[10020, "ask"], [10010, "ask"], null, [10000, "bid"]].forEach(function (lv) {
+        if (!lv) { h += '<div class="obd-row mid"></div>'; return; }
+        var chips = Object.keys(OB).filter(function (id) { return OB[id][0] === lv[0] && s.gone.indexOf(id) < 0; }).map(function (id) {
+          var cls = s.dead.indexOf(id) > -1 ? " dead" : id === s.hot ? " hot" : "";
+          return '<span class="obd-o' + cls + '">' + id + " <i>" + s.q[id] + "</i></span>";
+        }).join("");
+        h += '<div class="obd-row ' + lv[1] + '"><span class="lq' + (s.lvl[lv[0]] !== prev.lvl[lv[0]] ? " chg" : "") + '">' + s.lvl[lv[0]] + '</span><span class="px">' + obPx(lv[0]) + '</span><div class="obd-q">' + chips + "</div></div>";
+      });
+      $("#obd-book").innerHTML = h;
+      $("#obd-heap").innerHTML = '<span class="k">_asks:</span> [' + s.heap.map(function (e) {
+        var cls = !e[1] ? " dead" : e[0] === s.hot ? " hot" : "";
+        return '<span class="e' + cls + '">((' + OB[e[0]][0] + ", " + OBK[e[0]] + "), " + e[0] + (e[1] ? "" : ", valid=False") + ")</span>";
+      }).join(", ") + ']<br><span class="k">_bids:</span> [<span class="e">((-10000, 4), b1)</span>]';
+      $("#obd-stack").innerHTML = s.stack.length ? s.stack.map(function (f, i) { return '<li class="' + (i === s.stack.length - 1 ? "top" : "") + '">' + f + "</li>"; }).reverse().join("") : '<li>(not running)</li>';
+      var pl = {}; prev.loc.forEach(function (kv) { pl[kv[0]] = kv[1]; });
+      $("#obd-loc").innerHTML = s.loc.map(function (kv) { return "<dt>" + kv[0] + '</dt><dd class="' + (kv[0] in pl && pl[kv[0]] !== kv[1] ? "chg" : "") + '">' + kv[1] + "</dd>"; }).join("");
+      $("#obd-line").innerHTML = s.line ? '<span class="fn">▶ ' + s.line[0] + "  </span>" + s.line[1] : '<span class="fn">▶ —</span>';
+      $("#obd-cap").innerHTML = s.cap;
+      $("#obd-tape").innerHTML = TR.slice(0, s.tr).reverse().map(function (q) { return '<div><span class="up">TRADE</span> ' + q + " @ 100.10</div>"; }).join("");
+    }
+    function obdGo(i) { cur = (i + STEPS.length) % STEPS.length; obdRender(); }
+    function obdTick() {
+      clearTimeout(timer);
+      if (!playing) return;
+      timer = setTimeout(function () { if (okO()) obdGo(cur + 1); obdTick(); }, cur === STEPS.length - 1 ? 7000 : 4200);
+    }
+    function obdPlay(on) {
+      playing = on;
+      var b = $("[data-act=play]", obd); b.textContent = on ? "❚❚" : "▶"; b.setAttribute("aria-label", on ? "Pause" : "Play");
+      obdTick();
+    }
+    $$(".obd-ctl button", obd).forEach(function (b) {
+      b.addEventListener("click", function () {
+        var a = b.getAttribute("data-act");
+        if (a === "play") { obdPlay(!playing); return; }
+        obdPlay(false); obdGo(cur + (a === "next" ? 1 : -1));
+      });
+    });
+    obdRender(); obdPlay(playing);
+  }
+
   /* ---------- Price discovery chart: price chases a hidden true value ---------- */
   var pd = $("#pdchart");
   if (pd) {

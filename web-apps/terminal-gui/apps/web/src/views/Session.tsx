@@ -233,7 +233,7 @@ function HaltRow({
       <td className="tabular">
         <span>
           {source ? <span className="mr-1 text-fg-subtle">{source}</span> : null}
-          {cb?.resumeAt ? resumeAt(cb.resumeAt) : "Manual"}
+          {cb?.resumeAt ? resumeAt(cb.resumeAt, timeZone) : "Manual"}
         </span>
       </td>
       <td className="tabular text-fg-subtle">

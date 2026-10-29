@@ -286,7 +286,7 @@ later TCP response belongs to.
 
 ## Exercise 5: Use the Python Interactive Client
 
-`alf_client.py` provides an `pm-alf-console`-style interactive session over
+`alf_client.py` provides a `pm-alf-console`-style interactive session over
 TCP, with tab-completion, background event display, and local P&L tracking.
 
 ```bash
@@ -308,11 +308,14 @@ At the prompt:
 
 Expected behavior:
 
-- `POS` shows accumulated positions tracked locally by the client
+- `POS` shows positions and realized P&L from fills seen by this connection;
+  `POS|GW=TRADER01` queries the engine's position snapshot
 - `STATUS` shows session info: gateway name, heartbeat interval, idle timeout
 - fills, `HB`, and broadcast `SESSION`/`TRADE` events appear in real time while you type other commands
 - Tab completes command verbs and field names
 - Command history is saved across sessions to `~/.alf_client_history`
+- Both interactive clients send keepalive `PING` automatically; `DC_FILL`
+  is displayed separately without counting its execution a second time
 
 Connect to a remote gateway:
 
@@ -346,20 +349,32 @@ line = build_alf_line("NEW", {
 })
 print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'
 
-# High-level session: connect, HELLO/WELCOME, send/recv
+# High-level session: connect, HELLO/WELCOME, consume a complete query
 session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")
-print(session.welcome.gw_name)   # alf-gwy01
-
-session.send("ORDERS")
-msg = session.recv_msg()         # header line of ORDERS response
-print(msg.msg_type, msg.fields)
-
-session.close()
+try:
+    print(session.welcome.gw_name)   # alf-gwy01
+    session.sock.settimeout(2.0)    # fail visibly if this short exercise stalls
+    session.send("ORDERS")
+    while True:
+        msg = session.recv_msg()
+        print(msg.msg_type, msg.fields)
+        if msg.msg_type == "END" and msg.fields.get("TYPE") == "ORDERS":
+            break
+finally:
+    session.close()
 EOF
 ```
 
 Expected output: `ACK`, the parsed `fields` dict, the built line string, the
-gateway name from `WELCOME`, and the `ORDERS` response header.
+gateway name from `WELCOME`, and the complete `ORDERS` response, possibly
+interleaved with heartbeats or broadcasts.
+
+This short exercise closes after one query. `AlfSession` validates the
+handshake and buffers TCP lines but does not start keepalives or reconnect.
+For a persistent application, copy `alf_parser.py` beside your program and
+use the [application integration walkthrough](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#use-alf-as-a-foundation-for-your-own-program),
+which includes periodic `PING`, a query deadline, error handling, and
+reconciliation responsibilities.
 
 :material-checkbox-blank-outline: Checkpoint: `AlfSession.connect` completes the HELLO/WELCOME handshake and `recv_msg` returns a parsed message.
 
@@ -541,7 +556,13 @@ Reference implementations used in this training chapter:
 - `docs/examples/alf/c/alf_client.c` — interactive C client using `select()` + readline
 
 Use these to bootstrap ALF clients in any language that can open a TCP socket
-and read newline-delimited text.
+and read newline-delimited text. The Python parser/session and C parser
+libraries do not need readline; only the interactive clients do. The C
+parser is not a session library: adapt the C client's transport and lifecycle
+code for a headless application, check parser/builder return codes, and review
+its fixed capacities. See the
+[reusable-client guide](../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#use-alf-as-a-foundation-for-your-own-program)
+for the integration checklist.
 
  
 

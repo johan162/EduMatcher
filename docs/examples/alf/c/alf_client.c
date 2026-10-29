@@ -32,6 +32,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <readline/history.h>
@@ -71,8 +72,8 @@ static int g_pongs_to_hide = 0;
  * Global state
  * -------------------------------------------------------------------------- */
 
-#define MAX_SYMBOLS    256
-#define MAX_POSITIONS   64
+#define MAX_SYMBOLS    512
+#define MAX_POSITIONS  512
 #define MAX_LINE_BUF  8192  /* receive buffer */
 
 static int  g_sockfd   = -1;
@@ -130,6 +131,24 @@ static const char *nowts(void)
     return buf;
 }
 
+static int positive_int(const char *text, int *out)
+{
+    if (!text || !*text) return 0;
+    char *end = NULL;
+    errno = 0;
+    long value = strtol(text, &end, 10);
+    if (errno || *end || value <= 0 || value > INT_MAX) return 0;
+    *out = (int)value;
+    return 1;
+}
+
+static double monotonic_seconds(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1000000000.0;
+}
+
 /* Case-insensitive substring search. strcasestr() is a GNU/BSD extension --
  * present under glibc's _GNU_SOURCE, but macOS's libc only exposes it under
  * _DARWIN_C_SOURCE, which the _POSIX_C_SOURCE define above suppresses. A
@@ -158,7 +177,7 @@ static void event_print(const char *fmt, ...)
     /* Save current readline state, print, redraw prompt. */
     char *saved = rl_copy_text(0, rl_end);
     rl_save_prompt();
-    rl_message("");
+    rl_message("%s", "");
     fprintf(stdout, "\r\033[K%s\n", msg);  /* CR + erase-line + event + newline */
     rl_restore_prompt();
     rl_replace_line(saved ? saved : "", 0);
@@ -171,9 +190,15 @@ static void event_print(const char *fmt, ...)
 static int gwy_send(const char *line)
 {
     size_t len = strlen(line);
-    if (write(g_sockfd, line, len) != (ssize_t)len) {
-        perror("write");
-        return -1;
+    size_t sent = 0;
+    while (sent < len) {
+        ssize_t n = write(g_sockfd, line + sent, len - sent);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) {
+            perror("write");
+            return -1;
+        }
+        sent += (size_t)n;
     }
     return 0;
 }
@@ -200,7 +225,10 @@ static Position *find_or_create_position(const char *symbol)
         if (strcmp(g_positions[i].symbol, symbol) == 0)
             return &g_positions[i];
     }
-    if (g_npositions >= MAX_POSITIONS) return NULL;
+    if (g_npositions >= MAX_POSITIONS) {
+        event_print("Position capacity exceeded; local POS is incomplete");
+        return NULL;
+    }
     Position *p = &g_positions[g_npositions++];
     snprintf(p->symbol, sizeof(p->symbol), "%s", symbol);
     p->net_qty     = 0;
@@ -235,7 +263,7 @@ static void update_position(const char *symbol, const char *side, int fill_qty, 
     } else if ((old_qty >= 0 && signed_qty > 0) || (old_qty <= 0 && signed_qty < 0)) {
         double total = p->avg_cost * (double)abs(old_qty) + fill_price * (double)abs(signed_qty);
         p->avg_cost  = total / (double)abs(new_qty);
-    } else if (abs(new_qty) > abs(old_qty)) {
+    } else if ((old_qty > 0 && new_qty < 0) || (old_qty < 0 && new_qty > 0)) {
         p->avg_cost = fill_price;
     }
 
@@ -259,7 +287,10 @@ static void cache_order(const char *id, const char *symbol, const char *side, co
 {
     OrderEntry *e = find_order(id);
     if (!e) {
-        if (g_norders >= MAX_ORDERS) return;
+        if (g_norders >= MAX_ORDERS) {
+            event_print("Order cache capacity exceeded; local STATUS is incomplete");
+            return;
+        }
         e = &g_orders[g_norders++];
         snprintf(e->id, sizeof(e->id), "%s", id);
     }
@@ -482,6 +513,23 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         return;
     }
 
+    if (strcmp(t, "DC_ACK") == 0) {
+        event_print("[%s] DC ACK  state=%s", ts,
+                    alf_get_field(msg, "STATE") ? alf_get_field(msg, "STATE") : "?");
+        return;
+    }
+
+    if (strcmp(t, "DC_FILL") == 0) {
+        event_print("[%s] DC FILL  %s  %s qty=%s @%s liquidity=%s seq=%s", ts,
+                    alf_get_field(msg, "ORDER_ID") ? alf_get_field(msg, "ORDER_ID") : "?",
+                    alf_get_field(msg, "SYMBOL") ? alf_get_field(msg, "SYMBOL") : "?",
+                    alf_get_field(msg, "FILL_QTY") ? alf_get_field(msg, "FILL_QTY") : "?",
+                    alf_get_field(msg, "FILL_PRICE") ? alf_get_field(msg, "FILL_PRICE") : "?",
+                    alf_get_field(msg, "LIQUIDITY") ? alf_get_field(msg, "LIQUIDITY") : "?",
+                    alf_get_field(msg, "SEQ") ? alf_get_field(msg, "SEQ") : "?");
+        return;
+    }
+
     if (strcmp(t, "SESSION") == 0) {
         const char *st   = alf_get_field(msg, "STATE");
         const char *prev = alf_get_field(msg, "PREV_STATE");
@@ -568,21 +616,26 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *tag  = alf_get_field(msg, "TAG");
         char id_text[ALF_MAX_VAL_LEN] = "?";
         if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
-        event_print("[%s] %sFILL%s     %s  qty=%s @%s  remaining=%s  [%s]%s%s",
+        const char *liquidity = alf_get_field(msg, "LIQUIDITY");
+        const char *trades = alf_get_field(msg, "TRADE_IDS");
+        event_print("[%s] %sFILL%s     %s  qty=%s @%s  remaining=%s  [%s]%s%s%s%s%s%s",
                     ts, COL_CYAN, COL_RESET,
                     id_text,
                     qty ? qty : "?",
                     px  ? px  : "?",
                     rem ? rem : "?",
                     st  ? st  : "?",
-                    tag ? " tag=" : "", tag ? tag : "");
+                    tag ? " tag=" : "", tag ? tag : "",
+                    liquidity ? " liquidity=" : "", liquidity ? liquidity : "",
+                    trades ? " trades=" : "", trades ? trades : "");
         /* Update position */
         if (oid && qty && px) {
             OrderEntry *e = find_order(oid);
-            const char *sym  = e ? e->symbol : alf_get_field(msg, "SYMBOL");
-            const char *side = e ? e->side   : alf_get_field(msg, "SIDE");
+            const char *sym  = e && *e->symbol ? e->symbol : alf_get_field(msg, "SYMBOL");
+            const char *side = e && *e->side ? e->side : alf_get_field(msg, "SIDE");
             if (sym && side && *sym && *side)
                 update_position(sym, side, atoi(qty), atof(px));
+            if (e && st) snprintf(e->status, sizeof(e->status), "%s", st);
         }
         return;
     }
@@ -625,6 +678,8 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *rtag = alf_get_field(msg, "RTAG");
         char id_text[ALF_MAX_VAL_LEN] = "?";
         if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
+        OrderEntry *order = oid ? find_order(oid) : NULL;
+        if (order) snprintf(order->status, sizeof(order->status), "CANCELLED");
         event_print("[%s] %sCANCELLED%s %s%s%s%s%s", ts, COL_YELLOW, COL_RESET, id_text,
                     tag ? " tag=" : "", tag ? tag : "",
                     rtag ? " rtag=" : "", rtag ? rtag : "");
@@ -636,6 +691,8 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         const char *tag = alf_get_field(msg, "TAG");
         char id_text[ALF_MAX_VAL_LEN] = "?";
         if (oid) snprintf(id_text, sizeof(id_text), "%s", oid);
+        OrderEntry *order = oid ? find_order(oid) : NULL;
+        if (order) snprintf(order->status, sizeof(order->status), "EXPIRED");
         event_print("[%s] %sEXPIRED%s  %s%s%s", ts, COL_DIM, COL_RESET, id_text,
                     tag ? " tag=" : "", tag ? tag : "");
         return;
@@ -739,20 +796,38 @@ static void handle_event(const alf_message_t *msg)  /* NOLINT(readability-functi
         return;
     }
 
-    /* Unknown — show raw type */
-    event_print("[%s] %s%s%s  (unhandled)", ts, COL_DIM, t, COL_RESET);
+    event_print("[%s] %s%s%s", ts, COL_DIM, t, COL_RESET);
+    for (int i = 0; i < msg->field_count; i++)
+        event_print("  %s=%s", msg->fields[i].key, msg->fields[i].value);
 }
 
 /* --------------------------------------------------------------------------
  * Gateway receive: read lines from socket, dispatch events
  * -------------------------------------------------------------------------- */
 
+static void collect_row(const alf_message_t *msg)
+{
+    if (g_collect_count >= MAX_COLLECT_ROWS) {
+        event_print("Query response exceeds %d rows; disconnecting instead of truncating",
+                    MAX_COLLECT_ROWS);
+        g_running = 0;
+        return;
+    }
+    g_collect_rows[g_collect_count++] = *msg;
+}
+
 static void process_socket_data(void)
 {
+    if (g_recvlen == (int)sizeof(g_recvbuf) - 1) {
+        event_print("Protocol error: receive line exceeds buffer capacity");
+        g_running = 0;
+        return;
+    }
     /* Read available bytes into the buffer */
     ssize_t n = read(g_sockfd,
                      g_recvbuf + g_recvlen,
                      (size_t)(sizeof(g_recvbuf) - g_recvlen - 1));
+    if (n < 0 && errno == EINTR) return;
     if (n <= 0) {
         event_print("%sGateway closed connection.%s", COL_RED, COL_RESET);
         g_running = 0;
@@ -767,22 +842,21 @@ static void process_socket_data(void)
     while ((nl = strchr(start, '\n')) != NULL) {
         *nl = '\0';
 
-        /* Bound-copy the line into a fixed buffer for alf_parse_line() (it
-         * tokenizes in place with strtok_r). g_recvbuf can hold more than
-         * ALF_MAX_LINE_LEN bytes between newlines if a peer sends an
-         * oversized line, so this copy is deliberately truncating -- do it
-         * with an explicit length rather than a "%s" snprintf so the
-         * compiler can see the bound statically instead of guessing from
-         * strlen() (-Wformat-truncation). */
+        /* Reject oversized lines rather than parsing a truncated message. */
         char line_copy[ALF_MAX_LINE_LEN];
         size_t seg_len = (size_t)(nl - start);
-        if (seg_len >= sizeof(line_copy))
-            seg_len = sizeof(line_copy) - 1;
+        if (seg_len >= sizeof(line_copy)) {
+            event_print("Protocol error: received line exceeds %zu bytes", sizeof(line_copy) - 1);
+            g_running = 0;
+            return;
+        }
         memcpy(line_copy, start, seg_len);
         line_copy[seg_len] = '\0';
 
         alf_message_t msg;
-        if (alf_parse_line(line_copy, &msg) != 0) {
+        int parse_rc = alf_parse_line(line_copy, &msg);
+        if (parse_rc != 0) {
+            event_print("Protocol error: cannot parse ALF line (code %d)", parse_rc);
             start = nl + 1;
             continue;
         }
@@ -790,20 +864,17 @@ static void process_socket_data(void)
         /* Multi-line accumulation */
         if (g_collecting != COL_NONE) {
             if (strcmp(msg.msg_type, "SYMBOL") == 0 && g_collecting == COL_SYMBOLS) {
-                if (g_collect_count < MAX_COLLECT_ROWS)
-                    g_collect_rows[g_collect_count++] = msg;
+                collect_row(&msg);
                 start = nl + 1;
                 continue;
             }
             if (strcmp(msg.msg_type, "ORDER") == 0 && g_collecting == COL_ORDERS) {
-                if (g_collect_count < MAX_COLLECT_ROWS)
-                    g_collect_rows[g_collect_count++] = msg;
+                collect_row(&msg);
                 start = nl + 1;
                 continue;
             }
             if (strcmp(msg.msg_type, "QUOTE") == 0 && g_collecting == COL_QBOOT) {
-                if (g_collect_count < MAX_COLLECT_ROWS)
-                    g_collect_rows[g_collect_count++] = msg;
+                collect_row(&msg);
                 start = nl + 1;
                 continue;
             }
@@ -812,18 +883,21 @@ static void process_socket_data(void)
                  strcmp(msg.msg_type, "RECENT_LEG") == 0 ||
                  strcmp(msg.msg_type, "RECENT_BID_LEG") == 0 ||
                  strcmp(msg.msg_type, "RECENT_ASK_LEG") == 0)) {
-                if (g_collect_count < MAX_COLLECT_ROWS)
-                    g_collect_rows[g_collect_count++] = msg;
+                collect_row(&msg);
                 start = nl + 1;
                 continue;
             }
             if (strcmp(msg.msg_type, "POS_ENTRY") == 0 && g_collecting == COL_POSITION) {
-                if (g_collect_count < MAX_COLLECT_ROWS)
-                    g_collect_rows[g_collect_count++] = msg;
+                collect_row(&msg);
                 start = nl + 1;
                 continue;
             }
-            if (strcmp(msg.msg_type, "END") == 0) {
+            const char *end_type = alf_get_field(&msg, "TYPE");
+            const char *expected = g_collecting == COL_SYMBOLS ? "SYMBOLS" :
+                                   g_collecting == COL_ORDERS ? "ORDERS" :
+                                   g_collecting == COL_QBOOT ? "QBOOT" :
+                                   g_collecting == COL_QLEGS ? "QLEGS" : "POSITION";
+            if (strcmp(msg.msg_type, "END") == 0 && end_type && strcmp(end_type, expected) == 0) {
                 flush_collected();
                 start = nl + 1;
                 continue;
@@ -884,7 +958,7 @@ static void process_socket_data(void)
 
 static const char *g_top_cmds[] = {
     "NEW", "AMEND", "CANCEL", "QUOTE", "QUOTE_CANCEL", "QBOOT", "QLEGS",
-    "KILL", "SYMBOLS", "ORDERS", "PING", "SESSION", "POS", "STATUS", "HELP", "EXIT",
+    "KILL", "DC", "SYMBOLS", "ORDERS", "PING", "SESSION", "POS", "STATUS", "HELP", "EXIT",
     "QUIT",
     NULL
 };
@@ -965,6 +1039,10 @@ static char *alf_completion_generator(const char *text, int state)
         else if (strcmp(key, "TIF") == 0)     vals = tif_vals;
         else if (strcmp(key, "SMP") == 0)     vals = smp_vals;
         else if (strcmp(key, "SHOW") == 0)    vals = show_vals;
+        else if (strcmp(key, "STATE") == 0 && strcmp(cmd, "DC") == 0) {
+            static const char *states[] = {"ON", "OFF", NULL};
+            vals = states;
+        }
         else if (strcmp(key, "COMBO_TYPE") == 0) {
             static const char *ct[] = {"AON", NULL};
             vals = ct;
@@ -992,6 +1070,8 @@ static char *alf_completion_generator(const char *text, int state)
                                           "ASK_QTY=", "TIF=", "QUOTE_ID=", NULL};
     static const char *sym_fields[]    = {"SYM=", NULL};
     static const char *qlegs_fields[]  = {"SYM=", "SHOW=", NULL};
+    static const char *pos_fields[]    = {"GW=", NULL};
+    static const char *dc_fields[]     = {"STATE=", NULL};
 
     const char **fields = NULL;
     if (strcmp(cmd, "NEW") == 0)          fields = new_fields;
@@ -999,6 +1079,8 @@ static char *alf_completion_generator(const char *text, int state)
     else if (strcmp(cmd, "CANCEL") == 0)  fields = cancel_fields;
     else if (strcmp(cmd, "QUOTE") == 0)   fields = quote_fields;
     else if (strcmp(cmd, "QLEGS") == 0)   fields = qlegs_fields;
+    else if (strcmp(cmd, "POS") == 0)     fields = pos_fields;
+    else if (strcmp(cmd, "DC") == 0)      fields = dc_fields;
     else if (strcmp(cmd, "QUOTE_CANCEL") == 0 ||
              strcmp(cmd, "QBOOT") == 0 ||
              strcmp(cmd, "KILL") == 0)    fields = sym_fields;
@@ -1084,6 +1166,7 @@ static void cmd_help(void)
     puts("  QUOTE|SYM=<s>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=...|QUOTE_ID=...]");
     puts("  QUOTE_CANCEL|SYM=<s>");
     puts("  KILL[|SYM=<s>]    SYMBOLS    ORDERS    QBOOT[|SYM=<s>]");
+    puts("  DC|STATE=ON|OFF              Toggle this gateway's drop-copy relay");
     puts("  QLEGS[|SYM=<s>][|SHOW=ACTIVE|RECENT|ALL]   Quote leg detail (engine round trip)");
     puts("  PING    SESSION    POS    POS|GW=<gateway_id>    STATUS    HELP    EXIT / QUIT\n");
 }
@@ -1112,6 +1195,11 @@ static void line_handler(char *line)
         t[--tlen] = '\0';
 
     if (!*t) { free(line); return; }
+    if (strlen(line) + 2 > sizeof(trimmed)) {
+        fprintf(stderr, "Command exceeds %zu bytes; not sent\n", sizeof(trimmed) - 2);
+        free(line);
+        return;
+    }
 
     add_history(t);
 
@@ -1183,7 +1271,7 @@ static int connect_gateway(const char *host, int port)
 
 static int do_handshake(int fd, const char *gateway_id, const char *client_name)
 {
-    (void)fd; /* fd is accessed via g_sockfd */
+    double deadline = monotonic_seconds() + 5.0;
     const char *hello_kv[] = {
         "CLIENT", client_name,
         "PROTO",  "ALF1",
@@ -1199,10 +1287,35 @@ static int do_handshake(int fd, const char *gateway_id, const char *client_name)
         char line[ALF_MAX_LINE_LEN];
         int n = 0;
         for (;;) {
+            double remaining = deadline - monotonic_seconds();
+            if (remaining <= 0) {
+                fprintf(stderr, "WELCOME handshake timed out\n");
+                return -1;
+            }
+            struct timeval timeout = {(time_t)remaining,
+                (suseconds_t)((remaining - (time_t)remaining) * 1000000)};
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(fd, &rfds);
+            int ready = select(fd + 1, &rfds, NULL, NULL, &timeout);
+            if (ready < 0 && errno == EINTR) continue;
+            if (ready <= 0) {
+                fprintf(stderr, "WELCOME handshake timed out or select failed\n");
+                return -1;
+            }
             char c;
-            if (read(fd, &c, 1) <= 0) return -1;
+            ssize_t received = read(fd, &c, 1);
+            if (received < 0 && errno == EINTR) continue;
+            if (received <= 0) {
+                fprintf(stderr, "Connection closed or timed out before WELCOME\n");
+                return -1;
+            }
             if (c == '\n') break;
-            if (n + 1 < (int)sizeof(line)) line[n++] = c;
+            if (n + 1 >= (int)sizeof(line)) {
+                fprintf(stderr, "Protocol error: oversized handshake line\n");
+                return -1;
+            }
+            line[n++] = c;
         }
         line[n] = '\0';
 
@@ -1217,7 +1330,15 @@ static int do_handshake(int fd, const char *gateway_id, const char *client_name)
             const char *gw   = alf_get_field(&msg, "GW");
             const char *hb   = alf_get_field(&msg, "HBINT");
             const char *idle = alf_get_field(&msg, "IDLE");
-            if (idle && atoi(idle) > 0) g_idle_sec = atoi(idle);
+            const char *proto = alf_get_field(&msg, "PROTO");
+            const char *id = alf_get_field(&msg, "ID");
+            int hb_sec, idle_sec;
+            if (!proto || strcmp(proto, "ALF1") != 0 || !id || strcmp(id, gateway_id) != 0 ||
+                !gw || !positive_int(hb, &hb_sec) || !positive_int(idle, &idle_sec)) {
+                fprintf(stderr, "Protocol error: invalid WELCOME\n");
+                return -1;
+            }
+            g_idle_sec = idle_sec;
             printf("%sGateway %s connected.%s  gw=%s  hb=%ss  idle=%ss\n",
                    COL_GREEN, gateway_id, COL_RESET,
                    gw   ? gw   : "alf-gwy",
@@ -1279,6 +1400,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: alf_client [--host H] [--port P] --id GW_ID [--client NAME]\n");
         return 1;
     }
+    if (port <= 0 || port > 65535) {
+        fprintf(stderr, "Port must be in 1-65535\n");
+        return 1;
+    }
 
     /* Uppercase the gateway ID */
     char gw_upper[64];
@@ -1288,6 +1413,7 @@ int main(int argc, char **argv)
     snprintf(g_prompt, sizeof(g_prompt), "[%s]> ", g_gateway_id);
 
     /* Connect */
+    signal(SIGPIPE, SIG_IGN);
     printf("Connecting to %s:%d as %s …\n", host, port, g_gateway_id);
     g_sockfd = connect_gateway(host, port);
     if (g_sockfd < 0) return 1;
@@ -1312,6 +1438,7 @@ int main(int argc, char **argv)
 
     /* Readline setup */
     rl_attempted_completion_function = alf_completion;
+    rl_basic_word_break_characters = "|";
     rl_callback_handler_install(g_prompt, line_handler);
 
     signal(SIGINT,  on_sigint);
@@ -1319,7 +1446,7 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
 
     /* Event loop */
-    time_t last_keepalive = time(NULL);
+    double last_keepalive = monotonic_seconds();
     int maxfd = (g_sockfd > STDIN_FILENO) ? g_sockfd : STDIN_FILENO;
     while (g_running) {
         fd_set rfds;
@@ -1333,13 +1460,13 @@ int main(int argc, char **argv)
             if (errno == EINTR) continue;
             break;
         }
-        int keepalive_sec = g_idle_sec / 3 > 0 ? g_idle_sec / 3 : 1;
-        if (time(NULL) - last_keepalive >= keepalive_sec) {
-            last_keepalive = time(NULL);
+        double keepalive_sec = g_idle_sec / 3.0;
+        if (monotonic_seconds() - last_keepalive >= keepalive_sec) {
+            last_keepalive = monotonic_seconds();
             if (debug_log)
                 fprintf(stderr, "keepalive PING sent gateway_id=%s\n", g_gateway_id);
             g_pongs_to_hide++;
-            gwy_send("PING\n");
+            if (gwy_send("PING\n") < 0) break;
         }
         if (FD_ISSET(g_sockfd, &rfds))
             process_socket_data();

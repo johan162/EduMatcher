@@ -33,16 +33,15 @@ typedef struct {
 
 /* alf_parse_line -- parse one mutable line (without trailing '\n').
  *
- * Modifies `line` in-place (strtok_r).  Returns 0 on success.
+ * Modifies `line` in-place. Returns 0 on success.
  * Negative return codes:
  *   -1  null argument
  *   -2  empty or pipe-only line
  *   -3  invalid message type characters
  *   -4  too many fields (> ALF_MAX_FIELDS)
- *   -5  field segment has no '='
+ *   -6  message type, key or value exceeds the fixed storage capacity
  *
- * On -5 the segment is silently skipped and parsing continues;
- * the function still returns 0 when that is the only issue.
+ * Segments without '=' are silently skipped.
  */
 int alf_parse_line(char *line, alf_message_t *out_msg);
 
@@ -60,7 +59,9 @@ const char *alf_get_field(const alf_message_t *msg, const char *key);
  *   → "NEW|SYM=AAPL|SIDE=BUY\n"
  *
  * Pass kv=NULL or an array with only NULL for a bare-verb line.
- * Returns the number of bytes written (including '\n'), or -1 on overflow.
+ * Replaces CR/LF in values with spaces. Rejects delimiters in keys/values.
+ * Returns the number of bytes written (including '\n'), or -1 on invalid
+ * arguments or overflow.
  */
 int alf_build_line(char *out, size_t cap,
                    const char *msg_type,

@@ -4,7 +4,7 @@ import { useWsEvent } from "@/hooks/useWsEvent.js";
 import { useOrderHistoryQuery } from "@/queries/index.js";
 import { useOrderStore } from "@/store/useOrderStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
-import { formatPrice } from "@/lib/formatters.js";
+import { formatClock, formatPrice, formatSessionDate } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { StatusPill } from "./StatusPill.js";
 import type { OrderHistoryEvent } from "@/types/index.js";
@@ -34,8 +34,7 @@ const EVENT_COLOR: Record<string, string> = {
 function timeLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  return formatClock(d, true);
 }
 
 /**
@@ -173,15 +172,9 @@ export function OrderDetailDrawer({ orderId, onClose }: OrderDetailDrawerProps) 
     truncated && retainedFrom
       ? (() => {
           const d = new Date(retainedFrom);
-          const p = (n: number) => String(n).padStart(2, "0");
-          const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-          const time = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-          const today = new Date();
-          const isToday =
-            d.getFullYear() === today.getFullYear() &&
-            d.getMonth() === today.getMonth() &&
-            d.getDate() === today.getDate();
-          return isToday ? time : `${day} ${time}`;
+          const day = formatSessionDate(d);
+          const time = formatClock(d);
+          return day === formatSessionDate(new Date()) ? time : `${day} ${time}`;
         })()
       : null;
 
