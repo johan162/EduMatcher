@@ -228,7 +228,7 @@ class CircuitBreakerLevel:
 
     name: str
     price_shift_pct: float  # unit: percent
-    halt_duration_ns: int  # unit: duration_nanos
+    halt_duration_ns: int | None  # unit: duration_nanos
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -245,10 +245,11 @@ class CircuitBreakerLevel:
             raise MessageValidationError(
                 f"price_shift_pct: {self.price_shift_pct!r} must be > 0"
             )
-        if self.halt_duration_ns < 0:
-            raise MessageValidationError(
-                f"halt_duration_ns: {self.halt_duration_ns!r} must be >= 0"
-            )
+        if self.halt_duration_ns is not None:
+            if self.halt_duration_ns < 0:
+                raise MessageValidationError(
+                    f"halt_duration_ns: {self.halt_duration_ns!r} must be >= 0"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "CircuitBreakerLevel":
@@ -261,7 +262,11 @@ class CircuitBreakerLevel:
         return cls(
             name=str(p["name"]),
             price_shift_pct=float(p["price_shift_pct"]),
-            halt_duration_ns=int(p["halt_duration_ns"]),
+            halt_duration_ns=(
+                None
+                if p.get("halt_duration_ns") is None
+                else int(p["halt_duration_ns"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:

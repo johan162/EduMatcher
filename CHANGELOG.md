@@ -1,3 +1,13 @@
+## [v0.65.1] - 2026-10-29
+
+Release Type: patch
+
+### 📋 Summary
+This release fixes a broken `pm-trader` login.
+
+### 🐛 Bug Fixes
+- In v0.65.0 it was not possible to login to `pm-trader` GUI due to a stricter type check on CB values. 
+
 ## [v0.65.0] - 2026-10-29
 
 Release Type: major

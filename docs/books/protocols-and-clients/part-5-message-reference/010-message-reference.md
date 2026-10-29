@@ -3719,7 +3719,7 @@ One rung of a symbol's circuit-breaker ladder, as configured. `name` is the stri
 |---|---|---|---|---|
 | `name` | `string` | required | max_len 32 |  |
 | `price_shift_pct` | `float` | required | gt 0, unit `percent` |  |
-| `halt_duration_ns` | `int` | required | ge 0, unit `duration_nanos` | How long a halt at this rung lasts. A duration, not an instant -- the distinction `epoch_nanos` could not make, and the reason the unit registry gained `duration_nanos` in this phase. See design section 28.7. |
+| `halt_duration_ns` | `int` | required | ge 0, unit `duration_nanos` | How long a halt at this rung lasts; null for a rung that halts for the rest of the day. A duration, not an instant -- the distinction `epoch_nanos` could not make, and the reason the unit registry gained `duration_nanos` in this phase. See design section 28.7. |
 
 #### `SymbolCircuitBreaker`
 

@@ -190,9 +190,11 @@ types:
       - name: halt_duration_ns
         type: int
         unit: duration_nanos
+        nullable: true
         validate: { ge: 0 }
         doc: >
-          How long a halt at this rung lasts. A duration, not an instant --
+          How long a halt at this rung lasts; null for a rung that halts for
+          the rest of the day. A duration, not an instant --
           the distinction `epoch_nanos` could not make, and the reason the
           unit registry gained `duration_nanos` in this phase. See design
           section 28.7.
