@@ -20792,7 +20792,7 @@ wire-format specification in the
 <td><code>int</code></td>
 <td>required</td>
 <td>ge 0, unit <code>duration_nanos</code></td>
-<td>How long a halt at this rung lasts. A duration, not an instant -- the distinction <code>epoch_nanos</code> could not make, and the reason the unit registry gained <code>duration_nanos</code> in this phase. See design section 28.7.</td>
+<td>How long a halt at this rung lasts; null for a rung that halts for the rest of the day. A duration, not an instant -- the distinction <code>epoch_nanos</code> could not make, and the reason the unit registry gained <code>duration_nanos</code> in this phase. See design section 28.7.</td>
 </tr>
 </tbody>
 </table>
