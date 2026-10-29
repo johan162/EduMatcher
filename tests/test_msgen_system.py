@@ -164,6 +164,28 @@ class TestTheReferenceBundleHasOneShape:
         assert "config_version" in payload
         assert payload["config_version"] is None
 
+    def test_a_rest_of_day_breaker_level_is_carried_with_a_null_halt_duration(
+        self,
+    ) -> None:
+        """A level with no halt duration halts for the rest of the day.
+
+        The field was required, so the engine raised on building the bundle for
+        any config with such a level, no reference reply was ever sent, and the
+        gateways' login (bootstrap) timed out as "engine did not answer".
+        """
+        levels = [
+            {"name": "L1", "price_shift_pct": 5.0, "halt_duration_ns": 300},
+            {"name": "L3", "price_shift_pct": 20.0, "halt_duration_ns": None},
+        ]
+        symbol = {
+            "symbol": "AAPL",
+            "tick_decimals": 2,
+            "circuit_breaker": {"reference_window_ns": 1, "levels": levels},
+        }
+        payload = _payload(M.make_reference_msg(**_reference(symbols=[symbol])))
+        sent = payload["symbols"][0]["circuit_breaker"]["levels"]
+        assert [lvl["halt_duration_ns"] for lvl in sent] == [300, None]
+
     def test_symbols_is_a_list_of_records_not_a_map(self) -> None:
         payload = _payload(M.make_reference_msg(**_reference()))
         assert isinstance(payload["symbols"], list)
