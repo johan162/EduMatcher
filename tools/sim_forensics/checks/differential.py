@@ -61,6 +61,7 @@ from sim_forensics.checks.rerun import (
     apply,
     fresh_engine,
     inputs,
+    live_clock,
 )
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
@@ -201,6 +202,7 @@ class _Run:
             mock.patch.object(
                 engine_main, "validate_collar", _collar_in_original_prices
             ),
+            live_clock(files) as clock,
         ):
             self.tmp = Path(tmp)
             empty = self.tmp / "empty"
@@ -211,9 +213,10 @@ class _Run:
             self.e5 = _Isolation(self, empty)
             self.e6 = _Recovery(self)
             self.e7 = _Metamorphic(self, empty)
-            for topic, chain, payload, _live, ts in inputs(files):
+            for topic, chain, payload, live, ts in inputs(files):
                 if topic is None or topic == "startup" or topic.startswith("book."):
                     continue
+                clock.follow(live)
                 self.n += 1
                 self.where.learn(payload)
                 apply(self.ref.engine, topic, payload)

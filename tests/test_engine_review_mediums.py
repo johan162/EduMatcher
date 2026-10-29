@@ -422,17 +422,21 @@ class TestM9MonotonicEngineClock:
     def test_engine_timestamps_never_regress_when_wall_clock_does(
         self, monkeypatch, tmp_path
     ) -> None:
-        """clock.now_ns() guarantees strict monotonicity; the hot path
-        deliberately bypasses it with raw time.time_ns (main.py PERF note).
-        If the wall clock steps backwards (NTP), matching timestamps regress.
+        """clock.now_ns() guarantees strict monotonicity. If the wall clock
+        steps backwards (NTP), matching timestamps must not regress with it.
         """
+        import types
+
+        import edumatcher.models.clock as clock
+
         engine, pub = make_engine(monkeypatch, tmp_path)
         connect(engine)
 
         # Wall clock that jumps back one second between the two orders.
-        base = 1_800_000_000_000_000_000
-        ticks = iter([base, base - 1_000_000_000])
-        monkeypatch.setattr("edumatcher.engine.main._time_ns", lambda: next(ticks))
+        wall = types.SimpleNamespace(ns=1_800_000_000_000_000_000)
+        monkeypatch.setattr(
+            clock, "time", types.SimpleNamespace(time_ns=lambda: wall.ns)
+        )
 
         seen: list[int] = []
         orig = OrderBook.process
@@ -447,6 +451,7 @@ class TestM9MonotonicEngineClock:
         engine._handle_new_order(
             order_payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=99.0)
         )
+        wall.ns -= 1_000_000_000
         engine._handle_new_order(
             order_payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=98.0)
         )

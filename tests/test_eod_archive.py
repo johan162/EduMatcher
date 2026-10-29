@@ -51,14 +51,15 @@ def _checkpoint(ts: str, reason: str, phase: str, orders: list[tuple[str, int]])
     )
 
 
-def g3(open_ds: OpenDataset, tmp_path: Path, archived: list[tuple[str, int]], close: list[tuple[str, int]], start: list[tuple[str, int]], extra: str = "") -> Outcome:  # fmt: skip
+def g3(open_ds: OpenDataset, tmp_path: Path, archived: list[tuple[str, int]], close: list[tuple[str, int]], start: list[tuple[str, int]], extra: str = "", before: str = "") -> Outcome:  # fmt: skip
     data = tmp_path / "data"
     (data / "eod" / "2026-10-28").mkdir(parents=True)
     (data / "eod" / "2026-10-28" / "gtc_orders.json").write_text(
         json.dumps([{"id": oid, "remaining_qty": left} for oid, left in archived])
     )
     (data / "audit.log").write_text(
-        _checkpoint("2026-10-28T15:30:00.000+00:00", "PHASE", "CLOSED", close)
+        before
+        + _checkpoint("2026-10-28T15:30:00.000+00:00", "PHASE", "CLOSED", close)
         + extra
         + _checkpoint("2026-10-29T07:00:00.000+00:00", "STARTUP", "CLOSED", start)
     )
@@ -87,3 +88,13 @@ def test_g3_finds_a_book_that_changed_overnight(
     out = g3(open_ds, tmp_path, [("G1", 5)], close, start)
     (sample,) = out.samples
     assert sample["against"] == against
+
+
+def test_g3_takes_the_close_not_a_start_before_the_open(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """2026-10-29 run: the engine started that morning in CLOSED, and G3
+    compared the archive with that start's (empty) book."""
+    out = g3(open_ds, tmp_path, [("G1", 5)], [("G1", 5)], [("G1", 5)],
+             before=_checkpoint("2026-10-28T07:00:00.000+00:00", "STARTUP", "CLOSED", []))  # fmt: skip
+    assert out.violations == 0, out.samples

@@ -234,6 +234,12 @@ Collars apply to **LIMIT and ICEBERG** orders (any order that carries an
 explicit price).  MARKET orders do not carry a price and are therefore not
 subject to collar validation.
 
+The check covers every way a priced order enters: a new order, an amend's
+new price, and each leg of an OCO or combo. A leg outside the collar rejects
+the whole OCO (`oco.ack`) or combo (`combo.ack`), with the reason prefixed
+`Leg <n>:`, and no leg reaches the book. A market maker's two-sided quote,
+and combos seeded from `market_maker_combos`, are not collared.
+
 ### Configuration
 
 Add a `collar` sub-section to any symbol in `engine_config.yaml`:

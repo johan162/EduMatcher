@@ -17,6 +17,7 @@ from unittest import mock
 import pytest
 
 import edumatcher.engine.main as engine_main
+from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.config_deploy import deploy, resolve_example
 from edumatcher.models.message import decode
 from edumatcher.models.order import OrderType, Side
@@ -24,6 +25,15 @@ from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
 from tests.engine_harness import order_payload
 from tests.sim_forensics_world import OpenDataset, opener
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
+from sim_forensics.audit import audit_files, run_config_text  # noqa: E402
+from sim_forensics.checks.rerun import (  # noqa: E402
+    BREAKER_TIMER,
+    _Sink,
+    apply,
+    fresh_engine,
+    inputs,
+    live_clock,
+)
 from sim_forensics.registry import REGISTRY, run_checks  # noqa: E402
 
 E = ["E1", "E2", "E4"]
@@ -244,6 +254,56 @@ def test_e4_finds_a_persisted_book_the_rerun_does_not_end_with(
     assert [(s["persisted"], s["rerun"]) for s in out.samples] == [
         (orders[0]["remaining_qty"], orders[0]["remaining_qty"] - 1)
     ]
+
+
+def test_the_rerun_engine_trades_on_the_live_clock(tmp_path: Path) -> None:
+    """The breaker's reference window counts trades by their ts_ns: a re-run
+    on its own clock (hours in minutes) halted where the live run did not
+    (2026-10-29 run: 24 halts)."""
+    data = record(tmp_path / "data")
+    files = audit_files(data)
+    config = decode_artifact(run_config_text(files)).engine
+    live_ts: list[int] = []
+    rerun_ts: list[int] = []
+    reset_trade_ids_for_tests()
+    set_run_seq(1)
+    sink = _Sink()
+    with live_clock(files) as clock:
+        engine = fresh_engine(config, sink, tmp_path / "empty")
+        sink.take()
+        for topic, _chain, payload, live, _ts in inputs(files):
+            if topic is None or topic == "startup" or topic.startswith("book."):
+                continue
+            clock.follow(live)
+            apply(engine, topic, payload)
+            live_ts += [p["ts_ns"] for t, p in live if t == "trade.executed"]
+            rerun_ts += [p["ts_ns"] for t, p in sink.take() if t == "trade.executed"]
+    assert live_ts and rerun_ts == live_ts
+
+
+def test_a_breaker_timer_fires_only_its_own_symbol() -> None:
+    """On the live clock another halted symbol may be due too (2026-10-29
+    run: 6); the live engine reopened each by its own timer input."""
+    from edumatcher.engine.circuit_breaker import (
+        CircuitBreakerConfig,
+        CircuitBreakerState,
+    )
+
+    class _Engine:
+        def __init__(self) -> None:
+            self._circuit_breakers = {
+                s: CircuitBreakerState(s, CircuitBreakerConfig(s), halted=True, resume_at_ns=5)  # fmt: skip
+                for s in ("AAPL", "MSFT")
+            }
+            self.fired: list[str] = []
+
+        def _flush_circuit_breakers(self) -> None:
+            self.fired = [s for s, cb in self._circuit_breakers.items() if cb.should_resume(10)]  # fmt: skip
+
+    engine = _Engine()
+    apply(engine, BREAKER_TIMER, {"symbol": "AAPL"})  # type: ignore[arg-type]
+    assert engine.fired == ["AAPL"]
+    assert engine._circuit_breakers["MSFT"].resume_at_ns == 5
 
 
 def test_the_e_checks_skip_without_the_engine_start(

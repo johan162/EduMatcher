@@ -183,7 +183,9 @@ def eod_archive_continues(ds: Dataset) -> Outcome:
             str(o["id"]): int(o["remaining_qty"])
             for o in json.loads((root / day / "gtc_orders.json").read_text())
         }
-        close = next((i for i, r in enumerate(rounds) if r[0] == day and r[2] == "CLOSED"), None)  # fmt: skip
+        # The close is the transition to CLOSED, not an engine start that
+        # found the market closed (a STARTUP round before the open).
+        close = next((i for i, r in enumerate(rounds) if r[0] == day and r[1:3] == ("PHASE", "CLOSED")), None)  # fmt: skip
         if close is None:
             continue  # the audit does not hold that close
         checked += 1

@@ -13,8 +13,12 @@ Lifecycle per order (events: ACK, REJECT, FILL, AMEND, CANCEL, EXPIRE)::
     LIVE --FILL(remaining=0)--> FILLED
     LIVE --CANCEL--> CANCELLED,  LIVE --EXPIRE--> EXPIRED
 
-A REJECT after a terminal state is the rejection of a later command (cancel
-or amend of an order already done) and leaves the order as it was. Quote legs
+A REJECT after the order's first event is the rejection of a later command
+(a cancel or amend refused, or aimed at an order already done) and leaves the
+order as it was: the engine answers an order with one ack, and pm-stats files
+a refused request's ``order.ack accepted=false`` under the order's id too,
+with nothing to tell the two apart. C9 finds an order rejected after its
+accepting ack (X5) in the audit, where the two can be told apart. Quote legs
 are acknowledged per quote (QUOTE_ACK), not per order, so on a quoting
 gateway an order may start with FILL or CANCEL.
 """
@@ -193,9 +197,8 @@ def _step(
         else:
             c1("second ACK")
     elif et == "REJECT":
-        if o.state == "LIVE":
-            c1("rejected after it was accepted")
-        o.state = "REJECTED"
+        if o.state is None:
+            o.state = "REJECTED"
     elif et == "FILL":
         _fill(scan, oid, o, qty, remaining, status, fill_qty)
     elif et == "AMEND":

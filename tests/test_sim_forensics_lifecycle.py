@@ -84,14 +84,16 @@ def test_every_c_check_passes_on_a_consistent_run(
 # --- C1 / C2: the sequence ---------------------------------------------------
 
 
-def test_c1_finds_an_order_rejected_after_it_was_accepted(
+def test_a_refused_amend_of_a_live_order_leaves_it_live(
     world: Path, open_ds: OpenDataset
 ) -> None:
-    """The FOK pattern of finding X5: ACK accepted=true, then accepted=false."""
-    event(world, "REJECT", "O9", "GW3", reason="Insufficient liquidity")
-    out = run(open_ds, world, "C1")
-    assert errors(out) == [("O9", "rejected after it was accepted")]
-    assert out.samples[0]["events"] == "ACK REJECT"
+    """pm-stats files the refusal of an amend under the order's id as a
+    REJECT (2026-10-29 run: 35 such); the order lives on and is cancelled
+    later. C9 finds the X5 pattern (an order rejected after its ack)."""
+    event(world, "REJECT", "O9", "GW3", reject_code="COLLAR_BREACH")
+    event(world, "CANCEL", "O9", "GW3")
+    assert run(open_ds, world, "C1").violations == 0
+    assert run(open_ds, world, "C2").violations == 0
 
 
 def test_c1_finds_a_second_ack(world: Path, open_ds: OpenDataset) -> None:

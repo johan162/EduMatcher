@@ -292,10 +292,6 @@ from edumatcher.models.generated.system import (
     TOPIC_VOLUME_REQUEST,
 )
 
-# Kept for backward compatibility (e.g. tests that reference it).  The hot path
-# uses the monotonic now_ns() for event timestamps (M9), not this raw source.
-_time_ns = time.time_ns
-
 # L2: operational logging goes through the logging module (not print()).  The
 # process entry point (main()) configures the handler/level; the library itself
 # installs no handlers.
@@ -5131,8 +5127,9 @@ class Engine:
     # Note the limited meaning of "all-or-none" (AON): it is a guard at ENTRY
     # only.  If every leg could fill completely right now, the legs are
     # matched; if any leg could not, NO leg is matched on entry and all rest
-    # as interest.  It is not a guarantee that the legs execute atomically
-    # later on.
+    # as interest -- unless a leg would trade now, which rejects the combo
+    # (X28).  It is not a guarantee that the legs execute atomically later
+    # on.
     # ------------------------------------------------------------------
 
     def _validate_combo(self, combo: ComboOrder) -> str:
@@ -5140,7 +5137,8 @@ class Engine:
 
         Structural checks only: 2-10 legs, one leg per symbol, configured
         symbols, positive quantities, a price where the order type needs one.
-        (Per-leg collar/limit checks that a single order gets are not applied.)
+        (A live combo's legs are collared in ``_handle_combo_order``; the
+        order limits a single order gets are not applied.)
         """
         if len(combo.legs) < 2:
             return "Combo requires at least 2 legs"
@@ -5179,7 +5177,8 @@ class Engine:
 
         1. validate the combo; reject with ``combo.ack(accepted=False)``;
         2. ACK the combo and register the parent in ``_combos``;
-        3. for AON, pre-check that every leg is fully fillable;
+        3. for AON, pre-check that every leg is fully fillable (if not, and
+           a leg would trade now, the combo fails at its first leg, X28);
         4. for each leg: create the child Order, ACK it, run it through
            ``book.process``, publish the result.  A leg that dies on entry
            fails the combo and stops further legs from being posted.
@@ -5209,12 +5208,25 @@ class Engine:
         # fully fill simultaneously.  Pre-check each leg's fillability; if any
         # leg is short, post all legs without matching (they rest as pending
         # interest) so no partial, non-atomic execution occurs.
-        aon_blocked = False
+        # X28: a blocked combo with a leg that would trade now is rejected
+        # instead (its first leg, INSUFFICIENT_LIQUIDITY, so the combo fails
+        # with nothing posted): resting that leg unmatched would leave its
+        # book crossed in continuous trading. A seeded combo rests regardless.
+        aon_blocked = aon_rejected = False
         if combo.combo_type == ComboType.AON:
-            aon_blocked = not all(
+            fillable = [
                 self._book(leg.symbol).fillable_quantity(leg.side, leg.price_ticks)
-                >= leg.quantity
                 for leg in combo.legs
+            ]
+            aon_blocked = any(f < leg.quantity for f, leg in zip(fillable, combo.legs))
+            aon_rejected = (
+                aon_blocked
+                and not is_seed
+                and is_matching_enabled(self._session_state)
+                and any(
+                    f > 0 and not self._halted_symbols.get(leg.symbol)
+                    for f, leg in zip(fillable, combo.legs)
+                )
             )
 
         # Create child orders and post to books, one leg at a time, in order.
@@ -5274,6 +5286,10 @@ class Engine:
                 and not self._halted_symbols.get(leg.symbol)
                 and not aon_blocked
             )
+            if aon_rejected:
+                child.status = OrderStatus.REJECTED
+                self._publish_dispatch([], [child])
+                break
             ack = self._order_ack(
                 combo.gateway_id,
                 child.id,
@@ -5315,7 +5331,30 @@ class Engine:
                 )
             )
             return
+        for i, leg in enumerate(combo.legs):
+            breach = self._collar_breach(leg.symbol, leg.price_ticks)
+            if breach:
+                self.pub_sock.send_multipart(
+                    self._combo_ack(
+                        combo.gateway_id, combo.combo_id, False, f"Leg {i}: {breach}"
+                    )
+                )
+                return
         self._accept_combo(combo, publish_ack=True)
+
+    def _collar_breach(self, symbol: str, price_ticks: int | None) -> str:
+        """Why the collar refuses *price_ticks* on *symbol*, or "" -- gate 8
+        of ``_handle_new_order``, for an OCO or combo leg (X30). A config-
+        seeded combo and a market maker's quote are not collared."""
+        if not self._enforce_collars or price_ticks is None:
+            return ""
+        collar = self._collars.get(symbol)
+        if collar is None:
+            return ""
+        result = validate_collar(
+            price_ticks, collar, self._book(symbol).last_trade_price
+        )
+        return result.reason if result.rejected else ""
 
     def _handle_combo_cancel(self, payload: dict[str, Any]) -> None:
         """Handle ``order.combo_cancel``: cancel a combo and all its resting legs.
@@ -6009,6 +6048,14 @@ class Engine:
                 self._oco_ack(gateway_id, oco_id, False, "Market is closed")
             )
             return
+
+        for i, leg in enumerate((leg1, leg2), 1):
+            breach = self._collar_breach(symbol, leg.price_ticks)
+            if breach:
+                self.pub_sock.send_multipart(
+                    self._oco_ack(gateway_id, oco_id, False, f"Leg {i}: {breach}")
+                )
+                return
 
         # Assign shared OCO group ID to both legs.  This id is what the book
         # looks at (``_oco_leg_ended``, ``_apply_fill``) to know a leg is

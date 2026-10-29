@@ -291,7 +291,8 @@ class TestComboEndToEnd:
         """M5: an AON combo must NOT partially execute.
 
         With liquidity for only one leg, an AON combo executes nothing — no
-        leg fills and the combo rests PENDING (all-or-none).  The fully-fillable
+        leg fills, and as that leg would trade the combo is rejected (X28)
+        rather than resting crossed.  The fully-fillable
         MATCHED path is covered by test_combo_fills_both_legs_against_liquidity.
         """
         engine, pub_sock = combo_engine
@@ -326,10 +327,10 @@ class TestComboEndToEnd:
         engine._handle_combo_order(combo.to_dict())
 
         tracked = list(engine._combos.values())[0]
-        # M5: no leg may fill while another leg cannot — the combo rests PENDING.
-        assert tracked.status.value == "PENDING"
+        # M5: no leg may fill while another leg cannot; X28: the combo fails.
+        assert tracked.status.value == "FAILED"
         assert tracked.leg_fill_qty[0] == 0
-        assert tracked.leg_fill_qty[1] == 0
+        assert len(tracked.child_order_ids) == 1  # leg 1 never posted
         # No trade should have printed on either symbol.
         assert not _messages_by_topic(pub_sock, "trade.executed")
 
