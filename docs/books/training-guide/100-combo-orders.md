@@ -30,13 +30,17 @@ chapter teaches:
 
 !!! important "AON is atomic **at entry**, not for the combo's lifetime"
     When you submit an AON combo the engine checks, at that instant, whether
-    *every* leg can fill completely. Two outcomes, and only two:
+    *every* leg can fill completely. Three outcomes, and only three:
 
     - **All legs can fill** → all legs execute together. No partial.
-    - **Any leg is short** → **no leg matches at all**. Every leg is posted to
-      its book as an ordinary resting order.
+    - **A leg is short, and another would trade at once** → the combo is
+      **rejected**: its first leg with `INSUFFICIENT_LIQUIDITY`, and the
+      combo `FAILED`. Resting the leg that would trade would leave its book
+      crossed.
+    - **A leg is short, and no leg would trade** → **no leg matches at all**.
+      Every leg is posted to its book as an ordinary resting order.
 
-    That second outcome is where the nuance lives. Those resting legs are now
+    That third outcome is where the nuance lives. Those resting legs are now
     normal orders. Nothing stops another participant from hitting one of them
     later, and when that happens the combo moves to `PARTIALLY_MATCHED` — one
     leg filled, the others still resting. **You have leg risk again.**
@@ -89,7 +93,7 @@ this is the case the AON guarantee is designed for.
 ## Exercise 2: Atomicity at Entry — One Short Leg Blocks Every Leg
 
 Now check the pre-check: when liquidity is missing on **one** leg, *no* leg
-matches, even the one that could have:
+matches, even the one that could have — and the combo is rejected:
 
 1. Exercise 1 used up the AAPL sell, so place a new one:
    `[TRADER02]> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY`.
@@ -101,31 +105,37 @@ matches, even the one that could have:
    [TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-002|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
    ```
 
-4. It should rest in full — check `BOOK|SYM=AAPL` in the operator console and confirm the AAPL sell at
-   150.10 is **still resting, unfilled**, proving the combo did not execute
-   the AAPL leg alone even though a matching counter-order existed for it.
+4. The AAPL leg is rejected with `INSUFFICIENT_LIQUIDITY` and the combo
+   `FAILED`; the MSFT leg is never posted. Check `BOOK|SYM=AAPL` in the
+   operator console and confirm the AAPL sell at 150.10 is **still resting,
+   unfilled**, proving the combo did not execute the AAPL leg alone even
+   though a matching counter-order existed for it.
 
 :material-checkbox-blank-outline: **Checkpoint:** the combo did not execute the
-AAPL leg even though a matching counter-order was sitting there. Both combo
-legs are now resting, and the combo is `PENDING`.
+AAPL leg even though a matching counter-order was sitting there, and nothing of
+the combo rests.
 
 Operational rationale: without the entry pre-check you would pick up accidental
-directional inventory the moment you submitted an unbalanced combo.
+directional inventory the moment you submitted an unbalanced combo. And the
+AAPL leg could not rest instead: a buy at 150.10 resting against a sell at
+150.10 would leave the book crossed.
 
  
 
 ## Exercise 3: Leg Risk Returns Once the Combo Rests
 
-Exercise 2 left `PAIR-002` resting with both legs in their books. This is the
-case people are surprised by, so cause it deliberately.
+A combo with no leg that can trade yet rests with both legs in their books.
+This is the case people are surprised by, so cause it deliberately.
 
-**1.** Confirm the combo is resting and `PENDING`:
+**1.** Submit a combo whose AAPL leg bids below TRADER02's AAPL sell at
+150.10, and confirm it is resting and `PENDING`:
 
 ```
+[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 [TRADER01]> ORDERS
 ```
 
-You should see both child legs — the AAPL buy at 150.10 and the MSFT sell at
+You should see both child legs — the AAPL buy at 150.00 and the MSFT sell at
 420.50 — with status `NEW`.
 
 **2.** From `TRADER02`, hit **only the MSFT leg**:
@@ -157,7 +167,7 @@ why this does not contradict "all-or-none".
     they cancel the whole combo the moment it fails to execute at entry:
 
     ```
-    [TRADER01]> CANCEL|COMBO_ID=PAIR-002
+    [TRADER01]> CANCEL|COMBO_ID=PAIR-003
     ```
 
     That cancels every remaining leg. Fills that already happened are **not**
@@ -166,24 +176,24 @@ why this does not contradict "all-or-none".
 Clean up before continuing:
 
 ```
-[TRADER01]> CANCEL|COMBO_ID=PAIR-002
+[TRADER01]> CANCEL|COMBO_ID=PAIR-003
 ```
 
  
 
 ## Exercise 4: Cancel a Resting Combo
 
-Exercise 3's clean-up already cancelled `PAIR-002`. Submit one more combo that
-cannot fill — there is no MSFT bid at 420.50 now — so it rests, then cancel
-it as a whole:
+Exercise 3's clean-up already cancelled `PAIR-003`. Submit one more combo that
+cannot fill — there is no MSFT bid at 420.50 now, and the AAPL leg bids below
+the AAPL sell — so it rests, then cancel it as a whole:
 
 ```
-[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-003|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
-[TRADER01]> CANCEL|COMBO_ID=PAIR-003
+[TRADER01]> NEW|TYPE=COMBO|COMBO_ID=PAIR-004|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=149.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+[TRADER01]> CANCEL|COMBO_ID=PAIR-004
 ```
 
 All legs are cancelled together, and the console reports
-`COMBO CANCELLED  PAIR-003`.
+`COMBO CANCELLED  PAIR-004`.
 
 :material-checkbox-blank-outline: **Checkpoint:** full combo cancellation confirmed.
 

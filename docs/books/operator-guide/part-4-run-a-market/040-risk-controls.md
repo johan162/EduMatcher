@@ -148,6 +148,19 @@ When the engine receives a new order for a halted symbol:
   suppresses the continuous-matching sweep.  The order will rest until the
   symbol is resumed, at which point it participates in the reopening.
 
+### Resuming
+
+A halt is a call phase, so the resting orders may cross: a buy at 101 and a
+sell at 99 can both rest. Resuming therefore always starts with a reopening
+auction (`auction.result` with `REOPEN`, prints with match type
+`REOPEN_AUCTION`) that uncrosses the book at its equilibrium price, and only
+then publishes `circuit_breaker.resume` and returns to continuous trading.
+An administrator's `RESUME_SYM` / `resume-sym`, or `resume` for every halted
+symbol, reopens at once, without the circuit breaker's reopening corridor:
+the operator has decided the symbol reopens. If the session is not in a
+matching phase at that moment (pre-open, an auction call), the resume only
+lifts the halt, and the session's own auction uncrosses the book.
+
 When the engine receives a new quote for a halted symbol, the entire quote is
 rejected (both sides) with reason `"<SYMBOL> is halted — quotes rejected
 during circuit breaker halt"`.
@@ -233,6 +246,12 @@ occurred yet in this session).
 Collars apply to **LIMIT and ICEBERG** orders (any order that carries an
 explicit price).  MARKET orders do not carry a price and are therefore not
 subject to collar validation.
+
+The check covers every way a priced order enters: a new order, an amend's
+new price, and each leg of an OCO or combo. A leg outside the collar rejects
+the whole OCO (`oco.ack`) or combo (`combo.ack`), with the reason prefixed
+`Leg <n>:`, and no leg reaches the book. A market maker's two-sided quote,
+and combos seeded from `market_maker_combos`, are not collared.
 
 ### Configuration
 

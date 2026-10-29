@@ -650,9 +650,9 @@ class TestComboLifecycle:
         """M5: an AON combo must NOT partially execute.
 
         With liquidity for only one leg, an AON combo executes nothing — no
-        leg fills and the combo rests PENDING (all-or-none).  Full atomic
-        matching when all legs are fillable is covered by
-        test_combo_both_legs_fill_immediately.
+        leg fills, and as that leg would trade the combo is rejected (X28)
+        rather than resting crossed.  Full atomic matching when all legs are
+        fillable is covered by test_combo_both_legs_fill_immediately.
         """
         engine, pub_sock = combo_engine
 
@@ -663,10 +663,10 @@ class TestComboLifecycle:
         engine._handle_combo_order(_two_leg_combo(price_a=15000, price_b=30000))
 
         combo = list(engine._combos.values())[0]
-        # M5: no leg may fill while another leg cannot — the combo rests PENDING.
-        assert combo.status == ComboStatus.PENDING
+        # M5: no leg may fill while another leg cannot; X28: the combo fails.
+        assert combo.status == ComboStatus.FAILED
         assert combo.leg_fill_qty[0] == 0
-        assert combo.leg_fill_qty[1] == 0
+        assert len(combo.child_order_ids) == 1  # leg 1 never posted
 
     def test_cascade_cancel_on_child_cancel(self, combo_engine) -> None:
         """Cancelling one combo child triggers cascade-cancel of siblings."""

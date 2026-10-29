@@ -555,8 +555,9 @@ class _Replay:
         for symbol, o in out:
             self.symbol_of[o.id] = symbol
             if o.price is not None and d.new is None:
-                # Quote, OCO and combo legs: the collar applies to every
-                # priced order, whichever way it entered.
+                # OCO and combo legs: the collar applies to every priced
+                # order, whichever way it entered -- but a market maker's
+                # quote and a seed (X30, decided 2026-10-29).
                 entry = "quote" if d.quote else "order.oco" if d.oco else "order.combo" if d.combo else "seed"  # fmt: skip
                 self._band(symbol, o.price, entry, o.id, None)
         return out
@@ -567,7 +568,7 @@ class _Replay:
         trade, each edge truncated to a tick); one refused with
         COLLAR_BREACH lies outside it."""
         band = self.bands.get(symbol)
-        if band is None or entry == "seed":
+        if band is None or entry in ("seed", "quote"):
             return
         low, high, pct = band
         last = self._book(symbol).last

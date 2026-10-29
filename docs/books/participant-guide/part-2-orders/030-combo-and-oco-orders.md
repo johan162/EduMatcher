@@ -319,9 +319,13 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 A `MARKET`, `IOC` or `FOK` leg cannot rest, so while its symbol is not
 matching it is rejected, with the code an ordinary order of that type would
 get: `INSTRUMENT_HALTED` (or `CIRCUIT_BREAKER_ACTIVE`) on a halted symbol,
-`SESSION_NOT_PERMITTED` outside continuous trading. A leg of an all-or-none
-combo held back because another leg cannot fill is rejected with
-`INSUFFICIENT_LIQUIDITY`, as is a `FOK` leg short of liquidity. Either
+`SESSION_NOT_PERMITTED` outside continuous trading. An all-or-none combo
+that cannot fill every leg in full is held back: no leg matches, and the
+legs rest as interest. If a leg would trade at once, the combo is rejected
+instead: its first leg gets `INSUFFICIENT_LIQUIDITY` and no other leg is
+posted, since a held-back marketable leg would rest crossed with the book.
+A `MARKET`, `IOC` or `FOK` leg of a held-back combo is rejected with
+`INSUFFICIENT_LIQUIDITY` too, as is a `FOK` leg short of liquidity. Each
 way the combo fails (step 6).
 
 ### Cancelling a Combo

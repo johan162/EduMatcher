@@ -39,7 +39,8 @@ import json
 import re
 import tempfile
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, tzinfo
 from importlib.metadata import version
 from pathlib import Path
@@ -47,13 +48,15 @@ from typing import Any
 from unittest import mock
 
 from sim_forensics.audit import STARTUP, audit_files, lines, run_config_text
-from sim_forensics.dataset import Dataset
+from sim_forensics.dataset import Dataset, iso_ns
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
+import edumatcher.models.clock as models_clock
 from edumatcher.cli_version import source_commit
 from edumatcher.config_artifact import decode as decode_artifact
 from edumatcher.engine.config_loader import EngineConfig
+from edumatcher.models.clock import reset_clock_for_tests
 from edumatcher.models.generated.system import TOPIC_GATEWAY_HEARTBEAT
 from edumatcher.models.message import decode
 from edumatcher.models.trade import (
@@ -125,6 +128,45 @@ class _Sink:
                 out.append((topic, payload))
         self.sent.clear()
         return out
+
+
+class LiveClock:
+    """Stands in for ``time`` in :mod:`edumatcher.models.clock`, the source
+    of the engine's timestamps (``now_ns``), so a re-run engine reads the
+    live engine's clock. The circuit breaker's reference window holds the
+    last minutes' trades by these readings; on the re-run's own clock the
+    run's hours pass in minutes, the window holds other trades, and halts
+    differ (2026-10-29 run: 24 halts).
+
+    It reads the engine's start, then each input's first live trade time
+    (``follow``). Audit line times are the audit's receive times and may pass
+    the engine's next trade; between trades the engine decides nothing by
+    the clock (a breaker reopens by its timer input, BREAKER_TIMER)."""
+
+    def __init__(self, ns: int) -> None:
+        self.ns = ns
+
+    def time_ns(self) -> int:
+        return self.ns
+
+    def follow(self, live: Live) -> None:
+        """Move to the time the live engine traded at for the input that
+        published *live*, if it traded."""
+        for topic, p in live:
+            if topic == "trade.executed":
+                self.ns = int(p["ts_ns"])
+                return
+
+
+@contextmanager
+def live_clock(files: list[Path]) -> Generator[LiveClock]:
+    """Within it every engine reads a LiveClock, set to the engine's start
+    (the audit's first line)."""
+    first = next(lines(files), None)
+    clock = LiveClock(iso_ns(first.ts) if first is not None else 0)
+    reset_clock_for_tests()
+    with mock.patch.object(models_clock, "time", clock):
+        yield clock
 
 
 class _Ids:
@@ -283,21 +325,23 @@ class _Rerun:
         reset_trade_ids_for_tests()
         set_run_seq(1)
         sink = _Sink()
-        with tempfile.TemporaryDirectory() as empty:
-            self.engine = fresh_engine(compiled.engine, sink, Path(empty))
-        for topic, chain, payload, live, _ts in inputs(files):
-            if topic == "startup":
-                self.step("startup", "", {}, sink.take(), live)
-                continue
-            if topic is None:
-                for t, body in live:
-                    if t.startswith(_STATE):
-                        self.flag("E1", topic=t, chain=chain, body=json.dumps(body)[:200])  # fmt: skip
-                continue
-            if topic.startswith("book."):
-                self.snapshot(payload)
-                continue
-            self.dispatch(sink, topic, chain, payload, live)
+        with live_clock(files) as clock:
+            with tempfile.TemporaryDirectory() as empty:
+                self.engine = fresh_engine(compiled.engine, sink, Path(empty))
+            for topic, chain, payload, live, _ts in inputs(files):
+                if topic == "startup":
+                    self.step("startup", "", {}, sink.take(), live)
+                    continue
+                if topic is None:
+                    for t, body in live:
+                        if t.startswith(_STATE):
+                            self.flag("E1", topic=t, chain=chain, body=json.dumps(body)[:200])  # fmt: skip
+                    continue
+                if topic.startswith("book."):
+                    self.snapshot(payload)
+                    continue
+                clock.follow(live)
+                self.dispatch(sink, topic, chain, payload, live)
         self.final_book()
 
     def dispatch(
@@ -457,8 +501,15 @@ def apply(engine: engine_main.Engine, topic: str, payload: dict[str, Any]) -> No
         return
     cb = engine._circuit_breakers.get(payload["symbol"])
     if cb is not None and cb.halted:
-        cb.resume_at_ns = 0  # due now; the engine decides: reopen or extend
+        # Due now, and only this one: on the live clock another breaker may
+        # be due as well, and the live engine fired each as its own input.
+        others = [(b, b.resume_at_ns) for b in engine._circuit_breakers.values() if b is not cb]  # fmt: skip
+        for b, _ in others:
+            b.resume_at_ns = None
+        cb.resume_at_ns = 0  # the engine decides: reopen or extend
         engine._flush_circuit_breakers()
+        for b, at in others:
+            b.resume_at_ns = at
 
 
 def fresh_engine(

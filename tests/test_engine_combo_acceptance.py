@@ -151,3 +151,70 @@ def test_a_combo_that_fills_on_entry_is_acked_first_and_matched_once(
         "combo.status(MATCHED)",
     ]
     assert c.status is ComboStatus.MATCHED
+
+
+# --- X28: an all-or-none combo is accepted only if it can fill in full ------
+
+AAPL_LIMIT = {**AAPL_IOC, "order_type": "LIMIT"}
+
+
+def test_an_aon_combo_that_cannot_fill_in_full_fails_on_entry(monkeypatch, tmp_path) -> None:  # fmt: skip
+    """AAPL has a seller, MSFT none. The engine used to rest both legs
+    unmatched, the AAPL leg crossed with the seller (X28, 1 670 combos on
+    the 2026-10-29 run); now the leg that would trade rejects the combo:
+    leg 0 is rejected as a FOK short of liquidity would be, and leg 1 is
+    never posted."""
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "AAPL", "GW02")
+
+    c = combo(engine, [AAPL_LIMIT, MSFT_LIMIT])
+
+    assert combo_topics(pub) == ["combo.ack", "order.ack", "combo.status(FAILED)"]
+    (ack,) = msgs(pub, "order.ack.GW01")
+    assert (ack["accepted"], ack["reject_code"]) == (False, "INSUFFICIENT_LIQUIDITY")
+    assert c.status is ComboStatus.FAILED
+    assert msgs(pub, "trade.executed") == []
+    assert {o.gateway_id for o in engine.books["AAPL"].resting_orders()} == {"GW02"}
+    assert engine.books["MSFT"].resting_orders() == []
+
+
+def test_an_aon_combo_with_no_leg_that_would_trade_rests(monkeypatch, tmp_path) -> None:  # fmt: skip
+    """A pair at passive limit prices waits for liquidity, as before."""
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+
+    c = combo(engine, [AAPL_LIMIT, MSFT_LIMIT])
+
+    assert c.status is ComboStatus.PENDING
+    assert resting(engine) == set(c.child_order_ids) and len(c.child_order_ids) == 2
+
+
+def test_an_aon_combo_rests_while_its_legs_cannot_match(monkeypatch, tmp_path) -> None:  # fmt: skip
+    """With no matching there is no liquidity to judge: the legs rest as
+    interest, as any limit order does in a call phase."""
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    sell(engine, "AAPL", "GW02")
+    engine._halted_symbols.update(AAPL=True, MSFT=True)
+
+    c = combo(engine, [AAPL_LIMIT, MSFT_LIMIT])
+
+    assert c.status is ComboStatus.PENDING
+    assert resting(engine) >= set(c.child_order_ids) and len(c.child_order_ids) == 2
+
+
+def test_a_seeded_aon_combo_rests_as_market_maker_interest(monkeypatch, tmp_path) -> None:  # fmt: skip
+    """market_maker_combos are AON and meant to rest, matching on or not."""
+    from edumatcher.models.combo import ComboOrder
+
+    engine, pub = make_engine(monkeypatch, tmp_path, symbols=("AAPL", "MSFT"))
+    connect(engine)
+    seed = ComboOrder.from_submission_dict(
+        {"combo_id": "S1", "gateway_id": "GW01", "combo_type": "AON", "tif": "GTC", "legs": [AAPL_LIMIT, MSFT_LIMIT]}  # fmt: skip
+    )
+
+    assert engine._accept_combo(seed, publish_ack=False, is_seed=True)
+
+    assert seed.status is ComboStatus.PENDING
+    assert len(seed.child_order_ids) == 2

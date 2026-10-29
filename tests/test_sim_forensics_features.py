@@ -173,11 +173,12 @@ def test_d8_finds_an_order_accepted_outside_the_collar(
 # --- engine findings (S28) ----------------------------------------------------
 
 
-def test_x28_an_unfillable_aon_combo_rests_crossed_in_continuous(
+def test_x28_an_unfillable_aon_combo_with_a_marketable_leg_is_rejected(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    """X28: the AON pre-check posts every leg without matching, so a
-    marketable leg rests crossed (D2) -- and can later fill alone."""
+    """X28: the AON pre-check posted every leg without matching, so a
+    marketable leg rested crossed (D2) -- and could later fill alone. Now
+    the combo fails on entry, and the run is consistent."""
     r = Run(tmp_path / "data")
     _, ask = r.seed["AAPL"]
     mb, _ = r.seed["MSFT"]
@@ -188,22 +189,22 @@ def test_x28_an_unfillable_aon_combo_rests_crossed_in_continuous(
             {"symbol": "MSFT", "side": "SELL", "order_type": "LIMIT", "quantity": 100000, "tick_decimals": 2, "price_ticks": mb},
         ]},
     )  # fmt: skip
-    assert set(failing(open_ds, r.finish())) == {"D2"}
+    assert failing(open_ds, r.finish()) == {}
 
 
-def test_x29_an_administrator_resume_does_not_uncross(
+def test_x29_an_administrator_resume_uncrosses(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
-    """X29: interest that crossed during an administrator's halt is resumed
+    """X29: interest that crossed during an administrator's halt was resumed
     into continuous trading crossed (D2), where a circuit-breaker reopen
-    would have uncrossed it."""
+    uncrossed it. Now the resume uncrosses too, and the run is consistent."""
     r = Run(tmp_path / "data")
     tb, ta = r.seed["TSLA"]
     r.cmd("risk.symbol_halt", {"gateway_id": "OPS01", "symbol": "TSLA", "command_id": "H1"})  # fmt: skip
     r.order(Side.BUY, 7, ta, "TRADER03", sym="TSLA")
     r.order(Side.SELL, 4, tb, "TRADER01", sym="TSLA")
     r.cmd("risk.symbol_resume", {"gateway_id": "OPS01", "symbol": "TSLA", "command_id": "H2"})  # fmt: skip
-    assert set(failing(open_ds, r.finish())) == {"D2"}
+    assert failing(open_ds, r.finish()) == {}
 
 
 # --- E: the breaker timer as an input; E7's shift with collars and breakers --

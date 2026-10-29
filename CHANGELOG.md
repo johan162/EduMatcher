@@ -1,3 +1,25 @@
+## [v0.65.3] - 2026-10-29
+
+Release Type: patch
+
+### 📋 Summary
+This release fixes reopening after an administrator resumes halted symbols, closes collar and all-or-none combo edge cases, and corrects simulation-forensics replay and validation.
+
+### 🐛 Bug Fixes
+- Fixed administrator resume commands leaving crossed books after a halt by running a reopening auction before returning to continuous trading; outside a matching phase, the session's own auction performs the uncrossing
+- Fixed live OCO and combo legs bypassing price collars; a collar breach now rejects the whole submission before any leg enters a book, while market-maker quotes and configuration-seeded combos remain exempt
+- Fixed held-back all-or-none combos leaving a marketable leg crossed with the book during continuous trading by rejecting the combo without posting its legs
+- Fixed simulation-forensics reruns using replay-time rather than recorded trade times for circuit-breaker reference windows, and processing unrelated breaker timers together
+- Fixed false forensics findings caused by engine-wide auction IDs, rejected commands against existing orders, collar checks on market-maker quotes, and startup states mistaken for end-of-day closes
+
+### 📚 Documentation
+- Documented administrator reopening auctions, collar enforcement for OCO and combo legs, and rejection of held-back marketable all-or-none combos
+- Updated combo-order training and simulation-forensics decisions to match the corrected engine behavior
+
+### 🛠 Internal
+- Added regression coverage for administrator resume, OCO and combo collar enforcement, all-or-none combo acceptance, and recorded-clock replay
+- Updated gateway, archive, and simulation-forensics tests for the corrected edge-case behavior
+
 ## [v0.65.2] - 2026-10-29
 
 Release Type: patch
