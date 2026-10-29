@@ -43,6 +43,7 @@ _DEAD = frozenset(
         OrderStatus.EXPIRED,
     }
 )
+_STOP_TYPES = (OrderType.STOP, OrderType.STOP_LIMIT, OrderType.TRAILING_STOP)
 
 
 def _visible_qty(order: Order) -> int:
@@ -138,6 +139,26 @@ def assert_book_invariants(
                 f"I4{ctx}: live heap entry for order {entry.order.id[:8]} is "
                 f"not the entry registered in _entry_index (stale duplicate "
                 f"not invalidated?)"
+            )
+
+    # ------------------------------------------------------------------
+    # I6 — dormant stops are not part of the visible book.  A stop on a
+    #      bid/ask heap would be counted by I1 on both sides of its
+    #      comparison and go unnoticed, so check membership directly.
+    # ------------------------------------------------------------------
+    dormant = {
+        e.order.id
+        for e in book._buy_stops + book._sell_stops
+        if e.valid and e.order.status not in _DEAD
+    } | {o.id for o in book._trailing_stops if o.status not in _DEAD}
+    for heap in (book._bids, book._asks):
+        for entry in heap:
+            if not entry.valid or entry.order.status in _DEAD:
+                continue
+            o = entry.order
+            assert o.id not in dormant and o.order_type not in _STOP_TYPES, (
+                f"I6{ctx}: dormant stop {o.id[:8]} ({o.order_type.value}) is "
+                f"live on the {'bid' if heap is book._bids else 'ask'} heap"
             )
 
     # ------------------------------------------------------------------

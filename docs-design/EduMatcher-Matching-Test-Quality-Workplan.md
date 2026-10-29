@@ -23,7 +23,7 @@ Legend: ☐ not started · ◐ in progress · ☑ done (awaiting/after commit)
 | 5 | T3 | Differential fuzz: `OrderBook` vs reference, trade-for-trade | T2 | 1.5 d | ☑ | 2026-10-27 |
 | 6 | T4 | Dataset smoke test checked against the reference, not against itself | T2 | 0.5 d | ☑ | 2026-10-27 |
 | 7 | T5 | Specification scenario tests for both sides (kills the surviving mutants) | T1 | 2 d | ☑ | 2026-10-29 |
-| 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☐ | |
+| 8 | T6 | Extend the randomized invariant tests (stops, icebergs in auctions, crossing amends) | — | 1 d | ☑ | 2026-10-29 |
 | 9 | T7 | In-process end-to-end trading test (ALF client → gateway → engine → fills/MD/clearing) | — | 2 d | ☐ | |
 | 10 | T8 | Remove or strengthen weak-assertion tests | — | 1 d | ☐ | |
 | 11 | T9 | Final mutation run, docs, CI gate decision | all | 0.5 d | ☐ | |
@@ -497,6 +497,29 @@ one orientation of a scenario can see them; 1 is the expected count.
 - Cross-check that `assert_qty_conservation` also runs per step, not only at
   the end.
 
+**As built (2026-10-29).** `tests/test_book_invariants_random_ops.py`: the
+driver takes a `_Features` set (icebergs, SMP, stops, crossing amends,
+auction batches) instead of positional flags. Six tiers × 25 seeds × 200
+steps = 150 tests, ≈ 3.5 s with `-n logical`; the stale "EXPECTED TO FAIL"
+docstrings are gone.
+
+- Stops: STOP, STOP_LIMIT and TRAILING_STOP with a trigger within 3 levels
+  of the last trade, so they trigger on entry, later and in cascades (≈ 550
+  triggers over the 25 "everything" seeds). New tier `with_stops`.
+- Auctions: the batch collects icebergs (and stops in the everything tier),
+  then uncrosses and runs `book.run_stops`, as `Engine._run_uncross` does.
+- Crossing amends (everything tier): the driver re-matches a marketable
+  amend with the engine's cancel/replace (`Engine._handle_amend`, H2; I32).
+  Amend targets are now drawn from resting orders (I31).
+- New invariant **I6** in `tests/engine_invariants.py`: no dormant stop (and
+  no unconverted stop type) is live on a bid/ask heap. I1 cannot see this,
+  because it counts the heap on both sides of its comparison; checked by
+  fault injection (I33).
+- `assert_qty_conservation` runs after every step.
+
+Mutants killed by this file alone: **2/31 before** (M03, M23), **4/31
+after** (M03, M23, M25, M26; I30).
+
 ### T7 — In-process end-to-end trading test
 
 The user-level path no CI test exercises today:
@@ -578,3 +601,7 @@ WP. Numbered I1, I2, … so they can be referenced from commits.
 | I27 | T5 | Mirroring (BUY↔SELL, prices reflected) checks every side-symmetric rule with one written scenario, but the auction's last tie-break (lowest price) is not symmetric: a mirrored full tie correctly resolves to the other price. Small auction books tie easily, and one draft scenario (the ATC test) hit a full tie by accident and failed only mirrored. | The tie-break test states its expectation in actual prices (`min` of the two); the documented worked example (a full tie at 99.80 / 100.00) runs as-written only. Any new auction scenario must avoid accidental full ties. |
 | I28 | T5 | T5's list alone left M04, M05, M22, M27, M30 and M31 without a plain specification test (spec run: 25/31). Driving the engine rather than `OrderBook` is what reaches M19–M21 and M24: they live in published events (`order.expired`, `order.cancelled` reasons, the `NOT_OWNER` ack), which T3 does not compare (I23). | Scenarios added for amend priority, iceberg amend (bug B), SMP modes, FOK bug C, ownership and the uncross cascade: 31/31 by the spec file alone, so T9's "at least one plain specification test per mutant" already holds. |
 | I29 | T5 | No engine divergence from the documented rules on either side; the only failures while writing were scenario mistakes (I27, and an `order.fill` to the wrong order of the same gateway in the VWAP check). | None. `make test-e2e` was skipped this WP (exchange ports in use by a running exchange); no production code changed. |
+| I30 | T6 | The structural invariants catch only the mutants that corrupt the book's indexes (M03, M23, and now bug A's M25/M26 through the auction tier with icebergs, as I2 predicted). A mutant that is wrong but consistent (priority, prices, stop rules) passes them by design. | None. That is T3's and T5's job; T6 is the guard for the bookkeeping. |
+| I31 | T6 | Amend targets were drawn from every order id ever submitted, mostly dead by then, so most amends were skipped: only 11 crossing amends traded in 25 seeds × 200 steps. | Targets come from `book.resting_orders()` (LIMIT/ICEBERG): 115 crossing amends trade. This changes the amend mix of every tier. |
+| I32 | T6 | A book-level driver cannot reach M18, which lives in `Engine._handle_amend`. The driver therefore copies that re-match (≈ 10 lines), and the copy can drift from the engine. | Accepted: T3's engine driver and T5's `test_a_marketable_amend_trades_at_once` test the engine's own path. |
+| I33 | T6 | I6 checked by fault injection: a STOP_LIMIT pushed onto the bid heap with the level index adjusted to match passes I1–I4 and fails I6. No engine failure found by the new tiers. `make _check` stops at mypy errors in `tests/test_alf_examples.py`, which belongs to unrelated uncommitted ALF-example work; the T6 files pass mypy and pyright, and pyright on `src tests` is clean. | None in T6. e2e skipped again (exchange ports in use). |
