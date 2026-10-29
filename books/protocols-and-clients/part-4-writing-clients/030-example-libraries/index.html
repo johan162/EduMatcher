@@ -4351,6 +4351,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#use-alf-as-a-foundation-for-your-own-program" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use ALF as a foundation for your own program
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#manual-gateway-sanity-check" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7979,21 +7990,31 @@ connect over TCP and exchange text lines using the ALF wire format.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>VERB|KEY=VALUE|KEY=VALUE\n
 </code></pre></div>
 <p>Command verbs and field keys are case-insensitive (normalized to uppercase).
-Segments without <code>=</code> are silently skipped.  Duplicate keys: last value wins.</p>
+Segments without <code>=</code> are silently skipped.  Duplicate keys: last value wins.
+Response values preserve case: keep the complete <code>ORDER_ID</code> unchanged when
+sending <code>AMEND</code> or <code>CANCEL</code>. Prices on this TCP connection are decimal display
+prices, not the engine's internal integer ticks.</p>
 <h3 id="python-api-alf_parserpy">Python API — <code>alf_parser.py</code><a class="headerlink" href="#python-api-alf_parserpy" title="Permanent link">&para;</a></h3>
 <p><strong><code>parse_alf_line(line: str) → AlfMessage</code></strong>
 : Parse one ALF line.  Returns an <code>AlfMessage(msg_type, fields)</code> frozen
   dataclass.  Raises <code>AlfParseError</code> on malformed input.</p>
 <p><strong><code>build_alf_line(msg_type: str, fields: dict | None) → str</code></strong>
 : Build one <code>\n</code>-terminated ALF line.  Raises <code>AlfParseError</code> if the
-  message type contains invalid characters or any field contains <code>|</code>.</p>
+  message type is invalid, a key is empty or contains <code>|</code>, <code>=</code>, CR or LF,
+  or a value contains <code>|</code>. CR/LF in values are replaced with spaces.</p>
 <p><strong><code>AlfSession.connect(host, port, gateway_id, client_name, timeout) → AlfSession</code></strong>
 : Open a TCP connection and complete the <code>HELLO</code>/<code>WELCOME</code> handshake.
-  Returns an authenticated session object.</p>
+  Validates <code>WELCOME</code>, bounds the handshake with <code>timeout</code> (default five
+  seconds), and closes the socket on failure. After success reads block.
+  It does not start a receive loop, keepalives, or automatic reconnects.</p>
 <p><strong><code>AlfSession.send(msg_type, fields)</code></strong>
 : Build and send one ALF line over the established connection.</p>
 <p><strong><code>AlfSession.recv_msg() → AlfMessage</code></strong>
-: Block until one complete <code>\n</code>-terminated line arrives and parse it.</p>
+: Block until one complete <code>\n</code>-terminated line arrives and parse it.
+  Buffers fragmented and coalesced TCP data. Use one reader per session.</p>
+<p><strong><code>AlfSession.send_raw(line)</code></strong>
+: Send one line without a trailing newline; embedded CR/LF are rejected.
+  Both send methods serialize socket writes with a lock.</p>
 <p><strong><code>AlfSession.close()</code></strong>
 : Send <code>EXIT</code> and close the socket.</p>
 <h3 id="python-usage-pattern">Python usage pattern<a class="headerlink" href="#python-usage-pattern" title="Permanent link">&para;</a></h3>
@@ -8009,15 +8030,10 @@ Segments without <code>=</code> are silently skipped.  Duplicate keys: last valu
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="s2">"SYM"</span><span class="p">:</span> <span class="s2">"AAPL"</span><span class="p">,</span> <span class="s2">"SIDE"</span><span class="p">:</span> <span class="s2">"BUY"</span><span class="p">,</span> <span class="s2">"TYPE"</span><span class="p">:</span> <span class="s2">"LIMIT"</span><span class="p">,</span>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="s2">"QTY"</span><span class="p">:</span> <span class="s2">"100"</span><span class="p">,</span> <span class="s2">"PRICE"</span><span class="p">:</span> <span class="s2">"150.00"</span><span class="p">,</span> <span class="s2">"TAG"</span><span class="p">:</span> <span class="s2">"ORDER-001"</span><span class="p">,</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="p">})</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  <span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1"># Full session: connect, perform HELLO/WELCOME handshake, send and receive</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">session</span> <span class="o">=</span> <span class="n">AlfSession</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">)</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">session</span><span class="o">.</span><span class="n">welcome</span><span class="o">.</span><span class="n">gw_name</span><span class="p">)</span>          <span class="c1"># "alf-gwy01"</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="n">session</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">"SYMBOLS"</span><span class="p">)</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">recv_msg</span><span class="p">()</span>                <span class="c1"># first line of SYMBOLS response</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n"</span>
 </code></pre></div>
+<p>For a complete query session, including interleaved events and keepalives,
+use the <a href="#use-alf-as-a-foundation-for-your-own-program">application example below</a>.</p>
 <h3 id="run-python-interactive-client">Run Python interactive client<a class="headerlink" href="#run-python-interactive-client" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
@@ -8047,31 +8063,44 @@ values.  Command history is persisted to <code>~/.alf_client_history</code>.</p>
 <p><strong><code>int alf_parse_line(char *line, alf_message_t *out)</code></strong>
 : Parse one mutable ALF line in-place.  Returns 0 on success, negative
   on error (<code>-1</code> null args, <code>-2</code> empty line, <code>-3</code> invalid verb,
-  <code>-4</code> too many fields).</p>
+  <code>-4</code> too many fields, <code>-6</code> verb/key/value exceeds storage).</p>
 <p><strong><code>const char *alf_get_field(const alf_message_t *msg, const char *key)</code></strong>
 : Return the value for <code>key</code> (case-insensitive), or <code>NULL</code> if absent.</p>
 <p><strong><code>int alf_build_line(char *out, size_t cap, const char *msg_type, const char * const *kv)</code></strong>
 : Write one ALF line into <code>out</code>.  <code>kv</code> is a <code>NULL</code>-terminated array of
-  alternating key/value strings.  Returns bytes written or <code>-1</code> on overflow.</p>
+  alternating key/value strings. Returns bytes written, including the
+  newline, or <code>-1</code> on invalid arguments or overflow. Rejects delimiter-bearing
+  keys/values and replaces CR/LF in values with spaces.</p>
 <h3 id="c-usage-pattern">C usage pattern<a class="headerlink" href="#c-usage-pattern" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"alf_parser.h"</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="cm">/* Parse */</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"ACK|ORDER_ID=abc|ACCEPTED=TRUE"</span><span class="p">;</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">alf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">alf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">msg_type</span><span class="p">);</span><span class="w">                    </span><span class="cm">/* "ACK" */</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">alf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"ACCEPTED"</span><span class="p">));</span><span class="w"> </span><span class="cm">/* "TRUE" */</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="cm">/* Build */</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">kv</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="s">"SYM"</span><span class="p">,</span><span class="w"> </span><span class="s">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s">"SIDE"</span><span class="p">,</span><span class="w"> </span><span class="s">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="s">"TAG"</span><span class="p">,</span><span class="w"> </span><span class="s">"ORDER-001"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">,</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">};</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">alf_build_line</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span><span class="w"> </span><span class="s">"NEW"</span><span class="p">,</span><span class="w"> </span><span class="n">kv</span><span class="p">);</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="cm">/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">alf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span><span class="w"> </span><span class="s">"Invalid ALF response</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">}</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">msg_type</span><span class="p">);</span><span class="w">                    </span><span class="cm">/* "ACK" */</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">accepted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"ACCEPTED"</span><span class="p">);</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">accepted</span><span class="p">)</span><span class="w"> </span><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">accepted</span><span class="p">);</span><span class="w">           </span><span class="cm">/* "TRUE" */</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="cm">/* Build */</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">kv</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="s">"SYM"</span><span class="p">,</span><span class="w"> </span><span class="s">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="s">"SIDE"</span><span class="p">,</span><span class="w"> </span><span class="s">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">    </span><span class="s">"TYPE"</span><span class="p">,</span><span class="w"> </span><span class="s">"LIMIT"</span><span class="p">,</span><span class="w"> </span><span class="s">"QTY"</span><span class="p">,</span><span class="w"> </span><span class="s">"100"</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">,</span><span class="w"> </span><span class="s">"150.00"</span><span class="p">,</span><span class="w"> </span><span class="s">"TAG"</span><span class="p">,</span><span class="w"> </span><span class="s">"ORDER-001"</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">,</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="p">};</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="kt">char</span><span class="w"> </span><span class="n">buf</span><span class="p">[</span><span class="mi">4096</span><span class="p">];</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="kt">int</span><span class="w"> </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alf_build_line</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span><span class="w"> </span><span class="s">"NEW"</span><span class="p">,</span><span class="w"> </span><span class="n">kv</span><span class="p">);</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">len</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">    </span><span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span><span class="w"> </span><span class="s">"Cannot build ALF command</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="p">}</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="cm">/* → "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=ORDER-001\n" */</span>
 </code></pre></div>
+<p>This fragment belongs inside your application's function; include <code>&lt;stdio.h&gt;</code>
+for its diagnostics. Send all <code>len</code> bytes using a partial-write loop, not a
+single unchecked <code>write()</code>.</p>
 <h3 id="build-and-run-c-client">Build and run C client<a class="headerlink" href="#build-and-run-c-client" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/c
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make
@@ -8083,14 +8112,120 @@ values.  Command history is persisted to <code>~/.alf_client_history</code>.</p>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>./alf_client<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w"> </span>--no-color
 </code></pre></div>
 <p>The C client supports the same commands and tab-completion as the Python client.</p>
+<h3 id="use-alf-as-a-foundation-for-your-own-program">Use ALF as a foundation for your own program<a class="headerlink" href="#use-alf-as-a-foundation-for-your-own-program" title="Permanent link">&para;</a></h3>
+<p>The examples are standalone source, not an installed <code>edumatcher</code> SDK.
+Download or copy the files from the table above into your project:</p>
+<ul>
+<li><strong>Python:</strong> copy <code>alf_parser.py</code> beside your application and import it.
+  The parser/session module uses only the standard library and does not
+  require readline. Python 3.9+ is sufficient for these examples; the
+  installed engine has its own runtime requirements.</li>
+<li><strong>C:</strong> copy <code>alf_parser.h</code> and <code>alf_parser.c</code>, include the header, and
+  compile the implementation with your sources, for example
+  <code>cc -std=c11 -Wall -Wextra my_bot.c alf_parser.c -o my_bot</code>.
+  The parser has no readline dependency. Readline is needed only for the
+  interactive client.</li>
+<li>Treat the interactive clients as lifecycle/event-dispatch references.
+  Replace their terminal display and local caches with your application's
+  handlers and state; do not make a headless bot depend on the REPL.</li>
+</ul>
+<p>Configure the participant ID in the engine before connecting. The examples
+below assume <code>TRADER01</code> is authorized, the engine and gateway are running,
+and no other client is using that ID. <code>QUOTE</code> additionally requires the
+<code>MARKET_MAKER</code> role.</p>
+<p>This runnable Python query illustrates one socket reader, periodic inbound
+activity, a bounded response wait, and matching multiline termination.
+Save it beside <code>alf_parser.py</code> and run <code>python3 my_bot.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">AlfSession</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">session</span> <span class="o">=</span> <span class="n">AlfSession</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="mi">5565</span><span class="p">,</span> <span class="s2">"TRADER01"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">interval</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">welcome</span><span class="o">.</span><span class="n">idle_timeout</span> <span class="o">/</span> <span class="mi">3</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">next_ping</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">interval</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">deadline</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="mf">10.0</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">session</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">"SYMBOLS"</span><span class="p">)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>        <span class="k">if</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="n">deadline</span><span class="p">:</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>            <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="s2">"SYMBOLS response did not complete"</span><span class="p">)</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>        <span class="k">if</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="n">next_ping</span><span class="p">:</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>            <span class="n">session</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="s2">"PING"</span><span class="p">)</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>            <span class="n">next_ping</span> <span class="o">=</span> <span class="n">now</span> <span class="o">+</span> <span class="n">interval</span>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>        <span class="n">session</span><span class="o">.</span><span class="n">sock</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">next_ping</span> <span class="o">-</span> <span class="n">now</span><span class="p">,</span> <span class="n">deadline</span> <span class="o">-</span> <span class="n">now</span><span class="p">))</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>            <span class="n">msg</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">recv_msg</span><span class="p">()</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>        <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>            <span class="k">continue</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"ERR"</span><span class="p">:</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Gateway error: </span><span class="si">{</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>        <span class="k">if</span> <span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="s2">"END"</span> <span class="ow">and</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"TYPE"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"SYMBOLS"</span><span class="p">:</span>
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>            <span class="k">break</span>
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>    <span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</code></pre></div>
+<p>The timeout here is an application policy, not the gateway's idle timeout.
+The helper retains incomplete lines across receive timeouts. For a long-lived
+bot, continue receiving and dispatching after the initial query. The interactive
+Python client's <code>_recv_loop</code> and <code>_keepalive_loop</code> show a threaded alternative;
+its send lock prevents command/keepalive bytes from interleaving.</p>
+<p>For a C bot, <code>alf_parser.c</code> only parses/builds messages: it does not connect,
+authenticate, buffer TCP, schedule keepalives, or reconnect. Start from
+<code>connect_gateway</code>, <code>do_handshake</code>, <code>gwy_send</code>, <code>process_socket_data</code>, and the
+<code>select()</code> loop in <code>alf_client.c</code>. These are internal example functions, not
+exported library APIs. Adapt them into your own transport/event loop:</p>
+<ol>
+<li>Connect and send <code>HELLO</code>; validate <code>WELCOME</code> before sending commands.</li>
+<li>Buffer bytes until newline; one read can contain part of a line or many
+   lines. Retry interrupted I/O and handle partial writes and disconnects.</li>
+<li>Check every parser/builder return code and nullable field lookup.</li>
+<li>Send <code>PING</code> more frequently than <code>WELCOME|IDLE</code>, even while receiving
+   heartbeats or broadcasts. Receiving data does not reset gateway idle time.</li>
+<li>Dispatch unsolicited events while collecting query rows. Finish only on
+   the matching <code>END|TYPE=...</code>; serialize multiline queries because the example
+   collectors track only one active query at a time.</li>
+<li>On shutdown send <code>EXIT</code> and close the socket. On connection loss report the
+   failure, reconnect explicitly, and reconcile engine state before resuming.</li>
+</ol>
+<p>Keep the following application responsibilities explicit:</p>
+<ul>
+<li>Correlate order entry with <code>TAG</code> and amend/cancel requests with <code>RTAG</code>;
+  handle both gateway <code>ERR</code> and engine rejection <code>ACK|ACCEPTED=FALSE</code>.
+  Do not assume the next message after a send is its response or blindly
+  replay an order whose outcome is unknown after disconnect.</li>
+<li>Preserve full order IDs. <code>FILL</code> includes <code>SYMBOL</code>/<code>SIDE</code> for orders not in
+  your cache and may include <code>LIQUIDITY</code>/<code>TRADE_IDS</code>; stops emit <code>TRIGGERED</code>.
+  Keep ALF decimal prices separate from internal tick representations.</li>
+<li><code>DC_FILL</code> is a second report of an execution, not another position change.
+  The demos display it without booking it again.</li>
+<li>Bare <code>POS</code> and its realized P&amp;L are client-local, starting with fills seen
+  by this connection. Use <code>ORDERS</code> and <code>POS|GW=TRADER01</code> to reconcile engine
+  orders/positions after reconnect; the query returns <code>POSITION</code>, <code>POS_ENTRY</code>,
+  then <code>END|TYPE=POSITION</code>. <code>STATUS</code> is also a local display, not a wire command.</li>
+<li>The C demo is bounded: 256 cached orders, 512 symbols/positions and query
+  rows, 64 fields per message, 63-byte keys and 511-byte values. It reports
+  capacity errors instead of silently truncating protocol data. Review these
+  limits and add persistence/reconciliation appropriate to your workload.</li>
+<li>The examples use plain TCP, not TLS; use a trusted network or a protected
+  transport when deploying outside a local development environment.</li>
+</ul>
+<p>From a repository checkout, validate adaptations against the real gateway
+and engine workflows with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/test_alf_examples.py<span class="w"> </span>--no-cov
+</code></pre></div>
+<p>The suite includes compiled C behavior checks and interactive Python/C
+round trips through real engine handlers. C checks require a compiler,
+make, and GNU readline development files; they are skipped if unavailable.</p>
 <h3 id="manual-gateway-sanity-check">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5565</span>
 </code></pre></div>
 <p>Then type:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>HELLO|CLIENT=manual01|PROTO=ALF1|ID=TRADER01
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=10
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>SYMBOLS
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>HELLO|CLIENT=manual01|PROTO=ALF1|ID=TRADER01
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=10
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>SYMBOLS
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>ORDERS
 </code></pre></div>
 <p>See also:</p>
 <ul>
@@ -8148,7 +8283,7 @@ older gateway build.</p>
 </tbody>
 </table>
 <h3 id="wire-format_1">Wire format<a class="headerlink" href="#wire-format_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
 </code></pre></div>
 <p>Fields missing <code>=</code> raise <code>CalfParseError</code>.  Duplicate keys: last value wins
 (same as ALF), the parser never raises for this case.</p>
@@ -8160,36 +8295,36 @@ older gateway build.</p>
 : Build one <code>\n</code>-terminated CALF line.  Raises <code>CalfParseError</code> for invalid
   message types or fields containing <code>|</code>.</p>
 <h3 id="python-usage-pattern_1">Python usage pattern<a class="headerlink" href="#python-usage-pattern_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">calf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_calf_line</span><span class="p">,</span> <span class="n">parse_calf_line</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Build a HELLO line</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_calf_line</span><span class="p">(</span><span class="s2">"HELLO"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"CLIENT"</span><span class="p">:</span> <span class="s2">"demo01"</span><span class="p">,</span> <span class="s2">"PROTO"</span><span class="p">:</span> <span class="s2">"CALF1"</span><span class="p">})</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># → "HELLO|CLIENT=demo01|PROTO=CALF1\n"</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Parse a WELCOME response</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_calf_line</span><span class="p">(</span><span class="s2">"WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30"</span><span class="p">)</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>          <span class="c1"># "WELCOME"</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"HBINT"</span><span class="p">])</span>   <span class="c1"># "1"</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># Parse a streaming TOP-OF-BOOK update</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="n">top</span> <span class="o">=</span> <span class="n">parse_calf_line</span><span class="p">(</span><span class="s2">"TOP|SYM=AAPL|BID=149.50|ASK=150.00|SEQ=1042"</span><span class="p">)</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">top</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"BID"</span><span class="p">])</span>     <span class="c1"># "149.50"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">calf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_calf_line</span><span class="p">,</span> <span class="n">parse_calf_line</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># Build a HELLO line</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_calf_line</span><span class="p">(</span><span class="s2">"HELLO"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"CLIENT"</span><span class="p">:</span> <span class="s2">"demo01"</span><span class="p">,</span> <span class="s2">"PROTO"</span><span class="p">:</span> <span class="s2">"CALF1"</span><span class="p">})</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># → "HELLO|CLIENT=demo01|PROTO=CALF1\n"</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Parse a WELCOME response</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_calf_line</span><span class="p">(</span><span class="s2">"WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30"</span><span class="p">)</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>          <span class="c1"># "WELCOME"</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"HBINT"</span><span class="p">])</span>   <span class="c1"># "1"</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="c1"># Parse a streaming TOP-OF-BOOK update</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">top</span> <span class="o">=</span> <span class="n">parse_calf_line</span><span class="p">(</span><span class="s2">"TOP|SYM=AAPL|BID=149.50|ASK=150.00|SEQ=1042"</span><span class="p">)</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">top</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"BID"</span><span class="p">])</span>     <span class="c1"># "149.50"</span>
 </code></pre></div>
 <h3 id="run-python-example">Run Python example<a class="headerlink" href="#run-python-example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># Subscribe to TOP/TRADE/STATE/DEPTH for AAPL and MSFT</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL,MSFT
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Also subscribe to an index feed (skipped if the gateway doesn't advertise</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="c1"># INDEX support in WELCOME|CH_SUPPORTED=)</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--index<span class="w"> </span>EDU100
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="c1"># Resume from a known sequence number (single-stream resume)</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">    </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="c1"># Subscribe to TOP/TRADE/STATE/DEPTH for AAPL and MSFT</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL,MSFT
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Also subscribe to an index feed (skipped if the gateway doesn't advertise</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1"># INDEX support in WELCOME|CH_SUPPORTED=)</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--index<span class="w"> </span>EDU100
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="c1"># Resume from a known sequence number (single-stream resume)</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">    </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
 </code></pre></div>
 <p>Channels are not selected with a flag — the client always requests every
 channel the connected gateway advertises via <code>WELCOME|CH_SUPPORTED=</code>
@@ -8205,27 +8340,27 @@ subscription).</p>
 <p><strong><code>const char *calf_get_field(const calf_message_t *msg, const char *key)</code></strong>
 : Return the value for <code>key</code>, or <code>NULL</code> if absent.</p>
 <h3 id="c-usage-pattern_1">C usage pattern<a class="headerlink" href="#c-usage-pattern_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"calf_parser.h"</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"TOP|SYM=AAPL|BID=149.50|ASK=150.00|SEQ=1042"</span><span class="p">;</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">calf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">calf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">calf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"BID"</span><span class="p">));</span><span class="w">  </span><span class="cm">/* "149.50" */</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"calf_parser.h"</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"TOP|SYM=AAPL|BID=149.50|ASK=150.00|SEQ=1042"</span><span class="p">;</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">calf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">calf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">calf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"BID"</span><span class="p">));</span><span class="w">  </span><span class="cm">/* "149.50" */</span>
 </code></pre></div>
 <h3 id="build-and-run-c-example">Build and run C example<a class="headerlink" href="#build-and-run-c-example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>make
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>./calf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span><span class="w"> </span>AAPL,MSFT<span class="w"> </span>EDU100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>make
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>./calf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span><span class="w"> </span>AAPL,MSFT<span class="w"> </span>EDU100
 </code></pre></div>
 <p>Arguments are positional: <code>host [port [symbols [index_id]]]</code>.  <code>symbols</code> is
 a comma-separated list (default <code>AAPL</code>); <code>index_id</code> is optional (default:
 skip the <code>INDEX</code> subscription).</p>
 <h3 id="manual-gateway-sanity-check_1">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
 </code></pre></div>
 <p>Then type:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>HELLO|CLIENT=manual01|PROTO=CALF1
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>SUB|CH=TOP,TRADE|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>HELLO|CLIENT=manual01|PROTO=CALF1
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>SUB|CH=TOP,TRADE|SYM=AAPL
 </code></pre></div>
 <p>See also:</p>
 <ul>
@@ -8287,7 +8422,7 @@ Ctrl-C shutdown.</p>
 </tbody>
 </table>
 <h3 id="wire-format_2">Wire format<a class="headerlink" href="#wire-format_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
 </code></pre></div>
 <p>Identical text-line structure to CALF; field parsing rules are the same.</p>
 <h3 id="python-api-ralf_parserpy">Python API — <code>ralf_parser.py</code><a class="headerlink" href="#python-api-ralf_parserpy" title="Permanent link">&para;</a></h3>
@@ -8298,43 +8433,43 @@ Ctrl-C shutdown.</p>
 : Build one <code>\n</code>-terminated RALF line.  Raises <code>RalfParseError</code> for invalid
   message types or fields containing <code>|</code>.</p>
 <h3 id="python-usage-pattern_2">Python usage pattern<a class="headerlink" href="#python-usage-pattern_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ralf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_ralf_line</span><span class="p">,</span> <span class="n">parse_ralf_line</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="c1"># Build a HELLO line</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_ralf_line</span><span class="p">(</span><span class="s2">"HELLO"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="s2">"CLIENT"</span><span class="p">:</span> <span class="s2">"demo01"</span><span class="p">,</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="s2">"PROTO"</span><span class="p">:</span> <span class="s2">"RALF1"</span><span class="p">,</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="s2">"ROLE"</span><span class="p">:</span> <span class="s2">"CLEARING"</span><span class="p">,</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="s2">"LASTSEQ"</span><span class="p">:</span> <span class="s2">"0"</span><span class="p">,</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="p">})</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># → "HELLO|CLIENT=demo01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0\n"</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="c1"># Parse a WELCOME response</span>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="s2">"WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING"</span><span class="p">)</span>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>         <span class="c1"># "WELCOME"</span>
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"ROLE"</span><span class="p">])</span>   <span class="c1"># "CLEARING"</span>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="c1"># Parse an inbound execution report</span>
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="n">fill</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="s2">"FILL|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|SEQ=77"</span><span class="p">)</span>
-<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">fill</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"PRICE"</span><span class="p">])</span> <span class="c1"># "150.00"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ralf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_ralf_line</span><span class="p">,</span> <span class="n">parse_ralf_line</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># Build a HELLO line</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_ralf_line</span><span class="p">(</span><span class="s2">"HELLO"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="s2">"CLIENT"</span><span class="p">:</span> <span class="s2">"demo01"</span><span class="p">,</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="s2">"PROTO"</span><span class="p">:</span> <span class="s2">"RALF1"</span><span class="p">,</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    <span class="s2">"ROLE"</span><span class="p">:</span> <span class="s2">"CLEARING"</span><span class="p">,</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    <span class="s2">"LASTSEQ"</span><span class="p">:</span> <span class="s2">"0"</span><span class="p">,</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="p">})</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># → "HELLO|CLIENT=demo01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0\n"</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="c1"># Parse a WELCOME response</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="s2">"WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING"</span><span class="p">)</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">)</span>         <span class="c1"># "WELCOME"</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"ROLE"</span><span class="p">])</span>   <span class="c1"># "CLEARING"</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="c1"># Parse an inbound execution report</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="n">fill</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="s2">"FILL|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|SEQ=77"</span><span class="p">)</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">fill</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">"PRICE"</span><span class="p">])</span> <span class="c1"># "150.00"</span>
 </code></pre></div>
 <h3 id="run-python-example_1">Run Python example<a class="headerlink" href="#run-python-example_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="c1"># Subscribe as CLEARING role — --role defaults the subscribed channel(s)</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># to exactly what that role may access (here: just the CLEARING channel)</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--role<span class="w"> </span>CLEARING
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Resume from a known sequence number</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">    </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">77</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="c1"># Subscribe as CLEARING role — --role defaults the subscribed channel(s)</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># to exactly what that role may access (here: just the CLEARING channel)</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--role<span class="w"> </span>CLEARING
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="c1"># Resume from a known sequence number</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">    </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">77</span>
 </code></pre></div>
 <p>Pass <code>--channels</code> explicitly to override a role's default channel set —
 this is also how to trigger <code>ERR|CODE=ENTITLEMENT_DENIED</code> on purpose, by
 requesting a channel outside the role's entitlement:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># CLEARING is only entitled to the CLEARING channel, so requesting AUDIT</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="c1"># gets rejected</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--channels<span class="w"> </span>AUDIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># CLEARING is only entitled to the CLEARING channel, so requesting AUDIT</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># gets rejected</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--channels<span class="w"> </span>AUDIT
 </code></pre></div>
 <p>Run <code>python3 ralf_subscriber.py --help</code> for the full flag list, including
 <code>--client</code> and <code>--symbols</code> (defaults to <code>*</code>).</p>
@@ -8345,26 +8480,26 @@ requesting a channel outside the role's entitlement:</p>
 <p><strong><code>const char *ralf_get_field(const ralf_message_t *msg, const char *key)</code></strong>
 : Return the value for <code>key</code>, or <code>NULL</code> if absent.</p>
 <h3 id="c-usage-pattern_2">C usage pattern<a class="headerlink" href="#c-usage-pattern_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"ralf_parser.h"</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"FILL|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|SEQ=77"</span><span class="p">;</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">ralf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">ralf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">ralf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">));</span><span class="w"> </span><span class="cm">/* "150.00" */</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"ralf_parser.h"</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="kt">char</span><span class="w"> </span><span class="n">line</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"FILL|SYM=AAPL|SIDE=BUY|QTY=100|PRICE=150.00|SEQ=77"</span><span class="p">;</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">ralf_message_t</span><span class="w"> </span><span class="n">msg</span><span class="p">;</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">ralf_parse_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">msg</span><span class="p">);</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">ralf_get_field</span><span class="p">(</span><span class="o">&amp;</span><span class="n">msg</span><span class="p">,</span><span class="w"> </span><span class="s">"PRICE"</span><span class="p">));</span><span class="w"> </span><span class="cm">/* "150.00" */</span>
 </code></pre></div>
 <h3 id="build-and-run-c-example_1">Build and run C example<a class="headerlink" href="#build-and-run-c-example_1" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>make
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>AUDIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>make
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>AUDIT
 </code></pre></div>
 <p>Arguments are positional: <code>host [port [role]]</code> (<code>role</code> one of <code>CLEARING</code>,
 <code>DROP_COPY</code>, <code>AUDIT</code>; default <code>CLEARING</code>).</p>
 <h3 id="manual-gateway-sanity-check_2">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
 </code></pre></div>
 <p>Then type:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>SUB|CH=CLEARING|SYM=*
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>SUB|CH=CLEARING|SYM=*
 </code></pre></div>
 <p>See also:</p>
 <ul>
@@ -8531,23 +8666,23 @@ rather than text lines.</p>
   is already converted to a float via <code>decode_price()</code> — no further
   scaling is needed.</p>
 <h3 id="python-usage-pattern_3">Python usage pattern<a class="headerlink" href="#python-usage-pattern_3" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">balf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">parse_header</span><span class="p">,</span> <span class="n">split_frame</span><span class="p">,</span> <span class="n">decode_price</span><span class="p">,</span>
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="n">parse_logon_ack</span><span class="p">,</span> <span class="n">parse_order_ack</span><span class="p">,</span> <span class="n">parse_execution_report</span><span class="p">,</span>
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    <span class="n">MSG_LOGON_ACK</span><span class="p">,</span> <span class="n">MSG_ORDER_ACK</span><span class="p">,</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">,</span>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>    <span class="n">FRAME_SIZES</span><span class="p">,</span>
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="p">)</span>
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="c1"># Decode a raw frame received from TCP</span>
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="n">hdr</span><span class="p">,</span> <span class="n">body</span> <span class="o">=</span> <span class="n">split_frame</span><span class="p">(</span><span class="n">raw_bytes</span><span class="p">)</span>
-<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>
-<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="k">if</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">:</span>
-<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">parse_execution_report</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
-<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>    <span class="n">price</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">"fill_price"</span><span class="p">]</span>  <span class="c1"># already decoded to a float</span>
-<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fill: </span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'symbol'</span><span class="p">]</span><span class="si">}</span><span class="s2"> qty=</span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'fill_qty'</span><span class="p">]</span><span class="si">}</span><span class="s2"> price=</span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a><span class="k">elif</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_ORDER_ACK</span><span class="p">:</span>
-<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>    <span class="n">ack</span> <span class="o">=</span> <span class="n">parse_order_ack</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
-<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"order_id=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'order_id'</span><span class="p">]</span><span class="si">}</span><span class="s2"> accepted=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'accepted'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">balf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="n">parse_header</span><span class="p">,</span> <span class="n">split_frame</span><span class="p">,</span> <span class="n">decode_price</span><span class="p">,</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    <span class="n">parse_logon_ack</span><span class="p">,</span> <span class="n">parse_order_ack</span><span class="p">,</span> <span class="n">parse_execution_report</span><span class="p">,</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>    <span class="n">MSG_LOGON_ACK</span><span class="p">,</span> <span class="n">MSG_ORDER_ACK</span><span class="p">,</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">,</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>    <span class="n">FRAME_SIZES</span><span class="p">,</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="p">)</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="c1"># Decode a raw frame received from TCP</span>
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="n">hdr</span><span class="p">,</span> <span class="n">body</span> <span class="o">=</span> <span class="n">split_frame</span><span class="p">(</span><span class="n">raw_bytes</span><span class="p">)</span>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="k">if</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_EXECUTION_REPORT</span><span class="p">:</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>    <span class="n">report</span> <span class="o">=</span> <span class="n">parse_execution_report</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>    <span class="n">price</span> <span class="o">=</span> <span class="n">report</span><span class="p">[</span><span class="s2">"fill_price"</span><span class="p">]</span>  <span class="c1"># already decoded to a float</span>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fill: </span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'symbol'</span><span class="p">]</span><span class="si">}</span><span class="s2"> qty=</span><span class="si">{</span><span class="n">report</span><span class="p">[</span><span class="s1">'fill_qty'</span><span class="p">]</span><span class="si">}</span><span class="s2"> price=</span><span class="si">{</span><span class="n">price</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="k">elif</span> <span class="n">hdr</span><span class="o">.</span><span class="n">msg_type</span> <span class="o">==</span> <span class="n">MSG_ORDER_ACK</span><span class="p">:</span>
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>    <span class="n">ack</span> <span class="o">=</span> <span class="n">parse_order_ack</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"order_id=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'order_id'</span><span class="p">]</span><span class="si">}</span><span class="s2"> accepted=</span><span class="si">{</span><span class="n">ack</span><span class="p">[</span><span class="s1">'accepted'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="c-reference-decoder-balf_parserc">C reference decoder — <code>balf_parser.c</code><a class="headerlink" href="#c-reference-decoder-balf_parserc" title="Permanent link">&para;</a></h3>
 <p>Unlike the ALF and CALF C libraries, <code>balf_parser.c</code> has no header file and
@@ -8555,11 +8690,11 @@ its functions are all <code>static</code> — it is a single self-contained refe
 program, not a linkable library.  It builds a synthetic <code>LOGON_ACK</code> frame in
 memory, decodes it with the same <code>split_frame</code>/<code>parse_header</code> logic a real
 client would use, and prints the result as a self-test:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>balf_parser.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>./balf_parser
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok</span>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="c1">#   balf_parser.c self-test: OK</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/balf
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>cc<span class="w"> </span>-std<span class="o">=</span>c11<span class="w"> </span>-Wall<span class="w"> </span>-Wextra<span class="w"> </span>-pedantic<span class="w"> </span>-O2<span class="w"> </span>balf_parser.c<span class="w"> </span>-o<span class="w"> </span>balf_parser
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>./balf_parser
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="c1">#   balf_parser.c self-test: OK</span>
 </code></pre></div>
 <p>There is no BALF C (or Python) network client example — only the parsing
 logic is provided.  To exercise BALF end-to-end, connect a TCP client to
@@ -8567,13 +8702,13 @@ logic is provided.  To exercise BALF end-to-end, connect a TCP client to
 (Python: <a href="../../../downloads/examples/balf/balf_parser.py"><code>balf_parser.py</code></a>) or the C
 reference decoder's parsing functions.</p>
 <h3 id="run-the-gateway">Run the gateway<a class="headerlink" href="#run-the-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-balf-gwy
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="c1"># Override bind port</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>pm-balf-gwy<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="c1"># Override engine host</span>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>pm-balf-gwy<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-balf-gwy
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="c1"># Override bind port</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>pm-balf-gwy<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># Override engine host</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>pm-balf-gwy<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
 </code></pre></div>
 <p>The gateway binds on port <strong>5560</strong> by default.  BALF uses fixed-length binary
 frames so there is no text-mode manual sanity check; use the Python parser
@@ -8632,8 +8767,8 @@ required.</p>
 <p>All requests require a <code>Bearer</code> token in the <code>Authorization</code> header.
 The default development key is <code>key-trader-demo</code>.</p>
 <p>Configure via environment variables:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span><span class="s2">"http://127.0.0.1:8080"</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="s2">"key-trader-demo"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span><span class="s2">"http://127.0.0.1:8080"</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span><span class="s2">"key-trader-demo"</span>
 </code></pre></div>
 <h3 id="python-api-api_gateway_clientpy">Python API — <code>api_gateway_client.py</code><a class="headerlink" href="#python-api-api_gateway_clientpy" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient(base_url, api_key, timeout=5.0)</code></strong>
@@ -8645,48 +8780,48 @@ The default development key is <code>key-trader-demo</code>.</p>
 : Issue a <code>POST</code> request with a JSON body and return the parsed JSON
   response.  Raises <code>RuntimeError</code> on HTTP error responses.</p>
 <h3 id="python-usage-pattern_4">Python usage pattern<a class="headerlink" href="#python-usage-pattern_4" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Query endpoints</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>
-<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="c1"># Submit a MARKET order</span>
-<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
-<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
-<a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-27-16" name="__codelineno-27-16" href="#__codelineno-27-16"></a><span class="p">})</span>
-<a id="__codelineno-27-17" name="__codelineno-27-17" href="#__codelineno-27-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
-<a id="__codelineno-27-18" name="__codelineno-27-18" href="#__codelineno-27-18"></a>
-<a id="__codelineno-27-19" name="__codelineno-27-19" href="#__codelineno-27-19"></a><span class="c1"># Submit and wait for the engine ACK</span>
-<a id="__codelineno-27-20" name="__codelineno-27-20" href="#__codelineno-27-20"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-27-21" name="__codelineno-27-21" href="#__codelineno-27-21"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
-<a id="__codelineno-27-22" name="__codelineno-27-22" href="#__codelineno-27-22"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
-<a id="__codelineno-27-23" name="__codelineno-27-23" href="#__codelineno-27-23"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
-<a id="__codelineno-27-24" name="__codelineno-27-24" href="#__codelineno-27-24"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-27-25" name="__codelineno-27-25" href="#__codelineno-27-25"></a><span class="p">})</span>
-<a id="__codelineno-27-26" name="__codelineno-27-26" href="#__codelineno-27-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">"http://127.0.0.1:8080"</span><span class="p">,</span> <span class="s2">"key-trader-demo"</span><span class="p">)</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="c1"># Query endpoints</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">status</span>  <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/status"</span><span class="p">)</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/symbols"</span><span class="p">)</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="n">session</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">"/api/v1/session"</span><span class="p">)</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="c1"># Submit a MARKET order</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"AAPL"</span><span class="p">,</span>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"BUY"</span><span class="p">,</span>
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a><span class="p">})</span>
+<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"order_id"</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
+<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>
+<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="c1"># Submit and wait for the engine ACK</span>
+<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="s2">"/api/v1/orders?wait=ack"</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a>    <span class="s2">"symbol"</span><span class="p">:</span>     <span class="s2">"MSFT"</span><span class="p">,</span>
+<a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a>    <span class="s2">"side"</span><span class="p">:</span>       <span class="s2">"SELL"</span><span class="p">,</span>
+<a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>    <span class="s2">"order_type"</span><span class="p">:</span> <span class="s2">"MARKET"</span><span class="p">,</span>
+<a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>    <span class="s2">"quantity"</span><span class="p">:</span>   <span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a><span class="p">})</span>
+<a id="__codelineno-29-26" name="__codelineno-29-26" href="#__codelineno-29-26"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event"</span><span class="p">))</span>   <span class="c1"># engine acknowledgement event</span>
 </code></pre></div>
 <h3 id="run-python-examples">Run Python examples<a class="headerlink" href="#run-python-examples" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="c1"># Print gateway status, symbols, and session information</span>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>python3<span class="w"> </span>demo_info.py
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="c1"># Submit a BUY MARKET order for 100 AAPL</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>
-<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="c1"># Submit and block until the engine ACKs</span>
-<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
-<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>
-<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="c1"># Override URL or key on the command line</span>
-<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--url<span class="w"> </span>http://10.0.0.5:8080<span class="w"> </span>--key<span class="w"> </span>mykey<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a><span class="w">    </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--qty<span class="w"> </span><span class="m">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="c1"># Print gateway status, symbols, and session information</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>python3<span class="w"> </span>demo_info.py
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Submit a BUY MARKET order for 100 AAPL</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="c1"># Submit and block until the engine ACKs</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="c1"># Override URL or key on the command line</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--url<span class="w"> </span>http://10.0.0.5:8080<span class="w"> </span>--key<span class="w"> </span>mykey<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">    </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--qty<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
 <h3 id="c-api-api_gateway_clienth">C API — <code>api_gateway_client.h</code><a class="headerlink" href="#c-api-api_gateway_clienth" title="Permanent link">&para;</a></h3>
 <p><strong><code>ApiGatewayClient api_gateway_client(host, port, api_key)</code></strong>
@@ -8696,35 +8831,35 @@ The default development key is <code>key-trader-demo</code>.</p>
   heap-allocated string.  The caller must <code>free()</code> the result.
   Returns <code>NULL</code> on network or allocation failure.</p>
 <h3 id="c-usage-pattern_3">C usage pattern<a class="headerlink" href="#c-usage-pattern_3" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"api_gateway_client.h"</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">getenv</span><span class="p">(</span><span class="s">"EDUMATCHER_API_KEY"</span><span class="p">)</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="s">"key-trader-demo"</span><span class="p">;</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">);</span>
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">"/api/v1/symbols"</span><span class="p">);</span>
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a><span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a><span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"api_gateway_client.h"</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">getenv</span><span class="p">(</span><span class="s">"EDUMATCHER_API_KEY"</span><span class="p">)</span><span class="w"> </span><span class="o">?:</span><span class="w"> </span><span class="s">"key-trader-demo"</span><span class="p">;</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">"127.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="p">);</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">"/api/v1/symbols"</span><span class="p">);</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">"%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="build-and-run-c-example_2">Build and run C example<a class="headerlink" href="#build-and-run-c-example_2" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>make
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Print status, symbols, and session info</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>./demo_info
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>make
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Print status, symbols, and session info</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>./demo_info
 </code></pre></div>
 <h3 id="manual-api-sanity-check">Manual API sanity check<a class="headerlink" href="#manual-api-sanity-check" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">     </span>-d<span class="w"> </span><span class="s1">'{"symbol":"AAPL","side":"BUY","order_type":"MARKET","quantity":10}'</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Authorization: Bearer key-trader-demo"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="w">     </span>-d<span class="w"> </span><span class="s1">'{"symbol":"AAPL","side":"BUY","order_type":"MARKET","quantity":10}'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 </code></pre></div>
 <p>See also:</p>
 <ul>

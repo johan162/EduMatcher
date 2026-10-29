@@ -7731,7 +7731,7 @@ need drop copy just to find out which side of a trade you were on.</p>
 later TCP response belongs to.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit, confirm, amend, and cancel an order using only raw TCP and a terminal.</p>
 <h2 id="exercise-5-use-the-python-interactive-client">Exercise 5: Use the Python Interactive Client<a class="headerlink" href="#exercise-5-use-the-python-interactive-client" title="Permanent link">&para;</a></h2>
-<p><code>alf_client.py</code> provides an <code>pm-alf-console</code>-style interactive session over
+<p><code>alf_client.py</code> provides a <code>pm-alf-console</code>-style interactive session over
 TCP, with tab-completion, background event display, and local P&amp;L tracking.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/alf/python
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--id<span class="w"> </span>TRADER01
@@ -7747,11 +7747,14 @@ TCP, with tab-completion, background event display, and local P&amp;L tracking.<
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
-<li><code>POS</code> shows accumulated positions tracked locally by the client</li>
+<li><code>POS</code> shows positions and realized P&amp;L from fills seen by this connection;
+  <code>POS|GW=TRADER01</code> queries the engine's position snapshot</li>
 <li><code>STATUS</code> shows session info: gateway name, heartbeat interval, idle timeout</li>
 <li>fills, <code>HB</code>, and broadcast <code>SESSION</code>/<code>TRADE</code> events appear in real time while you type other commands</li>
 <li>Tab completes command verbs and field names</li>
 <li>Command history is saved across sessions to <code>~/.alf_client_history</code></li>
+<li>Both interactive clients send keepalive <code>PING</code> automatically; <code>DC_FILL</code>
+  is displayed separately without counting its execution a second time</li>
 </ul>
 <p>Connect to a remote gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>python3<span class="w"> </span>alf_client.py<span class="w"> </span>--host<span class="w"> </span><span class="m">10</span>.0.0.5<span class="w"> </span>--port<span class="w"> </span><span class="m">5565</span><span class="w"> </span>--id<span class="w"> </span>TRADER01
@@ -7776,19 +7779,30 @@ TCP, with tab-completion, background event display, and local P&amp;L tracking.<
 <a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="s">})</span>
 <a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="s">print(repr(line))  # 'NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TAG=NC-ORDER-003\n'</span>
 <a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>
-<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="s"># High-level session: connect, HELLO/WELCOME, send/recv</span>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="s"># High-level session: connect, HELLO/WELCOME, consume a complete query</span>
 <a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="s">session = AlfSession.connect("127.0.0.1", 5565, "TRADER01")</span>
-<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="s">print(session.welcome.gw_name)   # alf-gwy01</span>
-<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>
-<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="s">session.send("ORDERS")</span>
-<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="s">msg = session.recv_msg()         # header line of ORDERS response</span>
-<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="s">print(msg.msg_type, msg.fields)</span>
-<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>
-<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a><span class="s">session.close()</span>
-<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="s">EOF</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="s">try:</span>
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a><span class="s">    print(session.welcome.gw_name)   # alf-gwy01</span>
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="s">    session.sock.settimeout(2.0)    # fail visibly if this short exercise stalls</span>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="s">    session.send("ORDERS")</span>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="s">    while True:</span>
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a><span class="s">        msg = session.recv_msg()</span>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a><span class="s">        print(msg.msg_type, msg.fields)</span>
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="s">        if msg.msg_type == "END" and msg.fields.get("TYPE") == "ORDERS":</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="s">            break</span>
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="s">finally:</span>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a><span class="s">    session.close()</span>
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>Expected output: <code>ACK</code>, the parsed <code>fields</code> dict, the built line string, the
-gateway name from <code>WELCOME</code>, and the <code>ORDERS</code> response header.</p>
+gateway name from <code>WELCOME</code>, and the complete <code>ORDERS</code> response, possibly
+interleaved with heartbeats or broadcasts.</p>
+<p>This short exercise closes after one query. <code>AlfSession</code> validates the
+handshake and buffers TCP lines but does not start keepalives or reconnect.
+For a persistent application, copy <code>alf_parser.py</code> beside your program and
+use the <a href="../../protocols-and-clients/part-4-writing-clients/030-example-libraries/#use-alf-as-a-foundation-for-your-own-program">application integration walkthrough</a>,
+which includes periodic <code>PING</code>, a query deadline, error handling, and
+reconciliation responsibilities.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>AlfSession.connect</code> completes the HELLO/WELCOME handshake and <code>recv_msg</code> returns a parsed message.</p>
 <h2 id="exercise-7-build-and-run-the-c-client">Exercise 7: Build and Run the C Client<a class="headerlink" href="#exercise-7-build-and-run-the-c-client" title="Permanent link">&para;</a></h2>
 <p><strong>macOS</strong> — install Homebrew readline for full callback support if not already present:</p>
@@ -7942,7 +7956,13 @@ client can correlate the failure.</p>
 <li><code>docs/examples/alf/c/alf_client.c</code> — interactive C client using <code>select()</code> + readline</li>
 </ul>
 <p>Use these to bootstrap ALF clients in any language that can open a TCP socket
-and read newline-delimited text.</p>
+and read newline-delimited text. The Python parser/session and C parser
+libraries do not need readline; only the interactive clients do. The C
+parser is not a session library: adapt the C client's transport and lifecycle
+code for a headless application, check parser/builder return codes, and review
+its fixed capacities. See the
+<a href="../../protocols-and-clients/part-4-writing-clients/030-example-libraries/#use-alf-as-a-foundation-for-your-own-program">reusable-client guide</a>
+for the integration checklist.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You can now:</p>
 <ul>
