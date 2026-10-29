@@ -81,6 +81,9 @@ _E7_SHIFT = 7
 _KEEP = 50
 #: Numbers a restarted engine assigns afresh (E6).
 _RENUMBERED = frozenset({"priority_seq"})
+#: Counted across the whole engine (AUC-<run>-<n>): a one-symbol engine
+#: numbers its auctions alone (E5).
+_ENGINE_WIDE = frozenset({"auction_id"})
 #: Answers that depend on other symbols' orders: order ids are engine-wide.
 _CROSS_SYMBOL_CODES = frozenset({"DUPLICATE_ORDER"})
 #: Payload keys naming the order, quote or OCO a message is about.
@@ -273,7 +276,7 @@ class _Isolation:
             for s, each in self.lanes.items():
                 apply(each.engine, topic, p)
                 if s not in self.combined:
-                    self.run.compare("E5", each, each.sink.take(), ref, {s}, command=topic, chain=chain)  # fmt: skip
+                    self.run.compare("E5", each, each.sink.take(), ref, {s}, ignore=_ENGINE_WIDE, command=topic, chain=chain)  # fmt: skip
                 else:
                     each.sink.take()
             return
@@ -286,7 +289,7 @@ class _Isolation:
         if others and "E5-other" not in lane.diverged:
             lane.diverged.add("E5-other")
             self.run.flag("E5", symbol=symbol, command=topic, chain=chain, error="the command changed other symbols", others=sorted(str(o) for o in others)[:5])  # fmt: skip
-        self.run.compare("E5", lane, mine, ref, {symbol, None}, command=topic, chain=chain)  # fmt: skip
+        self.run.compare("E5", lane, mine, ref, {symbol, None}, ignore=_ENGINE_WIDE, command=topic, chain=chain)  # fmt: skip
 
 
 # --- E6 ----------------------------------------------------------------------

@@ -4613,16 +4613,7 @@ class Engine:
         )
 
         for symbol in halted_symbols:
-            self._halted_symbols[symbol] = False
-
-            cb = self._circuit_breakers.get(symbol)
-            if cb is not None:
-                cb.deactivate()
-
-            self.pub_sock.send_multipart(
-                make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
-            )
-            self._mark_dirty(symbol)
+            self._admin_reopen(symbol)
 
         self.pub_sock.send_multipart(
             make_circuit_breaker_resume_all_ack_msg(
@@ -4786,6 +4777,23 @@ class Engine:
             f"ADMIN SYMBOL HALT — {symbol} by {gateway_id} (level={triggered_level})"
         )
 
+    def _admin_reopen(self, symbol: str) -> None:
+        """End *symbol*'s halt at an administrator's word: the reopening
+        auction uncrosses what the call phase collected, then the resume is
+        published -- as the breaker's timed reopen does, but without its ACE
+        corridor, since the operator decided to reopen (X29). Outside a
+        matching phase the session's own auction uncrosses the book."""
+        self._halted_symbols[symbol] = False
+        cb = self._circuit_breakers.get(symbol)
+        if cb is not None:
+            cb.deactivate()
+        if is_matching_enabled(self._session_state):
+            self._run_uncross(symbol_filter=symbol, reason="REOPEN")
+        self.pub_sock.send_multipart(
+            make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
+        )
+        self._mark_dirty(symbol)
+
     def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
@@ -4826,16 +4834,7 @@ class Engine:
             _reject(f"{symbol} is not halted")
             return
 
-        self._halted_symbols[symbol] = False
-
-        cb = self._circuit_breakers.get(symbol)
-        if cb is not None:
-            cb.deactivate()
-
-        self.pub_sock.send_multipart(
-            make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
-        )
-        self._mark_dirty(symbol)
+        self._admin_reopen(symbol)
 
         self.pub_sock.send_multipart(
             make_symbol_resume_ack_msg(gateway_id, symbol, True, command_id=command_id)
