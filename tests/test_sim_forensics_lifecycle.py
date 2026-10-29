@@ -72,9 +72,9 @@ def errors(out: Outcome) -> list[tuple[object, object]]:
 def test_every_c_check_passes_on_a_consistent_run(
     world: Path, open_ds: OpenDataset
 ) -> None:
-    # C7 and C8 read the audit: tests/test_sim_forensics_matching.py and
-    # tests/test_sim_forensics_quotes.py.
-    assert sorted(i for i in REGISTRY if i[0] == "C" and i not in ("C7", "C8")) == C
+    # C7-C11 read the audit: tests/test_sim_forensics_matching.py,
+    # _quotes.py, _immediate.py and _cumulative.py.
+    assert sorted(i for i in REGISTRY if i[0] == "C" and i not in ("C7", "C8", "C9", "C10", "C11")) == C  # fmt: skip
     results = run_checks(open_ds(world), [REGISTRY[i] for i in C], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {
         i: ("PASS", []) for i in C
@@ -334,6 +334,38 @@ def test_c5_accepts_the_sibling_pulled_before_the_legs_fill_is_published(
     out = run(open_ds, world, "C5")
     assert out.violations == 0
     assert "0 siblings closed only by OCO_CANCEL" in out.note
+
+
+def combo(data: Path, *legs: str) -> None:
+    for leg in legs:
+        event(data, "ACK", leg, "GW1", quantity=10, combo_parent_id="K")
+
+
+def test_c5_accepts_a_failed_combo_whose_other_legs_were_cancelled(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "CANCEL", "A", "GW1", combo_parent_id="K")
+    event(world, "CANCEL", "B", "GW1", reason="COMBO_FAILED", combo_parent_id="K")
+    out = run(open_ds, world, "C5")
+    assert out.violations == 0 and out.note.endswith("1 combos")
+
+
+def test_c5_finds_a_combo_leg_live_after_the_combo_failed(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "EXPIRE", "A", "GW1", combo_parent_id="K")
+    assert errors(run(open_ds, world, "C5")) == [("B", "leg still live after the combo failed")]  # fmt: skip
+
+
+def test_c5_finds_a_combo_leg_filling_after_the_combo_failed(
+    world: Path, open_ds: OpenDataset
+) -> None:
+    combo(world, "A", "B")
+    event(world, "CANCEL", "A", "GW1", combo_parent_id="K")
+    event(world, "FILL", "B", "GW1", quantity=10, fill_qty=10, remaining_qty=0, status="FILLED", combo_parent_id="K")  # fmt: skip
+    assert errors(run(open_ds, world, "C5")) == [("B", "fill after leg A ended the combo")]  # fmt: skip
 
 
 def test_c5_finds_a_group_without_two_legs(world: Path, open_ds: OpenDataset) -> None:

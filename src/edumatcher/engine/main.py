@@ -60,6 +60,7 @@ from collections import defaultdict
 from datetime import datetime
 import hashlib
 import json
+import platform
 import logging
 import random
 import signal
@@ -87,7 +88,7 @@ from edumatcher.engine.auction import (
     execute_uncross,
     executable_at,
 )
-from edumatcher.cli_version import add_version_argument
+from edumatcher.cli_version import add_version_argument, package_version, source_commit
 from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, validate_collar
 from edumatcher.engine.order_limits import (
@@ -155,6 +156,12 @@ from edumatcher.models.generated.order import (
     topic_order_ack,
 )
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
+from edumatcher.models.generated.order import (
+    make_engine_trace_unchecked,
+    make_order_triggered_unchecked,
+)
+from edumatcher.models.generated.risk import make_band_unchecked
+from edumatcher.models.generated.system import make_book_checkpoint
 from edumatcher.models.message import (
     dumps,
     decode,
@@ -203,6 +210,7 @@ from edumatcher.models.message import (
     make_reference_reload_ack_msg,
     make_admin_action_msg,
     make_risk_state_msg,
+    make_startup_msg,
     make_startup_recovery_msg,
     make_recovery_item_msg,
     make_diagnostic_msg,
@@ -228,7 +236,7 @@ from edumatcher.models.price import (
     to_ticks_exact,
 )
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
-from edumatcher.models.trade import set_run_seq
+from edumatcher.models.trade import current_run_seq, set_run_seq
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
@@ -478,16 +486,27 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
-def _compiled_engine_config() -> "EngineConfig | None":
-    """Return the engine section of the deployed artifact, if one is deployed.
+def ack_detail(order: Order) -> dict[str, Any]:
+    """The order record an ``order.ack`` carries: the display projection
+    plus the tick prices, which are canonical on the ack (S22)."""
+    d = order_to_display_dict(order)
+    d["price_ticks"] = order.price_ticks
+    d["stop_price_ticks"] = order.stop_price_ticks
+    d["trail_offset_ticks"] = order.trail_offset_ticks
+    return d
+
+
+def _deployed_config() -> "tuple[EngineConfig, str] | None":
+    """The engine section of the deployed artifact and the artifact's text,
+    from one read, if one is deployed.
 
     Deferred import: ``config_artifact`` imports the subsystem config modules
     to describe the artifact's shape.
     """
-    from edumatcher.config_artifact import load_compiled_config
+    from edumatcher.config_artifact import load_compiled_text
 
-    compiled = load_compiled_config()
-    return None if compiled is None else compiled.engine
+    loaded = load_compiled_text()
+    return None if loaded is None else (loaded[0].engine, loaded[1])
 
 
 #: Longest identifier the engine will echo from an inbound payload back into a
@@ -624,6 +643,9 @@ class Engine:
         self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, CollarConfig] = {}
+        #: What the books report beyond trades and order events, shared by
+        #: every book and published by _flush_trace (S24).
+        self._trace: list[tuple[Any, ...]] = []
         # Order-size / notional caps — keyed by symbol; populated in
         # _load_config(). Absent symbol means no cap is configured.
         self._order_limits: dict[str, OrderLimitsConfig] = {}
@@ -650,6 +672,8 @@ class Engine:
         self.snapshot_interval_sec: float = self.SNAPSHOT_INTERVAL
         self.auction_indicative_interval_sec: float = 1.0
         self._last_auction_indicative: float = 0.0
+        #: Uncrosses run so far this engine run (auction_id).
+        self._auctions_run = 0
 
         # Combo-order tracking
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
@@ -689,7 +713,10 @@ class Engine:
         # and every gateway resolve the same defaults from the same validated
         # file. An explicit path still parses YAML directly: tests construct an
         # Engine from a fixture without compiling one first.
-        engine_config = _compiled_engine_config() if config_path is None else None
+        deployed = _deployed_config() if config_path is None else None
+        engine_config = deployed[0] if deployed is not None else None
+        #: The artifact the engine runs on, verbatim (``system.startup``).
+        self._config_text = deployed[1] if deployed is not None else None
         path = Path(config_path) if config_path else ENGINE_CONFIG_FILE
         if engine_config is not None or path.exists():
             try:
@@ -1018,6 +1045,7 @@ class Engine:
             book.on_quote_leg_fill = self._on_quote_leg_filled
             # X15: the same for an OCO leg's sibling.
             book.on_oco_leg_done = self._check_oco_after_event
+            book.trace = self._trace
             self.books[symbol] = book
         return self.books[symbol]
 
@@ -1068,6 +1096,7 @@ class Engine:
                     indicative.eq_qty,
                     indicative.imbalance_side,
                     indicative.surplus,
+                    eq_price_ticks=indicative.eq_price,
                 )
             )
 
@@ -1141,7 +1170,11 @@ class Engine:
                     else None
                 )
             )
-            book.restore_stats(lbp, lsp)
+            # X24: the last trade price comes back too (persisted as
+            # prev_close); a recovery uncross that printed has the newer one.
+            prev_close = persisted.get("prev_close")
+            last = to_ticks(float(prev_close), sym) if prev_close is not None else None
+            book.restore_stats(lbp, lsp, last)
         if stats:
             log.info(f"Restored book statistics for {len(stats)} symbol(s).")
 
@@ -1248,7 +1281,7 @@ class Engine:
                             gateway_id,
                             leg.id,
                             accepted=True,
-                            order=order_to_display_dict(leg),
+                            order=ack_detail(leg),
                         )
                     )
                 # _handle_quote_new (the runtime PUSH-driven equivalent of
@@ -1351,6 +1384,118 @@ class Engine:
     # Startup — restore GTC orders
     # ------------------------------------------------------------------
 
+    def _startup(self, run_seq: int) -> None:
+        """Everything ``run`` does before serving: announce, restore, seed,
+        then publish what that left in the books' trace and the collars."""
+        self._announce_startup(run_seq)
+        self._restore_gtc()
+        self._load_config()  # seed stats + MM orders (after GTC restore)
+        self._flush_trace()
+        self._publish_bands()
+        self._publish_checkpoints("STARTUP")
+
+    def _archive_eod(self) -> None:
+        """Keep the day's closing state: the persistence files, written into
+        ``<DATA_DIR>/eod/<date>/`` (the business date the restore judges DAY
+        orders by), where the next day's checkpoint does not overwrite them.
+        Best-effort, like a checkpoint: a failure must not end the day."""
+        target = DATA_DIR / "eod" / datetime.now().date().isoformat()
+        try:
+            save_gtc_orders(self._resting_gtc_orders(), target / GTC_ORDERS_FILE.name)
+            save_gtc_combos(list(self._combos.values()), target / GTC_COMBOS_FILE.name)
+            save_book_stats(self.books, target / BOOK_STATS_FILE.name)
+        except Exception as exc:
+            self._dbg_count("eod_archive_errors")
+            log.error("End-of-day archive to %s failed: %s", target, exc)
+
+    def _publish_checkpoints(self, reason: str) -> None:
+        """``system.book_checkpoint.<SYM>`` for every book: what a replay
+        needs to start from here (S25)."""
+        phase = self._session_state.value
+        for symbol in sorted(self.books):
+            self.pub_sock.send_multipart(
+                make_book_checkpoint(
+                    **self.books[symbol].checkpoint(), reason=reason, phase=phase
+                )
+            )
+
+    def _flush_trace(self) -> None:
+        """Publish the books' trace: ``order.triggered.<GW>`` for a stop that
+        fired, ``engine.trace.<SYM>`` (audit only) for the rest."""
+        send = self.pub_sock.send_multipart
+        for rec in self._trace:
+            kind = rec[0]
+            if kind == "TRIGGERED":
+                _, symbol, order, armed, stop, trade_id, trade_price, becomes = rec
+                send(
+                    make_order_triggered_unchecked(
+                        gateway_id=order.gateway_id,
+                        order_id=order.id,
+                        symbol=symbol,
+                        order_type=armed,
+                        stop_price_ticks=stop,
+                        trigger_trade_id=trade_id,
+                        trigger_price_ticks=trade_price,
+                        becomes=becomes,
+                        client_tag=order.client_tag,
+                    )
+                )
+            elif kind == "RESTED":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3]))  # fmt: skip
+            elif kind == "ICEBERG_REFILL":
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], priority_seq=rec[3], displayed_qty=rec[4]))  # fmt: skip
+            else:  # TRAILING_RATCHET
+                send(make_engine_trace_unchecked(symbol=rec[1], kind=kind, order_id=rec[2], stop_price_ticks=rec[3], last_price_ticks=rec[4]))  # fmt: skip
+        self._trace.clear()
+
+    def _publish_bands(self) -> None:
+        """``risk.band.<SYM>`` for each collared symbol: the static band and
+        the dynamic band's width, as ``validate_collar`` applies them."""
+        for symbol, c in sorted(self._collars.items()):
+            ref = c.reference_price
+            self.pub_sock.send_multipart(
+                make_band_unchecked(
+                    symbol=symbol,
+                    kind="COLLAR",
+                    reference_price_ticks=ref,
+                    static_low_ticks=int(ref * (1 - c.static_band_pct)),
+                    static_high_ticks=int(ref * (1 + c.static_band_pct)),
+                    dynamic_band_pct=c.dynamic_band_pct,
+                )
+            )
+
+    def _announce_startup(self, run_seq: int) -> None:
+        """Publish ``system.startup``: which engine, configuration and
+        persisted state this start began from. First, before the restore
+        publishes anything: an audit reader takes it as the start of a run."""
+        loaded = []
+        for path in (GTC_ORDERS_FILE, GTC_COMBOS_FILE, BOOK_STATS_FILE):
+            try:
+                data = path.read_bytes()
+            except FileNotFoundError:
+                loaded.append({"name": path.name, "sha256": None, "entries": 0})
+                continue
+            try:
+                entries = len(json.loads(data))
+            except ValueError, TypeError:
+                entries = 0  # the restore reports what it could not read
+            sha = hashlib.sha256(data).hexdigest()
+            loaded.append({"name": path.name, "sha256": sha, "entries": entries})
+        text = self._config_text
+        self.pub_sock.send_multipart(
+            make_startup_msg(
+                engine_version=package_version(),
+                git_commit=source_commit(),
+                python_version=platform.python_version(),
+                run_seq=run_seq,
+                config_sha256=(
+                    hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
+                ),
+                config=text,
+                loaded=loaded,
+            )
+        )
+
     def _restore_gtc(self) -> None:
         # M4: register tick decimals BEFORE restoring and publishing snapshots.
         # run() calls _restore_gtc() before _load_config(), so without this the
@@ -1362,6 +1507,11 @@ class Engine:
                 register_tick_decimals(sym, sym_cfg.tick_decimals)
 
         orders = load_gtc_orders(GTC_ORDERS_FILE)
+        # X26: re-queue in each book's current priority. The file lists orders
+        # in first-arrival order, but an iceberg refill (or an amend that loses
+        # priority) moved an order to the back of its level with a new
+        # arrival_seq; restoring in file order would give it its old place.
+        orders.sort(key=lambda o: (o.symbol, o.arrival_seq))
         # Business day for the TIF=DAY staleness check below: machine-local
         # calendar date, matching pm-scheduler's own notion of "today" (see
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §13.3 — the
@@ -1381,6 +1531,7 @@ class Engine:
         # the QuoteIndex rebuild below. See
         # docs-design/EduMatcher-Revised-Quote-Persistence.md §5.3.
         restored_quote_legs: list[Order] = []
+        restored_oco_legs: dict[str, list[Order]] = {}
         for order in orders:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
@@ -1450,15 +1601,30 @@ class Engine:
             )
             if order.origin == OrderOrigin.QUOTE and order.quote_id:
                 restored_quote_legs.append(order)
+            if order.oco_group_id:
+                restored_oco_legs.setdefault(order.oco_group_id, []).append(order)
+        # X23: re-link OCO pairs, as quotes are rebuilt below. Legs come in
+        # priority order, so leg 1 (posted first) comes first. A pair with one
+        # surviving leg is not re-linked: its leg rests as a plain order.
+        for oco_id, legs in restored_oco_legs.items():
+            if len(legs) == 2:
+                self._oco_groups[oco_id] = [leg.id for leg in legs]
+                for leg in legs:
+                    self._order_to_oco[leg.id] = oco_id
         if restored_count:
             log.info(
                 f"Restored {restored_count} resting order(s) from previous session."
             )
             # M3: restore rests orders without matching, so two crossed GTC
             # orders would leave the book crossed at startup.  Uncross each
-            # book at the equilibrium price before continuous trading begins.
-            for symbol in list(self.books.keys()):
-                self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
+            # book at the equilibrium price before continuous trading begins
+            # -- but only if it begins now (sessions disabled). With sessions
+            # the engine starts CLOSED and reaches CONTINUOUS through a
+            # transition that uncrosses; a book crossed in a call phase is
+            # the auction's to print, not the restart's (X25).
+            if is_matching_enabled(self._session_state):
+                for symbol in list(self.books.keys()):
+                    self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
@@ -1943,6 +2109,9 @@ class Engine:
                     "stop_price": _ack_stop_price,
                     "visible_qty": order.visible_qty,
                     "trail_offset": _ack_trail_offset,
+                    "price_ticks": _tick_px,
+                    "stop_price_ticks": order.stop_price_ticks,
+                    "trail_offset_ticks": order.trail_offset_ticks,
                     "smp_action": _ack_smp_action,
                     "client_tag": order.client_tag,
                 }
@@ -3150,6 +3319,10 @@ class Engine:
           A participant therefore learns of its own fill slightly before the
           public tape shows it.
         """
+        # Step 0: what the book did on the way -- a stop that fired, an order
+        # that rested -- before the fills it explains.
+        if self._trace:
+            self._flush_trace()
         # Step 1: collapse the trade list into "what did each order execute
         # in total", so a sweep that hit 5 resting orders gives the aggressor
         # ONE order.fill (qty summed, VWAP price) and each resting order its own.
@@ -3177,6 +3350,8 @@ class Engine:
                         symbol=evt.symbol,
                         client_tag=evt.client_tag,
                         cancel_reason=self._cancel_reason_of(evt),
+                        remaining_qty=evt.remaining_qty,
+                        cum_qty=evt.quantity - evt.remaining_qty,
                         oco_group_id=evt.oco_group_id,
                         combo_parent_id=evt.combo_parent_id,
                         quote_id=evt.quote_id,
@@ -3214,9 +3389,11 @@ class Engine:
 
         Built from the order itself rather than ``Order.to_dict()``, which
         has no display ``price`` (every path but the new-order one lost it)
-        and costs a dict of 25 fields per fill.
+        and costs a dict of 25 fields per fill. Adds the execution to the
+        order's running notional, so call it once per execution.
         """
         symbol = order.symbol
+        order.cum_notional_ticks += ex.notional
         return make_order_fill_unchecked(
             gateway_id=order.gateway_id,
             order_id=order.id,
@@ -3242,6 +3419,9 @@ class Engine:
             is_seed=order.is_seed,
             trade_ids=ex.trade_ids,
             liquidity_flag=ex.flag,
+            fill_notional_ticks=ex.notional,
+            cum_qty=order.quantity - order.remaining_qty,
+            cum_notional_ticks=order.cum_notional_ticks,
         )
 
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
@@ -3469,10 +3649,17 @@ class Engine:
             expansions = cb.expansion_index
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            self._run_uncross(symbol_filter=symbol, reason="REOPEN")
-            self.pub_sock.send_multipart(
-                make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
-            )
+            # No command caused the reopen, but it is one piece of work: its
+            # auction.result, prints, fills and resume share one chain, so an
+            # audit reader sees one uncross rather than scattered roots.
+            self.pub_sock.begin_unit()
+            try:
+                self._run_uncross(symbol_filter=symbol, reason="REOPEN")
+                self.pub_sock.send_multipart(
+                    make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
+                )
+            finally:
+                self.pub_sock.end_unit()
             self._mark_dirty(symbol)
             log.info(
                 f"CIRCUIT BREAKER RESUME {symbol}: after {expansions} ACE extension(s)"
@@ -5091,7 +5278,7 @@ class Engine:
                 combo.gateway_id,
                 child.id,
                 accepted=True,
-                order=order_to_display_dict(child),
+                order=ack_detail(child),
             )
             defer_ack = _book_may_reject(child, do_match)
             if not defer_ack:
@@ -5417,6 +5604,7 @@ class Engine:
             # so they do not silently carry into the next trading day (they were
             # previously only expired at process shutdown).
             self._expire_tif(TIF.DAY)
+            self._archive_eod()
             # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
             for symbol, cb in self._circuit_breakers.items():
                 if cb.halted:
@@ -5451,6 +5639,7 @@ class Engine:
         # After the broadcast, so a requester that sees its ack knows the
         # public state has already been published.
         self._reply_session_transition(payload, True, to_state=to_state.value)
+        self._publish_checkpoints("PHASE")
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
     def _handle_session_next(self, payload: dict[str, Any]) -> None:
@@ -5503,6 +5692,21 @@ class Engine:
                             self._check_combo_after_child_event(cancelled)
                         self._mark_dirty(book.symbol)
 
+    def _uncross_match_type(self, reason: str) -> str:
+        """``trade.executed.match_type`` of an uncross's prints. A scheduled
+        uncross runs before the session moves on, so the session state is
+        still the phase being left."""
+        if reason == "SCHEDULED":
+            if self._session_state == SessionState.CLOSING_AUCTION:
+                return "CLOSING_AUCTION"
+            return "OPENING_AUCTION"
+        return {
+            "REOPEN": "REOPEN_AUCTION",
+            "RECOVERY": "RECOVERY_AUCTION",
+            "BACKSTOP": "BACKSTOP",
+            "ADMIN_MANUAL": "FORCE_UNCROSS",
+        }[reason]
+
     def _run_uncross(
         self,
         symbol_filter: str | None = None,
@@ -5537,6 +5741,7 @@ class Engine:
         do not need the outcome (the session sweep, recovery) ignore it.
         """
         outcomes: dict[str, tuple[int | None, int]] = {}
+        match_type = self._uncross_match_type(reason)
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
@@ -5546,6 +5751,8 @@ class Engine:
             # arrives after deactivate(), so it is unaffected by this guard.
             if self._halted_symbols.get(symbol):
                 continue
+            self._auctions_run += 1
+            auction_id = f"AUC-{current_run_seq() or 0:06d}-{self._auctions_run:06d}"
             result = compute_equilibrium(book)
             # An ADMIN_MANUAL reopen may assert a print price even when the book
             # has no natural equilibrium (a failed auction). Every other caller
@@ -5576,6 +5783,8 @@ class Engine:
                         imbalance_side=result.imbalance_side,
                     )
 
+                for t in trades:
+                    t.match_type, t.auction_id = match_type, auction_id
                 # X8b: the book's quote and OCO hooks are not called inside
                 # execute_uncross (its two-sided walk must not be mutated
                 # mid-way), so their follow-ups run here -- before the stops
@@ -5613,6 +5822,8 @@ class Engine:
                     imbalance_side=result.imbalance_side,
                     imbalance_qty=result.surplus,
                     reason=reason,
+                    eq_price_ticks=result.eq_price,
+                    auction_id=auction_id,
                 )
             )
             outcomes[symbol] = (
@@ -5859,7 +6070,7 @@ class Engine:
                 # EduMatcher-Trader-GUI-Review.md. Safe to call here,
                 # before book.process(leg, ...) below: remaining_qty
                 # still equals quantity at this pre-match moment.
-                order=order_to_display_dict(leg),
+                order=ack_detail(leg),
             )
             if leg is leg2 and leg1.status in _ENDED_STATUSES:
                 # X17: leg 1 ended on entry -- filled, cancelled or rejected
@@ -6324,6 +6535,8 @@ class Engine:
                 ),
                 old_qty=old_qty,
                 symbol=amended.symbol,
+                price_ticks=amended.price_ticks,
+                priority_seq=amended.arrival_seq,
             )
         )
         self._dbg_count("amend_accepted")
@@ -6477,7 +6690,9 @@ class Engine:
             f"Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
         )
 
-        # Broadcast EOD — subscribers record closing prices before sockets close
+        # The books as they end, for the audit (S25), then the broadcast EOD
+        # -- subscribers record closing prices before sockets close.
+        self._publish_checkpoints("EOD")
         eod_books = [book.snapshot() for book in self.books.values()]
         self.pub_sock.send_multipart(make_eod_msg(eod_books))
 
@@ -6691,6 +6906,10 @@ class Engine:
             except Exception:
                 log.error("Diagnostic publish for %s failed", topic)
             self._reject_after_error(topic, payload, fills_before)
+        # What the command's book changes did not publish yet (an amend's
+        # new priority, a stop that only armed).
+        if self._trace:
+            self._flush_trace()
 
     def _reject_after_error(
         self, topic: str, payload: dict[str, Any], fills_before: int
@@ -6916,9 +7135,9 @@ class Engine:
         socket.  The 200 ms poll timeout only bounds how long maintenance can
         be delayed on an idle exchange; under load the loop never waits.
         """
-        set_run_seq(load_and_bump_run_seq(RUN_SEQ_FILE))
-        self._restore_gtc()
-        self._load_config()  # seed stats + MM orders (after GTC restore)
+        run_seq = load_and_bump_run_seq(RUN_SEQ_FILE)
+        set_run_seq(run_seq)
+        self._startup(run_seq)
 
         # Create drop copy publisher here (not in __init__) so that unit tests
         # that call handlers directly never attempt to bind ZMQ port 5557.

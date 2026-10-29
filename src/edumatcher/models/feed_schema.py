@@ -21,7 +21,9 @@ is the point of the generator, and what this module is being emptied into.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
+
+from edumatcher.models.generated.trade import TradeExecutedMatchType
 
 
 @dataclass(frozen=True)
@@ -29,7 +31,8 @@ class TradeExecutedPayload:
     """Payload for topic ``trade.executed``.
 
     Units:
-    - ``price`` is display float.
+    - ``price`` is display float; ``price_ticks`` the same price in engine
+      ticks, canonical (absent on prints from before it existed).
     - ``ts_ns`` is Unix epoch nanoseconds (int), carried through unscaled.
     """
 
@@ -45,6 +48,10 @@ class TradeExecutedPayload:
     aggressor_side: str
     ts_ns: int
     tick_decimals: int = 2
+    price_ticks: int | None = None
+    match_type: TradeExecutedMatchType | None = None
+    auction_id: str | None = None
+    trigger_order_id: str | None = None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TradeExecutedPayload":
@@ -61,10 +68,18 @@ class TradeExecutedPayload:
             aggressor_side=str(payload.get("aggressor_side", "")),
             ts_ns=int(payload["ts_ns"]),
             tick_decimals=int(payload.get("tick_decimals", 2)),
+            price_ticks=(
+                None
+                if payload.get("price_ticks") is None
+                else int(payload["price_ticks"])
+            ),
+            match_type=cast("TradeExecutedMatchType | None", payload.get("match_type")),
+            auction_id=payload.get("auction_id"),
+            trigger_order_id=payload.get("trigger_order_id"),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "id": self.id,
             "run_seq": self.run_seq,
             "symbol": self.symbol,
@@ -78,3 +93,13 @@ class TradeExecutedPayload:
             "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }
+        # Omitted when unset, as the spec's encoder omits them.
+        if self.price_ticks is not None:
+            out["price_ticks"] = self.price_ticks
+        if self.match_type is not None:
+            out["match_type"] = self.match_type
+        if self.auction_id is not None:
+            out["auction_id"] = self.auction_id
+        if self.trigger_order_id is not None:
+            out["trigger_order_id"] = self.trigger_order_id
+        return out

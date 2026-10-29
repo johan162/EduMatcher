@@ -136,6 +136,30 @@ messages:
         doc: Decimal scale for `price`; 1 tick = 10^-tick_decimals.
         validate: { ge: 0, le: 8 }
 
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - name: match_type
+        type: enum
+        values: [CONTINUOUS, OPENING_AUCTION, CLOSING_AUCTION, REOPEN_AUCTION,
+                 RECOVERY_AUCTION, BACKSTOP, FORCE_UNCROSS]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          How the trade came about; the engine sets it on every trade (absent
+          only on prints from before it existed). CONTINUOUS for every match with an
+          aggressor (a stop an uncross triggers included); an uncross print
+          (aggressor_side AUCTION) names its uncross: the scheduled opening
+          or closing auction, a halted symbol's reopening, the restore of a
+          crossed book on an engine without sessions, the closing backstop,
+          or an operator's forced uncross.
+      - { name: auction_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 },
+          doc: "The uncross this print belongs to: `auction.result.auction_id`." }
+      - { name: trigger_order_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "The aggressor's order id when the aggressor is a stop that has triggered; absent otherwise." }
     encoding:
       engine_pub:
         # models/message.py::encode returns exactly TWO frames. The per-topic

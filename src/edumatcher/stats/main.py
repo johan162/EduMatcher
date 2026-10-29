@@ -136,6 +136,7 @@ from edumatcher.messaging.bus import make_pusher, make_replier, make_subscriber
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import (
     decode,
+    decode_envelope,
     decode_sequence,
     make_book_snapshot_request_msg,
     make_symbols_request_msg,
@@ -376,7 +377,10 @@ class _IndexDayAccum:
 #:     ``trade_id`` key the fill never carried, so it was always NULL.
 #: 9 — ``order_events.reject_code``: the engine's machine-readable rejection
 #:     class, which only the reason text carried before (sim forensics X6).
-SCHEMA_VERSION = 9
+#: 10 — EduMatcher 1.0 (sim forensics S26): ``trade_log`` gains the order ids,
+#:     ``match_type`` and ``msg_id``; ``order_events`` gains ``msg_id`` -- the
+#:     audit message each row records, so a row joins its audit line.
+SCHEMA_VERSION = 10
 
 #: How long pm-stats keeps recording already-queued engine messages after it
 #: is told to stop (see StatsProcess._drain).
@@ -511,6 +515,12 @@ CREATE TABLE IF NOT EXISTS trade_log (
     -- cannot support trade classification or order-flow imbalance, and
     -- auction prints are indistinguishable from continuous ones.
     aggressor_side  TEXT,
+    buy_order_id    TEXT,
+    sell_order_id   TEXT,
+    -- How the trade came about (trade.executed.match_type).
+    match_type      TEXT,
+    -- The audit message id of the print (its line's msg=).
+    msg_id          TEXT,
     PRIMARY KEY (trade_id)
 );
 
@@ -555,7 +565,9 @@ CREATE TABLE IF NOT EXISTS order_events (
     client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,
-    priority_reset  INTEGER
+    priority_reset  INTEGER,
+    -- The audit message id this row records (its line's msg=).
+    msg_id          TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_oe_order_id ON order_events(order_id);
@@ -632,8 +644,9 @@ VALUES (?,?,?,?,?,?,?)
 INSERT_TRADE = """
 INSERT OR IGNORE INTO trade_log
     (ts, trade_id, symbol, price, quantity, tick_decimals,
-     buy_gateway_id, sell_gateway_id, aggressor_side)
-VALUES (?,?,?,?,?,?,?,?,?)
+     buy_gateway_id, sell_gateway_id, aggressor_side,
+     buy_order_id, sell_order_id, match_type, msg_id)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 UPSERT_META = """
@@ -666,8 +679,9 @@ INSERT_ORDER_EVENT = """
 INSERT INTO order_events
     (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
      quantity, remaining_qty, status, fill_price, fill_qty, trade_ids, reason,
-     reject_code, client_tag, combo_parent_id, oco_group_id, priority_reset)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     reject_code, client_tag, combo_parent_id, oco_group_id, priority_reset,
+     msg_id)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 UPSERT_INDEX_DAILY = """
@@ -1434,7 +1448,7 @@ class StatsProcess:
     # Message handlers
     # ------------------------------------------------------------------
 
-    def _on_trade(self, payload: dict[str, Any]) -> None:
+    def _on_trade(self, payload: dict[str, Any], msg_id: str | None = None) -> None:
         symbol = payload.get("symbol", "")
         price = payload.get("price")
         qty = payload.get("quantity")
@@ -1488,6 +1502,10 @@ class StatsProcess:
                         payload.get("buy_gateway_id"),
                         payload.get("sell_gateway_id"),
                         payload.get("aggressor_side"),
+                        payload.get("buy_order_id"),
+                        payload.get("sell_order_id"),
+                        payload.get("match_type"),
+                        msg_id,
                     ),
                 )
         self._dbg_count("trades_persisted")
@@ -1682,7 +1700,9 @@ class StatsProcess:
                 len(payload.get("books", [])),
             )
 
-    def _on_order_event(self, topic: str, payload: dict[str, Any]) -> None:
+    def _on_order_event(
+        self, topic: str, payload: dict[str, Any], msg_id: str | None = None
+    ) -> None:
         """Persist one private order lifecycle event for history queries."""
         parts = topic.split(".")
         gateway_id = (
@@ -1741,6 +1761,7 @@ class StatsProcess:
                         if "priority_reset" in payload
                         else None
                     ),
+                    msg_id,
                 ),
             )
             leg = payload.get("cancelled_order_id")
@@ -1752,7 +1773,7 @@ class StatsProcess:
                     INSERT_ORDER_EVENT,
                     (ts, "CANCEL", str(leg), gateway_id, str(payload.get("symbol", "")))
                     + (None,) * 10  # side ... trade_ids
-                    + (payload.get("reason"), None, None, None, order_id, None),
+                    + (payload.get("reason"), None, None, None, order_id, None, msg_id),
                 )
         self._dbg_count("order_events_written")
 
@@ -1834,7 +1855,8 @@ class StatsProcess:
         self._check_topic_sequence(topic, decode_sequence(frames))
 
         try:
-            self._dispatch(topic, payload)
+            env = decode_envelope(frames)
+            self._dispatch(topic, payload, env.msg_id if env is not None else None)
         except Exception as exc:
             # Reaching here means the event was not persisted. That is a
             # dropped record, not a warning-level curiosity.
@@ -1916,7 +1938,9 @@ class StatsProcess:
         if deleted:
             log.info("retention: deleted %d rows", deleted)
 
-    def _dispatch(self, topic: str, payload: dict[str, Any]) -> None:
+    def _dispatch(
+        self, topic: str, payload: dict[str, Any], msg_id: str | None = None
+    ) -> None:
         """Route one decoded engine message to its handler.
 
         Split out of the receive loop so the topic-matching rules are
@@ -1924,7 +1948,7 @@ class StatsProcess:
         """
         if topic.startswith(TOPIC_TRADE_EXECUTED):
             self._dbg_count("trade_topics")
-            self._on_trade(payload)
+            self._on_trade(payload, msg_id)
         elif topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._dbg_count("book_topics")
             symbol = topic.split(".", 1)[1]
@@ -1948,7 +1972,7 @@ class StatsProcess:
             self._on_startup_symbols(payload)
         elif _is_order_event_topic(topic):
             self._dbg_count("order_event_topics")
-            self._on_order_event(topic, payload)
+            self._on_order_event(topic, payload, msg_id)
 
     def _receive_one_index_message(self) -> None:
         try:

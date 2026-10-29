@@ -4,6 +4,12 @@
 ``<dir>/audit/audit-YYYY-MM-DD.N.log`` when it reaches ``max_bytes`` or when
 a line of a later day arrives; ``N`` is the next free number for that date,
 so a part is never renamed again and nothing is ever deleted here.
+
+Every file starts with a header line naming the line format::
+
+    # edumatcher-audit format=1 pm-audit=<version> started=<iso>
+
+Readers skip it: it does not start with ``[`` (``query.parse_line``).
 """
 
 from __future__ import annotations
@@ -12,8 +18,13 @@ import logging
 import os
 import re
 from collections.abc import Callable
-from datetime import datetime, tzinfo
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
+
+from edumatcher.cli_version import package_version
+
+#: The audit line format (``[ts] [topic] [meta] {json}``) this writer writes.
+AUDIT_FORMAT_VERSION = 1
 
 _PART_NUMBER_RE = re.compile(r"\.(\d+)\.log$")
 
@@ -24,11 +35,13 @@ def file_day(path: Path, tz: tzinfo) -> str | None:
     """Session date of an audit file, from its first line's stamp (None if empty).
 
     Every line of ``audit.log`` was received on one day, so the first line
-    names it.
+    after the header names it.
     """
     try:
         with path.open("rb") as fh:
             first = fh.readline().decode("utf-8", errors="replace")
+            if first.startswith("#"):
+                first = fh.readline().decode("utf-8", errors="replace")
     except FileNotFoundError:
         return None
     if not first:
@@ -38,6 +51,15 @@ def file_day(path: Path, tz: tzinfo) -> str | None:
     except ValueError:
         stamp = datetime.fromtimestamp(path.stat().st_mtime, tz)
     return stamp.astimezone(tz).date().isoformat()
+
+
+def header_line() -> str:
+    """The first line of every audit file."""
+    started = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    return (
+        f"# edumatcher-audit format={AUDIT_FORMAT_VERSION} "
+        f"pm-audit={package_version()} started={started}"
+    )
 
 
 class AuditFile:
@@ -72,6 +94,8 @@ class AuditFile:
             self._on_day_closed()
         if self._day is None:
             self._day = day
+        if self._size == 0:
+            lines = [header_line(), *lines]
         data = ("\n".join(lines) + "\n").encode("utf-8")
         self._fh.write(data)
         self._fh.flush()

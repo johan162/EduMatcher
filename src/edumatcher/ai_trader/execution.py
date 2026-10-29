@@ -56,6 +56,14 @@ class ExecutionSpec:
     urgency_cross: float = 0.8
     #: Probability of taking part in a given call-phase decision.
     auction_participation: float = 0.5
+    #: Explicit SMP mode on every order ("" leaves the gateway's default).
+    smp: str = ""
+    #: Share of stale limit orders re-priced to the touch by AMEND instead
+    #: of cancelled.
+    amend_fraction: float = 0.0
+    #: Share of continuous decisions sent as a small AON combo: the intent's
+    #: leg plus the opposite side of another symbol, both at the touch.
+    combo_fraction: float = 0.0
 
 
 @dataclass
@@ -293,6 +301,7 @@ class Executor:
             qty=qty,
             price_ticks=price,
             visible_qty=visible,
+            smp=self.spec.smp or None,
         )
 
 

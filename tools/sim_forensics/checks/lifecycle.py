@@ -56,6 +56,7 @@ class _Order:
     qty: int | None = None
     remaining: int | None = None
     oco: str | None = None
+    combo: str | None = None
     shape: list[str] = field(default_factory=list)
     after_terminal: bool = False  # C2 reported once per order
 
@@ -72,6 +73,10 @@ class _Scan:
     )
     #: OCO group → order id → its (seq, event_type, state after) events.
     oco: dict[str, dict[str, list[tuple[int, str, str | None]]]] = field(
+        default_factory=dict
+    )
+    #: Combo (engine id) → leg order id → its events, as for OCO groups.
+    combo: dict[str, dict[str, list[tuple[int, str, str | None]]]] = field(
         default_factory=dict
     )
     #: OCO groups with an OCO_CANCEL row. The engine reports a sibling's
@@ -134,19 +139,20 @@ def _scan(ds: Dataset) -> _Scan:
     scan.oco_rule = {seq for (seq,) in ds.conn.execute(_OCO_RULE_CANCELS)}
     rows = ds.conn.execute(
         "SELECT order_id, seq, event_type, gateway_id, quantity, remaining_qty, "
-        "status, fill_qty, oco_group_id FROM stats.order_events "
+        "status, fill_qty, oco_group_id, combo_parent_id FROM stats.order_events "
         "WHERE event_type IN ('ACK', 'REJECT', 'FILL', 'AMEND', 'CANCEL', 'EXPIRE') "
         "ORDER BY order_id, seq"
     )
     current: str | None = None
     order = _Order("")
-    for oid, seq, et, gw, qty, remaining, status, fill_qty, oco in rows:
+    for oid, seq, et, gw, qty, remaining, status, fill_qty, oco, combo in rows:
         if oid != current:
             if current is not None:
                 _finish(scan, current, order, book)
             current, order = oid, _Order(gw)
         order.shape.append(et)
         order.oco = order.oco or oco
+        order.combo = order.combo or combo
         _step(scan, oid, order, seq, et, qty, remaining, status, fill_qty, quoting)
     if current is not None:
         _finish(scan, current, order, book)
@@ -235,6 +241,10 @@ def _fill(
 def _record_oco(scan: _Scan, o: _Order, oid: str, seq: int, et: str) -> None:
     if o.oco is not None:
         scan.oco.setdefault(o.oco, {}).setdefault(oid, []).append((seq, et, o.state))
+    if o.combo is not None:
+        scan.combo.setdefault(o.combo, {}).setdefault(oid, []).append(
+            (seq, et, o.state)
+        )
 
 
 def _finish(scan: _Scan, oid: str, o: _Order, book: Container[str]) -> None:
@@ -370,7 +380,8 @@ def live_orders_are_the_book(ds: Dataset) -> Outcome:
 @check(
     "C5",
     "lifecycle",
-    "OCO: two legs; none fills after its sibling ended; a done leg ends its sibling",
+    "OCO: two legs; none fills after its sibling ended; a done leg ends its sibling. "
+    "Combo: a leg ending unfilled ends the others; none fills after",
     needs=("stats",),
 )
 def oco_pairs(ds: Dataset) -> Outcome:
@@ -445,11 +456,36 @@ def oco_pairs(ds: Dataset) -> Outcome:
                         "error": f"still live after sibling {leg} {events[-1][2]}",
                     }
                 )
+    samples += _combo_samples(scan)
     note = (
         f"{len(scan.oco)} groups; both legs traded in {both_partial}; "
-        f"{inferred} siblings closed only by OCO_CANCEL (X7)"
+        f"{inferred} siblings closed only by OCO_CANCEL (X7); {len(scan.combo)} combos"
     )
     return Outcome(len(samples), samples, note)
+
+
+def _combo_samples(scan: _Scan) -> list[Sample]:
+    """A combo fails when a leg is cancelled, rejected or expires before
+    every leg filled: the engine then cancels the others, and no leg may
+    fill after that (participant guide, combo orders, step 6)."""
+    samples: list[Sample] = []
+    for combo, legs in sorted(scan.combo.items()):
+        ends = [
+            (s, oid)
+            for oid, events in legs.items()
+            for s, et, st in events
+            if et in ("CANCEL", "EXPIRE", "REJECT") and st != "FILLED"
+        ]
+        if not ends:
+            continue
+        failed_at, failed_leg = min(ends)
+        for oid, events in legs.items():
+            late = next((s for s, et, _st in events if et == "FILL" and s > failed_at), None)  # fmt: skip
+            if late is not None:
+                samples.append({"combo_parent_id": combo, "order_id": oid, "error": f"fill after leg {failed_leg[:8]} ended the combo"})  # fmt: skip
+            elif events[-1][2] not in _TERMINAL:
+                samples.append({"combo_parent_id": combo, "order_id": oid, "error": "leg still live after the combo failed"})  # fmt: skip
+    return samples
 
 
 @check(

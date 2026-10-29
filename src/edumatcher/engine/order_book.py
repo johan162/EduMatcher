@@ -286,6 +286,8 @@ class OrderBook:
         "on_oco_leg_done",
         "_triggered",
         "_arrival_seq",
+        "trace",
+        "last_trade_id",
     )
 
     def __init__(self, symbol: str, recent_trades_maxlen: int = 20) -> None:
@@ -363,6 +365,14 @@ class OrderBook:
         # stops compare against and what the engine's price collar anchors on;
         # None until the first trade of the session.
         self.last_trade_price: Optional[int] = None
+        #: The trade that set last_trade_price (what a stop triggers on).
+        self.last_trade_id: Optional[str] = None
+        #: Where the book reports what it did that no trade or order event
+        #: shows: an order resting or arming (with its priority), an iceberg
+        #: refilling, a trailing stop ratcheting, a stop triggering. The
+        #: engine shares one list across its books and publishes it
+        #: (engine.trace.<SYM>, order.triggered.<GW>); None reports nothing.
+        self.trace: Optional[list[tuple[Any, ...]]] = None
         self.last_trade_qty: Optional[int] = None
         self.last_buy_price: Optional[int] = (
             None  # last trade where buyer was aggressor
@@ -831,6 +841,7 @@ class OrderBook:
             # Priority lost: assign a fresh arrival sequence so the order goes
             # to the back of the queue at its (new) price level (finding H1).
             order.arrival_seq = self._next_seq()
+            self._note("RESTED", order.id, order.arrival_seq)
             # A heap key cannot be edited in place, so "move" the order by
             # retiring the old entry (lazy deletion) and pushing a new one.
             if entry:
@@ -875,6 +886,55 @@ class OrderBook:
             for o in self._order_index.values()
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
+
+    def checkpoint(self) -> dict[str, Any]:
+        """The whole book for ``system.book_checkpoint`` (S25): resting
+        orders in matching priority, armed stops in trigger order, trailing
+        stops in checking order, and the last prices."""
+
+        def live(heap: list[_HeapEntry]) -> list[Order]:
+            entries = [
+                e for e in heap if e.valid and e.order.status not in _DEAD_STATUSES
+            ]
+            return [e.order for e in sorted(entries, key=lambda e: e.key)]
+
+        def record(o: Order, seq: bool = True) -> dict[str, Any]:
+            return {
+                "order_id": o.id,
+                "gateway_id": o.gateway_id,
+                "side": o.side.value,
+                "order_type": o.order_type.value,
+                "tif": o.tif.value,
+                "quantity": o.quantity,
+                "remaining_qty": o.remaining_qty,
+                "price_ticks": o.price_ticks,
+                "stop_price_ticks": o.stop_price_ticks,
+                "trail_offset_ticks": o.trail_offset_ticks,
+                "visible_qty": o.visible_qty,
+                "displayed_qty": o.displayed_qty,
+                "priority_seq": o.arrival_seq if seq else None,
+                "smp_action": o.smp_action.value if o.smp_action else None,
+                "oco_group_id": o.oco_group_id,
+                "quote_id": o.quote_id,
+                "combo_parent_id": o.combo_parent_id,
+            }
+
+        return {
+            "symbol": self.symbol,
+            "bids": [record(o) for o in live(self._bids)],
+            "asks": [record(o) for o in live(self._asks)],
+            "buy_stops": [record(o) for o in live(self._buy_stops)],
+            "sell_stops": [record(o) for o in live(self._sell_stops)],
+            "trailing_stops": [
+                record(o, seq=False)
+                for o in self._trailing_stops
+                if o.status not in _DEAD_STATUSES
+            ],
+            "last_trade_price_ticks": self.last_trade_price,
+            "last_buy_price_ticks": self.last_buy_price,
+            "last_sell_price_ticks": self.last_sell_price,
+            "last_trade_id": self.last_trade_id,
+        }
 
     def book_stats(self) -> BookStats:
         """Sizes for the health beacon. O(levels + stops), never O(orders):
@@ -958,11 +1018,17 @@ class OrderBook:
         return min((px for px, qty in self._ask_qty.items() if qty > 0), default=None)
 
     def restore_stats(
-        self, last_buy_price: Optional[int], last_sell_price: Optional[int]
+        self,
+        last_buy_price: Optional[int],
+        last_sell_price: Optional[int],
+        last_trade_price: Optional[int] = None,
     ) -> None:
-        """Restore persisted side-specific last-trade prices after an engine restart."""
+        """Restore persisted last-trade prices after an engine restart. The
+        last trade price is kept if the book has traded since the restart."""
         self.last_buy_price = last_buy_price
         self.last_sell_price = last_sell_price
+        if self.last_trade_price is None:
+            self.last_trade_price = last_trade_price
 
     def depth_snapshot(self, tolerance_ticks: int) -> "dict[str, Any]":
         """
@@ -1508,6 +1574,21 @@ class OrderBook:
             )
             events.append(order)
 
+    def _note(self, kind: str, *fields: Any) -> None:
+        """Report *kind* to the engine's trace, if it listens."""
+        if self.trace is not None:
+            self.trace.append((kind, self.symbol, *fields))
+
+    def _note_trigger(self, order: Order) -> None:
+        """Report a stop that fires now, before it is converted: as armed,
+        on which trade, and what it becomes."""
+        if self.trace is not None:
+            becomes = "LIMIT" if order.order_type == OrderType.STOP_LIMIT else "MARKET"
+            self.trace.append(
+                ("TRIGGERED", self.symbol, order, order.order_type.value,
+                 order.stop_price_ticks, self.last_trade_id, self.last_trade_price, becomes)
+            )  # fmt: skip
+
     def _add_trailing_stop(self, order: Order, events: list[Order]) -> None:
         """
         Add a trailing stop to the active trailing-stop list.
@@ -1527,6 +1608,8 @@ class OrderBook:
         self._order_index[order.id] = order
         self._track_gateway(order)
         self._has_stops = True
+        # Trailing stops are checked in list order, not by a sequence.
+        self._note("RESTED", order.id, None)
         # Report the order as NEW.  The engine already sent the ACK before
         # calling process(), and _publish_dispatch publishes nothing for a
         # NEW order without fills, so this is a state notification for
@@ -1557,6 +1640,7 @@ class OrderBook:
         order's limit price,  TRAILING_STOP -> MARKET.  ``ts_ns`` is reset to
         "now" because from here on the order behaves like a fresh order.
         """
+        self._note_trigger(order)
         if order.order_type in (OrderType.STOP, OrderType.TRAILING_STOP):
             order.order_type = OrderType.MARKET
             order.price_ticks = None
@@ -1588,6 +1672,7 @@ class OrderBook:
         # Arrival sequence breaks ties among stops at the same trigger price
         # (finding H1 / M10) instead of the client timestamp.
         order.arrival_seq = self._next_seq()
+        self._note("RESTED", order.id, order.arrival_seq)
         if order.side == Side.BUY:
             key = (order.stop_price_ticks, order.arrival_seq)
             entry = _HeapEntry(key=key, order=order)
@@ -1835,9 +1920,16 @@ class OrderBook:
             quantity=fill_qty,
             aggressor_side=aggressor_side,
             now=now,
+            # A triggered stop keeps its stop price when it turns MARKET/LIMIT.
+            trigger_order_id=(
+                aggressor.id
+                if not both_resting and aggressor.stop_price_ticks is not None
+                else None
+            ),
         )
         trades.append(trade)
         self.last_trade_price = fill_price
+        self.last_trade_id = trade.id
         self.last_trade_qty = fill_qty
         # Accumulate daily volume stats
         self.daily_qty += fill_qty
@@ -2048,6 +2140,7 @@ class OrderBook:
         )
         # Engine-assigned arrival sequence drives time priority (finding H1).
         order.arrival_seq = self._next_seq()
+        self._note("RESTED", order.id, order.arrival_seq)
         if order.side == Side.BUY:
             key = (-price, order.arrival_seq)
             heap = self._bids
@@ -2080,6 +2173,7 @@ class OrderBook:
         # queue at this price level (finding H1 — priority is seq-based).
         order.arrival_seq = self._next_seq()
         new_peak = order.displayed_qty or 0
+        self._note("ICEBERG_REFILL", order.id, order.arrival_seq, new_peak)
         if order.side == Side.BUY:
             key = (-price, order.arrival_seq)
             heap = self._bids
@@ -2177,6 +2271,7 @@ class OrderBook:
             # adjacent.)
             heapq.heappop(self._buy_stops)
             stop_order = entry.order
+            self._note_trigger(stop_order)
             if stop_order.order_type == OrderType.STOP:
                 stop_order.order_type = OrderType.MARKET
                 stop_order.price_ticks = None
@@ -2223,6 +2318,7 @@ class OrderBook:
                 break  # remaining stops need a lower price
             heapq.heappop(self._sell_stops)
             stop_order = entry.order
+            self._note_trigger(stop_order)
             if stop_order.order_type == OrderType.STOP:
                 stop_order.order_type = OrderType.MARKET
                 stop_order.price_ticks = None
@@ -2305,6 +2401,7 @@ class OrderBook:
                     )
                     order.stop_price_ticks = candidate
                     stop_price = candidate
+                    self._note("TRAILING_RATCHET", order.id, candidate, trade_price)
                 # Trigger when price falls to/below the current stop
                 if trade_price <= stop_price:
                     log.debug(
@@ -2314,6 +2411,7 @@ class OrderBook:
                         stop_price,
                         trade_price,
                     )
+                    self._note_trigger(order)
                     order.order_type = OrderType.MARKET
                     order.trail_offset_ticks = None
                     # Reuse the cached batch timestamp.
@@ -2336,6 +2434,7 @@ class OrderBook:
                     )
                     order.stop_price_ticks = candidate
                     stop_price = candidate
+                    self._note("TRAILING_RATCHET", order.id, candidate, trade_price)
                 # Trigger when price rises to/at the current stop
                 if trade_price >= stop_price:
                     log.debug(
@@ -2345,6 +2444,7 @@ class OrderBook:
                         stop_price,
                         trade_price,
                     )
+                    self._note_trigger(order)
                     order.order_type = OrderType.MARKET
                     order.trail_offset_ticks = None
                     # Reuse the cached batch timestamp.

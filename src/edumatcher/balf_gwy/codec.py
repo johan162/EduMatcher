@@ -50,6 +50,7 @@ MSG_CANCEL_ACK: Final[int] = 0x13
 MSG_AMEND_ORDER: Final[int] = 0x14
 MSG_AMEND_ACK: Final[int] = 0x15
 MSG_EXECUTION_REPORT: Final[int] = 0x20
+MSG_STOP_TRIGGERED: Final[int] = 0x21
 MSG_HEARTBEAT: Final[int] = 0x30
 MSG_HEARTBEAT_ACK: Final[int] = 0x31
 MSG_LOGOUT: Final[int] = 0x40
@@ -65,6 +66,7 @@ FRAME_SIZE: Final[dict[int, int]] = {
     MSG_AMEND_ORDER: 44,  # body 36
     MSG_AMEND_ACK: 48,  # body 40
     MSG_EXECUTION_REPORT: 64,  # body 56
+    MSG_STOP_TRIGGERED: 56,  # body 48
     MSG_HEARTBEAT: 16,  # body 8
     MSG_HEARTBEAT_ACK: 16,  # body 8
     MSG_LOGOUT: 8,  # body 0
@@ -447,7 +449,8 @@ def build_amend_ack(
 # Serialisation is owned by the generated binding:
 # models.generated.order.serialise_execution_report_balf. The gateway is the
 # only producer of this frame and calls that directly. MSG_EXECUTION_REPORT and
-# its FRAME_SIZE entry remain here as the client-side parse registry.
+# its FRAME_SIZE entry remain here as the client-side parse registry. The same
+# holds for STOP_TRIGGERED (0x21, 56 bytes): serialise_stop_triggered_balf.
 
 
 # ---------------------------------------------------------------------------

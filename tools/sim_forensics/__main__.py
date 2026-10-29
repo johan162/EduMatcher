@@ -27,12 +27,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--samples", type=int, default=10, metavar="N", help="Samples kept per check"
     )
+    parser.add_argument(
+        "--slow",
+        action="store_true",
+        help="Also run the slow checks (E5-E7: several engine re-runs)",
+    )
     parser.add_argument("--list", action="store_true", help="List checks and exit")
     args = parser.parse_args(argv)
 
     if args.list:
         for c in REGISTRY.values():
-            print(f"{c.id:5} {c.oracle:13} {c.title}")
+            print(f"{c.id:5} {c.oracle:13} {c.title}{'  (slow)' if c.slow else ''}")
         return 0
     if args.data is None or args.out is None:
         parser.error("--data and --out are required")
@@ -46,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
         REGISTRY[i] for i in sorted(REGISTRY) if not args.check or i in args.check
     ]
     with Dataset.open(args.data.expanduser()) as ds:
-        results = run_checks(ds, selected, args.samples)
+        # A check named with --check runs even if slow.
+        results = run_checks(ds, selected, args.samples, args.slow or bool(args.check))
         report.write(ds, results, args.out.expanduser())
     for r in results:
         print(f"{r.check.id:5} {r.status:8} {r.violations:>8}  {r.check.title}")

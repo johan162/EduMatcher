@@ -329,12 +329,12 @@ describe("values table", () => {
     show();
 
     expect(await screen.findByText("Quote")).toBeDefined();
-    for (const group of ["Session", "Activity", "Status"]) {
+    for (const group of ["Session", "Activity"]) {
       expect(screen.getByText(group)).toBeDefined();
     }
-    // The phase row is labelled "Phase" so it cannot collide with the Session
-    // group heading above it.
-    expect(screen.getByTestId("value-Phase")).toBeDefined();
+    // The session phase lives in the header badge, not in the values.
+    expect(screen.queryByText("Status")).toBeNull();
+    expect(screen.queryByTestId("value-Phase")).toBeNull();
   });
 
   it("places the last price within the session range", async () => {

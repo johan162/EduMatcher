@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS trade_events (
   -- auction trades can carry a biased aggressor marker upstream.
   aggressor_side   TEXT,
   ingest_ts_ns     INTEGER NOT NULL,
+  -- How the trade came about (trade.executed.match_type), and the audit's
+  -- message id of the print: joins a row to its audit line.
+  match_type       TEXT,
+  msg_id           TEXT,
   PRIMARY KEY (id)
 );
 
@@ -244,6 +248,8 @@ class TradeEventRow:
     aggressor_side: str | None
     ingest_ts_ns: int
     tick_decimals: int = 2
+    match_type: str | None = None
+    msg_id: str | None = None
 
 
 @dataclass
@@ -331,6 +337,11 @@ def require_trade_events_id_primary_key(conn: sqlite3.Connection) -> None:
         raise RuntimeError(
             "unsupported clearing schema: trade_events must use id as its "
             "sole primary key; delete the existing database and restart"
+        )
+    if "msg_id" not in {row[1] for row in info}:
+        raise RuntimeError(
+            "unsupported clearing schema: trade_events predates match_type and "
+            "msg_id (EduMatcher 1.0); delete the existing database and restart"
         )
 
 
@@ -435,13 +446,13 @@ INSERT OR IGNORE INTO trade_events (
     tick_decimals,
   buy_order_id, sell_order_id,
   buy_gateway_id, sell_gateway_id,
-  aggressor_side, ingest_ts_ns
+  aggressor_side, ingest_ts_ns, match_type, msg_id
 ) VALUES (
   :id, :ts_ns, :trade_date, :symbol, :quantity, :price,
     :tick_decimals,
   :buy_order_id, :sell_order_id,
   :buy_gateway_id, :sell_gateway_id,
-  :aggressor_side, :ingest_ts_ns
+  :aggressor_side, :ingest_ts_ns, :match_type, :msg_id
 )
 """
 
@@ -683,6 +694,8 @@ def _trade_row_to_dict(t: TradeEventRow) -> dict[str, Any]:
         "sell_gateway_id": t.sell_gateway_id,
         "aggressor_side": t.aggressor_side,
         "ingest_ts_ns": t.ingest_ts_ns,
+        "match_type": t.match_type,
+        "msg_id": t.msg_id,
     }
 
 

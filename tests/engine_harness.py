@@ -56,6 +56,12 @@ class FakeSock:
     def clear_cause(self) -> None:
         pass
 
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
+
     def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> None:
         """Record a re-published message the way the real wrapper sends it.
 
@@ -232,6 +238,16 @@ def msgs(pub_sock: FakeSock, topic: str) -> list[dict[str, Any]]:
         if t == topic:
             out.append(payload)
     return out
+
+
+def last_ack(sent: list[list[bytes]]) -> tuple[str, dict[str, Any]]:
+    """The last order or OCO ack among published frames: since S24 a
+    resting order's ack is followed by its engine.trace RESTED."""
+    for frames in reversed(sent):
+        topic, payload = decode(frames)
+        if topic.startswith(("order.ack.", "oco.ack.")):
+            return topic, payload
+    raise AssertionError("no ack published")
 
 
 def all_msgs(pub_sock: FakeSock) -> list[tuple[str, dict[str, Any]]]:

@@ -14,7 +14,8 @@
  * rather than history, but likewise absent from CALF and readable with the
  * same read-only key. The frontend polls it. So does
  * `/api/reference/schedule`, the weekly session table and holiday calendar
- * the Session view draws.
+ * the Session view draws, and `/api/companies/:symbol`, one pm-compdb-cli
+ * profile for the order-book drawer's Company tab.
  *
  * `GET /symbols` is deliberately absent. It requires a *trading* credential
  * (`require_trading` in `api_gateway/routers/reference.py`), which would mean
@@ -61,9 +62,19 @@ export function registerHistoryRoutes(app: FastifyInstance, opts: HistoryProxyOp
   const timeoutMs = opts.timeoutMs ?? 10_000;
   const base = opts.baseUrl.replace(/\/+$/, "");
 
-  for (const [path, upstreamPath] of ROUTES) {
-    const endpoint = upstreamPath.replace("/api/v1/history/", "").replace("/api/v1/", "");
+  /** Every route, the symbol-keyed one included, resolves its upstream path per request. */
+  const routes: readonly (readonly [string, (request: FastifyRequest) => string])[] = [
+    ...ROUTES.map(([path, upstreamPath]) => [path, () => upstreamPath] as const),
+    [
+      "/api/companies/:symbol",
+      (request) => `/api/v1/companies/${encodeURIComponent((request.params as { symbol: string }).symbol)}`,
+    ],
+  ];
+
+  for (const [path, upstreamOf] of routes) {
     app.get(path, async (request: FastifyRequest, reply: FastifyReply) => {
+      const upstreamPath = upstreamOf(request);
+      const endpoint = upstreamPath.replace("/api/v1/history/", "").replace("/api/v1/", "");
       const query = request.url.includes("?") ? request.url.slice(request.url.indexOf("?")) : "";
       const target = `${base}${upstreamPath}${query}`;
 

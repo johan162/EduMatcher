@@ -396,6 +396,83 @@ messages:
           # "Must be zero" per the normative reference.
           - { reserved: 6, offset: 50 }
 
+  - name: stop_triggered
+    # BALF-only, like execution_report: the gateway's rendering of
+    # order.triggered.{GW} for the owning session.
+    transport: [balf]
+
+    doc:
+      motivation: >
+        A stop, stop-limit or trailing stop of this session has fired. Sent
+        before the order's own execution reports, so a client knows why its
+        stop traded -- the FIX analogue is ExecType=L.
+      published_by: [gateway]
+      since: "1.3"
+      see_also: ["order.triggered.{GW_ID}", "execution_report"]
+
+    fields:
+      - name: client_order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: Echoed from the original NEW_ORDER.
+
+      - name: order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: Session-scoped BALF order id assigned by the gateway.
+
+      - name: stop_price
+        type: float
+        required: true
+        unit: display_price
+        doc: >
+          The trigger price it fired at (a trailing stop's ratcheted one), in
+          display money; i64 x 10^8 on the wire.
+        validate: { gt: 0 }
+
+      - name: trigger_price
+        type: float
+        required: true
+        unit: display_price
+        doc: >
+          The price of the trade that reached the trigger; 0 when the last
+          price came from a restart.
+        validate: { ge: 0 }
+
+      - name: symbol
+        type: string
+        required: true
+        validate: { max_len: 8, pattern: '^[A-Z0-9._]+$' }
+
+      - name: order_type
+        type: enum
+        values: [STOP, STOP_LIMIT, TRAILING_STOP]
+        required: true
+        doc: The order as it was armed (NEW_ORDER's order_type codes).
+
+      - name: becomes
+        type: enum
+        values: [MARKET, LIMIT]
+        required: true
+        doc: STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT.
+
+    encoding:
+      balf:
+        msg_type: 0x21
+        frame_size: 56
+        price_scale: 100000000
+        layout:
+          - { field: client_order_id, repr: u64,     offset: 0 }
+          - { field: order_id,        repr: u64,     offset: 8 }
+          - { field: stop_price,      repr: i64,     offset: 16, scale: price_scale }
+          - { field: trigger_price,   repr: i64,     offset: 24, scale: price_scale }
+          - { field: symbol,          repr: "char[8]", offset: 32 }
+          - { field: order_type,      repr: u8,      offset: 40, enum_map: { STOP: 5, STOP_LIMIT: 6, TRAILING_STOP: 8 } }
+          - { field: becomes,         repr: u8,      offset: 41, enum_map: { MARKET: 1, LIMIT: 2 } }
+          - { reserved: 6, offset: 42 }
+
   # --------------------------------------------------------------------------
   # Phase 5.1a: engine -> gateway order events.
   #
@@ -537,6 +614,15 @@ messages:
           same fact, since order.ack — not order.new, which never reaches
           the engine's PUB feed — is the first audit-visible event for any
           order, seeded or live.
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: trail_offset_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -640,6 +726,15 @@ messages:
           call site only publishes order_fill from a real trade, so this is
           never actually absent today, but nothing enforces that a future
           fill notification always has a trade behind it.
+      - { name: fill_notional_ticks, type: int, unit: notional_ticks, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display)." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order has filled in all, this fill included." }
+      - { name: cum_notional_ticks, type: int, unit: notional_ticks, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -722,6 +817,12 @@ messages:
           client-requested cancel and for engine-initiated cancels with no
           originating command (e.g. self-match prevention, insufficient
           liquidity, a quote leg cancelled because its sibling filled).
+      - { name: remaining_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity left unfilled when the order was cancelled." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order had filled before it was cancelled." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 
@@ -758,8 +859,92 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - { name: remaining_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity left unfilled when the order expired." }
+      - { name: cum_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "Quantity the order had filled before it expired." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_triggered
+    topic: "order.triggered.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        A stop, stop-limit or trailing stop has fired: the trade that
+        reached its trigger, and what the order became. Published before
+        the order's own fills, so a client knows why its stop traded --
+        the FIX analogue is ExecType=L.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["order.fill.{GW_ID}", "engine.trace.{SYMBOL}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: order_type
+        type: enum
+        values: [STOP, STOP_LIMIT, TRAILING_STOP]
+        doc: "The order as it was armed."
+      - { name: stop_price_ticks, type: ticks, unit: ticks,
+          doc: "The trigger price it fired at (a trailing stop's ratcheted one)." }
+      - { name: trigger_trade_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "The trade that reached the trigger; absent when the last price came from a restart." }
+      - { name: trigger_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "That trade's price." }
+      - name: becomes
+        type: enum
+        values: [MARKET, LIMIT]
+        doc: "STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit."
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: engine_trace
+    topic: "engine.trace.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        What the book did that no trade or order message shows, for the
+        audit trail (no gateway forwards it): an order resting or arming
+        and the place in the queue it got, an iceberg refilling its slice
+        at the back of its level, a trailing stop ratcheting its trigger.
+        A replay can then compare its model of priority and of trailing
+        triggers with the engine's own, instead of inferring them.
+      published_by: [engine]
+      since: "1.3"
+      see_also: ["order.triggered.{GW_ID}", "order.amended.{GW_ID}"]
+      example_note: >
+        `priority_seq` is the book's arrival sequence; it orders orders at
+        one price, nothing more. A trailing stop rests in a list checked
+        in arming order, so its RESTED has no `priority_seq`.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: kind
+        type: enum
+        values: [RESTED, ICEBERG_REFILL, TRAILING_RATCHET]
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: priority_seq, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 } }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "ICEBERG_REFILL: the new visible slice." }
+      - { name: stop_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "TRAILING_RATCHET: the new trigger." }
+      - { name: last_price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "TRAILING_RATCHET: the trade price that moved it." }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, kind, order_id, priority_seq, displayed_qty,
+                  stop_price_ticks, last_price_ticks]
 
   - name: order_amended
     topic: "order.amended.{gateway_id}"
@@ -826,6 +1011,12 @@ messages:
         doc: >
           Client correlation tag for this amend request. Engine-initiated
           cancels publish with request_tag=null.
+      - { name: price_ticks, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals." }
+      - { name: priority_seq, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, validate: { ge: 0 },
+          doc: "The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`." }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

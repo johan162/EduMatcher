@@ -18,7 +18,15 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
-from edumatcher.ai_trader.actions import Action, CancelOrder, NewOco, NewOrder
+from edumatcher.ai_trader.actions import (
+    AMEND_RTAG_PREFIX,
+    Action,
+    AmendOrder,
+    CancelOrder,
+    NewCombo,
+    NewOco,
+    NewOrder,
+)
 from edumatcher.alf_client import protocol as alf
 from edumatcher.alf_client.connection import AlfConnection, State
 
@@ -59,6 +67,14 @@ class DoneEvent:
 
 
 @dataclass(frozen=True)
+class AmendedEvent:
+    order_id: str | None
+    tag: str | None
+    price: float | None  # display money
+    remaining: int | None
+
+
+@dataclass(frozen=True)
 class OcoAckEvent:
     oco_tag: str
     accepted: bool
@@ -80,7 +96,13 @@ class SessionEvent:
 
 
 AgentEvent = (
-    AckEvent | FillEvent | DoneEvent | OcoAckEvent | PositionsEvent | SessionEvent
+    AckEvent
+    | FillEvent
+    | DoneEvent
+    | AmendedEvent
+    | OcoAckEvent
+    | PositionsEvent
+    | SessionEvent
 )
 
 
@@ -243,6 +265,30 @@ class AlfTransport:
                 stop_price_ticks=action.stop_price_ticks,
                 trail_offset_ticks=action.trail_offset_ticks,
                 visible_qty=action.visible_qty,
+                smp=action.smp,
+            )
+        if isinstance(action, AmendOrder):
+            return alf.amend(
+                action.order_id,
+                rtag=AMEND_RTAG_PREFIX + action.tag,
+                price_ticks=action.price_ticks,
+                qty=action.qty,
+                tick_decimals=decimals,
+            )
+        if isinstance(action, NewCombo):
+            return alf.new_combo(
+                combo_id=action.tag,
+                tif=action.tif.value,
+                legs=tuple(
+                    {
+                        "symbol": leg.symbol,
+                        "side": leg.side,
+                        "qty": leg.qty,
+                        "price_ticks": leg.price_ticks,
+                        "tick_decimals": leg.tick_decimals,
+                    }
+                    for leg in action.legs
+                ),
             )
         if isinstance(action, CancelOrder):
             return alf.cancel(action.order_id, CANCEL_RTAG_PREFIX + action.tag)
@@ -338,6 +384,14 @@ class AlfTransport:
                 fill_qty=qty,
                 fill_price=price,
                 remaining=remaining,
+            )
+        if t == "AMENDED":
+            raw_left, raw_price = m.get("REMAINING"), m.get("PRICE")
+            return AmendedEvent(
+                order_id=m.get("ORDER_ID") or None,
+                tag=m.get("TAG") or None,
+                price=float(raw_price) if raw_price else None,
+                remaining=int(raw_left) if raw_left.isdigit() else None,
             )
         if t in ("CANCELLED", "EXPIRED"):
             return DoneEvent(m.get("ORDER_ID") or None, m.get("TAG") or None)

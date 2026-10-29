@@ -236,11 +236,19 @@ def load_compiled_config(path: Path | None = None) -> CompiledConfig | None:
     file that cannot be parsed is not a fresh install; quietly substituting
     defaults there is how a process ends up running settings nobody chose.
     """
+    loaded = load_compiled_text(path)
+    return None if loaded is None else loaded[0]
+
+
+def load_compiled_text(path: Path | None = None) -> tuple[CompiledConfig, str] | None:
+    """``load_compiled_config``, with the artifact's text from the same read:
+    the engine announces exactly the bytes it runs on (``system.startup``)."""
     target = COMPILED_CONFIG_FILE if path is None else path
     if not target.exists():
         return None
+    text = target.read_text(encoding="utf-8")
     try:
-        return decode(target.read_text(encoding="utf-8"))
+        return decode(text), text
     except ArtifactError as exc:
         # decode() is given text, so it cannot name the file. Where the
         # artifact lives is exactly what the reader does not know -- it is

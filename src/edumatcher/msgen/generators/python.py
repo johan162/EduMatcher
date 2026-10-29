@@ -1167,7 +1167,15 @@ def _binary_blocks(message: Message) -> list[list[str]]:
                     f"{_pystr(k)}: {v}" for k, v in entry.enum_map.items()
                 )
                 name = f"_{prefix}_{entry.field.upper()}"
-                consts.append(f"{name}_TO_WIRE = {{{pairs}}}")
+                to_wire = f"{name}_TO_WIRE = {{{pairs}}}"
+                if len(to_wire) <= LINE_LENGTH:
+                    consts.append(to_wire)
+                else:  # black's magic trailing comma: one pair per line
+                    consts += [
+                        f"{name}_TO_WIRE = {{",
+                        *(f"    {_pystr(k)}: {v}," for k, v in entry.enum_map.items()),
+                        "}",
+                    ]
                 comprehension = f"v: k for k, v in {name}_TO_WIRE.items()"
                 single = f"{name}_FROM_WIRE = {{{comprehension}}}"
                 if len(single) <= LINE_LENGTH:

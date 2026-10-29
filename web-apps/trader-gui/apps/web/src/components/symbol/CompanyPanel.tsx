@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useCompanyQuery } from "@/queries/index.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { formatPct, formatQty } from "@/lib/formatters.js";
+import { companyHelp } from "@/lib/companyHelp.js";
+import { FieldInfo } from "@/components/shared/FieldInfo.js";
 import type { CompanyProfile } from "@/types/index.js";
 
 const musd = (v: number | null) => (v === null ? "—" : `${formatQty(v)} M$`);
@@ -15,10 +17,18 @@ function words(v: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** The "i" for a label, from the company help; nothing for a label without any. */
+function Tip({ label }: { label: string }) {
+  const lines = companyHelp(label);
+  return lines ? <FieldInfo label={label} lines={lines} /> : null;
+}
+
 function Figure({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-line bg-panel px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</div>
+      <div className="text-[10px] uppercase tracking-wide text-fg-faint">
+        {label} <Tip label={label} />
+      </div>
       <div className="text-sm font-mono text-fg">{value}</div>
     </div>
   );
@@ -39,6 +49,7 @@ function Line({ label, value }: { label: string; value: string | null }) {
   return (
     <p className="text-xs text-fg-soft">
       <span className="text-fg-dim">{label}: </span>
+      <Tip label={label} />{" "}
       {value}
     </p>
   );

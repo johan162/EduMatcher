@@ -158,6 +158,7 @@ Every line is an independent record in this format:
 | Key | Meaning |
 |---|---|
 | `seq` | The publisher's per-topic sequence number. Dense within a run, so a gap means messages were **dropped** — PUB/SUB discards silently once a subscriber falls behind, and this is how you find out |
+| `eseq` | The publisher's count over *all* its messages: one total order of everything the engine published since it started. A gap is a lost message even where `seq` cannot show one — the last message of a topic |
 | `msg` | ULID of this message |
 | `cause` | ULID of the message that caused this one. **Absent means nothing caused it** — a scheduler tick, a circuit-breaker trip — not that the cause is unknown |
 | `chain` | ULID shared by every message descending from one original request |
@@ -165,6 +166,32 @@ Every line is an independent record in this format:
 The section is omitted entirely for a message whose publisher stamps no
 envelope, and lines archived before the section existed are still read
 correctly, so a mixed archive needs no flag.
+
+**The header line and the engine's start**
+
+Every file — `audit.log` and each day part — begins with one header line
+that names the format and the recorder:
+
+```
+# edumatcher-audit format=1 pm-audit=1.0.0 started=2026-07-08T00:00:00.002+00:00
+```
+
+Readers skip it (it does not start with `[`). The first record the engine
+publishes on every start is `system.startup`: its version and source
+commit, the `run_seq` it took, the hashes of the persistence files it is
+about to restore from, and the compiled configuration it runs on,
+verbatim. An audit trail therefore describes its own run — a replay can
+rebuild the engine from that one message, after the data directory's
+`ref_data/` has been redeployed. Every per-topic `seq` starts again at 1
+after it.
+
+The engine also records every book whole, as `system.book_checkpoint.<SYM>`:
+after startup (what the restore and the seeds made), after each session
+transition, and at shutdown — each resting order in priority order with
+its hidden iceberg quantity, each armed stop with its current trigger, and
+the last prices. A replay can start from any of them, so a day's audit
+file, or an audit that runs across an engine restart, can be checked on
+its own.
 
 This is what makes a post-mortem tractable. To follow one order submission
 through everything it caused:

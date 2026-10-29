@@ -549,6 +549,7 @@ Every topic in the system, and which process puts it on the wire.
 | `depth.{symbol}` | `book` | `engine` |
 | `drop_copy.event.{gateway_id}` | `drop_copy` | `engine` |
 | `drop_copy.replay.{recipient_id}` | `drop_copy` | `engine` |
+| `engine.trace.{symbol}` | `order` | `engine` |
 | `execution_report (no bus topic)` | `order` | `gateway` |
 | `health.beacon` | `health` | `health_reporter` |
 | `health.event` | `health` | `monitor` |
@@ -597,10 +598,12 @@ Every topic in the system, and which process puts it on the wire.
 | `order.orders_request` | `order` | `admin`, `api_gateway`, `gateway` |
 | `order.price_level_orders.{gateway_id}` | `order` | `engine` |
 | `order.price_level_orders_request` | `order` | `admin` |
+| `order.triggered.{gateway_id}` | `order` | `engine` |
 | `quote.ack.{gateway_id}` | `quote` | `engine` |
 | `quote.cancel` | `quote` | `admin`, `api_gateway`, `gateway` |
 | `quote.new` | `quote` | `gateway` |
 | `quote.status.{gateway_id}` | `quote` | `engine` |
+| `risk.band.{symbol}` | `risk` | `engine` |
 | `risk.cancel_symbol` | `risk` | `admin`, `api_gateway` |
 | `risk.cancel_symbol_ack.{gateway_id}` | `risk` | `engine` |
 | `risk.circuit_breaker_halt_all` | `risk` | `admin` |
@@ -627,6 +630,8 @@ Every topic in the system, and which process puts it on the wire.
 | `sim.command_ack.{gateway_id}` | `sim` | `market_sim` |
 | `sim.state` | `sim` | `market_sim` |
 | `sim.value` | `sim` | `market_sim` |
+| `stop_triggered (no bus topic)` | `order` | `gateway` |
+| `system.book_checkpoint.{symbol}` | `system` | `engine` |
 | `system.diagnostic` | `system` | `engine` |
 | `system.eod` | `system` | `engine` |
 | `system.gateway_auth.{gateway_id}` | `system` | `engine` |
@@ -655,6 +660,7 @@ Every topic in the system, and which process puts it on the wire.
 | `system.session_schedule_request` | `system` | `admin`, `api_gateway` |
 | `system.session_state_request` | `system` | `admin`, `api_gateway`, `gateway`, `scheduler` |
 | `system.session_status.{gateway_id}` | `system` | `engine` |
+| `system.startup` | `system` | `engine` |
 | `system.startup_recovery` | `system` | `engine` |
 | `system.symbols.{gateway_id}` | `system` | `engine` |
 | `system.symbols_request` | `system` | `admin`, `api_gateway`, `gateway`, `stats` |
@@ -737,6 +743,7 @@ Engine to all: where one symbol would uncross if the call phase ended now. Publi
 | `eq_qty` | `int` | required | ge 0, unit `shares` | Quantity that would execute. Zero is a true reading and is always emitted, unlike `eq_price`, which has no zero. |
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side would be left unfilled. Absent when the book is balanced at the indicative price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
+| `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 
@@ -773,6 +780,8 @@ Engine to all: one symbol's uncross has completed. Published for every uncross, 
 | `imbalance_side` | enum: `BUY`, `SELL` | omitted when unset | — | Which side was left unfilled. Absent when the book was balanced at the uncross price. |
 | `imbalance_qty` | `int` | required | ge 0, unit `shares` | Surplus on `imbalance_side`; zero when balanced. |
 | `reason` | enum: `SCHEDULED`, `REOPEN`, `RECOVERY`, `BACKSTOP`, `ADMIN_MANUAL` | required | — | Which of the five uncross paths produced this event. |
+| `eq_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `eq_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `auction_id` | `string` | omitted when unset | max_len 32 | This uncross, `AUC-<run_seq>-<n>`: every print it made carries it as `trade.executed.auction_id`. |
 
 !!! note
 
@@ -2220,6 +2229,28 @@ Private per-order fill notification, sent to the gateway session that owns the o
 
 **See also:** `trade.executed`
 
+### `stop_triggered` (no bus topic)
+
+**Published by:** `gateway`
+
+**Transport:** `balf`
+
+**Since:** 1.3
+
+A stop, stop-limit or trailing stop of this session has fired. Sent before the order's own execution reports, so a client knows why its stop traded -- the FIX analogue is ExecType=L.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `client_order_id` | `int` | required | unit `dimensionless` | Echoed from the original NEW_ORDER. |
+| `order_id` | `int` | required | unit `dimensionless` | Session-scoped BALF order id assigned by the gateway. |
+| `stop_price` | `float` | required | gt 0, unit `display_price` | The trigger price it fired at (a trailing stop's ratcheted one), in display money; i64 x 10^8 on the wire. |
+| `trigger_price` | `float` | required | ge 0, unit `display_price` | The price of the trade that reached the trigger; 0 when the last price came from a restart. |
+| `symbol` | `string` | required | max_len 8, pattern `^[A-Z0-9._]+$` |  |
+| `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed (NEW_ORDER's order_type codes). |
+| `becomes` | enum: `MARKET`, `LIMIT` | required | — | STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT. |
+
+**See also:** `order.triggered.{GW_ID}`, `execution_report`
+
 ### `order.ack.{gateway_id}`
 
 **Published by:** `engine`
@@ -2254,6 +2285,9 @@ Acknowledge acceptance or rejection of a new order, addressed to the gateway tha
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed (above) for the full rationale; this is the ack-time echo of the same fact, since order.ack — not order.new, which never reaches the engine's PUB feed — is the first audit-visible event for any order, seeded or live. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | `stop_price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` | `trail_offset` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
 
 !!! note
 
@@ -2295,6 +2329,9 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `is_seed` | `bool` | defaults to `False` | — | True when this order was created by config-driven startup seeding rather than a live gateway submission. See OrderDisplay.is_seed for the full rationale; carried here too so a fill reached after the originating order.ack has rotated out of the audit log still says whether the filled order was a config seed. |
 | `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Every current call site only publishes order_fill from a real trade, so in practice this is never empty; it is typed as a list (not required) defensively, for a fill notification that might one day exist without one. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 | `liquidity_flag` | enum: `MAKER`, `TAKER` | omitted when unset | — | Derived from the trade's aggressor side: the aggressor is the TAKER and the resting side the MAKER (same derivation as drop_copy.yaml::liquidity_flag). Nullable/omit_when_none for the same reason trade_ids is typed as an empty-able list: every current call site only publishes order_fill from a real trade, so this is never actually absent today, but nothing enforces that a future fill notification always has a trade behind it. |
+| `fill_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of the trades in `trade_ids`: the fill's money exactly (`fill_price` is its VWAP, rounded for display). |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order has filled in all, this fill included. |
+| `cum_notional_ticks` | `int` | omitted when unset | ge 0, unit `notional_ticks` | Σ price_ticks × quantity of every fill of the order so far; with `cum_qty`, the exact average price. |
 
 **See also:** `trade.executed`
 
@@ -2321,6 +2358,8 @@ Confirm that a resting order has been cancelled.
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
 | `command_id` | `string` | omitted when unset | max_len 64 | The admin/kill-switch command_id (see system.admin_action) that caused this cancel, when one exists — lets a post-mortem join this event back to the exact command that triggered it. Null for a client-requested cancel and for engine-initiated cancels with no originating command (e.g. self-match prevention, insufficient liquidity, a quote leg cancelled because its sibling filled). |
+| `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order was cancelled. |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it was cancelled. |
 
 ### `order.expired.{gateway_id}`
 
@@ -2342,6 +2381,60 @@ A DAY order that never filled has expired at session end. Same shape as order.ca
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `remaining_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity left unfilled when the order expired. |
+| `cum_qty` | `int` | omitted when unset | ge 0, unit `shares` | Quantity the order had filled before it expired. |
+
+### `order.triggered.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+A stop, stop-limit or trailing stop has fired: the trade that reached its trigger, and what the order became. Published before the order's own fills, so a client knows why its stop traded -- the FIX analogue is ExecType=L.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `order_id` | `string` | required | max_len 64 |  |
+| `symbol` | `string` | required | max_len 16 |  |
+| `order_type` | enum: `STOP`, `STOP_LIMIT`, `TRAILING_STOP` | required | — | The order as it was armed. |
+| `stop_price_ticks` | `ticks` | required | unit `ticks` | The trigger price it fired at (a trailing stop's ratcheted one). |
+| `trigger_trade_id` | `string` | omitted when unset | max_len 64 | The trade that reached the trigger; absent when the last price came from a restart. |
+| `trigger_price_ticks` | `ticks` | omitted when unset | unit `ticks` | That trade's price. |
+| `becomes` | enum: `MARKET`, `LIMIT` | required | — | STOP and TRAILING_STOP become MARKET; STOP_LIMIT becomes LIMIT at its limit. |
+| `client_tag` | `string` | omitted when unset | max_len 64 |  |
+
+**See also:** `order.fill.{GW_ID}`, `engine.trace.{SYMBOL}`
+
+### `engine.trace.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+What the book did that no trade or order message shows, for the audit trail (no gateway forwards it): an order resting or arming and the place in the queue it got, an iceberg refilling its slice at the back of its level, a trailing stop ratcheting its trigger. A replay can then compare its model of priority and of trailing triggers with the engine's own, instead of inferring them.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `kind` | enum: `RESTED`, `ICEBERG_REFILL`, `TRAILING_RATCHET` | required | — |  |
+| `order_id` | `string` | required | max_len 64 |  |
+| `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` |  |
+| `displayed_qty` | `int` | omitted when unset | ge 0, unit `shares` | ICEBERG_REFILL: the new visible slice. |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the new trigger. |
+| `last_price_ticks` | `ticks` | omitted when unset | unit `ticks` | TRAILING_RATCHET: the trade price that moved it. |
+
+!!! note
+
+    `priority_seq` is the book's arrival sequence; it orders orders at one price, nothing more.
+
+    A trailing stop rests in a list checked in arming order, so its RESTED has no `priority_seq`.
+
+**See also:** `order.triggered.{GW_ID}`, `order.amended.{GW_ID}`
 
 ### `order.amended.{gateway_id}`
 
@@ -2366,6 +2459,8 @@ Confirm an accepted amendment and report the resulting order.
 | `old_qty` | `int` | omitted when unset | unit `shares` | The order's qty immediately before this amendment. Same replay rationale as old_price; absent on records written before this field existed. |
 | `client_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for the amended order. |
 | `request_tag` | `string` | omitted when unset | max_len 64 | Client correlation tag for this amend request. Engine-initiated cancels publish with request_tag=null. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `priority_seq` | `int` | omitted when unset | ge 0, unit `dimensionless` | The order's place in its book after the amendment (the book's arrival sequence): changed when `priority_reset`. |
 
 !!! note
 
@@ -2914,6 +3009,27 @@ Engine to ADMIN: what the market-wide kill switch cancelled.
 !!! note
 
     `affected_gateways` is what distinguishes this ack from the other two: the same two counters, plus how many participants they were spread across.
+
+### `risk.band.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+A symbol's collar, as the engine will apply it: published once per collared symbol at startup (a reference reload leaves collars as they are). The static band is fixed from these; the dynamic band is `dynamic_band_pct` around each last trade price, so a reader derives it from the trades rather than from a message per trade. Circuit-breaker corridors travel on circuit_breaker.halt/extend.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `kind` | enum: `COLLAR` | required | — |  |
+| `reference_price_ticks` | `ticks` | required | unit `ticks` | The static band's reference (last close or the config seed). |
+| `static_low_ticks` | `ticks` | required | unit `ticks` |  |
+| `static_high_ticks` | `ticks` | required | unit `ticks` |  |
+| `dynamic_band_pct` | `float` | required | ge 0, unit `dimensionless` | The dynamic band's half-width as a fraction of the last trade price (0.02 = 2 %). |
+
+**See also:** `circuit_breaker.halt.{SYMBOL}`, `system.startup`
 
 ### `risk.symbol_halt`
 
@@ -3614,6 +3730,40 @@ A symbol's configured circuit-breaker ladder and its lookback.
 | `reference_window_ns` | `int` | required | ge 0, unit `duration_nanos` | Lookback window for the reference price. A duration. |
 | `levels` | list of [`CircuitBreakerLevel`](#circuitbreakerlevel) | required | — |  |
 
+#### `CheckpointOrder`
+
+One order as a book checkpoint holds it: enough to rebuild the book exactly -- its place in the queue, hidden iceberg quantity, its stop and trailing triggers, and the links to its quote, OCO pair or combo.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `order_id` | `string` | required | max_len 64 |  |
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `side` | enum: `BUY`, `SELL` | required | — |  |
+| `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
+| `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
+| `quantity` | `int` | required | ge 0, unit `shares` |  |
+| `remaining_qty` | `int` | required | ge 0, unit `shares` | Hidden iceberg quantity included. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `stop_price_ticks` | `ticks` | omitted when unset | unit `ticks` | The current trigger (a trailing stop's ratcheted one). |
+| `trail_offset_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `visible_qty` | `int` | omitted when unset | unit `shares` | An iceberg's slice size. |
+| `displayed_qty` | `int` | omitted when unset | unit `shares` | What an iceberg shows now. |
+| `priority_seq` | `int` | omitted when unset | unit `dimensionless` | The book's arrival sequence; absent for a trailing stop (checked in list order). |
+| `smp_action` | `string` | omitted when unset | — |  |
+| `oco_group_id` | `string` | omitted when unset | — |  |
+| `quote_id` | `string` | omitted when unset | — |  |
+| `combo_parent_id` | `string` | omitted when unset | — |  |
+
+#### `LoadedFile`
+
+One persistence file the engine read at startup, identified by its bytes: a replay can tell which state the run started from.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `name` | `string` | required | max_len 64 | File name in the data dir, e.g. gtc_orders.json. |
+| `sha256` | `string` | `null` when unset | max_len 64 | SHA-256 of the file's bytes; null when the file did not exist. |
+| `entries` | `int` | required | ge 0, unit `dimensionless` | Orders, combos or symbols the file holds (0 when absent). |
+
 #### `ReferenceSymbol`
 
 One instrument's static configuration. Distinct from `SymbolInfo`, which is the same instrument as a *caller* sees it: this record is identical for every caller and changes only on reload, which is why the bundle can be cached and hashed and the symbols reply cannot.
@@ -3993,6 +4143,64 @@ Engine to all subscribers, once, before shutdown: the closing book of every inst
     That is why it has no `_request` sibling and why it is in this half rather than 6.1f's request/reply pairs.
 
 **See also:** `book.{SYMBOL}`, `session.state`
+
+### `system.book_checkpoint.{symbol}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+One symbol's whole book, for the audit: every resting order in priority order with its hidden quantity, every armed stop with its current trigger, the last prices. Published for every symbol after startup (what the restore and the seeds made), after each session transition, and at shutdown. A replay can start from any of them -- an audit that begins mid-day, or continues after an engine restart -- and, where it already holds the book, compare order by order.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `symbol` | `string` | required | max_len 16 |  |
+| `reason` | enum: `STARTUP`, `PHASE`, `EOD` | required | — |  |
+| `phase` | `string` | required | max_len 32 | The session state the book is in. |
+| `bids` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `asks` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `buy_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `sell_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `trailing_stops` | list of [`CheckpointOrder`](#checkpointorder) | required | — |  |
+| `last_trade_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_buy_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_sell_price_ticks` | `ticks` | omitted when unset | unit `ticks` |  |
+| `last_trade_id` | `string` | omitted when unset | — | The trade that set the last trade price. |
+
+!!! note
+
+    `bids` and `asks` are in matching priority (best price first, then arrival); `buy_stops` and `sell_stops` in the order they would trigger; `trailing_stops` in the order they are checked.
+
+**See also:** `system.startup`, `engine.trace.{SYMBOL}`, `book.{SYMBOL}`
+
+### `system.startup`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.3
+
+Engine to all subscribers, the first message of every start, before the restore: which engine, which configuration and which persisted state this run began from. Makes an audit trail self-describing -- a replay rebuilds the engine from this message alone, years later, without the data dir's `ref_data/` (which the next deploy overwrites) or a guess at the engine version. Also the marker of an engine start: every per-topic `seq` begins again after it.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `format_version` | `int` | required | ge 1, unit `dimensionless` | Version of this message's meaning; 1 at EduMatcher 1.0. |
+| `engine_version` | `string` | required | max_len 64 | The installed edumatcher package version. |
+| `git_commit` | `string` | required | max_len 64 | `git describe --always --dirty` of the source the engine runs from; "unknown" for an installed wheel. The package version stays put between releases, the commit does not. |
+| `python_version` | `string` | required | max_len 32 |  |
+| `run_seq` | `int` | required | ge 0, unit `dimensionless` | The engine-run sequence this start took (trade id prefix). |
+| `config_sha256` | `string` | `null` when unset | max_len 64 | SHA-256 of the compiled config artifact; null when none is deployed. |
+| `config` | `string` | `null` when unset | — | The compiled config artifact, verbatim JSON text; null when the engine runs on a YAML config or none. |
+| `loaded` | list of [`LoadedFile`](#loadedfile) | required | max_items 8 | The persistence files the restore reads: orders, combos, book statistics. |
+
+!!! note
+
+    `config` is the compiled artifact as `pm-config-deploy` wrote it, verbatim (about 250 KB for 300 symbols), so `config_sha256` is the artifact file's hash and `config_artifact.decode(config)` gives back exactly what the engine loaded.
+
+**See also:** `system.startup_recovery`, `system.recovery_item`
 
 ### `system.startup_recovery`
 
@@ -4604,6 +4812,10 @@ Public print of a completed match. The authoritative record of what traded, cons
 | `aggressor_side` | enum: `BUY`, `SELL`, `AUCTION` | required | — | Side that removed liquidity. AUCTION when both sides rested, which happens on an uncross print where there is no true aggressor. |
 | `ts_ns` | `int` | required | ge 0, unit `epoch_nanos` | Match time in Unix epoch nanoseconds, exactly as the engine's clock read it -- no scaling at publish time. The whole match batch shares one clock read, so trades printed in the same batch carry an identical value; `id` (run_seq + dense counter) is what orders them. Named `ts_ns` rather than `timestamp` so the unit travels with the field, as it does for `resume_at_ns` and `halt_duration_ns`: a bare float `timestamp` was indistinguishable by type from millis or nanos, which is what forced clearing's magnitude-guessing guard (finding CL-M6) and cost ~238ns of the engine's own precision. |
 | `tick_decimals` | `int` | defaults to `2` | ge 0, le 8, unit `dimensionless` | Decimal scale for `price`; 1 tick = 10^-tick_decimals. |
+| `price_ticks` | `ticks` | omitted when unset | unit `ticks` | `price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals. |
+| `match_type` | enum: `CONTINUOUS`, `OPENING_AUCTION`, `CLOSING_AUCTION`, `REOPEN_AUCTION`, `RECOVERY_AUCTION`, `BACKSTOP`, `FORCE_UNCROSS` | omitted when unset | — | How the trade came about; the engine sets it on every trade (absent only on prints from before it existed). CONTINUOUS for every match with an aggressor (a stop an uncross triggers included); an uncross print (aggressor_side AUCTION) names its uncross: the scheduled opening or closing auction, a halted symbol's reopening, the restore of a crossed book on an engine without sessions, the closing backstop, or an operator's forced uncross. |
+| `auction_id` | `string` | omitted when unset | max_len 32 | The uncross this print belongs to: `auction.result.auction_id`. |
+| `trigger_order_id` | `string` | omitted when unset | max_len 64 | The aggressor's order id when the aggressor is a stop that has triggered; absent otherwise. |
 
 !!! note
 

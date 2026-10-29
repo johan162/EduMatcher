@@ -15,9 +15,10 @@ per-symbol executed-volume tally that correctly de-duplicates `EXEC` lines
 by `EXEC_ID`. A single executed trade is delivered once *per subscribed
 channel* -- an `AUDIT` client subscribed to all three channels receives
 the *same* trade three times, and naively counting raw lines would
-overstate volume up to 3x. Both examples also detect gaps in the
-per-channel `SEQ` counters and shut down cleanly on Ctrl-C, printing the
-final tally.
+overstate volume up to 3x. They keep separate per-channel counts between EOD
+markers to compare against the gateway's interval `TRADE_COUNT`, while the
+final summary remains a session-wide unique-trade tally. Both examples also
+detect gaps in the per-channel `SEQ` counters and shut down cleanly on Ctrl-C.
 
 See [RALF protocol reference](../../books/protocols-and-clients/part-2-specifications/040-ralf.md)
 for the normative wire contract both clients follow.

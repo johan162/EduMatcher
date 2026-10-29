@@ -42,6 +42,16 @@ describe("history proxy", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer read-only-key");
   });
 
+  it("proxies one company profile by symbol", async () => {
+    const upstream = spyFetch({ symbol: "AAPL", name: "Apple" });
+    const app = await proxyApp(upstream as unknown as typeof fetch);
+
+    const res = await app.inject({ method: "GET", url: "/api/companies/AAPL" });
+
+    expect(res.statusCode).toBe(200);
+    expect(String(upstream.mock.calls[0]?.[0])).toBe("http://api-gwy.test:8080/api/v1/companies/AAPL");
+  });
+
   it("proxies the session schedule with the same key", async () => {
     const upstream = spyFetch({ sessions_enabled: true, country: "Sweden", schedule: null });
     const app = await proxyApp(upstream as unknown as typeof fetch);

@@ -45,12 +45,15 @@ from edumatcher.models.message import (
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateways_request_msg,
+    make_kill_switch_gateway_msg,
+    make_kill_switch_global_msg,
     make_kill_switch_msg,
     make_orders_request_msg,
     make_position_request_msg,
     make_price_level_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
+    make_reference_reload_msg,
     make_session_state_request_msg,
     make_session_schedule_request_msg,
     make_session_transition_msg,
@@ -86,6 +89,8 @@ from edumatcher.models.generated.risk import (
     topic_circuit_breaker_resume_all_ack,
     topic_force_uncross_ack,
     topic_kill_switch_ack,
+    topic_kill_switch_gateway_ack,
+    topic_kill_switch_global_ack,
     topic_symbol_halt_ack,
     topic_symbol_resume_ack,
 )
@@ -116,6 +121,7 @@ from edumatcher.models.generated.system import (
     topic_gateways,
     topic_position_snapshot,
     topic_quote_bootstrap,
+    topic_reference_reload_ack,
     topic_session_schedule,
     topic_session_status,
     topic_symbols,
@@ -417,6 +423,57 @@ class ExchangeCommandClient:
         """
         self._send(make_circuit_breaker_resume_all_msg(self._gw_id))
         return self._recv(topic_circuit_breaker_resume_all_ack(self._gw_id))
+
+    def kill_switch_gateway(self, target_gw: str, note: str = "") -> dict[str, Any]:
+        """
+        Cancel every resting order and quote of another gateway.
+
+        Unlike :meth:`kill_switch`, the caller and the target may differ.
+        Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``reason``, ``target_gateway_id``,
+        ``cancelled_orders``, ``cancelled_quotes``.
+        """
+        self._send(
+            make_kill_switch_gateway_msg(
+                self._gw_id, target_gw, note=note, command_id=new_command_id()
+            )
+        )
+        return self._recv(topic_kill_switch_gateway_ack(self._gw_id))
+
+    def kill_switch_global(self, note: str = "") -> dict[str, Any]:
+        """
+        Cancel every resting order and quote of every gateway.
+
+        Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``reason``, ``cancelled_orders``,
+        ``cancelled_quotes``, ``affected_gateways``.
+        """
+        self._send(
+            make_kill_switch_global_msg(
+                self._gw_id, note=note, command_id=new_command_id()
+            )
+        )
+        return self._recv(topic_kill_switch_global_ack(self._gw_id))
+
+    def reference_reload(self) -> dict[str, Any]:
+        """
+        Re-read static reference data from the engine's config file.
+
+        Refused when the engine started from a compiled artifact.
+        Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``reason``, ``config_version``.
+        """
+        self._send(make_reference_reload_msg(self._gw_id, new_command_id()))
+        return self._recv(topic_reference_reload_ack(self._gw_id))
 
     # ------------------------------------------------------------------
     # Risk controls — any connected gateway

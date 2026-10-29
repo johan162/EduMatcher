@@ -182,7 +182,7 @@ def test_a_stalled_receive_loop_ages_while_the_main_thread_idles(
     stats_proc.attach_reporter(reporter)
     stall = threading.Event()
 
-    def dispatch(_topic: str, _payload: Any) -> None:
+    def dispatch(_topic: str, _payload: Any, _msg_id: str | None = None) -> None:
         if not stall.is_set():
             stall.set()
             time.sleep(1.5)  # a stuck write
@@ -214,7 +214,7 @@ def test_stats_counts_recorded_and_dropped_events(
 ) -> None:
     calls = {"n": 0}
 
-    def dispatch(_topic: str, _payload: Any) -> None:
+    def dispatch(_topic: str, _payload: Any, _msg_id: str | None = None) -> None:
         calls["n"] += 1
         if calls["n"] == 2:
             raise RuntimeError("disk full")

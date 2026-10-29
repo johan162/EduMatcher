@@ -228,6 +228,7 @@ BALF uses a compact `u64` session-scoped order ID on the wire.
 | `0x14` | `AMEND_ORDER` | Client -> Server | 36 | 44 |
 | `0x15` | `AMEND_ACK` | Server -> Client | 40 | 48 |
 | `0x20` | `EXECUTION_REPORT` | Server -> Client | 56 | 64 |
+| `0x21` | `STOP_TRIGGERED` | Server -> Client | 48 | 56 |
 | `0x30` | `HEARTBEAT` | Bidirectional | 8 | 16 |
 | `0x31` | `HEARTBEAT_ACK` | Bidirectional | 8 | 16 |
 | `0x40` | `LOGOUT` | Client -> Server | 0 | 8 |
@@ -435,6 +436,24 @@ Offset 40  |  symbol           |  u8[8]   |  Symbol (for convenience; matches or
 Offset 48  |  side             |  u8      |  1 = BUY, 2 = SELL
 Offset 49  |  status           |  u8      |  1 = PARTIAL, 2 = FILLED
 Offset 50  |  _reserved        |  u8[6]   |  Must be zero
+```
+
+### `STOP_TRIGGERED` (0x21) - Server -> Client
+
+A stop, stop-limit or trailing stop of this session has fired. Sent before
+the order's own `EXECUTION_REPORT`s.
+
+**Body (48 bytes):**
+
+```text
+Offset  0  |  client_order_id  |  u64 LE  |  Echoed from the original NEW_ORDER
+Offset  8  |  order_id         |  u64 LE  |  The stop's order ID
+Offset 16  |  stop_price       |  i64 LE  |  Trigger price it fired at x 10^8 (a trailing stop's ratcheted one)
+Offset 24  |  trigger_price    |  i64 LE  |  Price of the trade that reached it x 10^8; 0 after an engine restart
+Offset 32  |  symbol           |  u8[8]   |  Symbol
+Offset 40  |  order_type       |  u8      |  5 = STOP, 6 = STOP_LIMIT, 8 = TRAILING_STOP (NEW_ORDER's codes)
+Offset 41  |  becomes          |  u8      |  1 = MARKET, 2 = LIMIT
+Offset 42  |  _reserved        |  u8[6]   |  Must be zero
 ```
 
 ### `HEARTBEAT` (0x30) - Bidirectional

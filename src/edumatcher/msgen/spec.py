@@ -60,6 +60,9 @@ UNITS = (
     "duration_seconds",
     "duration_millis",
     "duration_micros",
+    # Σ price_ticks × quantity: money exactly, where a VWAP is no whole tick
+    # (order.fill, sim forensics S22).
+    "notional_ticks",
 )
 
 #: Numeric types for which lint requires a declared ``unit`` (B.18 rule 13).

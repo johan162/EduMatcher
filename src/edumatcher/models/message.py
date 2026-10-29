@@ -112,6 +112,21 @@ def decode_sequence(frames: list[bytes]) -> int | None:
         return None
 
 
+def decode_publisher_sequence(frames: list[bytes]) -> int | None:
+    """Return the publisher's socket-wide sequence (``eseq``), if stamped.
+
+    The frame after the per-topic sequence. ``None`` from a publisher that
+    does not stamp it -- including PUSH, where the envelope follows the
+    payload directly and is no integer.
+    """
+    if len(frames) < 4:
+        return None
+    try:
+        return int(frames[3])
+    except ValueError, TypeError:
+        return None
+
+
 def decode_envelope(frames: list[bytes]) -> Envelope | None:
     """Return the causal envelope, if the publisher stamped one.
 
@@ -264,6 +279,8 @@ def make_amended_msg(
     old_price: float | None = None,
     old_qty: int | None = None,
     symbol: str | None = None,
+    price_ticks: int | None = None,
+    priority_seq: int | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
@@ -289,6 +306,8 @@ def make_amended_msg(
         request_tag=request_tag,
         old_price=old_price,
         old_qty=old_qty,
+        price_ticks=price_ticks,
+        priority_seq=priority_seq,
     )
 
 
@@ -356,6 +375,15 @@ def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def left_and_filled(order: dict[str, Any] | None) -> dict[str, Any]:
+    """``remaining_qty`` and ``cum_qty`` of an ended order, from its dict
+    (empty without one: the event then carries neither)."""
+    if not order or order.get("remaining_qty") is None:
+        return {}
+    left = int(order["remaining_qty"])
+    return {"remaining_qty": left, "cum_qty": int(order["quantity"]) - left}
+
+
 def make_ack_msg(
     gateway_id: str,
     order_id: str,
@@ -390,6 +418,9 @@ def make_ack_msg(
         stop_price=detail.get("stop_price"),
         visible_qty=detail.get("visible_qty"),
         trail_offset=detail.get("trail_offset"),
+        price_ticks=detail.get("price_ticks"),
+        stop_price_ticks=detail.get("stop_price_ticks"),
+        trail_offset_ticks=detail.get("trail_offset_ticks"),
         smp_action=detail.get("smp_action"),
         client_tag=order_client_tag(client_tag, order),
         request_tag=request_tag,
@@ -490,6 +521,7 @@ def make_cancelled_msg(
         request_tag=request_tag,
         cancel_reason=cancel_reason,
         command_id=command_id or None,
+        **left_and_filled(order),
         **group_ids(order),
     )
 
@@ -513,6 +545,7 @@ def make_expired_msg(
         order_id=order_id,
         symbol=order_symbol(symbol, order),
         client_tag=order_client_tag(client_tag, order),
+        **left_and_filled(order),
         **group_ids(order),
     )
 
@@ -1038,6 +1071,7 @@ def make_auction_indicative_msg(
     eq_qty: int,
     imbalance_side: str,
     imbalance_qty: int,
+    eq_price_ticks: int | None = None,
 ) -> list[bytes]:
     """Engine → all: where a symbol *would* uncross, mid-call-phase.
 
@@ -1067,6 +1101,7 @@ def make_auction_indicative_msg(
         eq_qty=eq_qty,
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
+        eq_price_ticks=eq_price_ticks,
     )
 
 
@@ -1078,6 +1113,8 @@ def make_auction_result_msg(
     imbalance_side: str,
     imbalance_qty: int,
     reason: str,
+    eq_price_ticks: int | None = None,
+    auction_id: str | None = None,
 ) -> list[bytes]:
     """Engine → all: auction uncross result for one symbol.
 
@@ -1101,6 +1138,8 @@ def make_auction_result_msg(
         imbalance_side=imbalance_side or None,
         imbalance_qty=imbalance_qty,
         reason=reason,
+        eq_price_ticks=eq_price_ticks,
+        auction_id=auction_id,
     )
 
 
@@ -1655,6 +1694,31 @@ def make_admin_action_msg(
         scope=scope,
         accepted=accepted,
         reason=reason,
+    )
+
+
+def make_startup_msg(
+    *,
+    engine_version: str,
+    git_commit: str,
+    python_version: str,
+    run_seq: int,
+    config_sha256: str | None,
+    config: str | None,
+    loaded: list[dict[str, Any]],
+) -> list[bytes]:
+    """Engine → all subscribers, the first message of every start: which
+    engine, configuration and persisted state it began from — see
+    spec/messages/system.yaml::startup."""
+    return _gen_system.make_startup(
+        format_version=1,
+        engine_version=engine_version,
+        git_commit=git_commit,
+        python_version=python_version,
+        run_seq=run_seq,
+        config_sha256=config_sha256,
+        config=config,
+        loaded=loaded,
     )
 
 

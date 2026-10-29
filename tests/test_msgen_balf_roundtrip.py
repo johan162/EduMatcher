@@ -385,3 +385,22 @@ class TestTheExampleParsersMatchTheGateway:
         source = (BALF_EXAMPLES / "balf_parser.c").read_text(encoding="utf-8")
         assert "edu_execution_report_balf_parse" in source
         assert '#include "edumatcher_order.h"' in source
+
+
+class TestStopTriggered:
+    """STOP_TRIGGERED (0x21, S24b): one layout in the spec, codec and binding."""
+
+    def test_it_round_trips_and_agrees_with_the_codec(self) -> None:
+        from edumatcher.models.generated.order import (
+            FRAME_SIZE_STOP_TRIGGERED_BALF,
+            MSGTYPE_STOP_TRIGGERED_BALF,
+            parse_stop_triggered_balf,
+            serialise_stop_triggered_balf,
+        )
+
+        assert MSGTYPE_STOP_TRIGGERED_BALF == codec.MSG_STOP_TRIGGERED
+        assert FRAME_SIZE_STOP_TRIGGERED_BALF == codec.FRAME_SIZE[codec.MSG_STOP_TRIGGERED] == 56  # fmt: skip
+        sample = {"client_order_id": 7, "order_id": 42, "stop_price": 148.0, "trigger_price": 0.0, "symbol": "AAPL", "order_type": "TRAILING_STOP", "becomes": "MARKET"}  # fmt: skip
+        frame = serialise_stop_triggered_balf(sample, seq_no=3)
+        assert len(frame) == 56 and frame[2] == 0x21
+        assert parse_stop_triggered_balf(frame).to_dict() == sample

@@ -98,20 +98,37 @@ class SequencedPublisher:
     that position when a caller (see ``CausalPublisher``) has already attached
     frames of its own. ``decode_sequence`` reads ``frames[2]`` and must keep
     working whatever else is on the wire behind it.
+
+    Behind it, at index 3, rides a second, socket-wide counter (``eseq``,
+    ``decode_publisher_sequence``): the one total order of everything this
+    socket published, for a subscriber that takes every topic (pm-audit).
+    The envelope is found by its shape, so it may move one frame back.
     """
 
-    __slots__ = ("_sock", "_seq")
+    __slots__ = ("_sock", "_seq", "_eseq")
 
     def __init__(self, sock: SendsMultipart) -> None:
         self._sock: Any = sock
         self._seq: dict[bytes, int] = {}
+        #: Socket-wide count (``eseq``): on the engine's socket, one total
+        #: order over everything it published. A subscriber that takes every
+        #: topic (pm-audit) sees it gap-free; one that filters must use
+        #: ``seq``.
+        self._eseq = 0
 
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
         topic = frames[0]
         nxt = self._seq.get(topic, 0) + 1
         self._seq[topic] = nxt
+        self._eseq += 1
         return self._sock.send_multipart(
-            [frames[0], frames[1], str(nxt).encode("ascii"), *frames[2:]],
+            [
+                frames[0],
+                frames[1],
+                str(nxt).encode("ascii"),
+                str(self._eseq).encode("ascii"),
+                *frames[2:],
+            ],
             *args,
             **kwargs,
         )
@@ -162,11 +179,12 @@ class CausalPublisher:
     tries it.
     """
 
-    __slots__ = ("_inner", "_cause")
+    __slots__ = ("_inner", "_cause", "_unit")
 
     def __init__(self, inner: SendsMultipart) -> None:
         self._inner: Any = inner
         self._cause: Envelope | None = None
+        self._unit = False
 
     def set_cause(self, envelope: Envelope | None) -> None:
         """Attribute everything published from now until ``clear_cause``."""
@@ -175,12 +193,29 @@ class CausalPublisher:
     def clear_cause(self) -> None:
         self._cause = None
 
+    def begin_unit(self) -> None:
+        """Group what is published until ``end_unit`` into one chain.
+
+        For work the engine decides by itself that is still one piece (a
+        circuit-breaker reopen: its auction result, prints, fills and
+        resume). The first message starts the chain; the rest are caused by
+        it. Outside a command only: inside one, its cause already does this.
+        """
+        self._cause = None
+        self._unit = True
+
+    def end_unit(self) -> None:
+        self._unit = False
+        self._cause = None
+
     def current_envelope(self) -> Envelope:
         """The envelope the next published message would carry."""
         return self._cause.caused() if self._cause is not None else Envelope.root()
 
     def send_multipart(self, frames: list[bytes], *args: Any, **kwargs: Any) -> Any:
         env = self.current_envelope()
+        if self._unit and self._cause is None:
+            self._cause = env  # the unit's root
         return self._inner.send_multipart([*frames, env.to_frame()], *args, **kwargs)
 
     def send_with_envelope(self, frames: list[bytes], envelope_frame: bytes) -> Any:

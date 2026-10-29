@@ -18,6 +18,11 @@ _run_seq: int | None = None
 _trade_counter = itertools.count(1)
 
 
+def current_run_seq() -> int | None:
+    """The engine-run sequence set by ``set_run_seq`` (None before it)."""
+    return _run_seq
+
+
 def set_run_seq(run_seq: int) -> None:
     """Set the durable engine-run sequence before the first trade is minted."""
     global _run_seq
@@ -58,6 +63,13 @@ class Trade:
     ts_ns: int  # unit: epoch_nanos
     tick_decimals: int = 2
     run_seq: int | None = None
+    #: How the trade came about (spec: trade.executed.match_type). The engine
+    #: stamps an uncross's prints; everything else is continuous matching.
+    match_type: str = "CONTINUOUS"
+    #: The uncross this print belongs to (auction.result.auction_id).
+    auction_id: str | None = None
+    #: The aggressor, when it is a stop that has triggered.
+    trigger_order_id: str | None = None
 
     # ------------------------------------------------------------------
     # Factory
@@ -79,6 +91,7 @@ class Trade:
         # per incoming order and passes it through the entire processing chain,
         # eliminating 2-4 redundant syscalls per aggressive order (~1-1.5µs saved).
         now: int | None = None,
+        trigger_order_id: str | None = None,
     ) -> "Trade":
         if _run_seq is None:
             raise RuntimeError("trade id requested before set_run_seq()")
@@ -98,6 +111,7 @@ class Trade:
             ts_ns=now if now is not None else now_ns(),
             tick_decimals=tick_decimals,
             run_seq=_run_seq,
+            trigger_order_id=trigger_order_id,
         )
 
     def to_wire(self) -> dict[str, Any]:
@@ -127,10 +141,14 @@ class Trade:
             "buy_gateway_id": self.buy_gateway_id,
             "sell_gateway_id": self.sell_gateway_id,
             "price": from_ticks(self.price, self.symbol),
+            "price_ticks": self.price,
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
             "ts_ns": self.ts_ns,
             "tick_decimals": get_tick_decimals(self.symbol),
+            "match_type": self.match_type,
+            "auction_id": self.auction_id,
+            "trigger_order_id": self.trigger_order_id,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -169,4 +187,7 @@ class Trade:
             ts_ns=d["ts_ns"],
             tick_decimals=int(d.get("tick_decimals", 2)),
             run_seq=(None if d.get("run_seq") is None else int(d["run_seq"])),
+            match_type=str(d.get("match_type") or "CONTINUOUS"),
+            auction_id=d.get("auction_id"),
+            trigger_order_id=d.get("trigger_order_id"),
         )

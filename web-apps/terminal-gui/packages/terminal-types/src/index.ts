@@ -3,3 +3,4 @@ export * from "./ws.js";
 export * from "./history.js";
 export * from "./news.js";
 export * from "./schedule.js";
+export * from "./company.js";

@@ -4,7 +4,7 @@ pm-audit has one SUB socket on the engine's PUB socket, so the files, oldest
 first, hold every engine message in publish order -- including the inbound
 commands, which the engine republishes before acting on them. A line is::
 
-    [ts] [topic] [seq=N msg=ULID cause=ULID chain=ULID] {json}
+    [ts] [topic] [seq=N eseq=N msg=ULID cause=ULID chain=ULID] {json}
 
 Lines are split by hand, not by ``edumatcher.audit.query.parse_line``: a run
 holds ~15 M lines, most of them book snapshots a check may skip unparsed.
@@ -12,11 +12,17 @@ holds ~15 M lines, most of them book snapshots a check may skip unparsed.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
+from sim_forensics.registry import Skipped
+
 from edumatcher.audit.query import discover_log_files, open_log_file
+
+#: The engine's first message on every start (it carries the run's config).
+STARTUP = "system.startup"
 
 
 class Line(NamedTuple):
@@ -26,11 +32,18 @@ class Line(NamedTuple):
     body: str
     #: When pm-audit wrote the line (ISO, millisecond precision).
     ts: str
+    #: The engine's per-topic sequence (None on a line without one).
+    seq: int | None = None
+    #: The engine's socket-wide sequence (None on a line without one).
+    eseq: int | None = None
 
 
 def audit_files(data_dir: Path) -> list[Path]:
-    """The run's audit files, oldest first (empty when there is none)."""
-    return discover_log_files(data_dir / "audit.log")
+    """The run's audit files, oldest first (empty when there is none): the
+    daily archives, then the live trail. ``discover_log_files`` leaves the
+    archives out, but a run that crossed midnight starts in one."""
+    archives = sorted((data_dir / "audit").glob("audit-????-??-??.log.zst"))
+    return archives + discover_log_files(data_dir / "audit.log")
 
 
 def lines(files: list[Path]) -> Iterator[Line]:
@@ -45,4 +58,29 @@ def lines(files: list[Path]) -> Iterator[Line]:
                 continue
             meta = raw[b + 3 : c]
             chain = meta[meta.rfind("chain=") + 6 :]
-            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a])
+            seq = eseq = None
+            if meta.startswith("seq="):
+                end = meta.find(" ")
+                seq = int(meta[4 : end if end > 0 else None])
+                if meta.startswith("eseq=", end + 1):
+                    stop = meta.find(" ", end + 1)
+                    eseq = int(meta[end + 6 : stop if stop > 0 else None])
+            yield Line(raw[a + 3 : b], chain, raw[c + 2 :], raw[1:a], seq, eseq)
+
+
+def run_config_text(files: list[Path]) -> str:
+    """The compiled config artifact the run's engine announced in its first
+    message, ``system.startup``: the audit describes its own run."""
+    for ln in lines(files):
+        if ln.topic != STARTUP:
+            raise Skipped(
+                f"the audit does not begin with the engine's start ({STARTUP}); "
+                f"first line: {ln.topic}"
+            )
+        text = json.loads(ln.body).get("config")
+        if not text:
+            raise Skipped(
+                f"{STARTUP} carries no config (the engine ran on a YAML file)"
+            )
+        return str(text)
+    raise Skipped("the audit is empty")

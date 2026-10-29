@@ -82,7 +82,7 @@ from edumatcher.models.generated.session import SessionState, TOPIC_SESSION_STAT
 from edumatcher.models.feed_schema import (
     TradeExecutedPayload,
 )
-from edumatcher.models.message import decode
+from edumatcher.models.message import decode, decode_envelope
 from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
@@ -118,7 +118,10 @@ log = logging.getLogger(__name__)
 
 
 def _to_trade_event_row(
-    trade: Trade, ingest_ts_ns: int, tz: tzinfo = timezone.utc
+    trade: Trade,
+    ingest_ts_ns: int,
+    tz: tzinfo = timezone.utc,
+    msg_id: str | None = None,
 ) -> TradeEventRow:
     """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
     return TradeEventRow(
@@ -135,6 +138,8 @@ def _to_trade_event_row(
         sell_gateway_id=trade.sell_gateway_id,
         aggressor_side=trade.aggressor_side or None,
         ingest_ts_ns=ingest_ts_ns,
+        match_type=trade.match_type,
+        msg_id=msg_id,
     )
 
 
@@ -213,6 +218,8 @@ class ClearingProcess:
         self._tz = session_tz
 
         self._buffer: list[Trade] = []
+        #: The audit message id of each buffered trade (trade_events.msg_id).
+        self._msg_ids: dict[str, str] = {}
         self._ledger = Ledger(tz=session_tz)
         self._trade_count = 0
 
@@ -462,6 +469,9 @@ class ClearingProcess:
                     else:
                         self._check_sequence_gap(trade)
                         self._buffer.append(trade)
+                        env = decode_envelope(frames)
+                        if env is not None:
+                            self._msg_ids[trade.id] = env.msg_id
                         self._dbg_count("trades_buffered")
                         if len(self._buffer) >= self._flush_size:
                             self._flush()
@@ -589,7 +599,8 @@ class ClearingProcess:
         updated_ts = now_ns()
 
         trade_rows = [
-            _to_trade_event_row(t, updated_ts, self._tz) for t in self._buffer
+            _to_trade_event_row(t, updated_ts, self._tz, self._msg_ids.get(t.id))
+            for t in self._buffer
         ]
 
         for trade in self._buffer:
@@ -613,6 +624,7 @@ class ClearingProcess:
         count = len(self._buffer)
         self._trades_settled += count
         self._buffer.clear()
+        self._msg_ids.clear()
         self._ledger.clear_batch()
         self._last_flush_mono = time.monotonic()
 

@@ -19,6 +19,7 @@ class OrderState(str, Enum):
     PENDING = "PENDING"  # sent, not yet acknowledged
     LIVE = "LIVE"
     CANCEL_PENDING = "CANCEL_PENDING"
+    AMEND_PENDING = "AMEND_PENDING"  # live, a re-price on its way
 
 
 class Purpose(str, Enum):
@@ -42,6 +43,7 @@ class LiveOrder:
     state: OrderState = OrderState.PENDING
     cancel_sent_at: float | None = None
     oco_tag: str | None = None
+    amend_sent_at: float | None = None
 
 
 @dataclass
@@ -266,6 +268,57 @@ class OrderManager:
             ):
                 out.append(o)
         return out
+
+    def symbol_of(self, order_id: str | None, tag: str | None) -> str | None:
+        order = self._resolve(order_id, tag)
+        return order.symbol if order is not None else None
+
+    def mark_amend(self, order: LiveOrder, now: float) -> None:
+        order.state = OrderState.AMEND_PENDING
+        order.amend_sent_at = now
+
+    def on_amended(
+        self,
+        order_id: str | None,
+        tag: str | None,
+        price_ticks: int | None,
+        remaining: int | None,
+        now: float,
+    ) -> LiveOrder | None:
+        """The engine re-priced the order: it is live again, as of now."""
+        order = self._resolve(order_id, tag)
+        if order is None:
+            return None
+        if price_ticks is not None:
+            order.price_ticks = price_ticks
+        if remaining is not None:
+            order.remaining = remaining
+        order.submitted_at = now
+        if order.state == OrderState.AMEND_PENDING:
+            order.state = OrderState.LIVE
+        return order
+
+    def on_amend_reject(
+        self, order_id: str | None, tag: str | None, gone: bool
+    ) -> None:
+        """A refused amend: the order is live as it was -- or *gone*
+        (ORDER_NOT_FOUND: it ended before the amend arrived)."""
+        order = self._resolve(order_id, tag)
+        if order is None:
+            return
+        if gone:
+            self._drop(order)
+        elif order.state == OrderState.AMEND_PENDING:
+            order.state = OrderState.LIVE
+
+    def unanswered_amends(self, now: float, timeout: float) -> list[LiveOrder]:
+        return [
+            o
+            for o in self.orders.values()
+            if o.state == OrderState.AMEND_PENDING
+            and o.amend_sent_at is not None
+            and now - o.amend_sent_at >= timeout
+        ]
 
     def unanswered_cancels(self, now: float, timeout: float) -> list[LiveOrder]:
         return [

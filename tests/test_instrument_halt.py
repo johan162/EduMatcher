@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from tests.engine_harness import last_ack
 from edumatcher.engine.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitBreakerLevel,
@@ -35,6 +36,13 @@ class _DummySocket:
 
     def close(self) -> None:
         self.closed = True
+
+    # A circuit-breaker reopen is one causal unit (CausalPublisher).
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
+        pass
 
 
 @pytest.fixture()
@@ -155,7 +163,7 @@ class TestHaltState:
         eng._halted_symbols["AAPL"] = True
 
         eng._handle_new_order(_order_dict(order_type=OrderType.LIMIT, price=10000))
-        topic, msg = decode(pub.sent[-1])
+        topic, msg = last_ack(pub.sent)
         assert "order.ack." in topic
         assert msg["accepted"] is True
 
@@ -194,7 +202,7 @@ class TestCollarEngineIntegration:
         self._add_collar(eng)
         # Price=100.0 → to_ticks("AAPL") = 10000; inside [8000, 12000]
         eng._handle_new_order(_order_dict(price=10000))
-        topic, msg = decode(pub.sent[-1])
+        topic, msg = last_ack(pub.sent)
         assert msg["accepted"] is True
 
     def test_order_above_static_band_rejected(self, engine) -> None:
@@ -258,7 +266,7 @@ class TestCollarEngineIntegration:
         self._add_collar(eng)
 
         eng._handle_new_order(_order_dict(price=13000))
-        topic, msg = decode(pub.sent[-1])
+        topic, msg = last_ack(pub.sent)
         assert topic.startswith("order.ack.")
         assert msg["accepted"] is True
 

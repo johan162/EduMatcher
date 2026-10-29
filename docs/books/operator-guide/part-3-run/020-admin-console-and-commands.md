@@ -1129,6 +1129,9 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 | `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
 | `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 | `force_uncross(symbol)`         | symbol                        | **ADMIN**        | `risk.force_uncross`              | `risk.force_uncross_ack.{GW}`              |
+| `kill_switch_gateway(target, note?)` | target GW ID, optional note | **ADMIN**     | `risk.kill_switch_gateway`        | `risk.kill_switch_gateway_ack.{GW}`        |
+| `kill_switch_global(note?)`     | optional note                 | **ADMIN**        | `risk.kill_switch_global`         | `risk.kill_switch_global_ack.{GW}`         |
+| `reference_reload()`            | —                             | **ADMIN**        | `system.reference_reload`         | `system.reference_reload_ack.{GW}`         |
 | `quote_bootstrap(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `system.quote_bootstrap_request` | `system.quote_bootstrap.{target}`        |
 | `index_history(index, from, to, types?)` | index ID, time range, optional type filter | — (no auth on `pm-index`'s socket) | `index.history_request` | `index.history.{GW}` |
 | `index_corp_action(index, action, symbol, ...)` | index ID, action, symbol, action params | — | `index.corp_action` | `index.corp_action_ack.{GW}` |

@@ -175,16 +175,29 @@ at all — it is only ever written once, at the following startup.
 2. Each `TIF = GTC` order is re-injected into its symbol's order book unconditionally, **with its original timestamp preserved**.
 3. Each `TIF = DAY` order is re-injected **only if its own timestamp falls on the current business day** (machine-local calendar date). A `DAY` order dated before today — because the business day rolled over while the engine was up, or while it was down — is discarded instead, and the discard is logged at `INFO` level. This is the mechanism that ultimately gives `TIF = DAY` its intended meaning of "valid for the current trading day," independent of how many times the engine process itself has restarted in between. This rule applies to every resting order regardless of origin, including MM quote legs (step 3a below).
 3a. Restored quote-origin orders (from steps 2-3 above) are grouped back into linked bid/ask pairs by `(gateway_id, quote_id)` and re-registered as active quotes in the engine's in-memory `QuoteIndex`, so a surviving quote is fully quote-managed again — not just resting as a plain order. A quote whose sibling leg did not survive (filled, cancelled, or discarded as a stale `TIF=DAY` order) restores its surviving leg as an ordinary resting order instead, logged as a "single-leg quote remnant."
+3b. Restored OCO legs are linked back into their pairs by `oco_group_id`, so a leg that fills or ends after the restart still ends its sibling. A pair with only one surviving leg is not re-linked: that leg rests as an ordinary order.
 4. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps for restored `GTC` combos.
-5. If any orders were restored, initial book snapshots are published.
-6. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values.
+5. If any orders were restored, initial book snapshots are published. Restoring never matches, so a book saved during pre-open or an auction call comes back crossed. With sessions enabled the engine starts `CLOSED` and the crossed book waits for its auction, as it would have without the restart. With sessions disabled the engine starts in continuous trading, which must not hold a crossed book, so each crossed book is uncrossed at once (`auction.result` reason `RECOVERY`).
+6. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values. `prev_close` is also the book's last trade price again — the collar reference, a new trailing stop's starting point, the depth window's centre — unless a `RECOVERY` uncross in step 5 has printed a newer one.
 7. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs, unless `seed_once: true` (the default) and this `(gateway_id, symbol)` pair already has an active entry in `QuoteIndex` — i.e. a live quote was restored in step 3a. **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored order already crosses a seed price, a trade executes immediately during this step. This can also happen **between two different market makers**: a restored quote leg from one gateway can cross a freshly-injected seed from a different gateway — e.g. one gateway's quote only partially survived the restart (see [Operational edge cases](#operational-edge-cases) below), so `seed_once` still allows a second gateway's seed to fire, and that seed happens to cross the first gateway's surviving leg. Same startup-crossing behaviour as above, just a new pair of counterparties.
 8. Market-maker combos from the `market_maker_combos` config section are injected.
 9. Book snapshots are published for any symbol where MM quotes were injected.
-10. Original timestamps ensure that price-time priority carries over correctly — an order
-    submitted yesterday still has seniority over a new order at the same price submitted today.
+10. Price-time priority carries over: each book's orders are re-injected in their current
+    priority (arrival sequence), so an order submitted yesterday still has seniority over a new
+    order at the same price submitted today, and an order that had lost its place (an iceberg
+    whose slice refilled, an amend that resets priority) does not get it back.
 
 
+
+### At the Close (every trading day)
+
+When the session moves to `CLOSED`, after the day's `DAY` orders have
+expired, the engine copies what it would persist — `gtc_orders.json`,
+`gtc_combos.json` and `book_stats.json` — into
+`<DATA_DIR>/eod/<YYYY-MM-DD>/` (the machine-local business date). The
+regular files are rewritten by every checkpoint; the archive keeps each
+day's closing state, so the next morning's book can be compared with it
+(the simulation forensics check G3 does). Nothing is ever deleted there.
 
 ## Impact of a Business-Day Change
 

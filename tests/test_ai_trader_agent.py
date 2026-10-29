@@ -8,10 +8,17 @@ from typing import Any
 
 import pytest
 
-from edumatcher.ai_trader.actions import CancelOco, CancelOrder, NewOco, NewOrder
+from edumatcher.ai_trader.actions import (
+    AmendOrder,
+    CancelOco,
+    CancelOrder,
+    NewCombo,
+    NewOco,
+    NewOrder,
+)
 from edumatcher.ai_trader.agent import Agent, intraday_multiplier
 from edumatcher.ai_trader.market_state import MarketState
-from edumatcher.ai_trader.orders import LiveOrder
+from edumatcher.ai_trader.orders import LiveOrder, OrderState
 from edumatcher.ai_trader.preset import TempoSpec, get_preset
 from edumatcher.ai_trader.risk import RiskSpec
 from edumatcher.models.order import TIF, OrderType
@@ -159,6 +166,38 @@ class TestHousekeeping:
         assert cancels
         assert len({c.order_id for c in cancels}) == len(cancels)
 
+    def test_pre_open_orders_wait_for_the_uncross(self) -> None:
+        """Pre-open lasts 25 min, an order's age limit 20-120 s: swept in a
+        call phase, no DAY order ever reached the opening uncross (sim run
+        2026-10-28: all 55 792 cancelled). Left over after it, they go."""
+        agent = _agent(max_order_age_sec=5.0, max_live_orders_per_symbol=1)
+        m = _market(session="PRE_OPEN")
+        first = _run(agent, m, 1.0)
+        sent = {f"E{a.tag}" for a in first if isinstance(a, NewOrder)}
+        assert sent
+        _ack_all(agent, first)
+        later = _run(agent, m, 30.0, t0=1.0)
+        assert not any(isinstance(a, CancelOrder) for a in later)
+        m.on_session_state({"state": "CONTINUOUS"}, wall=31.0)
+        after = _run(agent, m, 2.0, t0=31.0)
+        assert sent <= {a.order_id for a in after if isinstance(a, CancelOrder)}
+
+    @pytest.mark.parametrize("phase", ["OPENING_AUCTION", "CLOSING_AUCTION"])
+    def test_a_resting_day_order_stays_through_an_auction_call(
+        self, phase: str
+    ) -> None:
+        """Far behind the touch and past its age, but in the call it waits
+        for the uncross."""
+        agent = _agent(max_order_age_sec=5.0, max_live_orders_per_symbol=1)
+        agent.orders.track(
+            LiveOrder(
+                "D", "AAPL", "BUY", OrderType.LIMIT, TIF.DAY, 5, 5, 900, 0.0,
+                order_id="E-D", state=OrderState.LIVE,
+            )
+        )  # fmt: skip
+        out = _run(agent, _market(("AAPL",), session=phase), 30.0)
+        assert not any(isinstance(a, CancelOrder) for a in out)
+
     def test_unacked_orders_are_not_cancelled_by_id(self) -> None:
         agent = _agent(max_order_age_sec=1.0)
         later = _run(agent, _market(), 10.0)
@@ -166,6 +205,10 @@ class TestHousekeeping:
 
     def test_unanswered_cancel_is_forgotten(self) -> None:
         agent = _agent(max_order_age_sec=1.0, max_live_orders_per_symbol=1)
+        # Every stale order cancelled, none re-priced instead.
+        agent.preset = replace(
+            agent.preset, execution=replace(agent.preset.execution, amend_fraction=0.0)
+        )
         m = _market()
         _ack_all(agent, _run(agent, m, 0.5))
         _run(agent, m, 2.0, t0=0.5)
@@ -442,3 +485,70 @@ class TestEndOfDay:
         agent.stats.submitted = 5
         nxt = agent.end_of_day(market)
         assert (nxt["submitted"], nxt["fills"], nxt["unseen_expiries"]) == (2, 0, 0)
+
+
+class TestAmendsCombosAndSmp:
+    """S27: what the sim never exercised before -- amends, combos, explicit
+    SMP modes."""
+
+    def _agent_with(self, **execution: Any) -> Agent:
+        agent = _agent(max_live_orders_per_symbol=1, max_order_age_sec=1.0)
+        agent.preset = replace(agent.preset, execution=replace(agent.preset.execution, **execution))  # fmt: skip
+        agent.executor.spec = agent.preset.execution
+        return agent
+
+    def test_a_preset_smp_mode_rides_on_every_order(self) -> None:
+        agent = self._agent_with(smp="CANCEL_BOTH")
+        sent = [a for a in _run(agent, _market(), 5.0) if isinstance(a, NewOrder)]
+        assert sent and {a.smp for a in sent} == {"CANCEL_BOTH"}
+
+    def test_a_stale_limit_is_repriced_to_the_touch_instead_of_cancelled(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        m = _market()
+        _ack_all(agent, _run(agent, m, 0.5))
+        for st in m.symbols.values():
+            st.best_bid, st.best_ask = 995, 1015  # the touch moved
+        out = _run(agent, m, 3.0, t0=0.5)
+        amends = [a for a in out if isinstance(a, AmendOrder)]
+        assert amends and not any(isinstance(a, CancelOrder) for a in out)
+        a = amends[0]
+        o = agent.orders.orders[a.tag]
+        assert o.state == OrderState.AMEND_PENDING
+        assert a.price_ticks == (995 if o.side == "BUY" else 1015)
+        agent.on_amended(9.0, order_id=a.order_id, tag=a.tag, price_ticks=a.price_ticks, remaining=None)  # fmt: skip
+        assert (o.state, o.price_ticks, o.submitted_at) == (OrderState.LIVE, a.price_ticks, 9.0)  # fmt: skip
+
+    def test_an_old_order_still_at_the_touch_is_trimmed_not_repriced(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        o = LiveOrder(tag="T1", symbol="AAPL", side="BUY", order_type=OrderType.LIMIT, tif=TIF.DAY, qty=10, remaining=7, price_ticks=990, submitted_at=0.0, order_id="O1", state=OrderState.LIVE)  # fmt: skip
+        agent.orders.track(o)
+        (a,) = agent._amend(o, {"AAPL": (990, 1010)}, 5.0)
+        # Same price, new total = 3 filled + half the 7 unfilled: keeps priority.
+        assert a == AmendOrder(order_id="O1", tag="T1", symbol="AAPL", qty=6)
+        assert o.state == OrderState.AMEND_PENDING
+        o.state, o.remaining = OrderState.LIVE, 1
+        assert agent._amend(o, {"AAPL": (990, 1010)}, 6.0) == []  # nothing to trim
+
+    def test_a_refused_amend_leaves_the_order_or_drops_it_if_gone(self) -> None:
+        agent = self._agent_with(amend_fraction=1.0)
+        m = _market()
+        _ack_all(agent, _run(agent, m, 0.5))
+        for st in m.symbols.values():
+            st.best_bid, st.best_ask = 995, 1015
+        first, second = [a for a in _run(agent, m, 3.0, t0=0.5) if isinstance(a, AmendOrder)][:2]  # fmt: skip
+        for a, code in ((first, "PRICE_OUT_OF_RANGE"), (second, "ORDER_NOT_FOUND")):
+            agent.on_ack(4.0, order_id=a.order_id, tag=None, accepted=False, code=code, reason="", request_tag=f"AMD-{a.tag}")  # fmt: skip
+        assert agent.orders.orders[first.tag].state == OrderState.LIVE
+        assert second.tag not in agent.orders.orders
+
+    def test_a_combo_pairs_the_intent_with_the_other_side_elsewhere(self) -> None:
+        agent = self._agent_with(combo_fraction=1.0)
+        combos = [a for a in _run(agent, _market(), 5.0) if isinstance(a, NewCombo)]
+        assert combos
+        c = combos[0]
+        one, two = c.legs
+        assert one.symbol != two.symbol and {one.side, two.side} == {"BUY", "SELL"}
+        for leg in c.legs:
+            assert leg.price_ticks == (
+                1010 if leg.side == "BUY" else 990
+            )  # at the touch

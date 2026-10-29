@@ -28,6 +28,7 @@ from edumatcher.models.message import (
     decode,
     decode_envelope,
     decode_push_envelope,
+    decode_publisher_sequence,
     decode_sequence,
 )
 
@@ -132,7 +133,7 @@ class TestFrameLayout:
         pub.send_multipart([b"trade.executed", b"{}"])
 
         frames = sock.sent[0]
-        assert len(frames) == 4
+        assert len(frames) == 5  # topic, payload, seq, eseq, envelope
         assert decode_sequence(frames) == 1
         assert decode_envelope(frames) is not None
 
@@ -144,6 +145,8 @@ class TestFrameLayout:
         pub.send_multipart([b"trade.executed", b"{}"])
 
         assert [decode_sequence(f) for f in sock.sent] == [1, 1, 2]
+        # ...and the socket-wide one counts every message.
+        assert [decode_publisher_sequence(f) for f in sock.sent] == [1, 2, 3]
 
     def test_payload_is_untouched(self) -> None:
         """The envelope rides outside the JSON — the payload is byte-identical."""
@@ -246,6 +249,27 @@ class TestCausationEndToEnd:
 
         assert decode_envelope(sock.sent[0]).causation_id == first.msg_id  # type: ignore[union-attr]
         assert decode_envelope(sock.sent[1]).causation_id == second.msg_id  # type: ignore[union-attr]
+
+    def test_a_unit_of_engine_work_is_one_chain_rooted_at_its_first_message(
+        self,
+    ) -> None:
+        """A circuit-breaker reopen (S28): no command caused it, but its
+        auction result, prints and resume belong together."""
+        sock = FakeSock()
+        pub = CausalPublisher(SequencedPublisher(sock))
+        pub.send_multipart([b"book.AAPL", b"{}"])  # before: a root of its own
+        pub.begin_unit()
+        for topic in (b"auction.result.AAPL", b"trade.executed", b"circuit_breaker.resume.AAPL"):  # fmt: skip
+            pub.send_multipart([topic, b"{}"])
+        pub.end_unit()
+        pub.send_multipart([b"book.AAPL", b"{}"])  # after: a root again
+
+        before, root, trade, resume, after = (decode_envelope(f) for f in sock.sent)
+        assert root is not None and trade is not None and resume is not None
+        assert (root.causation_id, root.correlation_id) == (None, root.msg_id)
+        assert {(e.causation_id, e.correlation_id) for e in (trade, resume)} == {(root.msg_id, root.msg_id)}  # fmt: skip
+        for e in (before, after):
+            assert e is not None and e.causation_id is None and e.correlation_id == e.msg_id  # fmt: skip
 
 
 # ---------------------------------------------------------------------------

@@ -85,6 +85,7 @@ from edumatcher.balf_gwy.translate import (
     build_engine_new_order,
     engine_amended_to_balf_params,
     engine_fill_to_execution_report_dict,
+    engine_triggered_to_stop_triggered_dict,
     new_engine_order_id,
 )
 from edumatcher.messaging.bus import PushSocket, make_pusher, make_subscriber
@@ -107,12 +108,15 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDER_TRIGGERED,
     serialise_execution_report_balf,
+    serialise_stop_triggered_balf,
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
     topic_order_expired,
     topic_order_fill,
+    topic_order_triggered,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.system import (
@@ -950,6 +954,8 @@ class BalfGateway:
             self._handle_amended_event(session, payload)
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             self._handle_expired_event(session, payload)
+        elif topic.startswith(PREFIX_ORDER_TRIGGERED):
+            self._handle_triggered_event(session, payload)
 
     def _handle_gateway_auth(self, gw_id: str, payload: dict[str, Any]) -> None:
         session = self._find_pending_auth_session(gw_id)
@@ -1180,6 +1186,21 @@ class BalfGateway:
             build_amend_ack(seq_no=session.next_seq(), **params),
         )
 
+    def _handle_triggered_event(
+        self, session: ClientSession, payload: dict[str, Any]
+    ) -> None:
+        """A stop fired: STOP_TRIGGERED, ahead of its execution reports."""
+        mapping = session.engine_to_balf.get(str(payload.get("order_id", "")))
+        if mapping is None:
+            return
+        balf_order_id, client_order_id = mapping
+        params = engine_triggered_to_stop_triggered_dict(
+            payload, balf_order_id, client_order_id
+        )
+        self._queue_frame(
+            session, serialise_stop_triggered_balf(params, seq_no=session.next_seq())
+        )
+
     def _handle_expired_event(
         self, session: ClientSession, payload: dict[str, Any]
     ) -> None:
@@ -1391,6 +1412,7 @@ class BalfGateway:
             topic_order_cancelled(gw_id),
             topic_order_amended(gw_id),
             topic_order_expired(gw_id),
+            topic_order_triggered(gw_id),
         )
 
     def _gateway_in_use(self, gw_id: str) -> bool:

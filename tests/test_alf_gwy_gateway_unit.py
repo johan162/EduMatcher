@@ -458,6 +458,8 @@ def test_new_oco_leg_prices_are_ticks_on_the_wire(gateway: AlfGateway) -> None:
     assert isinstance(fake_push, _FakePush)
     _topic, payload = decode(fake_push.sent[-1])
 
+    # X27: the scale of those ticks travels with them, as on order.new.
+    assert payload["tick_decimals"] == 2
     leg1, leg2 = payload["leg1"], payload["leg2"]
     assert leg1["price_ticks"] == 10150
     assert leg1["stop_price_ticks"] == 10000
@@ -735,6 +737,30 @@ def test_amended_and_cancelled_events_echo_request_tag(gateway: AlfGateway) -> N
     assert cancelled.command == "CANCELLED"
     assert cancelled.fields["TAG"] == "TAG-001"
     assert cancelled.fields["RTAG"] == "RT-CXL-001"
+    peer.close()
+
+
+def test_a_fired_stop_reaches_its_session_as_triggered(gateway: AlfGateway) -> None:
+    from edumatcher.models.price import register_tick_decimals
+
+    register_tick_decimals("AAPL", 2)
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    base = {"gateway_id": "TRADER01", "order_id": "ORD1", "symbol": "AAPL", "order_type": "STOP_LIMIT", "stop_price_ticks": 14800, "becomes": "LIMIT"}  # fmt: skip
+    fake_sub._queue.append(encode("order.triggered.TRADER01", {**base, "trigger_trade_id": "T9", "trigger_price_ticks": 14795, "client_tag": "TAG-1"}))  # fmt: skip
+    fake_sub._queue.append(encode("order.triggered.TRADER01", base))  # after a restart
+
+    gateway._poll_engine_events()
+
+    first, second = (parse_alf_line(x.decode("utf-8")) for x in session.out_queue)
+    assert first.command == "TRIGGERED"
+    assert first.fields == {"ORDER_ID": "ORD1", "SYMBOL": "AAPL", "TYPE": "STOP_LIMIT", "STOP": "148.00", "BECOMES": "LIMIT", "TRADE_ID": "T9", "TRADE_PRICE": "147.95", "TAG": "TAG-1"}  # fmt: skip
+    assert "TRADE_ID" not in second.fields and "TRADE_PRICE" not in second.fields
     peer.close()
 
 
@@ -1543,3 +1569,32 @@ def test_no_probe_without_sessions(gateway: AlfGateway) -> None:
     fake_push.sent.clear()
     gateway._probe_engine_sessions_if_due(100.0)
     assert fake_push.sent == []
+
+
+def test_the_ai_swarms_amend_combo_and_smp_lines_reach_the_engine(
+    gateway: AlfGateway,
+) -> None:
+    """The lines alf_client.protocol builds for S27's actions parse."""
+    from edumatcher.alf_client import protocol as alf
+
+    session, peer = _make_session()
+    session.authenticated, session.gateway_id, session.role = True, "TRADER01", "TRADER"
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL", "MSFT"}
+    for line in (
+        alf.new_order(tag="T1", symbol="AAPL", side="BUY", order_type="LIMIT", tif="DAY", qty=5, tick_decimals=2, price_ticks=10000, smp="CANCEL_RESTING"),  # fmt: skip
+        alf.amend("OID1", rtag="AMD-T1", price_ticks=10005, tick_decimals=2),
+        alf.new_combo(combo_id="C1", tif="DAY", legs=(
+            {"symbol": "AAPL", "side": "BUY", "qty": 2, "price_ticks": 10010, "tick_decimals": 2},
+            {"symbol": "MSFT", "side": "SELL", "qty": 2, "price_ticks": 20000, "tick_decimals": 2},
+        )),  # fmt: skip
+    ):
+        session.rate_tokens = 10.0
+        gateway._handle_client_line(session, line.decode().strip())
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    (t1, new), (t2, amend), (t3, combo) = [decode(f) for f in fake_push.sent[-3:]]
+    assert (t1, new["smp_action"]) == ("order.new", "CANCEL_RESTING")
+    assert (t2, amend["order_id"], amend["price"], amend["request_tag"]) == ("order.amend", "OID1", 100.05, "AMD-T1")  # fmt: skip
+    assert t3 == "order.combo" and [leg["symbol"] for leg in combo["legs"]] == ["AAPL", "MSFT"]  # fmt: skip
+    peer.close()

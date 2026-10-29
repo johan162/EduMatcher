@@ -271,11 +271,11 @@ mutate: ## Mutation testing of the matching engine: every mutant x full suite (~
 	@echo -e "$(DARKYELLOW)- Running matching-engine mutation tests (tools/mutate_engine.py)...$(NC)"
 	@poetry run python tools/mutate_engine.py
 
-forensics: ## Check a stopped sim run's records against each other: make forensics DATA=<data dir> OUT=<report dir>
+forensics: ## Check a stopped sim run's records against each other: make forensics DATA=<data dir> OUT=<report dir> [SLOW=1]
 	@if [ -z "$(DATA)" ] || [ -z "$(OUT)" ]; then \
 		echo -e "$(RED)✗ usage: make forensics DATA=<data dir> OUT=<report dir>$(NC)"; exit 1; \
 	fi
-	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)"; \
+	@PYTHONPATH=tools poetry run python -m sim_forensics --data "$(DATA)" --out "$(OUT)" $(if $(SLOW),--slow); \
 	rc=$$?; if [ $$rc -eq 1 ]; then \
 		echo -e "$(DARKYELLOW)! some checks FAILed or hit an ERROR: that is the finding, see the report$(NC)"; \
 	elif [ $$rc -ne 0 ]; then exit $$rc; fi

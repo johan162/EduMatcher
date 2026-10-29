@@ -30,6 +30,7 @@ from typing import Any
 
 import pytest
 
+from tests.engine_harness import last_ack
 from edumatcher.models.price import to_ticks
 
 
@@ -208,7 +209,6 @@ class TestTheEngineRejectsDisplayMoney:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
         """The same payload in ticks goes through, so the guard is specific."""
-        from edumatcher.models.message import decode
         from tests.test_engine_handlers import _connect, _make_engine
 
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
@@ -225,7 +225,7 @@ class TestTheEngineRejectsDisplayMoney:
                 "leg2": {"side": "SELL", "order_type": "LIMIT", "price_ticks": 10500},
             }
         )
-        _topic, msg = decode(pub_sock.sent[-1])
+        _topic, msg = last_ack(pub_sock.sent)
         assert msg["accepted"] is True
 
 

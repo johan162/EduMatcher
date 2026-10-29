@@ -10,7 +10,10 @@ published for that command (its ``chain``):
 - E1: every state-changing message the live engine published belongs to a
   command (or to startup). One that does not came from an input the audit
   does not hold -- a silent-gateway expiry, a timer -- and the re-run cannot
-  reproduce it.
+  reproduce it. The one timer the audit does name is the circuit breaker's:
+  its reopen or ACE extension is one chain (S28) ending in
+  ``circuit_breaker.resume/extend.<SYM>``, which the re-run reproduces by
+  firing that symbol's timer (``BREAKER_TIMER``) and compares like a command.
 - E2: the outputs agree, message for message. Engine-generated ids (quote,
   OCO and seed legs) and trade ids are bound live ↔ re-run at first sight. A
   difference is non-determinism, a hidden input, or a behaviour change in
@@ -34,22 +37,30 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
+import tempfile
 from collections import Counter
+from collections.abc import Iterator
+from datetime import date, datetime, tzinfo
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from sim_forensics.audit import audit_files, lines
+from sim_forensics.audit import STARTUP, audit_files, lines, run_config_text
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
 
 import edumatcher.engine.main as engine_main
-from edumatcher.config_artifact import load_compiled_config
+from edumatcher.cli_version import source_commit
+from edumatcher.config_artifact import decode as decode_artifact
+from edumatcher.engine.config_loader import EngineConfig
 from edumatcher.models.generated.system import TOPIC_GATEWAY_HEARTBEAT
 from edumatcher.models.message import decode
-from edumatcher.models.trade import reset_trade_ids_for_tests, set_run_seq
+from edumatcher.models.trade import (
+    current_run_seq,
+    reset_trade_ids_for_tests,
+    set_run_seq,
+)
 
 #: Output topics left out of the comparison: market data and replies.
 _SKIP = ("book.", "depth.", "auction.indicative.", "system.", "diagnostic")
@@ -68,7 +79,10 @@ _STATE = (
     "session.state",
 )
 #: Clock readings, never equal between runs.
-_TIME_KEYS = frozenset({"ts_ns", "ts", "removed_at_ns"})
+_TIME_KEYS = frozenset({"ts_ns", "ts", "removed_at_ns", "resume_at_ns"})
+#: The pseudo-command for a circuit breaker's timer firing on one symbol.
+BREAKER_TIMER = "circuit_breaker.timer"
+_TIMER_ENDS = ("circuit_breaker.resume.", "circuit_breaker.extend.")
 _ORDER_ID = re.compile(r"^[0-9a-f]{32}$")
 _TRADE_ID = re.compile(r"^\d{6}-\d{9}$")
 #: An order id's 8-character prefix, as messages quote it in reason text.
@@ -92,6 +106,12 @@ class _Sink:
         pass
 
     def clear_cause(self) -> None:
+        pass
+
+    def begin_unit(self) -> None:
+        pass
+
+    def end_unit(self) -> None:
         pass
 
     def close(self) -> None:
@@ -258,61 +278,26 @@ class _Rerun:
         files = audit_files(data)
         if not files:
             raise Skipped("no audit.log in the data dir")
-        compiled = load_compiled_config(data / "ref_data" / "engine_config.json")
-        if compiled is None:
-            raise Skipped("no ref_data/engine_config.json (the run's compiled config)")
+        compiled = decode_artifact(run_config_text(files))
         self.versions = (compiled.meta.compiler_version, _engine_version())
         reset_trade_ids_for_tests()
         set_run_seq(1)
         sink = _Sink()
-        with (
-            mock.patch.object(
-                engine_main, "_compiled_engine_config", lambda: compiled.engine
-            ),
-            mock.patch.object(engine_main, "make_puller", lambda _: _Sink()),
-            mock.patch.object(engine_main, "make_publisher", lambda _: sink),
-            mock.patch.object(engine_main, "load_gtc_orders", lambda _: []),
-            mock.patch.object(engine_main, "load_book_stats", lambda _: {}),
-        ):
-            self.engine = engine = engine_main.Engine(config_path=None)
-            engine._restore_gtc()
-            engine._load_config()
-        commands = _command_topics()
-        startup: list[tuple[str, dict[str, Any]]] = []
-        live: list[tuple[str, dict[str, Any]]] = []
-        command: tuple[str, str, dict[str, Any]] | None = None
-        first = True
-        for ln in lines(files):
-            if first:
-                first = False
-                if ln.topic != "system.startup_recovery":
-                    raise Skipped(
-                        "the audit does not reach back to the engine's start "
-                        f"(first line: {ln.topic}); its input is incomplete"
-                    )
+        with tempfile.TemporaryDirectory() as empty:
+            self.engine = fresh_engine(compiled.engine, sink, Path(empty))
+        for topic, chain, payload, live, _ts in inputs(files):
+            if topic == "startup":
+                self.step("startup", "", {}, sink.take(), live)
                 continue
-            if ln.topic == "system.startup_recovery":
-                raise Skipped("the engine restarted during the run")
-            if ln.topic in commands:
-                if command is None:
-                    self.step("startup", "", {}, sink.take(), startup)
-                else:
-                    self.dispatch(sink, *command, live)
-                command, live = (ln.topic, ln.chain, json.loads(ln.body)), []
+            if topic is None:
+                for t, body in live:
+                    if t.startswith(_STATE):
+                        self.flag("E1", topic=t, chain=chain, body=json.dumps(body)[:200])  # fmt: skip
                 continue
-            if ln.topic.startswith("book."):
-                self.snapshot(json.loads(ln.body))
+            if topic.startswith("book."):
+                self.snapshot(payload)
                 continue
-            if ln.topic.startswith(_SKIP):
-                continue
-            if command is None:
-                startup.append((ln.topic, json.loads(ln.body)))
-            elif ln.chain == command[1]:
-                live.append((ln.topic, json.loads(ln.body)))
-            elif ln.topic.startswith(_STATE):
-                self.flag("E1", topic=ln.topic, chain=ln.chain, body=ln.body[:200])
-        if command is not None:
-            self.dispatch(sink, *command, live)
+            self.dispatch(sink, topic, chain, payload, live)
         self.final_book()
 
     def dispatch(
@@ -324,7 +309,7 @@ class _Rerun:
         live: list[tuple[str, dict[str, Any]]],
     ) -> None:
         self.commands[topic] += 1
-        self.engine._dispatch_pull_message(topic, self.ids.inbound(payload))
+        apply(self.engine, topic, self.ids.inbound(payload))
         self.step(topic, chain, payload, sink.take(), live)
 
     def step(
@@ -385,21 +370,134 @@ class _Rerun:
                 )
 
 
+Live = list[tuple[str, dict[str, Any]]]
+
+
+Input = tuple[str | None, str, dict[str, Any], Live, str]
+
+
+def inputs(files: list[Path]) -> Iterator[Input]:
+    """The engine's inputs in the audit, in order, each with what the live
+    engine published for it: (topic, chain, payload, outputs, audit time) per echoed
+    command or breaker timer (BREAKER_TIMER, payload {"symbol"}); first
+    ("startup", "", {}, what startup published); a ``book.<SYM>`` snapshot
+    as (topic, "", snapshot, []); and messages no input explains as
+    (None, chain, {}, those messages)."""
+    commands = _command_topics()
+    first = True
+    startup: Live | None = []
+    command: tuple[str, str, dict[str, Any], str] | None = None
+    live: Live = []
+    unit: tuple[str, Live, str] | None = None
+
+    def unit_input(unit: tuple[str, Live, str]) -> Input:
+        chain, msgs, ts = unit
+        end = msgs[-1][0]
+        if end.startswith(_TIMER_ENDS):
+            return BREAKER_TIMER, chain, {"symbol": end.rsplit(".", 1)[1]}, msgs, ts
+        return None, chain, {}, msgs, ts
+
+    for ln in lines(files):
+        if first:
+            first = False
+            if ln.topic != STARTUP:
+                raise Skipped(
+                    "the audit does not reach back to the engine's start "
+                    f"(first line: {ln.topic}); its input is incomplete"
+                )
+            continue
+        if ln.topic == STARTUP:
+            raise Skipped("the engine restarted during the run")
+        if ln.topic in commands and startup is not None:
+            yield "startup", "", {}, startup, ln.ts
+            startup = None
+        if ln.topic in commands or ln.topic.startswith("book."):
+            if command is not None:
+                yield command[0], command[1], command[2], live, command[3]
+                command = None
+            if unit is not None:
+                yield unit_input(unit)
+                unit = None
+            if ln.topic in commands:
+                command, live = (ln.topic, ln.chain, json.loads(ln.body), ln.ts), []
+            else:
+                yield ln.topic, "", json.loads(ln.body), [], ln.ts
+            continue
+        if ln.topic.startswith(_SKIP):
+            continue
+        if startup is not None:
+            startup.append((ln.topic, json.loads(ln.body)))
+            continue
+        if command is not None and ln.chain == command[1]:
+            live.append((ln.topic, json.loads(ln.body)))
+            continue
+        # Outside the current command: what it published is complete (the
+        # engine finishes one input before the next), and a new unit begins.
+        if command is not None:
+            yield command[0], command[1], command[2], live, command[3]
+            command = None
+        if unit is not None and unit[0] != ln.chain:
+            yield unit_input(unit)
+            unit = None
+        if unit is None:
+            unit = (ln.chain, [], ln.ts)
+        unit[1].append((ln.topic, json.loads(ln.body)))
+    if startup is not None:
+        yield "startup", "", {}, startup, ""
+    if command is not None:
+        yield command[0], command[1], command[2], live, command[3]
+    if unit is not None:
+        yield unit_input(unit)
+
+
+def apply(engine: engine_main.Engine, topic: str, payload: dict[str, Any]) -> None:
+    """Feed *engine* one input: a command, or a breaker timer firing."""
+    if topic != BREAKER_TIMER:
+        engine._dispatch_pull_message(topic, payload)
+        return
+    cb = engine._circuit_breakers.get(payload["symbol"])
+    if cb is not None and cb.halted:
+        cb.resume_at_ns = 0  # due now; the engine decides: reopen or extend
+        engine._flush_circuit_breakers()
+
+
+def fresh_engine(
+    config: EngineConfig, sink: _Sink, state_dir: Path, today: date | None = None
+) -> engine_main.Engine:
+    """An engine started as ``Engine.run`` starts one (``Engine._startup``)
+    on *config*, publishing into *sink*, restoring from the persistence files
+    in *state_dir* (none there: an empty book). *today* stands in for the
+    wall-clock date the restore judges DAY orders by."""
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> "_Clock":
+            moment = datetime.now(tz)
+            return cls.combine(today or moment.date(), moment.timetz())
+
+    with (
+        mock.patch.object(engine_main, "_deployed_config", lambda: (config, "")),
+        mock.patch.object(engine_main, "make_puller", lambda _: _Sink()),
+        mock.patch.object(engine_main, "make_publisher", lambda _: sink),
+        mock.patch.object(engine_main, "GTC_ORDERS_FILE", state_dir / "gtc_orders.json"),  # fmt: skip
+        mock.patch.object(engine_main, "GTC_COMBOS_FILE", state_dir / "gtc_combos.json"),  # fmt: skip
+        mock.patch.object(engine_main, "BOOK_STATS_FILE", state_dir / "book_stats.json"),  # fmt: skip
+        mock.patch.object(engine_main, "datetime", _Clock),
+    ):
+        engine = engine_main.Engine(config_path=None)
+        engine._startup(current_run_seq() or 0)
+    return engine
+
+
 def _engine_version() -> str:
     """The re-running engine's version, and its source commit if it runs
     from a git checkout (the package version stays put between releases)."""
-    src = Path(engine_main.__file__).resolve().parents[2]
-    try:
-        commit = subprocess.run(
-            ["git", "-C", str(src), "describe", "--always", "--dirty"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        ).stdout.strip()
-    except OSError, subprocess.SubprocessError:
-        return version("edumatcher")
-    return f"{version('edumatcher')} ({commit})"
+    commit = source_commit()
+    return (
+        version("edumatcher")
+        if commit == "unknown"
+        else f"{version('edumatcher')} ({commit})"
+    )
 
 
 def _command_topics() -> frozenset[str]:

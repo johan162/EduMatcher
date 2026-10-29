@@ -476,3 +476,13 @@ def test_reconnect_backoff_never_exceeds_the_cap() -> None:
         gap = t._sessions["AI001"].retry_at - now
         assert 0 < gap <= RECONNECT_MAX
         now = t._sessions["AI001"].retry_at
+
+
+def test_an_amended_line_becomes_an_amended_event() -> None:
+    from edumatcher.ai_trader.transport import AlfTransport, AmendedEvent
+    from edumatcher.alf_client.protocol import parse_response
+
+    msg = parse_response("AMENDED|ORDER_ID=O1|PRICE=100.05|QTY=5|REMAINING=3|PRIORITY_RESET=TRUE|TAG=T1")  # fmt: skip
+    assert msg is not None
+    event = AlfTransport._to_event(None, msg)  # type: ignore[arg-type]
+    assert event == AmendedEvent(order_id="O1", tag="T1", price=100.05, remaining=3)

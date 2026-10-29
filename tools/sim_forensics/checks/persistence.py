@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
-from sim_forensics.audit import audit_files
+from sim_forensics.audit import audit_files, lines
 from sim_forensics.checks.derived import market_pass
 from sim_forensics.dataset import Dataset
 from sim_forensics.registry import Outcome, Sample, Skipped, check
@@ -124,3 +125,85 @@ def trade_ids_follow_run_seq(ds: Dataset) -> Outcome:
         else "no engine start in the audit"
     )
     return Outcome(len(samples), samples, note)
+
+
+#: The order lists of a book checkpoint.
+_CHECKPOINT_LISTS = ("bids", "asks", "buy_stops", "sell_stops", "trailing_stops")
+
+
+def _rounds(ds: Dataset) -> list[tuple[str, str, str, dict[str, int]]]:
+    """The audit's checkpoint rounds: (session date, reason, phase, order id
+    -> remaining) -- one round is the engine's consecutive checkpoints."""
+    rounds: list[tuple[str, str, str, dict[str, int]]] = []
+    current: tuple[str, str] | None = None
+    for ln in lines(audit_files(ds.data_dir)):
+        if not ln.topic.startswith("system.book_checkpoint."):
+            current = None
+            continue
+        p = json.loads(ln.body)
+        key = (p["reason"], p["phase"])
+        if key != current:
+            rounds.append((_session_date(ds, ln.ts), *key, {}))
+            current = key
+        orders = rounds[-1][3]
+        for name in _CHECKPOINT_LISTS:
+            for r in p.get(name) or []:
+                orders[r["order_id"]] = r["remaining_qty"]
+    return rounds
+
+
+def _session_date(ds: Dataset, ts: str) -> str:
+    return datetime.fromisoformat(ts).astimezone(ds.session_tz).date().isoformat()
+
+
+@check(
+    "G3",
+    "lifecycle",
+    "Each day's archived closing book is the close's checkpoint and the next day's start",
+    needs=(),
+)
+def eod_archive_continues(ds: Dataset) -> Outcome:
+    """For each ``eod/<date>/gtc_orders.json``: its orders (id, remaining)
+    are the book of that day's CLOSED checkpoint, and of the next checkpoint
+    round after it (the next PRE_OPEN, or a restart's STARTUP) -- nothing
+    appears or vanishes overnight. Seeded quote legs (a restart seeds again,
+    by design) are not counted against it."""
+    root = ds.data_dir / "eod"
+    days = sorted(p.name for p in root.iterdir() if (p / "gtc_orders.json").is_file()) if root.is_dir() else []  # fmt: skip
+    if not days:
+        raise Skipped("no eod/<date>/gtc_orders.json in the data dir")
+    if not audit_files(ds.data_dir):
+        raise Skipped("no audit.log in the data dir")
+    rounds = _rounds(ds)
+    seeds = _seed_ids(ds)
+    samples: list[Sample] = []
+    checked = 0
+    for day in days:
+        archived = {
+            str(o["id"]): int(o["remaining_qty"])
+            for o in json.loads((root / day / "gtc_orders.json").read_text())
+        }
+        close = next((i for i, r in enumerate(rounds) if r[0] == day and r[2] == "CLOSED"), None)  # fmt: skip
+        if close is None:
+            continue  # the audit does not hold that close
+        checked += 1
+        for label, i in (("the close", close), ("the next start", close + 1)):
+            if i >= len(rounds):
+                continue
+            book = {k: v for k, v in rounds[i][3].items() if k not in seeds}
+            if book != archived:
+                lost = sorted(archived.keys() - book.keys())
+                new = sorted(book.keys() - archived.keys())
+                changed = sorted(k for k in archived.keys() & book.keys() if archived[k] != book[k])  # fmt: skip
+                samples.append({"day": day, "against": label, "reason": rounds[i][1], "missing": lost[:5], "extra": new[:5], "changed": changed[:5]})  # fmt: skip
+    note = f"{len(days)} archived days, {checked} with their close in the audit"
+    return Outcome(len(samples), samples, note)
+
+
+def _seed_ids(ds: Dataset) -> set[str]:
+    """Order ids of seeded quote legs (their acks say is_seed)."""
+    out: set[str] = set()
+    for ln in lines(audit_files(ds.data_dir)):
+        if ln.topic.startswith("order.ack.") and '"is_seed": true' in ln.body:
+            out.add(str(json.loads(ln.body)["order_id"]))
+    return out

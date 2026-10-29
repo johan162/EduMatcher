@@ -2,7 +2,8 @@
 GTC order persistence — save/load resting GTC and DAY orders across restarts.
 Book stats persistence — save/load per-symbol last buy/sell prices and prev_close.
 
-File format: JSON array of Order.to_dict() entries (GTC and DAY orders).
+File format: JSON array of Order.to_dict() entries (GTC and DAY orders),
+             each with the order's ``cum_notional_ticks`` beside them.
              JSON object keyed by symbol (book stats).
 Orders with TIF=GTC or TIF=DAY and status NEW/PARTIAL are persisted. A
 process restart is not itself a day boundary (see
@@ -90,7 +91,7 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
     applied at restore time (Engine._restore_gtc), not here.
     """
     gtc = [
-        o.to_dict()
+        {**o.to_dict(), "cum_notional_ticks": o.cum_notional_ticks}
         for o in orders
         if o.tif in (TIF.GTC, TIF.DAY)
         and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)

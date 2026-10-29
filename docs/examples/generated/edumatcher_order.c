@@ -139,3 +139,121 @@ int edu_execution_report_balf_validate(const edu_execution_report_balf_t *m, cha
     }
     return EDU_MSG_OK;
 }
+
+const char *edu_stop_triggered_order_type_to_str(edu_stop_triggered_order_type_t v) {
+    switch (v) {
+        case EDU_STOP_TRIGGERED_ORDER_TYPE_STOP:
+            return "STOP";
+        case EDU_STOP_TRIGGERED_ORDER_TYPE_STOP_LIMIT:
+            return "STOP_LIMIT";
+        case EDU_STOP_TRIGGERED_ORDER_TYPE_TRAILING_STOP:
+            return "TRAILING_STOP";
+        default:
+            return "";
+    }
+}
+
+int edu_stop_triggered_order_type_from_str(const char *s, edu_stop_triggered_order_type_t *out) {
+    if (!s || !out) return EDU_MSG_ERR_FIELD;
+    if (strcmp(s, "STOP") == 0) {
+        *out = EDU_STOP_TRIGGERED_ORDER_TYPE_STOP;
+        return EDU_MSG_OK;
+    }
+    if (strcmp(s, "STOP_LIMIT") == 0) {
+        *out = EDU_STOP_TRIGGERED_ORDER_TYPE_STOP_LIMIT;
+        return EDU_MSG_OK;
+    }
+    if (strcmp(s, "TRAILING_STOP") == 0) {
+        *out = EDU_STOP_TRIGGERED_ORDER_TYPE_TRAILING_STOP;
+        return EDU_MSG_OK;
+    }
+    return EDU_MSG_ERR_FIELD;
+}
+
+const char *edu_stop_triggered_becomes_to_str(edu_stop_triggered_becomes_t v) {
+    switch (v) {
+        case EDU_STOP_TRIGGERED_BECOMES_MARKET:
+            return "MARKET";
+        case EDU_STOP_TRIGGERED_BECOMES_LIMIT:
+            return "LIMIT";
+        default:
+            return "";
+    }
+}
+
+int edu_stop_triggered_becomes_from_str(const char *s, edu_stop_triggered_becomes_t *out) {
+    if (!s || !out) return EDU_MSG_ERR_FIELD;
+    if (strcmp(s, "MARKET") == 0) {
+        *out = EDU_STOP_TRIGGERED_BECOMES_MARKET;
+        return EDU_MSG_OK;
+    }
+    if (strcmp(s, "LIMIT") == 0) {
+        *out = EDU_STOP_TRIGGERED_BECOMES_LIMIT;
+        return EDU_MSG_OK;
+    }
+    return EDU_MSG_ERR_FIELD;
+}
+
+int edu_stop_triggered_balf_parse(const uint8_t *frame, size_t len, edu_stop_triggered_balf_t *out) {
+    const uint8_t *body;
+
+    if (!frame || !out) return EDU_MSG_ERR_FIELD;
+    if (len < 8) return EDU_MSG_ERR_SHORT;
+    if (frame[0] != EDU_BALF_MAGIC) return EDU_MSG_ERR_MAGIC;
+    if (frame[1] != EDU_BALF_VERSION) return EDU_MSG_ERR_VERSION;
+    if (frame[2] != EDU_STOP_TRIGGERED_BALF_MSGTYPE) return EDU_MSG_ERR_MSGTYPE;
+    if (len != EDU_STOP_TRIGGERED_BALF_FRAME_SIZE) return EDU_MSG_ERR_LENGTH;
+
+    memset(out, 0, sizeof(*out));
+    body = frame + 8;
+
+    out->client_order_id = edu_rd_u64(body + 0);
+    out->order_id = edu_rd_u64(body + 8);
+    out->stop_price = (double)edu_rd_i64(body + 16) / 100000000.0;
+    out->trigger_price = (double)edu_rd_i64(body + 24) / 100000000.0;
+    memcpy(out->symbol, body + 32, 8);
+    out->symbol[8] = '\0';
+    switch (edu_rd_u8(body + 40)) {
+        case 5:
+            out->order_type = EDU_STOP_TRIGGERED_ORDER_TYPE_STOP;
+            break;
+        case 6:
+            out->order_type = EDU_STOP_TRIGGERED_ORDER_TYPE_STOP_LIMIT;
+            break;
+        case 8:
+            out->order_type = EDU_STOP_TRIGGERED_ORDER_TYPE_TRAILING_STOP;
+            break;
+        default:
+            return EDU_MSG_ERR_FIELD;
+    }
+    switch (edu_rd_u8(body + 41)) {
+        case 1:
+            out->becomes = EDU_STOP_TRIGGERED_BECOMES_MARKET;
+            break;
+        case 2:
+            out->becomes = EDU_STOP_TRIGGERED_BECOMES_LIMIT;
+            break;
+        default:
+            return EDU_MSG_ERR_FIELD;
+    }
+
+    return EDU_MSG_OK;
+}
+
+int edu_stop_triggered_balf_validate(const edu_stop_triggered_balf_t *m, char *err, size_t errlen) {
+    if (!m) return EDU_MSG_ERR_FIELD;
+
+    if (m->stop_price <= 0) {
+        if (err && errlen) snprintf(err, errlen, "stop_price must be > 0");
+        return EDU_MSG_ERR_FIELD;
+    }
+    if (m->trigger_price < 0) {
+        if (err && errlen) snprintf(err, errlen, "trigger_price must be >= 0");
+        return EDU_MSG_ERR_FIELD;
+    }
+    if (strlen(m->symbol) > 8) {
+        if (err && errlen) snprintf(err, errlen, "symbol exceeds max_len 8");
+        return EDU_MSG_ERR_FIELD;
+    }
+    return EDU_MSG_OK;
+}

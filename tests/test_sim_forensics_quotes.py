@@ -1,4 +1,5 @@
-"""tools/sim_forensics check C8 (a quote's lifecycle, from the audit).
+"""tools/sim_forensics checks C8 (a quote's lifecycle) and C10 (one quote per
+gateway and symbol), from the audit.
 
 Each test writes a small audit tape: one chain per dispatch, the messages
 in the order the engine publishes them.
@@ -45,7 +46,7 @@ def cancelled(oid: str) -> tuple[str, dict[str, Any]]:
     return (f"order.cancelled.{GW}", {"order_id": oid, "cancel_reason": "QUOTE_LEG_FILLED"})  # fmt: skip
 
 
-def run(open_ds: OpenDataset, tmp_path: Path, *chains: list[tuple[str, dict[str, Any]]]) -> Outcome:  # fmt: skip
+def run(open_ds: OpenDataset, tmp_path: Path, *chains: list[tuple[str, dict[str, Any]]], check: str = "C8") -> Outcome:  # fmt: skip
     data = tmp_path / "data"
     data.mkdir()
     out, n = [], 0
@@ -57,7 +58,7 @@ def run(open_ds: OpenDataset, tmp_path: Path, *chains: list[tuple[str, dict[str,
                 f"[seq={n} msg=M{n} chain=C{c}] {json.dumps(p)}\n"
             )
     (data / "audit.log").write_text("".join(out))
-    return REGISTRY["C8"].fn(open_ds(data))
+    return REGISTRY[check].fn(open_ds(data))
 
 
 def errors(out: Outcome) -> list[object]:
@@ -128,4 +129,52 @@ def test_c8_finds_a_seed_quotes_sibling_left_resting(
     out = run(open_ds, tmp_path, seed, [status("SEED-1", "INACTIVE_ASK_FILLED"), trade("T1", "Y", "S2")])  # fmt: skip
     assert errors(out) == [
         "sibling not cancelled in the dispatch that inactivated its quote"
+    ]
+
+
+# --- C10 ------------------------------------------------------------------------
+
+
+def acked(qid: str, bid: str, ask: str, symbol: str = "AAPL") -> tuple[str, dict[str, Any]]:  # fmt: skip
+    return (f"quote.ack.{GW}", {"quote_id": qid, "accepted": True, "symbol": symbol, "bid_order_id": bid, "ask_order_id": ask})  # fmt: skip
+
+
+def replaced(oid: str) -> tuple[str, dict[str, Any]]:
+    return (f"order.cancelled.{GW}", {"order_id": oid, "cancel_reason": "QUOTE_REPLACED"})  # fmt: skip
+
+
+def test_c10_passes_replacements_that_end_every_earlier_leg(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """Q2 replaces Q1 (both legs live); Q3 replaces Q2 after its bid filled
+    in part and the policy pulled the ask: the bid's remainder goes too.
+    Another symbol's quote is not a replacement."""
+    out = run(
+        open_ds,
+        tmp_path,
+        [acked("Q1", "B1", "A1"), status("Q1", "ACTIVE")],
+        [replaced("B1"), replaced("A1"), acked("Q2", "B2", "A2"), status("Q2", "ACTIVE")],  # fmt: skip
+        [status("Q2", "INACTIVE_BID_FILLED"), cancelled("A2"), trade("T1", "B2"), fill("B2", 40)],  # fmt: skip
+        [replaced("B2"), acked("Q3", "B3", "A3")],
+        [acked("M1", "MB", "MA", symbol="MSFT")],
+        check="C10",
+    )
+    assert out.violations == 0, out.samples
+    assert out.note == "3 legs cancelled QUOTE_REPLACED"
+
+
+def test_c10_finds_an_earlier_leg_left_live_and_a_replaced_leg_trading(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    out = run(
+        open_ds,
+        tmp_path,
+        [acked("Q1", "B1", "A1"), status("Q1", "ACTIVE")],
+        [replaced("B1"), acked("Q2", "B2", "A2")],  # A1 still rests
+        [trade("T1", "B1")],
+        check="C10",
+    )
+    assert [(s["error"], s["order_id"]) for s in out.samples] == [
+        ("an earlier leg still live when a new quote was accepted", "A1"),
+        ("a replaced leg traded", "B1"),
     ]

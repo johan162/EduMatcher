@@ -32,6 +32,7 @@ from edumatcher.balf_gwy.codec import (
     MSG_CANCEL_ORDER,
     MSG_AMEND_ORDER,
     MSG_EXECUTION_REPORT,
+    MSG_STOP_TRIGGERED,
     MSG_HEARTBEAT,
     MSG_HEARTBEAT_ACK,
     MSG_LOGON,
@@ -689,6 +690,40 @@ def test_fill_event_delivered(running_gateway: GatewayFixture) -> None:
         assert fill_qty == 50
         # status at body offset Q+Q+q+I+I+Q+8s = 48, status at 49
         assert body[49] == STATUS_PARTIAL
+
+
+def test_a_fired_stop_arrives_as_stop_triggered(
+    running_gateway: GatewayFixture,
+) -> None:
+    """order.triggered -> STOP_TRIGGERED (0x21), display prices x 10^8."""
+    _, pull, pub, port = running_gateway
+
+    with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+        bc = _BalfClient(cli)
+        _balf_authenticate(bc, pull, pub)
+        _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
+
+        bc.send(_build_new_order(client_order_id=9))
+        _, new_payload = _drain_pull_until(pull, "order.new", timeout=3.0)
+        engine_order_id = str(new_payload["id"])
+        time.sleep(0.1)
+        pub.send_multipart(
+            encode("order.ack.TRADER01", {"order_id": engine_order_id, "accepted": True})  # fmt: skip
+        )
+        bc.recv_until(MSG_ORDER_ACK, timeout=3.0)
+        time.sleep(0.1)
+
+        pub.send_multipart(
+            encode(
+                "order.triggered.TRADER01",
+                {"gateway_id": "TRADER01", "order_id": engine_order_id, "symbol": "AAPL", "order_type": "STOP_LIMIT", "stop_price_ticks": 14800, "trigger_trade_id": "T1", "trigger_price_ticks": 14795, "becomes": "LIMIT"},  # fmt: skip
+            )
+        )
+
+        body = bc.recv_until(MSG_STOP_TRIGGERED, timeout=3.0)
+        client_oid, _, stop, trigger = struct.unpack_from("<QQqq", body, 0)
+        assert (client_oid, stop, trigger) == (9, 14_800_000_000, 14_795_000_000)
+        assert body[32:36] == b"AAPL" and (body[40], body[41]) == (6, 2)
 
 
 def test_cancelled_event_delivered(running_gateway: GatewayFixture) -> None:

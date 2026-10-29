@@ -47,7 +47,9 @@ def test_every_a_and_b_check_passes_on_a_consistent_run(
 ) -> None:
     """Also pins that the independent position replay agrees with the
     production clearing Ledger that wrote the fixture's positions."""
-    assert sorted(i for i in REGISTRY if i[0] in "AB") == AB
+    # A5 reads the audit, which this world has none of (its tests are in
+    # test_sim_forensics_completeness.py).
+    assert sorted(i for i in REGISTRY if i[0] in "AB" and i != "A5") == AB
     results = run_checks(open_ds(world), [REGISTRY[i] for i in AB], 10)
     assert {r.check.id: (r.status, r.samples) for r in results} == {
         i: ("PASS", []) for i in AB

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
@@ -19,8 +20,16 @@ from tests.sim_forensics_world import OpenDataset, opener
 from sim_forensics import checks  # noqa: F401,E402  (registers the checks)
 from sim_forensics.registry import REGISTRY, Outcome, run_checks  # noqa: E402
 
-CHECKS = ["C7", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
+CHECKS = ["C7", "D1", "D10", "D11", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"]
 SYM = "AAPL"
+CONFIG = {
+    "engine": {
+        "symbols": {SYM: {"tick_decimals": 2}},
+        "fix_gateways": {
+            gw: {"smp_action": "CANCEL_AGGRESSOR"} for gw in ("GW1", "GW2")
+        },
+    }
+}
 
 
 @pytest.fixture
@@ -39,6 +48,9 @@ class Tape:
         # The replay's view kept here too, for snapshots: id → [side, price,
         # shown, peak, remaining].
         self.book: dict[str, list[Any]] = {}
+        # The engine's first message carries the run's config: tick sizes and
+        # the gateways' SMP modes, all the replay reads from it.
+        self.put("system.startup", {"config": json.dumps(CONFIG)}, new_chain=True)
         self.put("system.startup_recovery", {"restored_orders": 0}, new_chain=True)
 
     def _msg(self) -> str:
@@ -178,16 +190,7 @@ class Tape:
         self.put(f"book.{SYM}", payload, new_chain=True)
 
     def write(self, data: Path) -> Path:
-        (data / "ref_data").mkdir(parents=True)
-        config = {
-            "engine": {
-                "symbols": {SYM: {"tick_decimals": 2}},
-                "fix_gateways": {
-                    gw: {"smp_action": "CANCEL_AGGRESSOR"} for gw in ("GW1", "GW2")
-                },
-            }
-        }
-        (data / "ref_data" / "engine_config.json").write_text(json.dumps(config))
+        data.mkdir(parents=True)
         (data / "audit.log").write_text("".join(self.lines))
         return data
 
@@ -387,6 +390,78 @@ def test_d6_finds_an_auction_result_that_disagrees_with_the_prints(
     data = t.write(tmp_path / "data")
     errors = [s["error"] for s in run(open_ds, data, "D6").samples]
     assert errors == ["auction.result differs from the prints"]
+
+
+def indicative(t: Tape, price: float | None, qty: int, surplus: int, side: str) -> None:
+    """An auction.indicative as the engine's timer publishes it."""
+    t.put(
+        f"auction.indicative.{SYM}",
+        {"symbol": SYM, "phase": "OPENING_AUCTION", "eq_price": price, "eq_qty": qty, "imbalance_qty": surplus, "imbalance_side": side},  # fmt: skip
+        new_chain=True,
+    )
+
+
+def auction_with_indicatives(final: tuple[float | None, int, int, str]) -> Tape:
+    """The opening auction, with an indicative after the first order (no
+    cross yet) and one after the last: 100.00 executes 60, 20 more to buy."""
+    t = Tape()
+    t.phase("OPENING_AUCTION")
+    t.order("B1", "BUY", 50, 10100, gw="GW2")
+    indicative(t, None, 0, 0, "")
+    t.order("B2", "BUY", 30, 10000, gw="GW2")
+    t.order("S1", "SELL", 40, 9900)
+    t.order("S2", "SELL", 20, 10000)
+    indicative(t, *final)
+    return t
+
+
+def test_d10_passes_indicatives_that_are_the_books_uncross(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    data = auction_with_indicatives((100.0, 60, 20, "BUY")).write(tmp_path / "data")
+    out = run(open_ds, data, "D10")
+    assert out.violations == 0, out.samples
+    assert out.note == "2 indicatives compared"
+
+
+@pytest.mark.parametrize(
+    "final",
+    [(101.0, 60, 20, "BUY"), (100.0, 50, 20, "BUY"), (100.0, 60, 0, ""), (100.0, 60, 20, "SELL")],  # fmt: skip
+)
+def test_d10_finds_an_indicative_the_book_does_not_make(
+    tmp_path: Path, open_ds: OpenDataset, final: tuple[float, int, int, str]
+) -> None:
+    data = auction_with_indicatives(final).write(tmp_path / "data")
+    (sample,) = run(open_ds, data, "D10").samples
+    assert sample["replay"] == [10000, 60, 20, "BUY"]
+
+
+def test_the_linear_uncross_is_the_definition() -> None:
+    """``_uncross_of`` against the definition, summed price by price."""
+    import random
+
+    from sim_forensics.checks.matching import _Book, _Order, _uncross_of
+
+    rng = random.Random(7)
+    for _ in range(300):
+        book = _Book(SYM, 2)
+        bids: list[tuple[int, int]] = []
+        asks: list[tuple[int, int]] = []
+        for i in range(rng.randint(0, 12)):
+            side, price, qty = rng.choice(("BUY", "SELL")), rng.randint(95, 105), rng.randint(1, 50)  # fmt: skip
+            book.rest(_Order(f"O{i}", side, "LIMIT", price, qty, "GW", "NONE"), i)
+            (bids if side == "BUY" else asks).append((price, qty))
+        want = None
+        if bids and asks:
+            keys = []
+            for p in sorted({p for p, _ in bids + asks}):
+                b = sum(q for x, q in bids if x >= p)
+                a = sum(q for x, q in asks if x <= p)
+                side = "BUY" if b > a else "SELL" if a > b else ""
+                keys.append((-min(b, a), abs(b - a), p, side))
+            best = min(keys)
+            want = None if best[0] == 0 else (best[2], -best[0], best[1], best[3])
+        assert _uncross_of(book) == want
 
 
 def test_d7_finds_a_continuous_self_trade(tmp_path: Path, open_ds: OpenDataset) -> None:
@@ -631,14 +706,17 @@ def test_d9_finds_a_fill_whose_remaining_qty_differs(
     assert (sample["engine"], sample["replay"]) == (66, 65)
 
 
-def test_the_checks_skip_a_run_with_an_engine_restart(
+def test_the_replay_continues_across_an_engine_restart(
     tmp_path: Path, open_ds: OpenDataset
 ) -> None:
+    """Its books come back from the restart's checkpoints (S25; a real
+    restart is in test_sim_forensics_checkpoints.py)."""
     t = continuous_day()
-    t.put("system.startup_recovery", {"restored_orders": 3}, new_chain=True)
+    t.put("system.startup", {"config": json.dumps(CONFIG)}, new_chain=True)
     data = t.write(tmp_path / "data")
     (result,) = run_checks(open_ds(data), [REGISTRY["D9"]], 10)
-    assert (result.status, "restarted" in result.note) == ("SKIPPED", True)
+    assert result.status == "PASS"
+    assert "1 engine restart(s)" in result.note
 
 
 def test_d9_finds_a_trade_by_an_order_the_replay_was_not_matching(
@@ -653,3 +731,55 @@ def test_d9_finds_a_trade_by_an_order_the_replay_was_not_matching(
     assert [s["error"] for s in out.samples] == [
         "trade by an order the replay was not matching"
     ]
+
+
+def _with_context(
+    t: Tape, prints: Mapping[str, object], result: Mapping[str, object]
+) -> Tape:
+    """The S23 fields on the tape's uncross prints and auction.result."""
+    out = []
+    for ln in t.lines:
+        head, body = ln.split("] {", 1)
+        p = json.loads("{" + body)
+        if "[trade.executed]" in head:
+            p.update(prints)
+        elif "[auction.result." in head:
+            p.update(result)
+        out.append(f"{head}] {json.dumps(p)}\n")
+    t.lines = out
+    return t
+
+
+def test_d6_passes_prints_tied_to_their_auction(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    ids = {"auction_id": "AUC-000001-000001"}
+    t = _with_context(opening_auction(), {"match_type": "OPENING_AUCTION", **ids}, ids)
+    assert violations(open_ds, t.write(tmp_path / "data")) == {}
+
+
+@pytest.mark.parametrize(
+    "prints, error",
+    [
+        ({"match_type": "CONTINUOUS", "auction_id": "AUC-000001-000001"}, "uncross print marked CONTINUOUS"),  # fmt: skip
+        ({"match_type": "OPENING_AUCTION", "auction_id": "AUC-000001-000009"}, "print's auction_id is not its auction.result's"),  # fmt: skip
+    ],
+)
+def test_d6_finds_a_print_its_context_misdescribes(
+    tmp_path: Path, open_ds: OpenDataset, prints: dict[str, object], error: str
+) -> None:
+    t = _with_context(opening_auction(), prints, {"auction_id": "AUC-000001-000001"})
+    errors = {
+        s["error"] for s in run(open_ds, t.write(tmp_path / "data"), "D6").samples
+    }
+    assert errors == {error}
+
+
+def test_d6_finds_a_continuous_match_marked_as_an_auction(
+    tmp_path: Path, open_ds: OpenDataset
+) -> None:
+    t = _with_context(continuous_day(), {"match_type": "OPENING_AUCTION"}, {})
+    errors = {
+        s["error"] for s in run(open_ds, t.write(tmp_path / "data"), "D6").samples
+    }
+    assert errors == {"continuous match not marked CONTINUOUS"}

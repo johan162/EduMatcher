@@ -122,6 +122,11 @@ class TestRealSpec:
             quantity=1,
             aggressor_side="BUY",
             ts_ns=0,
+            # Omitted when unset, so set: every field compared.
+            price_ticks=100,
+            match_type="CONTINUOUS",
+            auction_id="AUC-000001-000001",
+            trigger_order_id="o1",
         ).to_dict()
         assert [f.name for f in msg.fields] == list(hand)
 

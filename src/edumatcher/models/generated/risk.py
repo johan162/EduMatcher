@@ -1309,6 +1309,209 @@ def describe_kill_switch_global_ack() -> tuple[dict[str, Any], ...]:
     return _KILL_SWITCH_GLOBAL_ACK_FIELDS
 
 
+TOPIC_BAND = "risk.band.{symbol}"
+PREFIX_BAND = "risk.band."
+_BAND_RE = re.compile("risk\\.band\\.(?P<symbol>[^.]+)")
+_BAND_KIND_VALUES = ("COLLAR",)
+BandKind = Literal["COLLAR"]
+
+
+_BAND_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "kind",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _BAND_KIND_VALUES,
+    },
+    {
+        "name": "reference_price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": True,
+        "doc": "The static band's reference (last close or the config seed).",
+    },
+    {
+        "name": "static_low_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "static_high_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "dynamic_band_pct",
+        "type": "float",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "The dynamic band's half-width as a fraction of the last trade price (0.02 = 2 %).",
+        "constraints": {"ge": 0},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Band:
+    """A symbol's collar, as the engine will apply it: published once per collared
+    symbol at startup (a reference reload leaves collars as they are). The static
+    band is fixed from these; the dynamic band is `dynamic_band_pct` around each
+    last trade price, so a reader derives it from the trades rather than from a
+    message per trade. Circuit-breaker corridors travel on
+    circuit_breaker.halt/extend.
+    """
+
+    symbol: str
+    kind: BandKind
+    reference_price_ticks: int  # unit: ticks
+    static_low_ticks: int  # unit: ticks
+    static_high_ticks: int  # unit: ticks
+    dynamic_band_pct: float  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.kind not in _BAND_KIND_VALUES:
+            raise MessageValidationError(
+                f"kind: {self.kind!r} is not one of {_BAND_KIND_VALUES!r}"
+            )
+        if self.dynamic_band_pct < 0:
+            raise MessageValidationError(
+                f"dynamic_band_pct: {self.dynamic_band_pct!r} must be >= 0"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Band":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            kind=cast(BandKind, str(p["kind"])),
+            reference_price_ticks=int(p["reference_price_ticks"]),
+            static_low_ticks=int(p["static_low_ticks"]),
+            static_high_ticks=int(p["static_high_ticks"]),
+            dynamic_band_pct=float(p["dynamic_band_pct"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbol": self.symbol,
+            "kind": self.kind,
+            "reference_price_ticks": self.reference_price_ticks,
+            "static_low_ticks": self.static_low_ticks,
+            "static_high_ticks": self.static_high_ticks,
+            "dynamic_band_pct": self.dynamic_band_pct,
+        }
+
+
+def topic_band(symbol: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"risk.band.{symbol}"
+
+
+def match_band(topic: str) -> str | None:
+    """Return ``symbol`` when ``topic`` matches, else None."""
+    m = _BAND_RE.fullmatch(topic)
+    return m.group("symbol") if m else None
+
+
+def make_band(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = Band.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_band(obj.symbol), obj.to_dict())
+
+
+def make_band_unchecked(
+    *,
+    symbol: str,
+    kind: BandKind,
+    reference_price_ticks: int,
+    static_low_ticks: int,
+    static_high_ticks: int,
+    dynamic_band_pct: float,
+) -> list[bytes]:
+    """Identical frames to ``make_band``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        topic_band(symbol).encode(),
+        _msg.dumps(
+            {
+                "symbol": str(symbol),
+                "kind": str(kind),
+                "reference_price_ticks": int(reference_price_ticks),
+                "static_low_ticks": int(static_low_ticks),
+                "static_high_ticks": int(static_high_ticks),
+                "dynamic_band_pct": float(dynamic_band_pct),
+            }
+        ),
+    ]
+
+
+def parse_band(frames: list[bytes]) -> "Band":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_band(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_BAND!r}")
+    payload = {**payload, "symbol": matched}
+    obj = Band.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_band() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _BAND_FIELDS
+
+
 TOPIC_SYMBOL_HALT = "risk.symbol_halt"
 _TOPIC_SYMBOL_HALT_BYTES = "risk.symbol_halt".encode()
 
@@ -3721,6 +3924,7 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_KILL_SWITCH_GATEWAY_ACK,
     TOPIC_KILL_SWITCH_GLOBAL,
     TOPIC_KILL_SWITCH_GLOBAL_ACK,
+    TOPIC_BAND,
     TOPIC_SYMBOL_HALT,
     TOPIC_SYMBOL_HALT_ACK,
     TOPIC_SYMBOL_RESUME,

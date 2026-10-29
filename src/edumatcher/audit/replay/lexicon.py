@@ -82,6 +82,16 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     "combo_type": {"AON": "all-or-none"},
     "liquidity_flag": {"MAKER": "resting", "TAKER": "aggressing"},
+    "becomes": {"MARKET": "a market order", "LIMIT": "a limit order"},
+    "match_type": {
+        "CONTINUOUS": "in continuous matching",
+        "OPENING_AUCTION": "in the opening auction",
+        "CLOSING_AUCTION": "in the closing auction",
+        "REOPEN_AUCTION": "in a halted symbol's reopening auction",
+        "RECOVERY_AUCTION": "uncrossing the book restored at engine startup",
+        "BACKSTOP": "at the closing backstop",
+        "FORCE_UNCROSS": "in an operator's forced uncross",
+    },
     "aggressor_side": {
         "BUY": "the buyer",
         "SELL": "the seller",
@@ -164,6 +174,10 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     },
     # `auction.result.reason`: why the uncross ran.
     "reason": {
+        # system.book_checkpoint
+        "STARTUP": "at engine startup",
+        "PHASE": "at a session transition",
+        "EOD": "at shutdown",
         "SCHEDULED": "on schedule",
         "ADMIN_MANUAL": "on an admin instruction",
         "REOPEN": "to reopen a halted instrument",
@@ -195,6 +209,11 @@ PHRASES: Mapping[str, Mapping[str, str]] = {
     "kind": {
         "ORDER": "order",
         "COMBO": "combo",
+        # engine.trace and risk.band
+        "RESTED": "rested in the book",
+        "ICEBERG_REFILL": "refilled its visible slice",
+        "TRAILING_RATCHET": "moved its trailing trigger",
+        "COLLAR": "a price collar",
         # news.event
         "EARNINGS": "earnings",
         "GUIDANCE": "guidance",

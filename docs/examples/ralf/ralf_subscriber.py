@@ -120,12 +120,18 @@ class ExecTracker:
     3x for an AUDIT client subscribed to everything, so this tracker
     de-duplicates by `EXEC_ID` before tallying and separately reports the
     raw (as-delivered) line count so the distinction is visible rather
-    than silently hidden.
+    than silently hidden. Per-channel interval counts are retained
+    separately so each `EOD` can be checked against its channel's
+    `TRADE_COUNT`.
     """
 
     _seen_exec_ids: set[str] = field(default_factory=set)
     _by_symbol: dict[str, SymbolTally] = field(default_factory=dict)
     _raw_lines_by_channel: dict[str, int] = field(default_factory=dict)
+    _seen_exec_ids_by_channel: dict[str, set[str]] = field(default_factory=dict)
+    _since_eod_by_channel_symbol: dict[tuple[str, str], SymbolTally] = field(
+        default_factory=dict
+    )
 
     def observe(self, channel: str, fields: dict[str, str]) -> tuple[bool, SymbolTally]:
         """Record one EXEC line; return (is_new_unique_trade, its symbol's tally)."""
@@ -143,10 +149,25 @@ class ExecTracker:
                 tally.total_qty += int(fields.get("QTY", "0"))
             except ValueError:
                 pass
+        channel_exec_ids = self._seen_exec_ids_by_channel.setdefault(channel, set())
+        if exec_id and exec_id not in channel_exec_ids:
+            channel_exec_ids.add(exec_id)
+            interval_tally = self._since_eod_by_channel_symbol.setdefault(
+                (channel, symbol), SymbolTally()
+            )
+            interval_tally.unique_trades += 1
+            try:
+                interval_tally.total_qty += int(fields.get("QTY", "0"))
+            except ValueError:
+                pass
         return is_new, tally
 
     def tally_for(self, symbol: str) -> SymbolTally:
         return self._by_symbol.get(symbol, SymbolTally())
+
+    def take_eod_tally(self, channel: str, symbol: str) -> SymbolTally:
+        """Return and reset the channel's per-symbol tally for this EOD period."""
+        return self._since_eod_by_channel_symbol.pop((channel, symbol), SymbolTally())
 
     def summary(self) -> str:
         raw_total = sum(self._raw_lines_by_channel.values())
@@ -171,7 +192,9 @@ def _handle_message(
 ) -> None:
     channel = msg.fields.get("CH", "")
     symbol = msg.fields.get("SYM", "")
-    seq_tracker.observe(channel, msg.fields.get("SEQ"))
+    # A combined SNAP has one aggregate SEQ, not a baseline for each channel.
+    if msg.msg_type != "SNAP" or "," not in channel:
+        seq_tracker.observe(channel, msg.fields.get("SEQ"))
 
     if msg.msg_type == "SNAP":
         print(f"SNAP  CH={channel} SYM={symbol} SEQ={msg.fields.get('SEQ', '?')}")
@@ -184,13 +207,28 @@ def _handle_message(
             f"ch={channel}{dup_note}"
         )
     elif msg.msg_type == "EOD":
-        tally = exec_tracker.tally_for(symbol)
+        tally = exec_tracker.take_eod_tally(channel, symbol)
+        trade_count = msg.fields.get("TRADE_COUNT", "?")
         print(
             f"EOD   {symbol:<8} gateway TRADE_COUNT="
-            f"{msg.fields.get('TRADE_COUNT', '?')} "
+            f"{trade_count} "
             f"(client tallied {tally.unique_trades} unique trade(s), "
             f"{tally.total_qty} total qty)"
         )
+        try:
+            gateway_count = int(trade_count)
+        except ValueError:
+            print(
+                f"!! invalid EOD TRADE_COUNT on channel {channel}: {trade_count!r}",
+                file=sys.stderr,
+            )
+        else:
+            if gateway_count != tally.unique_trades:
+                print(
+                    f"!! EOD trade-count mismatch on channel {channel} for "
+                    f"{symbol}: gateway={gateway_count}, client={tally.unique_trades}",
+                    file=sys.stderr,
+                )
     elif msg.msg_type == "HB":
         print("HB    (gateway heartbeat)")
     elif msg.msg_type == "PONG":

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
 from edumatcher.models.generated._runtime import MessageValidationError
@@ -29,6 +29,24 @@ _TOPIC_TRADE_EXECUTED_BYTES = "trade.executed".encode()
 _TRADE_EXECUTED_ID_RE = re.compile("^\\d{6}-\\d{9}$")
 _TRADE_EXECUTED_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
 _TRADE_EXECUTED_AGGRESSOR_SIDE_VALUES = ("BUY", "SELL", "AUCTION")
+_TRADE_EXECUTED_MATCH_TYPE_VALUES = (
+    "CONTINUOUS",
+    "OPENING_AUCTION",
+    "CLOSING_AUCTION",
+    "REOPEN_AUCTION",
+    "RECOVERY_AUCTION",
+    "BACKSTOP",
+    "FORCE_UNCROSS",
+)
+TradeExecutedMatchType = Literal[
+    "CONTINUOUS",
+    "OPENING_AUCTION",
+    "CLOSING_AUCTION",
+    "REOPEN_AUCTION",
+    "RECOVERY_AUCTION",
+    "BACKSTOP",
+    "FORCE_UNCROSS",
+]
 
 
 _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
@@ -128,6 +146,37 @@ _TRADE_EXECUTED_FIELDS: tuple[dict[str, Any], ...] = (
         "doc": "Decimal scale for `price`; 1 tick = 10^-tick_decimals.",
         "constraints": {"ge": 0, "le": 8},
     },
+    {
+        "name": "price_ticks",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "`price` in engine ticks. Canonical; the float beside it is for display. Scale: the symbol's tick_decimals.",
+    },
+    {
+        "name": "match_type",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "How the trade came about; the engine sets it on every trade (absent only on prints from before it existed). CONTINUOUS for every match with an aggressor (a stop an uncross triggers included); an uncross print (aggressor_side AUCTION) names its uncross: the scheduled opening or closing auction, a halted symbol's reopening, the restore of a crossed book on an engine without sessions, the closing backstop, or an operator's forced uncross.",
+        "values": _TRADE_EXECUTED_MATCH_TYPE_VALUES,
+    },
+    {
+        "name": "auction_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The uncross this print belongs to: `auction.result.auction_id`.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "trigger_order_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "The aggressor's order id when the aggressor is a stop that has triggered; absent otherwise.",
+        "constraints": {"max_len": 64},
+    },
 )
 
 
@@ -152,6 +201,10 @@ class TradeExecuted:
     aggressor_side: str
     ts_ns: int  # unit: epoch_nanos
     tick_decimals: int = 2  # unit: dimensionless
+    price_ticks: int | None = None  # unit: ticks
+    match_type: TradeExecutedMatchType | None = None
+    auction_id: str | None = None
+    trigger_order_id: str | None = None
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -212,6 +265,21 @@ class TradeExecuted:
             raise MessageValidationError(
                 f"tick_decimals: {self.tick_decimals!r} must be <= 8"
             )
+        if self.match_type is not None:
+            if self.match_type not in _TRADE_EXECUTED_MATCH_TYPE_VALUES:
+                raise MessageValidationError(
+                    f"match_type: {self.match_type!r} is not one of {_TRADE_EXECUTED_MATCH_TYPE_VALUES!r}"
+                )
+        if self.auction_id is not None:
+            if len(self.auction_id) > 32:
+                raise MessageValidationError(
+                    f"auction_id: length {len(self.auction_id)} exceeds max_len 32"
+                )
+        if self.trigger_order_id is not None:
+            if len(self.trigger_order_id) > 64:
+                raise MessageValidationError(
+                    f"trigger_order_id: length {len(self.trigger_order_id)} exceeds max_len 64"
+                )
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "TradeExecuted":
@@ -234,11 +302,23 @@ class TradeExecuted:
             aggressor_side=str(p.get("aggressor_side", "")),
             ts_ns=int(p["ts_ns"]),
             tick_decimals=int(p.get("tick_decimals", 2)),
+            price_ticks=None if p.get("price_ticks") is None else int(p["price_ticks"]),
+            match_type=(
+                None
+                if p.get("match_type") is None
+                else cast(TradeExecutedMatchType, str(p["match_type"]))
+            ),
+            auction_id=None if p.get("auction_id") is None else str(p["auction_id"]),
+            trigger_order_id=(
+                None
+                if p.get("trigger_order_id") is None
+                else str(p["trigger_order_id"])
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "run_seq": self.run_seq,
             "symbol": self.symbol,
@@ -252,6 +332,15 @@ class TradeExecuted:
             "ts_ns": self.ts_ns,
             "tick_decimals": self.tick_decimals,
         }
+        if self.price_ticks is not None:
+            payload["price_ticks"] = self.price_ticks
+        if self.match_type is not None:
+            payload["match_type"] = self.match_type
+        if self.auction_id is not None:
+            payload["auction_id"] = self.auction_id
+        if self.trigger_order_id is not None:
+            payload["trigger_order_id"] = self.trigger_order_id
+        return payload
 
 
 def is_trade_executed(topic: str) -> bool:
@@ -288,6 +377,10 @@ def make_trade_executed_unchecked(
     aggressor_side: str,
     ts_ns: int,
     tick_decimals: int = 2,
+    price_ticks: int | None = None,
+    match_type: TradeExecutedMatchType | None = None,
+    auction_id: str | None = None,
+    trigger_order_id: str | None = None,
 ) -> list[bytes]:
     """Identical frames to ``make_trade_executed``, without ``validate()``.
 
@@ -299,24 +392,31 @@ def make_trade_executed_unchecked(
     Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
     frames.
     """
+    payload: dict[str, Any] = {
+        "id": str(id),
+        "run_seq": int(run_seq),
+        "symbol": str(symbol),
+        "buy_order_id": str(buy_order_id),
+        "sell_order_id": str(sell_order_id),
+        "buy_gateway_id": str(buy_gateway_id),
+        "sell_gateway_id": str(sell_gateway_id),
+        "price": float(price),
+        "quantity": int(quantity),
+        "aggressor_side": str(aggressor_side),
+        "ts_ns": int(ts_ns),
+        "tick_decimals": int(tick_decimals),
+    }
+    if price_ticks is not None:
+        payload["price_ticks"] = int(price_ticks)
+    if match_type is not None:
+        payload["match_type"] = str(match_type)
+    if auction_id is not None:
+        payload["auction_id"] = str(auction_id)
+    if trigger_order_id is not None:
+        payload["trigger_order_id"] = str(trigger_order_id)
     return [
         _TOPIC_TRADE_EXECUTED_BYTES,
-        _msg.dumps(
-            {
-                "id": str(id),
-                "run_seq": int(run_seq),
-                "symbol": str(symbol),
-                "buy_order_id": str(buy_order_id),
-                "sell_order_id": str(sell_order_id),
-                "buy_gateway_id": str(buy_gateway_id),
-                "sell_gateway_id": str(sell_gateway_id),
-                "price": float(price),
-                "quantity": int(quantity),
-                "aggressor_side": str(aggressor_side),
-                "ts_ns": int(ts_ns),
-                "tick_decimals": int(tick_decimals),
-            }
-        ),
+        _msg.dumps(payload),
     ]
 
 
@@ -385,6 +485,10 @@ def parse_trade_executed_calf(
         aggressor_side=str(fields["SIDE"]),
         ts_ns=0,
         tick_decimals=2,
+        price_ticks=None,
+        match_type=cast(TradeExecutedMatchType, None),
+        auction_id=None,
+        trigger_order_id=None,
     )
 
 

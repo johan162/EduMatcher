@@ -1,6 +1,6 @@
 name: patient-liquidity
 description: Uninformed flow that waits deep in the book; many small orders 3-15 ticks behind the touch, left for up to half an hour.
 strategy: {name: noise, urgency: 0.0}
-execution: {style: passive, offset_ticks: 3, offset_max: 15, gtc_fraction: 0.05, urgency_cross: 1.0, auction_participation: 0.0}
+execution: {style: passive, offset_ticks: 3, offset_max: 15, gtc_fraction: 0.05, urgency_cross: 1.0, auction_participation: 0.0, amend_fraction: 0.5}
 tempo: {decisions_per_min: 20, size_min: 5, size_max: 60, size_distribution: small-heavy}
 risk: {max_position: 1000, max_live_orders_per_symbol: 24, max_order_age_sec: 1800, stale_price_ticks: 30}

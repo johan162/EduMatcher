@@ -2920,7 +2920,7 @@ _shtab_pm_compdb_cli_option_strings=(-h --help --version --db --format --no-head
 
 
 _shtab_pm_compdb_cli_pos_0_choices=(init columns show list add import update delete)
-_shtab_pm_compdb_cli___format_choices=(table json csv)
+_shtab_pm_compdb_cli___format_choices=(table grid markdown json csv)
 
 _shtab_pm_compdb_cli_init__h_nargs=0
 _shtab_pm_compdb_cli_init___help_nargs=0

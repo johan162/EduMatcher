@@ -62,6 +62,7 @@ from edumatcher.models.message import (
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import (
     TickViolation,
+    format_price_ticks,
     get_tick_decimals,
     register_tick_decimals,
     to_ticks_exact,
@@ -74,6 +75,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDER_TRIGGERED,
     PREFIX_ORDERS,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
@@ -230,6 +232,7 @@ class AlfGateway:
             PREFIX_ORDER_ACK,
             PREFIX_ORDER_FILL,
             PREFIX_ORDER_AMENDED,
+            PREFIX_ORDER_TRIGGERED,
             PREFIX_ORDER_CANCELLED,
             PREFIX_ORDER_EXPIRED,
             PREFIX_ORDERS,
@@ -923,6 +926,8 @@ class AlfGateway:
             "oco_id": oco_id,
             "gateway_id": gateway_id,
             "symbol": symbol,
+            # X27: the scale of the legs' ticks, as on order.new.
+            "tick_decimals": get_tick_decimals(symbol),
             "quantity": quantity,
             "tif": tif.value,
             "leg1": leg1,
@@ -1722,6 +1727,25 @@ class AlfGateway:
                 fields["TAG"] = str(payload["client_tag"])
             if payload.get("request_tag") is not None:
                 fields["RTAG"] = str(payload["request_tag"])
+        elif topic.startswith(PREFIX_ORDER_TRIGGERED):
+            # A stop fired; sent before the fills it explains.
+            msg_type = "TRIGGERED"
+            symbol = str(payload.get("symbol", ""))
+            fields = {
+                "ORDER_ID": str(payload.get("order_id", "")),
+                "SYMBOL": symbol,
+                "TYPE": str(payload.get("order_type", "")),
+                "STOP": format_price_ticks(int(payload["stop_price_ticks"]), symbol),
+                "BECOMES": str(payload.get("becomes", "")),
+            }
+            if payload.get("trigger_trade_id") is not None:
+                fields["TRADE_ID"] = str(payload["trigger_trade_id"])
+            if payload.get("trigger_price_ticks") is not None:
+                fields["TRADE_PRICE"] = format_price_ticks(
+                    int(payload["trigger_price_ticks"]), symbol
+                )
+            if payload.get("client_tag") is not None:
+                fields["TAG"] = str(payload["client_tag"])
         elif topic.startswith(PREFIX_ORDER_CANCELLED):
             msg_type = "CANCELLED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}

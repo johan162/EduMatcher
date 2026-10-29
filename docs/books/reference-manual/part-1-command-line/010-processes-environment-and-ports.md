@@ -1734,7 +1734,7 @@ sector and industry from `pm-market-sim` (and so the news it gets), but every
 name, person and number is invented. No running process is needed.
 
 ```bash
-pm-compdb-cli [--db PATH] [--format table|json|csv] [--no-header] COMMAND [options]
+pm-compdb-cli [--db PATH] [--format table|grid|markdown|json|csv] [--no-header] COMMAND [options]
 pm-compdb-cli list [-c COLS|all] [-w FILTER]... [-s COL [--desc]] [-n N]
 pm-compdb-cli add|update SYMBOL FIELD=VALUE...
 ```
@@ -1749,6 +1749,20 @@ pm-compdb-cli add|update SYMBOL FIELD=VALUE...
 | `import FILE...` | Add the companies of YAML files (a mapping of `SYMBOL:` to fields, the format of the bundled ones); all or nothing |
 | `update SYMBOL FIELD=VALUE...` | Change fields; an empty value clears one |
 | `delete SYMBOL` | Remove a company |
+
+**Output formats.** `--format` applies to `show` and `list`:
+
+| Format | Output |
+|---|---|
+| `table` (default) | Plain text columns separated by `|`; long cells are cut short with `...` |
+| `grid` | A table drawn with UTF-8 box characters (`┌─┬─┐ │ ├─┼─┤ └─┴─┘`); numbers right-aligned, long cells wrapped over several lines instead of cut. `show` gives a two-column table of column and value |
+| `markdown` | Markdown for notes, wikis and pull requests. `list` gives a pipe table with column names and tickers in `code` and numbers right-aligned. `show` gives a heading with the name and ticker, then a table of column, value and meaning for each of Identity, Business, History, Management and Financials. A `|` in a value is escaped. `--no-header` is ignored, as a Markdown table needs its header |
+| `json`, `csv` | For programs; `--no-header` leaves out the CSV header |
+
+```bash
+pm-compdb-cli --format grid list -w sector=TECH -s market_cap_musd --desc -n 5
+pm-compdb-cli --format markdown show NVDA > nvda.md
+```
 
 **Where the companies come from.** The bundled companies are hand-written
 YAML files, one per sector, installed as part of the `edumatcher` package in
@@ -1821,6 +1835,393 @@ pm-compdb-cli --format csv list -c all > companies.csv
 **Expected runtime input arguments:**
 
 None.
+
+
+### Reading a company profile
+
+The Company tab of `pm-trader` and `pm-terminal`, and `pm-compdb-cli show`,
+present the same profile. This section explains every value in it, in the
+order the tab shows them: what the value is, how it is calculated, how to read
+it, and how it affects the company, its valuation and its market position. The
+companies and figures are invented, but they are built to behave as the real
+ones do, so the habits learned here carry over. Column names are in `code`.
+
+Three ideas run through everything below.
+
+- **A figure means little alone.** Compare it with the company's own past, with
+  its competitors (the `competitors` column lists their tickers), and with its
+  industry. A 2 % net margin is excellent for a supermarket and a disaster for
+  a software company.
+- **A price is a view of the future.** What the market pays for a company
+  (`market_cap_musd`) depends less on what it earned last year than on what
+  investors expect it to earn from now on. Most of the figures below are either
+  a measure of that expectation or evidence for it.
+- **Everything is connected.** Growth needs investment, investment uses cash
+  or debt, debt costs interest, interest lowers profit, and profit and cash
+  decide what the company is worth. Reading a profile is following these
+  links.
+
+Money is in millions of US dollars (shown as `M$`), for the fiscal year in
+`fiscal_year`. A blank value means the database has no figure, or, for a
+derived ratio, that the ratio has no meaning (a P/E for a company making a
+loss).
+
+#### Valuation
+
+**Market cap** (`market_cap_musd`). The market capitalisation: what the market
+says the whole company is worth, equal to the share price times the number of
+shares. A company with 100 million shares at 50 $ has a market cap of 5,000 M$.
+It is the price of the *equity*, the owners' part, and does not count the
+company's debts.
+
+- *Reading it.* It is a measure of size. Large companies are called large-caps,
+  and are usually older, more stable and easier to trade. Small-caps can
+  grow faster but are more volatile and have wider spreads.
+- *Effect.* It is the base of every ratio in this group: P/E and P/S divide it
+  by profit and sales. A high market cap gives a company cheap access to money
+  (it can issue shares at a good price, or pay for acquisitions with them) and
+  often makes it a member of the indices that funds buy by rule, which adds
+  steady demand for its shares. A falling market cap makes everything more
+  expensive for it, and can make it a takeover target.
+
+**P/E** (`pe_ratio`). Price / earnings: `market_cap_musd` divided by
+`net_income_musd`. It says how many years of the current profit you pay for
+the company if the profit stayed the same. A P/E of 20 means 20 years of
+earnings. It is left empty when the net income is zero or negative, because a
+price over a loss has no meaning.
+
+- *Reading it.* A high P/E means investors expect the profit to grow, or find
+  the company safe, or both. A low P/E means the company is cheap, or that
+  investors expect the profit to fall (a "value trap"). Compare it with the
+  industry: utilities trade on low single digits to the low teens, fast-growing
+  software companies on several times that.
+- *Effect.* The P/E is the market's report card on the company's future. A high
+  one is an asset: the company can raise money cheaply and buy others with its
+  shares. It is also a burden, because a company with a high P/E must keep
+  delivering, and a disappointing quarter can cut the share price by a large
+  fraction in a day, since the multiple *and* the profit both fall.
+
+**P/S** (`ps_ratio`). Price / sales: `market_cap_musd` divided by
+`revenue_musd`. It says what you pay for each dollar of yearly sales.
+
+- *Reading it.* It works where P/E does not: for a young company that spends
+  its profit on growth, or for one that has a loss. It does not see costs, so a
+  low P/S is only attractive if the company can turn sales into profit. Compare
+  within an industry, where margins are alike: a P/S of 0.3 is normal for a
+  retailer, 8 for a software company.
+- *Effect.* A high P/S is a bet on future *margins*: the company must one day
+  earn a lot of profit on each dollar of sales to justify the price. P/S and
+  net margin together give the P/E: `P/E = P/S / net margin`.
+
+**Dividend yield** (`dividend_yield_pct`). The yearly dividend per share as a
+percentage of the share price. A company paying 2 $ a year on a 50 $ share
+yields 4 %. A dividend is a part of the profit paid out to owners in cash.
+
+- *Reading it.* A yield of 0 means the company keeps its profit to reinvest,
+  which is normal for companies that grow fast. A steady, moderate yield is the
+  sign of a mature business with more cash than it can use. A *very* high
+  yield is a warning: it is often the result of a share price that has fallen
+  because the market expects the dividend to be cut.
+- *Effect.* The yield draws a certain kind of owner, pension funds and income
+  investors, who hold shares for years and so make the price steadier. A
+  company that cuts its dividend sends a strong negative signal, and the price
+  usually falls. A dividend also uses cash that could have gone to growth or to
+  paying down debt, so the choice is a statement about the company's
+  prospects.
+
+**Debt / equity** (`debt_to_equity`). Total debt divided by shareholders'
+equity (the owners' part of the balance sheet). A value of 1.5 means that for
+each dollar the owners have put in, the company has borrowed 1.5.
+
+- *Reading it.* Above 1 the company is financed mostly by lenders. That is
+  normal for banks, utilities and real estate companies, whose income is stable
+  and can carry debt, and a warning for a company whose sales rise and fall.
+- *Effect.* Debt is *leverage*. It makes the owners' return larger in good
+  years, since the profit is shared by fewer owners' dollars, and the loss larger
+  in bad ones. Interest must be paid whatever the sales are, so a highly
+  indebted company has little room for a bad year, and may have to sell assets
+  or issue shares at a poor price to survive. A heavy debt also weakens the
+  credit rating, and lenders then demand more interest. A company
+  with little debt has the opposite strength: it can buy a weakened rival or
+  invest through a downturn.
+
+**Credit rating** (`credit_rating`). A rating agency's opinion of the chance
+that the company repays its debt in full and on time. The scale runs from `AAA`
+(safest) down through `AA`, `A`, `BBB`, `BB`, `B` and `CCC` to default, with
+`+` and `-` for fine steps. `BBB-` and above is *investment grade*; `BB+` and
+below is *speculative grade*, or "high yield".
+
+- *Reading it.* Many pension funds and insurers are only allowed to hold
+  investment-grade debt, so the line between `BBB-` and `BB+` is the most
+  important one on the scale.
+- *Effect.* The rating sets the interest a company pays when it borrows: a
+  `AAA` company pays little over the government's rate, a `B` company several
+  percentage points more. That cost reaches the profit and so the P/E. A
+  downgrade, especially below investment grade, forces some holders to sell,
+  raises borrowing costs and can lower the share price at once. A strong rating
+  is a competitive weapon: the company can borrow cheaply to build, buy or wait
+  out a price war that its weaker rivals cannot.
+
+#### Financials
+
+The figures are for the last fiscal year, the year named in the section's
+title. They follow the order of the income statement: sales at the top, profit
+at the bottom, and the cash that really comes out of it.
+
+**Revenue** (`revenue_musd`). The money the company took in from customers
+during the year, before any cost is deducted. Also called sales or turnover.
+It is the "top line" of the income statement.
+
+- *Reading it.* It measures the size of the business, independent of how well
+  it is run. Its value is in its *trend* and in what it is compared with:
+  revenue per employee (`revenue_musd` against `employees`) shows how
+  productive the staff are.
+- *Effect.* Revenue is the ceiling for everything else: no cost cutting makes
+  a profit bigger than the sales. Large revenue gives scale, which spreads
+  fixed costs over more units, and buying power over suppliers. It is a main
+  part of a company's market position: a leader is usually the largest seller
+  in its market.
+
+**Revenue growth** (`revenue_growth_pct`). This year's revenue against last
+year's, in percent. Growth of 8 means sales are 8 % higher.
+
+- *Reading it.* Compare it with the industry's growth. Faster than the market
+  means the company is taking market share; slower means it is losing it, even
+  if its sales still rise. Negative means the business is shrinking.
+- *Effect.* Growth is the main reason one company deserves a higher P/E than
+  another: the same profit is worth more if it is growing. It is also the most
+  important driver of the share price, since the market prices the *change*. A
+  fast-growing company, however, spends cash on staff, stock and equipment
+  before the sales come, so it often has low free cash flow or
+  needs to borrow. Growth bought by selling at a loss is not worth the same as
+  growth that earns a profit.
+
+**Net income** (`net_income_musd`). The profit: what remains of revenue after
+every cost, interest and tax. The "bottom line", and the *E* in P/E. A negative
+value is a loss.
+
+- *Reading it.* It is the number the owners can ultimately claim. It is shaped by
+  accounting choices, such as how fast equipment is written off, so it can be
+  flattered. This is why it is read together with free cash flow.
+- *Effect.* Profit funds dividends, buy-backs and the investment that makes
+  growth, so it feeds the future. Losses use up the company's reserves; a
+  company in loss with a high debt is in the most danger. The valuation follows
+  it directly: with the market cap fixed, a profit that rises by a tenth lowers
+  the P/E by a tenth, and the share price tends to rise to restore the usual
+  multiple.
+
+**Net margin** (`net_margin_pct`). Net income divided by revenue, in percent:
+how many cents of profit each dollar of sales leaves.
+
+- *Reading it.* Margins are set by the structure of an industry. Selling food
+  in a shop earns a few percent, software and drugs earn 20 % or more because a
+  copy costs little to make. Compare only like with like.
+- *Effect.* A higher margin than competitors usually means a real advantage: a
+  brand that lets the company ask more, a cost advantage from scale, or a
+  protected product. It also gives a *cushion*: a company with a 25 % margin
+  survives a price war that would bankrupt one with 3 %. A margin that is
+  falling while sales rise is a warning of rising costs or falling prices.
+
+**Operating margin** (`operating_margin_pct`). Operating income divided by
+revenue, in percent. Operating income is the profit from running the business
+itself, *before* interest and tax.
+
+- *Reading it.* It isolates the quality of the operation from the way the
+  company is financed and taxed. Compare it with the net margin: if the gap is
+  large, interest or tax takes much of the profit. A highly indebted company
+  can have a good operating margin and a poor net margin.
+- *Effect.* It shows pricing power and cost control. Management can improve it
+  by raising prices, cutting costs or selling more of the high-margin products.
+  A company with a rising operating margin is getting more out of each dollar
+  of sales, and the market usually rewards that with a higher multiple. Because
+  it comes before interest, it also shows how much room there is to pay the
+  debt: operating income that is a few times the interest is safe.
+
+**Free cash flow** (`free_cash_flow_musd`). The cash the business generates
+after it has paid for the investment needed to keep it going: equipment,
+buildings, software. Roughly, the cash from operations less capital spending.
+
+- *Reading it.* Profit is an accounting figure and cash is a fact. A company
+  can show a profit and run out of cash, if customers pay late or if it must
+  keep buying equipment. Free cash flow well below net income, year after year,
+  is a warning. A negative value is normal for a young company that invests
+  ahead of growth, and a concern for a mature one.
+- *Effect.* Free cash flow is what can actually be paid to the owners or the
+  lenders: dividends, buy-backs of shares, debt repayment, or the purchase of
+  another company. Many analysts value a company by the cash it will produce in
+  the future, so it is at the heart of the valuation. A company with strong
+  free cash flow is independent: it does not need the markets to survive a bad
+  period, which is a real strength against rivals that do.
+
+#### Position
+
+These four lines are text. They describe the competitive situation that
+the figures above are the result of, and the one that will decide them next.
+
+**Key market** (`key_market`). Where most of the revenue comes from: a country,
+a customer group or a kind of product.
+
+- *Reading it.* It tells you what the company's results depend on. A company
+  with one market is exposed to that market's cycle, regulation and
+  competition; one that sells in many markets is steadier.
+- *Effect.* Concentration is a risk that lowers the multiple investors will
+  pay, and also an advantage when the market is large and growing, since the
+  company can specialise. News about the market, such as a new law or a change
+  in demand, moves every company that depends on it, which is why the news of
+  the simulation is often given by industry.
+
+**Market position** (`market_position`). What sets the company apart from its
+rivals: its unique position.
+
+- *Reading it.* Look for a lasting advantage that others cannot easily copy:
+  a leading brand, the lowest cost, a patent, a network of users that grows
+  more valuable with each new one, or high costs for a customer to switch.
+  Economists call such an advantage a *moat*.
+- *Effect.* A wide moat is what makes high margins last, and so what justifies
+  a high P/E. A company without one competes on price and its margin tends to
+  fall towards the industry's average. Leaders can set prices; followers must
+  accept them.
+
+**Competitors** (`competitors`). The tickers of the main listed rivals,
+separated by commas.
+
+- *Reading it.* Use it to find the group to compare with. Look the tickers up
+  (`pm-compdb-cli show` or `list`) and put the margins, growth and P/E side by
+  side. A company that is better on all three than its rivals either deserves a
+  higher P/E or is already priced for it.
+- *Effect.* A competitor's news is the company's news. A rival's price cut,
+  new product or bankruptcy changes the company's own prospects, and in the
+  simulation the shares of an industry tend to move together for this reason.
+
+**Key risk** (`key_risk`). The biggest single threat to the business.
+
+- *Reading it.* It names what to watch. Typical risks are the loss of a large
+  customer, a change in regulation, a new technology, a dependence on a single
+  supplier or country, or a heavy debt that falls due.
+- *Effect.* The market prices risk. When the risk is realised, the share price
+  falls at once and often more than the direct damage, because the market also
+  doubts everything else. A company that is open about a risk and has a plan for
+  it is valued higher than one that is surprised by it.
+
+#### Management
+
+**CEO** (`ceo_name`, `ceo_since`; the tenure is `ceo_tenure_years`). The chief
+executive, who sets the strategy and runs the company day to day, and the year
+they took office.
+
+- *Reading it.* A new CEO often brings a change of direction: new products,
+  cost cuts, a sale of parts of the business. A long tenure means stability and
+  a leader who is trusted, or one who has stayed past the point of being useful.
+- *Effect.* A change of CEO is one of the events that most often moves a share
+  price, up when the market thought the old one was failing, down when the
+  departing one was highly regarded. For a company whose value depends on a
+  founder's vision, the succession is a risk in itself.
+
+**Years in the industry** (`ceo_industry_years`). How long the CEO has worked
+in this industry, in this company or others.
+
+- *Reading it.* A long career means the CEO has lived through several cycles of
+  the industry and knows its customers, suppliers and rivals. A short one
+  means a fresh view, and a risk of mistakes that experience would avoid.
+- *Effect.* It is a soft figure, and no guarantee: it is one input to the
+  market's trust in management. It matters most in industries with long cycles
+  (energy, mining, shipbuilding), where decisions made today pay off or fail
+  years later.
+
+**Employees** (`employees`). The number of people who work for the company.
+
+- *Reading it.* It is a second measure of size, and, set against revenue, of
+  efficiency. Revenue per employee varies enormously: it is high in software
+  and trading, and low in retail and services.
+- *Effect.* Wages are usually a company's largest cost, so the head count
+  decides how easily it can cut costs, and how exposed it is to rising wages.
+  A company that grows its revenue faster than its head count is gaining
+  productivity, which feeds directly into the operating margin.
+
+#### History
+
+**Founded** (`founded_year`; the age is `years_in_business`). The year the
+company was started.
+
+- *Reading it.* Age is a rough guide to maturity. An old company has survived
+  several cycles and often holds a large share of a slow market. A young one
+  has less proof, and more room to grow.
+- *Effect.* Longevity builds a brand and relations with customers and
+  suppliers, which are parts of the moat. It also brings habits and old
+  products that a young rival does not have, and the young rival can attack
+  with a new technology.
+
+**IPO** (`ipo_year`, `ipo_valuation_musd`). The initial public offering: the
+year the company first sold its shares to the public on an exchange, and the
+market value put on it then.
+
+- *Reading it.* Set the value at the IPO against today's `market_cap_musd`: it
+  shows how much value the company has created since it went public. A company
+  that has grown many times over has delivered on its promise. One that is
+  worth less than at the IPO has destroyed value for the investors who bought
+  then.
+- *Effect.* An IPO turns a private company into one with a price that anyone
+  can see, and gives it a way to raise money by selling more shares and to pay
+  its staff and acquisitions with them. In return it must publish its accounts
+  and answer to the market every quarter.
+
+**Origin** (`origin`, with `founders` and `founder_story`). How the company
+began: `FOUNDER`, `CO_FOUNDERS`, `FAMILY`, `MERGER`, `SPIN_OFF`,
+`PRIVATISATION` or `COOPERATIVE`.
+
+- *Reading it.* The start shapes the company's character. A founder's company
+  tends to be driven by one vision. A family firm thinks in generations, and may
+  be slow to take outside advice. A merger must join two cultures and cut the
+  overlap. A spin-off starts with a clear business but has to stand without its
+  parent. A privatised company comes from a state monopoly and often carries its
+  habits. A cooperative is owned by its members, who may care more about price
+  than profit.
+- *Effect.* Origin does not change the figures directly, but it explains
+  them and warns of the risks: control that stays with a family or founder
+  can protect the company from short-term pressure and also from change, and a
+  merger is only worth what the integration achieves.
+
+#### Putting the figures together
+
+The same company can be read from three sides, and the profile gives you
+a figure for each.
+
+| Question | Where to look | A strong company shows |
+|---|---|---|
+| What is it worth, and is that fair? | Market cap, P/E, P/S, dividend yield | A multiple that its growth and margins justify |
+| Can it carry on and pay its way? | Debt / equity, credit rating, free cash flow, net income | Moderate debt, a good rating, cash above its needs |
+| Does it have an edge? | Revenue growth, margins, market position, competitors | Faster growth and higher margins than its rivals, for a reason that lasts |
+
+A few combinations tell more than any single figure:
+
+- *High P/E with low growth and falling margins:* the price is not supported.
+  A fall in the share price is likely when the market notices.
+- *Low P/E with high debt:* it may be cheap for a reason. Check the credit
+  rating and free cash flow before calling it a bargain.
+- *Profit but a negative free cash flow:* the profit is not turning into cash.
+  Look for growing receivables, stock or heavy investment.
+- *High margins, falling growth:* the moat is at work but the market is
+  saturated. Look for a rising dividend as the company has less to invest.
+- *Falling margins, rising sales:* the company is buying growth, or competitors
+  are forcing the price down.
+
+To try these on the simulation's companies, use `list` with filters and
+sorting:
+
+```bash
+# Cheap and profitable: low P/E, high net margin
+pm-compdb-cli list -c symbol,name,pe_ratio,net_margin_pct -w "pe_ratio<12" -w "net_margin_pct>15" -s pe_ratio
+
+# Highly leveraged companies and what they are rated
+pm-compdb-cli list -c symbol,name,debt_to_equity,credit_rating,free_cash_flow_musd -w "debt_to_equity>2" -s debt_to_equity --desc
+
+# Growth at a price: fast growers ranked by P/S
+pm-compdb-cli list -c symbol,name,revenue_growth_pct,ps_ratio -w "revenue_growth_pct>20" -s ps_ratio --desc
+
+# A company against its competitors
+pm-compdb-cli show NVDA
+pm-compdb-cli list -c symbol,pe_ratio,operating_margin_pct,revenue_growth_pct -w "industry=Semiconductors" -s pe_ratio --desc
+```
 
 
 ## pm-mm-bot — Autonomous Market-Maker Bot

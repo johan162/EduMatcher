@@ -12,6 +12,10 @@ from dataclasses import dataclass
 
 from edumatcher.models.order import TIF, OrderType
 
+#: request_tag prefix on amends (then the order's tag), so a refused amend is
+#: told from a refused cancel or order.
+AMEND_RTAG_PREFIX = "AMD-"
+
 
 @dataclass(frozen=True)
 class NewOrder:
@@ -25,6 +29,8 @@ class NewOrder:
     stop_price_ticks: int | None = None
     trail_offset_ticks: int | None = None
     visible_qty: int | None = None
+    #: Explicit self-match prevention; None leaves the gateway's default.
+    smp: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,4 +64,35 @@ class CancelOco:
     symbol: str
 
 
-Action = NewOrder | CancelOrder | NewOco | CancelOco
+@dataclass(frozen=True)
+class AmendOrder:
+    """Re-price (and/or resize) a resting order the agent tracks."""
+
+    order_id: str  # engine order id
+    tag: str
+    symbol: str
+    price_ticks: int | None = None
+    qty: int | None = None
+
+
+@dataclass(frozen=True)
+class ComboLegSpec:
+    symbol: str
+    side: str
+    qty: int
+    price_ticks: int
+    tick_decimals: int
+
+
+@dataclass(frozen=True)
+class NewCombo:
+    """An all-or-none combo across symbols. Fire and forget: the agent does
+    not track its legs, but their fills still move its positions."""
+
+    tag: str  # also the combo id
+    symbol: str  # the first leg's (the transport's routing key)
+    legs: tuple[ComboLegSpec, ...]
+    tif: TIF
+
+
+Action = NewOrder | CancelOrder | NewOco | CancelOco | AmendOrder | NewCombo

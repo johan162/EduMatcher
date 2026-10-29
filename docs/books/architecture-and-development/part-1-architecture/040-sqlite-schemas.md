@@ -90,6 +90,7 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: order_events` | `combo_parent_id` | `TEXT` | no |  |  |
 | `table: order_events` | `oco_group_id` | `TEXT` | no |  |  |
 | `table: order_events` | `priority_reset` | `INTEGER` | no |  |  |
+| `table: order_events` | `msg_id` | `TEXT` | no |  |  |
 | `table: price_snapshots` | `ts` | `TEXT` | yes |  | 1 |
 | `table: price_snapshots` | `symbol` | `TEXT` | yes |  | 2 |
 | `table: price_snapshots` | `mid_price` | `REAL` | no |  |  |
@@ -108,6 +109,10 @@ constraints, keys, defaults, indexes, and views where defined.
 | `table: trade_log` | `buy_gateway_id` | `TEXT` | no |  |  |
 | `table: trade_log` | `sell_gateway_id` | `TEXT` | no |  |  |
 | `table: trade_log` | `aggressor_side` | `TEXT` | no |  |  |
+| `table: trade_log` | `buy_order_id` | `TEXT` | no |  |  |
+| `table: trade_log` | `sell_order_id` | `TEXT` | no |  |  |
+| `table: trade_log` | `match_type` | `TEXT` | no |  |  |
+| `table: trade_log` | `msg_id` | `TEXT` | no |  |  |
 
 ### DDL
 
@@ -248,7 +253,9 @@ CREATE TABLE order_events (
     client_tag      TEXT,
     combo_parent_id TEXT,
     oco_group_id    TEXT,
-    priority_reset  INTEGER
+    priority_reset  INTEGER,
+    -- The audit message id this row records (its line's msg=).
+    msg_id          TEXT
 )
 ```
 
@@ -299,6 +306,12 @@ CREATE TABLE trade_log (
     -- cannot support trade classification or order-flow imbalance, and
     -- auction prints are indistinguishable from continuous ones.
     aggressor_side  TEXT,
+    buy_order_id    TEXT,
+    sell_order_id   TEXT,
+    -- How the trade came about (trade.executed.match_type).
+    match_type      TEXT,
+    -- The audit message id of the print (its line's msg=).
+    msg_id          TEXT,
     PRIMARY KEY (trade_id)
 )
 ```
@@ -422,6 +435,8 @@ CREATE INDEX idx_tl_symbol_ts ON trade_log(symbol, ts)
 | `table: trade_events` | `sell_gateway_id` | `TEXT` | yes |  |  |
 | `table: trade_events` | `aggressor_side` | `TEXT` | no |  |  |
 | `table: trade_events` | `ingest_ts_ns` | `INTEGER` | yes |  |  |
+| `table: trade_events` | `match_type` | `TEXT` | no |  |  |
+| `table: trade_events` | `msg_id` | `TEXT` | no |  |  |
 | `view: daily_exchange_totals` | `trade_date` | `TEXT` | no |  |  |
 | `view: daily_exchange_totals` | `traded_qty_total` | `BLOB` | no |  |  |
 | `view: daily_exchange_totals` | `traded_notional_total` | `BLOB` | no |  |  |
@@ -535,6 +550,10 @@ CREATE TABLE trade_events (
   -- auction trades can carry a biased aggressor marker upstream.
   aggressor_side   TEXT,
   ingest_ts_ns     INTEGER NOT NULL,
+  -- How the trade came about (trade.executed.match_type), and the audit's
+  -- message id of the print: joins a row to its audit line.
+  match_type       TEXT,
+  msg_id           TEXT,
   PRIMARY KEY (id)
 )
 ```

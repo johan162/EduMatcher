@@ -101,7 +101,8 @@ static void check_sequence(const char *channel, const char *seq_str) {
  * role subscribed to more than one channel (only AUDIT can be) sees the
  * same EXEC_ID repeated, once per channel. Counting raw lines would
  * overstate volume by up to 3x for an AUDIT client subscribed to
- * everything, so this tracks seen EXEC_IDs and only tallies each once.
+ * everything, so the session summary tallies each ID once. EOD
+ * reconciliation keeps separate per-channel interval counts.
  * ------------------------------------------------------------------ */
 
 typedef struct {
@@ -112,9 +113,19 @@ typedef struct {
 } symbol_tally_t;
 
 static symbol_tally_t g_tallies[MAX_SYMBOLS];
+static symbol_tally_t g_eod_tallies[MAX_CHANNELS][MAX_SYMBOLS];
 
 static char g_seen_exec_ids[MAX_EXEC_IDS][RALF_MAX_VAL_LEN];
 static int g_seen_exec_id_count = 0;
+static char g_seen_channel_exec_ids[MAX_CHANNELS][MAX_EXEC_IDS][RALF_MAX_VAL_LEN];
+static int g_seen_channel_exec_id_count[MAX_CHANNELS];
+
+static int channel_index(const char *channel) {
+    if (strcmp(channel, "CLEARING") == 0) return 0;
+    if (strcmp(channel, "DROP_COPY") == 0) return 1;
+    if (strcmp(channel, "AUDIT") == 0) return 2;
+    return -1;
+}
 
 /* Returns 1 if exec_id was newly recorded, 0 if it was already seen (or
  * the de-dup table is full, in which case it is conservatively treated
@@ -134,6 +145,22 @@ static int record_exec_id(const char *exec_id) {
     return 1;
 }
 
+static int record_channel_exec_id(int channel, const char *exec_id) {
+    int count = g_seen_channel_exec_id_count[channel];
+    for (int i = 0; i < count; i++) {
+        if (strcmp(g_seen_channel_exec_ids[channel][i], exec_id) == 0) {
+            return 0;
+        }
+    }
+    if (count >= MAX_EXEC_IDS) {
+        return 0;
+    }
+    snprintf(g_seen_channel_exec_ids[channel][count],
+             sizeof(g_seen_channel_exec_ids[channel][count]), "%s", exec_id);
+    g_seen_channel_exec_id_count[channel]++;
+    return 1;
+}
+
 static symbol_tally_t *get_tally(const char *symbol) {
     for (int i = 0; i < MAX_SYMBOLS; i++) {
         if (g_tallies[i].used && strcmp(g_tallies[i].symbol, symbol) == 0) {
@@ -148,6 +175,24 @@ static symbol_tally_t *get_tally(const char *symbol) {
         }
     }
     return NULL; /* table full: MAX_SYMBOLS comfortably covers this demo */
+}
+
+static symbol_tally_t *get_eod_tally(int channel, const char *symbol) {
+    for (int i = 0; i < MAX_SYMBOLS; i++) {
+        if (g_eod_tallies[channel][i].used &&
+            strcmp(g_eod_tallies[channel][i].symbol, symbol) == 0) {
+            return &g_eod_tallies[channel][i];
+        }
+    }
+    for (int i = 0; i < MAX_SYMBOLS; i++) {
+        if (!g_eod_tallies[channel][i].used) {
+            g_eod_tallies[channel][i].used = 1;
+            snprintf(g_eod_tallies[channel][i].symbol,
+                     sizeof(g_eod_tallies[channel][i].symbol), "%s", symbol);
+            return &g_eod_tallies[channel][i];
+        }
+    }
+    return NULL;
 }
 
 static void print_summary(void) {
@@ -234,7 +279,10 @@ static void handle_message(const ralf_message_t *msg) {
     const char *symbol = ralf_get_field(msg, "SYM");
     channel = channel ? channel : "";
     symbol = symbol ? symbol : "";
-    check_sequence(channel, ralf_get_field(msg, "SEQ"));
+    /* A combined SNAP's SEQ cannot seed each channel's independent counter. */
+    if (strcmp(msg->msg_type, "SNAP") != 0 || !strchr(channel, ',')) {
+        check_sequence(channel, ralf_get_field(msg, "SEQ"));
+    }
 
     if (strcmp(msg->msg_type, "SNAP") == 0) {
         printf("SNAP  CH=%s SYM=%s SEQ=%s\n", channel, symbol, ralf_get_field(msg, "SEQ"));
@@ -244,8 +292,17 @@ static void handle_message(const ralf_message_t *msg) {
         const char *px = ralf_get_field(msg, "PX");
         const char *side = ralf_get_field(msg, "SIDE");
         int is_new = exec_id && record_exec_id(exec_id);
+        int ch_idx = channel_index(channel);
+        int is_new_in_channel = exec_id && ch_idx >= 0 && record_channel_exec_id(ch_idx, exec_id);
         if (is_new) {
             symbol_tally_t *tally = get_tally(symbol);
+            if (tally) {
+                tally->unique_trades++;
+                tally->total_qty += qty_str ? strtol(qty_str, NULL, 10) : 0;
+            }
+        }
+        if (is_new_in_channel) {
+            symbol_tally_t *tally = get_eod_tally(ch_idx, symbol);
             if (tally) {
                 tally->unique_trades++;
                 tally->total_qty += qty_str ? strtol(qty_str, NULL, 10) : 0;
@@ -254,10 +311,30 @@ static void handle_message(const ralf_message_t *msg) {
         printf("EXEC  %-8s %6s @ %10s %-4s ch=%s%s\n", symbol, qty_str ? qty_str : "?", px ? px : "?",
                side ? side : "?", channel, is_new ? "" : "  (duplicate copy of an already-counted trade)");
     } else if (strcmp(msg->msg_type, "EOD") == 0) {
-        symbol_tally_t *tally = get_tally(symbol);
+        int ch_idx = channel_index(channel);
+        symbol_tally_t *tally = ch_idx >= 0 ? get_eod_tally(ch_idx, symbol) : NULL;
         const char *trade_count = ralf_get_field(msg, "TRADE_COUNT");
-        printf("EOD   %-8s gateway TRADE_COUNT=%s (client tallied %ld unique trade(s), %ld total qty)\n", symbol,
-               trade_count ? trade_count : "?", tally ? tally->unique_trades : 0, tally ? tally->total_qty : 0);
+        long client_count = tally ? tally->unique_trades : 0;
+        long client_qty = tally ? tally->total_qty : 0;
+        printf("EOD   %-8s gateway TRADE_COUNT=%s (client tallied %ld unique trade(s), %ld total qty)\n",
+               symbol, trade_count ? trade_count : "?", client_count, client_qty);
+        if (trade_count) {
+            char *end = NULL;
+            long gateway_count = strtol(trade_count, &end, 10);
+            if (end == trade_count || *end != '\0') {
+                fprintf(stderr, "!! invalid EOD TRADE_COUNT on channel %s: %s\n", channel, trade_count);
+            } else if (gateway_count != client_count) {
+                fprintf(stderr,
+                        "!! EOD trade-count mismatch on channel %s for %s: gateway=%ld, client=%ld\n",
+                        channel, symbol, gateway_count, client_count);
+            }
+        } else {
+            fprintf(stderr, "!! missing EOD TRADE_COUNT on channel %s for %s\n", channel, symbol);
+        }
+        if (tally) {
+            tally->unique_trades = 0;
+            tally->total_qty = 0;
+        }
     } else if (strcmp(msg->msg_type, "HB") == 0) {
         printf("HB    (gateway heartbeat)\n");
     } else if (strcmp(msg->msg_type, "PONG") == 0) {

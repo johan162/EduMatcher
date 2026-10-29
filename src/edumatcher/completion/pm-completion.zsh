@@ -1871,8 +1871,8 @@ _shtab_pm_compdb_cli_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
   "(- : *)--version[show program\'s version number and exit]"
   "--db[Database file (default\: \<EDUMATCHER_DATA_DIR\>\/companies.db)]:db:"
-  "--format[Output format of show and list (default\: table)]:format:(table json csv)"
-  "--no-header[Leave out the table\/CSV header]"
+  "--format[Output format of show and list\: table (plain), grid (box-drawing characters), markdown, json or csv (default\: table)]:format:(table grid markdown json csv)"
+  "--no-header[Leave out the table\/CSV header (not for markdown, which needs one)]"
 )
 
 # guard to ensure default positional specs are added only once per session
