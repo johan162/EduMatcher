@@ -1,3 +1,45 @@
+## [v0.65.0] - 2026-10-29
+
+Release Type: major
+
+### 📋 Summary
+This release adds company information to the PM terminal and expands simulation-forensics coverage. It also strengthens restart/replay behavior and extends engine, audit, clearing, and gateway event contracts.
+
+### ⚠️ Breaking Changes
+- Added a required header to audit files and emit `system.startup` first on every engine start; update audit readers that expect event lines at the start of a file or assume a different startup event order
+- Added an `eseq` frame to the engine message envelope; update consumers that rely on a fixed frame count or payload position
+- Added `match_type` and `msg_id` columns to clearing `trade_events`; existing clearing databases without these columns are rejected at startup and must be migrated or recreated
+
+### ✨ Additions
+- Added company information and figure tooltips to the PM terminal drawer, with improved `pm-compdb-cli` table and Markdown output formats
+- Added simulation-forensics coverage for audit completeness, feature coverage, immediate orders, quote replacement, indicative states, market depth, symbol isolation, crash recovery, and metamorphic reruns
+- Added engine `order.triggered`, `engine.trace`, and `risk.band` messages, plus execution sequence numbers and trade match, auction, and trigger-order metadata
+- Added book checkpoints for rebuilding books and replay across engine restarts
+- Added audit-link and match-type data to statistics and clearing records, and end-of-day archives
+- Added ALF, BALF, and API private-stream forwarding for triggered-order events
+- Added simulator agent amendments, combo orders, explicit SMP, collars, breakers, stop-limit protection, and operator scheduling for risk commands
+- Added forensics replay checks for amendments, combos, halts, breaker reopenings, and collars
+
+### 🚀 Improvements
+- Improved engine restart restoration of OCO links, last price, order priority, and combo data, while avoiding premature uncrossing during closed or call phases
+- Improved replay correctness and performance by restoring from book checkpoints across restarts
+- Improved simulator stale-order handling by amending orders and avoiding stale-order sweeps during pre-open and auction calls
+- Improved company figures with explanatory tooltips and documentation
+
+### 🐛 Bug Fixes
+- Fixed engine restart handling for OCO links, restored last price and priority, and premature uncrossing
+- Fixed stale-order sweeps running during pre-open and auction calls
+- Fixed RALF examples to follow current per-channel sequence and EOD trade-count semantics
+- Removed duplicate session-state information from the PM terminal value panel
+
+### 📚 Documentation
+- Documented company figures and their meaning
+- Documented simulation-forensics pre-1.0 decisions, frozen fields, restart contracts, and test runs
+
+### 🛠 Internal
+- Added tests for company information, audit completeness, feature coverage, immediate orders, quote replacement, indicative states, market depth, symbol isolation, crash recovery, and metamorphic reruns
+- Added coverage for restart restoration, checkpoints and replay, execution metadata, triggered-order gateway forwarding, and RALF example reconciliation
+
 ## [v0.64.0] - 2026-10-27
 
 Release Type: major
