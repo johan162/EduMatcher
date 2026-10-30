@@ -1,3 +1,24 @@
+## [v0.65.6] - 2026-10-30
+
+Release Type: minor
+
+### 📋 Summary
+This release reduces rendering and live-event processing overhead in the trading GUI's administrator views and makes large risk tables easier to navigate. It also increases the default 300-symbol simulation's order budget.
+
+### 🚀 Improvements
+- Reduced Monitor Log and System Dashboard update overhead by batching live events, bounding retained order state, virtualizing monitor rows, and isolating the dashboard's recent-events feed
+- Added a shared symbol filter and pagination with 15, 30, or 50 symbols per page to the per-symbol collar and circuit-breaker tables
+- Consolidated administrator symbol information into Risk Controls and removed the redundant Symbol Management page and navigation entries
+- Increased the 300-symbol simulation's swarm budget from 80 to 120 order actions per second, targeting about 1.5 million orders per trading day
+
+### 📚 Documentation
+- Updated trading GUI guidance and help text for the consolidated Risk Controls view
+- Updated the simulation setup documentation to reflect the higher order-action budget
+
+### 🛠 Internal
+- Added regression coverage for monitor event batching, terminal-order eviction, virtualized rendering, and dashboard updates
+- Expanded risk-table tests for filtering, pagination, and consolidated symbol information
+
 ## [v0.65.5] - 2026-10-30
 
 Release Type: minor
