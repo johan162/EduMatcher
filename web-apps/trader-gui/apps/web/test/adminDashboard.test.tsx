@@ -110,4 +110,23 @@ describe("AdminDashboardPage (§15.1)", () => {
     wrap(<AdminDashboardPage />);
     await waitFor(() => expect(useHaltStore.getState().halts.TSLA).toBeTruthy());
   });
+
+  it("caps the recent events feed at 15 rows", () => {
+    useMonitorStore.setState({
+      events: Array.from({ length: 100 }, (_, i) => ({
+        id: `e${i}`,
+        seq: i,
+        ts: "2026-08-14T10:00:00.000Z",
+        kind: "ACK" as const,
+        topic: "",
+        gateway_id: "GW01",
+        symbol: null,
+        order_id: null,
+        detail: `ev ${i}`,
+      })),
+    });
+    wrap(<AdminDashboardPage />);
+    expect(screen.getByText("ev 14")).toBeTruthy();
+    expect(screen.queryByText("ev 15")).toBeNull();
+  });
 });

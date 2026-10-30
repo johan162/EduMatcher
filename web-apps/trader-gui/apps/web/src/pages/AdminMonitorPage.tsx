@@ -1,12 +1,13 @@
 import { formatClock } from "@/lib/formatters.js";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Download } from "lucide-react";
 import { useMonitorStore } from "@/store/useMonitorStore.js";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth.js";
 import { MonitorKindBadge } from "@/components/admin/MonitorKindBadge.js";
 import { AdminOrderDetailModal } from "@/components/admin/AdminOrderDetailModal.js";
 import { monitorEventsToCsv } from "@/lib/monitorEvents.js";
-import type { MonitorEventKind } from "@/types/index.js";
+import type { MonitorEvent, MonitorEventKind } from "@/types/index.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
 const FILTER_KINDS: (MonitorEventKind | "ALL")[] = [
@@ -38,8 +39,45 @@ function downloadCsv(csv: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Fixed row height: the log is virtualized, so rows must not vary. */
+const ROW_HEIGHT = 28;
+
 const inputCls =
   "bg-raised border border-line rounded px-2 py-1 text-xs focus:outline-none focus:border-[#3a3a60]";
+
+const MonitorRow = memo(function MonitorRow({
+  e,
+  onSelect,
+}: {
+  e: MonitorEvent;
+  onSelect: (orderId: string) => void;
+}) {
+  const linkable = Boolean(e.order_id);
+  return (
+    <tr
+      onClick={linkable ? () => onSelect(e.order_id!) : undefined}
+      style={{ height: ROW_HEIGHT }}
+      className={`border-b border-raised ${
+        e.kind === "GAP" ? "bg-red-950/40" : linkable ? "cursor-pointer hover:bg-raised" : ""
+      }`}
+    >
+      <td className="px-2 py-1 font-mono text-fg-dim whitespace-nowrap">{timeLabel(e.ts)}</td>
+      <td className="px-2 py-1 text-right font-mono text-fg-faint">{e.seq ?? "—"}</td>
+      <td className="px-2 py-1">
+        <MonitorKindBadge kind={e.kind} />
+      </td>
+      <td className="px-2 py-1 font-mono text-fg-dim">
+        {e.order_id ? (
+          <span className="text-sky-400 hover:underline">{e.order_id.slice(0, 12)}</span>
+        ) : (
+          (e.gateway_id ?? "—")
+        )}
+      </td>
+      <td className="px-2 py-1 font-mono">{e.symbol ?? "—"}</td>
+      <td className="px-2 py-1 text-fg-dim whitespace-nowrap">{e.detail}</td>
+    </tr>
+  );
+});
 
 /**
  * Audit / Monitor Log Viewer (§15.9) — the ADMIN live tail of cross-gateway
@@ -68,6 +106,22 @@ export function AdminMonitorPage() {
       return true;
     });
   }, [events, kind, symbol, gateway]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  // Spacer rows rather than absolute positioning, as in MarketTable, so the
+  // <table> keeps its native column sizing and the sticky header stays aligned.
+  const paddingTop = virtualRows.length > 0 ? (virtualRows[0]?.start ?? 0) : 0;
+  const paddingBottom =
+    virtualRows.length > 0
+      ? virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1]?.end ?? 0)
+      : 0;
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
@@ -129,7 +183,7 @@ export function AdminMonitorPage() {
         </label>
       </div>
 
-      <div className="flex-1 overflow-auto rounded border border-line">
+      <div ref={scrollRef} className="flex-1 overflow-auto rounded border border-line">
         <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-panel text-fg-dim">
             <tr>
@@ -142,33 +196,19 @@ export function AdminMonitorPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((e) => {
-              const linkable = Boolean(e.order_id);
-              return (
-                <tr
-                  key={e.id}
-                  onClick={linkable ? () => setDetailId(e.order_id!) : undefined}
-                  className={`border-b border-raised ${
-                    e.kind === "GAP" ? "bg-red-950/40" : linkable ? "cursor-pointer hover:bg-raised" : ""
-                  }`}
-                >
-                  <td className="px-2 py-1 font-mono text-fg-dim whitespace-nowrap">{timeLabel(e.ts)}</td>
-                  <td className="px-2 py-1 text-right font-mono text-fg-faint">{e.seq ?? "—"}</td>
-                  <td className="px-2 py-1">
-                    <MonitorKindBadge kind={e.kind} />
-                  </td>
-                  <td className="px-2 py-1 font-mono text-fg-dim">
-                    {e.order_id ? (
-                      <span className="text-sky-400 hover:underline">{e.order_id.slice(0, 12)}</span>
-                    ) : (
-                      (e.gateway_id ?? "—")
-                    )}
-                  </td>
-                  <td className="px-2 py-1 font-mono">{e.symbol ?? "—"}</td>
-                  <td className="px-2 py-1 text-fg-dim">{e.detail}</td>
-                </tr>
-              );
-            })}
+            {paddingTop > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={6} style={{ height: paddingTop, padding: 0 }} />
+              </tr>
+            )}
+            {virtualRows.map((v) => (
+              <MonitorRow key={filtered[v.index]!.id} e={filtered[v.index]!} onSelect={setDetailId} />
+            ))}
+            {paddingBottom > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={6} style={{ height: paddingBottom, padding: 0 }} />
+              </tr>
+            )}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-2 py-8 text-center text-fg-faint">
