@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -33,9 +33,11 @@ const REFERENCE = {
   config_version: "abc123",
 };
 
+let current: typeof REFERENCE = REFERENCE;
+
 const apiFetchMock = vi.fn(async (path: string) => {
-  if (path === "/api/v1/reference") return REFERENCE;
-  if (path === "/api/v1/reference/risk") return { ...REFERENCE.risk, config_version: "abc123" };
+  if (path === "/api/v1/reference") return current;
+  if (path === "/api/v1/reference/risk") return { ...current.risk, config_version: "abc123" };
   return {};
 });
 
@@ -58,6 +60,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   cleanup();
+  current = REFERENCE;
   apiFetchMock.mockClear();
 });
 
@@ -86,5 +89,76 @@ describe("AdminRiskPage (§15.5)", () => {
     // 300e9 ns = 5m, 900e9 ns = 15m.
     expect(screen.getByText("5m")).toBeTruthy();
     expect(screen.getByText("15m")).toBeTruthy();
+  });
+
+  describe("paging", () => {
+    const CB = {
+      reference_window_ns: 60_000_000_000,
+      levels: [
+        { name: "L1", price_shift_pct: 5, halt_duration_ns: 300_000_000_000 },
+        { name: "L2", price_shift_pct: 10, halt_duration_ns: 900_000_000_000 },
+        { name: "L3", price_shift_pct: 15, halt_duration_ns: 1_800_000_000_000 },
+      ],
+    };
+    const many = (n: number) => ({
+      ...REFERENCE,
+      symbols: Array.from({ length: n }, (_, i) => ({
+        symbol: `S${String(i).padStart(2, "0")}`,
+        tick_decimals: 2,
+        level: null,
+        circuit_breaker: CB,
+      })),
+    });
+    const collarSymbols = () =>
+      Array.from(document.querySelectorAll('section[aria-label="Collar settings"] tbody tr td:first-child')).map(
+        (td) => td.textContent,
+      );
+
+    it("shows 15 symbols per page by default in both tables", async () => {
+      current = many(40) as unknown as typeof REFERENCE;
+      wrap(<AdminRiskPage />);
+      await waitFor(() => expect(screen.getByText(/1–15 of 40/)).toBeTruthy());
+      expect(collarSymbols()).toHaveLength(15);
+      expect(document.querySelectorAll('[data-testid="cb-group"]')).toHaveLength(15);
+      expect(screen.queryByText("S15")).toBeNull();
+    });
+
+    it("pages with Next/Prev and honours the page-size choice", async () => {
+      current = many(40) as unknown as typeof REFERENCE;
+      wrap(<AdminRiskPage />);
+      await waitFor(() => expect(screen.getByText(/1–15 of 40/)).toBeTruthy());
+      fireEvent.click(screen.getByText("Next"));
+      expect(screen.getByText(/16–30 of 40/)).toBeTruthy();
+      expect(collarSymbols()[0]).toBe("S15");
+      fireEvent.click(screen.getByText("Prev"));
+      expect(collarSymbols()[0]).toBe("S00");
+
+      fireEvent.change(screen.getByLabelText("Symbols per page"), { target: { value: "30" } });
+      expect(screen.getByText(/1–30 of 40/)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("Symbols per page"), { target: { value: "50" } });
+      expect(screen.getByText(/1–40 of 40/)).toBeTruthy();
+      expect((screen.getByText("Next") as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("filters by symbol and returns to the first page", async () => {
+      current = many(40) as unknown as typeof REFERENCE;
+      wrap(<AdminRiskPage />);
+      await waitFor(() => expect(screen.getByText(/1–15 of 40/)).toBeTruthy());
+      fireEvent.click(screen.getByText("Next"));
+      fireEvent.change(screen.getByLabelText("Filter symbol"), { target: { value: "s3" } });
+      expect(screen.getByText(/1–10 of 10/)).toBeTruthy();
+      expect(collarSymbols()[0]).toBe("S30");
+      fireEvent.change(screen.getByLabelText("Filter symbol"), { target: { value: "ZZZ" } });
+      expect(screen.getAllByText("No symbols match the filter.").length).toBe(2);
+    });
+
+    it("stripes the CB ladder per symbol, not per line", async () => {
+      current = many(4) as unknown as typeof REFERENCE;
+      wrap(<AdminRiskPage />);
+      await waitFor(() => expect(document.querySelectorAll('[data-testid="cb-group"]').length).toBe(4));
+      const groups = Array.from(document.querySelectorAll('[data-testid="cb-group"]'));
+      expect(groups.map((g) => g.className.includes("bg-raised"))).toEqual([false, true, false, true]);
+      for (const g of groups) expect(g.querySelectorAll("tr")).toHaveLength(3);
+    });
   });
 });
