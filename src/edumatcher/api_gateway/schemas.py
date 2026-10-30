@@ -18,13 +18,26 @@ class StrictModel(BaseModel):
 
 
 class ErrorDetail(StrictModel):
-    code: str
-    message: str
-    field: str | None = None
-    reject_code: str | None = None
-    reason: str | None = None
-    client_tag: str | None = None
-    request_tag: str | None = None
+    code: str = Field(
+        description="HTTP-level category, e.g. VALIDATION, AUTH, ROLE_DENIED, "
+        "RATE_LIMIT, ENGINE_TIMEOUT, HTTP_ERROR."
+    )
+    message: str = Field(description="Human-readable explanation.")
+    field: str | None = Field(
+        default=None, description="The offending request field, when there is one."
+    )
+    reject_code: str | None = Field(
+        default=None,
+        description="Engine-vocabulary reject code, identical across REST and "
+        "ALF (e.g. TICK_VIOLATION, MISSING_FIELD, RATE_LIMITED).",
+    )
+    reason: str | None = Field(default=None, description="Same text as `message`.")
+    client_tag: str | None = Field(
+        default=None, description="The request's `client_tag`, echoed back."
+    )
+    request_tag: str | None = Field(
+        default=None, description="The request's `request_tag`, echoed back."
+    )
 
 
 class ErrorResponse(StrictModel):
@@ -32,21 +45,70 @@ class ErrorResponse(StrictModel):
 
 
 class OrderRequest(StrictModel):
-    symbol: str = Field(min_length=1)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "symbol": "AAPL",
+                    "side": "BUY",
+                    "order_type": "LIMIT",
+                    "quantity": 100,
+                    "price": 187.25,
+                    "tif": "DAY",
+                    "client_tag": "strategy-7",
+                }
+            ]
+        }
+    )
+
+    symbol: str = Field(
+        min_length=1, description="Instrument, e.g. `AAPL` (case-insensitive)."
+    )
     side: Side
-    order_type: OrderType
-    quantity: int = Field(gt=0)
-    tif: TIF = TIF.DAY
-    price: float | None = None
-    stop_price: float | None = None
-    visible_qty: int | None = Field(default=None, gt=0)
-    trail_offset: float | None = None
+    order_type: OrderType = Field(
+        description="Decides which of price / stop_price / visible_qty / "
+        "trail_offset are required or forbidden."
+    )
+    quantity: int = Field(gt=0, description="Shares; a positive whole number.")
+    tif: TIF = Field(
+        default=TIF.DAY,
+        description="Time in force: how long the order may rest. Default DAY.",
+    )
+    price: float | None = Field(
+        default=None,
+        description="Limit price on the symbol's tick grid. Required for "
+        "LIMIT, FOK, IOC, STOP_LIMIT and ICEBERG; forbidden for MARKET, STOP "
+        "and TRAILING_STOP.",
+    )
+    stop_price: float | None = Field(
+        default=None,
+        description="Trigger price. Required for STOP and STOP_LIMIT.",
+    )
+    visible_qty: int | None = Field(
+        default=None,
+        gt=0,
+        description="ICEBERG only: the quantity shown at a time; must be "
+        "smaller than `quantity`.",
+    )
+    trail_offset: float | None = Field(
+        default=None,
+        description="TRAILING_STOP only: distance the stop trails the market.",
+    )
     # None means the client omitted smp_action -- the engine applies this
     # gateway's configured smp_action default in that case, distinct from an
     # explicit "smp_action": "NONE" (deliberately allow self-trades). See
     # SmpAction's docstring in models/order.py.
-    smp_action: SmpAction | None = None
-    client_tag: str | None = Field(default=None, max_length=64)
+    smp_action: SmpAction | None = Field(
+        default=None,
+        description="Self-match prevention. Omit to use the gateway's "
+        "configured default; `NONE` explicitly allows trading with yourself.",
+    )
+    client_tag: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Your own label (max 64 chars), echoed on every event and "
+        "in `GET /orders` for this order.",
+    )
 
     @field_validator("symbol")
     @classmethod
@@ -88,27 +150,57 @@ class OrderRequest(StrictModel):
 
 
 class OrderAccepted(StrictModel):
-    order_id: str
-    client_tag: str | None = None
-    status: str
-    accepted: bool | None = None
-    reject_code: str | None = None
-    event: dict[str, Any] | None = None
+    order_id: str = Field(description="Engine order id; use it to amend or cancel.")
+    client_tag: str | None = Field(
+        default=None, description="Echo of the request's tag."
+    )
+    status: str = Field(description="`PENDING` (not yet acknowledged) or `ACKED`.")
+    accepted: bool | None = Field(
+        default=None,
+        description="Engine verdict; null until acknowledged (see `?wait=ack`).",
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the engine refused it, when `accepted` is false."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `order.ack` event, once received."
+    )
 
 
 class CancelAccepted(StrictModel):
     order_id: str
-    request_tag: str | None = None
-    status: str
-    accepted: bool | None = None
-    reject_code: str | None = None
-    event: dict[str, Any] | None = None
+    request_tag: str | None = Field(
+        default=None, description="Echo of the request's `request_tag` query param."
+    )
+    status: str = Field(description="`PENDING_CANCEL`, `ACKED` or `REJECTED`.")
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the cancel was refused, when it was."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None,
+        description="The engine's cancel (or reject) event, once received.",
+    )
 
 
 class AmendRequest(StrictModel):
-    price: float | None = None
-    quantity: int | None = Field(default=None, gt=0)
-    request_tag: str | None = Field(default=None, max_length=64)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"price": 187.5, "quantity": 100, "request_tag": "amend-1"}]
+        }
+    )
+
+    price: float | None = Field(default=None, description="New limit price.")
+    quantity: int | None = Field(
+        default=None, gt=0, description="New total quantity (not the increment)."
+    )
+    request_tag: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Your label, echoed on the amend's outcome event.",
+    )
 
     @model_validator(mode="after")
     def require_one_field(self) -> "AmendRequest":
@@ -118,21 +210,49 @@ class AmendRequest(StrictModel):
 
 
 class ReplaceResponse(StrictModel):
-    cancelled_order_id: str
-    replacement_order_id: str
-    status: str
+    cancelled_order_id: str = Field(description="The order that was cancelled.")
+    replacement_order_id: str = Field(description="Id of the new order.")
+    status: str = Field(description="`PENDING`: the replacement awaits the engine.")
 
 
 class OcoLegRequest(StrictModel):
     side: Side
     order_type: OrderType
-    price: float | None = None
-    stop_price: float | None = None
-    trail_offset: float | None = None
+    price: float | None = Field(
+        default=None, description="Limit price, if the leg has one."
+    )
+    stop_price: float | None = Field(
+        default=None, description="Trigger price, for stop legs."
+    )
+    trail_offset: float | None = Field(
+        default=None, description="For trailing-stop legs."
+    )
 
 
 class OcoRequest(StrictModel):
-    oco_id: str = Field(min_length=1)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "oco_id": "oco-2026-0042",
+                    "symbol": "AAPL",
+                    "quantity": 100,
+                    "tif": "GTC",
+                    "client_tag": "bracket-1",
+                    "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 192.0},
+                    "leg2": {
+                        "side": "SELL",
+                        "order_type": "STOP",
+                        "stop_price": 183.0,
+                    },
+                }
+            ]
+        }
+    )
+
+    oco_id: str = Field(
+        min_length=1, description="Your id for the pair; used to cancel it."
+    )
     symbol: str = Field(min_length=1)
     quantity: int = Field(gt=0)
     tif: TIF = TIF.DAY
@@ -161,23 +281,72 @@ class ComboLegRequest(StrictModel):
 
 
 class ComboRequest(StrictModel):
-    combo_id: str = Field(min_length=1)
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "combo_id": "combo-spread-17",
+                    "combo_type": "AON",
+                    "tif": "DAY",
+                    "legs": [
+                        {
+                            "symbol": "AAPL",
+                            "side": "BUY",
+                            "order_type": "LIMIT",
+                            "quantity": 100,
+                            "price": 187.25,
+                        },
+                        {
+                            "symbol": "MSFT",
+                            "side": "SELL",
+                            "order_type": "LIMIT",
+                            "quantity": 45,
+                            "price": 412.8,
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+
+    combo_id: str = Field(
+        min_length=1, description="Your id for the combo; used to cancel it."
+    )
     combo_type: ComboType = ComboType.AON
     tif: TIF = TIF.DAY
     # None means the client omitted smp_action -- see OrderRequest.smp_action.
     smp_action: SmpAction | None = None
     client_tag: str | None = Field(default=None, max_length=64)
-    legs: list[ComboLegRequest] = Field(min_length=2, max_length=10)
+    legs: list[ComboLegRequest] = Field(
+        min_length=2, max_length=10, description="2-10 legs; all must fill (AON)."
+    )
 
 
 class QuoteRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "symbol": "AAPL",
+                    "bid_price": 187.2,
+                    "bid_qty": 500,
+                    "ask_price": 187.3,
+                    "ask_qty": 500,
+                    "quote_id": "q-AAPL-0001",
+                }
+            ]
+        }
+    )
+
     symbol: str = Field(min_length=1)
-    bid_price: float
+    bid_price: float = Field(description="Must be lower than `ask_price`.")
     bid_qty: int = Field(gt=0)
     ask_price: float
     ask_qty: int = Field(gt=0)
     tif: TIF = TIF.DAY
-    quote_id: str | None = None
+    quote_id: str | None = Field(
+        default=None, description="Your id for the quote; defaults to the symbol."
+    )
 
     @field_validator("symbol")
     @classmethod
@@ -192,7 +361,11 @@ class QuoteRequest(StrictModel):
 
 
 class MassCancelRequest(StrictModel):
-    symbol: str | None = None
+    model_config = ConfigDict(json_schema_extra={"examples": [{"symbol": "AAPL"}]})
+
+    symbol: str | None = Field(
+        default=None, description="Only cancel this symbol. Omit to cancel everything."
+    )
 
     @field_validator("symbol")
     @classmethod
@@ -201,9 +374,11 @@ class MassCancelRequest(StrictModel):
 
 
 class PendingIdResponse(StrictModel):
-    id: str
-    status: str
-    event: dict[str, Any] | None = None
+    id: str = Field(description="The id you chose (or the symbol, for quotes).")
+    status: str = Field(description="`PENDING`: sent, awaiting the engine's verdict.")
+    event: dict[str, Any] | None = Field(
+        default=None, description="Engine event, once received (usually null here)."
+    )
 
 
 class HistoryQuery(StrictModel):
@@ -216,6 +391,10 @@ class HistoryQuery(StrictModel):
 
 
 class SessionTransitionRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"to_state": "CLOSING_AUCTION"}]}
+    )
+
     to_state: SessionState
 
 
@@ -232,9 +411,26 @@ _MAX_REASON = 256
 
 
 class CircuitBreakerTriggerRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"symbol": "TSLA", "level": "L1", "reason": "Unusual volatility"}
+            ]
+        }
+    )
+
     symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
-    level: str | None = Field(default=None, max_length=_MAX_CB_LEVEL)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
+    level: str | None = Field(
+        default=None,
+        max_length=_MAX_CB_LEVEL,
+        description="A rung of the symbol's ladder (see `/reference/symbols`). "
+        "Omit for an indefinite halt until explicitly resumed.",
+    )
+    reason: str | None = Field(
+        default=None,
+        max_length=_MAX_REASON,
+        description="Free-text note for the audit log.",
+    )
 
     @field_validator("symbol")
     @classmethod
@@ -243,6 +439,10 @@ class CircuitBreakerTriggerRequest(StrictModel):
 
 
 class CircuitBreakerResumeRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Reviewed"}]}
+    )
+
     symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
     reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
@@ -253,6 +453,10 @@ class CircuitBreakerResumeRequest(StrictModel):
 
 
 class SymbolCancelRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Bad prints"}]}
+    )
+
     symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
     reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
@@ -263,6 +467,12 @@ class SymbolCancelRequest(StrictModel):
 
 
 class KillSwitchGatewayRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"target_gateway_id": "TRADER01", "reason": "Runaway algo"}]
+        }
+    )
+
     target_gateway_id: str = Field(min_length=1, max_length=_MAX_GATEWAY_ID)
     reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
@@ -273,6 +483,10 @@ class KillSwitchGatewayRequest(StrictModel):
 
 
 class KillSwitchGlobalRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"reason": "Exchange-wide incident"}]}
+    )
+
     reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
 
@@ -287,6 +501,20 @@ class IndexRebalanceUpdate(StrictModel):
 
 
 class IndexRebalanceRequest(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "updates": [
+                        {"symbol": "AAPL", "new_shares_outstanding": 15500000000},
+                        {"symbol": "TSLA", "new_shares_outstanding": 3250000000},
+                    ],
+                    "reason": "Quarterly share count update",
+                }
+            ]
+        }
+    )
+
     updates: list[IndexRebalanceUpdate] = Field(min_length=1)
     reason: str | None = None
 

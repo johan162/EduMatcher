@@ -14,6 +14,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.index_client import IndexHistoryError
 from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
@@ -41,6 +42,62 @@ from edumatcher.stats.trading_day import timezone_name, trading_date
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
+
+_Limit = Annotated[
+    int,
+    Query(ge=1, le=5000, description="Maximum rows per page (1-5000)."),
+]
+_After = Annotated[
+    str | None,
+    Query(
+        description=(
+            "Pagination cursor: the previous page's `next_cursor`. Opaque -- "
+            "pass it back unchanged with the same filters."
+        )
+    ),
+]
+_Symbol = Annotated[
+    str | None,
+    Query(description="Only this symbol (case-insensitive), e.g. `AAPL`."),
+]
+_Date = Annotated[
+    str | None,
+    Query(description="One trading day, `YYYY-MM-DD`, in the exchange timezone."),
+]
+_FromTs = Annotated[
+    str | None,
+    Query(
+        alias="from",
+        description=(
+            "Start of range, inclusive: an ISO-8601 timestamp or a "
+            "`YYYY-MM-DD` date. Ignored if `date` is given."
+        ),
+    ),
+]
+_ToTs = Annotated[
+    str | None,
+    Query(
+        alias="to",
+        description=(
+            "End of range: an ISO-8601 timestamp or a `YYYY-MM-DD` date. "
+            "Ignored if `date` is given."
+        ),
+    ),
+]
+_FromDate = Annotated[
+    str | None,
+    Query(
+        alias="from",
+        description="First day of a series, `YYYY-MM-DD`, inclusive. Optional.",
+    ),
+]
+_ToDate = Annotated[
+    str | None,
+    Query(
+        alias="to",
+        description="Last day of a series, `YYYY-MM-DD`, inclusive. Optional.",
+    ),
+]
 
 
 def _session_tz(request: Request, conn: sqlite3.Connection) -> tzinfo:
@@ -135,17 +192,36 @@ def _paginated_envelope(
     return envelope
 
 
-@router.get("/orders")
+@router.get(
+    "/orders",
+    summary="My order events",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_ORDERS,
+            "One page of the caller's order events, oldest first. With `has_more: true`, `next_cursor` is also present.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_orders(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str | None = None,
-    event_type: str | None = None,
-    date: str | None = None,
-    from_ts: str | None = Query(default=None, alias="from"),
-    to_ts: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    symbol: _Symbol = None,
+    event_type: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Only this event type: ACK, REJECT, FILL, AMEND, CANCEL, "
+                "EXPIRE, or a COMBO_/OCO_/QUOTE_ variant (case-insensitive). "
+                "Unknown values are a 422, not an empty page."
+            )
+        ),
+    ] = None,
+    date: _Date = None,
+    from_ts: _FromTs = None,
+    to_ts: _ToTs = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Order lifecycle events for the calling gateway.
 
@@ -185,7 +261,16 @@ async def history_orders(
     return envelope
 
 
-@router.get("/orders/{order_id}")
+@router.get(
+    "/orders/{order_id}",
+    summary="One order's event timeline",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_ORDER_LIFECYCLE, "The order's recorded events, oldest first."
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_order_lifecycle(
     order_id: str,
     request: Request,
@@ -208,16 +293,23 @@ async def history_order_lifecycle(
     }
 
 
-@router.get("/fills")
+@router.get(
+    "/fills",
+    summary="My fills",
+    responses=docs.merge(
+        docs.ok(docs.HISTORY_FILLS, "One page of the caller's fills, oldest first."),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_fills(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str | None = None,
-    date: str | None = None,
-    from_ts: str | None = Query(default=None, alias="from"),
-    to_ts: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    symbol: _Symbol = None,
+    date: _Date = None,
+    from_ts: _FromTs = None,
+    to_ts: _ToTs = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Fill events for the calling gateway.
 
@@ -257,7 +349,14 @@ async def history_fills(
     return envelope
 
 
-@router.get("/session")
+@router.get(
+    "/session",
+    summary="Exchange locale and trading date",
+    responses=docs.merge(
+        docs.ok(docs.HISTORY_SESSION, "The exchange locale and today's trading date."),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_session(
     request: Request,
     session: Annotated[Session, Depends(auth)],
@@ -283,16 +382,26 @@ async def history_session(
     }
 
 
-@router.get("/trades")
+@router.get(
+    "/trades",
+    summary="Executed trades",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_TRADES,
+            "One page of executed trades, oldest first. Prices are display prices.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_trades(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str | None = None,
-    date: str | None = None,
-    from_ts: str | None = Query(default=None, alias="from"),
-    to_ts: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    symbol: _Symbol = None,
+    date: _Date = None,
+    from_ts: _FromTs = None,
+    to_ts: _ToTs = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Executed trades — public market data.
 
@@ -324,16 +433,26 @@ async def history_trades(
     )
 
 
-@router.get("/daily")
+@router.get(
+    "/daily",
+    summary="Daily OHLC per symbol",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_DAILY,
+            "One page of daily OHLC rows. Prices are display prices; `turnover / volume` equals `vwap`.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_daily(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str | None = None,
-    date: str | None = None,
-    from_date: str | None = Query(default=None, alias="from"),
-    to_date: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    symbol: _Symbol = None,
+    date: _Date = None,
+    from_date: _FromDate = None,
+    to_date: _ToDate = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Daily instrument OHLC rollup — public market data.
 
@@ -370,16 +489,28 @@ async def history_daily(
     return _paginated_envelope("daily", to_display_prices(rows, "daily"), next_cursor)
 
 
-@router.get("/price-snapshots")
+@router.get(
+    "/price-snapshots",
+    summary="Intraday price snapshots",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_PRICE_SNAPSHOTS,
+            "One page of intraday mid/bid/ask rows for the symbol, oldest first.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_price_snapshots(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str = Query(..., min_length=1),
-    date: str | None = None,
-    from_ts: str | None = Query(default=None, alias="from"),
-    to_ts: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    symbol: Annotated[
+        str, Query(min_length=1, description="Symbol to chart, e.g. `AAPL`. Required.")
+    ],
+    date: _Date = None,
+    from_ts: _FromTs = None,
+    to_ts: _ToTs = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Intraday instrument mid/bid/ask time series — public market data.
 
@@ -416,16 +547,25 @@ async def history_price_snapshots(
     )
 
 
-@router.get("/index-daily")
+@router.get(
+    "/index-daily",
+    summary="Daily OHLC per index",
+    responses=docs.merge(
+        docs.ok(docs.HISTORY_INDEX_DAILY, "One page of daily index OHLC rows."),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_index_daily(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    index_id: str | None = None,
-    date: str | None = None,
-    from_date: str | None = Query(default=None, alias="from"),
-    to_date: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    index_id: Annotated[
+        str | None, Query(description="Only this index, e.g. `EDU3`.")
+    ] = None,
+    date: _Date = None,
+    from_date: _FromDate = None,
+    to_date: _ToDate = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Daily index OHLC rollup — public market data, same tier as /daily.
 
@@ -466,16 +606,28 @@ async def history_index_daily(
     return _paginated_envelope("daily", rows, next_cursor)
 
 
-@router.get("/index-snapshots")
+@router.get(
+    "/index-snapshots",
+    summary="Intraday index levels",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_INDEX_SNAPSHOTS,
+            "One page of intraday index levels, oldest first.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_index_snapshots(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    index_id: str = Query(..., min_length=1),
-    date: str | None = None,
-    from_ts: str | None = Query(default=None, alias="from"),
-    to_ts: str | None = Query(default=None, alias="to"),
-    limit: int = Query(default=500, ge=1, le=5000),
-    after: str | None = None,
+    index_id: Annotated[
+        str, Query(min_length=1, description="Index to chart, e.g. `EDU3`. Required.")
+    ],
+    date: _Date = None,
+    from_ts: _FromTs = None,
+    to_ts: _ToTs = None,
+    limit: _Limit = 500,
+    after: _After = None,
 ) -> dict[str, object]:
     """Intraday index level time series — public market data.
 
@@ -510,11 +662,18 @@ async def history_index_snapshots(
     return _paginated_envelope("snapshots", rows, next_cursor)
 
 
-@router.get("/index-ids")
+@router.get(
+    "/index-ids",
+    summary="Indexes with history",
+    responses=docs.merge(
+        docs.ok(docs.HISTORY_INDEX_IDS, "Index ids with recorded statistics."),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_index_ids(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    date: str | None = None,
+    date: _Date = None,
 ) -> dict[str, object]:
     """List index IDs with recorded statistics in pm-stats.
 
@@ -533,15 +692,47 @@ async def history_index_ids(
     return {"index_ids": index_ids, "count": len(index_ids)}
 
 
-@router.get("/index-events")
+@router.get(
+    "/index-events",
+    summary="Index structural events",
+    responses=docs.merge(
+        docs.ok(
+            docs.HISTORY_INDEX_EVENTS,
+            "Structural events from pm-index, oldest first. `warnings` is present only when pm-index reported any.",
+        ),
+        {422: {"description": "Invalid filter, date, event type or cursor."}},
+    ),
+)
 async def history_index_events(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    index_id: str = Query(..., min_length=1),
-    from_ts: float | None = Query(default=None, alias="from"),
-    to_ts: float | None = Query(default=None, alias="to"),
-    types: list[str] | None = Query(default=None),
-    max_records: int = Query(default=10_000, ge=1, le=10_000),
+    index_id: Annotated[
+        str, Query(min_length=1, description="Index to inspect, e.g. `EDU3`. Required.")
+    ],
+    from_ts: Annotated[
+        float | None,
+        Query(
+            alias="from",
+            description="Start, Unix seconds. Defaults to 30 days ago.",
+        ),
+    ] = None,
+    to_ts: Annotated[
+        float | None,
+        Query(alias="to", description="End, Unix seconds. Defaults to now."),
+    ] = None,
+    types: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Restrict to these record types (repeat the parameter): "
+                "INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE. "
+                "Default: all."
+            )
+        ),
+    ] = None,
+    max_records: Annotated[
+        int, Query(ge=1, le=10_000, description="Cap on records returned.")
+    ] = 10_000,
 ) -> dict[str, object]:
     """Structural/audit index events — live round-trip to pm-index over ZMQ.
 

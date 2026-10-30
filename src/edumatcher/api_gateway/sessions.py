@@ -51,7 +51,16 @@ def _extract_bearer(authorization: str) -> str:
 
 async def auth(
     request: Request,
-    authorization: Annotated[str, Header()],
+    authorization: Annotated[
+        str,
+        Header(
+            description=(
+                "API key as a bearer token: `Bearer <api_key>`. Keys are "
+                "configured under `api_gateways.<name>.credentials`."
+            ),
+            examples=["Bearer key-trader-demo"],
+        ),
+    ],
 ) -> Session:
     """Authenticate an API key and ensure engine auth for trading sessions."""
     token = _extract_bearer(authorization)

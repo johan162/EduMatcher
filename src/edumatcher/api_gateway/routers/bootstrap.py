@@ -21,6 +21,7 @@ from typing import Annotated, Any, TypeAlias, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.events import now_iso
 from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
@@ -264,7 +265,16 @@ def _collect_optional(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/trader")
+@router.get(
+    "/trader",
+    summary="Startup payload: trader",
+    responses=docs.ok(
+        docs.BOOTSTRAP_TRADER,
+        "Everything a trading client needs to render after login. A "
+        "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
+        "orders, and `null` session/recent_fills/halts.",
+    ),
+)
 async def bootstrap_trader(
     request: Request,
     session: Annotated[Session, Depends(auth)],
@@ -358,7 +368,14 @@ async def bootstrap_trader(
     }
 
 
-@router.get("/mm")
+@router.get(
+    "/mm",
+    summary="Startup payload: market maker",
+    responses=docs.ok(
+        docs.BOOTSTRAP_MM,
+        "The trader payload plus the caller's quotes and quote legs.",
+    ),
+)
 async def bootstrap_mm(
     request: Request,
     session: Annotated[Session, Depends(auth)],
@@ -461,7 +478,16 @@ async def bootstrap_mm(
     }
 
 
-@router.get("/admin")
+@router.get(
+    "/admin",
+    summary="Startup payload: admin",
+    responses=docs.ok(
+        docs.BOOTSTRAP_ADMIN,
+        "Everything an operator console needs after login. "
+        "`monitor_last_seq` is the per-gateway sequence to resume the "
+        "`/ws/admin/monitor` stream from.",
+    ),
+)
 async def bootstrap_admin(
     request: Request,
     session: Annotated[Session, Depends(auth)],

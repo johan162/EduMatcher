@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 
+from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.schemas import (
     AmendRequest,
     CancelAccepted,
@@ -153,13 +154,37 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post(
-    "/orders", response_model=OrderAccepted, status_code=status.HTTP_202_ACCEPTED
+    "/orders",
+    response_model=OrderAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit an order",
+    description=(
+        "Send a new order to the matching engine under the caller's gateway. "
+        "Which fields are required depends on `order_type`: LIMIT/FOK/IOC "
+        "need `price`; MARKET forbids price; STOP needs `stop_price`; "
+        "STOP_LIMIT needs both; ICEBERG needs `price` and a smaller "
+        "`visible_qty`; TRAILING_STOP needs `trail_offset`. Prices must lie "
+        "on the symbol's tick grid. `client_tag` is an opaque label echoed "
+        "on every event for this order. Returns `202`; see `?wait=ack` to "
+        "get the engine's verdict in the same response."
+    ),
+    responses=docs.merge(
+        docs.ok_named(
+            docs.ORDER_SUBMITTED,
+            "Order handed to the engine (`PENDING`), or its verdict with `?wait=ack`.",
+            202,
+        ),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
 )
 async def submit_order(
-    body: OrderRequest,
+    body: Annotated[OrderRequest, Body(openapi_examples=docs.ORDER_REQUEST_EXAMPLES)],
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    wait: Annotated[str | None, Query(pattern="^ack$")] = None,
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
 ) -> OrderAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -200,13 +225,35 @@ async def submit_order(
     "/orders/{order_id}",
     response_model=CancelAccepted,
     status_code=status.HTTP_202_ACCEPTED,
+    summary="Cancel an order",
+    description=(
+        "Cancel one resting order of the caller's gateway. `request_tag` "
+        "(query) is echoed on the resulting event so the cancel can be "
+        "matched to its outcome."
+    ),
+    responses=docs.merge(
+        docs.ok_named(
+            docs.ORDER_CANCEL_RESULT,
+            "Cancel sent (`PENDING_CANCEL`), or its outcome with `?wait=ack`.",
+            202,
+        ),
+        docs.RATE_LIMITED,
+    ),
 )
 async def cancel_order(
     order_id: str,
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    wait: Annotated[str | None, Query(pattern="^ack$")] = None,
-    request_tag: Annotated[str | None, Query(max_length=64)] = None,
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    request_tag: Annotated[
+        str | None,
+        Query(
+            max_length=64,
+            description="Caller label echoed on the cancel's outcome event.",
+        ),
+    ] = None,
 ) -> CancelAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -240,13 +287,33 @@ async def cancel_order(
     )
 
 
-@router.patch("/orders/{order_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.patch(
+    "/orders/{order_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Amend an order",
+    description=(
+        "Change the price and/or quantity of a resting order. At least one "
+        "of `price` and `quantity` is required. A price change or a quantity "
+        "increase loses time priority (`priority_reset` on the event)."
+    ),
+    responses=docs.merge(
+        docs.ok_named(
+            docs.ORDER_AMEND_RESULT,
+            "Amend sent (`PENDING_AMEND`), or its outcome with `?wait=ack`.",
+            202,
+        ),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
+)
 async def amend_order(
     order_id: str,
     body: AmendRequest,
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    wait: Annotated[str | None, Query(pattern="^ack$")] = None,
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -292,6 +359,23 @@ async def amend_order(
     "/orders/{order_id}/replace",
     response_model=ReplaceResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    summary="Replace an order",
+    description=(
+        "Cancel an order and submit a new one in a single call. The body is "
+        "a full order, exactly as for `POST /orders`. The replacement is "
+        "only sent once the engine has confirmed the cancel, so a failed "
+        "cancel never leaves the caller with two live orders. The "
+        "replacement is a new order (new id, new time priority)."
+    ),
+    responses=docs.merge(
+        docs.ok(
+            docs.ORDER_REPLACED,
+            "Original cancelled; replacement sent to the engine.",
+            202,
+        ),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
 )
 async def replace_order(
     order_id: str,
@@ -322,7 +406,19 @@ async def replace_order(
     )
 
 
-@router.get("/orders")
+@router.get(
+    "/orders",
+    summary="List my orders",
+    description=(
+        "The caller's orders as the engine holds them: resting orders plus "
+        "recently finished ones. Each entry carries `status` (NEW, PARTIAL, "
+        "FILLED, CANCELLED, REJECTED, EXPIRED), `remaining_qty` and the "
+        "`client_tag` it was submitted with (null if none). If the engine "
+        "does not answer in time, the gateway's own cached view is returned "
+        "instead."
+    ),
+    responses=docs.ok(docs.ORDERS_LIST, "The caller's orders."),
+)
 async def list_orders(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -353,7 +449,39 @@ async def list_orders(
         }
 
 
-@router.get("/orders/{order_id}")
+@router.get(
+    "/orders/{order_id}",
+    summary="Get one order",
+    description=(
+        "The gateway's cached view of one order: the order as submitted, "
+        "overlaid with every engine event seen since (ack, fills, amend, "
+        "cancel). The shape is therefore a union of those events' fields, "
+        "and `status` is the latest state. 404 for an id this gateway has "
+        "not seen, or one old enough to have been evicted "
+        "(`order_retention_sec`). For the full event timeline use "
+        "`GET /history/orders/{order_id}`."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.ORDER_CACHED, "The order."),
+        {
+            404: {
+                "description": "Unknown order.",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "error": {
+                                "code": "HTTP_ERROR",
+                                "message": "Unknown order",
+                                "reject_code": "UNKNOWN",
+                                "reason": "Unknown order",
+                            }
+                        }
+                    }
+                },
+            }
+        },
+    ),
+)
 async def get_order(
     order_id: str, request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -367,7 +495,22 @@ async def get_order(
 
 
 @router.post(
-    "/oco", response_model=PendingIdResponse, status_code=status.HTTP_202_ACCEPTED
+    "/oco",
+    response_model=PendingIdResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit an OCO pair",
+    description=(
+        "One-cancels-other: two linked legs on the same symbol and "
+        "quantity, typically a profit-target limit and a protective stop. "
+        "When one leg fills or triggers, the engine cancels the other. "
+        "`oco_id` is chosen by the caller and is what `DELETE /oco/{oco_id}` "
+        "takes. Acknowledgement arrives on the private WebSocket."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.OCO_PENDING, "OCO sent to the engine.", 202),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
 )
 async def submit_oco(
     body: OcoRequest, request: Request, session: Annotated[Session, Depends(auth)]
@@ -379,7 +522,16 @@ async def submit_oco(
     return PendingIdResponse(id=body.oco_id, status="PENDING")
 
 
-@router.delete("/oco/{oco_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.delete(
+    "/oco/{oco_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Cancel an OCO pair",
+    description="Cancel both legs of the OCO group `oco_id`.",
+    responses=docs.merge(
+        docs.ok(docs.OCO_CANCEL, "Cancel sent to the engine.", 202),
+        docs.RATE_LIMITED,
+    ),
+)
 async def cancel_oco(
     oco_id: str, request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, str]:
@@ -390,7 +542,22 @@ async def cancel_oco(
 
 
 @router.post(
-    "/combos", response_model=PendingIdResponse, status_code=status.HTTP_202_ACCEPTED
+    "/combos",
+    response_model=PendingIdResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit a combo order",
+    description=(
+        "A multi-leg order (2-10 legs, possibly across symbols) handled as "
+        "one unit. `combo_type` decides the rule: `AON` fills all legs or "
+        "none. `combo_id` is chosen by the caller and is what "
+        "`DELETE /combos/{combo_id}` takes. Acknowledgement arrives on the "
+        "private WebSocket."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.COMBO_PENDING, "Combo sent to the engine.", 202),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
 )
 async def submit_combo(
     body: ComboRequest, request: Request, session: Annotated[Session, Depends(auth)]
@@ -403,7 +570,16 @@ async def submit_combo(
     return PendingIdResponse(id=body.combo_id, status="PENDING")
 
 
-@router.delete("/combos/{combo_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.delete(
+    "/combos/{combo_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Cancel a combo order",
+    description="Cancel every leg of the combo `combo_id`.",
+    responses=docs.merge(
+        docs.ok(docs.COMBO_CANCEL, "Cancel sent to the engine.", 202),
+        docs.RATE_LIMITED,
+    ),
+)
 async def cancel_combo(
     combo_id: str, request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, str]:
@@ -414,7 +590,22 @@ async def cancel_combo(
 
 
 @router.post(
-    "/quotes", response_model=PendingIdResponse, status_code=status.HTTP_202_ACCEPTED
+    "/quotes",
+    response_model=PendingIdResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit a two-sided quote",
+    description=(
+        "A market-maker quote: a bid and an ask on one symbol, managed as a "
+        "pair. Submitting a new quote for a symbol replaces the previous "
+        "one. `id` in the response is `quote_id` if given, else the symbol. "
+        "Per-symbol obligations (max spread, min size) are listed in "
+        "`GET /symbols`."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.QUOTE_PENDING, "Quote sent to the engine.", 202),
+        docs.VALIDATION_ERROR,
+        docs.RATE_LIMITED,
+    ),
 )
 async def submit_quote(
     body: QuoteRequest, request: Request, session: Annotated[Session, Depends(auth)]
@@ -426,7 +617,16 @@ async def submit_quote(
     return PendingIdResponse(id=body.quote_id or body.symbol, status="PENDING")
 
 
-@router.delete("/quotes/{symbol}", status_code=status.HTTP_202_ACCEPTED)
+@router.delete(
+    "/quotes/{symbol}",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Cancel my quote on a symbol",
+    description="Withdraw the caller's active quote on `symbol`.",
+    responses=docs.merge(
+        docs.ok(docs.QUOTE_CANCEL, "Cancel sent to the engine.", 202),
+        docs.RATE_LIMITED,
+    ),
+)
 async def cancel_quote(
     symbol: str, request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, str]:
@@ -436,8 +636,28 @@ async def cancel_quote(
     return {"symbol": symbol.upper(), "status": "PENDING_CANCEL"}
 
 
-@router.post("/mass-cancel")
-@router.post("/kill-switch")
+@router.post(
+    "/mass-cancel",
+    summary="Cancel all my orders",
+    description=(
+        "Cancel every resting order and quote of the caller's own gateway, "
+        "optionally limited to one `symbol`. Waits for the engine's "
+        "acknowledgement. Also served as `POST /kill-switch`. To act on "
+        "another gateway or the whole market, an ADMIN uses "
+        "`/admin/kill-switch/*`."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.MASS_CANCEL, "What the engine cancelled."), docs.RATE_LIMITED
+    ),
+)
+@router.post(
+    "/kill-switch",
+    summary="Cancel all my orders (alias)",
+    description="Alias of `POST /mass-cancel`.",
+    responses=docs.merge(
+        docs.ok(docs.MASS_CANCEL, "What the engine cancelled."), docs.RATE_LIMITED
+    ),
+)
 async def mass_cancel(
     body: MassCancelRequest,
     request: Request,
