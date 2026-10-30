@@ -67,9 +67,9 @@ flowchart LR
         UI["React app\n(Zustand + TanStack Query + React Router)"]
     end
     UI -->|"REST /api/v1/*\n(API key bearer token)"| APIGWY["pm-api-gwy :8080"]
-    UI -->|"WS /api/v1/events\nprivate order/fill/quote acks"| APIGWY
-    UI -->|"WS /api/v1/market-data\nbook/trades/depth/auction"| APIGWY
-    UI -->|"WS /api/v1/admin/monitor\nADMIN only"| APIGWY
+    UI -->|"WS /api/v1/ws/private\nprivate order/fill/quote acks"| APIGWY
+    UI -->|"WS /api/v1/ws/market-data\nbook/trades/depth/auction"| APIGWY
+    UI -->|"WS /api/v1/ws/admin/monitor\nADMIN only"| APIGWY
     APIGWY <-->|"ZeroMQ"| ENGINE["pm-engine"]
 ```
 
@@ -77,9 +77,9 @@ The three sockets are not all opened by every role:
 
 | Socket | Carries | Opened by |
 |---|---|---|
-| `/api/v1/events` | Your own `order.*`, `quote.*`, `oco.*`, `combo.*` events, plus an `orders.snapshot` on every connect | **TRADER, MARKET_MAKER only** |
-| `/api/v1/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker`, `news` | Every role |
-| `/api/v1/admin/monitor` | Cross-gateway order activity and the audit tail | **ADMIN only** |
+| `/api/v1/ws/private` | Your own `order.*`, `quote.*`, `oco.*`, `combo.*` events, plus an `orders.snapshot` on every connect | **TRADER, MARKET_MAKER only** |
+| `/api/v1/ws/market-data` | `book`, `trades`, `depth`, `auction`, `session.state`, `circuit_breaker`, `news` | Every role |
+| `/api/v1/ws/admin/monitor` | Cross-gateway order activity and the audit tail | **ADMIN only** |
 
 The consequence worth remembering: **ADMIN has no private order stream.**
 An ADMIN key sees every gateway's activity through the monitor feed, but it
@@ -92,7 +92,7 @@ Three details shape how the screens behave:
   most screens need no polling. The exceptions are the polled daily-stats
   rollup (change % / volume) and the REST-backed panels marked below.
 - **`orders.snapshot` is the reconcile point.** It arrives on the first
-  `/events` frame *and on every reconnect*, so the blotter and the quote
+  `/ws/private` frame *and on every reconnect*, so the blotter and the quote
   cards resync themselves after a dropped connection without you doing
   anything.
 - **Gaps are visible, not silent.** The market-data socket tracks a sequence
@@ -210,7 +210,7 @@ make dev        # Vite with hot reload
 Open **<http://localhost:8193>**, enter an API key, and click **Connect**.
 
 `vite.config.ts` proxies every `/api/*` request — REST *and* the WebSocket
-upgrades for `/events`, `/market-data` and `/admin/monitor` — to
+upgrades under `/api/v1/ws/` (`private`, `market-data`, `admin/monitor`) — to
 `http://localhost:8080`. So as long as `pm-api-gwy`'s `desk` instance is
 reachable on port 8080 of your own machine, this needs no configuration:
 `VITE_API_BASE` and `VITE_WS_BASE` stay empty and the browser only ever talks
@@ -1062,7 +1062,7 @@ a two-field edit rather than a re-entry.
 
 ### Watching and reacting to fills
 
-Quote lifecycle events arrive on the `/events` socket and drive three things:
+Quote lifecycle events arrive on the `/ws/private` socket and drive three things:
 
 - **`quote.ack`** — a rejected quote raises an error toast
   (*"Quote `{symbol}` rejected: `{reason}`"*) and a `REJECT` entry; an accepted
@@ -1097,7 +1097,7 @@ A cancel that times out waiting for its ack shows *"Cancel submitted for
 A diagnostic screen with two complementary read sources and a **Resync**
 button that refetches both, plus a "Reconciled at" stamp.
 
-**Active Quotes** (`GET /quotes/bootstrap`) is the **reliable per-side
+**Active Quotes** (`GET /quotes`) is the **reliable per-side
 source**: symbol, quote id, state, bid and ask as `price × qty (remaining)`,
 and per-leg status.
 
@@ -1123,7 +1123,7 @@ behaviour — see [Positions and Flatten](#positions-and-flatten) above.
 ### System Dashboard
 
 The ADMIN landing screen — a read-only overview fed by the
-`/api/v1/admin/monitor` WebSocket (cross-gateway orders and events) plus the
+`/api/v1/ws/admin/monitor` WebSocket (cross-gateway orders and events) plus the
 shared live market stores.
 
 - **Four KPI cards**: current session phase, active orders across *every*
@@ -1140,7 +1140,7 @@ reconnecting/disconnected"* note appears next to the page title.
 ### Index Administration
 
 Read-only. Configured indexes (id, description, base value, constituent count
-— hover for the full list) from `GET /admin/indexes`, and, for the selected
+— hover for the full list) from `GET /reference/indexes`, and, for the selected
 index, its recent recorded daily levels (Date, Open, High, Low, Close,
 Session) from `GET /history/index-daily`.
 
@@ -1205,7 +1205,7 @@ resumes trading. The Level selector offers only *Indefinite (no level)*:
 this exchange configures no breaker ladder for the symbol.*
 
 The live operational counterpart to Risk Controls, bootstrapped from
-`GET /admin/halts` and kept current by the `circuit_breaker` market-data
+`GET /halts` and kept current by the `circuit_breaker` market-data
 channel.
 
 **Manual halt** takes a symbol and an optional **Level**, populated from that

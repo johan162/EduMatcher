@@ -28,10 +28,12 @@ from edumatcher.api_gateway.events import now_iso
 from edumatcher.api_gateway.routers.reference import (
     fetch_positions,
     fetch_reference_bundle,
+    fetch_session,
 )
 from edumatcher.api_gateway.sessions import (
     Session,
     auth,
+    correlation_id,
     require_admin,
     require_trading,
 )
@@ -43,7 +45,6 @@ from edumatcher.models.generated.system import (
     topic_halt_status,
     topic_quote_bootstrap,
     topic_quote_legs,
-    topic_session_status,
 )
 from edumatcher.stats.query import (
     open_readonly_connection,
@@ -84,12 +85,6 @@ async def _await_topic(request: Request, topic: str) -> dict[str, Any]:
             topic, request.app.state.config.timeouts.engine_reply_sec
         ),
     )
-
-
-async def _fetch_session(request: Request, gateway_id: str) -> dict[str, Any]:
-    engine = request.app.state.engine
-    engine.request_session(gateway_id)
-    return await _await_topic(request, topic_session_status(gateway_id))
 
 
 async def _fetch_orders(request: Request, gateway_id: str) -> dict[str, Any]:
@@ -163,10 +158,10 @@ async def _fetch_gateways(request: Request, gateway_id: str) -> dict[str, Any]:
     return await _await_topic(request, topic_gateways(gateway_id))
 
 
-async def _fetch_halts(request: Request, gateway_id: str) -> dict[str, Any]:
+async def _fetch_halts(request: Request, correlation: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    engine.request_halt_status(gateway_id)
-    return await _await_topic(request, topic_halt_status(gateway_id))
+    engine.request_halt_status(correlation)
+    return await _await_topic(request, topic_halt_status(correlation))
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +263,7 @@ def _collect_optional(
         docs.BOOTSTRAP_TRADER,
         "Everything a trading client needs to render after login. A "
         "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
-        "orders, and `null` session/recent_fills/halts.",
+        "orders and `null` recent_fills, but session and halts like any key.",
     ),
 )
 async def bootstrap_trader(
@@ -294,34 +289,47 @@ async def bootstrap_trader(
     in ``incomplete`` on failure.
 
     Read-only keys (``gateway_id: null``) receive ``gateway_role: "READ_ONLY"``,
-    empty ``positions``, and empty ``orders`` without an engine round-trip for
-    those fields.
+    empty ``positions`` and ``orders`` and ``null`` ``recent_fills`` (there is
+    no gateway to own them), but ``session`` and ``halts`` like any caller.
     """
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     gateway_id = session.gateway_id
 
-    # --- read-only credential: reference only -------------------------------
-    # A keyless credential has no gateway-scoped state. session and
-    # recent_fills are *structurally* unavailable (not transiently failed), so
-    # they are returned as null but deliberately kept out of `incomplete` —
-    # `incomplete` means "retry the per-resource endpoint", which would never
-    # succeed here.  Session phase is still available live on the market-data
-    # WebSocket `session` event.
+    # --- read-only credential: no gateway-scoped state ----------------------
+    # A keyless credential owns no positions, orders or fills: those are
+    # *structurally* empty (not transiently failed), so they stay out of
+    # `incomplete`, which means "retry the per-resource endpoint". Session
+    # and halts are public and fetched like for anyone else.
     if gateway_id is None:
-        reference = await _fetch_reference(request, session)
+        correlation = correlation_id(session)
+        ro_results: tuple[_QueryResult, _QueryResult, _QueryResult] = (
+            await asyncio.gather(
+                _fetch_reference(request, session),
+                fetch_session(request, correlation),
+                _fetch_halts(request, correlation),
+                return_exceptions=True,
+            )
+        )
+        ref_r, sess_r, halts_r = ro_results
+        reference = _require_or_503([("reference", ref_r)])["reference"]
+        ro_incomplete: list[str] = []
+        ro_data: dict[str, Any] = {}
+        _collect_optional(
+            [("session", sess_r), ("halts", halts_r)], ro_data, ro_incomplete
+        )
         return {
             "ts": now_iso(),
-            "incomplete": [],
+            "incomplete": ro_incomplete,
             "gateway_id": None,
             "gateway_role": "READ_ONLY",
             "session_timezone": _session_timezone(),
             "reference": reference,
-            "session": None,
+            "session": ro_data.get("session"),
             "positions": [],
             "orders": {"orders": []},
             "recent_fills": None,
-            "halts": None,
+            "halts": ro_data.get("halts"),
             "capabilities": _capabilities(request, reference),
         }
 
@@ -336,7 +344,7 @@ async def bootstrap_trader(
         _QueryResult,
     ] = await asyncio.gather(
         _fetch_reference(request, session),
-        _fetch_session(request, gateway_id),
+        fetch_session(request, gateway_id),
         _fetch_orders(request, gateway_id),
         fetch_positions(request, gateway_id),
         _fetch_fills(request, gateway_id, fills_limit),
@@ -436,7 +444,7 @@ async def bootstrap_mm(
         ],
         await asyncio.gather(
             _fetch_reference(request, session),
-            _fetch_session(request, gateway_id),
+            fetch_session(request, gateway_id),
             _fetch_orders(request, gateway_id),
             fetch_positions(request, gateway_id),
             _fetch_fills(request, gateway_id, fills_limit),
@@ -511,7 +519,7 @@ async def bootstrap_admin(
 
     Restricted to ADMIN keys.  ``reference`` is required (503 on failure).
     ``session``, ``gateways``, and ``halts`` are optional (null + incomplete):
-    both have the ``/admin/monitor`` WebSocket ``monitor.snapshot`` as an
+    both have the ``/ws/admin/monitor`` WebSocket ``monitor.snapshot`` as an
     immediate fallback.
     """
     gateway_id = await require_admin(request, session)
@@ -520,7 +528,7 @@ async def bootstrap_admin(
     results: tuple[_QueryResult, _QueryResult, _QueryResult, _QueryResult] = (
         await asyncio.gather(
             _fetch_reference(request, session),
-            _fetch_session(request, gateway_id),
+            fetch_session(request, gateway_id),
             _fetch_gateways(request, gateway_id),
             _fetch_halts(request, gateway_id),
             return_exceptions=True,

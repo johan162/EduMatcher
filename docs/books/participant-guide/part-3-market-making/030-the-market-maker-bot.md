@@ -1130,7 +1130,7 @@ both are derived from the same fill stream, but only the engine's ledger
 is reachable remotely via `POS|GW=`.
 
 The same query is available over REST for an admin-role caller, via
-[`GET /api/v1/admin/positions?gateway_id=MM_AAPL_01`](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#get-apiv1adminpositions)
+[`GET /api/v1/admin/gateways/MM_AAPL_01/positions`](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#get-apiv1admingatewaysgateway_idpositions)
 — useful for a dashboard or a script that wants to watch a bot's position
 without an interactive console session. It reads the same
 `system.position_request`/`system.position_snapshot` pair `POS|GW=` uses,

@@ -3,8 +3,7 @@
 The per-handler tests elsewhere call route functions directly, so they never
 reach what this file is about: the app-level exception handlers, the bearer
 security dependency and the status code FastAPI finally sends. Requests go
-through ``create_app()`` as raw ASGI calls (no HTTP client needed), with
-``app.state`` populated by hand instead of by the ZMQ-starting lifespan.
+through ``create_app()`` via ``tests/api_gateway_harness.py``.
 """
 
 from __future__ import annotations
@@ -18,12 +17,10 @@ from fastapi import HTTPException
 from fastapi.routing import APIRoute
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
-from edumatcher.api_gateway.main import create_app
-from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, orders
-from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+from tests.api_gateway_harness import Reply as Response
+from tests.api_gateway_harness import call, make_app
 
 
 class _Engine:
@@ -57,9 +54,6 @@ class _Engine:
         raise RuntimeError("boom: internal detail that must not leak")
 
 
-Response = tuple[int, dict[str, str], dict[str, Any]]
-
-
 @pytest.fixture(autouse=True)
 def _symbols_loaded() -> Iterator[None]:
     clear_tick_registry()
@@ -73,21 +67,6 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def _app(engine: _Engine | None = None) -> Any:
-    config = ApiGatewayConfig(swagger_enabled=False)
-    app = create_app(config)
-    app.state.config = config
-    app.state.engine = engine or _Engine()
-    app.state.rate_limiter = RateLimiter(100, 100)
-    app.state.sessions = SessionRegistry(
-        (
-            ApiCredential("key-trader", "GW01", "trader"),
-            ApiCredential("key-ro", None, "read-only"),
-        )
-    )
-    return app
-
-
 async def _call(
     method: str,
     path: str,
@@ -96,55 +75,12 @@ async def _call(
     authorization: str | None = "Bearer key-trader",
     engine: _Engine | None = None,
 ) -> Response:
-    """One request through the whole ASGI stack, middleware included."""
-    app = _app(engine)
-    path, _, query = path.partition("?")
-    headers = [(b"content-type", b"application/json")]
-    if authorization is not None:
-        headers.append((b"authorization", authorization.encode()))
-    messages = [
-        {
-            "type": "http.request",
-            "body": json.dumps(body).encode() if body is not None else b"",
-            "more_body": False,
-        }
-    ]
-    sent: list[dict[str, Any]] = []
-
-    async def receive() -> dict[str, Any]:
-        return messages.pop(0) if messages else {"type": "http.disconnect"}
-
-    async def send(message: dict[str, Any]) -> None:
-        sent.append(message)
-
-    scope = {
-        "type": "http",
-        "asgi": {"version": "3.0"},
-        "http_version": "1.1",
-        "method": method,
-        "scheme": "http",
-        "path": path,
-        "raw_path": path.encode(),
-        "query_string": query.encode(),
-        "root_path": "",
-        "headers": headers,
-        "server": ("test", 80),
-        "client": ("client", 1),
-    }
-    try:
-        await app(scope, receive, send)
-    except RuntimeError:
-        # Starlette re-raises an unhandled error after sending the 500 (so the
-        # server can log it); the response is already in `sent`.
-        pass
-    start = next(m for m in sent if m["type"] == "http.response.start")
-    raw = b"".join(
-        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
-    )
-    return (
-        int(start["status"]),
-        {k.decode().lower(): v.decode() for k, v in start["headers"]},
-        json.loads(raw),
+    return await call(
+        make_app(engine or _Engine()),
+        method,
+        path,
+        body=body,
+        authorization=authorization,
     )
 
 
@@ -303,14 +239,14 @@ def test_awaited_admin_commands_declare_200() -> None:
     for path in (
         "/api/v1/admin/session/transition",
         "/api/v1/admin/reference/reload",
-        "/api/v1/admin/circuit-breaker/trigger",
-        "/api/v1/admin/circuit-breaker/resume",
-        "/api/v1/admin/kill-switch/symbol",
-        "/api/v1/admin/kill-switch/gateway",
-        "/api/v1/admin/kill-switch/global",
+        "/api/v1/admin/symbols/{symbol}/halt",
+        "/api/v1/admin/symbols/{symbol}/resume",
+        "/api/v1/admin/symbols/{symbol}/cancel-orders",
+        "/api/v1/admin/gateways/{gateway_id}/kill-switch",
+        "/api/v1/admin/market/kill-switch",
         "/api/v1/admin/indexes/{index_id}/rebalance",
         "/api/v1/mass-cancel",
     ):
         # None is FastAPI's default for a route without status_code: 200.
         assert routes[("POST", path)] in (None, 200), path
-    assert routes[("POST", "/api/v1/admin/gateways/{gid}/disconnect")] == 202
+    assert routes[("POST", "/api/v1/admin/gateways/{gateway_id}/disconnect")] == 202

@@ -2683,21 +2683,25 @@ No terminal input. External clients connect via HTTP or WebSocket.
 | `POST`   | `/quotes`          | trading  | Submit two-sided quote               |
 | `DELETE` | `/quotes/{symbol}` | trading  | Cancel active quote                  |
 | `POST`   | `/mass-cancel`     | trading  | Cancel all or symbol-scoped exposure |
-| `GET`    | `/symbols`         | any      | Instrument metadata                  |
-| `GET`    | `/session`         | any      | Current engine session state         |
+| `GET`    | `/symbols`         | trading  | Instrument metadata for the caller   |
+| `GET`    | `/session`         | any      | Session phase, timezone, trading date |
 | `GET`    | `/positions`       | trading  | Net positions by symbol              |
 | `GET`    | `/history/orders`  | trading  | Historical order lifecycle events    |
 | `GET`    | `/history/fills`   | trading  | Historical fills                     |
 | `GET`    | `/history/trades`  | any      | Public trade log from `pm-stats`     |
 | `GET`    | `/history/daily`   | any      | Daily OHLCV from `pm-stats`          |
-| `GET`    | `/market-data`     | any      | Live order book top-of-book via REST |
 
 **WebSocket endpoints:**
 
-| Path           | Key type | Stream                                                            |
-|----------------|----------|-------------------------------------------------------------------|
-| `/events`      | trading  | Private fills, acks, expiries — filtered to the connected gateway |
-| `/market-data` | any      | Public order book snapshots and trade events                      |
+| Path                | Key type | Stream                                                            |
+|---------------------|----------|-------------------------------------------------------------------|
+| `/ws/private`       | trading  | Private fills, acks, expiries — filtered to the connected gateway |
+| `/ws/market-data`   | any      | Public order book snapshots and trade events                      |
+| `/ws/admin/monitor` | ADMIN    | Cross-gateway monitor feed                                        |
+| `/ws/admin/sim`     | ADMIN    | `pm-market-sim` true values and heartbeat                         |
+
+This is a summary; the full endpoint list is in the
+[REST and WebSocket API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
 
 **Authentication:**
 

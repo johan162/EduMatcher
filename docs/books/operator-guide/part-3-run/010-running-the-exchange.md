@@ -562,7 +562,7 @@ session statistics and a trade tape, in `web-apps/book-gui/`. Press `s` or
 `F1` to switch symbol, as in `pm-viewer`. It depends on:
 
 - `pm-api-gwy` with the read-only API key, for **all** of its data — the live
-  book and trades over the `/api/v1/market-data` WebSocket, and the session's
+  book and trades over the `/api/v1/ws/market-data` WebSocket, and the session's
   earlier trades and the previous close from the history endpoints
 - `pm-stats`, which records those history endpoints' data; without it the
   statistics cover only the trades seen since the book was opened

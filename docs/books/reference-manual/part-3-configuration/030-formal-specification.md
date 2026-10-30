@@ -776,7 +776,7 @@ schema tree (§3).
 | `log_level` | `Str` | – | `"info"` | |
 | `swagger_enabled` | `Bool` | – | `true` | |
 | `stats_db` | `Path` | – | resolved `stats.db` | `~` expanded |
-| `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}` uses it, and that endpoint returns 503 when the file is absent |
+| `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}/audit` uses it, and that endpoint returns 503 when the file is absent |
 | `clearing_db` | `Path` | – | resolved `clearing.db` | `~` expanded. Read-only; supplies the session/MTD/YTD realized P&L on `GET /positions`, which report `null` when the file is absent |
 | `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
 | `market_data_cache_sec` | `Int` | – | `60` | `>= 0`. TTL for cached market-data reads served by this instance |

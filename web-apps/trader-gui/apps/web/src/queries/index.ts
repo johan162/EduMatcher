@@ -296,7 +296,7 @@ export function useAdminGatewaysQuery() {
 export function useAdminHaltsQuery() {
   return useQuery({
     queryKey: ["admin/halts"],
-    queryFn: api.getAdminHalts,
+    queryFn: api.getHalts,
     staleTime: 15_000,
   });
 }
@@ -382,7 +382,7 @@ export function useResumeCircuitBreakerMutation() {
 export function useAdminIndexesQuery() {
   return useQuery({
     queryKey: ["admin/indexes"],
-    queryFn: api.getAdminIndexes,
+    queryFn: api.getReferenceIndexes,
     staleTime: 5 * 60_000,
   });
 }

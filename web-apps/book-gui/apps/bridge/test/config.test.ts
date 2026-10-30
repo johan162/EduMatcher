@@ -35,8 +35,8 @@ describe("loadBridgeConfig", () => {
 
 describe("marketDataUrl", () => {
   it("derives the WebSocket URL from the REST base", () => {
-    expect(marketDataUrl("http://edumatcher:8081")).toBe("ws://edumatcher:8081/api/v1/market-data");
-    expect(marketDataUrl("https://gw.example/")).toBe("wss://gw.example/api/v1/market-data");
+    expect(marketDataUrl("http://edumatcher:8081")).toBe("ws://edumatcher:8081/api/v1/ws/market-data");
+    expect(marketDataUrl("https://gw.example/")).toBe("wss://gw.example/api/v1/ws/market-data");
   });
 });
 

@@ -96,7 +96,7 @@ class ApiGatewayConfig:
     #: Set to 0 to disable eviction (the previous, unbounded behaviour).
     order_retention_sec: int = 3600
     #: How long the market-data stream cache retains the per-symbol ``trades``
-    #: tail that backs the snapshot/resume verbs on WS /api/v1/market-data.
+    #: tail that backs the snapshot/resume verbs on WS /api/v1/ws/market-data.
     #: The latest ``book``/``depth``/``auction`` snapshot per topic is kept
     #: regardless of age (a gap there is self-healing); only the trade tail is
     #: bounded. 30–60s is enough for a browser to repair a brief drop; 0

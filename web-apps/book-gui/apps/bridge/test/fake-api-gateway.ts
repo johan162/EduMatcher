@@ -1,6 +1,6 @@
 /**
- * A scriptable stand-in for `pm-api-gwy`: the `WS /api/v1/market-data` socket
- * and the REST reads the bridge uses (`/history/session`, `/history/trades`,
+ * A scriptable stand-in for `pm-api-gwy`: the `WS /api/v1/ws/market-data` socket
+ * and the REST reads the bridge uses (`/session`, `/history/trades`,
  * `/history/daily`, `/reference/symbols`).
  *
  * Behaviour mirrors the real gateway as observed in WP0 (captures in
@@ -171,7 +171,7 @@ export class FakeApiGateway {
   }
 
   private routes(): void {
-    this.app.get("/api/v1/market-data", { websocket: true }, (socket) => {
+    this.app.get("/api/v1/ws/market-data", { websocket: true }, (socket) => {
       const client: Client = { socket, authed: false, syms: new Set() };
       socket.on("message", (raw: Buffer) => {
         const msg = JSON.parse(raw.toString("utf8")) as Record<string, unknown>;
@@ -210,7 +210,7 @@ export class FakeApiGateway {
 
     const guard = (auth: string | undefined) => auth === `Bearer ${this.apiKey}`;
 
-    this.app.get("/api/v1/history/session", (req, reply) => {
+    this.app.get("/api/v1/session", (req, reply) => {
       if (!guard(req.headers.authorization)) return reply.status(401).send({});
       if (this.historyStatus !== 200) return reply.status(this.historyStatus).send({});
       return this.session;

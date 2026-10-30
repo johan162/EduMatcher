@@ -382,7 +382,7 @@ Expected behavior:
 Connect to private events before submitting new orders:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/events
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/private
 ```
 
 Once connected, the CLI waits for you to type. Send the authentication message
@@ -399,7 +399,7 @@ private event stream.
 Then connect to a public market-data WebSocket with a read-only key:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/market-data
+python3 -m websockets ws://127.0.0.1:8080/api/v1/ws/market-data
 ```
 
 After authentication, send a subscription control message:
@@ -452,27 +452,26 @@ field only ADMIN callers get back. Now try the same idea with a trading key:
 
 ```bash
 curl -i -H 'Authorization: Bearer key-trader-demo' \
-  http://127.0.0.1:8080/api/v1/admin/halts
+  http://127.0.0.1:8080/api/v1/admin/gateways
 ```
 
 Expect `403 ROLE_DENIED` — a trading key is never accepted on `/admin/*`,
 regardless of which gateway it is bound to.
 
-Trigger and resume a circuit-breaker halt with the ADMIN key:
+Trigger and resume a circuit-breaker halt with the ADMIN key. The symbol is
+part of the path; the body carries only the optional `level` (and `reason`):
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/circuit-breaker/trigger \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/halt \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL", "level": "L1"}'
+  -d '{"level": "L1"}'
 
 curl -H 'Authorization: Bearer key-ops01-demo' \
-  http://127.0.0.1:8080/api/v1/admin/halts
+  http://127.0.0.1:8080/api/v1/halts
 
-curl -X POST http://127.0.0.1:8080/api/v1/admin/circuit-breaker/resume \
-  -H 'Authorization: Bearer key-ops01-demo' \
-  -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL"}'
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/resume \
+  -H 'Authorization: Bearer key-ops01-demo'
 ```
 
 Request a session transition. This call now waits for the engine's verdict
@@ -518,15 +517,15 @@ working normally.
 Finally, cancel resting exposure with the kill-switch family:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/admin/kill-switch/symbol \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/symbols/AAPL/cancel-orders \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"symbol": "AAPL", "reason": "training exercise"}'
+  -d '{"reason": "training exercise"}'
 
-curl -X POST http://127.0.0.1:8080/api/v1/admin/kill-switch/gateway \
+curl -X POST http://127.0.0.1:8080/api/v1/admin/gateways/TRADER01/kill-switch \
   -H 'Authorization: Bearer key-ops01-demo' \
   -H 'Content-Type: application/json' \
-  -d '{"target_gateway_id": "TRADER01", "reason": "training exercise"}'
+  -d '{"reason": "training exercise"}'
 ```
 
 Expected behavior:
@@ -537,7 +536,7 @@ Expected behavior:
 - `/admin/session/transition` blocks for the engine's verdict and never just
   times out silently
 - `/admin/orders` returns orders from every gateway, not just `OPS01`'s
-- `/admin/orders/{order_id}` either returns the full lifecycle or a clear
+- `/admin/orders/{order_id}/audit` either returns the full lifecycle or a clear
   `503 AUDIT_INDEX_UNAVAILABLE` if no audit index is deployed
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why role

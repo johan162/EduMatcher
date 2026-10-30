@@ -727,7 +727,7 @@ class ExchangeCommandClient:
         Works for any gateway, not just a market maker -- this is the same
         ``system.position_request``/``system.position_snapshot.<gateway_id>``
         pair ``pm-alf-console``'s and ``pm-alf-gwy``'s ``POS|GW=`` and the
-        REST ``GET /api/v1/admin/positions`` endpoint already use, so all
+        REST ``GET /api/v1/admin/gateways/{gateway_id}/positions`` endpoint already use, so all
         four surfaces always agree.
         """
         self._send(make_position_request_msg(target_gw.upper()))

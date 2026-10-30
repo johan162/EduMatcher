@@ -385,16 +385,16 @@ def test_websocket_sessions_are_counted_per_channel() -> None:
     metrics = install(app)
     seen_inside: list[int] = []
 
-    @app.websocket("/api/v1/events")
-    async def events(ws: WebSocket) -> None:  # pyright: ignore[reportUnusedFunction]
+    @app.websocket("/api/v1/ws/private")
+    async def private(ws: WebSocket) -> None:  # pyright: ignore[reportUnusedFunction]
         await ws.accept()
-        seen_inside.append(metrics.ws_sessions["events"])
+        seen_inside.append(metrics.ws_sessions["private"])
         await ws.close()
 
     async def scenario() -> None:
         scope = {
             "type": "websocket",
-            "path": "/api/v1/events",
+            "path": "/api/v1/ws/private",
             "headers": [],
             "query_string": b"",
             "root_path": "",
@@ -412,7 +412,7 @@ def test_websocket_sessions_are_counted_per_channel() -> None:
 
     asyncio.run(scenario())
     assert seen_inside == [1]
-    assert metrics.ws_sessions["events"] == 0
+    assert metrics.ws_sessions["private"] == 0
 
 
 def test_api_samples_carry_drops_and_timeouts() -> None:

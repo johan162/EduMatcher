@@ -88,12 +88,11 @@ export function ComboForm() {
     const d = parsed.data;
     submit.mutate(d as unknown as Record<string, unknown>, {
       onSuccess: (res) => {
-        // PendingIdResponse.id echoes the submitted combo_id (the key is `id`).
-        toast.success(`Combo ${res.id} submitted`);
+        toast.success(`Combo ${res.combo_id} submitted`);
         pushNotification({
           ts: Date.now(),
           kind: "ACK",
-          title: `Combo ${res.id} submitted`,
+          title: `Combo ${res.combo_id} submitted`,
           detail: `${d.legs.length} legs · ${d.tif}`,
         });
         setComboId(`combo-${Date.now().toString(36)}`);

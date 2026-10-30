@@ -423,11 +423,29 @@ class MassCancelRequest(StrictModel):
         return None if value is None else value.upper()
 
 
-class PendingIdResponse(StrictModel):
-    id: str = Field(description="The id you chose (or the symbol, for quotes).")
-    status: str = Field(description="`PENDING`: sent, awaiting the engine's verdict.")
-    event: dict[str, Any] | None = Field(
-        default=None, description="Engine event, once received (usually null here)."
+class OcoPending(StrictModel):
+    oco_id: str = Field(
+        description="The id you chose; `DELETE /oco/{oco_id}` takes it."
+    )
+    status: Literal["PENDING"] = Field(
+        description="Sent; the verdict follows on the private WebSocket (`oco.ack`)."
+    )
+
+
+class ComboPending(StrictModel):
+    combo_id: str = Field(
+        description="The id you chose; `DELETE /combos/{combo_id}` takes it."
+    )
+    status: Literal["PENDING"] = Field(
+        description="Sent; the verdict follows on the private WebSocket (`combo.ack`)."
+    )
+
+
+class QuotePending(StrictModel):
+    symbol: str = Field(description="`DELETE /quotes/{symbol}` takes it.")
+    quote_id: str | None = Field(description="Your id for the quote, if you set one.")
+    status: Literal["PENDING"] = Field(
+        description="Sent; the verdict follows on the private WebSocket (`quote.ack`)."
     )
 
 
@@ -452,24 +470,24 @@ class SessionTransitionRequest(StrictModel):
 #: They are load-bearing, not cosmetic: since 5.3a/5.3b the builders validate,
 #: so an unbounded value here reaches a generated constructor and raises —
 #: turning a client's bad input into a 500 where FastAPI would otherwise have
-#: returned a 422 naming the offending field. Bound at the edge, where the
-#: error can still say what was wrong.
-_MAX_SYMBOL = 16
-_MAX_GATEWAY_ID = 32
+#: returned a 400 naming the offending field. Bound at the edge, where the
+#: error can still say what was wrong. The admin routes apply the first two to
+#: their `{symbol}` and `{gateway_id}` path parameters.
+SYMBOL_MAX_LEN = 16
+GATEWAY_ID_MAX_LEN = 32
 _MAX_CB_LEVEL = 32
 _MAX_REASON = 256
 
 
-class CircuitBreakerTriggerRequest(StrictModel):
+class SymbolHaltRequest(StrictModel):
+    """Body of `POST /admin/symbols/{symbol}/halt`; may be omitted."""
+
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {"symbol": "TSLA", "level": "L1", "reason": "Unusual volatility"}
-            ]
+            "examples": [{"level": "L1", "reason": "Unusual volatility"}]
         }
     )
 
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
     level: str | None = Field(
         default=None,
         max_length=_MAX_CB_LEVEL,
@@ -482,62 +500,19 @@ class CircuitBreakerTriggerRequest(StrictModel):
         description="Free-text note for the audit log.",
     )
 
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
 
+class AdminNoteRequest(StrictModel):
+    """Body of the admin actions that take only a note; may be omitted."""
 
-class CircuitBreakerResumeRequest(StrictModel):
     model_config = ConfigDict(
-        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Reviewed"}]}
+        json_schema_extra={"examples": [{"reason": "Runaway algo"}]}
     )
 
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
-
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
-
-
-class SymbolCancelRequest(StrictModel):
-    model_config = ConfigDict(
-        json_schema_extra={"examples": [{"symbol": "TSLA", "reason": "Bad prints"}]}
+    reason: str | None = Field(
+        default=None,
+        max_length=_MAX_REASON,
+        description="Free-text note for the audit log.",
     )
-
-    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
-
-    @field_validator("symbol")
-    @classmethod
-    def uppercase_symbol(cls, value: str) -> str:
-        return value.upper()
-
-
-class KillSwitchGatewayRequest(StrictModel):
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [{"target_gateway_id": "TRADER01", "reason": "Runaway algo"}]
-        }
-    )
-
-    target_gateway_id: str = Field(min_length=1, max_length=_MAX_GATEWAY_ID)
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
-
-    @field_validator("target_gateway_id")
-    @classmethod
-    def uppercase_target(cls, value: str) -> str:
-        return value.upper()
-
-
-class KillSwitchGlobalRequest(StrictModel):
-    model_config = ConfigDict(
-        json_schema_extra={"examples": [{"reason": "Exchange-wide incident"}]}
-    )
-
-    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
 
 class IndexRebalanceUpdate(StrictModel):

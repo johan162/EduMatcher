@@ -5,7 +5,7 @@ export interface HaltStore {
   halts: Record<string, HaltEntry>;
   setHalt: (symbol: string, data: HaltEntry) => void;
   clearHalt: (symbol: string) => void;
-  /** Bulk-load from GET /api/v1/admin/halts bootstrap. */
+  /** Bulk-load from GET /api/v1/halts. */
   setHalts: (entries: HaltEntry[]) => void;
   /** True if the symbol is currently halted. */
   isHalted: (symbol: string) => boolean;

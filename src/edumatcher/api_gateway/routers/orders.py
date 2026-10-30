@@ -24,8 +24,10 @@ from edumatcher.api_gateway.schemas import (
     MassCancelRequest,
     OcoRequest,
     OrderAccepted,
+    ComboPending,
+    OcoPending,
     OrderRequest,
-    PendingIdResponse,
+    QuotePending,
     QuoteRequest,
     ReplaceResponse,
 )
@@ -509,7 +511,7 @@ async def get_order(
 
 @router.post(
     "/oco",
-    response_model=PendingIdResponse,
+    response_model=OcoPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit an OCO pair",
     description=(
@@ -527,12 +529,12 @@ async def get_order(
 )
 async def submit_oco(
     body: OcoRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> PendingIdResponse:
+) -> OcoPending:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
     request.app.state.engine.send_oco(build_oco_payload(body, gateway_id))
-    return PendingIdResponse(id=body.oco_id, status="PENDING")
+    return OcoPending(oco_id=body.oco_id, status="PENDING")
 
 
 @router.delete(
@@ -556,7 +558,7 @@ async def cancel_oco(
 
 @router.post(
     "/combos",
-    response_model=PendingIdResponse,
+    response_model=ComboPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit a combo order",
     description=(
@@ -574,13 +576,13 @@ async def cancel_oco(
 )
 async def submit_combo(
     body: ComboRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> PendingIdResponse:
+) -> ComboPending:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     for leg in body.legs:
         _check_symbol_ready(leg.symbol)
     request.app.state.engine.send_combo(build_combo_payload(body, gateway_id))
-    return PendingIdResponse(id=body.combo_id, status="PENDING")
+    return ComboPending(combo_id=body.combo_id, status="PENDING")
 
 
 @router.delete(
@@ -604,15 +606,14 @@ async def cancel_combo(
 
 @router.post(
     "/quotes",
-    response_model=PendingIdResponse,
+    response_model=QuotePending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit a two-sided quote",
     description=(
         "A market-maker quote: a bid and an ask on one symbol, managed as a "
         "pair. Submitting a new quote for a symbol replaces the previous "
-        "one. `id` in the response is `quote_id` if given, else the symbol. "
-        "Per-symbol obligations (max spread, min size) are listed in "
-        "`GET /symbols`."
+        "one, and `DELETE /quotes/{symbol}` withdraws it. Per-symbol "
+        "obligations (max spread, min size) are listed in `GET /symbols`."
     ),
     responses=docs.merge(
         docs.ok(docs.QUOTE_PENDING, "Quote sent to the engine.", 202),
@@ -622,12 +623,12 @@ async def cancel_combo(
 )
 async def submit_quote(
     body: QuoteRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> PendingIdResponse:
+) -> QuotePending:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
     request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
-    return PendingIdResponse(id=body.quote_id or body.symbol, status="PENDING")
+    return QuotePending(symbol=body.symbol, quote_id=body.quote_id, status="PENDING")
 
 
 @router.delete(
@@ -655,18 +656,10 @@ async def cancel_quote(
     description=(
         "Cancel every resting order and quote of the caller's own gateway, "
         "optionally limited to one `symbol`. Waits for the engine's "
-        "acknowledgement. Also served as `POST /kill-switch`. To act on "
-        "another gateway or the whole market, an ADMIN uses "
-        "`/admin/kill-switch/*`."
+        "acknowledgement. To act on another gateway or the whole market, an "
+        "ADMIN uses `POST /admin/gateways/{gateway_id}/kill-switch` or "
+        "`POST /admin/market/kill-switch`."
     ),
-    responses=docs.merge(
-        docs.ok(docs.MASS_CANCEL, "What the engine cancelled."), docs.RATE_LIMITED
-    ),
-)
-@router.post(
-    "/kill-switch",
-    summary="Cancel all my orders (alias)",
-    description="Alias of `POST /mass-cancel`.",
     responses=docs.merge(
         docs.ok(docs.MASS_CANCEL, "What the engine cancelled."), docs.RATE_LIMITED
     ),

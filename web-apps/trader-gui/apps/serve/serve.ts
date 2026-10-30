@@ -191,7 +191,7 @@ function proxyApiRequest(
 }
 
 /**
- * Forward a WebSocket upgrade (`/api/v1/events`, `/market-data`, ...) to
+ * Forward a WebSocket upgrade (`/api/v1/ws/private`, `/api/v1/ws/market-data`, ...) to
  * pm-api-gwy. `http.createServer` destroys an upgrade nobody listens for, so
  * without this the browser's socket never opens even though REST works.
  * The handshake and every later frame are relayed byte-for-byte.

@@ -196,6 +196,8 @@ async def test_trader_full_payload() -> None:
     assert result["incomplete"] == []
     assert result["reference"]["config_version"] == "v1"
     assert result["session"]["state"] == "CONTINUOUS"
+    # Exactly GET /session: the engine phase plus the locale.
+    assert {"session_timezone", "session_date"} <= set(result["session"])
     assert result["orders"] == {"orders": []}
     assert result["recent_fills"] == {"events": [{"order_id": "O1"}], "count": 1}
     assert result["halts"] == {"halted": []}
@@ -233,11 +235,17 @@ async def test_trader_read_only_key() -> None:
     assert result["gateway_role"] == "READ_ONLY"
     assert result["orders"] == {"orders": []}
     assert result["positions"] == []
-    # session, recent_fills and halts are structurally absent, NOT flagged incomplete.
-    assert result["session"] is None
+    # recent_fills is structurally absent (no gateway owns fills), NOT
+    # flagged incomplete.
     assert result["recent_fills"] is None
-    assert result["halts"] is None
     assert result["incomplete"] == []
+    # WP-API03 (C5): session and halts are public, so a read-only key gets
+    # them too -- through a correlation id the engine can echo back.
+    assert result["session"]["state"] == "CONTINUOUS"
+    assert result["session"]["session_timezone"]
+    assert result["halts"] == {"halted": []}
+    (session_request,) = [c for c in engine.calls if c[0] == "request_session"]
+    assert session_request[1].startswith("RO")
     # resolve_role is never called for a keyless credential.
     assert not any(c[0] == "resolve_role" for c in engine.calls)
 

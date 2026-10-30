@@ -1,5 +1,5 @@
 /**
- * The bridge's one upstream connection: `pm-api-gwy`'s `WS /api/v1/market-data`
+ * The bridge's one upstream connection: `pm-api-gwy`'s `WS /api/v1/ws/market-data`
  * (design §6, WP3).
  *
  * Responsibilities: authenticate with the read-only key, hold the `book` +
@@ -31,7 +31,7 @@ import {
 } from "./envelope.js";
 
 export interface UplinkOptions {
-  /** `ws://host:port/api/v1/market-data`. */
+  /** `ws://host:port/api/v1/ws/market-data`. */
   url: string;
   apiKey: string;
   pingSec: number;

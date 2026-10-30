@@ -81,16 +81,17 @@ is `429 RATE_LIMITED`. Reads are not limited.
 ## Prices and time
 
 Prices are decimal display prices (`187.25`), always on the symbol's tick grid
-(`tick_decimals` in `/symbols`); an off-grid price is `400 TICK_VIOLATION`.
+(`tick_decimals` in `/reference/symbols`); an off-grid price is `400 TICK_VIOLATION`.
 Timestamps named `ts_ns` / `*_ns` are epoch nanoseconds; `ts` in history rows is
 ISO-8601 UTC. `date` filters are trading days in the exchange's own timezone
-(see `/history/session`).
+(`session_timezone` in `GET /session`).
 
 ## WebSocket
 
-Live streams are WebSockets and are not part of this OpenAPI document:
-`/api/v1/ws/private` (orders, fills, quotes), `/api/v1/ws/market-data`
-(book, trades, depth, auction, session, halts, news) and `/api/v1/ws/admin/monitor`.
+Live streams are WebSockets under `/api/v1/ws/` and are not part of this
+OpenAPI document: `/api/v1/ws/private` (orders, fills, quotes),
+`/api/v1/ws/market-data` (book, trades, depth, auction, session, halts, news),
+and, for ADMIN keys, `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim`.
 """
 
 TAGS_METADATA: list[dict[str, str]] = [
@@ -574,11 +575,11 @@ ORDER_CACHED: dict[str, Any] = {
     "trade_ids": [_TRADE_1],
 }
 
-OCO_PENDING = {"id": "oco-2026-0042", "status": "PENDING", "event": None}
+OCO_PENDING = {"oco_id": "oco-2026-0042", "status": "PENDING"}
 OCO_CANCEL = {"oco_id": "oco-2026-0042", "status": "PENDING_CANCEL"}
-COMBO_PENDING = {"id": "combo-spread-17", "status": "PENDING", "event": None}
+COMBO_PENDING = {"combo_id": "combo-spread-17", "status": "PENDING"}
 COMBO_CANCEL = {"combo_id": "combo-spread-17", "status": "PENDING_CANCEL"}
-QUOTE_PENDING = {"id": "q-AAPL-0001", "status": "PENDING", "event": None}
+QUOTE_PENDING = {"symbol": "AAPL", "quote_id": "q-AAPL-0001", "status": "PENDING"}
 QUOTE_CANCEL = {"symbol": "AAPL", "status": "PENDING_CANCEL"}
 
 MASS_CANCEL: dict[str, Any] = {
@@ -778,6 +779,13 @@ SESSION_STATUS: dict[str, Any] = {
     "next": {"state": "CLOSING_AUCTION", "at": "2026-08-29T17:25:00+02:00"},
 }
 
+#: GET /session: the engine's reply plus the locale the gateway adds.
+SESSION: dict[str, Any] = {
+    **SESSION_STATUS,
+    "session_timezone": "Europe/Stockholm",
+    "session_date": "2026-08-29",
+}
+
 HALT_STATUS: dict[str, Any] = {
     "gateway_id": "TRADER01",
     "halted": [
@@ -946,11 +954,6 @@ HISTORY_FILLS: dict[str, Any] = {
     "has_more": False,
     "retained_from": _RETAINED_FROM,
 }
-HISTORY_SESSION = {
-    "country": "SE",
-    "session_timezone": "Europe/Stockholm",
-    "session_date": "2026-08-29",
-}
 HISTORY_TRADES: dict[str, Any] = {
     "trades": [
         {
@@ -1046,7 +1049,7 @@ HISTORY_INDEX_SNAPSHOTS: dict[str, Any] = {
     "count": 1,
     "has_more": False,
 }
-HISTORY_INDEX_IDS = {"index_ids": ["EDU3"], "count": 1}
+HISTORY_INDEXES = {"index_ids": ["EDU3"], "count": 1}
 HISTORY_INDEX_EVENTS: dict[str, Any] = {
     "events": [
         {
@@ -1093,7 +1096,7 @@ BOOTSTRAP_TRADER: dict[str, Any] = {
     "gateway_role": "TRADER",
     "session_timezone": "Europe/Stockholm",
     "reference": REFERENCE_BUNDLE,
-    "session": SESSION_STATUS,
+    "session": SESSION,
     "positions": [
         {"symbol": "AAPL", "net_qty": 40, "last_price": 187.4},
         {"symbol": "TSLA", "net_qty": -25, "last_price": None},
@@ -1117,7 +1120,7 @@ BOOTSTRAP_ADMIN: dict[str, Any] = {
     "gateway_role": "ADMIN",
     "session_timezone": "Europe/Stockholm",
     "reference": REFERENCE_BUNDLE,
-    "session": {**SESSION_STATUS, "gateway_id": "OPS01"},
+    "session": {**SESSION, "gateway_id": "OPS01"},
     "gateways": {
         "gateway_id": "OPS01",
         "gateways": [
@@ -1157,11 +1160,6 @@ ADMIN_TRANSITION = {
     "command_id": _CMD,
 }
 ADMIN_RELOAD = {"status": "RELOADED", "config_version": _CONFIG_VERSION}
-ADMIN_SCHEDULE: dict[str, Any] = {
-    "gateway_id": "OPS01",
-    "sessions_enabled": True,
-    "schedule": _WEEKLY_SCHEDULE,
-}
 ADMIN_SIM: dict[str, Any] = {
     "available": True,
     "state": {
@@ -1198,10 +1196,6 @@ ADMIN_RESUME_ACK: dict[str, Any] = {
     "accepted": True,
     "symbol": "TSLA",
     "command_id": _CMD,
-}
-ADMIN_HALTS: dict[str, Any] = {
-    "gateway_id": "OPS01",
-    "halted": HALT_STATUS["halted"],
 }
 ADMIN_RISK_STATE: dict[str, Any] = {
     "gateway_id": "OPS01",

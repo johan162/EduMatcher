@@ -36,7 +36,7 @@ from edumatcher.models.generated.system import (
     topic_halt_status,
 )
 
-router = APIRouter(prefix="/api/v1", tags=["websockets"])
+router = APIRouter(prefix="/api/v1/ws", tags=["websockets"])
 
 log = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ async def _authenticate_ws(websocket: WebSocket) -> tuple[str, str | None]:
     return api_key, credential.gateway_id
 
 
-@router.websocket("/events")
+@router.websocket("/private")
 async def private_events(websocket: WebSocket) -> None:
     await websocket.accept()
     try:

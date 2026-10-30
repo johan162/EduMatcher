@@ -11,13 +11,12 @@ import uuid
 from contextlib import closing
 from datetime import tzinfo
 from collections.abc import Callable
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.index_client import IndexHistoryError
-from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
 from edumatcher.stats.event_types import EVENT_TYPES
@@ -38,7 +37,6 @@ from edumatcher.stats.query import (
     validate_date,
     validate_iso_ts,
 )
-from edumatcher.stats.trading_day import timezone_name, trading_date
 
 log = logging.getLogger(__name__)
 
@@ -347,38 +345,6 @@ async def history_fills(
 
 
 @router.get(
-    "/session",
-    summary="Exchange locale and trading date",
-    responses=docs.merge(
-        docs.ok(docs.HISTORY_SESSION, "The exchange locale and today's trading date."),
-    ),
-)
-async def history_session(
-    request: Request,
-    session: Annotated[Session, Depends(auth)],
-) -> dict[str, str | None]:
-    """The exchange's current locale and trading date — public market data.
-
-    ``session_timezone`` is resolved exactly as every ``date`` filter on this
-    router resolves them, from the timezone pm-stats recorded in the
-    statistics database, so a client showing "today" or a session clock
-    cannot disagree with the ``date`` column of ``/daily``. ``country`` is
-    the same value ``GET /reference/schedule`` reports (one engine
-    round-trip). The trading date is computed from the gateway's clock at
-    the moment of the request.
-    """
-    with closing(_open_stats(request)) as conn:
-        tz = _session_tz(request, conn)
-    bundle = await fetch_reference_bundle(request, session)
-    schedule = cast(dict[str, Any], bundle["schedule"])
-    return {
-        "country": schedule["country"],
-        "session_timezone": timezone_name(tz),
-        "session_date": trading_date(time.time(), tz),
-    }
-
-
-@router.get(
     "/trades",
     summary="Executed trades",
     responses=docs.merge(
@@ -643,10 +609,10 @@ async def history_index_snapshots(
 
 
 @router.get(
-    "/index-ids",
+    "/indexes",
     summary="Indexes with history",
     responses=docs.merge(
-        docs.ok(docs.HISTORY_INDEX_IDS, "Index ids with recorded statistics."),
+        docs.ok(docs.HISTORY_INDEXES, "Index ids with recorded statistics."),
         docs.INVALID_FILTER,
     ),
 )

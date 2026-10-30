@@ -16,12 +16,9 @@ from edumatcher.api_gateway.events import (
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, reference, ws
 from edumatcher.api_gateway.schemas import (
-    CircuitBreakerResumeRequest,
-    CircuitBreakerTriggerRequest,
-    KillSwitchGatewayRequest,
-    KillSwitchGlobalRequest,
+    AdminNoteRequest,
     SessionTransitionRequest,
-    SymbolCancelRequest,
+    SymbolHaltRequest,
 )
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.models.session import SessionState
@@ -111,6 +108,7 @@ class AdminFakeEngine:
         command_id: str = "",
     ) -> None:
         self.calls.append(("send_symbol_halt", (gateway_id, symbol)))
+        self.calls.append(("send_symbol_halt_args", (level, note)))
 
     def send_symbol_resume(
         self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
@@ -135,15 +133,13 @@ class AdminFakeEngine:
         self, gateway_id: str, note: str = "", command_id: str = ""
     ) -> None:
         self.calls.append(("send_kill_switch_global", (gateway_id,)))
+        self.calls.append(("send_kill_switch_global_note", note))
 
     def send_disconnect(self, gateway_id: str, reason: str) -> None:
         self.calls.append(("send_disconnect", (gateway_id, reason)))
 
     def request_gateways(self, gateway_id: str) -> None:
         self.calls.append(("request_gateways", gateway_id))
-
-    def request_session_schedule(self, gateway_id: str) -> None:
-        self.calls.append(("request_session_schedule", gateway_id))
 
     def request_halt_status(self, gateway_id: str) -> None:
         self.calls.append(("request_halt_status", gateway_id))
@@ -216,54 +212,39 @@ async def test_require_admin_rejects_non_admin_role() -> None:
 
 
 @pytest.mark.anyio
-async def test_circuit_breaker_trigger_and_resume_accepted() -> None:
+async def test_symbol_halt_and_resume_take_the_symbol_from_the_path() -> None:
+    """D1: the target is the path segment, case-insensitive; the body only
+    carries optional parameters and may be omitted."""
     engine = AdminFakeEngine(ack_accepted=True)
     request = admin_request(engine)
     session = admin_session()
-    trigger = await admin.circuit_breaker_trigger(
-        CircuitBreakerTriggerRequest(symbol="aapl"), request, session
+    trigger = await admin.halt_symbol(
+        "aapl", request, session, SymbolHaltRequest(level="L1", reason="volatile")
     )
     assert trigger["accepted"] is True
     assert ("send_symbol_halt", ("GW01", "AAPL")) in engine.calls
-    resume = await admin.circuit_breaker_resume(
-        CircuitBreakerResumeRequest(symbol="aapl"), request, session
-    )
+    assert ("send_symbol_halt_args", ("L1", "volatile")) in engine.calls
+    resume = await admin.resume_symbol("aapl", request, session)
     assert resume["accepted"] is True
     assert ("send_symbol_resume", ("GW01", "AAPL")) in engine.calls
+
+
+@pytest.mark.anyio
+async def test_halt_without_a_body_is_indefinite() -> None:
+    engine = AdminFakeEngine(ack_accepted=True)
+    await admin.halt_symbol("TSLA", admin_request(engine), admin_session())
+    assert ("send_symbol_halt_args", (None, "")) in engine.calls
 
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
     ("call", "code"),
     [
-        (
-            lambda r, s: admin.circuit_breaker_trigger(
-                CircuitBreakerTriggerRequest(symbol="AAPL"), r, s
-            ),
-            "HALT_REJECTED",
-        ),
-        (
-            lambda r, s: admin.circuit_breaker_resume(
-                CircuitBreakerResumeRequest(symbol="AAPL"), r, s
-            ),
-            "RESUME_REJECTED",
-        ),
-        (
-            lambda r, s: admin.kill_switch_symbol(
-                SymbolCancelRequest(symbol="AAPL"), r, s
-            ),
-            "KILL_SWITCH_REJECTED",
-        ),
-        (
-            lambda r, s: admin.kill_switch_gateway(
-                KillSwitchGatewayRequest(target_gateway_id="GW02"), r, s
-            ),
-            "KILL_SWITCH_REJECTED",
-        ),
-        (
-            lambda r, s: admin.kill_switch_global(KillSwitchGlobalRequest(), r, s),
-            "KILL_SWITCH_REJECTED",
-        ),
+        (lambda r, s: admin.halt_symbol("AAPL", r, s), "HALT_REJECTED"),
+        (lambda r, s: admin.resume_symbol("AAPL", r, s), "RESUME_REJECTED"),
+        (lambda r, s: admin.cancel_symbol_orders("AAPL", r, s), "KILL_SWITCH_REJECTED"),
+        (lambda r, s: admin.kill_switch_gateway("GW02", r, s), "KILL_SWITCH_REJECTED"),
+        (lambda r, s: admin.kill_switch_market(r, s), "KILL_SWITCH_REJECTED"),
     ],
 )
 async def test_engine_refusal_is_409_with_its_own_code(call: Any, code: str) -> None:
@@ -280,34 +261,46 @@ async def test_engine_refusal_is_409_with_its_own_code(call: Any, code: str) -> 
 
 
 @pytest.mark.anyio
-async def test_kill_switch_symbol_returns_ack() -> None:
+async def test_cancel_symbol_orders_returns_ack() -> None:
     engine = AdminFakeEngine(ack_accepted=True)
     request = admin_request(engine)
-    result = await admin.kill_switch_symbol(
-        SymbolCancelRequest(symbol="aapl"), request, admin_session()
-    )
+    result = await admin.cancel_symbol_orders("aapl", request, admin_session())
     assert result["cancelled_orders"] == 3
     assert ("send_cancel_symbol", ("GW01", "AAPL")) in engine.calls
 
 
 @pytest.mark.anyio
+async def test_gateway_kill_switch_targets_the_path_gateway() -> None:
+    engine = AdminFakeEngine(ack_accepted=True)
+    await admin.kill_switch_gateway(
+        "gw02", admin_request(engine), admin_session(), AdminNoteRequest(reason="x")
+    )
+    assert ("send_kill_switch_gateway", ("GW01", "GW02")) in engine.calls
+
+
+@pytest.mark.anyio
+async def test_market_kill_switch_carries_the_note() -> None:
+    engine = AdminFakeEngine(ack_accepted=True)
+    await admin.kill_switch_market(
+        admin_request(engine), admin_session(), AdminNoteRequest(reason="incident")
+    )
+    assert ("send_kill_switch_global_note", "incident") in engine.calls
+
+
+@pytest.mark.anyio
 async def test_symbol_scoped_admin_acks_pass_symbol_match() -> None:
-    """circuit-breaker trigger/resume and kill-switch/symbol must await
-    their acks with match={"symbol": ...} — without it, two concurrent
-    calls for different symbols would race on the same unfiltered topic
-    (see EngineClient._resolve_pending).
+    """halt/resume/cancel-orders must await their acks with
+    match={"symbol": ...} — without it, two concurrent calls for different
+    symbols would race on the same unfiltered topic (see
+    EngineClient._resolve_pending).
     """
     engine = AdminFakeEngine(ack_accepted=True)
     request = admin_request(engine)
     session = admin_session()
 
-    await admin.circuit_breaker_trigger(
-        CircuitBreakerTriggerRequest(symbol="aapl"), request, session
-    )
-    await admin.circuit_breaker_resume(
-        CircuitBreakerResumeRequest(symbol="aapl"), request, session
-    )
-    await admin.kill_switch_symbol(SymbolCancelRequest(symbol="aapl"), request, session)
+    await admin.halt_symbol("aapl", request, session)
+    await admin.resume_symbol("aapl", request, session)
+    await admin.cancel_symbol_orders("aapl", request, session)
 
     await_event_calls = [call for call in engine.calls if call[0] == "await_event"]
     topics_and_matches = {
@@ -319,16 +312,10 @@ async def test_symbol_scoped_admin_acks_pass_symbol_match() -> None:
 
 
 @pytest.mark.anyio
-async def test_halts_gateways_and_schedule_replies() -> None:
+async def test_gateways_reply() -> None:
     engine = AdminFakeEngine()
-    request = admin_request(engine)
-    session = admin_session()
-    halts = await admin.halt_status(request, session)
-    assert halts["halted"][0]["symbol"] == "AAPL"
-    gateways = await admin.list_gateways(request, session)
+    gateways = await admin.list_gateways(admin_request(engine), admin_session())
     assert len(gateways["gateways"]) == 2
-    schedule = await admin.session_schedule(request, session)
-    assert schedule["sessions_enabled"] is True
 
 
 @pytest.mark.anyio
@@ -336,15 +323,14 @@ async def test_reply_timeout_returns_503() -> None:
     engine = TimeoutAdminEngine()
     request = admin_request(engine)
     with pytest.raises(HTTPException) as exc:
-        await admin.halt_status(request, admin_session())
+        await admin.list_gateways(request, admin_session())
     assert exc.value.status_code == 503
 
 
 @pytest.mark.anyio
 async def test_admin_positions_returns_target_gateways_holdings() -> None:
-    """GET /admin/positions?gateway_id=<target> is a genuine engine round
-    trip for *any* gateway_id, not just the caller's own -- unlike
-    GET /positions (own-gateway, local cache, no avg_cost)."""
+    """GET /admin/gateways/{gateway_id}/positions is a genuine engine round
+    trip for *any* gateway, not just the caller's own."""
     engine = AdminFakeEngine()
     request = admin_request(engine)
     result = await admin.admin_positions("mm_aapl_01", request, admin_session())
@@ -410,6 +396,16 @@ async def test_gateway_disconnect_uppercases_id() -> None:
     result = await admin.disconnect_gateway("gw02", request, admin_session())
     assert result == {"gateway_id": "GW02", "status": "PENDING_DISCONNECT"}
     assert ("send_disconnect", ("GW02", "admin disconnect")) in engine.calls
+
+
+@pytest.mark.anyio
+async def test_gateway_disconnect_passes_the_reason_through() -> None:
+    """§9.2: trader-gui sent `{reason}` here and the endpoint dropped it."""
+    engine = AdminFakeEngine()
+    await admin.disconnect_gateway(
+        "gw02", admin_request(engine), admin_session(), AdminNoteRequest(reason="kick")
+    )
+    assert ("send_disconnect", ("GW02", "kick")) in engine.calls
 
 
 @pytest.mark.anyio

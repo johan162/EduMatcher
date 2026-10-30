@@ -9,11 +9,15 @@
 
 This appendix documents the client-visible REST surface of the API gateway.
 It covers request shapes, replies, query parameters, auth rules, and the
-stable error codes returned by the gateway. WebSocket streams are documented
-in [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md) and are not repeated
-here.
+stable error codes returned by the gateway. WebSocket streams live under
+`/api/v1/ws/` (`private`, `market-data`, `admin/monitor`, `admin/sim`) and are
+documented in [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md);
+they are not repeated here.
 
-All paths are rooted at `/api/v1`.
+All paths are rooted at `/api/v1`. Admin paths name their target as a path
+segment — `/admin/symbols/{symbol}/...`, `/admin/gateways/{gateway_id}/...`,
+`/admin/market/...` — and a body, where one is accepted, carries only
+optional parameters.
 
 ## Endpoint index
 
@@ -42,15 +46,14 @@ All paths are rooted at `/api/v1`.
 | [POST /api/v1/quotes](#post-apiv1quotes) | Trading key | Submit a two-sided market-maker quote |
 | [DELETE /api/v1/quotes/{symbol}](#delete-apiv1quotessymbol) | Trading key | Cancel the active quote for one symbol |
 | [POST /api/v1/mass-cancel](#post-apiv1mass-cancel) | Trading key | Cancel all resting exposure for the caller or one symbol |
-| [POST /api/v1/kill-switch](#post-apiv1kill-switch) | Trading key | Alias of mass-cancel |
 | [GET /api/v1/symbols](#get-apiv1symbols) | Trading key | Return instrument metadata |
 | [GET /api/v1/news](#get-apiv1news) | Authenticated key | Return the latest market-sim headlines and sector map |
 | [GET /api/v1/companies/{symbol}](#get-apiv1companiessymbol) | Authenticated key | Return one company profile from the company database |
-| [GET /api/v1/session](#get-apiv1session) | Trading key | Return the current engine session state |
-| [GET /api/v1/halts](#get-apiv1halts) | Trading key | Return currently-halted symbols (non-admin) |
+| [GET /api/v1/session](#get-apiv1session) | Authenticated key | Return the session phase, exchange timezone and trading date |
+| [GET /api/v1/halts](#get-apiv1halts) | Authenticated key | Return currently-halted symbols |
 | [GET /api/v1/status](#get-apiv1status) | Trading key | Return gateway cache summary and resolved role |
 | [GET /api/v1/healthz](#get-apiv1healthz) | Public | Liveness probe |
-| [GET /api/v1/quotes/bootstrap](#get-apiv1quotesbootstrap) | Trading key | Return active market-maker quote bootstrap state |
+| [GET /api/v1/quotes](#get-apiv1quotes) | Trading key | Return the caller's active market-maker quotes |
 | [GET /api/v1/quotes/legs](#get-apiv1quoteslegs) | Trading key | Return current quote-leg state |
 | [GET /api/v1/positions](#get-apiv1positions) | Trading key | Return current net positions |
 
@@ -72,13 +75,12 @@ All paths are rooted at `/api/v1`.
 | [GET /api/v1/history/orders](#get-apiv1historyorders) | Trading key | Return the caller gateway's order lifecycle events |
 | [GET /api/v1/history/orders/{order_id}](#get-apiv1historyordersorder_id) | Trading key | Return the full lifecycle of one order |
 | [GET /api/v1/history/fills](#get-apiv1historyfills) | Trading key | Return fill events |
-| [GET /api/v1/history/session](#get-apiv1historysession) | Authenticated key | Return the session timezone and current trading date |
 | [GET /api/v1/history/trades](#get-apiv1historytrades) | Authenticated key | Return public trade tape rows |
 | [GET /api/v1/history/daily](#get-apiv1historydaily) | Authenticated key | Return daily OHLCV rows |
 | [GET /api/v1/history/price-snapshots](#get-apiv1historyprice-snapshots) | Authenticated key | Return intraday price snapshots |
 | [GET /api/v1/history/index-daily](#get-apiv1historyindex-daily) | Authenticated key | Return daily index OHLC rows |
 | [GET /api/v1/history/index-snapshots](#get-apiv1historyindex-snapshots) | Authenticated key | Return intraday index snapshots |
-| [GET /api/v1/history/index-ids](#get-apiv1historyindex-ids) | Authenticated key | List index ids with recorded data |
+| [GET /api/v1/history/indexes](#get-apiv1historyindexes) | Authenticated key | List index ids with recorded data |
 | [GET /api/v1/history/index-events](#get-apiv1historyindex-events) | Authenticated key | Return index structural and audit events |
 
 ### Admin REST
@@ -86,28 +88,26 @@ All paths are rooted at `/api/v1`.
 | Endpoint | Access | Purpose |
 |---|---|---|
 | [POST /api/v1/admin/session/transition](#post-apiv1adminsessiontransition) | Admin role | Request a session-phase transition |
-| [GET /api/v1/admin/session/schedule](#get-apiv1adminsessionschedule) | Admin role | Return current session schedule settings |
 | [GET /api/v1/admin/gateways](#get-apiv1admingateways) | Admin role | List configured gateways and live connection state |
-| [POST /api/v1/admin/gateways/{gid}/disconnect](#post-apiv1admingatewaysgiddisconnect) | Admin role | Forcibly disconnect one gateway |
-| [POST /api/v1/admin/circuit-breaker/trigger](#post-apiv1admincircuit-breakertrigger) | Admin role | Halt one symbol through the circuit breaker |
-| [POST /api/v1/admin/circuit-breaker/resume](#post-apiv1admincircuit-breakerresume) | Admin role | Resume one halted symbol |
-| [GET /api/v1/admin/halts](#get-apiv1adminhalts) | Admin role | Return the current active halts table |
+| [POST /api/v1/admin/gateways/{gateway_id}/disconnect](#post-apiv1admingatewaysgateway_iddisconnect) | Admin role | Forcibly disconnect one gateway |
+| [POST /api/v1/admin/symbols/{symbol}/halt](#post-apiv1adminsymbolssymbolhalt) | Admin role | Halt one symbol through the circuit breaker |
+| [POST /api/v1/admin/symbols/{symbol}/resume](#post-apiv1adminsymbolssymbolresume) | Admin role | Resume one halted symbol |
 | [GET /api/v1/admin/risk/state](#get-apiv1adminriskstate) | Admin role | Return live per-symbol risk state |
 | [GET /api/v1/admin/orders](#get-apiv1adminorders) | Admin role | Return the cross-gateway active-order table |
-| [GET /api/v1/admin/orders/{order_id}](#get-apiv1adminordersorder_id) | Admin role | Return the full cross-gateway lifecycle of one order |
-| [GET /api/v1/admin/positions](#get-apiv1adminpositions) | Admin role | Return net position and average cost for any one gateway |
-| [POST /api/v1/admin/kill-switch/symbol](#post-apiv1adminkill-switchsymbol) | Admin role | Cancel all resting exposure on one symbol |
-| [POST /api/v1/admin/kill-switch/gateway](#post-apiv1adminkill-switchgateway) | Admin role | Cancel all resting exposure for one gateway |
-| [POST /api/v1/admin/kill-switch/global](#post-apiv1adminkill-switchglobal) | Admin role | Cancel all resting exposure across every gateway and symbol |
-| [GET /api/v1/admin/indexes](#get-apiv1adminindexes) | Admin role | Return index configuration for the ADMIN UI |
+| [GET /api/v1/admin/orders/{order_id}/audit](#get-apiv1adminordersorder_idaudit) | Admin role | Return the full cross-gateway lifecycle of one order |
+| [GET /api/v1/admin/gateways/{gateway_id}/positions](#get-apiv1admingatewaysgateway_idpositions) | Admin role | Return net position and average cost for any one gateway |
+| [POST /api/v1/admin/symbols/{symbol}/cancel-orders](#post-apiv1adminsymbolssymbolcancel-orders) | Admin role | Cancel all resting exposure on one symbol |
+| [POST /api/v1/admin/gateways/{gateway_id}/kill-switch](#post-apiv1admingatewaysgateway_idkill-switch) | Admin role | Cancel all resting exposure for one gateway |
+| [POST /api/v1/admin/market/kill-switch](#post-apiv1adminmarketkill-switch) | Admin role | Cancel all resting exposure across every gateway and symbol |
 | [POST /api/v1/admin/indexes/{index_id}/rebalance](#post-apiv1adminindexesindex_idrebalance) | Admin role | Rebalance one configured index |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle in place |
 
 ### Auth and roles
 
 - Trading and admin REST requests use `Authorization: Bearer <api_key>`.
-- `gateway_id: null` credentials are read-only and may access public history
-  and reference data, but not trading or admin write endpoints.
+- `gateway_id: null` credentials are read-only and may access public data —
+  reference data, public history, `GET /session`, `GET /halts`, news and
+  company profiles — but no gateway-scoped or admin endpoint.
 - ADMIN endpoints require a credential whose resolved engine gateway role is
   `ADMIN`.
 
@@ -205,7 +205,7 @@ not exposed.
   order submit, cancel or amend with `?wait=ack`).
 - `202 Accepted` means the request was handed on and the outcome follows on a
   WebSocket: an order submit, cancel or amend without `?wait=ack`, `replace`,
-  OCO, combo and quote writes, and `POST /admin/gateways/{gid}/disconnect`.
+  OCO, combo and quote writes, and `POST /admin/gateways/{gateway_id}/disconnect`.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
@@ -496,7 +496,8 @@ sessions.  Returns identity, full reference data, live session state,
 positions, active orders, today's recent fills, and capability flags.
 
 **Access:** any valid key (read-only keys receive `gateway_role: "READ_ONLY"`,
-empty `positions`, and empty `orders`).
+empty `positions` and `orders` and `null` `recent_fills`, but `session` and
+`halts` like any key).
 
 **Query parameters**
 
@@ -524,7 +525,8 @@ empty `positions`, and empty `orders`).
   },
 
   // identical to GET /session; null if engine timed out (optional)
-  "session": { "state": "CONTINUOUS", "since": "2026-07-27T09:30:00.000Z" },
+  "session": { "state": "CONTINUOUS", "sessions_enabled": true, "next": { ... },
+               "session_timezone": "Europe/Stockholm", "session_date": "2026-07-27" },
 
   // identical to GET /positions: an engine round trip (required — 503 on failure)
   "positions": [ { "symbol": "AAPL", "net_qty": 200, "avg_cost": 208.40, "last_price": 210.25,
@@ -552,7 +554,7 @@ empty `positions`, and empty `orders`).
 engine query, for read-only keys).
 
 **Optional fields** (appear as `null` + listed in `incomplete` on failure):
-`session`, `recent_fills`.
+`session`, `recent_fills`, `halts`.
 
 **Errors**
 
@@ -582,7 +584,7 @@ All fields from `/bootstrap/trader`, plus:
   // ...trader fields...
   "gateway_role": "MARKET_MAKER",
 
-  // identical to GET /quotes/bootstrap; null if engine timed out (optional)
+  // identical to GET /quotes; null if engine timed out (optional)
   "quote_bootstrap": { "quotes": [ /* ActiveQuote[] */ ] },
 
   // identical to GET /quotes/legs; null if engine timed out (optional)
@@ -640,7 +642,7 @@ flags.
     ]
   },
 
-  // identical to GET /admin/halts response body; null if engine timed out (optional)
+  // identical to GET /halts response body; null if engine timed out (optional)
   "halts": { "halted": [ { "symbol": "AAPL", "level": "L2", ... } ] },
 
   // per-gateway active (non-terminal) order count — pure cache, never null
@@ -662,7 +664,7 @@ flags.
 
 **Optional fields:** `session`, `gateways`, `halts`.
 The `gateways` and `halts` fields are also supplied by the `monitor.snapshot`
-frame that the `WS /api/v1/admin/monitor` socket sends immediately after auth
+frame that the `WS /api/v1/ws/admin/monitor` socket sends immediately after auth
 — a partial bootstrap response is therefore recoverable without a manual retry.
 
 **Errors**
@@ -878,7 +880,7 @@ Purpose: submit an OCO pair.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | OCO accepted for processing |
+| `202 Accepted` | `{ "oco_id": "...", "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`oco.ack`) |
 
 **Errors**
 
@@ -928,7 +930,7 @@ Purpose: submit a combo order.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Combo accepted for processing |
+| `202 Accepted` | `{ "combo_id": "...", "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`combo.ack`) |
 
 **Errors**
 
@@ -981,7 +983,7 @@ Purpose: submit a two-sided market-maker quote.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | quote ack payload | Quote accepted |
+| `202 Accepted` | `{ "symbol": "...", "quote_id": "..." \| null, "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`quote.ack`) |
 
 **Errors**
 
@@ -1031,30 +1033,6 @@ Purpose: cancel all resting exposure for the caller or one symbol.
 | Status | Shape | Meaning |
 |---|---|---|
 | `200 OK` | kill-switch ack | What the engine cancelled (the call waits for the ack) |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
-
-### `POST /api/v1/kill-switch`
-
-Purpose: alias of `POST /api/v1/mass-cancel`.
-
-**Arguments**
-
-| Name | Type | Req | Description |
-|---|---|---|---|
-| `symbol` | `Symbol` | no | Optional symbol-scoped kill |
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | kill-switch ack | Same behavior as `/mass-cancel` |
 
 **Errors**
 
@@ -1142,7 +1120,9 @@ are public information.
 
 ### `GET /api/v1/session`
 
-Purpose: return the current engine session state for the caller.
+Purpose: return the venue's session phase and the locale clients render it in.
+Open to every key, read-only included. Replaces the former
+`GET /api/v1/history/session`.
 
 **Arguments**
 
@@ -1154,7 +1134,7 @@ Purpose: return the current engine session state for the caller.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | session state object | Current session state |
+| `200 OK` | `{ "state", "sessions_enabled", "next", "session_timezone", "session_date" }` | `state` and `next` come from the engine; `session_timezone` (IANA) is the exchange timezone every wall-clock time and history `date` filter is in, and `session_date` today's trading date in it |
 
 **Errors**
 
@@ -1165,12 +1145,10 @@ Purpose: return the current engine session state for the caller.
 
 ### `GET /api/v1/halts`
 
-Purpose: return the currently-halted symbols table, for any trading key
-(TRADER or MARKET_MAKER) — the admin-only `GET /api/v1/admin/halts` serves
-the identical engine query without the ADMIN-role gate, since halt state is
-not admin-only information: a trading gateway needs it at bootstrap and
-again on every market-data reconnect, or a halt missed while disconnected
-leaves a stale badge for the rest of the session.
+Purpose: return the currently-halted symbols table, for any key, read-only
+included. Halt state is public: every client needs it at bootstrap and again
+on every market-data reconnect, or a halt missed while disconnected leaves a
+stale badge for the rest of the session.
 
 **Arguments**
 
@@ -1182,7 +1160,7 @@ leaves a stale badge for the rest of the session.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }`, same shape as `GET /api/v1/admin/halts` |
+| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }` |
 
 **Errors**
 
@@ -1237,9 +1215,10 @@ Purpose: liveness probe for the API gateway.
 |---|---|
 | none | This endpoint does not require auth |
 
-### `GET /api/v1/quotes/bootstrap`
+### `GET /api/v1/quotes`
 
-Purpose: return the active market-maker quote bootstrap state.
+Purpose: return the caller's active market-maker quotes: both legs' order ids,
+sizes, remaining quantities, statuses and prices.
 
 **Arguments**
 
@@ -1251,7 +1230,7 @@ Purpose: return the active market-maker quote bootstrap state.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | quote bootstrap object | Current quote bootstrap state |
+| `200 OK` | `{ "quotes": [...] }` | The caller's active quotes |
 
 **Errors**
 
@@ -1288,7 +1267,7 @@ Purpose: return the current quote-leg state for the caller.
 Purpose: return current net positions by symbol.
 
 To query a *different* gateway's position (e.g. checking on a running
-`pm-mm-bot`), see [GET /api/v1/admin/positions](#get-apiv1adminpositions),
+`pm-mm-bot`), see [GET /api/v1/admin/gateways/{gateway_id}/positions](#get-apiv1admingatewaysgateway_idpositions),
 which requires the ADMIN role.
 
 **Arguments**
@@ -1556,32 +1535,6 @@ Purpose: return fill events for the caller gateway.
 | `READ_ONLY` | Read-only credential used |
 | `STATS_DB` | `pm-stats` database missing |
 
-### `GET /api/v1/history/session`
-
-Purpose: return the exchange's current locale — its country and the
-session timezone `pm-stats` records in — and today's trading date in that
-timezone. The timezone resolution is the same one every `date` filter on
-`/api/v1/history` uses, so a client's "today" and session clock agree with
-the `date` column of `/history/daily`. `country` is the same value
-`GET /api/v1/reference/schedule` reports.
-
-**Arguments**
-
-None.
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | `{"country": string \| null, "session_timezone": str, "session_date": Date}` | ISO 3166-1 alpha-2 country code (`null` if the engine has no config loaded), IANA timezone name (`UTC` when none was recorded), and the current trading date |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
-
 ### `GET /api/v1/history/trades`
 
 Purpose: return public trade tape rows.
@@ -1722,7 +1675,7 @@ Purpose: return intraday index snapshots.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### `GET /api/v1/history/index-ids`
+### `GET /api/v1/history/indexes`
 
 Purpose: list index ids with recorded data.
 
@@ -1804,30 +1757,6 @@ Purpose: request a session-phase transition from the engine.
 | `TRANSITION_REJECTED` | Engine rejected the transition |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `GET /api/v1/admin/session/schedule`
-
-Purpose: return the current session schedule settings.
-
-**Arguments**
-
-| Name | Type | Req | Description |
-|---|---|---|---|
-| none | — | — | No query parameters |
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | schedule object | Current schedule and session enablement |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
-
 ### `GET /api/v1/admin/gateways`
 
 Purpose: list configured gateways and live connection state.
@@ -1852,7 +1781,7 @@ Purpose: list configured gateways and live connection state.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/gateways/{gid}/disconnect`
+### `POST /api/v1/admin/gateways/{gateway_id}/disconnect`
 
 Purpose: forcibly disconnect one gateway.
 
@@ -1860,8 +1789,8 @@ Purpose: forcibly disconnect one gateway.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `gid` | `GatewayId` | yes (path) | Gateway to disconnect |
-| `reason` | `Str` | no | Optional note |
+| `gateway_id` | `GatewayId` | yes (path) | Gateway to disconnect (case-insensitive) |
+| `reason` | `Str` | no | Body, optional: note recorded in the engine log (default `admin disconnect`) |
 
 **Reply**
 
@@ -1877,15 +1806,16 @@ Purpose: forcibly disconnect one gateway.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/circuit-breaker/trigger`
+### `POST /api/v1/admin/symbols/{symbol}/halt`
 
-Purpose: halt one symbol through the engine's circuit-breaker path.
+Purpose: halt one symbol through the engine's circuit-breaker path. The body
+is optional.
 
 **Arguments**
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `symbol` | `Symbol` | yes | Symbol to halt |
+| `symbol` | `Symbol` | yes (path) | Symbol to halt (case-insensitive) |
 | `level` | `Str` | no | A rung of the symbol's ladder; omit for an indefinite halt until resumed |
 | `reason` | `Str` | no | Optional note |
 
@@ -1906,7 +1836,7 @@ Purpose: halt one symbol through the engine's circuit-breaker path.
 | `HALT_REJECTED` | Engine refused (unknown symbol, no circuit breaker, unknown level); `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/circuit-breaker/resume`
+### `POST /api/v1/admin/symbols/{symbol}/resume`
 
 Purpose: resume one halted symbol.
 
@@ -1914,8 +1844,8 @@ Purpose: resume one halted symbol.
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `symbol` | `Symbol` | yes | Symbol to resume |
-| `reason` | `Str` | no | Optional note |
+| `symbol` | `Symbol` | yes (path) | Symbol to resume (case-insensitive) |
+| `reason` | `Str` | no | Body, optional: note for the audit log |
 
 **Reply**
 
@@ -1931,30 +1861,6 @@ Purpose: resume one halted symbol.
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `RESUME_REJECTED` | Engine refused (for example the symbol is not halted); `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
-
-### `GET /api/v1/admin/halts`
-
-Purpose: return the current active halts table.
-
-**Arguments**
-
-| Name | Type | Req | Description |
-|---|---|---|---|
-| none | — | — | No query parameters |
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }` |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/risk/state`
@@ -2006,7 +1912,7 @@ Purpose: return the cross-gateway active-order table.
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
 
-### `GET /api/v1/admin/orders/{order_id}`
+### `GET /api/v1/admin/orders/{order_id}/audit`
 
 Purpose: return the full cross-gateway lifecycle of one order.
 
@@ -2032,15 +1938,13 @@ Purpose: return the full cross-gateway lifecycle of one order.
 | `AUDIT_INDEX_UNAVAILABLE` | No audit index available |
 | `UNKNOWN_ORDER` | No audited events for the order |
 
-### `GET /api/v1/admin/positions`
+### `GET /api/v1/admin/gateways/{gateway_id}/positions`
 
 Purpose: return net position and average cost for *any one* gateway (not
 just the caller's own) -- the admin counterpart to
-[GET /api/v1/positions](#get-apiv1positions). Distinct in two ways: it can
-target any `gateway_id`, and it is a live engine round trip against the
-engine's authoritative VWAP ledger, so unlike `/positions` (own gateway,
-local cache) the reply carries `avg_cost` as well as `net_qty`. It is the
-REST equivalent of `pm-alf-console`'s and `pm-alf-gwy`'s `POS|GW=<gateway_id>`
+[GET /api/v1/positions](#get-apiv1positions), which serves the same engine
+round trip for the caller enriched with prices and P&L. It is the REST
+equivalent of `pm-alf-console`'s and `pm-alf-gwy`'s `POS|GW=<gateway_id>`
 command -- all three read the same `system.position_request` /
 `system.position_snapshot.<gateway_id>` pair, so they always agree.
 
@@ -2048,7 +1952,7 @@ command -- all three read the same `system.position_request` /
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `gateway_id` | `GatewayId` | yes | Gateway to query (any gateway, not just the caller's) |
+| `gateway_id` | `GatewayId` | yes (path) | Gateway to query (any gateway, case-insensitive) |
 
 **Reply**
 
@@ -2064,16 +1968,16 @@ command -- all three read the same `system.position_request` /
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/kill-switch/symbol`
+### `POST /api/v1/admin/symbols/{symbol}/cancel-orders`
 
-Purpose: cancel all resting exposure on one symbol.
+Purpose: cancel all resting exposure on one symbol, across every gateway.
 
 **Arguments**
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `symbol` | `Symbol` | yes | Symbol to cancel |
-| `reason` | `Str` | no | Optional note |
+| `symbol` | `Symbol` | yes (path) | Symbol to clear (case-insensitive) |
+| `reason` | `Str` | no | Body, optional: note for the audit log |
 
 **Reply**
 
@@ -2091,16 +1995,17 @@ Purpose: cancel all resting exposure on one symbol.
 | `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/kill-switch/gateway`
+### `POST /api/v1/admin/gateways/{gateway_id}/kill-switch`
 
-Purpose: cancel all resting exposure for one target gateway.
+Purpose: cancel all resting exposure for one target gateway, without
+disconnecting it.
 
 **Arguments**
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `target_gateway_id` | `GatewayId` | yes | Gateway to cancel |
-| `reason` | `Str` | no | Optional note |
+| `gateway_id` | `GatewayId` | yes (path) | Gateway whose orders and quotes to cancel (case-insensitive) |
+| `reason` | `Str` | no | Body, optional: note for the audit log |
 
 **Reply**
 
@@ -2118,7 +2023,7 @@ Purpose: cancel all resting exposure for one target gateway.
 | `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### `POST /api/v1/admin/kill-switch/global`
+### `POST /api/v1/admin/market/kill-switch`
 
 Purpose: cancel all resting exposure across every gateway and symbol.
 
@@ -2143,29 +2048,6 @@ Purpose: cancel all resting exposure across every gateway and symbol.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
-
-### `GET /api/v1/admin/indexes`
-
-Purpose: return index configuration for the ADMIN UI.
-
-**Arguments**
-
-| Name | Type | Req | Description |
-|---|---|---|---|
-| none | — | — | No query parameters |
-
-**Reply**
-
-| Status | Shape | Meaning |
-|---|---|---|
-| `200 OK` | `{ "indexes": [...], "config_version": "..." }` | Static index definitions |
-
-**Errors**
-
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
 
 ### `POST /api/v1/admin/indexes/{index_id}/rebalance`
 
@@ -2229,7 +2111,7 @@ Purpose: reload the compiled reference bundle in place.
   `orders.snapshot` frame, and `GET /api/v1/admin/orders`.
 - `market_data_cache_sec` bounds the market-data stream cache that backs the
   snapshot-on-subscribe, `snapshot`, and `resume` controls on
-  `WS /api/v1/market-data` (latest `book`/`depth`/`auction` snapshots are kept
+  `WS /api/v1/ws/market-data` (latest `book`/`depth`/`auction` snapshots are kept
   regardless of age; only the `trades` tail is bounded).
 - WebSocket streams use the chapter-level contracts in
   [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md); this appendix is REST

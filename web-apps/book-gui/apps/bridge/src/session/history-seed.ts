@@ -36,11 +36,11 @@ export class HistoryClient {
 
   /** The timezone pm-stats records in, and today's trading date in it. */
   async session(): Promise<{ timezone: string; date: string }> {
-    const body = await this.get("/api/v1/history/session");
+    const body = await this.get("/api/v1/session");
     const timezone = body["session_timezone"];
     const date = body["session_date"];
     if (typeof timezone !== "string" || typeof date !== "string") {
-      throw new HistoryError("malformed /history/session reply");
+      throw new HistoryError("malformed /session reply");
     }
     return { timezone, date };
   }

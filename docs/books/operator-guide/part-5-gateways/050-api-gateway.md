@@ -27,8 +27,8 @@ requests into the same engine ZMQ/JSON messages used by the interactive
 flowchart LR
     UI[Trading UI] -->|REST /api/v1| API[pm-api-gwy]
     BOT[Bot] -->|REST /api/v1| API
-  UI -->|WS /api/v1/events| API
-  DASH[Dashboard] -->|WS /api/v1/market-data| API
+  UI -->|WS /api/v1/ws/private| API
+  DASH[Dashboard] -->|WS /api/v1/ws/market-data| API
     API -->|ZMQ PUSH :5555| ENG[pm-engine]
     ENG -->|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] -->|read-only history| API
@@ -55,7 +55,7 @@ api_gateways:
     swagger_enabled: true
     log_level: info
     stats_db: data/stats.db
-    # pm-audit's index, read-only, for GET /admin/orders/{order_id}.
+    # pm-audit's index, read-only, for GET /admin/orders/{order_id}/audit.
     # Optional: without it that one endpoint returns 503 and nothing else
     # is affected.
     audit_db: data/audit_index.db
@@ -97,7 +97,7 @@ api_gateways:
 | `credentials[].api_key` | Bearer token clients use for REST and WebSocket auth |
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
-| `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}`. Optional |
+| `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}/audit`. Optional |
 | `clearing_db` | `pm-clearing`'s ledger, read-only, for the session/MTD/YTD realized P&L on `/positions`. Optional: without it those three fields report `null` |
 | `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
 | `market_data_cache_sec` | Seconds the market-data cache retains the per-symbol `trades` tail for WS snapshot/resume (default `60`; latest book/depth/auction snapshots are kept regardless of age; `0` disables the trade buffer) |
@@ -294,7 +294,7 @@ For strict endpoint-by-endpoint access rules, see
 | `VALIDATION` | `400` | Malformed request body, query parameter or history filter (date, cursor, `event_type`); `field` names it. Includes a price that is not on the instrument's tick grid, which carries `reject_code: TICK_VIOLATION` — see [Tick precision](#tick-precision) |
 | `SYMBOLS_NOT_READY` | `503` | An order-entry request arrived before the engine's symbol metadata reached this gateway. Carries `reject_code: SYMBOL_NOT_READY`; retry shortly — see [Tick precision](#tick-precision) |
 | `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
-| `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
+| `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}/audit` |
 | `NOT_FOUND` | `404` | No such path |
 | `UNKNOWN_ORDER` | `404` | Order id unknown to this gateway (`GET /orders/{id}`), or no audited events for it (`GET /admin/orders/{id}`) |
 | `METHOD_NOT_ALLOWED` | `405` | The path exists, but not for this method |
@@ -338,29 +338,27 @@ Base path: `/api/v1`.
 | `POST`   | `/quotes`                    | trading       | Submit two-sided quote               |
 | `DELETE` | `/quotes/{symbol}`           | trading       | Cancel quote for symbol              |
 | `POST`   | `/mass-cancel`               | trading       | Cancel all or symbol-scoped exposure |
-| `POST`   | `/kill-switch`               | trading       | Alias of `/mass-cancel`              |
 | `GET`    | `/symbols`                   | trading       | Instrument metadata                  |
-| `GET`    | `/session`                   | trading       | Current engine session state         |
+| `GET`    | `/session`                   | any valid key | Session phase, exchange timezone and today's trading date |
 | `GET`    | `/reference`                 | any valid key | Full compiled reference-data bundle  |
 | `GET`    | `/reference/config-version`  | any valid key | Content-hash version of reference data |
 | `GET`    | `/reference/symbols`         | any valid key | Tick sizes, risk level, collar/circuit-breaker config per symbol |
 | `GET`    | `/reference/risk`            | any valid key | Risk level definitions and the default level |
 | `GET`    | `/reference/indexes`         | any valid key | Configured exchange index definitions |
 | `GET`    | `/reference/schedule`        | any valid key | Session schedule, `sessions_enabled`, `country` |
-| `GET`    | `/quotes/bootstrap`          | trading       | Active quote bootstrap state         |
+| `GET`    | `/quotes`                    | trading       | The caller's active quotes           |
 | `GET`    | `/quotes/legs`               | trading       | Quote leg state                      |
 | `GET`    | `/positions`                 | trading       | Net positions by symbol              |
 | `GET`    | `/status`                    | trading       | Gateway cache summary                |
 | `GET`    | `/history/orders`            | trading       | Historical order lifecycle events    |
 | `GET`    | `/history/orders/{order_id}` | trading       | Full lifecycle for one order         |
 | `GET`    | `/history/fills`             | trading       | Historical fills                     |
-| `GET`    | `/history/session`           | any valid key | Session timezone and current trading date |
 | `GET`    | `/history/trades`            | any valid key | Public trade log                     |
 | `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
 | `GET`    | `/history/price-snapshots`   | any valid key | Intraday instrument mid/bid/ask time series |
 | `GET`    | `/history/index-daily`       | any valid key | Daily index OHLC rows                |
 | `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
-| `GET`    | `/history/index-ids`         | any valid key | Index IDs with recorded statistics   |
+| `GET`    | `/history/indexes`           | any valid key | Index IDs with recorded statistics   |
 | `GET`    | `/history/index-events`      | any valid key | Index structural/audit log (live pm-index round-trip) |
 | `GET`    | `/bootstrap/trader`          | any valid key | One-request TRADER/MM/ADMIN startup payload          |
 | `GET`    | `/bootstrap/mm`              | MARKET\_MAKER | One-request MARKET\_MAKER startup payload (adds quote state) |
@@ -497,13 +495,13 @@ different from `client_tag`, which identifies the original order.
 | Endpoint | Returns | Notes |
 |---|---|---|
 | `GET /orders` | `{ "orders": [...] }` | The caller's orders as the engine holds them (resting plus recently finished); `503 ENGINE_TIMEOUT` if the engine does not answer — there is no silent fallback to the gateway's cache |
-| `GET /orders/{order_id}` | The cached order dict for `order_id` | Read-only, served entirely from the gateway's local cache (no engine round-trip); returns `404` with a plain `{"detail": "Unknown order"}` body if not found — **not** the `{"error": {...}}` envelope used by every other error response in this gateway |
+| `GET /orders/{order_id}` | The cached order dict for `order_id` | Read-only, served entirely from the gateway's local cache (no engine round-trip); `404 UNKNOWN_ORDER` if not found |
 | `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
-| `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
-| `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
+| `GET /session` | `{ "state", "sessions_enabled", "next", "session_timezone", "session_date" }` | Phase from the engine's `system.session_status` reply, plus the exchange timezone (compiled config `locale.session_timezone`, the zone every history `date` filter uses) and today's trading date in it. Any key, read-only included |
+| `GET /quotes` | `{ "quotes": [...] }` | The caller's active market-maker quotes, round-tripped from the engine |
 | `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated — in which case only `legs` is present, `recent`/`show_requested`/`complete` are omitted entirely — otherwise round-tripped from the engine, which returns all four fields |
-| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
-| `GET /halts` | `{ "halted": [{symbol, resume_at_ns?, level?, ...}] }` | Same engine query as `GET /admin/halts` (`system.halt_status_request`), without the ADMIN-role gate — any trading credential can call it. Used at bootstrap and on market-data reconnect |
+| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/gateways/{gateway_id}/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
+| `GET /halts` | `{ "halted": [{symbol, resume_at_ns?, level?, ...}] }` | `system.halt_status_request`; any key, read-only included. Used at bootstrap and on market-data reconnect |
 
 All of the round-tripped endpoints above return `503` with error code
 `ENGINE_TIMEOUT` if the engine doesn't reply within `timeouts.engine_reply_sec`.
@@ -619,9 +617,9 @@ section below.
 
 `/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
 a trading credential and are scoped to that credential's `gateway_id` — they
-only ever return that gateway's own orders. `/history/session`,
-`/history/trades`, `/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
-`/history/index-snapshots`, `/history/index-ids`, and `/history/index-events`
+only ever return that gateway's own orders. `/history/trades`,
+`/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
+`/history/index-snapshots`, `/history/indexes`, and `/history/index-events`
 are public market data: any valid API key works, including read-only keys
 with no `gateway_id`.
 
@@ -630,13 +628,12 @@ with no `gateway_id`.
 | `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN`, `EVENT` — `400` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
-| `GET /history/session` | none | `{"country": "SE", "session_timezone": "Europe/Stockholm", "session_date": "2026-06-14"}` — the exchange's current locale and today's trading date in the recorded session timezone, resolved exactly as every `date` filter here resolves them (`country` is the same value `GET /reference/schedule` reports). Use it for a client's "today" and session clock |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
 | `GET /history/daily` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Omitting every time filter returns the latest available date; `from`/`to` (inclusive, dates not timestamps) return a series across days, oldest first |
 | `GET /history/price-snapshots` | `symbol` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday mid/bid/ask ticks (15-minute recording interval); unlike `/trades`/`/daily` there is no "all symbols" mode |
 | `GET /history/index-daily` | `index_id`, `date`, `from`, `to`, `limit`, `after` | Same shape as `/daily` but for exchange indexes, including the `from`/`to` range |
 | `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
-| `GET /history/index-ids` | `date` | List of index IDs with recorded data; unpaginated |
+| `GET /history/indexes` | `date` | List of index IDs with recorded data; unpaginated |
 | `GET /history/index-events` | `index_id` (**required**), `from`, `to`, `types`, `max_records` | Structural/audit log; live round-trip to `pm-index`, not `pm-stats` — see below |
 
 #### Daily rollups: one date, or a series
@@ -682,7 +679,7 @@ stable contract and may change between releases.
 
 !!! note "Pagination exceptions"
     Three endpoints do not follow the `count`/`has_more`/`next_cursor` contract
-    above: `GET /history/index-ids` and `GET /history/index-events` are each
+    above: `GET /history/indexes` and `GET /history/index-events` are each
     documented separately below as intentionally unbounded/unpaginated.
     `GET /history/orders/{order_id}` is also unbounded — it returns
     `{ "events": [...], "count": N }` with **no `has_more` and no pagination at
@@ -715,7 +712,7 @@ returns the next two trades, and so on until a response comes back with
 `has_more: false` and no `next_cursor`. A malformed or expired-schema
 `after` value returns `400` with error code `VALIDATION` and `field: "after"`.
 
-`/history/index-ids` has no `limit`/`after` — the number of distinct
+`/history/indexes` has no `limit`/`after` — the number of distinct
 exchange indexes is always small (EduMatcher caps this at 5 per config
 file), so it is intentionally unbounded and unpaginated.
 
@@ -784,7 +781,7 @@ Authorization: Bearer key-readonly-demo
 ```
 
 ```http
-GET /api/v1/history/index-ids
+GET /api/v1/history/indexes
 Authorization: Bearer key-readonly-demo
 ```
 
@@ -884,8 +881,8 @@ With a bootstrap endpoint the login sequence becomes:
 1. `GET /api/v1/bootstrap/<role>` — one HTTP request with parallel internal
    engine queries; populates identity, reference data, session state, orders,
    positions, and capability flags before any WebSocket opens.
-2. Open WebSockets in parallel — `/events`, `/market-data`, and (ADMIN)
-   `/admin/monitor` — all of which can start immediately because
+2. Open WebSockets in parallel — `/ws/private`, `/ws/market-data`, and (ADMIN)
+   `/ws/admin/monitor` — all of which can start immediately because
    `gateway_id` and `gateway_role` are already known from step 1.
 
 For the full response shapes and error codes see
@@ -907,21 +904,18 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 
 | Method | Path                              | Request body (POST) / query params (GET)    | Response                                        | Engine topic                |
 |--------|-----------------------------------|---------------------------------------------|-------------------------------------------------|-----------------------------|
-| `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"PENDING" }`| `session.transition`        |
-| `GET`  | `/admin/session/schedule`         | none                                        | `{ "sessions_enabled":..., "schedule":{...} }`  | `system.session_schedule_request` |
+| `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"APPLIED", "command_id":... }` | `session.transition`        |
 | `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
-| `POST` | `/admin/gateways/{gid}/disconnect`| none                                        | `202 { "gateway_id":..., "status":"PENDING_DISCONNECT" }` (not awaited) | `system.gateway_disconnect` |
-| `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": "L1", "reason":null }` | engine halt ack                         | `risk.symbol_halt`          |
-| `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
-| `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
+| `POST` | `/admin/gateways/{gateway_id}/disconnect` | `{ "reason":null }` (optional)      | `202 { "gateway_id":..., "status":"PENDING_DISCONNECT" }` (not awaited) | `system.gateway_disconnect` |
+| `POST` | `/admin/gateways/{gateway_id}/kill-switch` | `{ "reason":null }` (optional)     | engine gateway-targeted kill-switch ack         | `risk.kill_switch_gateway`  |
+| `GET`  | `/admin/gateways/{gateway_id}/positions` | none                                 | `{ "gateway_id":..., "count":N, "positions":[{symbol,net_qty,avg_cost}] }` | `system.position_request` |
+| `POST` | `/admin/symbols/{symbol}/halt`    | `{ "level": "L1", "reason":null }` (optional) | engine halt ack                               | `risk.symbol_halt`          |
+| `POST` | `/admin/symbols/{symbol}/resume`  | `{ "reason":null }` (optional)              | engine resume ack                               | `risk.symbol_resume`        |
+| `POST` | `/admin/symbols/{symbol}/cancel-orders` | `{ "reason":null }` (optional)        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+| `POST` | `/admin/market/kill-switch`       | `{ "reason":null }` (optional)              | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
 | `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
-| `GET`  | `/admin/positions`                | `?gateway_id=`                              | `{ "gateway_id":..., "count":N, "positions":[{symbol,net_qty,avg_cost}] }` | `system.position_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
-| `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
-| `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL", "reason":null }`        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
-| `POST` | `/admin/kill-switch/gateway`      | `{ "target_gateway_id":"TRADER02", "reason":null }` | engine gateway-targeted kill-switch ack | `risk.kill_switch_gateway`  |
-| `POST` | `/admin/kill-switch/global`       | `{ "reason":null }`                         | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
-| `GET`  | `/admin/indexes`                  | none                                        | `{ "indexes":[{id,description,base_value,constituents}], "config_version":... }` | none — reuses the reference-data bundle |
+| `GET`  | `/admin/orders/{order_id}/audit`  | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/indexes/{id}/rebalance`   | `{ "updates":[{"symbol":"AAPL","new_shares_outstanding":123}] }` | pm-index rebalance ack | `index.rebalance` (pm-index, not the engine) |
 | `POST` | `/admin/reference/reload`         | none                                         | `{ "status":"RELOADED", "config_version":... }` | `system.reference_reload`   |
 
@@ -939,47 +933,47 @@ Behaviour notes:
   symbol, a symbol that is not halted) the gateway returns `409` with a
   command-specific code — `HALT_REJECTED`, `RESUME_REJECTED` or
   `KILL_SWITCH_REJECTED` — and the engine's reason as `message`.
-- `POST /admin/circuit-breaker/trigger`'s `level`, when it names one of the
+- `POST /admin/symbols/{symbol}/halt`'s `level`, when it names one of the
   symbol's configured `circuit_breaker.levels`, runs the halt through the same
   activation a price-triggered breaker uses — a real `resume_at_ns` and ACE
   reopening corridor, picked up automatically on the next resume tick. Omit
   it (or leave it `null`) for the previous behaviour: an indefinite halt
-  cleared only by an explicit `POST /admin/circuit-breaker/resume`. An
+  cleared only by an explicit `POST /admin/symbols/{symbol}/resume`. An
   unrecognized level name, or a level on a symbol with no circuit breaker
   configured, is rejected.
-- The circuit-breaker, kill-switch, and rebalance endpoints accept an
-  optional `reason` field — a free-text note. For the engine-backed
-  endpoints (everything except rebalance) it is carried through to the
+- The target of every admin action is a path segment —
+  `/admin/symbols/{symbol}/...`, `/admin/gateways/{gateway_id}/...`,
+  `/admin/market/...` — case-insensitive. The body is optional and carries only
+  `reason` (plus `level` on a halt): a free-text note carried through to the
   corresponding [`admin.action` monitor event](#adminaction-monitor-events)
-  under the key `note`; it is not otherwise interpreted by the engine or
-  `pm-index`.
+  under the key `note` (a disconnect's goes to the engine log); it is not
+  otherwise interpreted.
 - Write endpoints (`POST`) are subject to the same per-key write rate limit as
   order entry and return `429` when the limit is exceeded.
 - Requests that receive no engine reply within the configured timeout return
-  `503` with error code `ENGINE_TIMEOUT` (or `INDEX_TIMEOUT` for the two
-  `pm-index`-backed endpoints, `/admin/indexes` and
-  `/admin/indexes/{id}/rebalance`).
+  `503` with error code `ENGINE_TIMEOUT` (or `INDEX_TIMEOUT` for the
+  `pm-index`-backed `/admin/indexes/{id}/rebalance`).
 
-### `POST /admin/kill-switch/gateway` and `/admin/kill-switch/global`
+### `POST /admin/gateways/{gateway_id}/kill-switch` and `/admin/market/kill-switch`
 
-Two admin-only kill-switch scopes beyond the existing self-service
-`POST /kill-switch` (caller's own gateway) and `POST /admin/kill-switch/symbol`
-(one symbol, every gateway):
+Two admin-only kill-switch scopes beyond the self-service `POST /mass-cancel`
+(caller's own gateway) and `POST /admin/symbols/{symbol}/cancel-orders` (one
+symbol, every gateway):
 
-- **`/admin/kill-switch/gateway`** cancels every resting order and quote
-  belonging to `target_gateway_id`, across every symbol. Unlike
-  `POST /kill-switch`, the caller (must hold the ADMIN role) and the affected
-  gateway are different participants.
-- **`/admin/kill-switch/global`** is the full-market emergency stop: every
+- **`/admin/gateways/{gateway_id}/kill-switch`** cancels every resting order
+  and quote belonging to that gateway, across every symbol, without
+  disconnecting it. Unlike `POST /mass-cancel`, the caller (must hold the
+  ADMIN role) and the affected gateway are different participants.
+- **`/admin/market/kill-switch`** is the full-market emergency stop: every
   resting order and quote, for every gateway, across every symbol, cancelled
-  outright. This is distinct from `POST /admin/circuit-breaker/trigger`
+  outright. This is distinct from `POST /admin/symbols/{symbol}/halt`
   applied symbol-by-symbol, or from a global circuit-breaker halt — those
   stop *trading*, while resting orders remain; this cancels the resting
   exposure itself. The response includes `affected_gateways`, the count of
   distinct gateways that had something cancelled.
 
-Both return `409` with the engine's `reason` if rejected (for example,
-`target_gateway_id` missing, or the caller lacks the ADMIN role).
+Both return `409 KILL_SWITCH_REJECTED` with the engine's reason as `message`
+if the engine refuses.
 
 ### `GET /admin/risk/state`
 
@@ -1011,25 +1005,24 @@ either configured, halted or not:
 
 This is distinct from [`GET /reference/risk`](#reference-data) (static,
 named risk-level definitions shared across symbols) and from
-`GET /admin/halts` (only the symbols currently halted, without the
+`GET /halts` (only the symbols currently halted, without the
 non-halted reference/reopening detail). Use `/admin/risk/state` when you need
 to see where a symbol's breaker actually stands right now, not just whether
 it has fired.
 
 ### Index administration (`pm-index` bridge)
 
-`GET /admin/indexes` and `POST /admin/indexes/{id}/rebalance` are the one
-place in this router that talks to `pm-index` instead of the engine — over
+`POST /admin/indexes/{id}/rebalance` is the one place in this router that
+talks to `pm-index` instead of the engine — over
 its own ZMQ PULL/PUB pair, the same one
 [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) uses for corporate actions and
 constituent changes. Live symbol add/update on the engine and full corporate
 actions/constituent changes on `pm-index` remain **not** exposed here — see
 the note below.
 
-`GET /admin/indexes` returns the same static configuration as
-[`GET /reference/indexes`](#reference-data) (id, description, base_value,
-constituents) — not live level/divisor. For the current level, use
-[`GET /history/index-daily`](#history-endpoints).
+The configured indexes (id, description, base_value, constituents — not live
+level/divisor) are [`GET /reference/indexes`](#reference-data); for the
+current level, use [`GET /history/index-daily`](#history-endpoints).
 
 `POST /admin/indexes/{id}/rebalance` applies a batch shares-outstanding
 update to existing constituents — each entry in `updates` mirrors the
@@ -1085,7 +1078,7 @@ or remove constituents or an index's symbol set — that remains
 
 Every admin-gated **engine** command above — circuit-breaker trigger/resume
 and all three kill-switch scopes — publishes one `admin.action` event on the
-[`/api/v1/admin/monitor`](#websocket-endpoints) WebSocket in addition to
+[`/api/v1/ws/admin/monitor`](#websocket-endpoints) WebSocket in addition to
 (never instead of) its own REST response. This gives a monitor client one
 uniform shape to watch regardless of which command ran, rather than needing
 to know each command's own ack shape:
@@ -1138,7 +1131,7 @@ stream, regardless of which gateway initiated it.
     Its own REST response (and `pm-index`'s append-only structural history,
     a `REBALANCE` record readable via `GET /history/index-events`) is
     currently the only record of it — it does not appear on
-    `/api/v1/admin/monitor`.
+    `/api/v1/ws/admin/monitor`.
 
 ### Extended `GET /status`
 
@@ -1151,7 +1144,7 @@ fields. When the caller holds the ADMIN role, the response also includes
 ## Cross-gateway admin views
 
 !!! warning "These endpoints read `pm-audit`'s database"
-    `GET /admin/orders/{order_id}` opens **`audit_index.db` read-only**. This
+    `GET /admin/orders/{order_id}/audit` opens **`audit_index.db` read-only**. This
     is the only place the API gateway reads a store it does not own, and it
     exists so the REST API can be a single stop rather than sending an
     operator to `pm-audit-cli` for order history.
@@ -1192,7 +1185,7 @@ gateway whose events pass through it.
 `gateway_id` is added on the way out — order payloads do not carry it, it is
 the cache key.
 
-### `GET /api/v1/admin/orders/{order_id}`
+### `GET /api/v1/admin/orders/{order_id}/audit`
 
 The complete cross-gateway lifecycle of one order, in timestamp order, read
 from the audit index.
@@ -1232,13 +1225,17 @@ then grows for the lifetime of the process.
 
 ## WebSocket endpoints
 
-| Path                   | Purpose                                                        | First message                         |
-|------------------------|----------------------------------------------------------------|---------------------------------------|
-| `/api/v1/events`       | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
-| `/api/v1/market-data`  | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
-| `/api/v1/admin/monitor`| ADMIN-only cross-gateway monitor feed (all events)             | `{ "api_key": "key-admin-demo" }`     |
+Every socket lives under `/api/v1/ws/`, so a reverse proxy can route upgrades by
+that one prefix.
 
-The `/api/v1/admin/monitor` stream requires an ADMIN-role gateway. After
+| Path                       | Purpose                                                        | First message                         |
+|----------------------------|----------------------------------------------------------------|---------------------------------------|
+| `/api/v1/ws/private`       | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
+| `/api/v1/ws/market-data`   | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
+| `/api/v1/ws/admin/monitor` | ADMIN-only cross-gateway monitor feed (all events)             | `{ "api_key": "key-admin-demo" }`     |
+| `/api/v1/ws/admin/sim`     | ADMIN-only `pm-market-sim` true values and heartbeat           | `{ "api_key": "key-admin-demo" }`     |
+
+The `/api/v1/ws/admin/monitor` stream requires an ADMIN-role gateway. After
 authentication it sends `{ "type": "authenticated" }`, then a
 `monitor.snapshot`, and then streams every engine event (order, fill, cancel,
 session, and circuit-breaker) across all gateways. Non-admin keys receive an
@@ -1279,7 +1276,7 @@ in the window while the snapshot still looked complete.
     be strictly weaker than what already exists — the audit trail is the
     durable, complete, indexed cross-gateway event log, and it survives
     restarts. Use `monitor.snapshot` for current state and
-    [`GET /admin/orders/{order_id}`](#get-apiv1adminordersorder_id) or
+    [`GET /admin/orders/{order_id}/audit`](#get-apiv1adminordersorder_idaudit) or
     `pm-audit-cli` for history.
 
 ### The event envelope
@@ -1488,7 +1485,7 @@ to the command that caused it without this endpoint's help.
 
 ### Private event recovery
 
-`/api/v1/events` is designed so a reconnecting client needs one socket and no
+`/api/v1/ws/private` is designed so a reconnecting client needs one socket and no
 REST calls to get back to a correct view.
 
 After authentication the gateway sends two frames, in this order:
@@ -1702,7 +1699,7 @@ Rejections arrive as a `resume.rejected` envelope rather than silently:
     [history endpoints](#history-endpoints).
 
 !!! warning "This does not exist for private events"
-    `/api/v1/events` keeps no replay buffer — see
+    `/api/v1/ws/private` keeps no replay buffer — see
     [Private event recovery](#private-event-recovery). Market data can offer
     `resume` because `book`/`depth`/`auction` are self-healing snapshots and
     the `trades` tail is cheap to retain; private order state is recovered in
@@ -1783,7 +1780,7 @@ created and populated the configured database.
 4. Open `/docs` if Swagger is enabled
 5. Test `GET /api/v1/healthz` (no auth required) — returns `200 {"ok": true}` when the engine listener is running, `503 {"ok": false}` otherwise
 6. Test `GET /api/v1/status` with a bearer token
-7. Connect `/api/v1/events` before submitting orders if you want async outcomes
+7. Connect `/api/v1/ws/private` before submitting orders if you want async outcomes
 8. Use `/history/*` only when `pm-stats` is running and writing `stats.db`
 
 
@@ -1909,14 +1906,14 @@ Test WebSocket connectivity:
 
 ```bash
 # websocat (brew install websocat / apt install websocat)
-websocat ws://127.0.0.1:8080/api/v1/market-data
+websocat ws://127.0.0.1:8080/api/v1/ws/market-data
 
 # curl — look for HTTP 101 Switching Protocols in the response headers
 curl -v --no-buffer \
      -H "Connection: Upgrade" -H "Upgrade: websocket" \
      -H "Sec-WebSocket-Version: 13" \
      -H "Sec-WebSocket-Key: dGhlc2FtcGxla2V5" \
-     http://127.0.0.1:8080/api/v1/market-data
+     http://127.0.0.1:8080/api/v1/ws/market-data
 ```
 
 ### Common problems
@@ -1931,8 +1928,8 @@ curl -v --no-buffer \
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
 | History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
-| `GET /admin/orders/{order_id}` returns `503 AUDIT_INDEX_UNAVAILABLE` | `pm-audit` not deployed, or its index not built | Start `pm-audit` and run `pm-audit-cli index`; check `audit_db`. Every other endpoint is unaffected |
-| An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}` for its history |
+| `GET /admin/orders/{order_id}/audit` returns `503 AUDIT_INDEX_UNAVAILABLE` | `pm-audit` not deployed, or its index not built | Start `pm-audit` and run `pm-audit-cli index`; check `audit_db`. Every other endpoint is unaffected |
+| An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}/audit` for its history |
 | `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |
 
@@ -1974,7 +1971,6 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `POST /api/v1/quotes` | Submit two-sided quote |
 | `DELETE /api/v1/quotes/{symbol}` | Cancel quote |
 | `POST /api/v1/mass-cancel` | Cancel symbol or all exposure |
-| `POST /api/v1/kill-switch` | Alias of mass-cancel |
 | `GET /api/v1/symbols` | Instrument metadata |
 | `GET /api/v1/session` | Current session state |
 | `GET /api/v1/halts` | Currently-halted symbols (trading credential; same data as the admin endpoint, no role gate) |
@@ -2005,13 +2001,12 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `GET /api/v1/history/orders` | Order lifecycle list |
 | `GET /api/v1/history/orders/{order_id}` | One order's full lifecycle |
 | `GET /api/v1/history/fills` | Fill history |
-| `GET /api/v1/history/session` | Session timezone and trading date |
 | `GET /api/v1/history/trades` | Public trade tape |
 | `GET /api/v1/history/daily` | Daily OHLCV rows |
 | `GET /api/v1/history/price-snapshots` | Intraday price snapshots |
 | `GET /api/v1/history/index-daily` | Daily index rows |
 | `GET /api/v1/history/index-snapshots` | Intraday index snapshots |
-| `GET /api/v1/history/index-ids` | Index ids with data |
+| `GET /api/v1/history/indexes` | Index ids with data |
 | `GET /api/v1/history/index-events` | Index structural/audit log |
 
 ### Admin REST
@@ -2021,29 +2016,27 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | Endpoint | Use |
 |---|---|
 | `POST /api/v1/admin/session/transition` | Change session phase |
-| `GET /api/v1/admin/session/schedule` | Read schedule settings |
 | `GET /api/v1/admin/gateways` | List gateways |
-| `POST /api/v1/admin/gateways/{gid}/disconnect` | Kick a gateway |
-| `POST /api/v1/admin/circuit-breaker/trigger` | Halt a symbol |
-| `POST /api/v1/admin/circuit-breaker/resume` | Resume a symbol |
-| `GET /api/v1/admin/halts` | Active halts table |
-| `GET /api/v1/admin/positions` | Any gateway's positions (net qty + avg cost); distinct from `GET /positions`, which is own-gateway only and has no avg_cost |
+| `POST /api/v1/admin/gateways/{gateway_id}/disconnect` | Kick a gateway |
+| `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` | Kill one gateway's orders |
+| `GET /api/v1/admin/gateways/{gateway_id}/positions` | Any gateway's positions (net qty + avg cost) |
+| `POST /api/v1/admin/symbols/{symbol}/halt` | Halt a symbol |
+| `POST /api/v1/admin/symbols/{symbol}/resume` | Resume a symbol |
 | `GET /api/v1/admin/risk/state` | Live risk state |
 | `GET /api/v1/admin/orders` | Cross-gateway active orders |
-| `GET /api/v1/admin/orders/{order_id}` | Cross-gateway order lifecycle |
-| `POST /api/v1/admin/kill-switch/symbol` | Kill one symbol |
-| `POST /api/v1/admin/kill-switch/gateway` | Kill one gateway |
-| `POST /api/v1/admin/kill-switch/global` | Kill the market |
-| `GET /api/v1/admin/indexes` | Index configuration |
+| `GET /api/v1/admin/orders/{order_id}/audit` | Cross-gateway order lifecycle |
+| `POST /api/v1/admin/symbols/{symbol}/cancel-orders` | Cancel every order on a symbol |
+| `POST /api/v1/admin/market/kill-switch` | Kill the market |
 | `POST /api/v1/admin/indexes/{id}/rebalance` | Rebalance an index |
 | `POST /api/v1/admin/reference/reload` | Reload compiled reference data |
 
 ### WebSocket Streams
 
-`/api/v1/events` is private, `/api/v1/market-data` is public, and `/api/v1/admin/monitor` is ADMIN-only.
+`/api/v1/ws/private` is private, `/api/v1/ws/market-data` is public, and `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim` are ADMIN-only.
 
 | Endpoint | Use |
 |---|---|
-| `WS /api/v1/events` | Private order, quote, and risk lifecycle |
-| `WS /api/v1/market-data` | Public book, trade, depth, session, CB events |
-| `WS /api/v1/admin/monitor` | Cross-gateway admin monitor feed |
+| `WS /api/v1/ws/private` | Private order, quote, and risk lifecycle |
+| `WS /api/v1/ws/market-data` | Public book, trade, depth, session, CB events |
+| `WS /api/v1/ws/admin/monitor` | Cross-gateway admin monitor feed |
+| `WS /api/v1/ws/admin/sim` | Market simulator true values (ADMIN) |

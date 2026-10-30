@@ -244,7 +244,7 @@ cd ../../web-apps/trader-gui && make install && make dev
 
 Open <http://localhost:8193>. **No `dev-env` needed**: trader-gui has no
 bridge, and `vite.config.ts` proxies `/api` — REST and the WebSocket upgrades
-for `/events`, `/market-data` and `/admin/monitor` — straight to
+under `/api/v1/ws/` (`private`, `market-data`, `admin/monitor`) — straight to
 `http://localhost:8080`, the `desk` instance. Trading credentials are entered
 in the browser, so there is no key to inject.
 

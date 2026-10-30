@@ -81,12 +81,11 @@ export function OcoForm() {
     };
     submit.mutate(body, {
       onSuccess: (res) => {
-        // PendingIdResponse.id echoes the submitted oco_id (the key is `id`).
-        toast.success(`OCO ${res.id} submitted`);
+        toast.success(`OCO ${res.oco_id} submitted`);
         pushNotification({
           ts: Date.now(),
           kind: "ACK",
-          title: `OCO ${res.id} submitted`,
+          title: `OCO ${res.oco_id} submitted`,
           detail: `${d.symbol} · ${d.quantity} · ${d.leg1.order_type}/${d.leg2.order_type}`,
         });
         // Fresh id for the next pair.

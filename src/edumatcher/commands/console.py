@@ -966,7 +966,7 @@ def _cmd_position(
     gateway, not just a market maker) and ``quote_bootstrap`` (live resting
     quote prices, if any) -- into one row per symbol, keyed by symbol. This
     mirrors ``POS|GW=`` on ``pm-alf-console``/``pm-alf-gwy`` and the REST
-    ``GET /api/v1/admin/positions`` endpoint, all three built on the same
+    ``GET /api/v1/admin/gateways/{gateway_id}/positions`` endpoint, all three built on the same
     ``system.position_request``/``system.position_snapshot.<gw>`` pair, so
     all surfaces agree on the position figures; the bid/ask/spread/mid
     addition here is specific to this command.

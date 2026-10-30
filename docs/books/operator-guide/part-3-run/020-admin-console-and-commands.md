@@ -662,7 +662,7 @@ pm-admin-cli --id GW_ADMIN --format json position --gw MM_AAPL_01
 This is the same `system.position_request`/`system.position_snapshot.{GW}`
 message pair used by `POS|GW=<gateway_id>` on
 [`pm-alf-console` and `pm-alf-gwy`](../../participant-guide/part-2-orders/010-the-trader-console.md#posgwgateway_id-query-another-gateways-position)
-and by `GET /api/v1/admin/positions` on the [REST API](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
+and by `GET /api/v1/admin/gateways/{gateway_id}/positions` on the [REST API](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md) —
 all four surfaces agree on the position figures, since they all read the
 same engine ledger. The bid/ask/spread/mid addition here is specific to
 `pm-admin-cli`'s `position` command.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import time
 from contextlib import closing
 from typing import Annotated, Any, cast
 
@@ -11,8 +12,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 
 
 from edumatcher.api_gateway import openapi_docs as docs
-from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.api_gateway.sessions import (
+    Session,
+    auth,
+    correlation_id,
+    require_trading,
+)
+from edumatcher.audit.archive import session_timezone
 from edumatcher.compdb import store as compdb
+from edumatcher.stats.trading_day import timezone_name, trading_date
 from edumatcher.clearing.query import (
     PeriodRealizedPnl,
     open_readonly_connection,
@@ -71,8 +79,6 @@ async def _request_reply(
     engine = request.app.state.engine
     if send == "symbols":
         engine.request_symbols(gateway_id)
-    elif send == "session":
-        engine.request_session(gateway_id)
     elif send == "halts":
         engine.request_halt_status(gateway_id)
     elif send == "quote_bootstrap":
@@ -96,7 +102,7 @@ async def _request_reply(
 async def fetch_reference_bundle(request: Request, session: Session) -> dict[str, Any]:
     """Fetch the compiled reference-data bundle, one engine round-trip.
 
-    Every /reference/* endpoint below, plus GET /admin/indexes, slices this
+    Every /reference/* endpoint below slices this
     rather than round-tripping separately. There is no
     per-endpoint caching in the gateway: correctness (never serving stale
     data after a reload) is worth more here than shaving one ZMQ round-trip
@@ -237,7 +243,7 @@ async def reference_indexes(
         "holiday override, and the entry in force `today`), the exchange `country` "
         "whose bank holidays apply, and the next holidays. `sessions_enabled: false` "
         "means the venue trades continuously with no daily timeline. Times are in the "
-        "exchange timezone (see `GET /history/session`)."
+        "exchange timezone (`session_timezone` in `GET /session`)."
     ),
     responses=docs.merge(docs.ok(docs.REFERENCE_SCHEDULE, "The trading schedule.")),
 )
@@ -347,6 +353,32 @@ async def company(
     return row
 
 
+async def fetch_session(request: Request, correlation: str) -> dict[str, Any]:
+    """The engine's session phase plus the locale a client renders it in.
+
+    Shared with the bootstrap endpoints, so their ``session`` is exactly this.
+    ``session_timezone`` is the compiled config's ``locale.session_timezone``
+    -- the zone pm-stats records trading days in and every ``date`` filter
+    resolves -- and ``session_date`` is today's trading date in it, by the
+    gateway's clock. Raises ``TimeoutError`` when the engine does not answer.
+    """
+    engine = request.app.state.engine
+    engine.request_session(correlation)
+    reply = cast(
+        dict[str, Any],
+        await engine.await_topic(
+            topic_session_status(correlation),
+            request.app.state.config.timeouts.engine_reply_sec,
+        ),
+    )
+    tz = session_timezone()
+    return {
+        **reply,
+        "session_timezone": timezone_name(tz),
+        "session_date": trading_date(time.time(), tz),
+    }
+
+
 @router.get(
     "/session",
     summary="Session state",
@@ -354,18 +386,23 @@ async def company(
         "The venue's current trading phase: PRE_OPEN, OPENING_AUCTION, CONTINUOUS, "
         "CLOSING_AUCTION or CLOSED. Orders are accepted in every phase except CLOSED, "
         "but only CONTINUOUS matches immediately; the auctions uncross on exit. `next`"
-        " is the scheduled next transition. Live changes arrive on the market-data "
-        "WebSocket `session` channel."
+        " is the scheduled next transition. `session_timezone` (IANA) is the zone the "
+        "exchange's wall-clock times and every history `date` filter are in, and "
+        "`session_date` today's trading date in it. Live phase changes arrive on the "
+        "market-data WebSocket `session` channel. Any key, read-only included."
     ),
-    responses=docs.merge(docs.ok(docs.SESSION_STATUS, "The current session state.")),
+    responses=docs.merge(docs.ok(docs.SESSION, "The current session state.")),
 )
 async def session_state(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    gateway_id = require_trading(session)
-    return await _request_reply(
-        request, "session", topic_session_status(gateway_id), gateway_id
-    )
+    try:
+        return await fetch_session(request, correlation_id(session))
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
 
 
 @router.get(
@@ -374,30 +411,29 @@ async def session_state(
     description=(
         "Symbols currently halted, with when the halt lapses (`resume_at_ns`, absent "
         "for an indefinite halt), the circuit-breaker `level` that triggered it and "
-        "its `halt_source`. An empty list means nothing is halted. Same data as `GET "
-        "/admin/halts`, without the ADMIN restriction."
+        "its `halt_source`. An empty list means nothing is halted. Any key, read-only "
+        "included."
     ),
     responses=docs.merge(docs.ok(docs.HALT_STATUS, "Currently halted symbols.")),
 )
 async def halts(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    """Currently-halted symbols, for TRADER/MARKET_MAKER (§H4).
+    """Currently-halted symbols, for any caller (§H4, C5).
 
-    Same engine query as ``GET /admin/halts``, without the ADMIN-role gate:
-    the halt_status_request/halt_status pair carries no admin-only state, and
-    a trading gateway needs it too — at login (bootstrap) and again on every
+    The halt_status_request/halt_status pair carries no gateway-scoped state,
+    and every client needs it -- at login (bootstrap) and again on every
     market-data reconnect, since a halt missed while disconnected would
     otherwise leave a stale badge for the rest of the session.
     """
-    gateway_id = require_trading(session)
+    correlation = correlation_id(session)
     return await _request_reply(
-        request, "halts", topic_halt_status(gateway_id), gateway_id
+        request, "halts", topic_halt_status(correlation), correlation
     )
 
 
 @router.get(
-    "/quotes/bootstrap",
+    "/quotes",
     summary="My active quotes",
     description=(
         "The caller's active market-maker quotes: both legs' order ids, sizes, "
@@ -407,7 +443,7 @@ async def halts(
         docs.ok(docs.QUOTE_BOOTSTRAP, "Active quotes for this gateway.")
     ),
 )
-async def quote_bootstrap(
+async def active_quotes(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
@@ -470,7 +506,7 @@ async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, A
 
     A genuine engine round trip on ``system.position_request`` /
     ``system.position_snapshot.<gateway_id>`` -- the same pair
-    ``GET /admin/positions`` uses for any gateway -- rather than this
+    ``GET /admin/gateways/{gateway_id}/positions`` uses -- rather than this
     process's own local fill cache (``SessionCaches.positions``), which
     reads flat after a gateway restart even though the engine still holds
     the position. ``last_price`` still comes from this cache: it tracks

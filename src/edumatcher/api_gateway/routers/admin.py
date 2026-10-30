@@ -4,13 +4,18 @@ Every endpoint requires an API key mapped to a gateway whose engine
 ParticipantRole is ADMIN. Role is resolved from the engine gateways reply
 because the API credential store does not carry role information. All actions
 map to existing engine topics; no engine changes are required.
+
+Paths follow one resource-plus-action scheme (REST API review, D1): the
+target is always a path segment -- ``/symbols/{symbol}/halt``,
+``/gateways/{gateway_id}/kill-switch``, ``/market/kill-switch`` -- and a body,
+where there is one, carries only optional parameters such as ``reason``.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.audit.indexer import (
@@ -19,15 +24,13 @@ from edumatcher.audit.indexer import (
     query_index_events,
 )
 from edumatcher.models.ids import new_command_id
-from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.schemas import (
-    CircuitBreakerResumeRequest,
-    CircuitBreakerTriggerRequest,
+    GATEWAY_ID_MAX_LEN,
+    SYMBOL_MAX_LEN,
+    AdminNoteRequest,
     IndexRebalanceRequest,
-    KillSwitchGatewayRequest,
-    KillSwitchGlobalRequest,
     SessionTransitionRequest,
-    SymbolCancelRequest,
+    SymbolHaltRequest,
 )
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
 from edumatcher.models.generated.risk import (
@@ -39,13 +42,28 @@ from edumatcher.models.generated.risk import (
 )
 from edumatcher.models.generated.system import (
     topic_gateways,
-    topic_halt_status,
     topic_position_snapshot,
     topic_risk_state,
-    topic_session_schedule,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+_SymbolPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=SYMBOL_MAX_LEN,
+        description="Instrument, e.g. `TSLA` (case-insensitive).",
+    ),
+]
+_GatewayPath = Annotated[
+    str,
+    Path(
+        min_length=1,
+        max_length=GATEWAY_ID_MAX_LEN,
+        description="Engine gateway id, e.g. `TRADER01` (case-insensitive).",
+    ),
+]
 
 
 def _check_rate_limit(request: Request, session: Session) -> None:
@@ -220,27 +238,6 @@ async def reference_reload(  # pyright: ignore[reportUnusedFunction]
 
 
 @router.get(
-    "/session/schedule",
-    summary="Session schedule (admin view)",
-    description=(
-        "The trading schedule as the engine has resolved it, including whether today "
-        "is a holiday. Same table as `GET /reference/schedule`, fetched live from the"
-        " engine."
-    ),
-    responses=docs.merge(
-        docs.ok(docs.ADMIN_SCHEDULE, "The engine's resolved schedule.", 200)
-    ),
-)
-async def session_schedule(  # pyright: ignore[reportUnusedFunction]
-    request: Request,
-    session: Annotated[Session, Depends(auth)],
-) -> dict[str, Any]:
-    gateway_id = await require_admin(request, session)
-    request.app.state.engine.request_session_schedule(gateway_id)
-    return await _await_reply(request, topic_session_schedule(gateway_id))
-
-
-@router.get(
     "/sim",
     summary="Market simulator state",
     description=(
@@ -287,41 +284,46 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
 
 
 @router.post(
-    "/gateways/{gid}/disconnect",
+    "/gateways/{gateway_id}/disconnect",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Disconnect a gateway",
     description=(
-        "Ask the engine to drop gateway `gid`'s session. Its resting orders are "
+        "Ask the engine to drop the gateway's session. Its resting orders are "
         "handled according to that participant's configured disconnect policy. "
-        "Not awaited: the roster in `GET /admin/gateways` shows the result."
+        "The optional `reason` is recorded in the engine log. Not awaited: the "
+        "roster in `GET /admin/gateways` shows the result."
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_DISCONNECT, "Disconnect sent to the engine.", 202)
     ),
 )
 async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
-    gid: str,
+    gateway_id: _GatewayPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: AdminNoteRequest | None = None,
 ) -> dict[str, str]:
     await require_admin(request, session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_disconnect(gid.upper(), "admin disconnect")
-    return {"gateway_id": gid.upper(), "status": "PENDING_DISCONNECT"}
+    target = gateway_id.upper()
+    note = body.reason if body is not None and body.reason else "admin disconnect"
+    request.app.state.engine.send_disconnect(target, note)
+    return {"gateway_id": target, "status": "PENDING_DISCONNECT"}
 
 
 @router.post(
-    "/circuit-breaker/trigger",
+    "/symbols/{symbol}/halt",
     summary="Halt a symbol",
     responses=docs.merge(
         docs.ok(docs.ADMIN_HALT_ACK, "The symbol is halted."),
         docs.conflict("HALT_REJECTED", "Unknown symbol: XYZ"),
     ),
 )
-async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
-    body: CircuitBreakerTriggerRequest,
+async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
+    symbol: _SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: SymbolHaltRequest | None = None,
 ) -> dict[str, Any]:
     """Halt one symbol. With ``level``, the halt runs through the same
     activation the price-triggered breaker uses (real ``resume_at_ns``, ACE
@@ -329,10 +331,12 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     """
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
+    symbol = symbol.upper()
+    body = body or SymbolHaltRequest()
     command_id = new_command_id()
     request.app.state.engine.send_symbol_halt(
         gateway_id,
-        body.symbol,
+        symbol,
         level=body.level,
         note=body.reason or "",
         command_id=command_id,
@@ -340,55 +344,43 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     ack = await _await_ack(
         request,
         topic_symbol_halt_ack(gateway_id),
-        match={"symbol": body.symbol},
+        match={"symbol": symbol},
     )
     return _require_accepted(ack, "HALT_REJECTED")
 
 
 @router.post(
-    "/circuit-breaker/resume",
+    "/symbols/{symbol}/resume",
     summary="Resume a halted symbol",
     description=(
         "Lift a halt on one symbol, whether it came from a price-triggered circuit "
-        "breaker or from `POST /admin/circuit-breaker/trigger`."
+        "breaker or from `POST /admin/symbols/{symbol}/halt`."
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_RESUME_ACK, "The symbol is trading again."),
         docs.conflict("RESUME_REJECTED", "TSLA is not halted"),
     ),
 )
-async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
-    body: CircuitBreakerResumeRequest,
+async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
+    symbol: _SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: AdminNoteRequest | None = None,
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
+    symbol = symbol.upper()
+    note = body.reason if body is not None and body.reason else ""
     command_id = new_command_id()
     request.app.state.engine.send_symbol_resume(
-        gateway_id, body.symbol, note=body.reason or "", command_id=command_id
+        gateway_id, symbol, note=note, command_id=command_id
     )
     ack = await _await_ack(
         request,
         topic_symbol_resume_ack(gateway_id),
-        match={"symbol": body.symbol},
+        match={"symbol": symbol},
     )
     return _require_accepted(ack, "RESUME_REJECTED")
-
-
-@router.get(
-    "/halts",
-    summary="Halted symbols (admin view)",
-    description="Same data as `GET /halts`, restricted to ADMIN keys.",
-    responses=docs.merge(docs.ok(docs.ADMIN_HALTS, "Currently halted symbols.", 200)),
-)
-async def halt_status(  # pyright: ignore[reportUnusedFunction]
-    request: Request,
-    session: Annotated[Session, Depends(auth)],
-) -> dict[str, Any]:
-    gateway_id = await require_admin(request, session)
-    request.app.state.engine.request_halt_status(gateway_id)
-    return await _await_reply(request, topic_halt_status(gateway_id))
 
 
 @router.get(
@@ -411,7 +403,7 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
     configured — halted or not.
 
     Distinct from ``GET /reference/risk`` (static, named risk-level
-    definitions) and ``GET /admin/halts`` (currently-halted symbols only).
+    definitions) and ``GET /halts`` (currently-halted symbols only).
     """
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_risk_state(gateway_id)
@@ -421,31 +413,6 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
 # ---------------------------------------------------------------------------
 # Index administration (pm-index bridge)
 # ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/indexes",
-    summary="Configured indexes (admin view)",
-    responses=docs.merge(
-        docs.ok(docs.REFERENCE_INDEXES, "The configured indexes.", 200)
-    ),
-)
-async def admin_indexes(  # pyright: ignore[reportUnusedFunction]
-    request: Request,
-    session: Annotated[Session, Depends(auth)],
-) -> dict[str, Any]:
-    """Configured exchange indexes: id, description, base_value, constituents.
-
-    Served from the same compiled reference-data bundle as
-    ``GET /reference/indexes`` — static configuration, not live level/divisor.
-    For the current level, use ``GET /history/index-daily``.
-    """
-    await require_admin(request, session)
-    bundle = await fetch_reference_bundle(request, session)
-    return {
-        "indexes": bundle.get("indexes", []),
-        "config_version": bundle.get("config_version"),
-    }
 
 
 @router.post(
@@ -504,8 +471,8 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
 
 
 @router.post(
-    "/kill-switch/symbol",
-    summary="Kill switch: one symbol",
+    "/symbols/{symbol}/cancel-orders",
+    summary="Cancel every order on a symbol",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_SYMBOL, "What the engine cancelled."),
         docs.conflict(
@@ -514,28 +481,31 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
         ),
     ),
 )
-async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
-    body: SymbolCancelRequest,
+async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
+    symbol: _SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: AdminNoteRequest | None = None,
 ) -> dict[str, Any]:
     """Cancel every resting order/quote for *symbol*, across every gateway."""
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
+    symbol = symbol.upper()
+    note = body.reason if body is not None and body.reason else ""
     command_id = new_command_id()
     request.app.state.engine.send_cancel_symbol(
-        gateway_id, body.symbol, note=body.reason or "", command_id=command_id
+        gateway_id, symbol, note=note, command_id=command_id
     )
     ack = await _await_ack(
         request,
         topic_cancel_symbol_ack(gateway_id),
-        match={"symbol": body.symbol},
+        match={"symbol": symbol},
     )
     return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 
 
 @router.post(
-    "/kill-switch/gateway",
+    "/gateways/{gateway_id}/kill-switch",
     summary="Kill switch: one gateway",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_GATEWAY, "What the engine cancelled."),
@@ -546,34 +516,37 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
     ),
 )
 async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
-    body: KillSwitchGatewayRequest,
+    gateway_id: _GatewayPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: AdminNoteRequest | None = None,
 ) -> dict[str, Any]:
-    """Cancel every resting order/quote belonging to another gateway.
+    """Cancel every resting order/quote belonging to *gateway_id*.
 
-    Unlike ``POST /mass-cancel``/``POST /kill-switch`` (self-service, caller's
-    own gateway only), this lets an ADMIN act on a *named* other gateway.
+    Unlike ``POST /mass-cancel`` (self-service, caller's own gateway only),
+    this lets an ADMIN act on a *named* other gateway. It does not disconnect
+    it -- that is ``POST /admin/gateways/{gateway_id}/disconnect``.
     """
-    gateway_id = await require_admin(request, session)
+    caller = await require_admin(request, session)
     _check_rate_limit(request, session)
+    note = body.reason if body is not None and body.reason else ""
     command_id = new_command_id()
     request.app.state.engine.send_kill_switch_gateway(
-        gateway_id,
-        body.target_gateway_id,
-        note=body.reason or "",
+        caller,
+        gateway_id.upper(),
+        note=note,
         command_id=command_id,
     )
     ack = await _await_ack(
         request,
-        topic_kill_switch_gateway_ack(gateway_id),
+        topic_kill_switch_gateway_ack(caller),
         match={"command_id": command_id},
     )
     return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 
 
 @router.post(
-    "/kill-switch/global",
+    "/market/kill-switch",
     summary="Kill switch: whole market",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_GLOBAL, "What the engine cancelled."),
@@ -583,21 +556,22 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
         ),
     ),
 )
-async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
-    body: KillSwitchGlobalRequest,
+async def kill_switch_market(  # pyright: ignore[reportUnusedFunction]
     request: Request,
     session: Annotated[Session, Depends(auth)],
+    body: AdminNoteRequest | None = None,
 ) -> dict[str, Any]:
     """Full-market emergency stop: cancel every resting order/quote for every
-    gateway. Distinct from ``POST /circuit-breaker/trigger`` applied
+    gateway. Distinct from ``POST /admin/symbols/{symbol}/halt`` applied
     symbol-by-symbol — this cancels resting exposure outright rather than
     halting trading.
     """
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
+    note = body.reason if body is not None and body.reason else ""
     command_id = new_command_id()
     request.app.state.engine.send_kill_switch_global(
-        gateway_id, note=body.reason or "", command_id=command_id
+        gateway_id, note=note, command_id=command_id
     )
     ack = await _await_ack(
         request,
@@ -635,7 +609,7 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
     pass through. This is *current state*, bounded by
     `order_retention_sec`: terminal orders age out, so it answers "what is
     open now", not "what happened today". For the latter, see
-    `GET /admin/orders/{order_id}` and the audit trail.
+    `GET /admin/orders/{order_id}/audit`.
     """
     await require_admin(request, session)
     orders = request.app.state.engine.all_orders()
@@ -668,7 +642,7 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
 
 
 @router.get(
-    "/orders/{order_id}",
+    "/orders/{order_id}/audit",
     summary="Audit trail of one order",
     responses=docs.merge(
         docs.ok(
@@ -731,28 +705,25 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
 
 
 @router.get(
-    "/positions",
+    "/gateways/{gateway_id}/positions",
     summary="Positions of any gateway",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_POSITIONS, "Net positions held by `gateway_id`.", 200)
+        docs.ok(docs.ADMIN_POSITIONS, "Net positions held by the gateway.", 200)
     ),
 )
 async def admin_positions(  # pyright: ignore[reportUnusedFunction]
-    gateway_id: str,
+    gateway_id: _GatewayPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:
     """Ask the engine what *gateway_id* -- any gateway, not just the
     caller's own -- is holding: signed net qty and VWAP average cost per
-    symbol, straight from the engine's authoritative
-    ``_gateway_positions``/``_gateway_avg_cost`` ledger.
+    symbol, from the engine's own position ledger.
 
-    Distinct from ``GET /positions`` (own-gateway only, served from this
-    process's local order/fill cache, no ``avg_cost``). This is a live
-    engine round trip on ``system.position_request`` /
-    ``system.position_snapshot.<gateway_id>`` -- the same pair
-    ``pm-alf-console``'s and ``pm-alf-gwy``'s ``POS|GW=<gateway_id>``
-    already use, so all three surfaces agree.
+    ``GET /positions`` is the caller's own view of the same engine round
+    trip on ``system.position_request`` / ``system.position_snapshot.<id>``,
+    enriched with prices and P&L; ``pm-alf-console``'s and ``pm-alf-gwy``'s
+    ``POS|GW=<gateway_id>`` use the same pair, so all surfaces agree.
     """
     await require_admin(request, session)
     target = gateway_id.upper()

@@ -105,7 +105,7 @@ describe("AdminMonitorPage (§15.9)", () => {
     wrap(<AdminMonitorPage />);
     fireEvent.click(screen.getByText("40 @ 150"));
     await waitFor(() =>
-      expect(apiFetchMock.mock.calls.some(([p]) => String(p).startsWith("/api/v1/admin/orders/o1"))).toBe(true),
+      expect(apiFetchMock.mock.calls.some(([p]) => String(p) === "/api/v1/admin/orders/o1/audit")).toBe(true),
     );
     // The audit event's topic renders in the modal.
     await waitFor(() => expect(screen.getByText("order.ack.GW01")).toBeTruthy());

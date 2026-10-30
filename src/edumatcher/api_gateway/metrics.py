@@ -20,10 +20,10 @@ from edumatcher.models.generated.health import MetricSample
 
 #: WebSocket paths -> channel label. A closed set fixed in code (K4).
 WS_CHANNELS: dict[str, str] = {
-    "/api/v1/events": "events",
-    "/api/v1/admin/monitor": "admin/monitor",
-    "/api/v1/admin/sim": "admin/sim",
-    "/api/v1/market-data": "market-data",
+    "/api/v1/ws/private": "private",
+    "/api/v1/ws/admin/monitor": "admin/monitor",
+    "/api/v1/ws/admin/sim": "admin/sim",
+    "/api/v1/ws/market-data": "market-data",
 }
 OTHER_CHANNEL = "other"
 

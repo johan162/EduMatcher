@@ -642,7 +642,7 @@ time series over HTTP, under `/api/v1/history`:
 |---|---|---|
 | `GET /history/index-daily` | Daily index OHLC rows | `pm-stats` SQLite |
 | `GET /history/index-snapshots` | Intraday index level ticks | `pm-stats` SQLite |
-| `GET /history/index-ids` | Index IDs with recorded statistics | `pm-stats` SQLite |
+| `GET /history/indexes` | Index IDs with recorded statistics | `pm-stats` SQLite |
 | `GET /history/index-events` | Structural/audit records (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`, `REBALANCE`) | Live round-trip to `pm-index`, not `pm-stats` |
 
 ```bash

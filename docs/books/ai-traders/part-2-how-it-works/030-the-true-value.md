@@ -148,7 +148,7 @@ curl -s -H "Authorization: Bearer key-ops01-3e34rs" http://localhost:8080/api/v1
 ```
 
 The answer holds the model's state and the latest value of every share. The
-same data streams on the WebSocket `/api/v1/admin/sim`. Only ADMIN keys get
+same data streams on the WebSocket `/api/v1/ws/admin/sim`. Only ADMIN keys get
 an answer; a student's key is refused.
 
 ## Changing the model

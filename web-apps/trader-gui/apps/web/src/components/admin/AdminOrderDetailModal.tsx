@@ -37,7 +37,7 @@ function payloadSummary(payload: unknown): string {
 
 /**
  * Cross-gateway order lifecycle drill-down (§15.9) using the audit trail
- * `GET /api/v1/admin/orders/{id}` — NOT the gateway-scoped `/history/orders`,
+ * `GET /api/v1/admin/orders/{id}/audit` — NOT the gateway-scoped `/history/orders`,
  * which cannot see other gateways' orders. Degrades gracefully when pm-audit is
  * absent (503) or the id is unknown (404).
  */

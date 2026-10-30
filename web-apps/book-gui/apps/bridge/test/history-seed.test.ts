@@ -15,9 +15,14 @@ function client(route: Route, calls: string[] = []) {
 }
 
 describe("HistoryClient", () => {
-  it("reads the session timezone and trading date", async () => {
-    const c = client(() => ({ body: { session_timezone: "Asia/Kolkata", session_date: "2026-09-27" } }));
+  it("reads the session timezone and trading date from GET /session", async () => {
+    const calls: string[] = [];
+    const c = client((url) => {
+      calls.push(new URL(url).pathname);
+      return { body: { state: "CONTINUOUS", session_timezone: "Asia/Kolkata", session_date: "2026-09-27" } };
+    });
     expect(await c.session()).toEqual({ timezone: "Asia/Kolkata", date: "2026-09-27" });
+    expect(calls).toEqual(["/api/v1/session"]);
   });
 
   it("follows the trades cursor to the last page", async () => {

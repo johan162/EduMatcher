@@ -320,16 +320,24 @@ export interface HistoryFillsResponse {
 }
 
 /**
- * Response of `POST /api/v1/oco`, `POST /api/v1/combos`, and `POST /quotes`
- * (gateway `PendingIdResponse`). NOTE the key is the generic **`id`** (equal
- * to the submitted oco_id / combo_id / quote_id), NOT `oco_id`/`combo_id`.
- * `event` is always null for these — they have no `?wait=ack` support and
- * answer `202`/`PENDING` immediately.
+ * Responses of `POST /api/v1/oco`, `POST /api/v1/combos` and `POST /api/v1/quotes`.
+ * Each echoes the id its cancel takes; all answer `202`/`PENDING` at once (the
+ * verdict follows on the private WebSocket).
  */
-export interface PendingIdResponse {
-  id: string;
-  status: string;
-  event: Record<string, unknown> | null;
+export interface OcoPending {
+  oco_id: string;
+  status: "PENDING";
+}
+
+export interface ComboPending {
+  combo_id: string;
+  status: "PENDING";
+}
+
+export interface QuotePending {
+  symbol: string;
+  quote_id: string | null;
+  status: "PENDING";
 }
 
 // ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
@@ -516,7 +524,7 @@ export interface QuoteLeg {
 
 /**
  * pm-msgen `ActiveQuote` — one active two-sided quote with both legs' live
- * state, from `GET /api/v1/quotes/bootstrap` (§14.3). This is the authoritative
+ * state, from `GET /api/v1/quotes` (§14.3). This is the authoritative
  * per-side source for the quote cards (§14.1): it always carries bid/ask price,
  * qty, remaining_qty and status, so `filled = qty - remaining_qty`. A leg whose
  * resting order is gone reports `MISSING` with zero quantities rather than being
@@ -540,7 +548,7 @@ export interface ActiveQuote {
   ask_status: string;
 }
 
-/** `GET /api/v1/quotes/bootstrap` response. */
+/** `GET /api/v1/quotes` response. */
 export interface QuoteBootstrapResponse {
   quotes: ActiveQuote[];
 }
@@ -843,13 +851,13 @@ export interface AdminIndex {
   constituents: string[];
 }
 
-/** `GET /api/v1/admin/indexes` — static index config (not live level/divisor). */
-export interface AdminIndexesResponse {
+/** `GET /api/v1/reference/indexes` — static index config (not live level/divisor). */
+export interface ReferenceIndexesResponse {
   indexes: AdminIndex[];
   config_version: string | null;
 }
 
-/** `GET /api/v1/history/index-ids` — index ids with recorded stats. */
+/** `GET /api/v1/history/indexes` — index ids with recorded stats. */
 export interface IndexIdsResponse {
   index_ids: string[];
   count: number;

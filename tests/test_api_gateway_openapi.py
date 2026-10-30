@@ -45,7 +45,7 @@ def _example_values(response: dict[str, Any]) -> list[Any]:
 
 def test_every_endpoint_has_a_summary_and_a_real_example(spec: dict[str, Any]) -> None:
     operations = _operations(spec)
-    assert len(operations) > 60
+    assert len(operations) > 50  # the exact set: test_api_gateway_layout.py
     for method, path, op in operations:
         where = f"{method} {path}"
         assert op.get("summary") and op["summary"] != op["operationId"], where
@@ -97,7 +97,7 @@ def test_list_orders_example_is_what_the_issue_asked_for(
 
 
 def test_order_lifecycle_example_preserves_wire_topics(spec: dict[str, Any]) -> None:
-    op = spec["paths"]["/api/v1/admin/orders/{order_id}"]["get"]
+    op = spec["paths"]["/api/v1/admin/orders/{order_id}/audit"]["get"]
     (example,) = _example_values(_success(op)[1])
     assert [event["topic"] for event in example["events"]] == [
         "order.ack.TRADER01",
@@ -115,8 +115,8 @@ def test_request_bodies_carry_examples(spec: dict[str, Any]) -> None:
         "QuoteRequest",
         "MassCancelRequest",
         "SessionTransitionRequest",
-        "CircuitBreakerTriggerRequest",
-        "KillSwitchGatewayRequest",
+        "SymbolHaltRequest",
+        "AdminNoteRequest",
         "IndexRebalanceRequest",
     ):
         assert schemas[name].get("examples"), name
@@ -139,12 +139,10 @@ def test_request_bodies_carry_examples(spec: dict[str, Any]) -> None:
         (system_msgs.Symbols, docs.SYMBOLS),
         (system_msgs.SessionStatus, docs.SESSION_STATUS),
         (system_msgs.HaltStatus, docs.HALT_STATUS),
-        (system_msgs.HaltStatus, docs.ADMIN_HALTS),
         (system_msgs.QuoteBootstrap, docs.QUOTE_BOOTSTRAP),
         (system_msgs.QuoteLegs, docs.QUOTE_LEGS),
         (system_msgs.RiskState, docs.ADMIN_RISK_STATE),
         (system_msgs.Gateways, docs.ADMIN_GATEWAYS),
-        (system_msgs.SessionSchedule, docs.ADMIN_SCHEDULE),
         (
             system_msgs.PositionSnapshot,
             {k: v for k, v in docs.ADMIN_POSITIONS.items() if k != "count"},

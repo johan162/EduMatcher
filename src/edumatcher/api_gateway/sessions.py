@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -88,6 +89,22 @@ async def auth(
                 detail={"error": {"code": "ENGINE_AUTH", "message": reason}},
             )
     return session
+
+
+def correlation_id(session: Session) -> str:
+    """Reply-topic suffix for an engine query made on behalf of *session*.
+
+    A trading key uses its gateway id. A read-only key has none, so it gets an
+    id derived from the key: upper-case and at most 32 characters, because the
+    engine upper-cases and clamps the id it echoes in the reply topic
+    (``engine/main.py`` ``_clamp_wire_id``), and stable rather than fresh per
+    request, because EngineClient keeps state for every id it sees a reply
+    for. Hashed, so the key itself never travels on the bus.
+    """
+    if session.gateway_id is not None:
+        return session.gateway_id
+    digest = hashlib.sha256(session.api_key.encode()).hexdigest()
+    return f"RO{digest[:16].upper()}"
 
 
 def require_trading(session: Session) -> str:

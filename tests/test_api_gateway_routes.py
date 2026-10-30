@@ -523,11 +523,12 @@ async def test_composite_quote_and_risk_routes() -> None:
     quote = QuoteRequest(
         symbol="AAPL", bid_price=150.0, bid_qty=10, ask_price=150.1, ask_qty=10
     )
-    assert (await orders.submit_oco(oco, request, session)).id == "O1"
+    assert (await orders.submit_oco(oco, request, session)).oco_id == "O1"
     assert (await orders.cancel_oco("O1", request, session))["status"]
-    assert (await orders.submit_combo(combo, request, session)).id == "C1"
+    assert (await orders.submit_combo(combo, request, session)).combo_id == "C1"
     assert (await orders.cancel_combo("C1", request, session))["status"]
-    assert (await orders.submit_quote(quote, request, session)).id == "AAPL"
+    quoted = await orders.submit_quote(quote, request, session)
+    assert (quoted.symbol, quoted.quote_id) == ("AAPL", None)
     assert (await orders.cancel_quote("aapl", request, session))["symbol"] == "AAPL"
     result = await orders.mass_cancel(
         MassCancelRequest(symbol="AAPL"), request, session
@@ -543,7 +544,7 @@ async def test_reference_routes() -> None:
     assert await reference.symbols(request, session)
     assert await reference.session_state(request, session)
     assert await reference.halts(request, session)
-    assert await reference.quote_bootstrap(request, session)
+    assert await reference.active_quotes(request, session)
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
     assert (await reference.quote_legs(request, session))["legs"]
     engine.cache.last_prices["AAPL"] = 151.0

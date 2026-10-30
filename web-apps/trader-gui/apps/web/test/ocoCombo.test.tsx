@@ -9,8 +9,8 @@ vi.mock("sonner", () => ({
 }));
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
-  if (path.startsWith("/api/v1/oco")) return { id: "oco-x", status: "PENDING", event: null };
-  if (path.startsWith("/api/v1/combos")) return { id: "combo-x", status: "PENDING", event: null };
+  if (path.startsWith("/api/v1/oco")) return { oco_id: "oco-x", status: "PENDING" };
+  if (path.startsWith("/api/v1/combos")) return { combo_id: "combo-x", status: "PENDING" };
   return {};
 });
 
@@ -77,7 +77,7 @@ describe("OcoForm (§12.7)", () => {
     expect(body.leg1).not.toHaveProperty("stop_price");
   });
 
-  it("reads the response `id` (not `oco_id`) into the Event Center", async () => {
+  it("reads the response `oco_id` into the Event Center", async () => {
     wrap(<OcoForm />);
     fireEvent.change(screen.getByLabelText("Leg 1 price"), { target: { value: "155" } });
     fireEvent.change(screen.getByLabelText("Leg 2 price"), { target: { value: "145" } });

@@ -117,7 +117,7 @@ class EngineClient:
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
-        # snapshot/resume verbs on WS /api/v1/market-data.
+        # snapshot/resume verbs on WS /api/v1/ws/market-data.
         self._market_cache = MarketDataCache(market_cache_sec)
         # ADMIN monitor sinks receive every event across all gateways.
         self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -430,7 +430,7 @@ class EngineClient:
         """Monotonic sequence across *all* of one gateway's private events.
 
         Market data cannot have this: subscribers filter, so a stream-wide
-        counter would show phantom gaps. ``/api/v1/events`` applies no
+        counter would show phantom gaps. ``/api/v1/ws/private`` applies no
         filtering at all — a client receives every topic for its gateway — so
         a single counter is contiguous there, and one counter is markedly
         easier to check than one per topic.

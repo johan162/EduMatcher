@@ -31,11 +31,11 @@ const REFERENCE = {
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path === "/api/v1/reference") return REFERENCE;
-  if (path.startsWith("/api/v1/admin/halts")) return { halted: [] };
-  if (path === "/api/v1/admin/circuit-breaker/trigger") {
+  if (path.startsWith("/api/v1/halts")) return { halted: [] };
+  if (path === "/api/v1/admin/symbols/AAPL/halt") {
     return { accepted: true, symbol: "AAPL", reason: "", cancelled_quotes: 0 };
   }
-  if (path === "/api/v1/admin/circuit-breaker/resume") {
+  if (path === "/api/v1/admin/symbols/TSLA/resume") {
     return { accepted: true, symbol: "TSLA", reason: "" };
   }
   return {};
@@ -95,11 +95,12 @@ describe("AdminCircuitBreakersPage (§15.6)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Halt symbol" }));
     const dialog = screen.getByRole("dialog", { name: "Halt symbol?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Halt symbol" }));
-    await waitFor(() => expect(called("/api/v1/admin/circuit-breaker/trigger")).toBe(true));
+    // D1: the symbol is the path segment; the body only carries the level.
+    await waitFor(() => expect(called("/api/v1/admin/symbols/AAPL/halt")).toBe(true));
     const body = JSON.parse(
-      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/circuit-breaker/trigger")![1]!.body as string,
+      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/symbols/AAPL/halt")![1]!.body as string,
     );
-    expect(body).toEqual({ symbol: "AAPL", level: "L1" });
+    expect(body).toEqual({ level: "L1" });
   });
 
   it("reports an engine refusal (409 HALT_REJECTED) with the engine's reason", async () => {
@@ -129,10 +130,10 @@ describe("AdminCircuitBreakersPage (§15.6)", () => {
     expect(screen.getByText("indefinite")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Clear halt TSLA" }));
     fireEvent.click(screen.getByRole("button", { name: "Clear halt" }));
-    await waitFor(() => expect(called("/api/v1/admin/circuit-breaker/resume")).toBe(true));
+    await waitFor(() => expect(called("/api/v1/admin/symbols/TSLA/resume")).toBe(true));
     const body = JSON.parse(
-      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/circuit-breaker/resume")![1]!.body as string,
+      apiFetchMock.mock.calls.find(([p]) => p === "/api/v1/admin/symbols/TSLA/resume")![1]!.body as string,
     );
-    expect(body).toEqual({ symbol: "TSLA" });
+    expect(body).toEqual({});
   });
 });

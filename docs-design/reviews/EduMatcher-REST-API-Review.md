@@ -648,7 +648,7 @@ the same WP, with no aliases (no-backwards-compat rule).
 |---|---|---|---|---|
 | **WP-API01** ✅ | Error model unification | **Done 2026-10-30 (uncommitted)**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
 | **WP-API02** | Safe asynchronous writes | Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
-| **WP-API03** | Resource layout freeze | WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
+| **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30 (uncommitted)**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
 | **WP-API04** | Typed contract | Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
 | **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
 | **WP-API06** | Contract guard | Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
@@ -753,6 +753,97 @@ chapter were updated to match.
 - **ALF's `ENGINE_UNAVAILABLE` mapping** is in `alf_gwy/protocol.py`, while
   REST's lives in `main._HTTP_REJECT_CODES`. A shared table would prevent the
   next drift; that belongs with the ALF/REST consistency note in §9.1.
+
+### 9.3 WP-API03 outcome (2026-10-30)
+
+Decision confirmed by Johan: the D1 resource-plus-action scheme (Q4). The new
+capabilities D1 sketches (market halt, reopen, per-gateway orders, price
+level, admin quote cancel) remain WP-API07; this WP moved and removed what
+exists.
+
+| Before | After |
+|---|---|
+| WS `/events`, `/market-data`, `/admin/monitor`, `/admin/sim` | WS `/ws/private`, `/ws/market-data`, `/ws/admin/monitor`, `/ws/admin/sim` (D5); metric label `events` → `private` |
+| `POST /kill-switch` (alias) | removed; `POST /mass-cancel` |
+| `GET /quotes/bootstrap` | `GET /quotes` |
+| `GET /session` (trading key) + `GET /history/session` | `GET /session`, any key: engine phase + `session_timezone` + `session_date` |
+| `GET /halts` (trading key) | any key |
+| `GET /history/index-ids` | `GET /history/indexes` |
+| `POST /admin/circuit-breaker/trigger` / `resume`, symbol in body | `POST /admin/symbols/{symbol}/halt` / `resume`; body optional (`level`, `reason`) |
+| `POST /admin/kill-switch/symbol` | `POST /admin/symbols/{symbol}/cancel-orders` |
+| `POST /admin/kill-switch/gateway`, `target_gateway_id` in body | `POST /admin/gateways/{gateway_id}/kill-switch` |
+| `POST /admin/kill-switch/global` | `POST /admin/market/kill-switch` |
+| `GET /admin/positions?gateway_id=` | `GET /admin/gateways/{gateway_id}/positions` |
+| `POST /admin/gateways/{gid}/disconnect` | `…/{gateway_id}/disconnect`, optional `{reason}` now reaches the engine |
+| `GET /admin/orders/{order_id}` (audit) | `GET /admin/orders/{order_id}/audit` (D3) |
+| `GET /admin/halts`, `/admin/indexes`, `/admin/session/schedule` | removed: `GET /halts`, `/reference/indexes`, `/reference/schedule` |
+| `POST /oco`, `/combos`, `/quotes` reply `{id, status, event}` | `{oco_id, status}`, `{combo_id, status}`, `{symbol, quote_id, status}` |
+
+Five request models collapsed into `SymbolHaltRequest {level?, reason?}` and
+`AdminNoteRequest {reason?}`. The admin `{symbol}` and `{gateway_id}` path
+parameters carry the same load-bearing length bounds (16/32) the body fields
+had. The surface is now 56 REST operations plus 4 sockets, pinned exactly by
+`tests/test_api_gateway_layout.py`.
+
+**Decisions taken in the WP:**
+
+- **D2, last row (`/symbols` vs `/reference/symbols`): kept both.** They have
+  different sources and audiences: an engine round trip resolved per caller
+  (MM obligation, `prev_close`) versus the static bundle any key may read.
+- **`country` is not in `GET /session`**, although D2 listed it. It is static
+  configuration, already in `/reference/schedule`, and no client read it from
+  `/history/session`. Leaving it out keeps `/session` at one engine round trip.
+- **`session_timezone` comes from the compiled config** (as bootstrap already
+  did), not from the stats DB as `/history/session` did. `/session` therefore
+  works without pm-stats. The two can differ only if pm-stats recorded under a
+  different `locale.session_timezone` than the current config.
+- **Read-only bootstrap now carries `session` and `halts`** (best effort, like
+  for any key); only positions, orders and fills stay structurally empty.
+- **D4's `/status` cache counters** were left alone: they are a response-shape
+  question for WP-API04. `GET /history/indexes` still answers
+  `{"index_ids": ...}`; envelope keys are WP-API04 (D6).
+
+**A trap found while opening reads to read-only keys:** the engine
+upper-cases and clamps to 32 characters the id it echoes in a reply topic
+(`_clamp_wire_id`), so a raw API key cannot be the correlation id. The obvious
+fix, a fresh id per request, would leak memory: EngineClient creates
+per-id state (`_caches[...]`, per-topic sequence counters) for every reply
+topic it sees. `sessions.correlation_id()` therefore derives a stable id per
+key (`RO` + 16 hex digits of a SHA-256 of the key), bounded by the number of
+configured keys, and the key itself never goes on the bus.
+`/history/index-events` builds a fresh id per call, but it goes through
+IndexClient, which has no such per-id state.
+
+**Clients.**
+- trader-gui: every changed endpoint helper, the OCO/combo/quote id handling
+  in three forms, the WebSocket URLs, types, comments, and the mocks in eight
+  test files.
+- book-gui bridge: `/ws/market-data` and `/session`; its history test now
+  asserts the path it calls.
+- terminal-gui and dash-gui only use endpoints that kept their paths; their
+  suites were run anyway.
+- trader-gui's own page routes (`/quotes/bootstrap`, `/admin/indexes`) and
+  query-cache keys are UI names, not API paths, and were left alone.
+- `docs-design/*` design documents are history and were not rewritten.
+
+**Docs.**
+- The spec: sections of removed endpoints deleted; headers, index tables and
+  anchors regenerated; bodies, replies and access updated.
+- The operator guide, training guide, both GUI guides, the risk, index, model
+  and admin-console chapters, the reference manual and the ai-traders book
+  updated. `mkdocs build` reports no broken anchors.
+
+**Insights carried forward:**
+
+- **Earlier WPs' doc passes missed behaviour statements:** `GET
+  /orders/{id}` "returns a plain `{"detail": ...}` body" (WP-API01), the
+  transition row's `"status":"PENDING"`, and rebalance "accepts an optional
+  `reason`" (WP-API05). The lesson for later WPs: grep the docs for the old
+  *behaviour*, not only the old paths.
+- **The reference manual's API summary was fiction in places:** a REST `GET
+  /market-data` "top-of-book" endpoint that never existed, and `/symbols`
+  shown as open to any key. Fixed, and it now points to the spec as the full
+  list. This is more evidence for WP-API04/06.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
