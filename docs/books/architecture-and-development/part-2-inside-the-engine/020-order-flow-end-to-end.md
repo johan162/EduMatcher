@@ -268,8 +268,8 @@ flowchart TD
     B -- "yes" --> C{"Symbol in allowlist?"}
     C -- "no" --> RC["REJECT: UNKNOWN_SYMBOL"]
     C -- "yes" --> D["ensure book exists (self._book(symbol))"]
-    D --> E{"_validate_new_order: duplicate id? qty greater than 0? price required? iceberg ok? order-size / notional caps?"}
-    E -- "fails" --> RE["REJECT: DUPLICATE_ORDER / QTY_OUT_OF_RANGE / PRICE_OUT_OF_RANGE / MISSING_FIELD"]
+    D --> E{"_validate_new_order: duplicate id? qty greater than 0? per-type fields? price positive? iceberg ok? order-size / notional caps?"}
+    E -- "fails" --> RE["REJECT: DUPLICATE_ORDER / QTY_OUT_OF_RANGE / MISSING_FIELD / UNSUPPORTED_FIELD / PRICE_OUT_OF_RANGE"]
     E -- "passes" --> F{"Session accepts orders right now?"}
     F -- "no" --> RF["REJECT: MARKET_CLOSED"]
     F -- "yes" --> G{"TIF=ATO outside OPENING_AUCTION, or TIF=ATC outside CLOSING_AUCTION?"}
@@ -317,16 +317,22 @@ if order.id in self._order_symbol:
     return "DUPLICATE_ORDER", f"Duplicate order id {order.id}"
 if order.quantity <= 0 or order.remaining_qty <= 0:
     return "QTY_OUT_OF_RANGE", "Quantity must be positive"
-price_required = order.order_type in (
-    OrderType.LIMIT, OrderType.FOK, OrderType.STOP_LIMIT, OrderType.ICEBERG,
-)
-if price_required and (order.price_ticks is None or order.price_ticks <= 0):
+violation = check_type_fields(order.order_type, present_fields)  # models/order_fields
+if violation is not None:
+    return violation.reject_code, violation.message  # MISSING_FIELD / UNSUPPORTED_FIELD
+if order.price_ticks is not None and order.price_ticks <= 0:
     return ("PRICE_OUT_OF_RANGE",
             f"{order.order_type.value} order requires a positive price")
 # ... ICEBERG visible_qty checks ...
 # ... order-size / notional cap check via validate_order_limits() ...
 return None
 ```
+
+The per-type rule (`models/order_fields.py`) is the one REST, ALF and BALF
+already applied before sending: which of `price`, `stop_price`, `visible_qty`
+and `trail_offset` each order type needs, may carry, or must not carry. The
+engine applies it again as the backstop for every transport, to OCO and combo
+legs too, so a mistake gets the same `reject_code` however it arrives.
 
 Our order is `LIMIT`, `quantity=100`, `price=15000` ticks — every check
 here passes.

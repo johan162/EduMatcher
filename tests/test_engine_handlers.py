@@ -505,10 +505,43 @@ class TestNewOrderSessionGating:
                 _make_order_payload(qty=0, client_tag="T1-QTY"),
                 "QTY_OUT_OF_RANGE",
             ),
+            # WP-API16: the shared per-type rule, with the gateways' codes.
             (
                 lambda engine: _connect(engine),
                 _make_order_payload(
                     order_type=OrderType.LIMIT, price=None, client_tag="T1-PX"
+                ),
+                "MISSING_FIELD",
+            ),
+            (
+                lambda engine: _connect(engine),
+                # The engine used to let an IOC through without a price.
+                _make_order_payload(
+                    order_type=OrderType.IOC, price=None, client_tag="T1-IOC"
+                ),
+                "MISSING_FIELD",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(
+                    order_type=OrderType.STOP, price=None, client_tag="T1-STOP"
+                ),
+                "MISSING_FIELD",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(
+                    order_type=OrderType.LIMIT,
+                    price=10000,
+                    stop_price=9500,
+                    client_tag="T1-EXTRA",
+                ),
+                "UNSUPPORTED_FIELD",
+            ),
+            (
+                lambda engine: _connect(engine),
+                _make_order_payload(
+                    order_type=OrderType.LIMIT, price=0, client_tag="T1-ZERO"
                 ),
                 "PRICE_OUT_OF_RANGE",
             ),

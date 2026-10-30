@@ -429,6 +429,43 @@ def test_new_oco_and_combo_forward_client_tag(gateway: AlfGateway) -> None:
     assert combo_payload["client_tag"] == "COMBO-TAG"
 
 
+def test_combo_legs_carry_their_own_symbols_tick_scale(gateway: AlfGateway) -> None:
+    """WP-API16: every ALF combo leg was stamped tick_decimals=2, so a leg on a
+    4-decimal instrument told readers of the wire record the wrong scale for
+    its ticks. REST already sent the symbol's own."""
+    from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+
+    clear_tick_registry()
+    register_tick_decimals("AAPL", 2)
+    register_tick_decimals("EURUSD", 4)
+    try:
+        session, peer = _make_session()
+        session.authenticated = True
+        session.gateway_id = "TRADER01"
+        session.role = "TRADER"
+        session.rate_tokens = 10.0
+        gateway._symbols_snapshot_loaded = True
+        gateway._known_symbols = {"AAPL", "EURUSD"}
+        gateway._handle_client_line(
+            session,
+            "NEW|TYPE=COMBO|COMBO_ID=C4|LEG_COUNT=2|"
+            "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=1|LEG0.PRICE=100|"
+            "LEG1.SYM=EURUSD|LEG1.SIDE=SELL|LEG1.QTY=1|LEG1.PRICE=1.0850",
+        )
+        fake_push = gateway._push
+        assert isinstance(fake_push, _FakePush)
+        _, payload = decode(fake_push.sent[-1])
+        legs = {leg["symbol"]: leg for leg in payload["legs"]}
+        assert legs["AAPL"]["tick_decimals"] == 2
+        assert (legs["EURUSD"]["tick_decimals"], legs["EURUSD"]["price_ticks"]) == (
+            4,
+            10850,
+        )
+        peer.close()
+    finally:
+        clear_tick_registry()
+
+
 def test_new_oco_leg_prices_are_ticks_on_the_wire(gateway: AlfGateway) -> None:
     """LEG1_PRICE/LEG1_STOP/LEG2_STOP must reach the engine as *_ticks.
 

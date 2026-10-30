@@ -305,6 +305,11 @@ Offset 51  |  smp              |  u8      |  See SMP codes below
 | `0x07` | `ICEBERG` | `price` and `visible_qty` |
 | `0x08` | `TRAILING_STOP` | `trail_offset`; optionally `stop_price` |
 
+A price field is "absent" when it is zero. Every other price field must be
+zero: a non-zero field the type does not use (a `trail_offset` on a `LIMIT`,
+say) is refused with `RC_INVALID_FIELD` rather than ignored. This is the same
+per-type rule REST, ALF and the engine apply.
+
 **TIF codes:**
 
 | Code | ALF equivalent |
@@ -356,7 +361,7 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x09` | `RC_TRAILING_STOP_NO_PRICE` | TRAILING_STOP with no prior trade price |
 | `0x0A` | `RC_INSUFFICIENT_LIQUIDITY` | FOK could not be filled in full |
 | `0x0B` | `RC_PRICE_COLLAR` | Rejected by a price collar |
-| `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, missing LIMIT price, or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
+| `0x0C` | `RC_INVALID_FIELD` | Invalid field — bad quantity, a price field the order type needs and lacks (`"LIMIT requires price"`) or does not use (`"LIMIT forbids trail_offset"`), or a price that is not on the instrument's tick grid (`reason` = `"price off tick grid"`) |
 | `0xFF` | `RC_OTHER` | Other; inspect the `reason` string |
 
 !!! warning "Prices must land on the tick grid"

@@ -567,7 +567,41 @@ class TestComboValidation:
 
         topic, msg = decode(pub_sock.sent[0])
         assert msg["accepted"] is False
-        assert "requires a price" in msg["reason"]
+        assert "LIMIT requires price" in msg["reason"]
+
+    def test_combo_rejected_stop_limit_without_price(self, combo_engine) -> None:
+        """WP-API16: the engine (and ALF) used to accept a STOP_LIMIT leg
+        without its limit price; the shared per-type rule refuses it."""
+        engine, pub_sock = combo_engine
+        combo = ComboOrder.create(
+            combo_id="SL",
+            gateway_id="TRADER01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol="AAPL",
+                    side=Side.BUY,
+                    order_type=OrderType.STOP_LIMIT,
+                    quantity=10,
+                    tick_decimals=2,
+                    stop_price_ticks=9500,
+                ),
+                ComboLeg(
+                    symbol="MSFT",
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=5,
+                    tick_decimals=2,
+                    price_ticks=30000,
+                ),
+            ],
+        )
+        engine._handle_combo_order(combo.to_dict())
+
+        topic, msg = decode(pub_sock.sent[0])
+        assert msg["accepted"] is False
+        assert "STOP_LIMIT requires price" in msg["reason"]
 
 
 # ---------------------------------------------------------------

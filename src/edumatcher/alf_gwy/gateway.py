@@ -60,6 +60,12 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
+from edumatcher.models.order_fields import (
+    COMBO_LEG_FIELDS,
+    OCO_LEG_FIELDS,
+    ORDER_FIELDS,
+    check_type_fields,
+)
 from edumatcher.models.price import (
     TickViolation,
     format_price_ticks,
@@ -191,6 +197,40 @@ class ClientSession:
             self.sock.close()
         except OSError:
             pass
+
+
+#: ALF's names for the canonical order fields of models/order_fields.
+_ALF_FIELD_NAMES = {
+    "price": "PRICE",
+    "stop_price": "STOP",
+    "visible_qty": "VISIBLE",
+    "trail_offset": "TRAIL",
+}
+
+
+def _check_alf_type_fields(
+    order_type: OrderType,
+    values: dict[str, object],
+    carried: tuple[str, ...],
+    prefix: str,
+    where: str,
+) -> None:
+    """Refuse an order or leg that breaks the shared per-type field rule.
+
+    The same table REST and the engine apply (WP-API16): a field the type does
+    not use is refused (``UNSUPPORTED_FIELD``) rather than silently dropped, so
+    an ALF client gets the same verdict and ``reject_code`` as a REST client.
+    *prefix* words the message in the command's field names (``LEG1_STOP``).
+    """
+    violation = check_type_fields(
+        order_type,
+        [name for name, value in values.items() if value is not None],
+        carried=carried,
+        names={f: prefix + n for f, n in _ALF_FIELD_NAMES.items()},
+        where=where,
+    )
+    if violation is not None:
+        raise ValidationError(violation.reject_code, violation.message)
 
 
 class AlfGateway:
@@ -808,39 +848,25 @@ class AlfGateway:
             safe_float(fields["TRAIL"], "TRAIL") if "TRAIL" in fields else None
         )
 
+        _check_alf_type_fields(
+            order_type,
+            {
+                "price": price,
+                "stop_price": stop_price,
+                "visible_qty": visible,
+                "trail_offset": trail_offset,
+            },
+            ORDER_FIELDS,
+            "",
+            "on an order",
+        )
         if (
-            order_type
-            in {
-                OrderType.LIMIT,
-                OrderType.FOK,
-                OrderType.ICEBERG,
-                OrderType.IOC,
-            }
-            and price is None
+            order_type == OrderType.ICEBERG
+            and visible is not None
+            and visible >= quantity
         ):
-            raise ValidationError("MISSING_FIELD", "PRICE is required for this TYPE")
-
-        if order_type in {OrderType.STOP, OrderType.STOP_LIMIT} and stop_price is None:
-            raise ValidationError("MISSING_FIELD", "STOP is required for this TYPE")
-
-        if order_type == OrderType.STOP_LIMIT and price is None:
             raise ValidationError(
-                "MISSING_FIELD", "PRICE is required for TYPE=STOP_LIMIT"
-            )
-
-        if order_type == OrderType.ICEBERG:
-            if visible is None:
-                raise ValidationError(
-                    "MISSING_FIELD", "VISIBLE is required for TYPE=ICEBERG"
-                )
-            if visible >= quantity:
-                raise ValidationError(
-                    "INVALID_VALUE", "VISIBLE must be less than QTY for TYPE=ICEBERG"
-                )
-
-        if order_type == OrderType.TRAILING_STOP and trail_offset is None:
-            raise ValidationError(
-                "MISSING_FIELD", "TRAIL is required for TYPE=TRAILING_STOP"
+                "INVALID_VALUE", "VISIBLE must be less than QTY for TYPE=ICEBERG"
             )
 
         order = Order.create(
@@ -894,6 +920,17 @@ class AlfGateway:
                 self._required_str(fields, f"{prefix}TYPE")
             )
 
+            _check_alf_type_fields(
+                leg_type,
+                {
+                    "price": fields.get(f"{prefix}PRICE"),
+                    "stop_price": fields.get(f"{prefix}STOP"),
+                    "trail_offset": fields.get(f"{prefix}TRAIL"),
+                },
+                OCO_LEG_FIELDS,
+                prefix,
+                "on an OCO leg",
+            )
             leg: dict[str, Any] = {
                 "side": leg_side.value,
                 "order_type": leg_type.value,
@@ -981,17 +1018,13 @@ class AlfGateway:
                 safe_float(stop_raw, f"{prefix}.STOP") if stop_raw is not None else None
             )
 
-            if (
-                leg_type in {OrderType.LIMIT, OrderType.IOC, OrderType.FOK}
-                and price is None
-            ):
-                raise ValidationError(
-                    "MISSING_FIELD", f"{prefix}.PRICE required for {leg_type.value}"
-                )
-            if leg_type in {OrderType.STOP, OrderType.STOP_LIMIT} and stop is None:
-                raise ValidationError(
-                    "MISSING_FIELD", f"{prefix}.STOP required for {leg_type.value}"
-                )
+            _check_alf_type_fields(
+                leg_type,
+                {"price": price, "stop_price": stop},
+                COMBO_LEG_FIELDS,
+                f"{prefix}.",
+                "on a combo leg",
+            )
 
             legs.append(
                 ComboLeg(
@@ -999,7 +1032,8 @@ class AlfGateway:
                     side=side,
                     order_type=leg_type,
                     quantity=qty,
-                    tick_decimals=2,
+                    # The leg's own scale: legs trade different instruments.
+                    tick_decimals=get_tick_decimals(sym),
                     price_ticks=(
                         self._ticks(price, sym, "PRICE") if price is not None else None
                     ),

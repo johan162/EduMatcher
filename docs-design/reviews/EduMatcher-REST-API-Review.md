@@ -1097,7 +1097,7 @@ before WP-API07:
 |---|---|---|---|---|
 | **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
 | **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30 (uncommitted)**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
-| **WP-API16** | One order-validation rule | Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
+| **WP-API16** ✅ | One order-validation rule | **Done 2026-10-30 (uncommitted)**, see §9.9. Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
 
 ### 9.7 WP-API14 outcome (2026-10-30)
 
@@ -1220,6 +1220,86 @@ any 503 as "awaiting confirmation". They now share
 their "awaiting confirmation" branch can no longer be reached. It is kept,
 because the rule is general and those branches become correct automatically
 if the calls ever adopt `?wait=ack`.
+
+### 9.9 WP-API16 outcome (2026-10-30)
+
+Implements Q9: ALF is frozen at 1.0, so its validation had to match REST
+before release.
+
+**The rule.** `models/order_fields.py` holds one table: which of `price`,
+`stop_price`, `visible_qty` and `trail_offset` each order type requires,
+allows or refuses. Its `check_type_fields()` returns one verdict:
+
+- `MISSING_FIELD` for a required field that is absent;
+- `UNSUPPORTED_FIELD` for a field the type does not use;
+- `INVALID_VALUE` for a type the record cannot carry (an ICEBERG OCO leg, a
+  TRAILING_STOP combo leg).
+
+Messages are worded in each transport's field names (`LEG1_STOP`,
+`LEG0.PRICE`).
+
+**Applied everywhere:**
+
+- **REST:** orders, OCO legs and combo legs. The error type carries the
+  verdict, so a forbidden field is now `UNSUPPORTED_FIELD`; it was
+  `INVALID_VALUE`, from a message heuristic.
+- **ALF:** single orders, OCO legs and combo legs.
+- **BALF:** single orders, where a zero field counts as absent. Verdicts are
+  `RC_INVALID_FIELD`, BALF's one code for a field error.
+- **The engine,** as the backstop for every transport: new orders, OCO legs
+  and combo legs.
+
+**Divergences closed:**
+
+| Case | Before | Now, everywhere |
+|---|---|---|
+| A field the type does not use (`LIMIT` + `TRAIL`) | REST 400; ALF and BALF dropped it silently; engine accepted it | `UNSUPPORTED_FIELD` |
+| An OCO leg missing its price or stop | REST 400; ALF forwarded it unchecked to the engine | `MISSING_FIELD` |
+| A STOP_LIMIT combo leg without a price | REST 400; ALF and engine accepted it | `MISSING_FIELD` |
+| An IOC without a price | REST, ALF and BALF refused it; the engine accepted it | `MISSING_FIELD` |
+| An ICEBERG or TRAILING_STOP combo leg | REST refused it; ALF built a leg without the field | `INVALID_VALUE` |
+| A missing price at the engine | `PRICE_OUT_OF_RANGE` | `MISSING_FIELD`, as at the gateways; a present non-positive price is still `PRICE_OUT_OF_RANGE` |
+
+**Reject-code mapping.** The transports name their errors differently by
+design (`RATE_LIMIT` versus `RATE_LIMITED`), so one literal table cannot serve
+both. A parity test pins every condition both report to the same
+`reject_code`, which is what prevents drift.
+
+**Found along the way:**
+
+- **ALF built every combo leg with `tick_decimals=2`**, whatever the symbol.
+  The engine does not read the field, but the wire record told every reader
+  the wrong scale for a non-2-decimal leg's ticks. Fixed: the leg carries its
+  own symbol's scale. A test fails without the fix.
+- **ALF spec drift:** the spec said combo legs had no `LEGi.STOP`, but the
+  gateway always parsed it. Corrected; STOP and STOP_LIMIT combo legs are
+  documented.
+- **A false pass in my own first test lines:** they lacked
+  `TYPE=OCO`/`TYPE=COMBO`, so they failed for an unrelated missing field.
+  Fixed, and the leg tests now also assert ALF's message names the leg.
+
+**Producers checked:** the AI traders, the ALF console and trader-gui's
+forms all send only the fields each type uses. The orders tool, the board,
+terminal-gui, the MM bot (quotes only) and the simulator place no orders
+through this path.
+
+**Tests:**
+
+- `test_order_fields.py`;
+- parity cases in `test_cross_transport_rejects.py` (single, OCO, combo, and
+  the reject-code mapping);
+- BALF forbidden fields;
+- engine backstop cases (IOC, STOP, extra field, OCO leg, STOP_LIMIT combo
+  leg);
+- the combo tick scale.
+
+**Docs:** the ALF spec (price-field rule, OCO and combo leg tables), the BALF
+spec (field rule, `RC_INVALID_FIELD`), the REST spec, and the engine
+order-flow chapter.
+
+**Insight.** The engine's order book still handles a priceless IOC
+(`price_limit=None`). No validated path can produce one now; it is left in
+place as unreachable defensive code.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 

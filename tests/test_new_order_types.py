@@ -821,6 +821,37 @@ class TestOCOEngine:
         assert len(oco_acks) == 1
         assert not oco_acks[0]["accepted"]
 
+    def test_oco_leg_with_an_unused_field_is_rejected(self, eng):
+        """WP-API16: a LIMIT leg carrying a stop price is refused, as REST and
+        ALF refuse it, rather than resting with the stop silently ignored."""
+        engine, pub_sock = eng
+        engine._handle_oco_order(
+            {
+                "oco_id": "OCO-X",
+                "gateway_id": "TRADER01",
+                "symbol": "AAPL",
+                "quantity": 10,
+                "tif": "DAY",
+                "tick_decimals": 2,
+                "leg1": {
+                    "side": "SELL",
+                    "order_type": "LIMIT",
+                    "price_ticks": 11000,
+                    "stop_price_ticks": 9900,
+                },
+                "leg2": {
+                    "side": "SELL",
+                    "order_type": "STOP",
+                    "stop_price_ticks": 9000,
+                },
+            }
+        )
+        oco_acks = [
+            decode(f)[1] for f in pub_sock.sent if decode(f)[0] == "oco.ack.TRADER01"
+        ]
+        assert len(oco_acks) == 1 and not oco_acks[0]["accepted"]
+        assert "LIMIT forbids stop_price" in oco_acks[0]["reason"]
+
     def test_oco_rejected_for_symbol_not_configured(self, eng):
         """OCO is rejected for a symbol not in the engine config."""
         engine, pub_sock = eng

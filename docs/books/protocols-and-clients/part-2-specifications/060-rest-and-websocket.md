@@ -835,8 +835,11 @@ Takes an optional `Idempotency-Key` header; see
 | `SYMBOLS_NOT_READY` | `503` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
 
 A conditional field the `order_type` does not use is rejected
-(`400 VALIDATION`, for example `"LIMIT forbids trail_offset"`), never silently
-dropped. The same per-type rule applies to OCO and combo legs.
+(`400 VALIDATION`, `reject_code: UNSUPPORTED_FIELD`, for example
+`"LIMIT forbids trail_offset"`), never silently dropped; a missing one is
+`MISSING_FIELD`. The same per-type rule applies to OCO and combo legs, and ALF,
+BALF and the engine apply it too, so an order gets the same `reject_code` on
+every transport.
 
 Prices are refused rather than rounded to the nearest tick: rounding would rest
 the order at a price the client never sent. See

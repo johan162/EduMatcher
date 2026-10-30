@@ -17,6 +17,8 @@ from edumatcher.balf_gwy.codec import (
     SMP_TO_STR,
     TIF_TO_STR,
 )
+from edumatcher.models.order import OrderType
+from edumatcher.models.order_fields import ORDER_FIELDS, check_type_fields
 
 # ---------------------------------------------------------------------------
 # Reject codes for ORDER_ACK — matches spec §5.5
@@ -166,40 +168,20 @@ def validate_symbol(sym: str) -> None:
 
 
 def validate_new_order_price_logic(parsed: dict[str, Any]) -> None:
-    """Cross-field price validation for NEW_ORDER.
+    """Cross-field price validation for NEW_ORDER: the shared per-type rule.
 
-    Maps order_type string -> required / forbidden price fields and raises
-    BalfValidationError for violations.
+    The same table REST, ALF and the engine apply (``models/order_fields``,
+    WP-API16), so a field the type does not use is refused rather than
+    ignored. A fixed-width BALF field is "absent" when zero. Every verdict is
+    ``RC_INVALID_FIELD``, BALF's one code for a field error.
     """
     ot = parsed.get("order_type_str", "")
-    price = parsed.get("price", 0)
-    stop_price = parsed.get("stop_price", 0)
-    trail_offset = parsed.get("trail_offset", 0)
-    visible_qty = parsed.get("visible_qty", 0)
-    quantity = parsed.get("quantity", 0)
-
-    if ot in {"LIMIT", "IOC", "FOK"}:
-        if price == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "price required for " + ot)
-    elif ot == "STOP":
-        if stop_price == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "stop_price required for STOP")
-    elif ot == "STOP_LIMIT":
-        if stop_price == 0:
-            raise BalfValidationError(
-                RC_INVALID_FIELD, "stop_price required for STOP_LIMIT"
-            )
-        if price == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "price required for STOP_LIMIT")
-    elif ot == "ICEBERG":
-        if price == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "price required for ICEBERG")
-        validate_visible_qty(visible_qty, quantity)
-    elif ot == "TRAILING_STOP":
-        if trail_offset == 0:
-            raise BalfValidationError(
-                RC_INVALID_FIELD, "trail_offset required for TRAILING_STOP"
-            )
+    present = [name for name in ORDER_FIELDS if parsed.get(name, 0) != 0]
+    violation = check_type_fields(OrderType(ot), present, where="on an order")
+    if violation is not None:
+        raise BalfValidationError(RC_INVALID_FIELD, violation.message)
+    if ot == "ICEBERG":
+        validate_visible_qty(parsed.get("visible_qty", 0), parsed.get("quantity", 0))
 
 
 def validate_amend_flags(amend_flags: int) -> None:

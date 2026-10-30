@@ -98,6 +98,9 @@ async def _safe_body(request: Request) -> object:
 
 
 def _validation_reject_code(error_type: str, message: str) -> str:
+    # The shared per-type rule names its verdict (schemas._check_type_fields).
+    if error_type in ("missing_field", "unsupported_field", "invalid_value"):
+        return error_type.upper()
     lower_message = message.lower()
     if (
         error_type == "missing"

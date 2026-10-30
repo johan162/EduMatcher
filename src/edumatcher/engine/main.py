@@ -235,6 +235,11 @@ from edumatcher.models.price import (
     to_ticks,
     to_ticks_exact,
 )
+from edumatcher.models.order_fields import (
+    COMBO_LEG_FIELDS,
+    OCO_LEG_FIELDS,
+    check_type_fields,
+)
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.trade import current_run_seq, set_run_seq
 from edumatcher.models.quote import (
@@ -1736,21 +1741,33 @@ class Engine:
         # M7: quantity must be positive.
         if order.quantity <= 0 or order.remaining_qty <= 0:
             return "QTY_OUT_OF_RANGE", "Quantity must be positive"
-        # M7: order types that rest / price-limit must carry a positive price.
-        price_required = order.order_type in (
-            OrderType.LIMIT,
-            OrderType.FOK,
-            OrderType.STOP_LIMIT,
-            OrderType.ICEBERG,
+        # WP-API16: the per-type field rule every gateway applies too, here as
+        # the backstop for all of them (and for any client that bypasses one).
+        violation = check_type_fields(
+            order.order_type,
+            [
+                name
+                for name, value in (
+                    ("price", order.price_ticks),
+                    ("stop_price", order.stop_price_ticks),
+                    ("visible_qty", order.visible_qty),
+                    ("trail_offset", order.trail_offset_ticks),
+                )
+                if value is not None
+            ],
+            where="on an order",
         )
-        if price_required and (order.price_ticks is None or order.price_ticks <= 0):
+        if violation is not None:
+            return violation.reject_code, violation.message
+        # M7: a price that is present must be positive.
+        if order.price_ticks is not None and order.price_ticks <= 0:
             return (
                 "PRICE_OUT_OF_RANGE",
                 f"{order.order_type.value} order requires a positive price",
             )
-        # M7: iceberg visible slice must be present and not exceed quantity.
-        if order.order_type == OrderType.ICEBERG:
-            if order.visible_qty is None or order.visible_qty <= 0:
+        # M7: iceberg visible slice must be positive and not exceed quantity.
+        if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
+            if order.visible_qty <= 0:
                 return "MISSING_FIELD", "ICEBERG order requires a positive visible_qty"
             if order.visible_qty > order.quantity:
                 return (
@@ -5155,14 +5172,22 @@ class Engine:
         for i, leg in enumerate(combo.legs):
             if leg.quantity <= 0:
                 return f"Leg {i}: invalid quantity {leg.quantity}"
-            needs_price = leg.order_type in (
-                OrderType.LIMIT,
-                OrderType.FOK,
-                OrderType.STOP_LIMIT,
-                OrderType.ICEBERG,
+            # WP-API16: the per-type rule the gateways apply, as the backstop.
+            violation = check_type_fields(
+                leg.order_type,
+                [
+                    name
+                    for name, value in (
+                        ("price", leg.price_ticks),
+                        ("stop_price", leg.stop_price_ticks),
+                    )
+                    if value is not None
+                ],
+                carried=COMBO_LEG_FIELDS,
+                where="on a combo leg",
             )
-            if needs_price and leg.price_ticks is None:
-                return f"Leg {i}: {leg.order_type.value} requires a price"
+            if violation is not None:
+                return f"Leg {i}: {violation.message}"
 
         return ""
 
@@ -6000,44 +6025,26 @@ class Engine:
             )
             return
 
-        # Validate that legs with limit/stop prices have those prices
+        # WP-API16: the per-type rule the gateways apply, as the backstop.
         for i, leg in enumerate((leg1, leg2), 1):
-            if (
-                leg.order_type in (OrderType.LIMIT, OrderType.IOC, OrderType.FOK)
-                and leg.price_ticks is None
-            ):
-                self.pub_sock.send_multipart(
-                    self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} ({leg.order_type.value}) requires price",
+            violation = check_type_fields(
+                leg.order_type,
+                [
+                    name
+                    for name, value in (
+                        ("price", leg.price_ticks),
+                        ("stop_price", leg.stop_price_ticks),
+                        ("trail_offset", leg.trail_offset_ticks),
                     )
-                )
-                return
-            if (
-                leg.order_type in (OrderType.STOP, OrderType.STOP_LIMIT)
-                and leg.stop_price_ticks is None
-            ):
+                    if value is not None
+                ],
+                carried=OCO_LEG_FIELDS,
+                where="on an OCO leg",
+            )
+            if violation is not None:
                 self.pub_sock.send_multipart(
                     self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} ({leg.order_type.value}) requires stop_price",
-                    )
-                )
-                return
-            if (
-                leg.order_type == OrderType.TRAILING_STOP
-                and leg.trail_offset_ticks is None
-            ):
-                self.pub_sock.send_multipart(
-                    self._oco_ack(
-                        gateway_id,
-                        oco_id,
-                        False,
-                        f"Leg {i} (TRAILING_STOP) requires trail_offset",
+                        gateway_id, oco_id, False, f"Leg {i}: {violation.message}"
                     )
                 )
                 return

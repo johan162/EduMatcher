@@ -5,9 +5,16 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from edumatcher.models.combo import ComboType
 from edumatcher.models.order import OrderType, Side, SmpAction, TIF
+from edumatcher.models.order_fields import (
+    COMBO_LEG_FIELDS,
+    OCO_LEG_FIELDS,
+    ORDER_FIELDS,
+    check_type_fields,
+)
 from edumatcher.models.session import SessionState
 
 
@@ -47,48 +54,21 @@ class ErrorResponse(StrictModel):
     error: ErrorDetail
 
 
-#: Per order type: the optional price/size fields it requires, and those it
-#: merely allows. Every other one is forbidden. One table for whole orders and
-#: for OCO and combo legs, so the three cannot drift apart.
-_TYPE_FIELDS: dict[OrderType, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    OrderType.MARKET: ((), ()),
-    OrderType.LIMIT: (("price",), ()),
-    OrderType.FOK: (("price",), ()),
-    OrderType.IOC: (("price",), ()),
-    OrderType.STOP: (("stop_price",), ()),
-    OrderType.STOP_LIMIT: (("price", "stop_price"), ()),
-    OrderType.ICEBERG: (("price", "visible_qty"), ()),
-    # Without stop_price the engine starts the stop at last trade +/- offset.
-    OrderType.TRAILING_STOP: (("trail_offset",), ("stop_price",)),
-}
-
-
 def _check_type_fields(
     model: BaseModel, order_type: OrderType, carried: tuple[str, ...], where: str
 ) -> None:
-    """Apply ``_TYPE_FIELDS`` to the *carried* fields of *model*.
+    """Apply the shared per-type rule (``models/order_fields``) to *model*.
 
-    A type needing a field the model cannot carry (an ICEBERG combo leg has no
-    ``visible_qty``) is refused outright rather than reported as missing a
-    field the caller has no way to send.
+    The error's type is the verdict's ``reject_code``, which the validation
+    handler passes through, so a REST client gets the same ``reject_code`` as
+    an ALF or BALF client sending the same order.
     """
-    required, optional = _TYPE_FIELDS[order_type]
-    uncarried = [name for name in required if name not in carried]
-    if uncarried:
-        raise ValueError(
-            f"{order_type.value} is not supported {where}: it needs "
-            + " and ".join(uncarried)
+    present = [name for name in carried if getattr(model, name) is not None]
+    violation = check_type_fields(order_type, present, carried=carried, where=where)
+    if violation is not None:
+        raise PydanticCustomError(
+            violation.reject_code.lower(), "{message}", {"message": violation.message}
         )
-    missing = [name for name in required if getattr(model, name) is None]
-    if missing:
-        raise ValueError(f"{order_type.value} requires " + " and ".join(missing))
-    forbidden = [
-        name
-        for name in carried
-        if name not in required + optional and getattr(model, name) is not None
-    ]
-    if forbidden:
-        raise ValueError(f"{order_type.value} forbids " + " and ".join(forbidden))
 
 
 class OrderRequest(StrictModel):
@@ -167,12 +147,7 @@ class OrderRequest(StrictModel):
     @model_validator(mode="after")
     def validate_by_order_type(self) -> "OrderRequest":
         order_type = OrderType(self.order_type)
-        _check_type_fields(
-            self,
-            order_type,
-            ("price", "stop_price", "visible_qty", "trail_offset"),
-            "on an order",
-        )
+        _check_type_fields(self, order_type, ORDER_FIELDS, "on an order")
         if (
             order_type == OrderType.ICEBERG
             and self.visible_qty is not None
@@ -294,10 +269,7 @@ class OcoLegRequest(StrictModel):
     @model_validator(mode="after")
     def validate_by_order_type(self) -> "OcoLegRequest":
         _check_type_fields(
-            self,
-            OrderType(self.order_type),
-            ("price", "stop_price", "trail_offset"),
-            "on an OCO leg",
+            self, OrderType(self.order_type), OCO_LEG_FIELDS, "on an OCO leg"
         )
         return self
 
@@ -355,7 +327,7 @@ class ComboLegRequest(StrictModel):
     @model_validator(mode="after")
     def validate_by_order_type(self) -> "ComboLegRequest":
         _check_type_fields(
-            self, OrderType(self.order_type), ("price", "stop_price"), "on a combo leg"
+            self, OrderType(self.order_type), COMBO_LEG_FIELDS, "on a combo leg"
         )
         return self
 
