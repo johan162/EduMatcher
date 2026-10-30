@@ -48,7 +48,6 @@ vi.mock("@/api/apiFetch", () => ({
   },
 }));
 
-import { AdminSymbolsPage } from "@/pages/AdminSymbolsPage";
 import { AdminIndexesPage } from "@/pages/AdminIndexesPage";
 
 function wrap(node: ReactNode) {
@@ -60,16 +59,6 @@ beforeEach(() => {
   cleanup();
   apiFetchMock.mockClear();
   indexDaily503 = false;
-});
-
-describe("AdminSymbolsPage (§15.2)", () => {
-  it("renders symbols read-only with disabled Add/Edit and a prerequisite note", async () => {
-    wrap(<AdminSymbolsPage />);
-    await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Add symbol (unsupported)" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Edit AAPL (unsupported)" })).toHaveProperty("disabled", true);
-    expect(screen.getByText(/requires a backend extension/)).toBeTruthy();
-  });
 });
 
 describe("AdminIndexesPage (§15.3)", () => {

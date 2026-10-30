@@ -525,7 +525,7 @@ export const HELP_TOPICS: HelpTopic[] = [
           "Session control — transition the venue between phases (only valid transitions are offered).",
           "Gateway management — see connected gateways and kick (disconnect) one.",
           "Risk / Circuit Breakers — read-only config plus manual halt/clear.",
-          "Symbol configuration is loaded from engine_config.yaml at startup; live add/edit requires a backend extension (§6.7) and is disabled.",
+          "Symbols are loaded from engine_config.yaml at startup. To list a new one use pm-new-symbol (pm-ipo) and redeploy.",
         ],
       },
     ],

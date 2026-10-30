@@ -52,6 +52,7 @@ vi.mock("@/api/apiFetch", () => ({
 }));
 
 import { AdminRiskPage } from "@/pages/AdminRiskPage";
+import { useBookStore } from "@/store/useBookStore";
 
 function wrap(node: ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -81,6 +82,18 @@ describe("AdminRiskPage (§15.5)", () => {
     expect(screen.getAllByText("10.00%").length).toBeGreaterThan(0);
     // MSFT inherits L_TIGHT (appears in the risk-levels table and MSFT's profile).
     expect(screen.getAllByText("L_TIGHT").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows tick decimals, CB level count and live top-of-book per symbol", async () => {
+    useBookStore.setState({
+      books: {
+        AAPL: { symbol: "AAPL", bids: [{ price: 149.5, quantity: 10 }], asks: [{ price: 150.25, quantity: 5 }] },
+      },
+    } as never);
+    wrap(<AdminRiskPage />);
+    await waitFor(() => expect(screen.getByText("149.50")).toBeTruthy());
+    expect(screen.getByText("150.25")).toBeTruthy();
+    expect(screen.getByText("Tick Dec.")).toBeTruthy();
   });
 
   it("renders the per-symbol circuit-breaker ladder with ns→duration formatting", async () => {

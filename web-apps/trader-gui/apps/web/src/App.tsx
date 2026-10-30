@@ -23,7 +23,6 @@ import { PositionsPage } from "@/pages/PositionsPage.js";
 import { QuoteMgmtPage } from "@/pages/QuoteMgmtPage.js";
 import { QuoteBootstrapPage } from "@/pages/QuoteBootstrapPage.js";
 import { AdminDashboardPage } from "@/pages/AdminDashboardPage.js";
-import { AdminSymbolsPage } from "@/pages/AdminSymbolsPage.js";
 import { AdminIndexesPage } from "@/pages/AdminIndexesPage.js";
 import { AdminSessionPage } from "@/pages/AdminSessionPage.js";
 import { AdminRiskPage } from "@/pages/AdminRiskPage.js";
@@ -94,7 +93,6 @@ export default function App() {
         {/* ADMIN only */}
         <Route element={<RoleGuard roles={["ADMIN"]} />}>
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/symbols" element={<AdminSymbolsPage />} />
           <Route path="/admin/indexes" element={<AdminIndexesPage />} />
           <Route path="/admin/session" element={<AdminSessionPage />} />
           <Route path="/admin/risk" element={<AdminRiskPage />} />

@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useThrottledBooks } from "@/hooks/useThrottledBooks.js";
 import { useReferenceQuery, useReferenceRiskQuery } from "@/queries/index.js";
 import { TableSkeleton } from "@/components/shared/Skeleton.js";
-import { formatNsDuration, formatPct } from "@/lib/formatters.js";
+import { formatNsDuration, formatPct, formatPrice } from "@/lib/formatters.js";
 import type { Collar, ReferenceSymbol, RiskLevel } from "@/types/index.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 
@@ -37,6 +38,7 @@ function effectiveCollar(sym: ReferenceSymbol, levels: RiskLevel[], defaultLevel
 export function AdminRiskPage() {
   const referenceQuery = useReferenceQuery();
   const riskQuery = useReferenceRiskQuery();
+  const books = useThrottledBooks();
 
   const allSymbols = referenceQuery.data?.symbols ?? [];
 
@@ -176,6 +178,10 @@ export function AdminRiskPage() {
                 <th className={thr}>Static Band <HeaderTip table="admin-risk" col="Static Band" /></th>
                 <th className={thr}>Dynamic Band <HeaderTip table="admin-risk" col="Dynamic Band" /></th>
                 <th className={th}>Profile <HeaderTip table="admin-risk" col="Profile" /></th>
+                <th className={thr}>Tick Dec. <HeaderTip table="admin-risk" col="Tick Dec." /></th>
+                <th className={thr}>CB Levels <HeaderTip table="admin-risk" col="CB Levels" /></th>
+                <th className={thr}>Last Bid <HeaderTip table="admin-risk" col="Last Bid" /></th>
+                <th className={thr}>Last Ask <HeaderTip table="admin-risk" col="Last Ask" /></th>
               </tr>
             </thead>
             <tbody>
@@ -187,12 +193,22 @@ export function AdminRiskPage() {
                     <td className="px-2 py-1 text-right font-mono">{formatPct(collar?.static_band_pct)}</td>
                     <td className="px-2 py-1 text-right font-mono">{formatPct(collar?.dynamic_band_pct)}</td>
                     <td className="px-2 py-1 text-fg-dim">{source}</td>
+                    <td className="px-2 py-1 text-right font-mono">{s.tick_decimals}</td>
+                    <td className="px-2 py-1 text-right font-mono text-fg-dim">
+                      {s.circuit_breaker?.levels?.length || "—"}
+                    </td>
+                    <td className="px-2 py-1 text-right font-mono text-bid">
+                      {formatPrice(books[s.symbol]?.bids[0]?.price ?? null, s.tick_decimals)}
+                    </td>
+                    <td className="px-2 py-1 text-right font-mono text-ask">
+                      {formatPrice(books[s.symbol]?.asks[0]?.price ?? null, s.tick_decimals)}
+                    </td>
                   </tr>
                 );
               })}
               {symbols.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={4} className="px-2 py-6 text-center text-fg-faint">
+                  <td colSpan={8} className="px-2 py-6 text-center text-fg-faint">
                     {allSymbols.length === 0 ? "No symbols." : "No symbols match the filter."}
                   </td>
                 </tr>
