@@ -86,6 +86,15 @@ def test_list_orders_example_is_what_the_issue_asked_for(
     assert example["orders"][0]["status"] == "PARTIAL"
 
 
+def test_order_lifecycle_example_preserves_wire_topics(spec: dict[str, Any]) -> None:
+    op = spec["paths"]["/api/v1/admin/orders/{order_id}"]["get"]
+    (example,) = _example_values(_success(op)[1])
+    assert [event["topic"] for event in example["events"]] == [
+        "order.ack.TRADER01",
+        "order.fill.TRADER01",
+    ]
+
+
 def test_request_bodies_carry_examples(spec: dict[str, Any]) -> None:
     schemas = spec["components"]["schemas"]
     for name in (

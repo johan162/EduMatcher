@@ -19,6 +19,7 @@ from typing import Any
 from fastapi.openapi.models import Example
 
 from edumatcher.api_gateway.schemas import ErrorResponse
+from edumatcher.models.generated.order import topic_order_ack, topic_order_fill
 
 API_DESCRIPTION = """\
 REST/JSON and WebSocket gateway for EduMatcher order entry and market data.
@@ -1248,7 +1249,7 @@ ADMIN_ORDER_LIFECYCLE: dict[str, Any] = {
     "events": [
         {
             "timestamp": "2026-08-29T13:30:00.118000+00:00",
-            "topic": "order.ack.TRADER01",
+            "topic": topic_order_ack("TRADER01"),
             "gateway_id": "TRADER01",
             "symbol": "AAPL",
             "order_id": _ORDER_1,
@@ -1259,7 +1260,7 @@ ADMIN_ORDER_LIFECYCLE: dict[str, Any] = {
         },
         {
             "timestamp": "2026-08-29T13:30:02.904000+00:00",
-            "topic": "order.fill.TRADER01",
+            "topic": topic_order_fill("TRADER01"),
             "gateway_id": "TRADER01",
             "symbol": "AAPL",
             "order_id": _ORDER_1,
