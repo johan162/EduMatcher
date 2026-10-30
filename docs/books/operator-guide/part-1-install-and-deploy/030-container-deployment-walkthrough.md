@@ -1031,7 +1031,7 @@ flowchart TD
     F -->|no| I
     G --> I{"--no-start?"}
     H --> I
-    I -->|yes| Y["done; start later with\n./edumatcher.sh start"]
+    I -->|yes| Y["./edumatcher.sh pull\n(downloads the images);\nstart later with\n./edumatcher.sh start"]
     I -->|no| Z["./edumatcher.sh start\n(pulls the images)"]
 ```
 
@@ -1058,7 +1058,9 @@ selects `compose.ai-sim.yaml`; otherwise it uses `compose.yaml`, plus
 | `./edumatcher.sh shell [cmd…]` | `make shell` | With a command, runs just that command |
 | `./edumatcher.sh config <name or file>` | `CONFIG=` | Edits `.env` (and copies a file, plus a neighbouring `market_sim.yaml`); apply with `restart` |
 | `./edumatcher.sh speed N [start]` | `make up-sim SPEED=N START=…` | Simulation only |
-| `./edumatcher.sh update [version]` | — | Set `EM_VERSION`, pull, restart |
+| `./edumatcher.sh upgrade [-y]` (or `--upgrade`) | — | Find the newest release, pull it, then — if the system was running, and after a warning and a question (`-y` skips it) — stop, replace the images, remove the old ones and restart. A stopped system is only upgraded, not started. A failed pull changes nothing |
+| `./edumatcher.sh pull` | — | Download the images, start nothing |
+| `./edumatcher.sh update [version]` | — | Set `EM_VERSION`, pull, restart, without asking |
 | `./edumatcher.sh urls` / `mounts` | — / `make mounts` | |
 | `./edumatcher.sh uninstall [--data]` | `compose down --volumes` | `--data` also deletes `data/` and `config/` |
 

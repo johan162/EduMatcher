@@ -1,0 +1,152 @@
+# EduMatcher — the six web GUIs only, from prebuilt images, for an exchange
+# that is NOT in a container: one installed with pipx (or Poetry) and started
+# with pm-opctl-cli on this machine, as a plain exchange or as the AI-trader
+# simulation. The exchange itself is compose.yaml's other half and is absent
+# here.
+#
+# There is no shared compose network to the exchange this time, so the GUIs
+# reach it through the host: EM_HOST (host.docker.internal by default) is
+# mapped to the host's address with host-gateway, and every port below is one
+# the exchange's service layer binds on 0.0.0.0 -- all but pm-monitor's 5611,
+# which stays on 127.0.0.1 unless the exchange is started with
+# EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 (only dash-gui needs it). The raw ZeroMQ bus
+# (5555-5559) is not used by any GUI, so nothing here needs EM_ZMQ.
+#
+# The two GUIs that read files (log-gui, dash-gui) get the exchange's data
+# directory read-only: EM_DATA_DIR, which ./edumatcher.sh resolves from
+# EDUMATCHER_DATA_DIR (default ~/.local/share/edumatcher).
+#
+# Normally driven by ./edumatcher.sh (EM_STACK=guis) rather than by hand.
+
+name: edumatcher-host
+
+x-host: &host
+  extra_hosts:
+    - "${EM_HOST:-host.docker.internal}:host-gateway"
+
+services:
+  terminal-gui:
+    <<: *host
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-terminal-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-terminal-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TERMINAL_GUI_PORT:-8090}:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      CORS_ORIGIN: "*"
+      CALF_HOST: "${EM_HOST:-host.docker.internal}"
+      CALF_PORT: "5570"
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://${EM_HOST:-host.docker.internal}:8081}"
+      PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - terminal-gui-logs:/app/logs
+
+  book-gui:
+    <<: *host
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-book-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-book-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${BOOK_GUI_PORT:-8094}:8094"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8094"
+      CORS_ORIGIN: "*"
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://${EM_HOST:-host.docker.internal}:8081}"
+      PM_BOOK_API_KEY: "${PM_BOOK_API_KEY:-}"
+      LOG_SRV_ENABLED: "true"
+      CALF_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - book-gui-logs:/app/logs
+
+  log-gui:
+    <<: *host
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-log-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-log-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${LOG_GUI_PORT:-8091}:8091"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8091"
+      CORS_ORIGIN: "*"
+      CALF_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_PUB_PORT: "5601"
+      LOG_SRV_PULL_PORT: "5602"
+      LOG_DB_PATH: "/backend-data/log.db"
+      ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+    volumes:
+      # pm-log-srv's own directory, read-only: the viewer reads log.db but
+      # must never write it.
+      - ${EM_DATA_DIR:-${HOME}/.local/share/edumatcher}:/backend-data:ro,z
+      - log-gui-acks:/app/ack-data
+
+  config-gui:
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-config-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-config-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${CONFIG_GUI_PORT:-8092}:8092"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8092"
+      CORS_ORIGIN: "*"
+
+  dash-gui:
+    <<: *host
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-dash-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-dash-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${DASH_GUI_PORT:-8095}:8095"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8095"
+      CORS_ORIGIN: "*"
+      # pm-monitor's snapshot feed. Needs the exchange started with
+      # EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0; its default is loopback.
+      MONITOR_HOST: "${EM_HOST:-host.docker.internal}"
+      MONITOR_PUB_PORT: "5611"
+      METRICS_DB_PATH: "/backend-data/metrics.db"
+      CONFIG_ARTIFACT_PATH: "/backend-data/ref_data/engine_config.json"
+      LOG_GUI_URL: "${LOG_GUI_URL:-http://localhost:${LOG_GUI_PORT:-8091}}"
+      BOOK_GUI_URL: "${BOOK_GUI_URL:-http://localhost:${BOOK_GUI_PORT:-8094}}"
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://${EM_HOST:-host.docker.internal}:8081}"
+      PM_DASH_API_KEY: "${PM_DASH_API_KEY:-}"
+      LOG_SRV_ENABLED: "true"
+      CALF_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_HOST: "${EM_HOST:-host.docker.internal}"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      - ${EM_DATA_DIR:-${HOME}/.local/share/edumatcher}:/backend-data:ro,z
+      - dash-gui-logs:/app/logs
+
+  trader-gui:
+    <<: *host
+    image: ghcr.io/${GHCR_OWNER:-johan162}/edumatcher-trader-gui:${EM_VERSION:-latest}
+    container_name: edumatcher-host-trader-gui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${TRADER_GUI_PORT:-8093}:8093"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8093"
+      # The 'desk' instance: trading credentials are entered in the browser.
+      API_PROXY_TARGET: "http://${EM_HOST:-host.docker.internal}:8080"
+
+volumes:
+  log-gui-acks:
+  terminal-gui-logs:
+  book-gui-logs:
+  dash-gui-logs:

@@ -17,6 +17,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from edumatcher.api_gateway.metrics import install as install_metrics
+from edumatcher.api_gateway.openapi_docs import (
+    API_DESCRIPTION,
+    COMMON_ERRORS,
+    TAGS_METADATA,
+    drop_stock_validation_error,
+)
 from edumatcher.health import HealthReporter
 from edumatcher.api_gateway.config import (
     ApiGatewayConfig,
@@ -219,13 +225,24 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
     app = FastAPI(
         title="EduMatcher API Gateway",
         version="1.0.0",
-        description="REST/JSON and WebSocket gateway for EduMatcher order entry and market data.",
+        description=API_DESCRIPTION,
+        openapi_tags=TAGS_METADATA,
+        responses=COMMON_ERRORS,
         docs_url=docs_url,
         redoc_url=None,
         openapi_url=openapi_url,
         lifespan=lifespan,
     )
     metrics = install_metrics(app)
+
+    default_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        schema = default_openapi()
+        drop_stock_validation_error(schema)
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(  # pyright: ignore[reportUnusedFunction]

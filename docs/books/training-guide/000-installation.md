@@ -289,6 +289,16 @@ source ~/.zshrc     # or source ~/.bashrc — whichever pm-setup named
 version, and `echo $EDUMATCHER_DATA_DIR` prints a path — **in a new terminal**,
 not just the one where you ran `pm-setup`.
 
+!!! tip "Want the web applications on this route?"
+    They are not in the Python package, but if Podman or Docker is available
+    you can run them as ready-built containers next to your `pipx` exchange:
+    start the exchange with
+    `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 pm-opctl-cli start`, then
+    `curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --guis`.
+    The Operator's Guide chapter
+    [Installation](../operator-guide/part-1-install-and-deploy/010-installation.md#web-applications-with-a-pipx-exchange)
+    has the details.
+
 ### Route C: Multipass VM — a disposable Linux sandbox
 
 A ready-to-run Linux environment without installing Python tooling on your
@@ -298,7 +308,7 @@ verify it, then bootstrap:
 ```bash
 multipass version
 
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.65.4
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh | bash -s -- --version 0.65.5
 ```
 
 If `multipass version` fails with `command not found`, the install did not

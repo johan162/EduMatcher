@@ -100,8 +100,11 @@ Config builder   :  http://localhost:8092
 
 ## Run from a plain Python pip/x 
 
-Prefer a Python package? `pipx install edumatcher`, then `pm-setup`. Both
-routes, and three more, are covered in
+Prefer a Python package? `pipx install edumatcher`, then `pm-setup`. The web
+applications are not in the package, but they are published as ready-built
+containers and can be run next to your pipx exchange (plain or simulation) with
+`curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --guis`.
+Both routes, and three more, are covered in
 **[Installation](https://johan162.github.io/EduMatcher/books/operator-guide/part-1-install-and-deploy/010-installation/)**.
 
 New here? The **[Quick Start Guide](https://johan162.github.io/EduMatcher/books/quick-start/00-front/010-how-to-use-this-book/)**
@@ -204,7 +207,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.65.4}
+  version = {0.65.5}
 }
 ```
 

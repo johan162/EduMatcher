@@ -8,11 +8,15 @@
 #   ./edumatcher.sh config <example-name | path/to/engine_config.yaml>
 #   ./edumatcher.sh speed <N> [start-time]      (AI-sim installs only)
 #   ./edumatcher.sh share on [host-ip] | off
+#   ./edumatcher.sh pull                       (download the images, start nothing)
+#   ./edumatcher.sh upgrade [-y]               (newest release; --upgrade works too)
 #   ./edumatcher.sh update [version]
 #   ./edumatcher.sh uninstall [--data]
 #
 # EM_STACK=sim in .env makes every command drive compose.ai-sim.yaml and the
 # 'edumatcher-sim' containers instead; the installer sets it with --sim.
+# EM_STACK=guis drives compose.guis.yaml: the six web GUIs only, for an
+# exchange you run yourself with pipx; the installer sets it with --guis.
 #
 # Everything runs from this directory; there is nothing installed elsewhere.
 
@@ -38,7 +42,7 @@ CONTAINER_NAME="edumatcher"
 env_value() { [[ -f .env ]] && sed -n "s/^$1=//p" .env | tail -1; }
 
 # 'sim' for an AI-trader simulation install, empty for the plain exchange.
-stack() { [[ "$(env_value EM_STACK)" == "sim" ]] && echo sim; }
+stack() { case "$(env_value EM_STACK)" in sim) echo sim ;; guis) echo guis ;; esac; }
 
 # --- Container engine ------------------------------------------------------
 # Podman is preferred when both are installed, matching the repository's own
@@ -62,6 +66,13 @@ detect_engine() {
 
     # Overlay files are additive -f arguments, the same mechanism the source
     # checkout uses for ZMQ=1 and SSH=1. Word splitting here is intended.
+    if [[ "$(stack)" == "guis" ]]; then
+        COMPOSE_FILES="-f compose.guis.yaml"
+        CONTAINER_NAME=""
+        export EM_DATA_DIR="$(guis_data_dir)"
+        CONTAINERS="edumatcher-host-terminal-gui edumatcher-host-log-gui edumatcher-host-config-gui edumatcher-host-trader-gui edumatcher-host-book-gui edumatcher-host-dash-gui"
+        return
+    fi
     if [[ "$(stack)" == "sim" ]]; then
         COMPOSE_FILES="-f compose.ai-sim.yaml"
         CONTAINER_NAME="edumatcher-sim"
@@ -81,11 +92,12 @@ detect_engine() {
 # Reads the deployed configuration and prints "<port> <api_key>" for the first
 # read-only credential (gateway_id: null). terminal-gui's history endpoints and
 # everything book-gui shows need it; it is generated per configuration, so it
-# cannot be a fixed default.
+# cannot be a fixed default. An optional argument names the file, for an
+# exchange that is not in a container.
 READONLY_CREDENTIAL_PY='
-import json
+import json, sys
 try:
-    cfg = json.load(open("/data/ref_data/engine_config.json"))
+    cfg = json.load(open(sys.argv[1] if len(sys.argv) > 1 else "/data/ref_data/engine_config.json"))
 except OSError:
     raise SystemExit(1)
 for name, gw in sorted((cfg.get("api_gateways") or {}).items()):
@@ -97,6 +109,14 @@ for name, gw in sorted((cfg.get("api_gateways") or {}).items()):
             raise SystemExit(0)
 raise SystemExit(1)
 '
+
+# The pipx exchange's data directory: what its pm-* commands use, so
+# EDUMATCHER_DATA_DIR from this shell first, then .env, then the pipx default.
+guis_data_dir() {
+    local dir="${EDUMATCHER_DATA_DIR:-$(env_value EM_DATA_DIR)}"
+    dir="${dir:-$HOME/.local/share/edumatcher}"
+    echo "${dir/#\~/$HOME}"
+}
 
 # Resolve a directory through symlinks so /tmp and /private/tmp compare equal
 # on macOS. Non-existent paths are returned unchanged.
@@ -125,8 +145,42 @@ assert_no_foreign_stack() {
     exit 1
 }
 
+# The GUIs of an exchange that is not in a container. There is no exchange to
+# start; the read-only key is read from the deployed configuration on disk,
+# so the exchange must have been through pm-setup (or a first start) already.
+start_guis() {
+    local data cred host
+    data="$EM_DATA_DIR"
+    [[ -f "$data/ref_data/engine_config.json" ]] || die "No deployed configuration in $data.
+  Run pm-setup first, or point at your data directory:
+    EDUMATCHER_DATA_DIR=/path/to/data ./edumatcher.sh start"
+    # How the containers address this machine; compose maps the name to it.
+    host="${EM_HOST:-$(env_value EM_HOST)}"
+    export EM_HOST="${host:-host.docker.internal}"
+    host="$EM_HOST"
+    info "Exchange data directory: $data"
+
+    cred=$(python3 -c "$READONLY_CREDENTIAL_PY" "$data/ref_data/engine_config.json" 2>/dev/null || true)
+    if [[ -n "$cred" ]]; then
+        set -- $cred
+        export API_GATEWAY_URL="http://$host:$1"
+        export PM_TERMINAL_API_KEY="$2" PM_BOOK_API_KEY="$2" PM_DASH_API_KEY="$2"
+        ok "Read-only API key resolved from the deployed configuration (port $1)"
+    else
+        warn "No read-only credential (gateway_id: null) in the deployed configuration."
+        warn "The trading terminal's live feed will work; its history panels and the"
+        warn "order book viewer will not."
+    fi
+    $COMPOSE $COMPOSE_FILES up -d
+    echo
+    cmd_urls
+    echo
+    info "These are only the GUIs. Start the exchange itself on this machine: pm-opctl-cli start"
+}
+
 cmd_start() {
     detect_engine
+    [[ "$(stack)" == "guis" ]] && { info "Engine: $ENGINE ($COMPOSE)"; start_guis; return; }
     assert_no_foreign_stack
     mkdir -p data config
     info "Engine: $ENGINE ($COMPOSE)"
@@ -185,6 +239,11 @@ cmd_status() {
     $COMPOSE $COMPOSE_FILES ps
     echo
     info "Exchange process table:"
+    if [[ "$(stack)" == "guis" ]]; then
+        pm-opctl-cli list --no-restart 2>/dev/null \
+            || warn "pm-opctl-cli is not on the PATH, or the exchange is not running."
+        return
+    fi
     $ENGINE exec "$CONTAINER_NAME" pm-opctl-cli list --no-restart 2>/dev/null \
         || warn "The exchange container is not running."
 }
@@ -204,6 +263,8 @@ cmd_logs() {
 #   ./edumatcher.sh shell pm-alf-console --id TRADER01
 cmd_shell() {
     detect_engine
+    [[ "$(stack)" == "guis" ]] && die "There is no exchange container here: the exchange is the pipx one,
+  and its pm-* commands are already on your own PATH."
     local name="$CONTAINER_NAME" state
     $ENGINE container inspect "$name" >/dev/null 2>&1 \
         || die "No container '$name'. Start the exchange first: ./edumatcher.sh start"
@@ -249,6 +310,8 @@ cmd_mounts() {
     detect_engine
     local here_data name img state
     here_data="$(norm_dir "$HERE/data")"
+    # The GUIs of a pipx exchange mount that exchange's directory instead.
+    [[ "$(stack)" == "guis" ]] && here_data="$(norm_dir "$EM_DATA_DIR")"
     echo "This install: $HERE"
     echo
 
@@ -290,6 +353,7 @@ s10-basic-nomm s10-nominal-nomm s10-complex-nomm s30-basic-nomm s30-nominal-nomm
 s150-basic-nomm s150-nominal-nomm s150-complex-nomm s300-load s300-sim"
 
 cmd_config() {
+    [[ "$(stack)" == "guis" ]] && die "The exchange is yours (pipx): change its configuration with pm-config-gen / pm-cverifier / pm-setup."
     [[ $# -eq 1 ]] || die "Usage: ./edumatcher.sh config <example-name | path/to/engine_config.yaml>"
     local want="$1"
     if [[ -f "$want" ]]; then
@@ -392,6 +456,15 @@ cmd_share() {
     esac
 }
 
+# Download this install's images and start nothing: what 'install.sh --no-start'
+# ends with, so a later 'start' needs no network.
+cmd_pull() {
+    detect_engine
+    info "Pulling images (${COMPOSE_FILES#-f })..."
+    $COMPOSE $COMPOSE_FILES pull
+    ok "Images downloaded. Nothing was started."
+}
+
 cmd_update() {
     detect_engine
     local version="${1:-latest}"
@@ -400,6 +473,87 @@ cmd_update() {
     $COMPOSE $COMPOSE_FILES pull
     ok "Pulled. Restarting..."
     cmd_restart
+}
+
+# Move to the newest release: what 'update' does for a version you name, but
+# it finds the newest itself and respects what state the system is in.
+#   running  -> warn, ask, pull while it still runs, stop, drop the old images,
+#               start again
+#   stopped  -> pull and drop the old images; nothing is started
+# The new images are pulled BEFORE anything is stopped, so a failed download
+# (no network, a release whose images are not published yet) leaves a running
+# system running. -y skips the question, for scripts.
+#
+# Only the images and the pinned version move. compose.yaml and this script
+# come from the release you installed; re-run install.sh to refresh those too.
+image_list() { $COMPOSE $COMPOSE_FILES config 2>/dev/null | sed -n 's/^ *image: *//p' | sort -u; }
+
+cmd_upgrade() {
+    local yes=0
+    [[ "${1:-}" == "-y" || "${1:-}" == "--yes" ]] && yes=1
+    detect_engine
+    command -v curl >/dev/null 2>&1 || die "curl is required to look up the newest release."
+
+    local owner current latest tag name running=0
+    owner="$(env_value GHCR_OWNER)"; owner="${owner:-johan162}"
+    current="$(env_value EM_VERSION)"; current="${current:-latest}"
+
+    info "Looking up the newest release..."
+    tag=$(curl -fsSL "https://api.github.com/repos/${owner}/EduMatcher/releases/latest" \
+          | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+    [[ -n "$tag" ]] || die "Could not determine the newest release (no network, or GitHub rate limit)."
+    latest="${tag#v}"
+
+    if [[ "$current" == "$latest" ]]; then
+        ok "Already on the newest release ($latest). Nothing to do."
+        return
+    fi
+    info "Installed: $current    Newest: $latest"
+
+    for name in $CONTAINERS; do
+        if [[ "$($ENGINE inspect "$name" --format '{{.State.Running}}' 2>/dev/null || true)" == "true" ]]; then
+            running=1; break
+        fi
+    done
+
+    if [[ "$running" -eq 1 ]]; then
+        warn "The containers are running. Upgrading will STOP them, replace the images with"
+        warn "release $latest and start them again. Orders in flight are lost; your data"
+        warn "is kept."
+        if [[ "$yes" -ne 1 ]]; then
+            [[ -t 0 ]] || die "Not a terminal, so I cannot ask. Re-run with -y to upgrade without asking."
+            local answer
+            read -r -p "Stop and upgrade now? [y/N] " answer
+            [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || { info "Cancelled; nothing was changed."; return; }
+        fi
+    fi
+
+    local old_images
+    old_images="$(image_list)"
+
+    # The environment beats .env in compose, so this pulls the new release
+    # without touching .env until the download has worked.
+    info "Pulling release $latest..."
+    EM_VERSION="$latest" $COMPOSE $COMPOSE_FILES pull \
+        || die "The pull failed; nothing was stopped or changed."
+
+    [[ "$running" -eq 1 ]] && cmd_stop
+    set_env EM_VERSION "$latest"
+
+    # The previous release's images are now unused; remove them so the upgrade
+    # replaces rather than adds to what is on disk.
+    local new_images img
+    new_images="$(image_list)"
+    for img in $old_images; do
+        grep -qxF "$img" <<<"$new_images" || $ENGINE rmi "$img" >/dev/null 2>&1 || true
+    done
+    ok "Images are now release $latest."
+
+    if [[ "$running" -eq 1 ]]; then
+        cmd_start
+    else
+        info "The system was not running, so it was not started: ./edumatcher.sh start"
+    fi
 }
 
 cmd_uninstall() {
@@ -425,6 +579,8 @@ case "${1:-}" in
     config)    shift; cmd_config "$@" ;;
     speed)     shift; cmd_speed "$@" ;;
     share)     shift; cmd_share "$@" ;;
+    pull)      shift; cmd_pull "$@" ;;
+    upgrade|--upgrade) shift; cmd_upgrade "$@" ;;
     update)    shift; cmd_update "$@" ;;
     uninstall) shift; cmd_uninstall "$@" ;;
     *)

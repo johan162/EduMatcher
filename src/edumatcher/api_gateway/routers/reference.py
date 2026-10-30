@@ -10,6 +10,7 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 
+from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.compdb import store as compdb
 from edumatcher.clearing.query import (
@@ -128,14 +129,35 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
         ) from exc
 
 
-@router.get("/reference")
+@router.get(
+    "/reference",
+    summary="Full reference bundle",
+    description=(
+        "Everything static about the venue in one round trip: tradable symbols with "
+        "tick size, collars, order limits and circuit-breaker ladders; the named risk "
+        "levels; index definitions; and the trading schedule. `config_version` is a "
+        "hash of the bundle -- compare it to know whether the configuration changed "
+        "since you last looked. Open to read-only keys."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_BUNDLE, "The compiled reference-data bundle.")
+    ),
+)
 async def reference_bundle(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     return await fetch_reference_bundle(request, session)
 
 
-@router.get("/reference/config-version")
+@router.get(
+    "/reference/config-version",
+    summary="Reference config version",
+    description=(
+        "Just the `config_version` hash of the reference bundle -- a cheap way to "
+        "detect that the configuration was reloaded (`POST /admin/reference/reload`)."
+    ),
+    responses=docs.merge(docs.ok(docs.REFERENCE_CONFIG_VERSION, "The current hash.")),
+)
 async def reference_config_version(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -143,7 +165,21 @@ async def reference_config_version(
     return {"config_version": bundle.get("config_version")}
 
 
-@router.get("/reference/symbols")
+@router.get(
+    "/reference/symbols",
+    summary="Reference: symbols",
+    description=(
+        "Per-symbol static configuration. `tick_decimals` is the price scale (2 means "
+        "prices move in 0.01 steps). `collar` gives the static and dynamic price bands"
+        " in percent, `order_limits` the per-order size and notional caps, and "
+        "`circuit_breaker` the halt ladder. Optional blocks are omitted for symbols "
+        "without them. For the live, per-caller view (market-maker obligations, "
+        "previous close) use `GET /symbols`."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_SYMBOLS, "One entry per tradable symbol.")
+    ),
+)
 async def reference_symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -157,7 +193,16 @@ async def reference_symbols(
     }
 
 
-@router.get("/reference/risk")
+@router.get(
+    "/reference/risk",
+    summary="Reference: risk levels",
+    description=(
+        "The named risk levels (price-collar presets) a symbol's `level` refers to, "
+        "and the default. Static definitions; for live collar and breaker state per "
+        "symbol see `GET /admin/risk/state`."
+    ),
+    responses=docs.merge(docs.ok(docs.REFERENCE_RISK, "The configured risk levels.")),
+)
 async def reference_risk(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -166,7 +211,16 @@ async def reference_risk(
     return {**risk, "config_version": bundle["config_version"]}
 
 
-@router.get("/reference/indexes")
+@router.get(
+    "/reference/indexes",
+    summary="Reference: indexes",
+    description=(
+        "Configured exchange indexes: id, description, base value and constituents. "
+        "Static configuration only; the live level is on the market-data WebSocket and"
+        " in `GET /history/index-daily`."
+    ),
+    responses=docs.merge(docs.ok(docs.REFERENCE_INDEXES, "The configured indexes.")),
+)
 async def reference_indexes(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -177,7 +231,18 @@ async def reference_indexes(
     }
 
 
-@router.get("/reference/schedule")
+@router.get(
+    "/reference/schedule",
+    summary="Reference: trading schedule",
+    description=(
+        "The resolved weekly trading schedule (local wall-clock times per weekday, "
+        "holiday override, and the entry in force `today`), the exchange `country` "
+        "whose bank holidays apply, and the next holidays. `sessions_enabled: false` "
+        "means the venue trades continuously with no daily timeline. Times are in the "
+        "exchange timezone (see `GET /history/session`)."
+    ),
+    responses=docs.merge(docs.ok(docs.REFERENCE_SCHEDULE, "The trading schedule.")),
+)
 async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -189,7 +254,18 @@ async def reference_schedule(
     return {**schedule, "config_version": bundle["config_version"]}
 
 
-@router.get("/symbols")
+@router.get(
+    "/symbols",
+    summary="My tradable symbols",
+    description=(
+        "The symbols the caller can trade, resolved for the caller's gateway. Beyond "
+        "`tick_decimals`, a market-maker gateway also sees its quoting obligation "
+        "(`enforce_mm_obligation`, `mm_max_spread_ticks`, `mm_min_qty`); `prev_close` "
+        "is the last session's closing price when there is one. Requires a trading "
+        "key."
+    ),
+    responses=docs.merge(docs.ok(docs.SYMBOLS, "Tradable symbols for this gateway.")),
+)
 async def symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -199,11 +275,25 @@ async def symbols(
     )
 
 
-@router.get("/news")
+@router.get(
+    "/news",
+    summary="Latest news",
+    description=(
+        "Headlines from the market simulator (`pm-market-sim`), oldest first, plus "
+        "which symbols each sector holds so a headline's `targets` can be mapped to "
+        "instruments. `scope` is SYMBOL, SECTOR or MARKET; `status` RUMOUR, CONFIRMED "
+        "or RETRACTED; `sentiment` runs from -1 (bad) to +1 (good). Any key, read-only"
+        " included. Empty lists when the simulator is not running."
+    ),
+    responses=docs.merge(docs.ok(docs.NEWS, "Recent headlines and the sector map.")),
+)
 async def news(
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    limit: Annotated[
+        int,
+        Query(ge=1, le=200, description="Most recent headlines to return (1-200)."),
+    ] = 50,
 ) -> dict[str, Any]:
     """The latest headlines from pm-market-sim, oldest first, plus which
     symbols each sector holds. Any key, read-only ones included: news is
@@ -212,7 +302,20 @@ async def news(
     return snapshot
 
 
-@router.get("/companies/{symbol}")
+@router.get(
+    "/companies/{symbol}",
+    summary="Company profile",
+    description=(
+        "The fictional company behind a symbol: sector, history, management, and a set"
+        " of financial figures with the ratios derived from them (`pe_ratio`, "
+        "`ps_ratio`, `net_margin_pct`, ...). Money figures are USD millions "
+        "(`*_musd`). Any key, read-only included."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.COMPANY, "The company profile."),
+        docs.not_found("UNKNOWN_COMPANY", "No company profile for XYZ"),
+    ),
+)
 async def company(
     symbol: str, request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -246,7 +349,18 @@ async def company(
     return row
 
 
-@router.get("/session")
+@router.get(
+    "/session",
+    summary="Session state",
+    description=(
+        "The venue's current trading phase: PRE_OPEN, OPENING_AUCTION, CONTINUOUS, "
+        "CLOSING_AUCTION or CLOSED. Orders are accepted in every phase except CLOSED, "
+        "but only CONTINUOUS matches immediately; the auctions uncross on exit. `next`"
+        " is the scheduled next transition. Live changes arrive on the market-data "
+        "WebSocket `session` channel."
+    ),
+    responses=docs.merge(docs.ok(docs.SESSION_STATUS, "The current session state.")),
+)
 async def session_state(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -256,7 +370,17 @@ async def session_state(
     )
 
 
-@router.get("/halts")
+@router.get(
+    "/halts",
+    summary="Halted symbols",
+    description=(
+        "Symbols currently halted, with when the halt lapses (`resume_at_ns`, absent "
+        "for an indefinite halt), the circuit-breaker `level` that triggered it and "
+        "its `halt_source`. An empty list means nothing is halted. Same data as `GET "
+        "/admin/halts`, without the ADMIN restriction."
+    ),
+    responses=docs.merge(docs.ok(docs.HALT_STATUS, "Currently halted symbols.")),
+)
 async def halts(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -274,7 +398,17 @@ async def halts(
     )
 
 
-@router.get("/quotes/bootstrap")
+@router.get(
+    "/quotes/bootstrap",
+    summary="My active quotes",
+    description=(
+        "The caller's active market-maker quotes: both legs' order ids, sizes, "
+        "remaining quantities, statuses and prices."
+    ),
+    responses=docs.merge(
+        docs.ok(docs.QUOTE_BOOTSTRAP, "Active quotes for this gateway.")
+    ),
+)
 async def quote_bootstrap(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -284,7 +418,15 @@ async def quote_bootstrap(
     )
 
 
-@router.get("/quotes/legs")
+@router.get(
+    "/quotes/legs",
+    summary="My quote legs",
+    description=(
+        "Every leg of the caller's quotes, one row per side, with filled and remaining"
+        " quantity."
+    ),
+    responses=docs.merge(docs.ok(docs.QUOTE_LEGS, "Quote legs for this gateway.")),
+)
 async def quote_legs(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -297,7 +439,18 @@ async def quote_legs(
     )
 
 
-@router.get("/positions")
+@router.get(
+    "/positions",
+    summary="My positions",
+    description=(
+        "Net position per symbol for the caller's own gateway. `net_qty` is signed "
+        "(negative is short); `avg_cost` the volume-weighted entry price. "
+        "`market_value` and `unrealized_pnl` are priced at `last_price` and are `null`"
+        " until a trade has printed. `realized_pnl_session`/`_mtd`/`_ytd` come from "
+        "the clearing ledger and are `null` when clearing is not deployed."
+    ),
+    responses=docs.merge(docs.ok(docs.POSITIONS, "Net positions, sorted by symbol.")),
+)
 async def positions(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
@@ -359,7 +512,16 @@ async def positions(
     return {"positions": positions_payload}
 
 
-@router.get("/status")
+@router.get(
+    "/status",
+    summary="Gateway status",
+    description=(
+        "A compact summary of this gateway's state: counts of cached orders and quote "
+        "legs, net positions, the symbols it knows, and its engine role. For ADMIN "
+        "gateways it also reports `gateway_count`, the number of connected gateways."
+    ),
+    responses=docs.merge(docs.ok(docs.STATUS_TRADER, "Gateway summary.")),
+)
 async def status_summary(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
