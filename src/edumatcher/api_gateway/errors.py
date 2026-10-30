@@ -102,6 +102,18 @@ ERROR_CODES: dict[str, ErrorCode] = {
         "The engine refused the kill switch; `message` is its reason.",
         "Unknown gateway: NOPE01",
     ),
+    "REOPEN_REJECTED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The engine refused the reopen (force-uncross); `message` is its reason.",
+        "AAPL is not halted",
+    ),
+    "QUERY_REJECTED": ErrorCode(
+        409,
+        "UNKNOWN",
+        "The engine refused the admin query; `message` is its reason.",
+        "Unknown symbol: XYZ",
+    ),
     "REBALANCE_REJECTED": ErrorCode(
         409,
         "UNKNOWN",

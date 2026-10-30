@@ -1578,17 +1578,26 @@ def make_force_uncross_ack_msg(
 
 
 def make_kill_switch_gateway_msg(
-    gateway_id: str, target_gateway_id: str, note: str = "", command_id: str = ""
+    gateway_id: str,
+    target_gateway_id: str,
+    note: str = "",
+    command_id: str = "",
+    *,
+    symbol: str = "",
+    quotes_only: bool = False,
 ) -> list[bytes]:
     """ADMIN → engine: cancel every order/quote belonging to *target_gateway_id*.
 
     ``gateway_id`` is the ADMIN caller (for role/connection checks and the
     ack topic); ``target_gateway_id`` is whose exposure gets cancelled —
-    unlike ``risk.kill_switch``, these are allowed to differ.
+    unlike ``risk.kill_switch``, these are allowed to differ. ``symbol``
+    scopes it to one instrument; ``quotes_only`` leaves non-quote orders.
     """
     return _gen_risk.make_kill_switch_gateway(
         gateway_id=gateway_id,
         target_gateway_id=target_gateway_id.upper(),
+        symbol=symbol.upper(),
+        quotes_only=quotes_only,
         note=note,
         command_id=command_id,
     )
@@ -1604,12 +1613,16 @@ def make_kill_switch_gateway_ack_msg(
     cancelled_quotes: int = 0,
     cancelled_quote_order_ids: list[str] | None = None,
     command_id: str = "",
+    symbol: str = "",
+    quotes_only: bool = False,
 ) -> list[bytes]:
     """Engine → ADMIN: gateway-targeted kill-switch result."""
     return _gen_risk.make_kill_switch_gateway_ack(
         gateway_id=gateway_id,
         accepted=accepted,
         target_gateway_id=target_gateway_id,
+        symbol=symbol,
+        quotes_only=quotes_only,
         reason=reason,
         cancelled_orders=cancelled_orders,
         cancelled_order_ids=cancelled_order_ids or [],

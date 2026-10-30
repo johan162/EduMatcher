@@ -4322,24 +4322,42 @@ class Engine:
         Unlike ``_handle_kill_switch``, the caller (``gateway_id``, checked
         for ADMIN role) and the affected gateway (``target_gateway_id``) are
         allowed to differ — this is one admin acting on another participant's
-        exposure, not a gateway acting on its own.
+        exposure, not a gateway acting on its own. Only the caller must be
+        connected: pulling a disconnected participant's resting orders is
+        exactly when an operator needs this.
+
+        ``symbol`` scopes the cancel to one instrument and ``quotes_only``
+        leaves the target's non-quote orders (WP-API07), so an admin can pull
+        one market maker's quote under its own name on the audit trail.
         """
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
+        symbol_filter = _clamp_wire_id(payload.get("symbol", ""), 16)
+        quotes_only = bool(payload.get("quotes_only", False))
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
         note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
                 make_kill_switch_gateway_ack_msg(
-                    gateway_id, target_gateway_id, False, reason, command_id=command_id
+                    gateway_id,
+                    target_gateway_id,
+                    False,
+                    reason,
+                    command_id=command_id,
+                    symbol=symbol_filter,
+                    quotes_only=quotes_only,
                 )
             )
             self._publish_admin_action(
                 gateway_id,
                 command_id,
                 "kill_switch.gateway",
-                {"target_gateway_id": target_gateway_id},
+                {
+                    "target_gateway_id": target_gateway_id,
+                    "symbol": symbol_filter or None,
+                    "quotes_only": quotes_only or None,
+                },
                 accepted=False,
                 reason=reason,
             )
@@ -4363,9 +4381,18 @@ class Engine:
         cancelled_order_ids: list[str] = []
         cancelled_quote_order_ids: list[str] = []
 
-        for entry in self._quote_index.cancel_all_for_gateway(
-            target_gateway_id, reason="ADMIN kill switch"
-        ):
+        if symbol_filter:
+            entry = self._quote_index.get(target_gateway_id, symbol_filter)
+            entries = [] if entry is None else [entry]
+            if entry is not None:
+                self._quote_index.remove(
+                    target_gateway_id, symbol_filter, reason="ADMIN kill switch"
+                )
+        else:
+            entries = self._quote_index.cancel_all_for_gateway(
+                target_gateway_id, reason="ADMIN kill switch"
+            )
+        for entry in entries:
             cancelled_quote_order_ids += self._cancel_quote_entry(
                 entry,
                 reason="ADMIN kill switch",
@@ -4377,6 +4404,10 @@ class Engine:
         # resting orders there) instead of a scan of every resting order in
         # every book — see ../../../docs/books/architecture-and-development/part-1-architecture/020-guided-tour.md §10.
         for book in self.books.values():
+            if quotes_only:
+                break
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
             for order in list(book.orders_for_gateway(target_gateway_id)):
                 if order.origin != OrderOrigin.QUOTE:
                     cancelled = self._cancel_order_by_id(
@@ -4400,6 +4431,8 @@ class Engine:
                 cancelled_quotes=cancelled_quotes,
                 cancelled_quote_order_ids=cancelled_quote_order_ids,
                 command_id=command_id,
+                symbol=symbol_filter,
+                quotes_only=quotes_only,
             )
         )
         self._publish_admin_action(
@@ -4408,6 +4441,8 @@ class Engine:
             "kill_switch.gateway",
             {
                 "target_gateway_id": target_gateway_id,
+                "symbol": symbol_filter or None,
+                "quotes_only": quotes_only or None,
                 "note": note,
                 "cancelled_orders": cancelled_orders,
                 "cancelled_order_ids": cancelled_order_ids,

@@ -931,11 +931,18 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"APPLIED", "command_id":... }` | `session.transition`        |
 | `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
 | `POST` | `/admin/gateways/{gateway_id}/disconnect` | `{ "reason":null }` (optional)      | `202 { "gateway_id":..., "status":"PENDING_DISCONNECT" }` (not awaited) | `system.gateway_disconnect` |
-| `POST` | `/admin/gateways/{gateway_id}/kill-switch` | `{ "reason":null }` (optional)     | engine gateway-targeted kill-switch ack         | `risk.kill_switch_gateway`  |
+| `POST` | `/admin/gateways/{gateway_id}/kill-switch` | `?symbol=` (optional); `{ "reason":null }` (optional) | engine gateway-targeted kill-switch ack | `risk.kill_switch_gateway`  |
+| `DELETE` | `/admin/gateways/{gateway_id}/quotes/{symbol}` | none                            | kill-switch ack, `quotes_only: true`            | `risk.kill_switch_gateway`  |
+| `GET`  | `/admin/gateways/{gateway_id}/orders` | none                                    | `{ "orders":[...], "count":N }` (engine-authoritative) | `order.orders_request` |
 | `GET`  | `/admin/gateways/{gateway_id}/positions` | none                                 | `{ "gateway_id":..., "count":N, "positions":[{symbol,net_qty,avg_cost}] }` | `system.position_request` |
 | `POST` | `/admin/symbols/{symbol}/halt`    | `{ "level": "L1", "reason":null }` (optional) | engine halt ack                               | `risk.symbol_halt`          |
 | `POST` | `/admin/symbols/{symbol}/resume`  | `{ "reason":null }` (optional)              | engine resume ack                               | `risk.symbol_resume`        |
 | `POST` | `/admin/symbols/{symbol}/cancel-orders` | `{ "reason":null }` (optional)        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+| `POST` | `/admin/symbols/{symbol}/reopen`  | `{ "price":null, "dry_run":false, "reason":null }` (optional) | engine force-uncross ack | `risk.force_uncross` |
+| `GET`  | `/admin/symbols/{symbol}/orders`  | `?price=`                                   | `{ "symbol":..., "orders":[...], "count":N }`   | `order.price_level_orders_request` |
+| `POST` | `/admin/market/halt`              | none                                        | engine halt-all ack                             | `risk.circuit_breaker_halt_all` |
+| `POST` | `/admin/market/resume`            | none                                        | engine resume-all ack                           | `risk.circuit_breaker_resume_all` |
+| `GET`  | `/admin/market/volume`            | none                                        | `{ "symbols":[...], "count":N, "total_qty":..., ... }` | `system.volume_request` |
 | `POST` | `/admin/market/kill-switch`       | `{ "reason":null }` (optional)              | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
 | `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
@@ -985,9 +992,12 @@ Two admin-only kill-switch scopes beyond the self-service `POST /mass-cancel`
 symbol, every gateway):
 
 - **`/admin/gateways/{gateway_id}/kill-switch`** cancels every resting order
-  and quote belonging to that gateway, across every symbol, without
-  disconnecting it. Unlike `POST /mass-cancel`, the caller (must hold the
-  ADMIN role) and the affected gateway are different participants.
+  and quote belonging to that gateway, across every symbol (or one, with
+  `?symbol=`), without disconnecting it. Unlike `POST /mass-cancel`, the
+  caller (must hold the ADMIN role) and the affected gateway are different
+  participants. The target need not be connected, and the audit trail names
+  the ADMIN. `DELETE /admin/gateways/{gateway_id}/quotes/{symbol}` is the
+  same command limited to the quote.
 - **`/admin/market/kill-switch`** is the full-market emergency stop: every
   resting order and quote, for every gateway, across every symbol, cancelled
   outright. This is distinct from `POST /admin/symbols/{symbol}/halt`
@@ -2047,10 +2057,17 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `POST /api/v1/admin/session/transition` | Change session phase |
 | `GET /api/v1/admin/gateways` | List gateways |
 | `POST /api/v1/admin/gateways/{gateway_id}/disconnect` | Kick a gateway |
-| `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` | Kill one gateway's orders |
+| `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` | Kill one gateway's orders (optionally one symbol) |
+| `DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}` | Pull one gateway's quote |
+| `GET /api/v1/admin/gateways/{gateway_id}/orders` | Any gateway's orders, engine-authoritative |
 | `GET /api/v1/admin/gateways/{gateway_id}/positions` | Any gateway's positions (net qty + avg cost) |
 | `POST /api/v1/admin/symbols/{symbol}/halt` | Halt a symbol |
 | `POST /api/v1/admin/symbols/{symbol}/resume` | Resume a symbol |
+| `POST /api/v1/admin/symbols/{symbol}/reopen` | Uncross and reopen a symbol |
+| `GET /api/v1/admin/symbols/{symbol}/orders` | Every order on a symbol / price level |
+| `POST /api/v1/admin/market/halt` | Halt the whole market |
+| `POST /api/v1/admin/market/resume` | Resume the whole market |
+| `GET /api/v1/admin/market/volume` | Today's volume |
 | `GET /api/v1/admin/risk/state` | Live risk state |
 | `GET /api/v1/admin/orders` | Cross-gateway active orders |
 | `GET /api/v1/admin/orders/{order_id}/audit` | Cross-gateway order lifecycle |

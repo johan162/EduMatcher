@@ -680,6 +680,7 @@ What one admin command acted on, and what it did. Every field is optional becaus
 |---|---|---|---|---|
 | `symbol` | `string` | omitted when unset | max_len 16 | The instrument, when the command named one. `kill_switch.self` used to emit this as an explicit `null` when unscoped while its siblings omitted the key -- two spellings of one absence, and this is now the second. |
 | `target_gateway_id` | `string` | omitted when unset | max_len 32 | The participant acted upon, for `kill_switch.gateway`. |
+| `quotes_only` | `bool` | omitted when unset | — | For `kill_switch.gateway`: only the target's quotes were cancelled. |
 | `level` | `string` | omitted when unset | max_len 32 | The circuit-breaker rung, for `circuit_breaker.trigger`. Not an enum: the ladder is per-symbol configuration, so the value set differs per deployment. Bounded to match `circuit_breaker.halt.level`, which carries the same name onward. |
 | `note` | `string` | omitted when empty | max_len 256 | The operator's free-text reason, when one was supplied. Regime 4 to match `risk.kill_switch`'s own `note`, which is where this value arrives from -- a field that omits on one message and emits `""` on the next would be two answers to one question. |
 | `cancelled_orders` | `int` | omitted when unset | ge 0, unit `dimensionless` | Outcome, on accepted kill-switch actions only. |
@@ -2918,6 +2919,8 @@ ADMIN to engine: cancel every order and quote belonging to one named participant
 |---|---|---|---|---|
 | `gateway_id` | `string` | required | max_len 32 | The ADMIN caller; the ack is addressed to this id. |
 | `target_gateway_id` | `string` | required | max_len 32 | Whose orders and quotes are cancelled. |
+| `symbol` | `string` | omitted when empty | max_len 16 | Scope the cancel to one instrument; omitted cancels across all. |
+| `quotes_only` | `bool` | defaults to `False` | — | Cancel only the target's quotes, leaving its other resting orders. With `symbol`, this is an admin pulling one market maker's quote on one instrument -- through this ADMIN message rather than by sending the participant's own quote.cancel, which would put the target's name on the audit trail and fail while it is disconnected. |
 | `note` | `string` | omitted when empty | max_len 256 |  |
 | `command_id` | `string` | omitted when empty | max_len 64 |  |
 
@@ -2946,6 +2949,8 @@ Engine to ADMIN: what the gateway-targeted kill switch cancelled.
 | `gateway_id` | `string` | required | max_len 32 |  |
 | `accepted` | `bool` | required | — |  |
 | `target_gateway_id` | `string` | defaults to `''` | max_len 32 |  |
+| `symbol` | `string` | omitted when empty | max_len 16 | Echoed when the cancel was scoped. |
+| `quotes_only` | `bool` | defaults to `False` | — | Echoed: whether only quotes were cancelled. |
 | `reason` | `string` | defaults to `''` | max_len 512 |  |
 | `cancelled_orders` | `int` | defaults to `0` | ge 0, unit `dimensionless` |  |
 | `cancelled_order_ids` | list of `string` | defaults to `[]` | — | AR-0.5: the order ids counted in cancelled_orders, so a caller can tell which orders were hit rather than only how many. A list whose length disagrees with cancelled_orders is itself a detectable defect. |

@@ -749,7 +749,13 @@ def _cmd_kill(
     if not gw:
         console.print("[yellow]Usage:[/yellow]  KILL|GW=<gw>[|SYM=<sym>]")
         return False, {}
-    result = client.kill_switch(gw, symbol=fields.get("SYM", ""))
+    sym = fields.get("SYM", "")
+    if gw.upper() == client.gateway_id.upper():
+        result = client.kill_switch(gw, symbol=sym)
+    else:
+        # Another participant: the ADMIN message, so the audit trail names
+        # the operator and a disconnected target can still be cleared.
+        result = client.kill_switch_gateway(gw, symbol=sym)
     return _report(
         result,
         f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
@@ -789,7 +795,10 @@ def _cmd_qcancel(
     if not gw or not sym:
         console.print("[yellow]Usage:[/yellow]  QCANCEL|GW=<gw>|SYM=<sym>")
         return False, {}
-    result = client.quote_cancel(gw, sym)
+    if gw.upper() == client.gateway_id.upper():
+        result = client.quote_cancel(gw, sym)
+    else:
+        result = client.kill_switch_gateway(gw, symbol=sym, quotes_only=True)
     return _report(
         result,
         f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}",

@@ -553,6 +553,32 @@ class AdminNoteRequest(StrictModel):
     )
 
 
+class ReopenRequest(StrictModel):
+    """Body of `POST /admin/symbols/{symbol}/reopen`; may be omitted."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"price": 150.25, "dry_run": True, "reason": "Failed open"}]
+        }
+    )
+
+    price: float | None = Field(
+        default=None,
+        gt=0,
+        description="Operator opening price, on the symbol's tick grid. Omit to "
+        "open at the natural equilibrium; set it when a failed auction left none.",
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="Report the indicative print without changing anything.",
+    )
+    reason: str | None = Field(
+        default=None,
+        max_length=_MAX_REASON,
+        description="Free-text note for the audit log.",
+    )
+
+
 class IndexRebalanceUpdate(StrictModel):
     symbol: str = Field(min_length=1)
     new_shares_outstanding: int = Field(gt=0)

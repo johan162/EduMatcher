@@ -1487,6 +1487,120 @@ ADMIN_RESUME_ACK_REPLY = _wire(risk_msgs.SymbolResumeAck, ADMIN_RESUME_ACK)
 ADMIN_KILL_SYMBOL_REPLY = _wire(risk_msgs.CancelSymbolAck, ADMIN_KILL_SYMBOL)
 ADMIN_KILL_GATEWAY_REPLY = _wire(risk_msgs.KillSwitchGatewayAck, ADMIN_KILL_GATEWAY)
 ADMIN_KILL_GLOBAL_REPLY = _wire(risk_msgs.KillSwitchGlobalAck, ADMIN_KILL_GLOBAL)
+ADMIN_KILL_GATEWAY_SYMBOL_REPLY = _wire(
+    risk_msgs.KillSwitchGatewayAck,
+    {
+        **ADMIN_KILL_GATEWAY,
+        "symbol": "AAPL",
+        "cancelled_order_ids": [_ORDER_1],
+        "cancelled_orders": 1,
+    },
+)
+ADMIN_QUOTE_CANCEL_REPLY = _wire(
+    risk_msgs.KillSwitchGatewayAck,
+    {
+        **ADMIN_KILL_GATEWAY,
+        "target_gateway_id": "MM01",
+        "symbol": "AAPL",
+        "quotes_only": True,
+        "cancelled_orders": 0,
+        "cancelled_order_ids": [],
+        "cancelled_quotes": 2,
+        "cancelled_quote_order_ids": [_ORDER_2, _ORDER_3],
+    },
+)
+ADMIN_HALT_ALL_REPLY = _wire(
+    risk_msgs.CircuitBreakerHaltAllAck,
+    {
+        "gateway_id": "OPS01",
+        "accepted": True,
+        "halted_symbols": 3,
+        "halted_symbol_ids": ["AAPL", "MSFT", "TSLA"],
+        "cancelled_quotes": 4,
+        "cancelled_quote_order_ids": [_ORDER_2, _ORDER_3],
+    },
+)
+ADMIN_RESUME_ALL_REPLY = _wire(
+    risk_msgs.CircuitBreakerResumeAllAck,
+    {
+        "gateway_id": "OPS01",
+        "accepted": True,
+        "resumed_symbols": 3,
+        "resumed_symbol_ids": ["AAPL", "MSFT", "TSLA"],
+    },
+)
+ADMIN_REOPEN_REPLY = {
+    "dry_run": (
+        "dry_run: the indicative print, nothing changed",
+        _wire(
+            risk_msgs.ForceUncrossAck,
+            {
+                "gateway_id": "OPS01",
+                "accepted": True,
+                "symbol": "AAPL",
+                "dry_run": True,
+                "indicative_price": 187.25,
+                "indicative_qty": 1200,
+                "surplus": 300,
+                "imbalance_side": "BUY",
+                "printed_price": None,
+                "traded_qty": 0,
+                "command_id": _CMD,
+            },
+        ),
+    ),
+    "reopened": (
+        "Reopened at an operator price",
+        _wire(
+            risk_msgs.ForceUncrossAck,
+            {
+                "gateway_id": "OPS01",
+                "accepted": True,
+                "symbol": "AAPL",
+                "dry_run": False,
+                "indicative_price": 187.25,
+                "indicative_qty": 1200,
+                "surplus": 300,
+                "imbalance_side": "BUY",
+                "printed_price": 187.25,
+                "traded_qty": 1200,
+                "command_id": _CMD,
+            },
+        ),
+    ),
+}
+ADMIN_GATEWAY_ORDERS_REPLY = _counted(
+    _wire(order_msgs.Orders, {**ORDERS_LIST, "gateway_id": "MM01"}), "orders"
+)
+ADMIN_PRICE_LEVEL_REPLY = _counted(
+    _wire(
+        order_msgs.PriceLevelOrders,
+        {
+            "gateway_id": "OPS01",
+            "symbol": "AAPL",
+            "price": 187.25,
+            "rejected": False,
+            "orders": [{**_ORDER_DISPLAY_LIMIT, "gateway_id": "TRADER01"}],
+        },
+    ),
+    "orders",
+)
+ADMIN_VOLUME_REPLY = _counted(
+    _wire(
+        system_msgs.Volume,
+        {
+            "gateway_id": "OPS01",
+            "symbols": [
+                {"symbol": "AAPL", "qty": 18400, "value": 3445200.0, "trades": 312},
+                {"symbol": "MSFT", "qty": 9100, "value": 3756480.0, "trades": 140},
+            ],
+            "total_qty": 27500,
+            "total_value": 7201680.0,
+            "total_trades": 452,
+        },
+    ),
+    "symbols",
+)
 ADMIN_REBALANCE_REPLY = _wire(index_msgs.IndexRebalanceAck, ADMIN_REBALANCE)
 
 BOOTSTRAP_TRADER: dict[str, Any] = {

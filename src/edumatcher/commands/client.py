@@ -265,6 +265,11 @@ class ExchangeCommandClient:
             self._sub.setsockopt_string(zmq.SUBSCRIBE, prefix)
             self._index_sub.setsockopt_string(zmq.SUBSCRIBE, prefix)
 
+    @property
+    def gateway_id(self) -> str:
+        """The gateway id this client acts as."""
+        return self._gw_id
+
     # ------------------------------------------------------------------
     # Low-level send / recv
     # ------------------------------------------------------------------
@@ -424,12 +429,21 @@ class ExchangeCommandClient:
         self._send(make_circuit_breaker_resume_all_msg(self._gw_id))
         return self._recv(topic_circuit_breaker_resume_all_ack(self._gw_id))
 
-    def kill_switch_gateway(self, target_gw: str, note: str = "") -> dict[str, Any]:
+    def kill_switch_gateway(
+        self,
+        target_gw: str,
+        note: str = "",
+        *,
+        symbol: str = "",
+        quotes_only: bool = False,
+    ) -> dict[str, Any]:
         """
         Cancel every resting order and quote of another gateway.
 
-        Unlike :meth:`kill_switch`, the caller and the target may differ.
-        Requires ``role: ADMIN``.
+        Unlike :meth:`kill_switch`, the caller and the target may differ, and
+        the target need not be connected. *symbol* scopes it to one
+        instrument; *quotes_only* leaves the target's non-quote orders.
+        Requires ``role: ADMIN``; the audit trail names the caller.
 
         Returns
         -------
@@ -438,7 +452,12 @@ class ExchangeCommandClient:
         """
         self._send(
             make_kill_switch_gateway_msg(
-                self._gw_id, target_gw, note=note, command_id=new_command_id()
+                self._gw_id,
+                target_gw,
+                note=note,
+                command_id=new_command_id(),
+                symbol=symbol,
+                quotes_only=quotes_only,
             )
         )
         return self._recv(topic_kill_switch_gateway_ack(self._gw_id))

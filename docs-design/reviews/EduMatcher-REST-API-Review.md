@@ -1301,11 +1301,78 @@ order-flow chapter.
 (`price_limit=None`). No validated path can produce one now; it is left in
 place as unreachable defensive code.
 
+### 9.10 WP-API07 outcome (2026-10-30)
+
+C1's admin gaps are closed. These seven routes follow the D1 scheme; the
+gateway kill switch gains `?symbol=`:
+
+| Capability | Route | Engine |
+|---|---|---|
+| Market halt / resume | `POST /admin/market/halt`, `/resume` | `risk.circuit_breaker_halt_all` / `_resume_all` |
+| Reopen a symbol | `POST /admin/symbols/{symbol}/reopen` (`price`, `dry_run`, `reason`) | `risk.force_uncross`, matched on `command_id` |
+| Gateway kill switch, one symbol | `POST /admin/gateways/{gateway_id}/kill-switch?symbol=` | `risk.kill_switch_gateway` + `symbol` |
+| Pull another gateway's quote | `DELETE /admin/gateways/{gateway_id}/quotes/{symbol}` | `risk.kill_switch_gateway` + `symbol` + `quotes_only` |
+| Engine-authoritative orders (R5) | `GET /admin/gateways/{gateway_id}/orders` | `order.orders_request` for the target |
+| Price-level drill-down | `GET /admin/symbols/{symbol}/orders?price=` | `order.price_level_orders_request` |
+| Daily volume | `GET /admin/market/volume` | `system.volume_request` |
+
+**Decided by Johan: extend the admin message rather than impersonate.**
+
+- **What the CLI did:** `pm-admin-cli`'s `kill --sym` and `qcancel` sent the
+  *target's* own `risk.kill_switch` / `quote.cancel`.
+  - The audit trail then named the target, not the operator.
+  - The engine refused while the target was disconnected, which is exactly
+    when an operator needs these.
+- **The message change:** `risk.kill_switch_gateway` gained optional `symbol`
+  and `quotes_only` (both echoed on its ack), and `AdminActionScope` gained
+  `quotes_only`. Both changes are additive.
+- **The engine:** the handler scopes by symbol and skips non-quote orders.
+  Only the ADMIN caller must be connected.
+- **The CLI:** `kill` and `qcancel` against *another* gateway now use the
+  admin message. On the caller's own gateway they keep the self-service
+  messages.
+
+**Design notes:**
+
+- **Response shapes:**
+  - The per-gateway listing has the same shape as `GET /orders`. The wire
+    reply's `gateway_id` is topic-only, and the path names the gateway.
+  - Volume and price levels add `count` (D6).
+- **The reopen `price`** is refused if it is off the tick grid
+  (`TICK_VIOLATION`), as on order entry, and is `SYMBOLS_NOT_READY` before
+  the symbol's precision is loaded.
+- **Two new registry codes:**
+  - `REOPEN_REJECTED` (409);
+  - `QUERY_REJECTED` (409): an engine-refused admin query, for example an
+    unknown symbol on the price-level drill-down.
+- **Correlation:** reopen and the kill switches match on `command_id`.
+  Market halt and resume carry none, so they match by topic, like the
+  existing roster reads.
+- **R5:** `/admin/orders` stays the gateway's read model. Its description,
+  the spec and the operator guide point at the new authoritative listing.
+
+**Tests:**
+
+- `test_api_gateway_admin_parity.py` (14 tests): every route through the
+  real app with response validation, including the ADMIN requirement, the
+  409 paths and the tick check.
+- `test_engine_admin_scoped_cancel.py`: symbol scope, quotes only, a
+  disconnected target, and the audit naming the admin.
+- The CLI routing test.
+- The layout, error-code-scan, contract and spec-match guards cover the rest.
+
+**Docs:** REST spec sections, index and codes; operator guide (endpoint
+tables, kill-switch section); admin console guide (`kill`/`qcancel`, command
+reference); message reference (generated).
+
+**Not in scope:** `book --sym` is still WebSocket-only, and is WP-API10's
+REST market-data snapshot.
+
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
-| **WP-API07** | Admin parity with `pm-admin-cli` | Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
+| **WP-API07** ✅ | Admin parity with `pm-admin-cli` | **Done 2026-10-30 (uncommitted)**, see §9.10. Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
 | **WP-API08** | WebSocket normative spec | Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
 | **WP-API09** | Examples and single source of docs | A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
 

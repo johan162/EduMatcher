@@ -99,6 +99,13 @@ optional parameters.
 | [GET /api/v1/admin/gateways/{gateway_id}/positions](#get-apiv1admingatewaysgateway_idpositions) | Admin role | Return net position and average cost for any one gateway |
 | [POST /api/v1/admin/symbols/{symbol}/cancel-orders](#post-apiv1adminsymbolssymbolcancel-orders) | Admin role | Cancel all resting exposure on one symbol |
 | [POST /api/v1/admin/gateways/{gateway_id}/kill-switch](#post-apiv1admingatewaysgateway_idkill-switch) | Admin role | Cancel all resting exposure for one gateway |
+| [POST /api/v1/admin/market/halt](#post-apiv1adminmarkethalt) | Admin role | Halt every symbol and cancel every quote |
+| [POST /api/v1/admin/market/resume](#post-apiv1adminmarketresume) | Admin role | Resume every symbol halted by a market halt |
+| [GET /api/v1/admin/market/volume](#get-apiv1adminmarketvolume) | Admin role | Today's traded volume per symbol and in total |
+| [POST /api/v1/admin/symbols/{symbol}/reopen](#post-apiv1adminsymbolssymbolreopen) | Admin role | Uncross and reopen a symbol, optionally at an operator price |
+| [GET /api/v1/admin/symbols/{symbol}/orders](#get-apiv1adminsymbolssymbolorders) | Admin role | Every resting order on a symbol, optionally one price level |
+| [GET /api/v1/admin/gateways/{gateway_id}/orders](#get-apiv1admingatewaysgateway_idorders) | Admin role | One gateway's orders as the engine holds them |
+| [DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}](#delete-apiv1admingatewaysgateway_idquotessymbol) | Admin role | Withdraw one gateway's quote on one symbol |
 | [POST /api/v1/admin/market/kill-switch](#post-apiv1adminmarketkill-switch) | Admin role | Cancel all resting exposure across every gateway and symbol |
 | [POST /api/v1/admin/indexes/{index_id}/rebalance](#post-apiv1adminindexesindex_idrebalance) | Admin role | Rebalance one configured index |
 | [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle in place |
@@ -178,6 +185,8 @@ the OpenAPI document lists all of them per operation.
 | `HALT_REJECTED` | `409` | `UNKNOWN` | The engine refused the halt (for example `Unknown symbol: XYZ`) |
 | `RESUME_REJECTED` | `409` | `UNKNOWN` | The engine refused the resume (for example `TSLA is not halted`) |
 | `KILL_SWITCH_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol, gateway or global kill switch |
+| `REOPEN_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol reopen (force-uncross), for example the symbol is not halted |
+| `QUERY_REJECTED` | `409` | `UNKNOWN` | The engine refused an admin query, for example `Unknown symbol: XYZ` |
 | `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
 | `REPLACE_REJECTED` | `409` | engine's | The engine refused `replace`'s cancel (for example the order already filled); nothing was sent |
 | `IDEMPOTENCY_KEY_REUSED` | `409` | `UNKNOWN` | The `Idempotency-Key` was already used for a different request |
@@ -2067,6 +2076,63 @@ Purpose: return live per-symbol risk state.
 | `ROLE_DENIED` | `403` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
+### `GET /api/v1/admin/gateways/{gateway_id}/orders`
+
+Purpose: one gateway's resting and recently finished orders as the engine holds
+them: the authoritative view. `GET /admin/orders` is the gateway's own read
+model across all gateways, faster and filterable but limited to what this
+gateway has seen since it started.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway_id` | `GatewayId` | yes (path) | Whose orders (case-insensitive) |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "orders": [...], "count": N }` | Same shape as `GET /orders` |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `GET /api/v1/admin/symbols/{symbol}/orders`
+
+Purpose: every resting order on one symbol across all gateways, each with its
+`gateway_id`, ordered by price then arrival (time priority). With `price`, only
+that level: the per-order composition behind the book's aggregated levels.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | `Symbol` | yes (path) | Instrument (case-insensitive) |
+| `price` | `Price` | no | Query: only this price level |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "symbol", "price"?, "rejected": false, "orders": [...], "count": N }` | The resting orders |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `QUERY_REJECTED` | `409` | Engine refused (for example `Unknown symbol: XYZ`) |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
 ### `GET /api/v1/admin/orders`
 
 Purpose: return the cross-gateway active-order table.
@@ -2190,13 +2256,16 @@ disconnecting it.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `gateway_id` | `GatewayId` | yes (path) | Gateway whose orders and quotes to cancel (case-insensitive) |
+| `symbol` | `Symbol` | no | Query: only this instrument; omit for all |
 | `reason` | `Str` | no | Body, optional: note for the audit log |
+
+The target need not be connected, and the audit trail names the ADMIN.
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | kill-switch ack | What the engine cancelled |
+| `200 OK` | kill-switch ack | What the engine cancelled; `symbol` is echoed when the cancel was scoped |
 | `409 Conflict` | error envelope | The engine refused the command |
 
 **Errors**
@@ -2209,6 +2278,149 @@ disconnecting it.
 | `KILL_SWITCH_REJECTED` | `409` | Engine refused; `message` is its reason |
 | `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 | `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}`
+
+Purpose: withdraw one participant's two-sided quote on one symbol, leaving its
+other orders. Runs through the ADMIN kill switch (`quotes_only`), so it works
+whether or not that gateway is connected and the audit trail names the ADMIN.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `gateway_id` | `GatewayId` | yes (path) | Whose quote (case-insensitive) |
+| `symbol` | `Symbol` | yes (path) | Instrument (case-insensitive) |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | kill-switch ack, `quotes_only: true` | The quote legs cancelled; `cancelled_quotes` is 0 when there was no quote |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `POST /api/v1/admin/market/halt`
+
+Purpose: halt every symbol (halt source `ADMIN`) and cancel every market-maker
+quote. Resting orders stay on the book; `POST /admin/market/kill-switch`
+cancels those.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No arguments |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "accepted": true, "halted_symbols": 3, "halted_symbol_ids": [...], "cancelled_quotes": 4, ... }` | What the engine halted |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `HALT_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `POST /api/v1/admin/market/resume`
+
+Purpose: lift the halt of `POST /admin/market/halt` on every symbol.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No arguments |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "accepted": true, "resumed_symbols": 3, "resumed_symbol_ids": [...], ... }` | What the engine resumed |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `RESUME_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `GET /api/v1/admin/market/volume`
+
+Purpose: today's traded quantity, value and trade count per symbol, and the
+venue totals.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No query parameters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "symbols": [{ "symbol", "qty", "value", "trades" }], "count": 2, "total_qty", "total_value", "total_trades" }` | Today's volume; `value` is display money |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `POST /api/v1/admin/symbols/{symbol}/reopen`
+
+Purpose: force one symbol to uncross now and clear any halt in one step. Without
+`price` it opens at the natural equilibrium; with one, at that operator price,
+for when a failed auction left no equilibrium. `dry_run` reports the indicative
+print without changing anything.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `symbol` | `Symbol` | yes (path) | Instrument (case-insensitive) |
+| `price` | `Price` | no | Body: operator opening price, on the tick grid (refused, not rounded, otherwise) |
+| `dry_run` | `Bool` | no | Body: report the indicative print only; default `false` |
+| `reason` | `Str` | no | Body: note for the audit log |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "accepted": true, "symbol", "dry_run", "indicative_price", "indicative_qty", "surplus", "imbalance_side"?, "printed_price", "traded_qty" }` | The uncross result; `printed_price` is null on a dry run |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `REOPEN_REJECTED` | `409` | Engine refused (for example the symbol is not halted); `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+| `SYMBOLS_NOT_READY` | `503` | `price` given before the symbol's tick precision reached the gateway |
 
 ### `POST /api/v1/admin/market/kill-switch`
 

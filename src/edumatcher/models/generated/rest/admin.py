@@ -43,6 +43,8 @@ class AdminActionScope(BaseModel):
     """
     target_gateway_id: str | None = Field(default=None, max_length=32)
     """The participant acted upon, for `kill_switch.gateway`."""
+    quotes_only: bool | None = Field(default=None)
+    """For `kill_switch.gateway`: only the target's quotes were cancelled."""
     level: str | None = Field(default=None, max_length=32)
     """The circuit-breaker rung, for `circuit_breaker.trigger`. Not an enum: the
     ladder is per-symbol configuration, so the value set differs per deployment.

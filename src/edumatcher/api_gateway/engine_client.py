@@ -27,8 +27,11 @@ from edumatcher.models.message import (
     decode,
     make_book_snapshot_request_msg,
     make_cancel_symbol_msg,
+    make_circuit_breaker_halt_all_msg,
+    make_circuit_breaker_resume_all_msg,
     make_combo_cancel_msg,
     make_combo_order_msg,
+    make_force_uncross_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_gateway_heartbeat_msg,
@@ -44,6 +47,7 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_orders_request_msg,
     make_position_request_msg,
+    make_price_level_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
@@ -57,6 +61,7 @@ from edumatcher.models.message import (
     make_symbol_halt_msg,
     make_symbol_resume_msg,
     make_symbols_request_msg,
+    make_volume_request_msg,
 )
 from edumatcher.models.generated.order import topic_order_ack
 from edumatcher.models.order import Order
@@ -877,12 +882,55 @@ class EngineClient:
         target_gateway_id: str,
         note: str = "",
         command_id: str = "",
+        *,
+        symbol: str = "",
+        quotes_only: bool = False,
     ) -> None:
         self._send(
             make_kill_switch_gateway_msg(
-                gateway_id, target_gateway_id, note=note, command_id=command_id
+                gateway_id,
+                target_gateway_id,
+                note=note,
+                command_id=command_id,
+                symbol=symbol,
+                quotes_only=quotes_only,
             )
         )
+
+    def send_halt_all(self, gateway_id: str) -> None:
+        self._send(make_circuit_breaker_halt_all_msg(gateway_id))
+
+    def send_resume_all(self, gateway_id: str) -> None:
+        self._send(make_circuit_breaker_resume_all_msg(gateway_id))
+
+    def send_force_uncross(
+        self,
+        gateway_id: str,
+        symbol: str,
+        *,
+        price: float | None,
+        dry_run: bool,
+        note: str,
+        command_id: str,
+    ) -> None:
+        self._send(
+            make_force_uncross_msg(
+                gateway_id,
+                symbol,
+                price=price,
+                dry_run=dry_run,
+                note=note,
+                command_id=command_id,
+            )
+        )
+
+    def request_price_level_orders(
+        self, gateway_id: str, symbol: str, price: float | None
+    ) -> None:
+        self._send(make_price_level_orders_request_msg(gateway_id, symbol, price))
+
+    def request_volume(self, gateway_id: str) -> None:
+        self._send(make_volume_request_msg(gateway_id))
 
     def send_kill_switch_global(
         self, gateway_id: str, note: str = "", command_id: str = ""

@@ -408,6 +408,14 @@ class GatewayPositions(_Counted):
     positions: list[rest_system.Position]
 
 
+class PriceLevelView(rest_order.PriceLevelOrders, _Counted):
+    """Every resting order on a symbol, optionally one price level, by arrival."""
+
+
+class VolumeView(rest_system.Volume, _Counted):
+    """Today's traded volume per symbol (`count` symbols) and venue totals."""
+
+
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------

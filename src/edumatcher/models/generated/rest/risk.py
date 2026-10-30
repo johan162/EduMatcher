@@ -71,6 +71,15 @@ class KillSwitchGateway(BaseModel):
     """The ADMIN caller; the ack is addressed to this id."""
     target_gateway_id: str = Field(max_length=32)
     """Whose orders and quotes are cancelled."""
+    symbol: str | None = Field(default=None, max_length=16)
+    """Scope the cancel to one instrument; omitted cancels across all."""
+    quotes_only: bool
+    """Cancel only the target's quotes, leaving its other resting orders. With
+    `symbol`, this is an admin pulling one market maker's quote on one instrument
+    -- through this ADMIN message rather than by sending the participant's own
+    quote.cancel, which would put the target's name on the audit trail and fail
+    while it is disconnected.
+    """
     note: str | None = Field(default=None, max_length=256)
     command_id: str | None = Field(default=None, max_length=64)
 
@@ -82,6 +91,10 @@ class KillSwitchGatewayAck(BaseModel):
 
     accepted: bool
     target_gateway_id: str = Field(max_length=32)
+    symbol: str | None = Field(default=None, max_length=16)
+    """Echoed when the cancel was scoped."""
+    quotes_only: bool
+    """Echoed: whether only quotes were cancelled."""
     reason: str = Field(max_length=512)
     cancelled_orders: int = Field(ge=0)
     cancelled_order_ids: list[str]

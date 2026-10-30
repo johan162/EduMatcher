@@ -127,6 +127,9 @@ class AdminFakeEngine:
         target_gateway_id: str,
         note: str = "",
         command_id: str = "",
+        *,
+        symbol: str = "",
+        quotes_only: bool = False,
     ) -> None:
         self.calls.append(("send_kill_switch_gateway", (gateway_id, target_gateway_id)))
 

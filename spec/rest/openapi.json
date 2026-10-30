@@ -10536,7 +10536,7 @@
           "admin"
         ],
         "summary": "Kill switch: one gateway",
-        "description": "Cancel every resting order/quote belonging to *gateway_id*.\n\nUnlike ``POST /mass-cancel`` (self-service, caller's own gateway only),\nthis lets an ADMIN act on a *named* other gateway. It does not disconnect\nit -- that is ``POST /admin/gateways/{gateway_id}/disconnect``.",
+        "description": "Cancel every resting order/quote belonging to *gateway_id*.\n\nUnlike ``POST /mass-cancel`` (self-service, caller's own gateway only),\nthis lets an ADMIN act on a *named* other gateway, connected or not, and\nthe audit trail names the ADMIN. It does not disconnect it -- that is\n``POST /admin/gateways/{gateway_id}/disconnect``.",
         "operationId": "kill_switch_gateway",
         "security": [
           {
@@ -10556,6 +10556,26 @@
               "title": "Gateway Id"
             },
             "description": "Engine gateway id, e.g. `TRADER01` (case-insensitive)."
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this instrument (case-insensitive); omit for all.",
+              "title": "Symbol"
+            },
+            "description": "Only this instrument (case-insensitive); omit for all."
           }
         ],
         "requestBody": {
@@ -10586,6 +10606,7 @@
                 "example": {
                   "accepted": true,
                   "target_gateway_id": "TRADER01",
+                  "quotes_only": false,
                   "reason": "",
                   "cancelled_orders": 2,
                   "cancelled_order_ids": [
@@ -11034,13 +11055,1121 @@
         ]
       }
     },
+    "/api/v1/admin/gateways/{gateway_id}/quotes/{symbol}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Cancel a gateway's quote",
+        "description": "Withdraw *gateway_id*'s two-sided quote on *symbol*, leaving its other orders. Works whether or not that gateway is connected, and the audit trail names the ADMIN. `cancelled_quotes` is 0 when there was no quote.",
+        "operationId": "cancel_gateway_quote",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gateway_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "Engine gateway id, e.g. `TRADER01` (case-insensitive).",
+              "title": "Gateway Id"
+            },
+            "description": "Engine gateway id, e.g. `TRADER01` (case-insensitive)."
+          },
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "Instrument, e.g. `AAPL` (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Instrument, e.g. `AAPL` (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The quote legs the engine cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchGatewayAck"
+                },
+                "example": {
+                  "accepted": true,
+                  "target_gateway_id": "MM01",
+                  "quotes_only": true,
+                  "reason": "",
+                  "cancelled_orders": 0,
+                  "cancelled_order_ids": [],
+                  "cancelled_quotes": 2,
+                  "cancelled_quote_order_ids": [
+                    "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
+                    "c81a64f0d2e94b37a5f6091e8d3b72c4"
+                  ],
+                  "symbol": "AAPL",
+                  "command_id": "cmd-5d0e8a3f7c1b4926a8e4f0b3c6d92e17"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`KILL_SWITCH_REJECTED`: The engine refused the kill switch; `message` is its reason.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "KILL_SWITCH_REJECTED": {
+                    "summary": "KILL_SWITCH_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "KILL_SWITCH_REJECTED",
+                        "message": "Unknown gateway: NOPE01",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMIT`: Per-key write limit exceeded; retry after a short pause.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "RATE_LIMIT": {
+                    "summary": "RATE_LIMIT",
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMIT",
+                        "message": "Write rate exceeded",
+                        "reject_code": "RATE_LIMITED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/market/halt": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Halt the whole market",
+        "description": "Halt every symbol (halt source `ADMIN`) and cancel every market-maker quote. Resting orders stay on the book; `POST /admin/market/kill-switch` cancels those. `POST /admin/market/resume` lifts it.",
+        "operationId": "halt_market",
+        "responses": {
+          "200": {
+            "description": "What the engine halted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerHaltAllAck"
+                },
+                "example": {
+                  "accepted": true,
+                  "reason": "",
+                  "halted_symbols": 3,
+                  "halted_symbol_ids": [
+                    "AAPL",
+                    "MSFT",
+                    "TSLA"
+                  ],
+                  "cancelled_quotes": 4,
+                  "cancelled_quote_order_ids": [
+                    "3b7e1d9a5c2f4e86b0a1d3c5e7f90214",
+                    "c81a64f0d2e94b37a5f6091e8d3b72c4"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`HALT_REJECTED`: The engine refused the halt; `message` is its reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "HALT_REJECTED": {
+                    "summary": "HALT_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "HALT_REJECTED",
+                        "message": "Unknown symbol: XYZ",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMIT`: Per-key write limit exceeded; retry after a short pause.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "RATE_LIMIT": {
+                    "summary": "RATE_LIMIT",
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMIT",
+                        "message": "Write rate exceeded",
+                        "reject_code": "RATE_LIMITED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/market/resume": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Resume the whole market",
+        "description": "Lift the halt of `POST /admin/market/halt` on every symbol.",
+        "operationId": "resume_market",
+        "responses": {
+          "200": {
+            "description": "What the engine resumed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerResumeAllAck"
+                },
+                "example": {
+                  "accepted": true,
+                  "reason": "",
+                  "resumed_symbols": 3,
+                  "resumed_symbol_ids": [
+                    "AAPL",
+                    "MSFT",
+                    "TSLA"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`RESUME_REJECTED`: The engine refused the resume; `message` is its reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "RESUME_REJECTED": {
+                    "summary": "RESUME_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "RESUME_REJECTED",
+                        "message": "TSLA is not halted",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMIT`: Per-key write limit exceeded; retry after a short pause.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "RATE_LIMIT": {
+                    "summary": "RATE_LIMIT",
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMIT",
+                        "message": "Write rate exceeded",
+                        "reject_code": "RATE_LIMITED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/symbols/{symbol}/reopen": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reopen a symbol",
+        "description": "Force *symbol* to uncross now and clear any halt in one step. Without `price` it opens at the natural equilibrium; with one, at that operator price, for when a failed auction left no equilibrium. `dry_run` reports the indicative print without changing anything.",
+        "operationId": "reopen_symbol",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "Instrument, e.g. `AAPL` (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Instrument, e.g. `AAPL` (case-insensitive)."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReopenRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The engine's uncross result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForceUncrossAck"
+                },
+                "examples": {
+                  "dry_run": {
+                    "summary": "dry_run: the indicative print, nothing changed",
+                    "value": {
+                      "accepted": true,
+                      "symbol": "AAPL",
+                      "reason": "",
+                      "dry_run": true,
+                      "indicative_price": 187.25,
+                      "indicative_qty": 1200,
+                      "surplus": 300,
+                      "traded_qty": 0,
+                      "imbalance_side": "BUY",
+                      "command_id": "cmd-5d0e8a3f7c1b4926a8e4f0b3c6d92e17"
+                    }
+                  },
+                  "reopened": {
+                    "summary": "Reopened at an operator price",
+                    "value": {
+                      "accepted": true,
+                      "symbol": "AAPL",
+                      "reason": "",
+                      "dry_run": false,
+                      "indicative_price": 187.25,
+                      "indicative_qty": 1200,
+                      "surplus": 300,
+                      "printed_price": 187.25,
+                      "traded_qty": 1200,
+                      "imbalance_side": "BUY",
+                      "command_id": "cmd-5d0e8a3f7c1b4926a8e4f0b3c6d92e17"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`REOPEN_REJECTED`: The engine refused the reopen (force-uncross); `message` is its reason.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "REOPEN_REJECTED": {
+                    "summary": "REOPEN_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "REOPEN_REJECTED",
+                        "message": "AAPL is not halted",
+                        "reject_code": "UNKNOWN"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMIT`: Per-key write limit exceeded; retry after a short pause.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "RATE_LIMIT": {
+                    "summary": "RATE_LIMIT",
+                    "value": {
+                      "error": {
+                        "code": "RATE_LIMIT",
+                        "message": "Write rate exceeded",
+                        "reject_code": "RATE_LIMITED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry. `SYMBOLS_NOT_READY`: Order entry before the symbol's tick precision reached the gateway. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "SYMBOLS_NOT_READY": {
+                    "summary": "SYMBOLS_NOT_READY",
+                    "value": {
+                      "error": {
+                        "code": "SYMBOLS_NOT_READY",
+                        "message": "Reference data for AAPL is not loaded yet",
+                        "reject_code": "SYMBOL_NOT_READY"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/market/volume": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Today's traded volume",
+        "description": "Quantity, value and trade count per symbol today, and venue totals.",
+        "operationId": "market_volume",
+        "responses": {
+          "200": {
+            "description": "Today's volume.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VolumeView"
+                },
+                "example": {
+                  "symbols": [
+                    {
+                      "symbol": "AAPL",
+                      "qty": 18400,
+                      "value": 3445200.0,
+                      "trades": 312
+                    },
+                    {
+                      "symbol": "MSFT",
+                      "qty": 9100,
+                      "value": 3756480.0,
+                      "trades": 140
+                    }
+                  ],
+                  "total_qty": 27500,
+                  "total_value": 7201680.0,
+                  "total_trades": 452,
+                  "count": 2
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/orders": {
       "get": {
         "tags": [
           "admin"
         ],
         "summary": "All orders, all gateways",
-        "description": "Every cached order across every gateway, filtered.\n\nServed from the gateway's own read model of every order whose events it\nhas seen since it started -- no engine round trip. This is *current\nstate*, bounded by\n`order_retention_sec`: terminal orders age out, so it answers \"what is\nopen now\", not \"what happened today\". For the latter, see\n`GET /admin/orders/{order_id}/audit`.",
+        "description": "Every cached order across every gateway, filtered.\n\nServed from the gateway's own read model of every order whose events it\nhas seen since it started -- no engine round trip. This is *current\nstate*, bounded by\n`order_retention_sec`: terminal orders age out, so it answers \"what is\nopen now\", not \"what happened today\". For the latter, see\n`GET /admin/orders/{order_id}/audit`; for one gateway's orders as the\nengine holds them, `GET /admin/gateways/{gateway_id}/orders`.",
         "operationId": "admin_orders",
         "security": [
           {
@@ -11668,6 +12797,474 @@
                         "code": "ROLE_DENIED",
                         "message": "ADMIN role required",
                         "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/gateways/{gateway_id}/orders": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Orders of any gateway",
+        "description": "*gateway_id*'s resting and recently finished orders as the engine holds them -- the authoritative view. `GET /admin/orders` is the gateway's own read model across all gateways: faster, filterable, but limited to orders whose events this gateway has seen since it started.",
+        "operationId": "admin_gateway_orders",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gateway_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "Engine gateway id, e.g. `TRADER01` (case-insensitive).",
+              "title": "Gateway Id"
+            },
+            "description": "Engine gateway id, e.g. `TRADER01` (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gateway's orders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderList"
+                },
+                "example": {
+                  "orders": [
+                    {
+                      "id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                      "symbol": "AAPL",
+                      "side": "BUY",
+                      "order_type": "LIMIT",
+                      "tif": "DAY",
+                      "quantity": 100,
+                      "remaining_qty": 60,
+                      "ts_ns": 1788013800000000000,
+                      "status": "PARTIAL",
+                      "price": 187.25,
+                      "origin": "ORDER",
+                      "is_seed": false,
+                      "client_tag": "strategy-7",
+                      "arrival_seq": 18422
+                    },
+                    {
+                      "id": "c81a64f0d2e94b37a5f6091e8d3b72c4",
+                      "symbol": "MSFT",
+                      "side": "SELL",
+                      "order_type": "ICEBERG",
+                      "tif": "GTC",
+                      "quantity": 5000,
+                      "remaining_qty": 5000,
+                      "ts_ns": 1788013841000000000,
+                      "status": "NEW",
+                      "price": 412.8,
+                      "visible_qty": 500,
+                      "displayed_qty": 500,
+                      "origin": "ORDER",
+                      "is_seed": false,
+                      "arrival_seq": 18457
+                    }
+                  ],
+                  "count": 2
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`ENGINE_TIMEOUT`: No engine reply in time. Transient; retry. `ENGINE_UNAVAILABLE`: The command could not be handed to the engine (down or backpressured); nothing was sent. Transient; retry.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_TIMEOUT": {
+                    "summary": "ENGINE_TIMEOUT",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_TIMEOUT",
+                        "message": "Timed out waiting for engine reply",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  },
+                  "ENGINE_UNAVAILABLE": {
+                    "summary": "ENGINE_UNAVAILABLE",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_UNAVAILABLE",
+                        "message": "Engine unavailable",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/symbols/{symbol}/orders": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Every order on a symbol",
+        "description": "Every resting order on *symbol* across all gateways, each with its `gateway_id`, ordered by price then by arrival (time priority). With `price`, only that level: the per-order composition behind the book's aggregated `{price, qty, count}`.",
+        "operationId": "admin_symbol_orders",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "description": "Instrument, e.g. `AAPL` (case-insensitive).",
+              "title": "Symbol"
+            },
+            "description": "Instrument, e.g. `AAPL` (case-insensitive)."
+          },
+          {
+            "name": "price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this price level.",
+              "title": "Price"
+            },
+            "description": "Only this price level."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The resting orders.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceLevelView"
+                },
+                "example": {
+                  "symbol": "AAPL",
+                  "rejected": false,
+                  "orders": [
+                    {
+                      "gateway_id": "TRADER01",
+                      "id": "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596",
+                      "symbol": "AAPL",
+                      "side": "BUY",
+                      "order_type": "LIMIT",
+                      "tif": "DAY",
+                      "quantity": 100,
+                      "remaining_qty": 60,
+                      "ts_ns": 1788013800000000000,
+                      "status": "PARTIAL",
+                      "price": 187.25,
+                      "origin": "ORDER",
+                      "is_seed": false,
+                      "client_tag": "strategy-7",
+                      "arrival_seq": 18422
+                    }
+                  ],
+                  "price": 187.25,
+                  "count": 1
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL_ERROR`: A gateway bug; the message carries no internals.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "INTERNAL_ERROR": {
+                    "summary": "INTERNAL_ERROR",
+                    "value": {
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Internal server error",
+                        "reject_code": "INTERNAL_ERROR"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`VALIDATION`: A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "VALIDATION": {
+                    "summary": "VALIDATION",
+                    "value": {
+                      "error": {
+                        "code": "VALIDATION",
+                        "message": "Input should be less than or equal to 5000",
+                        "reject_code": "INVALID_VALUE"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`AUTH`: Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer`.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "AUTH": {
+                    "summary": "AUTH",
+                    "value": {
+                      "error": {
+                        "code": "AUTH",
+                        "message": "Unknown API key",
+                        "reject_code": "AUTH_REQUIRED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`ENGINE_AUTH`: The engine refused the key's gateway identity. `READ_ONLY`: A read-only key used on a gateway-scoped endpoint. `ROLE_DENIED`: The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`).",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ENGINE_AUTH": {
+                    "summary": "ENGINE_AUTH",
+                    "value": {
+                      "error": {
+                        "code": "ENGINE_AUTH",
+                        "message": "Gateway TRADER01 is disabled",
+                        "reject_code": "AUTH_FAILED"
+                      }
+                    }
+                  },
+                  "READ_ONLY": {
+                    "summary": "READ_ONLY",
+                    "value": {
+                      "error": {
+                        "code": "READ_ONLY",
+                        "message": "API key is read-only",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  },
+                  "ROLE_DENIED": {
+                    "summary": "ROLE_DENIED",
+                    "value": {
+                      "error": {
+                        "code": "ROLE_DENIED",
+                        "message": "ADMIN role required",
+                        "reject_code": "ROLE_DENIED"
+                      }
+                    }
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`QUERY_REJECTED`: The engine refused the admin query; `message` is its reason.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "QUERY_REJECTED": {
+                    "summary": "QUERY_REJECTED",
+                    "value": {
+                      "error": {
+                        "code": "QUERY_REJECTED",
+                        "message": "Unknown symbol: XYZ",
+                        "reject_code": "UNKNOWN"
                       }
                     }
                   }
@@ -13879,6 +15476,56 @@
         ],
         "title": "Capabilities"
       },
+      "CircuitBreakerHaltAllAck": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Reason"
+          },
+          "halted_symbols": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Halted Symbols"
+          },
+          "halted_symbol_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Halted Symbol Ids",
+            "description": "AR-0.5: the symbols counted in halted_symbols, by name."
+          },
+          "cancelled_quotes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cancelled Quotes"
+          },
+          "cancelled_quote_order_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cancelled Quote Order Ids",
+            "description": "AR-0.5: the order ids counted in cancelled_quotes. Named \"*_order_ids\" rather\nthan \"*_quote_ids\" on purpose: cancelled_quotes has always counted cancelled\nquote LEGS, each an independent Order with its own order_id, not quote objects\n— a quote's own quote_id is client-supplied and optional (see quote.yaml), so\nit cannot serve as this list's key even when present."
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "reason",
+          "halted_symbols",
+          "halted_symbol_ids",
+          "cancelled_quotes",
+          "cancelled_quote_order_ids"
+        ],
+        "title": "CircuitBreakerHaltAllAck",
+        "description": "Engine to ADMIN: how wide the market-wide halt reached."
+      },
       "CircuitBreakerLevel": {
         "properties": {
           "name": {
@@ -13914,6 +15561,41 @@
         ],
         "title": "CircuitBreakerLevel",
         "description": "One rung of a symbol's circuit-breaker ladder, as configured. `name` is the\nstring `circuit_breaker.halt.level` and `admin.action.scope.level` carry\nonward, and is bounded here to match them."
+      },
+      "CircuitBreakerResumeAllAck": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Reason"
+          },
+          "resumed_symbols": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Resumed Symbols"
+          },
+          "resumed_symbol_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resumed Symbol Ids",
+            "description": "AR-0.5: the symbols counted in resumed_symbols, by name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "reason",
+          "resumed_symbols",
+          "resumed_symbol_ids"
+        ],
+        "title": "CircuitBreakerResumeAllAck",
+        "description": "Engine to ADMIN: how many symbols came back."
       },
       "Collar": {
         "properties": {
@@ -14955,6 +16637,115 @@
         ],
         "title": "ErrorResponse"
       },
+      "ForceUncrossAck": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Reason"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "description": "True when this ack answers a peek rather than a live uncross."
+          },
+          "indicative_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicative Price",
+            "description": "Indicative equilibrium, or null if the book would not cross. Unit:\ndisplay_price."
+          },
+          "indicative_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Indicative Qty",
+            "description": "Quantity that would execute at the indicative price. Unit: shares."
+          },
+          "surplus": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Surplus",
+            "description": "Surplus on `imbalance_side`; zero when balanced. Unit: shares."
+          },
+          "imbalance_side": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "BUY",
+                  "SELL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imbalance Side",
+            "description": "Which side would be left unfilled; absent when balanced."
+          },
+          "printed_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Price",
+            "description": "Live-run print price, or null on a dry run or rejection. Unit: display_price."
+          },
+          "traded_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Traded Qty",
+            "description": "Quantity that actually executed on a live run. Unit: shares."
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "symbol",
+          "reason",
+          "dry_run",
+          "indicative_price",
+          "indicative_qty",
+          "surplus",
+          "printed_price",
+          "traded_qty"
+        ],
+        "title": "ForceUncrossAck",
+        "description": "Engine to ADMIN: the outcome of a force-uncross. On a dry run it carries the\nindicative figures only; on a live run it also reports what actually printed."
+      },
       "GatewayInfo": {
         "properties": {
           "id": {
@@ -15927,6 +17718,24 @@
             "maxLength": 32,
             "title": "Target Gateway Id"
           },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol",
+            "description": "Echoed when the cancel was scoped."
+          },
+          "quotes_only": {
+            "type": "boolean",
+            "title": "Quotes Only",
+            "description": "Echoed: whether only quotes were cancelled."
+          },
           "reason": {
             "type": "string",
             "maxLength": 512,
@@ -15975,6 +17784,7 @@
         "required": [
           "accepted",
           "target_gateway_id",
+          "quotes_only",
           "reason",
           "cancelled_orders",
           "cancelled_order_ids",
@@ -17627,6 +19437,339 @@
         ],
         "title": "Positions"
       },
+      "PriceLevelOrder": {
+        "properties": {
+          "gateway_id": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Gateway Id",
+            "description": "Owning gateway — the one piece of information OrderDisplay omits because its\nown topic already says it."
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Id",
+            "description": "Engine order id; a UUID string."
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side"
+          },
+          "order_type": {
+            "type": "string",
+            "enum": [
+              "MARKET",
+              "LIMIT",
+              "STOP",
+              "STOP_LIMIT",
+              "FOK",
+              "ICEBERG",
+              "IOC",
+              "TRAILING_STOP"
+            ],
+            "title": "Order Type"
+          },
+          "tif": {
+            "type": "string",
+            "enum": [
+              "DAY",
+              "GTC",
+              "ATO",
+              "ATC"
+            ],
+            "title": "Tif"
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "Total original quantity. Unit: shares."
+          },
+          "remaining_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Remaining Qty",
+            "description": "Quantity yet to be filled. Unit: shares."
+          },
+          "trail_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trail Offset",
+            "description": "TRAILING_STOP: trail distance, in display money. Unit: display_price."
+          },
+          "oco_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oco Group Id"
+          },
+          "ts_ns": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Ts Ns",
+            "description": "Client-supplied submission time (Order.timestamp, unconverted). NOT the book's\ntime priority key - see arrival_seq. AR-0.3b: previously named \"timestamp\" and\nexpressed as a seconds-based float; see OrderDisplay's type doc for why that\nwas out of step with the rest of the wire and got fixed here rather than left\nas the one field of that kind outside log.yaml. Unit: epoch_nanos."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "PARTIAL",
+              "FILLED",
+              "CANCELLED",
+              "REJECTED",
+              "EXPIRED"
+            ],
+            "title": "Status"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price",
+            "description": "Limit price in display money. Null for MARKET, which has none. Unit:\ndisplay_price."
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price",
+            "description": "STOP / STOP_LIMIT / TRAILING_STOP trigger. Unit: display_price."
+          },
+          "visible_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible Qty",
+            "description": "ICEBERG: fixed peak size. Unit: shares."
+          },
+          "displayed_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayed Qty",
+            "description": "ICEBERG: current visible slice on the book. Unit: shares."
+          },
+          "smp_action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "CANCEL_AGGRESSOR",
+                  "CANCEL_RESTING",
+                  "CANCEL_BOTH"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smp Action",
+            "description": "Self-match prevention. Null means the client did not specify SMP at all,\ndistinct from an explicit NONE. See SmpAction's docstring."
+          },
+          "combo_parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combo Parent Id"
+          },
+          "leg_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg Index",
+            "description": "Position in the parent combo's legs, 0-based."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "ORDER",
+              "QUOTE",
+              "IMPLIED"
+            ],
+            "title": "Origin",
+            "description": "Defaulted rather than nullable: to_dict always supplies ORDER."
+          },
+          "is_seed": {
+            "type": "boolean",
+            "title": "Is Seed",
+            "description": "True when this order was created by config-driven startup seeding\n(market_maker_quotes / market_maker_combos in the engine config) rather than a\nlive gateway submission. Purely observational — nothing in the engine branches\non it; origin still governs routing. Lets a post-mortem tell a config\nbootstrap apart from real participant activity without depending on id-naming\nconventions. Absent on records written before this field existed."
+          },
+          "quote_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Id"
+          },
+          "client_tag": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Tag",
+            "description": "Client correlation tag, echoed on every lifecycle event."
+          },
+          "arrival_seq": {
+            "type": "integer",
+            "title": "Arrival Seq",
+            "description": "Engine-assigned monotonic arrival sequence; 0 = unassigned."
+          }
+        },
+        "type": "object",
+        "required": [
+          "gateway_id",
+          "id",
+          "symbol",
+          "side",
+          "order_type",
+          "tif",
+          "quantity",
+          "remaining_qty",
+          "trail_offset",
+          "oco_group_id",
+          "ts_ns",
+          "status",
+          "price",
+          "stop_price",
+          "visible_qty",
+          "displayed_qty",
+          "smp_action",
+          "combo_parent_id",
+          "leg_index",
+          "origin",
+          "is_seed",
+          "quote_id",
+          "client_tag",
+          "arrival_seq"
+        ],
+        "title": "PriceLevelOrder",
+        "description": "One resting order as reported by order.price_level_orders — the same\nprojection as OrderDisplay (order_to_display_dict, including its ts_ns field —\nsee OrderDisplay's doc for why that one is not converted to display units the\nway price/stop_price/trail_offset are), with one field added: gateway_id.\nOrderDisplay can leave gateway_id topic-only because an order.orders reply is\nalways about a single, already-known gateway; a price_level_orders reply spans\nevery gateway resting at a symbol/price, so each record must say whose order\nit is. The generator has no type-extension mechanism, so this duplicates\nOrderDisplay's field list rather than referencing it — keep the two in sync by\nhand if OrderDisplay's fields change."
+      },
+      "PriceLevelView": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price",
+            "description": "Echoed from the request when it filtered to one level; omitted when the\nrequest asked for the whole symbol. Unit: display_price."
+          },
+          "rejected": {
+            "type": "boolean",
+            "title": "Rejected",
+            "description": "True when the requester was not ADMIN or the symbol is unknown; orders is then\nalways empty."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Set only when rejected is true."
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/PriceLevelOrder"
+            },
+            "type": "array",
+            "title": "Orders",
+            "description": "Matching resting orders, ordered by price then arrival_seq — empty when\nrejected, or when nothing rests at the requested level."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "symbol",
+          "rejected",
+          "orders"
+        ],
+        "title": "PriceLevelView",
+        "description": "Every resting order on a symbol, optionally one price level, by arrival."
+      },
       "PriceSnapshotPage": {
         "properties": {
           "count": {
@@ -18543,6 +20686,53 @@
         ],
         "title": "ReloadApplied"
       },
+      "ReopenRequest": {
+        "properties": {
+          "price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price",
+            "description": "Operator opening price, on the symbol's tick grid. Omit to open at the natural equilibrium; set it when a failed auction left none."
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "description": "Report the indicative print without changing anything.",
+            "default": false
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Free-text note for the audit log."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReopenRequest",
+        "description": "Body of `POST /admin/symbols/{symbol}/reopen`; may be omitted.",
+        "examples": [
+          {
+            "dry_run": true,
+            "price": 150.25,
+            "reason": "Failed open"
+          }
+        ]
+      },
       "ReplaceResponse": {
         "properties": {
           "cancelled_order_id": {
@@ -19303,6 +21493,41 @@
         "title": "SymbolValue",
         "description": "One symbol's true value at the step's simulated time."
       },
+      "SymbolVolume": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Symbol"
+          },
+          "qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Qty",
+            "description": "Unit: shares."
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Value",
+            "description": "Traded notional, rounded to two decimals by the producer. Unit: money."
+          },
+          "trades": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Trades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "qty",
+          "value",
+          "trades"
+        ],
+        "title": "SymbolVolume",
+        "description": "One instrument's traded volume so far today. Was a map entry keyed by symbol;\nthe key is a field now, as everywhere else in this family."
+      },
       "TIF": {
         "type": "string",
         "enum": [
@@ -19452,6 +21677,51 @@
           "command_id"
         ],
         "title": "TransitionApplied"
+      },
+      "VolumeView": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of items in the list."
+          },
+          "symbols": {
+            "items": {
+              "$ref": "#/components/schemas/SymbolVolume"
+            },
+            "type": "array",
+            "title": "Symbols",
+            "description": "Sorted by symbol. Was a map keyed by it."
+          },
+          "total_qty": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Qty",
+            "description": "Unit: shares."
+          },
+          "total_value": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Value",
+            "description": "Unit: money."
+          },
+          "total_trades": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Trades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "symbols",
+          "total_qty",
+          "total_value",
+          "total_trades"
+        ],
+        "title": "VolumeView",
+        "description": "Today's traded volume per symbol (`count` symbols) and venue totals."
       },
       "WeeklySchedule": {
         "properties": {
