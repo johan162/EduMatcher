@@ -2592,17 +2592,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#symbol-management" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Symbol Management
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#index-administration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -8764,12 +8753,6 @@ may visit.</p>
 <td style="text-align: center;">✓</td>
 </tr>
 <tr>
-<td>Symbol Management (read-only)</td>
-<td style="text-align: center;">–</td>
-<td style="text-align: center;">–</td>
-<td style="text-align: center;">✓</td>
-</tr>
-<tr>
 <td>Index Administration (read-only)</td>
 <td style="text-align: center;">–</td>
 <td style="text-align: center;">–</td>
@@ -9825,16 +9808,6 @@ shared live market stores.</p>
 </ul>
 <p>If the monitor feed itself is degraded, an amber <em>"Monitor feed
 reconnecting/disconnected"</em> note appears next to the page title.</p>
-<h3 id="symbol-management">Symbol Management<a class="headerlink" href="#symbol-management" title="Permanent link">&para;</a></h3>
-<p>Read-only. Configured symbols from <code>GET /reference</code> with tick decimals, risk
-level, static and dynamic collar bands, circuit-breaker ladder size, and live
-top-of-book.</p>
-<p><strong>Add symbol</strong> and per-row <strong>Edit</strong> are visibly present but disabled, with an
-explanatory tooltip and an on-page note: live symbol add/edit has no backend
-support — <code>POST</code>/<code>PATCH /admin/symbols</code> do not exist. Symbols are loaded from
-<code>engine_config.yaml</code> at engine startup; edit the config and restart
-<code>pm-engine</code>. They are rendered as disabled rather than hidden so the missing
-capability is discoverable rather than mysterious.</p>
 <h3 id="index-administration">Index Administration<a class="headerlink" href="#index-administration" title="Permanent link">&para;</a></h3>
 <p>Read-only. Configured indexes (id, description, base value, constituent count
 — hover for the full list) from <code>GET /admin/indexes</code>, and, for the selected
@@ -9894,12 +9867,16 @@ still reject — most commonly <em>"Sessions are not enabled on this engine"</em
 <li><strong>Collar Settings (per symbol)</strong> — the <em>effective</em> collar for each symbol
    plus a <strong>Profile</strong> column naming where it came from: <code>symbol</code> when the
    symbol defines its own, otherwise the name of the risk level it inherits
-   from.</li>
+   from. It also shows each symbol's tick decimals, circuit-breaker level
+   count, and live best bid and ask.</li>
 <li><strong>Circuit Breaker Ladder (per symbol)</strong> — level name, price shift %, and
-   halt duration.</li>
+   halt duration, striped per symbol.</li>
 </ol>
+<p>The two per-symbol tables share one filter and pager: filter by symbol and
+choose 15, 30 or 50 symbols per page (15 by default).</p>
 <p>Nothing here is editable; risk configuration is loaded from
-<code>engine_config.yaml</code>. Note the standing rule printed on the page: every halt
+<code>engine_config.yaml</code>. To list a new symbol, use <code>pm-new-symbol</code> (<code>pm-ipo</code>) and
+redeploy. Note the standing rule printed on the page: every halt
 reopens via a call auction — there is no per-level resumption mode.</p>
 <h3 id="circuit-breakers">Circuit Breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h3>
 <p><img alt="Circuit Breakers: the manual-halt form and two active halts." src="../../../../assets/trader-gui/trader-circuit-breakers.png" /></p>
@@ -10965,11 +10942,6 @@ outside that network, and it has to be told how to get back in.</p>
 <td>Quote Bootstrap legs show blank per-leg columns</td>
 <td>The gateway served <code>/quotes/legs</code> from its warm cache</td>
 <td>Expected; use the Active Quotes table above for authoritative per-side price/qty, or press <strong>Resync</strong></td>
-</tr>
-<tr>
-<td>Add/Edit are disabled on Symbol Management</td>
-<td>Expected — no backend support for live symbol mutation</td>
-<td>Edit <code>engine_config.yaml</code> and restart <code>pm-engine</code>, per the on-screen note</td>
 </tr>
 <tr>
 <td>Circuit-breaker Level selector is empty for a symbol</td>
