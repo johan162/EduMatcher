@@ -140,7 +140,7 @@ is reading the chapters in order.
 | # | Chapter | You will be able to | Background reading |
 |---|---------|---------------------|-------------|
 | 09 | [Market Making](090-market-making.md) | Run a two-sided quote by hand and inspect its legs | [Market Making](../participant-guide/part-3-market-making/020-market-making.md) |
-| 10 | [Combo Orders](100-combo-orders.md) | Submit multi-leg and OCO orders, and reason about leg risk | [Combo Orders](../participant-guide/part-2-orders/030-combo-and-oco-orders.md) |
+| 10 | [Combo Orders](100-combo-orders.md) | Size and close pairs/baskets; test OCO exits, conditional legs, failure cascades and recovery | [Combo Orders](../participant-guide/part-2-orders/030-combo-and-oco-orders.md) |
 | 11 | [Risk Controls](110-risk-controls.md) | Configure and trigger collars, circuit breakers, halts and the kill switch | [Risk Controls](../operator-guide/part-4-run-a-market/040-risk-controls.md) |
 | 12 | [P&L & Clearing](120-pnl-clearing.md) | Read positions, VWAP cost and realized/unrealized P&L | [Positions and P&L](../participant-guide/part-5-positions-and-results/010-positions-and-pnl.md) |
 | 13 | [Market Data & Drop Copy](130-market-data-drop-copy.md) | Explain the market-data and drop-copy feeds and watch them | [Drop Copy](../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md), [DC Gateway](../operator-guide/part-5-gateways/060-drop-copy-gateway.md) |
