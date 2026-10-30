@@ -1,3 +1,27 @@
+## [v0.65.5] - 2026-10-30
+
+Release Type: minor
+
+### 📋 Summary
+This release adds containerized web applications for pipx-installed exchanges and a guided container upgrade command. It also expands the REST API's Swagger documentation with realistic examples and clearer endpoint descriptions.
+
+### ✨ Additions
+- Added `install.sh --guis` to deploy all six prebuilt web applications from GHCR alongside a pipx-installed exchange, without containerizing the exchange itself
+- Added `edumatcher.sh upgrade` and `--upgrade` to discover the newest release, confirm interruptions to running containers, and upgrade images while preserving data and whether the installation was running
+
+### 🚀 Improvements
+- Improved container upgrades by downloading replacement images before stopping services, leaving a running installation untouched if the download fails, and removing unused images from the previous release
+- Added automatic read-only API key discovery, read-only host data mounts, and host exchange process status for GUI-only installations
+
+### 📚 Documentation
+- Expanded Swagger documentation with realistic response and request examples, endpoint summaries, shared error envelopes, and authentication and asynchronous order-entry guidance
+- Documented pipx exchanges with containerized web applications, host connectivity and troubleshooting, and container upgrade behavior across installation and operator guides
+
+### 🛠 Internal
+- Added OpenAPI coverage for endpoint examples, error documentation, request bodies, and generated message validation
+- Fixed the topic-literal migration checks by using generated topic helpers in lifecycle examples, with regression coverage preserving the rendered topics
+- Updated deployment tests for GUI-only installation support
+
 ## [v0.65.4] - 2026-10-29
 
 Release Type: patch
