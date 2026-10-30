@@ -1,11 +1,11 @@
 # pm-ai-swarm --swarm docs/examples/ref_data/s300-sim-setup/swarm.yaml
 # The long-running simulation: AI001-AI100, each trading 30 of the 300
-# symbols, so every symbol is traded by about 10 agents. The budget keeps the
-# whole exchange at about half a CPU core.
+# symbols, so every symbol is traded by about 10 agents. The budget is sized for
+# about 1.5 million orders per trading day.
 version: 1
 agents: {prefix: AI, start: 1, count: 100}
 workers: 0            # 0 = min(cpus - 1, ceil(100 / 100)) = 1
-budget: 80            # order actions per second for the whole swarm
+budget: 120           # order actions per second for the whole swarm
 seed: 1000
 symbols:
   per_agent: 30
