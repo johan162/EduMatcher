@@ -651,7 +651,7 @@ the same WP, with no aliases (no-backwards-compat rule).
 | **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30 (uncommitted)**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
 | **WP-API04** ✅ | Typed contract | **Done 2026-10-30 (uncommitted)**, see §9.4. Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
 | **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
-| **WP-API06** | Contract guard | Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
+| **WP-API06** ✅ | Contract guard | **Done 2026-10-30 (uncommitted)**, see §9.6. Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
 
 Suggested order: **05** (small, independent, removes bugs before refactoring)
 → **01** → **03** → **04** → **02** → **06**. WP-API03 and WP-API04 both touch
@@ -1038,6 +1038,55 @@ below. The cancels still answer `202 PENDING_CANCEL`.
 - Rate limiting runs before the key check, so a replayed duplicate still
   costs a write token. This is deliberate: the limiter protects the gateway,
   not the engine.
+
+### 9.6 WP-API06 outcome (2026-10-30)
+
+**What was built.**
+
+- **`spec/rest/openapi.json`** is the committed v1 contract, byte for byte
+  what `/openapi.json` serves (553 kB, indented, so a diff reads per field).
+  It sits next to `spec/messages/`, which it is partly generated from.
+- **`api_gateway/contract.py`** generates and checks it, mirroring
+  `sqlite_schema_docs`. `check` prints a unified diff and says to run
+  `make openapi`.
+- **Make:** `make openapi` regenerates the contract after a deliberate change.
+  `make openapi-check` is part of `make check`/`_check`. Both are listed in
+  `make help`.
+- **CI:** a "REST contract drift check" step in the code-check job.
+  FastAPI is a main dependency, so the `--no-root` job can render the
+  document.
+- **Tests** (`tests/test_api_gateway_contract.py`):
+  - the committed copy matches;
+  - the document does not depend on deployment config (the property that
+    makes one committed copy valid for every gateway);
+  - every path is under `/api/v1/` with version `1.0.0`;
+  - drift is reported with a diff and `generate` repairs it;
+  - the `main` exit codes are right.
+
+**Decisions:**
+
+- **No oasdiff yet.** The snapshot already turns every change into a
+  reviewed diff, and the spec's compatibility policy (now extended) says how
+  to judge one. A machine "is this breaking?" check (`oasdiff breaking`
+  against the last release tag) is a separate binary. It only becomes
+  meaningful once there is a released 1.0 to diff against. That makes it a
+  post-1.0 CI addition, not a P0.
+- **`scripts/mkbld.sh` does not regenerate the contract,** unlike msgen and
+  dbdocs, which it does. A build that regenerates it would silently accept
+  any API change, which is the thing the guard exists to stop.
+- **The enum caveat from §9.4 is now policy.** A new enum value in a
+  response is additive only when gateway and engine deploy together.
+
+**Docs.**
+
+- Spec: the swagger section points at the committed copy; the compatibility
+  policy names the contract and spells out what counts as additive.
+- Development practice: a "REST contract" standard with the regenerate and
+  commit workflow.
+
+**Insight.** The guard is only as good as the contract's precision.
+WP-API04's runtime validation and exact-example tests are what make a diff
+of this file mean a real wire change.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 

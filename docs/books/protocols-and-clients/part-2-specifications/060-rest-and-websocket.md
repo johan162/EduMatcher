@@ -196,6 +196,12 @@ The API gateway supports live API documentation through FastAPI:
 - OpenAPI schema: `/openapi.json`
 - Swagger UI: `/docs`
 
+The same document is committed in the repository as
+[`spec/rest/openapi.json`](https://github.com/johan162/EduMatcher/blob/develop/spec/rest/openapi.json),
+so a client can be generated or reviewed without a running gateway. It does not
+depend on deployment configuration: every v1 gateway publishes exactly that
+document, and CI fails if the code and the committed copy disagree.
+
 These endpoints are available when `swagger_enabled: true` in the
 `api_gateways` configuration. When disabled, `/docs` and `/openapi.json` are
 not exposed.
@@ -541,6 +547,19 @@ Full response:
   redefinition) MUST ship under a new versioned base path.
 - Deprecation: deprecated fields/endpoints SHOULD be documented with migration
   guidance before removal in a later major API version.
+- The contract: `spec/rest/openapi.json` is the v1 contract. Any change to it
+  is a reviewed diff, and each diff is judged against these rules.
+- Additive in practice:
+  - A new endpoint is additive.
+  - A new optional request field is additive.
+  - A new response field is additive. Clients must ignore unknown response
+    fields.
+  - A new error `code` is additive. Clients handle an unknown one by its HTTP
+    status.
+  - A new enum value in a response is additive only if the gateway and engine
+    are deployed together. The gateway validates its responses, so a gateway
+    older than the engine answers `500` on a value it does not know. EduMatcher
+    releases both from one spec.
 
 ## Bootstrap
 
