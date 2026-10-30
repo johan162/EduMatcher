@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
+  FLUSH_MS,
+  MAX_ORDERS,
   useMonitorStore,
   selectActiveOrderCount,
   selectOrderCountsBySymbol,
@@ -11,6 +13,7 @@ function env(type: string, data: unknown, extra: Partial<WsEnvelope<unknown>> = 
 }
 
 const ingest = (e: WsEnvelope<unknown>) => useMonitorStore.getState().ingest(e);
+const flush = () => useMonitorStore.getState().flush();
 
 beforeEach(() => useMonitorStore.getState().clear());
 
@@ -37,6 +40,7 @@ describe("useMonitorStore (§6.9)", () => {
   it("folds live order events into the cross-gateway orders map and log", () => {
     ingest(env("order.ack", { order_id: "o1", accepted: true, symbol: "AAPL", side: "BUY", qty: 100 }, { gateway_id: "GW01", seq: 1 }));
     ingest(env("order.fill", { order_id: "o1", fill_qty: 100, fill_price: 150, remaining_qty: 0, status: "FILLED", symbol: "AAPL" }, { gateway_id: "GW01", seq: 2 }));
+    flush();
     const s = useMonitorStore.getState();
     expect(s.orders.o1!.status).toBe("FILLED");
     expect(selectActiveOrderCount(s.orders)).toBe(0); // now terminal
@@ -50,23 +54,99 @@ describe("useMonitorStore (§6.9)", () => {
     ingest(env("order.ack", { order_id: "b", accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
     ingest(env("order.ack", { order_id: "c", accepted: true, symbol: "MSFT" }, { gateway_id: "GW02" }));
     ingest(env("order.cancelled", { order_id: "b", symbol: "AAPL" }, { gateway_id: "GW01" }));
+    flush();
     expect(selectOrderCountsBySymbol(useMonitorStore.getState().orders)).toEqual({ AAPL: 1, MSFT: 1 });
   });
 
   it("ignores market-data frames in the log", () => {
     ingest(env("trade", { symbol: "AAPL", price: 150 }, { seq: 5 }));
     ingest(env("book", { symbol: "AAPL" }, { seq: 6 }));
+    flush();
     expect(useMonitorStore.getState().events).toHaveLength(0);
   });
 
   it("inserts a GAP marker when a snapshot arrives after prior events (reconnect)", () => {
     ingest(env("order.ack", { order_id: "o1", accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
     ingest(env("monitor.snapshot", { orders: [], halts: null, gateways: null, last_seq: {}, incomplete: [] }));
-    expect(useMonitorStore.getState().events[0]!.kind).toBe("GAP");
+    // The snapshot flushed the queued ack first, then added the gap marker.
+    const kinds = useMonitorStore.getState().events.map((e) => e.kind);
+    expect(kinds).toEqual(["GAP", "ACK"]);
   });
 
   it("does not insert a GAP on the first snapshot", () => {
     ingest(env("monitor.snapshot", { orders: [], halts: null, gateways: null, last_seq: {}, incomplete: [] }));
     expect(useMonitorStore.getState().events.some((e) => e.kind === "GAP")).toBe(false);
+  });
+
+  it("does not publish live frames until the flush interval elapses", () => {
+    vi.useFakeTimers();
+    try {
+      ingest(env("order.ack", { order_id: "o1", accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
+      expect(useMonitorStore.getState().events).toHaveLength(0);
+      vi.advanceTimersByTime(FLUSH_MS);
+      expect(useMonitorStore.getState().events).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies a burst of frames in a single store write, newest first", () => {
+    const writes: number[] = [];
+    const unsub = useMonitorStore.subscribe((s) => writes.push(s.events.length));
+    for (let i = 0; i < 50; i++) {
+      ingest(env("order.ack", { order_id: `o${i}`, accepted: true, symbol: "AAPL" }, { gateway_id: "GW01", seq: i }));
+    }
+    flush();
+    unsub();
+    expect(writes).toEqual([50]);
+    const s = useMonitorStore.getState();
+    expect(s.events[0]!.seq).toBe(49);
+    expect(s.events[49]!.seq).toBe(0);
+  });
+
+  it("clear() drops frames still queued", () => {
+    ingest(env("order.ack", { order_id: "o1", accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
+    useMonitorStore.getState().clear();
+    flush();
+    expect(useMonitorStore.getState().events).toHaveLength(0);
+  });
+
+  describe("order map bound", () => {
+    afterEach(() => useMonitorStore.getState().clear());
+
+    it("evicts the oldest terminal orders above MAX_ORDERS and keeps working ones", () => {
+      // The oldest order is still working; the next MAX_ORDERS are filled.
+      ingest(env("order.ack", { order_id: "working", accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
+      for (let i = 0; i < MAX_ORDERS; i++) {
+        ingest(env("order.fill", { order_id: `f${i}`, status: "FILLED", symbol: "AAPL" }, { gateway_id: "GW01" }));
+      }
+      flush();
+      const ids = Object.keys(useMonitorStore.getState().orders);
+      expect(ids).toHaveLength(MAX_ORDERS);
+      expect(ids).toContain("working");
+      expect(ids).not.toContain("f0"); // oldest terminal went first
+      expect(ids).toContain(`f${MAX_ORDERS - 1}`);
+    });
+
+    it("never evicts working orders, even over the cap", () => {
+      for (let i = 0; i < MAX_ORDERS + 10; i++) {
+        ingest(env("order.ack", { order_id: `w${i}`, accepted: true, symbol: "AAPL" }, { gateway_id: "GW01" }));
+      }
+      flush();
+      expect(Object.keys(useMonitorStore.getState().orders)).toHaveLength(MAX_ORDERS + 10);
+    });
+
+    it("applies the cap to a snapshot too", () => {
+      const orders = Array.from({ length: MAX_ORDERS + 5 }, (_, i) => ({
+        order_id: `s${i}`,
+        gateway_id: "GW01",
+        status: "FILLED",
+        symbol: "AAPL",
+      }));
+      ingest(env("monitor.snapshot", { orders, halts: null, gateways: null, last_seq: {}, incomplete: [] }));
+      const ids = Object.keys(useMonitorStore.getState().orders);
+      expect(ids).toHaveLength(MAX_ORDERS);
+      expect(ids).not.toContain("s0");
+    });
   });
 });

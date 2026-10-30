@@ -339,7 +339,6 @@ may visit.
 | Quote Management | – | ✓ | – |
 | Quote Bootstrap & Legs | – | ✓ | – |
 | System Dashboard | – | – | ✓ |
-| Symbol Management (read-only) | – | – | ✓ |
 | Index Administration (read-only) | – | – | ✓ |
 | Session Control | – | – | ✓ |
 | Risk Controls (read-only) | – | – | ✓ |
@@ -1138,19 +1137,6 @@ shared live market stores.
 If the monitor feed itself is degraded, an amber *"Monitor feed
 reconnecting/disconnected"* note appears next to the page title.
 
-### Symbol Management
-
-Read-only. Configured symbols from `GET /reference` with tick decimals, risk
-level, static and dynamic collar bands, circuit-breaker ladder size, and live
-top-of-book.
-
-**Add symbol** and per-row **Edit** are visibly present but disabled, with an
-explanatory tooltip and an on-page note: live symbol add/edit has no backend
-support — `POST`/`PATCH /admin/symbols` do not exist. Symbols are loaded from
-`engine_config.yaml` at engine startup; edit the config and restart
-`pm-engine`. They are rendered as disabled rather than hidden so the missing
-capability is discoverable rather than mysterious.
-
 ### Index Administration
 
 Read-only. Configured indexes (id, description, base value, constituent count
@@ -1196,12 +1182,17 @@ Read-only views of the resolved static configuration, in three tables:
 2. **Collar Settings (per symbol)** — the *effective* collar for each symbol
    plus a **Profile** column naming where it came from: `symbol` when the
    symbol defines its own, otherwise the name of the risk level it inherits
-   from.
+   from. It also shows each symbol's tick decimals, circuit-breaker level
+   count, and live best bid and ask.
 3. **Circuit Breaker Ladder (per symbol)** — level name, price shift %, and
-   halt duration.
+   halt duration, striped per symbol.
+
+The two per-symbol tables share one filter and pager: filter by symbol and
+choose 15, 30 or 50 symbols per page (15 by default).
 
 Nothing here is editable; risk configuration is loaded from
-`engine_config.yaml`. Note the standing rule printed on the page: every halt
+`engine_config.yaml`. To list a new symbol, use `pm-new-symbol` (`pm-ipo`) and
+redeploy. Note the standing rule printed on the page: every halt
 reopens via a call auction — there is no per-level resumption mode.
 
 ### Circuit Breakers
@@ -1723,7 +1714,6 @@ outside that network, and it has to be told how to get back in.
 | Flatten and Flatten All are disabled | The phase is not `CONTINUOUS` | Expected — flatten submits MARKET orders |
 | A quote was rejected with "Quotes are only allowed for MARKET_MAKER participants" | The key's gateway is not a market maker | Use a `MARKET_MAKER` credential |
 | Quote Bootstrap legs show blank per-leg columns | The gateway served `/quotes/legs` from its warm cache | Expected; use the Active Quotes table above for authoritative per-side price/qty, or press **Resync** |
-| Add/Edit are disabled on Symbol Management | Expected — no backend support for live symbol mutation | Edit `engine_config.yaml` and restart `pm-engine`, per the on-screen note |
 | Circuit-breaker Level selector is empty for a symbol | That symbol has no configured CB ladder | Check `circuit_breaker.levels` for the symbol in `engine_config.yaml`; an empty ladder is valid, just leaves only the indefinite-halt option |
 | Active halts show blank Trigger/Reference price | The halt was restored from the bootstrap, not observed live | Expected; the halt is real, the prices populate only for halts seen on the live `circuit_breaker` channel |
 | Admin order drill-down says "Audit trail unavailable" | `pm-audit` is not running or has not built its index | Start `pm-audit`; the Monitor Log tail itself is unaffected |

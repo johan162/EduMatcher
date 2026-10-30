@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -49,6 +49,21 @@ function ev(patch: Partial<MonitorEvent> & { id: string; kind: MonitorEvent["kin
   };
 }
 
+// jsdom does no layout: give the scroll container a size so the virtualizer
+// has a viewport (600px ≈ 21 rows) to render into.
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
 beforeEach(() => {
   cleanup();
   apiFetchMock.mockClear();
@@ -94,5 +109,17 @@ describe("AdminMonitorPage (§15.9)", () => {
     );
     // The audit event's topic renders in the modal.
     await waitFor(() => expect(screen.getByText("order.ack.GW01")).toBeTruthy());
+  });
+
+  it("renders only a window of a full 1000-event log", () => {
+    useMonitorStore.setState({
+      events: Array.from({ length: 1000 }, (_, i) => ev({ id: `bulk-${i}`, kind: "ACK", detail: `row ${i}` })),
+    });
+    wrap(<AdminMonitorPage />);
+    expect(screen.getByText(/1000 \/ 1000 events/)).toBeTruthy();
+    expect(screen.getByText("row 0")).toBeTruthy();
+    expect(screen.queryByText("row 999")).toBeNull();
+    // header row + visible window + spacer; nowhere near 1000.
+    expect(document.querySelectorAll("tbody tr").length).toBeLessThan(60);
   });
 });

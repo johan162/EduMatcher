@@ -61,7 +61,7 @@ it move:
 version: 1
 agents: {prefix: AI, start: 1, count: 100}
 workers: 0
-budget: 80            # order actions per second, whole swarm
+budget: 120           # order actions per second, whole swarm
 seed: 1000
 symbols:
   per_agent: 30       # each agent trades 30 of the 300 symbols

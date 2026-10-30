@@ -8,7 +8,6 @@ export type HelpTable =
   | "market"
   | "positions"
   | "trades"
-  | "admin-symbols"
   | "admin-gateways"
   | "admin-risk"
   | "admin-circuit"
@@ -59,17 +58,6 @@ export const COLUMN_HELP: Record<HelpTable, Record<string, string[]>> = {
     "Trade ID": ["The identifier of the trade, shared with the counterparty's fill."],
     "Order ID": ["The order this fill belongs to."],
   },
-  "admin-symbols": {
-    Symbol: ["The instrument."],
-    "Tick Dec.": ["Decimals in the tick size: the smallest price step. 2 means prices move in 0.01 steps. Prices that are not a multiple of the tick are rejected."],
-    "Risk Level": ["The named risk profile applied to the symbol. It sets the price collar bands."],
-    "Static Band": ["How far an order's price may be from the reference price, in percent. Orders outside are rejected."],
-    "Dynamic Band": ["How far an order's price may be from the last trade price, in percent. Orders outside are rejected."],
-    "CB Levels": ["Circuit breaker levels configured for the symbol: price moves that halt trading."],
-    "Last Bid": ["The best bid in the latest book snapshot."],
-    "Last Ask": ["The best ask in the latest book snapshot."],
-    Action: ["Operations on the symbol."],
-  },
   "admin-gateways": {
     "Gateway ID": ["The identifier a participant connects with. It appears on every order and fill."],
     Role: ["What the gateway may do: TRADER sends orders, MARKET_MAKER also quotes, ADMIN may operate the venue."],
@@ -83,6 +71,10 @@ export const COLUMN_HELP: Record<HelpTable, Record<string, string[]>> = {
     "Dynamic Band": ["The maximum distance of an order price from the last trade price, in percent."],
     Symbol: ["The instrument."],
     Profile: ["Where the symbol's bands come from: its own override, its risk level, or the default."],
+    "Tick Dec.": ["Decimals in the tick size: the smallest price step. 2 means prices move in 0.01 steps. Prices that are not a multiple of the tick are rejected."],
+    "CB Levels": ["Circuit breaker levels configured for the symbol: price moves that halt trading."],
+    "Last Bid": ["The best bid in the latest book snapshot."],
+    "Last Ask": ["The best ask in the latest book snapshot."],
     "Price Shift": ["How far the price must move, in percent, to trip this level and halt the symbol."],
     "Halt Duration": ["How long trading stays halted at this level before the reopening auction."],
   },

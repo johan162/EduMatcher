@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Activity,
   Briefcase,
-  Settings,
   LayoutDashboard,
   ShieldAlert,
   Network,
@@ -51,7 +50,6 @@ const MM_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { to: "/admin/dashboard", label: "System Dashboard", Icon: LayoutDashboard },
-  { to: "/admin/symbols", label: "Symbol Management", Icon: Settings },
   { to: "/admin/indexes", label: "Index Admin", Icon: Activity },
   { to: "/admin/session", label: "Session Control", Icon: Timer },
   { to: "/admin/risk", label: "Risk Controls", Icon: Sliders },

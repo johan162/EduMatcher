@@ -44,7 +44,6 @@ const ADMIN_NAV: ActionCommand[] = [
   { id: "nav-admin-gateways", label: "Gateway Management", kind: "navigate", to: "/admin/gateways" },
   { id: "nav-admin-risk", label: "Risk Controls", kind: "navigate", to: "/admin/risk" },
   { id: "nav-admin-cb", label: "Circuit Breakers", kind: "navigate", to: "/admin/circuit-breakers" },
-  { id: "nav-admin-symbols", label: "Symbol Management", kind: "navigate", to: "/admin/symbols" },
   { id: "nav-admin-indexes", label: "Index Administration", kind: "navigate", to: "/admin/indexes" },
   { id: "nav-admin-monitor", label: "Monitor Log", kind: "navigate", to: "/admin/monitor" },
 ];
