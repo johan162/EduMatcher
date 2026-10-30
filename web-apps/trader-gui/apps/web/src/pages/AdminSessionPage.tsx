@@ -11,7 +11,7 @@ import type { SessionState } from "@/types/index.js";
  * Session Control (§15.4) — buttons for each valid next phase transition from
  * the current session state. Each is confirmed, then `POST
  * /admin/session/transition`; the REST response is authoritative
- * (`202`/APPLIED, `409`/TRANSITION_REJECTED with a reason, `503`/ENGINE_TIMEOUT).
+ * (`200`/APPLIED, `409`/TRANSITION_REJECTED with a reason, `503`/ENGINE_TIMEOUT).
  * The resulting phase still arrives app-wide via the `session.state` broadcast.
  */
 export function AdminSessionPage() {

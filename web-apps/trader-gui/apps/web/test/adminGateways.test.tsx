@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/admin/gateways") && path.endsWith("/disconnect")) {
-    return { gateway_id: "GW01", status: "DISCONNECTED" };
+    return { gateway_id: "GW01", status: "PENDING_DISCONNECT" };
   }
   if (path.startsWith("/api/v1/admin/gateways")) {
     return {
@@ -94,6 +94,26 @@ describe("KillSwitchPanel (§15.8)", () => {
     const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
     await waitFor(() => expect(called("/api/v1/admin/kill-switch/symbol")).toBe(true));
+  });
+
+  it("reports an engine refusal (409 KILL_SWITCH_REJECTED) with the engine's reason", async () => {
+    // WP-API01: refusals used to arrive as 403 ROLE_DENIED.
+    const { ApiError } = await import("@/api/apiFetch");
+    const { toast } = await import("sonner");
+    wrap(<AdminGatewaysPage />);
+    await waitFor(() => expect(screen.getByText("GW01")).toBeTruthy());
+    apiFetchMock.mockRejectedValueOnce(
+      new ApiError(409, "KILL_SWITCH_REJECTED", "Symbol-level mass cancel is only allowed for ADMIN participants"),
+    );
+    fireEvent.change(screen.getByLabelText("Kill switch symbol"), { target: { value: "AAPL" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel symbol" }));
+    const dialog = screen.getByRole("dialog", { name: "Kill switch — symbol?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel symbol" }));
+    await waitFor(() =>
+      expect((toast.error as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)![0]).toBe(
+        "Rejected: Symbol-level mass cancel is only allowed for ADMIN participants",
+      ),
+    );
   });
 
   it("cancels by gateway after confirmation", async () => {

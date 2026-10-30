@@ -56,12 +56,21 @@ timeout; the verdict is then in `accepted`, `reject_code` and `event`.
 Every error uses one envelope, whatever the cause:
 
     {"error": {"code": "VALIDATION", "message": "...", "field": "price",
-               "reject_code": "TICK_VIOLATION", "reason": "..."}}
+               "reject_code": "TICK_VIOLATION"}}
 
-`code` is the HTTP-level category; `reject_code` is the same vocabulary the
-engine uses on `order.ack` rejects, so REST and ALF clients see identical
-values for the same mistake. `client_tag` / `request_tag` are echoed back when
-the request carried one.
+That includes an unknown path (`404 NOT_FOUND`), a wrong method
+(`405 METHOD_NOT_ALLOWED`) and a gateway bug (`500 INTERNAL_ERROR`). `code` is
+the HTTP-level category; `reject_code` is the same vocabulary the engine uses
+on `order.ack` rejects, so REST and ALF clients see identical values for the
+same mistake. `client_tag` / `request_tag` are echoed back when the request
+carried one. Validation failures are always `400`.
+
+## Status codes
+
+`200` means the response carries the outcome; `202` means the request was
+handed on and the outcome follows on a WebSocket. An order submit, cancel or
+amend is `202` by default and `200` with `?wait=ack`. An admin command the
+engine refuses is `409` with a command-specific code.
 
 ## Rate limiting
 
@@ -144,6 +153,8 @@ TAGS_METADATA: list[dict[str, str]] = [
 # ---------------------------------------------------------------------------
 
 _ORDER_1 = "9f2c4e7a1b3d4c58a6e0f1d2c3b4a596"
+#: For error examples elsewhere that name an order.
+ORDER_ID_EXAMPLE = _ORDER_1
 _ORDER_2 = "3b7e1d9a5c2f4e86b0a1d3c5e7f90214"
 _ORDER_3 = "c81a64f0d2e94b37a5f6091e8d3b72c4"
 _TRADE_1 = "T-20260829-000412"
@@ -216,16 +227,14 @@ COMMON_ERRORS: dict[int | str, dict[str, Any]] = {
             "Input should be less than or equal to 5000",
             field="limit",
             reject_code="INVALID_VALUE",
-            reason="Input should be less than or equal to 5000",
         ),
     ),
     401: _err_response(
-        "Missing, malformed or unknown API key.",
+        "Missing, malformed or unknown API key. Carries `WWW-Authenticate: Bearer`.",
         _error(
             "AUTH",
             "Unknown API key",
             reject_code="AUTH_REQUIRED",
-            reason="Unknown API key",
         ),
     ),
     403: _err_response(
@@ -237,7 +246,6 @@ COMMON_ERRORS: dict[int | str, dict[str, Any]] = {
             "ROLE_DENIED",
             "ADMIN role required",
             reject_code="ROLE_DENIED",
-            reason="ADMIN role required",
         ),
     ),
     503: _err_response(
@@ -246,7 +254,6 @@ COMMON_ERRORS: dict[int | str, dict[str, Any]] = {
             "ENGINE_TIMEOUT",
             "Timed out waiting for engine reply",
             reject_code="INTERNAL_ERROR",
-            reason="Timed out waiting for engine reply",
         ),
     ),
 }
@@ -263,8 +270,23 @@ VALIDATION_ERROR: dict[int | str, dict[str, Any]] = {
             "LIMIT requires price",
             field="__root__",
             reject_code="MISSING_FIELD",
-            reason="LIMIT requires price",
             client_tag="strategy-7",
+        ),
+    )
+}
+
+#: Added to the history routes: their own filter checks (dates, cursors,
+#: event types) answer like FastAPI's query validation.
+INVALID_FILTER: dict[int | str, dict[str, Any]] = {
+    400: _err_response(
+        "A filter is malformed: a date or timestamp that does not parse, an "
+        "unknown `event_type`, or a stale or foreign `after` cursor. `field` "
+        "names the parameter.",
+        _error(
+            "VALIDATION",
+            "Invalid date format: yesterday (expected YYYY-MM-DD)",
+            field="date",
+            reject_code="INVALID_VALUE",
         ),
     )
 }
@@ -277,7 +299,6 @@ RATE_LIMITED: dict[int | str, dict[str, Any]] = {
             "RATE_LIMIT",
             "Write rate exceeded",
             reject_code="RATE_LIMITED",
-            reason="Write rate exceeded",
         ),
     )
 }
@@ -287,7 +308,7 @@ def not_found(code: str, message: str) -> dict[int | str, dict[str, Any]]:
     return {
         404: _err_response(
             "Nothing with that identifier.",
-            _error(code, message, reject_code="UNKNOWN", reason=message),
+            _error(code, message, reject_code="UNKNOWN"),
         )
     }
 
@@ -295,9 +316,27 @@ def not_found(code: str, message: str) -> dict[int | str, dict[str, Any]]:
 def conflict(code: str, message: str) -> dict[int | str, dict[str, Any]]:
     return {
         409: _err_response(
-            "The engine refused the command.",
-            _error(code, message, reject_code="UNKNOWN", reason=message),
+            "The engine refused the command; `message` is its reason.",
+            _error(code, message, reject_code="UNKNOWN"),
         )
+    }
+
+
+def ok_or_acked(
+    examples: dict[str, tuple[str, Any]],
+    pending_description: str,
+    acked_description: str,
+) -> dict[int | str, dict[str, Any]]:
+    """``202`` with the ``pending`` example, ``200`` with the others.
+
+    For the writes that answer ``202`` by default and ``200`` once
+    ``?wait=ack`` has the engine's outcome in the body.
+    """
+    pending = {name: ex for name, ex in examples.items() if name == "pending"}
+    answered = {name: ex for name, ex in examples.items() if name != "pending"}
+    return {
+        202: _json_named(pending, pending_description),
+        200: _json_named(answered, acked_description),
     }
 
 
@@ -1145,7 +1184,7 @@ ADMIN_SIM: dict[str, Any] = {
     },
 }
 ADMIN_GATEWAYS = BOOTSTRAP_ADMIN["gateways"]
-ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "DISCONNECTED"}
+ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "PENDING_DISCONNECT"}
 ADMIN_HALT_ACK: dict[str, Any] = {
     "gateway_id": "OPS01",
     "accepted": True,

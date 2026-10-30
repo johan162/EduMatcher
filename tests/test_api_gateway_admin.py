@@ -18,6 +18,8 @@ from edumatcher.api_gateway.routers import admin, reference, ws
 from edumatcher.api_gateway.schemas import (
     CircuitBreakerResumeRequest,
     CircuitBreakerTriggerRequest,
+    KillSwitchGatewayRequest,
+    KillSwitchGlobalRequest,
     SessionTransitionRequest,
     SymbolCancelRequest,
 )
@@ -93,7 +95,9 @@ class AdminFakeEngine:
                 "reason": "nope",
                 "cancelled_orders": 3,
             }
-        return {"accepted": self.ack_accepted, "topic": topic}
+        if self.ack_accepted:
+            return {"accepted": True, "topic": topic}
+        return {"accepted": False, "topic": topic, "reason": "nope"}
 
     def send_session_transition(self, to_state: str) -> None:
         self.calls.append(("send_session_transition", to_state))
@@ -229,15 +233,50 @@ async def test_circuit_breaker_trigger_and_resume_accepted() -> None:
 
 
 @pytest.mark.anyio
-async def test_circuit_breaker_rejected_ack_returns_403() -> None:
+@pytest.mark.parametrize(
+    ("call", "code"),
+    [
+        (
+            lambda r, s: admin.circuit_breaker_trigger(
+                CircuitBreakerTriggerRequest(symbol="AAPL"), r, s
+            ),
+            "HALT_REJECTED",
+        ),
+        (
+            lambda r, s: admin.circuit_breaker_resume(
+                CircuitBreakerResumeRequest(symbol="AAPL"), r, s
+            ),
+            "RESUME_REJECTED",
+        ),
+        (
+            lambda r, s: admin.kill_switch_symbol(
+                SymbolCancelRequest(symbol="AAPL"), r, s
+            ),
+            "KILL_SWITCH_REJECTED",
+        ),
+        (
+            lambda r, s: admin.kill_switch_gateway(
+                KillSwitchGatewayRequest(target_gateway_id="GW02"), r, s
+            ),
+            "KILL_SWITCH_REJECTED",
+        ),
+        (
+            lambda r, s: admin.kill_switch_global(KillSwitchGlobalRequest(), r, s),
+            "KILL_SWITCH_REJECTED",
+        ),
+    ],
+)
+async def test_engine_refusal_is_409_with_its_own_code(call: Any, code: str) -> None:
+    """WP-API01 (E4): an `accepted: false` ack used to come back as 403
+    ROLE_DENIED, telling an ADMIN they lack the role when, say, the symbol is
+    simply unknown. Like transition/reload/rebalance, it is a 409 now."""
     engine = AdminFakeEngine(ack_accepted=False)
-    request = admin_request(engine)
     with pytest.raises(HTTPException) as exc:
-        await admin.circuit_breaker_trigger(
-            CircuitBreakerTriggerRequest(symbol="AAPL"), request, admin_session()
-        )
-    assert exc.value.status_code == 403
-    assert cast(dict[str, Any], exc.value.detail)["error"]["message"] == "nope"
+        await call(admin_request(engine), admin_session())
+    assert exc.value.status_code == 409
+    error = cast(dict[str, Any], exc.value.detail)["error"]
+    assert error["code"] == code
+    assert error["message"] == "nope"
 
 
 @pytest.mark.anyio
@@ -369,7 +408,7 @@ async def test_gateway_disconnect_uppercases_id() -> None:
     engine = AdminFakeEngine()
     request = admin_request(engine)
     result = await admin.disconnect_gateway("gw02", request, admin_session())
-    assert result == {"gateway_id": "GW02", "status": "DISCONNECTED"}
+    assert result == {"gateway_id": "GW02", "status": "PENDING_DISCONNECT"}
     assert ("send_disconnect", ("GW02", "admin disconnect")) in engine.calls
 
 

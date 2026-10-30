@@ -152,24 +152,40 @@ How to get a key:
 
 ### Common error codes
 
-| Code | HTTP status | Meaning |
-|---|---:|---|
-| `AUTH` | `401` | Missing or malformed API key |
-| `ENGINE_AUTH` | `403` | Engine rejected the gateway identity |
-| `READ_ONLY` | `403` | Read-only key used on a trading endpoint |
-| `ROLE_DENIED` | `403` | Non-admin key used on an admin endpoint |
-| `VALIDATION` | `400`, `422` | Request body or parameters failed validation. A price off the instrument's tick grid lands here with `reject_code: TICK_VIOLATION` |
-| `SYMBOLS_NOT_READY` | `503` | Order-entry request arrived before the engine's symbol metadata reached the gateway; `reject_code: SYMBOL_NOT_READY`. Transient — retry |
-| `RATE_LIMIT` | `429` | Per-key write limit exceeded |
-| `ENGINE_TIMEOUT` | `503` | No engine reply in time |
-| `STATS_DB` | `503` | `pm-stats` database not present |
-| `AUDIT_INDEX_UNAVAILABLE` | `503` | `pm-audit` index not built or not running |
-| `UNKNOWN_ORDER` | `404` | Order id has no audited events |
-| `TRANSITION_REJECTED` | `409` | Session transition refused by the engine |
-| `RELOAD_REJECTED` | `409` | Reference reload rejected |
-| `REBALANCE_REJECTED` | `409` | Index rebalance rejected |
-| `INDEX_TIMEOUT` | `503` | No `pm-index` reply in time |
-| `INDEX_ERROR` | `502` | `pm-index` rejected the request |
+Every non-2xx reply carries one of these `error.code` values. `reject_code`
+is the engine vocabulary shared with ALF; it is `UNKNOWN` where no engine
+reject applies.
+
+| Code | HTTP status | `reject_code` | Meaning |
+|---|---:|---|---|
+| `VALIDATION` | `400` | `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` | A body field, query parameter or history filter (date, cursor, `event_type`) failed validation; `field` names it. A price off the instrument's tick grid carries `TICK_VIOLATION` |
+| `AUTH` | `401` | `AUTH_REQUIRED` | Missing, malformed or unknown API key. The reply carries `WWW-Authenticate: Bearer` |
+| `ENGINE_AUTH` | `403` | `AUTH_FAILED` | The engine refused the key's gateway identity |
+| `READ_ONLY` | `403` | `ROLE_DENIED` | Read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | `ROLE_DENIED` | The key's gateway lacks the role the endpoint needs (`ADMIN`, or `MARKET_MAKER` for `/bootstrap/mm`) |
+| `NOT_FOUND` | `404` | `UNKNOWN` | No such path |
+| `UNKNOWN_ORDER` | `404` | `UNKNOWN` | Order id unknown to the gateway (`GET /orders/{id}`) or absent from the audit trail (`GET /admin/orders/{id}`) |
+| `UNKNOWN_COMPANY` | `404` | `UNKNOWN` | No company profile for the symbol |
+| `METHOD_NOT_ALLOWED` | `405` | `UNKNOWN` | The path exists but not for this method; the reply carries `Allow` |
+| `TRANSITION_REJECTED` | `409` | `UNKNOWN` | The engine refused the session transition |
+| `RELOAD_REJECTED` | `409` | `UNKNOWN` | The engine refused the reference reload |
+| `HALT_REJECTED` | `409` | `UNKNOWN` | The engine refused the halt (for example `Unknown symbol: XYZ`) |
+| `RESUME_REJECTED` | `409` | `UNKNOWN` | The engine refused the resume (for example `TSLA is not halted`) |
+| `KILL_SWITCH_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol, gateway or global kill switch |
+| `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
+| `RATE_LIMIT` | `429` | `RATE_LIMITED` | Per-key write limit exceeded |
+| `INTERNAL_ERROR` | `500` | `INTERNAL_ERROR` | A gateway bug; the message carries no internals |
+| `INDEX_ERROR` | `502` | `UNKNOWN` | `pm-index` answered with an error |
+| `ENGINE_TIMEOUT` | `503` | `INTERNAL_ERROR` | No engine reply in time. Transient — retry |
+| `ENGINE_UNAVAILABLE` | `503` | `INTERNAL_ERROR` | The command could not be handed to the engine (down or backpressured). Transient — retry |
+| `SYMBOLS_NOT_READY` | `503` | `SYMBOL_NOT_READY` | Order entry before the symbol's tick precision reached the gateway. Transient — retry |
+| `INDEX_TIMEOUT` | `503` | `UNKNOWN` | No `pm-index` reply in time |
+| `STATS_DB` | `503` | `UNKNOWN` | The `pm-stats` database is not present |
+| `AUDIT_INDEX_UNAVAILABLE` | `503` | `UNKNOWN` | The `pm-audit` index is not built or not running |
+| `COMPANY_DB_UNAVAILABLE` | `503` | `UNKNOWN` | The company database is missing or unreadable |
+
+For an engine refusal (`409`), `message` is the engine's own reason. New codes
+may be added within v1; clients must treat an unknown `code` by its HTTP status.
 
 ### Swagger/OpenAPI documentation
 
@@ -184,16 +200,20 @@ not exposed.
 
 ### Common reply shapes
 
-- `202 Accepted` means the gateway accepted the request and is waiting for the
-  engine or `pm-index` to confirm it.
-- `200 OK` is used for read endpoints and for a few admin endpoints whose
-  response is immediately authoritative.
+- `200 OK` means the response body carries the outcome: every read, and every
+  command the gateway waited for (admin commands, `POST /mass-cancel`, and an
+  order submit, cancel or amend with `?wait=ack`).
+- `202 Accepted` means the request was handed on and the outcome follows on a
+  WebSocket: an order submit, cancel or amend without `?wait=ack`, `replace`,
+  OCO, combo and quote writes, and `POST /admin/gateways/{gid}/disconnect`.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
 ### Canonical error envelope
 
-All non-2xx replies MUST use this JSON envelope shape.
+All non-2xx replies MUST use this JSON envelope shape — including an unknown
+path (`404 NOT_FOUND`), a wrong method (`405 METHOD_NOT_ALLOWED`) and an
+unhandled gateway error (`500 INTERNAL_ERROR`).
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -202,7 +222,6 @@ All non-2xx replies MUST use this JSON envelope shape.
 | `error.message` | `String` | yes | Human-readable summary |
 | `error.field` | `String` | no | Field name when validation pinpoints one input field |
 | `error.reject_code` | `String` | no | Canonical order-rejection class for ALF/REST comparison, when applicable |
-| `error.reason` | `String` | no | Human-readable rejection reason; usually the same text as `message` on request-shape errors |
 | `error.client_tag` | `String` | no | Echo of the submitted order correlation tag, when available |
 | `error.request_tag` | `String` | no | Echo of the amend/cancel request tag, when available |
 
@@ -214,7 +233,6 @@ Canonical example:
     "code": "VALIDATION",
     "reject_code": "INVALID_VALUE",
     "message": "Input should be greater than 0",
-    "reason": "Input should be greater than 0",
     "field": "quantity",
     "client_tag": "desk1-aapl-00042"
   }
@@ -231,7 +249,8 @@ Endpoints that support pagination use keyset cursoring with these rules:
 - Clients fetch the next page by passing `after=<next_cursor>` unchanged.
 - Ordering is deterministic and backend-defined per endpoint; cursors are valid
   only for the same endpoint and compatible filter set.
-- A malformed, stale, or cross-endpoint cursor returns `422 VALIDATION`.
+- A malformed, stale, or cross-endpoint cursor returns `400 VALIDATION` with
+  `field: "after"`.
 
 ### Order correlation with `client_tag`
 
@@ -541,7 +560,7 @@ engine query, for read-only keys).
 |---|---|---|
 | `AUTH` | `401` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
-| `VALIDATION` | `422` | `fills_limit` is not a valid integer |
+| `VALIDATION` | `400` | `fills_limit` is not an integer in 1–500 |
 
 ---
 
@@ -583,7 +602,7 @@ All fields from `/bootstrap/trader`, plus:
 | `READ_ONLY` | `403` | Read-only key (no gateway\_id) |
 | `ROLE_DENIED` | `403` | Key resolves to TRADER or ADMIN role |
 | `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
-| `VALIDATION` | `422` | `fills_limit` is not a valid integer |
+| `VALIDATION` | `400` | `fills_limit` is not an integer in 1–500 |
 
 ---
 
@@ -683,7 +702,7 @@ Purpose: submit one order for the caller's gateway.
 | Status | Shape | Meaning |
 |---|---|---|
 | `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Default immediate reply |
-| `200 OK` | `{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "reason": "collar breach"}` | Returned when `?wait=ack` waits for the matching ACK; rejected ACKs include a stable machine-readable `reject_code` and the human-readable `reason` |
+| `200 OK` | `{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "event": {..., "reason": "collar breach"}}` | Returned when `?wait=ack` waits for the matching ACK; a rejected ACK carries the stable machine-readable `reject_code`, and the engine's `order.ack` in `event` has the human-readable `reason` |
 
 **Errors**
 
@@ -721,7 +740,8 @@ Purpose: cancel one live order in the caller's gateway.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}` | Request accepted |
+| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}` | Default: cancel sent; the outcome follows on the private WebSocket |
+| `200 OK` | `{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}` | With `?wait=ack`: the cancel's outcome |
 | `200 OK` | cancel ACK payload | Returned when waiting for the ACK |
 
 **Errors**
@@ -751,7 +771,8 @@ Purpose: amend price and/or quantity on one live order.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}` | Request accepted |
+| `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}` | Default: amend sent; the outcome follows on the private WebSocket |
+| `200 OK` | `{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}` | With `?wait=ack`: the amend's outcome |
 | `200 OK` | amend ACK payload | Returned when waiting for the ACK |
 
 **Errors**
@@ -1004,13 +1025,12 @@ Purpose: cancel all resting exposure for the caller or one symbol.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `symbol` | `Symbol` | no | Restrict the cancel to one symbol |
-| `reason` | `Str` | no | Free-text note carried to monitor events |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Cancel request accepted |
+| `200 OK` | kill-switch ack | What the engine cancelled (the call waits for the ack) |
 
 **Errors**
 
@@ -1029,13 +1049,12 @@ Purpose: alias of `POST /api/v1/mass-cancel`.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `symbol` | `Symbol` | no | Optional symbol-scoped kill |
-| `reason` | `Str` | no | Free-text note |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Same behavior as `/mass-cancel` |
+| `200 OK` | kill-switch ack | Same behavior as `/mass-cancel` |
 
 **Errors**
 
@@ -1772,7 +1791,7 @@ Purpose: request a session-phase transition from the engine.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"requested_state": "...", "status": "APPLIED", "command_id": "..."}` | Transition request accepted and applied |
+| `200 OK` | `{"requested_state": "...", "status": "APPLIED", "command_id": "..."}` | Transition applied |
 | `409 Conflict` | error envelope | The engine refused the transition |
 
 **Errors**
@@ -1848,7 +1867,7 @@ Purpose: forcibly disconnect one gateway.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{ "gateway_id": "...", "status": "DISCONNECTED" }` | Gateway disconnect accepted |
+| `202 Accepted` | `{ "gateway_id": "...", "status": "PENDING_DISCONNECT" }` | Disconnect sent; not awaited — the roster in `GET /admin/gateways` shows the result |
 
 **Errors**
 
@@ -1867,14 +1886,15 @@ Purpose: halt one symbol through the engine's circuit-breaker path.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `symbol` | `Symbol` | yes | Symbol to halt |
-| `level` | `Str` | yes | Requested level name |
+| `level` | `Str` | no | A rung of the symbol's ladder; omit for an indefinite halt until resumed |
 | `reason` | `Str` | no | Optional note |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Halt accepted |
+| `200 OK` | halt ack | The symbol is halted |
+| `409 Conflict` | error envelope | The engine refused the halt |
 
 **Errors**
 
@@ -1882,7 +1902,8 @@ Purpose: halt one symbol through the engine's circuit-breaker path.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
-| `VALIDATION` | Symbol or level invalid |
+| `VALIDATION` | Body invalid |
+| `HALT_REJECTED` | Engine refused (unknown symbol, no circuit breaker, unknown level); `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/circuit-breaker/resume`
@@ -1900,7 +1921,8 @@ Purpose: resume one halted symbol.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Resume accepted |
+| `200 OK` | resume ack | The symbol is trading again |
+| `409 Conflict` | error envelope | The engine refused the resume |
 
 **Errors**
 
@@ -1908,6 +1930,7 @@ Purpose: resume one halted symbol.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
+| `RESUME_REJECTED` | Engine refused (for example the symbol is not halted); `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/halts`
@@ -2056,7 +2079,8 @@ Purpose: cancel all resting exposure on one symbol.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Symbol kill-switch accepted |
+| `200 OK` | kill-switch ack | What the engine cancelled |
+| `409 Conflict` | error envelope | The engine refused the command |
 
 **Errors**
 
@@ -2064,6 +2088,7 @@ Purpose: cancel all resting exposure on one symbol.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/kill-switch/gateway`
@@ -2081,7 +2106,8 @@ Purpose: cancel all resting exposure for one target gateway.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Gateway kill-switch accepted |
+| `200 OK` | kill-switch ack | What the engine cancelled |
+| `409 Conflict` | error envelope | The engine refused the command |
 
 **Errors**
 
@@ -2089,6 +2115,7 @@ Purpose: cancel all resting exposure for one target gateway.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/kill-switch/global`
@@ -2105,7 +2132,8 @@ Purpose: cancel all resting exposure across every gateway and symbol.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | ack payload | Global kill-switch accepted |
+| `200 OK` | kill-switch ack | What the engine cancelled |
+| `409 Conflict` | error envelope | The engine refused the command |
 
 **Errors**
 
@@ -2113,6 +2141,7 @@ Purpose: cancel all resting exposure across every gateway and symbol.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/indexes`
@@ -2148,13 +2177,12 @@ Purpose: rebalance one configured index through `pm-index`.
 |---|---|---|---|
 | `index_id` | `IndexId` | yes (path) | Index to rebalance |
 | `updates` | `List<RebalanceUpdate>` | yes | Shares-outstanding updates |
-| `reason` | `Str` | no | Optional note |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | rebalance ack | Update accepted and applied |
+| `200 OK` | rebalance ack | Update applied |
 | `409 Conflict` | error envelope | Rebalance rejected |
 
 **Errors**

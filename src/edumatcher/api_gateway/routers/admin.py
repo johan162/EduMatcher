@@ -98,14 +98,19 @@ async def _await_ack(
         ) from exc
 
 
-def _require_accepted(ack: dict[str, Any]) -> dict[str, Any]:
-    """Return *ack* or raise 403 with the engine reason if it was rejected."""
+def _require_accepted(ack: dict[str, Any], code: str) -> dict[str, Any]:
+    """Return *ack*, or raise 409 *code* with the engine's reason.
+
+    409, not 403: the caller's role was already checked; the engine refusing
+    the command (an unknown symbol, a symbol not halted) is a conflict with
+    venue state, as for session transition and reload.
+    """
     if not bool(ack.get("accepted")):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_409_CONFLICT,
             detail={
                 "error": {
-                    "code": "ROLE_DENIED",
+                    "code": code,
                     "message": str(ack.get("reason", "Rejected by engine")),
                 }
             },
@@ -115,7 +120,6 @@ def _require_accepted(ack: dict[str, Any]) -> dict[str, Any]:
 
 @router.post(
     "/session/transition",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Change session state",
     description=(
         "Force the venue into another session phase (PRE_OPEN, OPENING_AUCTION, "
@@ -125,7 +129,7 @@ def _require_accepted(ack: dict[str, Any]) -> dict[str, Any]:
         "refuses (e.g. sessions are disabled)."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_TRANSITION, "The transition was applied.", 202),
+        docs.ok(docs.ADMIN_TRANSITION, "The transition was applied."),
         docs.conflict("TRANSITION_REJECTED", "Sessions are disabled"),
     ),
 )
@@ -288,7 +292,8 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
     summary="Disconnect a gateway",
     description=(
         "Ask the engine to drop gateway `gid`'s session. Its resting orders are "
-        "handled according to that participant's configured disconnect policy."
+        "handled according to that participant's configured disconnect policy. "
+        "Not awaited: the roster in `GET /admin/gateways` shows the result."
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_DISCONNECT, "Disconnect sent to the engine.", 202)
@@ -302,14 +307,16 @@ async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
     await require_admin(request, session)
     _check_rate_limit(request, session)
     request.app.state.engine.send_disconnect(gid.upper(), "admin disconnect")
-    return {"gateway_id": gid.upper(), "status": "DISCONNECTED"}
+    return {"gateway_id": gid.upper(), "status": "PENDING_DISCONNECT"}
 
 
 @router.post(
     "/circuit-breaker/trigger",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Halt a symbol",
-    responses=docs.merge(docs.ok(docs.ADMIN_HALT_ACK, "The symbol is halted.", 202)),
+    responses=docs.merge(
+        docs.ok(docs.ADMIN_HALT_ACK, "The symbol is halted."),
+        docs.conflict("HALT_REJECTED", "Unknown symbol: XYZ"),
+    ),
 )
 async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     body: CircuitBreakerTriggerRequest,
@@ -335,19 +342,19 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
         topic_symbol_halt_ack(gateway_id),
         match={"symbol": body.symbol},
     )
-    return _require_accepted(ack)
+    return _require_accepted(ack, "HALT_REJECTED")
 
 
 @router.post(
     "/circuit-breaker/resume",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Resume a halted symbol",
     description=(
         "Lift a halt on one symbol, whether it came from a price-triggered circuit "
         "breaker or from `POST /admin/circuit-breaker/trigger`."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_RESUME_ACK, "The symbol is trading again.", 202)
+        docs.ok(docs.ADMIN_RESUME_ACK, "The symbol is trading again."),
+        docs.conflict("RESUME_REJECTED", "TSLA is not halted"),
     ),
 )
 async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
@@ -366,7 +373,7 @@ async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
         topic_symbol_resume_ack(gateway_id),
         match={"symbol": body.symbol},
     )
-    return _require_accepted(ack)
+    return _require_accepted(ack, "RESUME_REJECTED")
 
 
 @router.get(
@@ -443,10 +450,9 @@ async def admin_indexes(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/indexes/{index_id}/rebalance",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Rebalance an index",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_REBALANCE, "pm-index applied the rebalance.", 202),
+        docs.ok(docs.ADMIN_REBALANCE, "pm-index applied the rebalance."),
         docs.conflict("REBALANCE_REJECTED", "Unknown constituent XYZ"),
     ),
 )
@@ -499,10 +505,13 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/kill-switch/symbol",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Kill switch: one symbol",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_SYMBOL, "What the engine cancelled.", 202)
+        docs.ok(docs.ADMIN_KILL_SYMBOL, "What the engine cancelled."),
+        docs.conflict(
+            "KILL_SWITCH_REJECTED",
+            "Symbol-level mass cancel is only allowed for ADMIN participants",
+        ),
     ),
 )
 async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
@@ -522,15 +531,18 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
         topic_cancel_symbol_ack(gateway_id),
         match={"symbol": body.symbol},
     )
-    return _require_accepted(ack)
+    return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 
 
 @router.post(
     "/kill-switch/gateway",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Kill switch: one gateway",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_GATEWAY, "What the engine cancelled.", 202)
+        docs.ok(docs.ADMIN_KILL_GATEWAY, "What the engine cancelled."),
+        docs.conflict(
+            "KILL_SWITCH_REJECTED",
+            "Gateway-targeted kill switch is only allowed for ADMIN participants",
+        ),
     ),
 )
 async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
@@ -557,15 +569,18 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
         topic_kill_switch_gateway_ack(gateway_id),
         match={"command_id": command_id},
     )
-    return _require_accepted(ack)
+    return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 
 
 @router.post(
     "/kill-switch/global",
-    status_code=status.HTTP_202_ACCEPTED,
     summary="Kill switch: whole market",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_GLOBAL, "What the engine cancelled.", 202)
+        docs.ok(docs.ADMIN_KILL_GLOBAL, "What the engine cancelled."),
+        docs.conflict(
+            "KILL_SWITCH_REJECTED",
+            "Global kill switch is only allowed for ADMIN participants",
+        ),
     ),
 )
 async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
@@ -589,7 +604,7 @@ async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
         topic_kill_switch_global_ack(gateway_id),
         match={"command_id": command_id},
     )
-    return _require_accepted(ack)
+    return _require_accepted(ack, "KILL_SWITCH_REJECTED")
 
 
 # ---------------------------------------------------------------------------

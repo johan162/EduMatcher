@@ -19,10 +19,14 @@ class StrictModel(BaseModel):
 
 class ErrorDetail(StrictModel):
     code: str = Field(
-        description="HTTP-level category, e.g. VALIDATION, AUTH, ROLE_DENIED, "
-        "RATE_LIMIT, ENGINE_TIMEOUT, HTTP_ERROR."
+        description="Stable machine-readable category, e.g. VALIDATION, AUTH, "
+        "ROLE_DENIED, RATE_LIMIT, ENGINE_TIMEOUT, NOT_FOUND, INTERNAL_ERROR, or "
+        "a command-specific refusal such as HALT_REJECTED."
     )
-    message: str = Field(description="Human-readable explanation.")
+    message: str = Field(
+        description="Human-readable explanation; for an engine refusal, the "
+        "engine's own reason."
+    )
     field: str | None = Field(
         default=None, description="The offending request field, when there is one."
     )
@@ -31,7 +35,6 @@ class ErrorDetail(StrictModel):
         description="Engine-vocabulary reject code, identical across REST and "
         "ALF (e.g. TICK_VIOLATION, MISSING_FIELD, RATE_LIMITED).",
     )
-    reason: str | None = Field(default=None, description="Same text as `message`.")
     client_tag: str | None = Field(
         default=None, description="The request's `client_tag`, echoed back."
     )

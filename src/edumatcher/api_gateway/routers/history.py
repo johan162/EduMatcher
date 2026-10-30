@@ -10,6 +10,7 @@ import time
 import uuid
 from contextlib import closing
 from datetime import tzinfo
+from collections.abc import Callable
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -124,24 +125,34 @@ def _open_stats(request: Request) -> sqlite3.Connection:
         ) from exc
 
 
+def _invalid(field: str, message: str) -> HTTPException:
+    """``400 VALIDATION`` naming *field* -- the same answer FastAPI's own query
+    validation gives, so a client handles both alike."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={"error": {"code": "VALIDATION", "message": message, "field": field}},
+    )
+
+
+def _check(field: str, value: str | None, validate: Callable[[str], object]) -> None:
+    """Run *validate* on an optional query parameter, as a 400 on *field*."""
+    if value is None:
+        return
+    try:
+        validate(value)
+    except ValueError as exc:
+        raise _invalid(field, str(exc)) from exc
+
+
 def _validate_time_filters(
     date: str | None,
     from_ts: str | None,
     to_ts: str | None,
 ) -> None:
-    """Raise HTTP 422 when any time-filter parameter is malformed."""
-    try:
-        if date is not None:
-            validate_date(date)
-        if from_ts is not None:
-            validate_iso_ts(from_ts)
-        if to_ts is not None:
-            validate_iso_ts(to_ts)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-        ) from exc
+    """Raise 400 when any time-filter parameter is malformed."""
+    _check("date", date, validate_date)
+    _check("from", from_ts, validate_iso_ts)
+    _check("to", to_ts, validate_iso_ts)
 
 
 def _validate_event_type(event_type: str | None) -> str | None:
@@ -156,17 +167,10 @@ def _validate_event_type(event_type: str | None) -> str | None:
         return None
     normalized = event_type.upper()
     if normalized not in EVENT_TYPES:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error": {
-                    "code": "VALIDATION",
-                    "message": (
-                        f"Unknown event_type {event_type!r}; expected one of "
-                        + ", ".join(EVENT_TYPES)
-                    ),
-                }
-            },
+        raise _invalid(
+            "event_type",
+            f"Unknown event_type {event_type!r}; expected one of "
+            + ", ".join(EVENT_TYPES),
         )
     return normalized
 
@@ -200,7 +204,7 @@ def _paginated_envelope(
             docs.HISTORY_ORDERS,
             "One page of the caller's order events, oldest first. With `has_more: true`, `next_cursor` is also present.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_orders(
@@ -213,7 +217,7 @@ async def history_orders(
             description=(
                 "Only this event type: ACK, REJECT, FILL, AMEND, CANCEL, "
                 "EXPIRE, or a COMBO_/OCO_/QUOTE_ variant (case-insensitive). "
-                "Unknown values are a 422, not an empty page."
+                "Unknown values are a 400, not an empty page."
             )
         ),
     ] = None,
@@ -251,10 +255,7 @@ async def history_orders(
                 after=after,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
@@ -268,7 +269,6 @@ async def history_orders(
         docs.ok(
             docs.HISTORY_ORDER_LIFECYCLE, "The order's recorded events, oldest first."
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
     ),
 )
 async def history_order_lifecycle(
@@ -298,7 +298,7 @@ async def history_order_lifecycle(
     summary="My fills",
     responses=docs.merge(
         docs.ok(docs.HISTORY_FILLS, "One page of the caller's fills, oldest first."),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_fills(
@@ -339,10 +339,7 @@ async def history_fills(
                 after=after,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
         retained_from = query_order_events_retained_from(conn, gateway_id=gateway_id)
     envelope = _paginated_envelope("events", events, next_cursor)
     envelope["retained_from"] = retained_from
@@ -354,7 +351,6 @@ async def history_fills(
     summary="Exchange locale and trading date",
     responses=docs.merge(
         docs.ok(docs.HISTORY_SESSION, "The exchange locale and today's trading date."),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
     ),
 )
 async def history_session(
@@ -390,7 +386,7 @@ async def history_session(
             docs.HISTORY_TRADES,
             "One page of executed trades, oldest first. Prices are display prices.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_trades(
@@ -424,10 +420,7 @@ async def history_trades(
                 after=after,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
     return _paginated_envelope(
         "trades", to_display_prices(trades, "trades"), next_cursor
     )
@@ -441,7 +434,7 @@ async def history_trades(
             docs.HISTORY_DAILY,
             "One page of daily OHLC rows. Prices are display prices; `turnover / volume` equals `vwap`.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_daily(
@@ -466,10 +459,9 @@ async def history_daily(
     the full pagination contract.
     """
     _ = session
-    _validate_time_filters(date, None, None)
-    for bound in (from_date, to_date):
-        if bound is not None:
-            _validate_time_filters(bound, None, None)
+    _check("date", date, validate_date)
+    _check("from", from_date, validate_date)
+    _check("to", to_date, validate_date)
     with closing(_open_stats(request)) as conn:
         try:
             rows, next_cursor = query_daily(
@@ -482,10 +474,7 @@ async def history_daily(
                 to_date=to_date,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
     return _paginated_envelope("daily", to_display_prices(rows, "daily"), next_cursor)
 
 
@@ -497,7 +486,7 @@ async def history_daily(
             docs.HISTORY_PRICE_SNAPSHOTS,
             "One page of intraday mid/bid/ask rows for the symbol, oldest first.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_price_snapshots(
@@ -538,10 +527,7 @@ async def history_price_snapshots(
                 after=after,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
     return _paginated_envelope(
         "snapshots", to_display_prices(rows, "snapshots"), next_cursor
     )
@@ -552,7 +538,7 @@ async def history_price_snapshots(
     summary="Daily OHLC per index",
     responses=docs.merge(
         docs.ok(docs.HISTORY_INDEX_DAILY, "One page of daily index OHLC rows."),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_index_daily(
@@ -582,9 +568,9 @@ async def history_index_daily(
     the full pagination contract.
     """
     _ = session
-    for bound in (date, from_date, to_date):
-        if bound is not None:
-            _validate_time_filters(bound, None, None)
+    _check("date", date, validate_date)
+    _check("from", from_date, validate_date)
+    _check("to", to_date, validate_date)
     with closing(_open_stats(request)) as conn:
         try:
             rows, next_cursor = query_index_daily(
@@ -597,10 +583,7 @@ async def history_index_daily(
                 to_date=to_date,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
     # No tick conversion: index levels are computed, dimensionless numbers,
     # not prices on a tick grid.
     return _paginated_envelope("daily", rows, next_cursor)
@@ -614,7 +597,7 @@ async def history_index_daily(
             docs.HISTORY_INDEX_SNAPSHOTS,
             "One page of intraday index levels, oldest first.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_index_snapshots(
@@ -655,10 +638,7 @@ async def history_index_snapshots(
                 after=after,
             )
         except InvalidCursorError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
-            ) from exc
+            raise _invalid("after", str(exc)) from exc
     return _paginated_envelope("snapshots", rows, next_cursor)
 
 
@@ -667,7 +647,7 @@ async def history_index_snapshots(
     summary="Indexes with history",
     responses=docs.merge(
         docs.ok(docs.HISTORY_INDEX_IDS, "Index ids with recorded statistics."),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_index_ids(
@@ -684,8 +664,7 @@ async def history_index_ids(
     this at 5 per config file), so no ``limit``/``has_more`` are needed.
     """
     _ = session
-    if date is not None:
-        _validate_time_filters(date, None, None)
+    _check("date", date, validate_date)
     with closing(_open_stats(request)) as conn:
         rows = query_index_ids(conn, date_value=date, tz=_session_tz(request, conn))
     index_ids = [row["index_id"] for row in rows]
@@ -700,7 +679,7 @@ async def history_index_ids(
             docs.HISTORY_INDEX_EVENTS,
             "Structural events from pm-index, oldest first. `warnings` is present only when pm-index reported any.",
         ),
-        {422: {"description": "Invalid filter, date, event type or cursor."}},
+        docs.INVALID_FILTER,
     ),
 )
 async def history_index_events(
@@ -760,28 +739,13 @@ async def history_index_events(
     if types is not None:
         unknown = sorted(set(types) - STRUCTURAL_RECORD_TYPES)
         if unknown:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": {
-                        "code": "VALIDATION",
-                        "message": (
-                            f"Unknown event type(s): {', '.join(unknown)}. "
-                            f"Valid types: {', '.join(sorted(STRUCTURAL_RECORD_TYPES))}"
-                        ),
-                    }
-                },
+            raise _invalid(
+                "types",
+                f"Unknown event type(s): {', '.join(unknown)}. "
+                f"Valid types: {', '.join(sorted(STRUCTURAL_RECORD_TYPES))}",
             )
     if from_ts is not None and to_ts is not None and to_ts < from_ts:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error": {
-                    "code": "VALIDATION",
-                    "message": "'to' must be >= 'from'",
-                }
-            },
-        )
+        raise _invalid("to", "'to' must be >= 'from'")
     now = time.time()
     resolved_from = from_ts if from_ts is not None else now - 30 * 86400
     resolved_to = to_ts if to_ts is not None else now

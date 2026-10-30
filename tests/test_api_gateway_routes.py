@@ -357,13 +357,13 @@ async def test_order_routes_send_engine_messages() -> None:
         quantity=10,
         price=150.0,
     )
-    submitted = await orders.submit_order(order_body, request, session)
+    submitted = await orders.submit_order(order_body, request, Response(), session)
     assert submitted.status == "PENDING"
     assert any(call[0] == "send_new_order" for call in engine.calls)
 
-    cancel = await orders.cancel_order("ORD1", request, session, wait="ack")
+    cancel = await orders.cancel_order("ORD1", request, Response(), session, wait="ack")
     amend = await orders.amend_order(
-        "ORD1", AmendRequest(price=151.0), request, session, wait="ack"
+        "ORD1", AmendRequest(price=151.0), request, Response(), session, wait="ack"
     )
     listed = await orders.list_orders(request, session)
     engine.cache.orders["ORD1"] = {"order_id": "ORD1"}
@@ -383,6 +383,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
     cancel = await orders.cancel_order(
         "ORD1",
         request,
+        Response(),
         session,
         wait="ack",
         request_tag="RT-CXL-001",
@@ -391,6 +392,7 @@ async def test_cancel_and_amend_route_request_tags_are_forwarded() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-001"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -439,7 +441,7 @@ async def test_d1_client_tag_round_trips_through_rest_order_cache() -> None:
         client_tag="T1-LM001-001",
     )
 
-    submitted = await orders.submit_order(order_body, request, session)
+    submitted = await orders.submit_order(order_body, request, Response(), session)
     sent_order = next(call[1] for call in engine.calls if call[0] == "send_new_order")
     stored = await orders.get_order(sent_order.id, request, session)
 
@@ -462,7 +464,9 @@ async def test_rejected_order_ack_flows_through_rest_wait_response() -> None:
         client_tag="REST-ORDER-001",
     )
 
-    submitted = await orders.submit_order(order_body, request, session, wait="ack")
+    submitted = await orders.submit_order(
+        order_body, request, Response(), session, wait="ack"
+    )
 
     assert submitted.accepted is False
     assert submitted.reject_code == "COLLAR_BREACH"
@@ -488,13 +492,13 @@ async def test_replace_order_and_error_paths() -> None:
 
     with pytest.raises(Exception):
         await orders.cancel_order(
-            "ORD1", fake_request(TimeoutEngine()), session, wait="ack"
+            "ORD1", fake_request(TimeoutEngine()), Response(), session, wait="ack"
         )
 
     rate_limited = limited_request()
-    await orders.cancel_order("ORD1", rate_limited, session)
+    await orders.cancel_order("ORD1", rate_limited, Response(), session)
     with pytest.raises(Exception):
-        await orders.cancel_order("ORD2", rate_limited, session)
+        await orders.cancel_order("ORD2", rate_limited, Response(), session)
 
 
 @pytest.mark.anyio
@@ -686,7 +690,7 @@ async def test_rejected_cancel_is_reported_not_timed_out() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, wait="ack", request_tag="RT-CXL-001"
+        "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-001"
     )
 
     assert cancelled.status == "REJECTED"
@@ -716,6 +720,7 @@ async def test_rejected_amend_is_reported_not_timed_out() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-001"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -733,7 +738,7 @@ async def test_accepted_cancel_still_reports_acked() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, wait="ack", request_tag="RT-CXL-002"
+        "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-002"
     )
 
     assert cancelled.status == "ACKED"
@@ -751,6 +756,7 @@ async def test_accepted_amend_still_reports_acked() -> None:
         "ORD1",
         AmendRequest(price=151.0, request_tag="RT-AMD-002"),
         request,
+        Response(),
         session,
         wait="ack",
     )
@@ -768,7 +774,9 @@ async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() 
     request = fake_request(engine)
     session = trading_session()
 
-    cancelled = await orders.cancel_order("ORD1", request, session, wait="ack")
+    cancelled = await orders.cancel_order(
+        "ORD1", request, Response(), session, wait="ack"
+    )
 
     assert cancelled.status == "ACKED"
     assert (
@@ -790,7 +798,7 @@ async def test_cancel_wait_ack_timeout_still_surfaces_503_with_request_tag() -> 
 
     with pytest.raises(Exception):
         await orders.cancel_order(
-            "ORD1", request, session, wait="ack", request_tag="RT-CXL-003"
+            "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-003"
         )
 
 
@@ -801,7 +809,7 @@ async def test_cancel_without_wait_does_not_call_the_racing_wait() -> None:
     session = trading_session()
 
     cancelled = await orders.cancel_order(
-        "ORD1", request, session, request_tag="RT-CXL-004"
+        "ORD1", request, Response(), session, request_tag="RT-CXL-004"
     )
 
     assert cancelled.event is None

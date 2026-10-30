@@ -24,7 +24,7 @@ import asyncio
 import concurrent.futures
 from collections.abc import Generator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import zmq
@@ -376,7 +376,8 @@ async def test_history_index_events_rejects_unknown_type() -> None:
             types=["LEVEL"],
             max_records=10_000,
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "types"
     assert fake.calls == []  # rejected before ever reaching pm-index
 
 
@@ -408,7 +409,8 @@ async def test_history_index_events_rejects_to_before_from() -> None:
             types=None,
             max_records=10_000,
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "to"
     assert fake.calls == []
 
 

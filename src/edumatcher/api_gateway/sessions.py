@@ -5,9 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
+
+#: Declares the bearer scheme in OpenAPI (Swagger's "Authorize" button) and
+#: parses the header. ``auto_error=False`` so a missing or non-Bearer header
+#: reaches ``auth`` as ``None`` and gets this API's own 401, not FastAPI's 403.
+_bearer = HTTPBearer(
+    auto_error=False,
+    description=(
+        "API key as a bearer token: `Authorization: Bearer <api_key>`. Keys are "
+        "configured under `api_gateways.<name>.credentials`."
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -39,38 +51,26 @@ class SessionRegistry:
         return self._credentials.get(api_key)
 
 
-def _extract_bearer(authorization: str) -> str:
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": {"code": "AUTH", "message": "Expected Bearer token"}},
-        )
-    return token.strip()
+def _unauthorized(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"error": {"code": "AUTH", "message": message}},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def auth(
     request: Request,
-    authorization: Annotated[
-        str,
-        Header(
-            description=(
-                "API key as a bearer token: `Bearer <api_key>`. Keys are "
-                "configured under `api_gateways.<name>.credentials`."
-            ),
-            examples=["Bearer key-trader-demo"],
-        ),
-    ],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> Session:
     """Authenticate an API key and ensure engine auth for trading sessions."""
-    token = _extract_bearer(authorization)
+    token = credentials.credentials.strip() if credentials is not None else ""
+    if not token:
+        raise _unauthorized("Expected Authorization: Bearer <api_key>")
     registry: SessionRegistry = request.app.state.sessions
     credential = registry.get(token)
     if credential is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": {"code": "AUTH", "message": "Unknown API key"}},
-        )
+        raise _unauthorized("Unknown API key")
 
     session = Session(
         api_key=token,

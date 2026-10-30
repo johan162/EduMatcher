@@ -71,10 +71,20 @@ def test_stock_fastapi_422_is_not_advertised(spec: dict[str, Any]) -> None:
             assert "content" not in response
 
 
-def test_authorization_header_is_documented(spec: dict[str, Any]) -> None:
-    params = spec["paths"]["/api/v1/orders"]["get"]["parameters"]
-    header = next(p for p in params if p["name"] == "authorization")
-    assert "Bearer" in header["description"]
+def test_auth_is_a_bearer_security_scheme_not_a_header_param(
+    spec: dict[str, Any],
+) -> None:
+    """WP-API01 (S2): a security scheme gives Swagger its Authorize button and
+    SDK generators a client-wide credential, where a required header
+    parameter made every generated call take an `authorization` argument."""
+    (name, scheme), *rest = spec["components"]["securitySchemes"].items()
+    assert not rest
+    assert (scheme["type"], scheme["scheme"]) == ("http", "bearer")
+    assert "Bearer" in scheme["description"]
+    for method, path, op in _operations(spec):
+        assert op.get("security") == [{name: []}], f"{method} {path}"
+        params = [p["name"].lower() for p in op.get("parameters", [])]
+        assert "authorization" not in params, f"{method} {path}"
 
 
 def test_list_orders_example_is_what_the_issue_asked_for(

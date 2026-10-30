@@ -8,7 +8,7 @@ Design intent under test (not a literal mirror of the implementation):
     share the same primary sort timestamp.
   - has_more is only ever true when the page came back full (== limit); the
     very last page of a result set has has_more: false and no next_cursor.
-  - A malformed after cursor is rejected with 422 VALIDATION, not a raw
+  - A malformed after cursor is rejected with 400 VALIDATION, not a raw
     exception or a silently-ignored filter.
   - The pagination contract is uniform across every paginated endpoint
     (orders, fills, trades, daily, index-daily, index-snapshots,
@@ -20,7 +20,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
@@ -207,11 +207,12 @@ async def test_history_trades_pagination_reproduces_full_result_set(
 
 
 @pytest.mark.anyio
-async def test_history_trades_malformed_after_returns_422(trades_db: Path) -> None:
+async def test_history_trades_malformed_after_returns_400(trades_db: Path) -> None:
     request = _request_for(trades_db)
     with pytest.raises(HTTPException) as exc_info:
         await _call_trades(request, _readonly_session(), limit=10, after="garbage")
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "after"
     detail = exc_info.value.detail
     assert isinstance(detail, dict)
     assert detail["error"]["code"] == "VALIDATION"

@@ -2,8 +2,7 @@
 Security and auth tests for pm-api-gwy (unit-level).
 
 High priority:
-  - Missing / malformed Authorization header
-  - Unknown API key
+  - Missing / unknown API key (header parsing itself: test_api_gateway_errors.py)
   - Read-only session attempting a write operation
 
 Medium priority:
@@ -15,17 +14,17 @@ Medium priority:
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.rate_limit import RateLimiter, TokenBucket
 from edumatcher.api_gateway.sessions import (
     Session,
     SessionRegistry,
-    _extract_bearer,
     auth,
     require_trading,
 )
@@ -75,54 +74,16 @@ def _fake_request(
 
 
 # ===========================================================================
-# _extract_bearer — header parsing
-# ===========================================================================
-
-
-class TestExtractBearer:
-    """_extract_bearer must accept well-formed Bearer tokens and reject everything else."""
-
-    def test_valid_bearer_returns_token(self) -> None:
-        assert _extract_bearer("Bearer mytoken123") == "mytoken123"
-
-    def test_bearer_scheme_case_insensitive(self) -> None:
-        assert _extract_bearer("bearer MYTOKEN") == "MYTOKEN"
-
-    def test_wrong_scheme_raises_401(self) -> None:
-        with pytest.raises(HTTPException) as exc:
-            _extract_bearer("Basic dXNlcjpwYXNz")
-        assert exc.value.status_code == 401
-
-    def test_empty_string_raises_401(self) -> None:
-        with pytest.raises(HTTPException) as exc:
-            _extract_bearer("")
-        assert exc.value.status_code == 401
-
-    def test_bearer_with_no_token_raises_401(self) -> None:
-        """'Bearer' with no following space/token must be rejected."""
-        with pytest.raises(HTTPException) as exc:
-            _extract_bearer("Bearer")
-        assert exc.value.status_code == 401
-
-    def test_bearer_with_empty_token_after_space_raises_401(self) -> None:
-        with pytest.raises(HTTPException) as exc:
-            _extract_bearer("Bearer ")
-        assert exc.value.status_code == 401
-
-    def test_bearer_with_very_long_token_returns_token(self) -> None:
-        """A very long token string is not rejected by _extract_bearer itself."""
-        long_token = "x" * 10_000
-        result = _extract_bearer(f"Bearer {long_token}")
-        assert result == long_token
-
-    def test_bearer_token_is_stripped(self) -> None:
-        """Leading/trailing whitespace on the token is stripped."""
-        assert _extract_bearer("Bearer  spaced  ") == "spaced"
-
-
-# ===========================================================================
 # auth() dependency — full session lookup
+#
+# Header parsing (missing header, wrong scheme, "Bearer" with no token) is
+# FastAPI's HTTPBearer now; tests/test_api_gateway_errors.py drives those
+# through the real app. Here auth() gets what HTTPBearer hands it.
 # ===========================================================================
+
+
+def _bearer(token: str) -> HTTPAuthorizationCredentials:
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
 @pytest.fixture()
@@ -136,42 +97,41 @@ class TestAuthDependency:
     @pytest.mark.anyio
     async def test_valid_key_returns_session(self) -> None:
         request = _fake_request([("valid-key", None)])
-        session = await auth(request, authorization="Bearer valid-key")
+        session = await auth(request, _bearer("valid-key"))
         assert session.api_key == "valid-key"
 
     @pytest.mark.anyio
-    async def test_unknown_key_raises_401(self) -> None:
-        request = _fake_request([("valid-key", None)])
-        with pytest.raises(HTTPException) as exc:
-            await auth(request, authorization="Bearer no-such-key")
-        assert exc.value.status_code == 401
+    async def test_token_is_stripped(self) -> None:
+        """HTTPBearer keeps whitespace after the first space; auth strips it."""
+        request = _fake_request([("spaced", None)])
+        session = await auth(request, _bearer(" spaced  "))
+        assert session.api_key == "spaced"
 
     @pytest.mark.anyio
-    async def test_wrong_scheme_raises_401(self) -> None:
+    @pytest.mark.parametrize(
+        "credentials",
+        [
+            None,
+            _bearer(""),
+            _bearer("   "),
+            _bearer("no-such-key"),
+            _bearer("x" * 10_000),
+        ],
+    )
+    async def test_missing_or_unknown_key_raises_401(
+        self, credentials: HTTPAuthorizationCredentials | None
+    ) -> None:
         request = _fake_request([("valid-key", None)])
         with pytest.raises(HTTPException) as exc:
-            await auth(request, authorization="Basic valid-key")
+            await auth(request, credentials)
         assert exc.value.status_code == 401
-
-    @pytest.mark.anyio
-    async def test_empty_header_raises_401(self) -> None:
-        request = _fake_request([("valid-key", None)])
-        with pytest.raises(HTTPException) as exc:
-            await auth(request, authorization="")
-        assert exc.value.status_code == 401
-
-    @pytest.mark.anyio
-    async def test_very_long_garbage_token_raises_401(self) -> None:
-        """A plausibly-crafted long token that is not in the registry → 401."""
-        request = _fake_request([("valid-key", None)])
-        with pytest.raises(HTTPException) as exc:
-            await auth(request, authorization="Bearer " + "x" * 10_000)
-        assert exc.value.status_code == 401
+        assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
+        assert cast(dict[str, Any], exc.value.detail)["error"]["code"] == "AUTH"
 
     @pytest.mark.anyio
     async def test_trading_key_accepted_when_engine_allows(self) -> None:
         request = _fake_request([("trade-key", "GW01")], engine=_AcceptingEngine())
-        session = await auth(request, authorization="Bearer trade-key")
+        session = await auth(request, _bearer("trade-key"))
         assert session.gateway_id == "GW01"
         assert session.can_trade is True
 
@@ -180,7 +140,7 @@ class TestAuthDependency:
         """Engine rejecting gateway auth must surface as HTTP 403."""
         request = _fake_request([("trade-key", "GW01")], engine=_RejectingEngine())
         with pytest.raises(HTTPException) as exc:
-            await auth(request, authorization="Bearer trade-key")
+            await auth(request, _bearer("trade-key"))
         assert exc.value.status_code == 403
 
 

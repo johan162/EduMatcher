@@ -102,6 +102,24 @@ describe("AdminCircuitBreakersPage (§15.6)", () => {
     expect(body).toEqual({ symbol: "AAPL", level: "L1" });
   });
 
+  it("reports an engine refusal (409 HALT_REJECTED) with the engine's reason", async () => {
+    // WP-API01: refusals used to arrive as 403 ROLE_DENIED.
+    const { ApiError } = await import("@/api/apiFetch");
+    const { toast } = await import("sonner");
+    wrap(<AdminCircuitBreakersPage />);
+    await waitFor(() => expect(apiFetchMock.mock.calls.some(([p]) => p === "/api/v1/reference")).toBe(true));
+    apiFetchMock.mockRejectedValueOnce(new ApiError(409, "HALT_REJECTED", "Unknown symbol: XYZ"));
+    fireEvent.change(screen.getByLabelText("Halt symbol"), { target: { value: "AAPL" } });
+    fireEvent.click(screen.getByRole("button", { name: "Halt symbol" }));
+    const dialog = screen.getByRole("dialog", { name: "Halt symbol?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Halt symbol" }));
+    await waitFor(() =>
+      expect((toast.error as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]![0]).toBe(
+        "Rejected: Unknown symbol: XYZ",
+      ),
+    );
+  });
+
   it("shows active halts and resumes one after confirmation", async () => {
     useHaltStore.setState({
       halts: { TSLA: { symbol: "TSLA", level: "L2", resume_at_ns: null, halt_source: "ADMIN" } },

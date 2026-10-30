@@ -242,7 +242,7 @@ export const getAdminHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/ad
 
 // Halt one symbol. `level` (one of the symbol's configured CB levels) runs the
 // real breaker activation with auto-resume; omitting it halts indefinitely.
-// 202 SymbolHaltAck; a rejection is 403 ROLE_DENIED.
+// 200 SymbolHaltAck; an engine refusal is 409 HALT_REJECTED (its reason is the message).
 export const triggerCircuitBreaker = (symbol: string, level?: string) =>
   apiFetch<SymbolHaltAckResponse>("/api/v1/admin/circuit-breaker/trigger", {
     method: "POST",
@@ -294,8 +294,8 @@ export const getAdminOrderDetail = (orderId: string, limit?: number) =>
     `/api/v1/admin/orders/${encodeURIComponent(orderId)}${limit ? `?limit=${limit}` : ""}`,
   );
 
-// Admin kill-switch scopes (§15.8). All 202 with an engine ack; a rejection is a
-// 403 ROLE_DENIED, not an `accepted: false` body.
+// Admin kill-switch scopes (§15.8). All 200 with the engine ack; an engine refusal
+// is a 409 KILL_SWITCH_REJECTED, not an `accepted: false` body.
 export const adminSymbolKillSwitch = (symbol: string, reason?: string) =>
   apiFetch<AdminSymbolKillSwitchResponse>("/api/v1/admin/kill-switch/symbol", {
     method: "POST",

@@ -10,11 +10,12 @@ import sys
 from contextlib import suppress
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import uvicorn
 from fastapi import HTTPException, WebSocketDisconnect, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from edumatcher.api_gateway import engine_client, main
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -510,14 +511,21 @@ async def test_auth_dependency_success_and_failures() -> None:
             )
         )
     )
-    session = await auth(request, "Bearer good")  # type: ignore[arg-type]  # test double
+
+    def bearer(token: str) -> HTTPAuthorizationCredentials:
+        return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+    session = await auth(request, bearer("good"))  # type: ignore[arg-type]  # test double
     assert session.gateway_id == "GW01"
-    with pytest.raises(Exception):
-        await auth(request, "Token nope")  # type: ignore[arg-type]  # test double
-    with pytest.raises(Exception):
-        await auth(request, "Bearer missing")  # type: ignore[arg-type]  # test double
-    with pytest.raises(Exception):
-        await auth(request, "Bearer bad")  # type: ignore[arg-type]  # test double
+    with pytest.raises(HTTPException) as no_header:
+        await auth(request, None)  # type: ignore[arg-type]  # test double
+    assert no_header.value.status_code == 401
+    with pytest.raises(HTTPException) as unknown:
+        await auth(request, bearer("missing"))  # type: ignore[arg-type]  # test double
+    assert unknown.value.status_code == 401
+    with pytest.raises(HTTPException) as refused:
+        await auth(request, bearer("bad"))  # type: ignore[arg-type]  # test double
+    assert refused.value.status_code == 403
 
 
 def prepare_history_db(path: Path) -> None:
@@ -894,7 +902,7 @@ async def test_await_event_timeout_cleans_up(
 
 @pytest.mark.anyio
 async def test_history_validation_rejects_bad_dates() -> None:
-    """Verify malformed date parameters return 422."""
+    """Verify malformed date parameters return 400 naming the field."""
     from edumatcher.api_gateway.routers import history as hist_router
 
     db_path = Path("/tmp/nonexist_test.db")
@@ -915,4 +923,5 @@ async def test_history_validation_rejects_bad_dates() -> None:
             to_ts=None,
             limit=500,
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"

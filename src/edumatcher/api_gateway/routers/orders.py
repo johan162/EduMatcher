@@ -5,7 +5,16 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.schemas import (
@@ -147,6 +156,12 @@ async def _await_cancel_or_amend_event(
         ) from exc
 
 
+def _ok_when_answered(response: Response, event: dict[str, Any] | None) -> None:
+    """200 when the body carries the engine's outcome, else the route's 202."""
+    if event is not None:
+        response.status_code = status.HTTP_200_OK
+
+
 def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
     """Return an order response carrying the canonical tag key."""
     result = dict(order)
@@ -167,14 +182,15 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
         "`visible_qty`; TRAILING_STOP needs `trail_offset` and may set an "
         "initial `stop_price`. Any other of these fields is rejected. Prices must lie "
         "on the symbol's tick grid. `client_tag` is an opaque label echoed "
-        "on every event for this order. Returns `202`; see `?wait=ack` to "
-        "get the engine's verdict in the same response."
+        "on every event for this order. Returns `202` (`PENDING`); with "
+        "`?wait=ack`, `200` and the engine's verdict in the same response."
     ),
     responses=docs.merge(
-        docs.ok_named(
+        docs.ok_or_acked(
             docs.ORDER_SUBMITTED,
-            "Order handed to the engine (`PENDING`), or its verdict with `?wait=ack`.",
-            202,
+            "Order handed to the engine (`PENDING`); the verdict follows on the "
+            "private WebSocket.",
+            "With `?wait=ack`: the engine's verdict.",
         ),
         docs.VALIDATION_ERROR,
         docs.RATE_LIMITED,
@@ -183,6 +199,7 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
 async def submit_order(
     body: Annotated[OrderRequest, Body(openapi_examples=docs.ORDER_REQUEST_EXAMPLES)],
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
     wait: Annotated[
         str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
@@ -213,6 +230,7 @@ async def submit_order(
     event = await _await_order_event(
         request, topic_order_ack(gateway_id), order.id, wait
     )
+    _ok_when_answered(response, event)
     return OrderAccepted(
         order_id=order.id,
         client_tag=body.client_tag,
@@ -234,10 +252,11 @@ async def submit_order(
         "matched to its outcome."
     ),
     responses=docs.merge(
-        docs.ok_named(
+        docs.ok_or_acked(
             docs.ORDER_CANCEL_RESULT,
-            "Cancel sent (`PENDING_CANCEL`), or its outcome with `?wait=ack`.",
-            202,
+            "Cancel sent (`PENDING_CANCEL`); the outcome follows on the private "
+            "WebSocket.",
+            "With `?wait=ack`: the cancel's outcome.",
         ),
         docs.RATE_LIMITED,
     ),
@@ -245,6 +264,7 @@ async def submit_order(
 async def cancel_order(
     order_id: str,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
     wait: Annotated[
         str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
@@ -274,6 +294,7 @@ async def cancel_order(
         wait=wait,
         request_tag=request_tag,
     )
+    _ok_when_answered(response, event)
     rejected = event is not None and event.get("accepted") is False
     return CancelAccepted(
         order_id=order_id,
@@ -299,10 +320,11 @@ async def cancel_order(
         "increase loses time priority (`priority_reset` on the event)."
     ),
     responses=docs.merge(
-        docs.ok_named(
+        docs.ok_or_acked(
             docs.ORDER_AMEND_RESULT,
-            "Amend sent (`PENDING_AMEND`), or its outcome with `?wait=ack`.",
-            202,
+            "Amend sent (`PENDING_AMEND`); the outcome follows on the private "
+            "WebSocket.",
+            "With `?wait=ack`: the amend's outcome.",
         ),
         docs.VALIDATION_ERROR,
         docs.RATE_LIMITED,
@@ -312,6 +334,7 @@ async def amend_order(
     order_id: str,
     body: AmendRequest,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
     wait: Annotated[
         str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
@@ -342,6 +365,7 @@ async def amend_order(
         wait=wait,
         request_tag=body.request_tag,
     )
+    _ok_when_answered(response, event)
     rejected = event is not None and event.get("accepted") is False
     return {
         "order_id": order_id,
@@ -462,23 +486,7 @@ async def list_orders(
     ),
     responses=docs.merge(
         docs.ok(docs.ORDER_CACHED, "The order."),
-        {
-            404: {
-                "description": "Unknown order.",
-                "content": {
-                    "application/json": {
-                        "example": {
-                            "error": {
-                                "code": "HTTP_ERROR",
-                                "message": "Unknown order",
-                                "reject_code": "UNKNOWN",
-                                "reason": "Unknown order",
-                            }
-                        }
-                    }
-                },
-            }
-        },
+        docs.not_found("UNKNOWN_ORDER", f"Unknown order {docs.ORDER_ID_EXAMPLE}"),
     ),
 )
 async def get_order(
@@ -488,7 +496,13 @@ async def get_order(
     order = request.app.state.engine.get_caches(gateway_id).orders.get(order_id)
     if order is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Unknown order"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "UNKNOWN_ORDER",
+                    "message": f"Unknown order {order_id}",
+                }
+            },
         )
     return _with_client_tag(cast(dict[str, Any], order))
 

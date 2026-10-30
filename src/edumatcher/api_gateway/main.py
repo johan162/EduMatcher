@@ -12,9 +12,9 @@ from typing import Any, AsyncGenerator, cast
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from edumatcher.api_gateway.metrics import install as install_metrics
 from edumatcher.api_gateway.openapi_docs import (
@@ -70,7 +70,14 @@ _HTTP_REJECT_CODES = {
     "SYMBOLS_NOT_READY": "SYMBOL_NOT_READY",
     "VALIDATION": "INVALID_VALUE",
     "ENGINE_TIMEOUT": "INTERNAL_ERROR",
+    # Same value ALF sends for the same condition (alf_gwy/protocol.py).
+    "ENGINE_UNAVAILABLE": "INTERNAL_ERROR",
 }
+
+#: `code` for an HTTPException raised with a plain-string detail -- in
+#: practice only Starlette's own routing errors, since every route raises the
+#: structured `{"error": {...}}` form.
+_HTTP_STATUS_CODES = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
 
 
 def _extract_correlation(body: object, request: Request) -> dict[str, str]:
@@ -264,7 +271,6 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
                     "reject_code": _validation_reject_code(
                         str(first.get("type", "")), message
                     ),
-                    "reason": message,
                     **_extract_correlation(body, request),
                 }
             },
@@ -292,35 +298,53 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
                     "message": str(exc),
                     "field": "price",
                     "reject_code": "TICK_VIOLATION",
-                    "reason": str(exc),
                     **_extract_correlation(await _safe_body(request), request),
                 }
             },
         )
 
-    @app.exception_handler(FastAPIHTTPException)
+    # Registered on Starlette's base class, not FastAPI's subclass: routing
+    # raises the base class for an unknown path (404) or method (405), and
+    # those must use the envelope too.
+    @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(  # pyright: ignore[reportUnusedFunction]
         _request: Request,
-        exc: FastAPIHTTPException,
+        exc: StarletteHTTPException,
     ) -> JSONResponse:
         detail = exc.detail
         if isinstance(detail, dict) and isinstance(detail.get("error"), dict):
             detail_dict = cast(dict[str, Any], detail)
-            source_error = cast(dict[str, Any], detail_dict["error"])
-            error = dict(source_error)
+            error = dict(cast(dict[str, Any], detail_dict["error"]))
             code = str(error.get("code", "UNKNOWN"))
-            message = str(error.get("message", ""))
             error.setdefault("reject_code", _HTTP_REJECT_CODES.get(code, "UNKNOWN"))
-            error.setdefault("reason", message)
-            return JSONResponse(status_code=exc.status_code, content={"error": error})
+        else:
+            error = {
+                "code": _HTTP_STATUS_CODES.get(exc.status_code, "HTTP_ERROR"),
+                "message": str(detail),
+                "reject_code": "UNKNOWN",
+            }
+        # Headers carry meaning here: WWW-Authenticate on a 401, Allow on a 405.
         return JSONResponse(
-            status_code=exc.status_code,
+            status_code=exc.status_code, content={"error": error}, headers=exc.headers
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(  # pyright: ignore[reportUnusedFunction]
+        _request: Request,
+        _exc: Exception,
+    ) -> JSONResponse:
+        """A bug, not a client error: the envelope, and no internals in it.
+
+        Starlette re-raises the exception after sending this response, so the
+        server still logs the traceback.
+        """
+        return JSONResponse(
+            status_code=500,
             content={
                 "error": {
-                    "code": "HTTP_ERROR",
-                    "message": str(detail),
-                    "reject_code": "UNKNOWN",
-                    "reason": str(detail),
+                    "code": "INTERNAL_ERROR",
+                    "message": "Internal server error",
+                    "reject_code": "INTERNAL_ERROR",
                 }
             },
         )

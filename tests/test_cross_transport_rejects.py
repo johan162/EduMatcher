@@ -8,6 +8,7 @@ from collections.abc import Iterator, Mapping
 from typing import Any, cast
 
 import pytest
+from fastapi import Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError as PydanticValidationError
 from starlette.requests import Request
@@ -288,6 +289,7 @@ async def test_alf_and_rest_business_rule_reject_codes_match(
             client_tag="CT-BUSINESS",
         ),
         _request_with_engine(rest_engine),
+        Response(),
         Session(api_key="key", gateway_id="TRADER01", description="test"),
         wait="ack",
     )

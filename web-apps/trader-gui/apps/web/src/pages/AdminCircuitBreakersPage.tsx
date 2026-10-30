@@ -59,7 +59,9 @@ export function AdminCircuitBreakersPage() {
       {
         onSuccess: () => toast.success(`Halt submitted for ${symbol}${level ? ` (${level})` : ""}`),
         onError: (err) => {
-          if (err instanceof ApiError && err.code === "ROLE_DENIED") {
+          // 409 HALT_REJECTED: the engine refused (its reason is the message);
+          // 403 ROLE_DENIED: the key lost its ADMIN role.
+          if (err instanceof ApiError && (err.code === "HALT_REJECTED" || err.code === "ROLE_DENIED")) {
             toast.error(`Rejected: ${err.message}`);
             return;
           }

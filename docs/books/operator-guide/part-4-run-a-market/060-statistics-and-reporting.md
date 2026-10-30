@@ -682,7 +682,7 @@ Combo, OCO and quote events each carry their own accept / reject / cancel /
 status value rather than a single family name, so a rejected combo is
 distinguishable from an accepted one and `oco.cancelled` is findable as a
 cancellation. Filters are validated against this list — `pm-stats-cli` rejects
-an unknown `--event-type` at parse time and the API returns `422`, rather than
+an unknown `--event-type` at parse time and the API returns `400`, rather than
 silently returning an empty page.
 
 !!! note "`UNKNOWN` means the engine did not say"
@@ -1372,7 +1372,7 @@ API filters for `/api/v1/history/orders`:
 | Query parameter | Required | Description |
 |-----------------|----------|-------------|
 | `symbol` | No | Restrict to one symbol |
-| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `422` |
+| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `400` |
 | `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |

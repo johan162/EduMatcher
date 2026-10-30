@@ -21,7 +21,9 @@ const fieldCls =
 
 /** Shared error handling for the three kill-switch scopes. */
 function killSwitchError(err: unknown): void {
-  if (err instanceof ApiError && err.code === "ROLE_DENIED") {
+  // 409 KILL_SWITCH_REJECTED: the engine refused (its reason is the message);
+  // 403 ROLE_DENIED: the key lost its ADMIN role.
+  if (err instanceof ApiError && (err.code === "KILL_SWITCH_REJECTED" || err.code === "ROLE_DENIED")) {
     toast.error(`Rejected: ${err.message}`);
     return;
   }

@@ -485,10 +485,10 @@ curl -i -X POST http://127.0.0.1:8080/api/v1/admin/session/transition \
   -d '{"to_state": "CONTINUOUS"}'
 ```
 
-A successful transition returns `202` with `status: "APPLIED"` and a
+A successful transition returns `200` with `status: "APPLIED"` and a
 `command_id`. Requesting a state the engine cannot apply (for example when
-sessions are disabled) returns `409 TRANSITION_REJECTED` with a `reason`,
-instead of leaving you to guess from a timeout.
+sessions are disabled) returns `409 TRANSITION_REJECTED` with the engine's
+reason as `message`, instead of leaving you to guess from a timeout.
 
 Look at cross-gateway order visibility:
 
@@ -532,6 +532,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/admin/kill-switch/gateway \
 Expected behavior:
 
 - a trading key gets `403 ROLE_DENIED` on every `/admin/*` path
+- halting a symbol the engine does not know returns `409 HALT_REJECTED` with
+  `message: "Unknown symbol: ..."` — the engine refused, your role is fine
 - `/admin/session/transition` blocks for the engine's verdict and never just
   times out silently
 - `/admin/orders` returns orders from every gateway, not just `OPS01`'s

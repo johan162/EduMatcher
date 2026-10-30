@@ -286,26 +286,34 @@ For strict endpoint-by-endpoint access rules, see
 
 | Error code | Status | Cause |
 |---|---|---|
-| `AUTH` | `401` | Missing/malformed `Authorization` header, or an unrecognized API key |
+| `AUTH` | `401` | Missing/malformed `Authorization` header, or an unrecognized API key. The reply carries `WWW-Authenticate: Bearer` |
 | `ENGINE_AUTH` | `403` | The credential's `gateway_id` isn't allowed by the engine's `participants` list |
 | `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
-| `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call. Also reused (same code, unrelated cause) when the engine itself rejects a circuit-breaker or kill-switch command — the ack carries `accepted: false` and the gateway surfaces the engine's `reason` under this same error code |
+| `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call (or `MARKET_MAKER` on `/bootstrap/mm`) |
 | `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
-| `VALIDATION` | `422`/`400` | Malformed request body or query parameters. Includes a price that is not on the instrument's tick grid, which carries `reject_code: TICK_VIOLATION` — see [Tick precision](#tick-precision) |
+| `VALIDATION` | `400` | Malformed request body, query parameter or history filter (date, cursor, `event_type`); `field` names it. Includes a price that is not on the instrument's tick grid, which carries `reject_code: TICK_VIOLATION` — see [Tick precision](#tick-precision) |
 | `SYMBOLS_NOT_READY` | `503` | An order-entry request arrived before the engine's symbol metadata reached this gateway. Carries `reject_code: SYMBOL_NOT_READY`; retry shortly — see [Tick precision](#tick-precision) |
 | `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
-| `UNKNOWN_ORDER` | `404` | No audited events for that order id |
+| `NOT_FOUND` | `404` | No such path |
+| `UNKNOWN_ORDER` | `404` | Order id unknown to this gateway (`GET /orders/{id}`), or no audited events for it (`GET /admin/orders/{id}`) |
+| `METHOD_NOT_ALLOWED` | `405` | The path exists, but not for this method |
 | `TRANSITION_REJECTED` | `409` | The engine will not perform the requested session transition |
 | `RELOAD_REJECTED` | `409` | `POST /admin/reference/reload` was rejected — usually because the file's symbol/index set changed |
-| `REBALANCE_REJECTED` | `409` | `POST /admin/indexes/{id}/rebalance` was rejected by `pm-index` — see the ack `reason` |
+| `HALT_REJECTED` / `RESUME_REJECTED` | `409` | The engine refused a circuit-breaker trigger or resume (unknown symbol, not halted, ...); `message` is the engine's reason |
+| `KILL_SWITCH_REJECTED` | `409` | The engine refused a symbol, gateway or global kill switch; `message` is the engine's reason |
+| `REBALANCE_REJECTED` | `409` | `POST /admin/indexes/{id}/rebalance` was rejected by `pm-index`; `message` is its reason |
+| `INTERNAL_ERROR` | `500` | A gateway bug; the message carries no internals (the gateway logs the traceback) |
 | `ENGINE_TIMEOUT` | `503` | No engine reply within the configured timeout |
 | `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
 
-All error envelopes keep the transport-level `error.code`/`error.message` pair
-and, where the failure belongs to order entry, also include canonical
-`error.reject_code` plus `error.reason`. Validation failures echo
+Every error, including an unknown path or a gateway bug, uses one envelope:
+the transport-level `error.code`/`error.message` pair plus the canonical
+`error.reject_code` (shared with ALF; `UNKNOWN` where no engine reject
+applies). The full table is in the
+[API reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#common-error-codes).
+Validation failures echo
 `client_tag` or `request_tag` when the rejected request supplied one, so clients
 can correlate synchronous 4xx responses the same way they correlate asynchronous
 order events.
@@ -406,7 +414,8 @@ cannot be `ICEBERG`, and a combo leg cannot be `ICEBERG` or `TRAILING_STOP`,
 because a leg has no field for `visible_qty` (or, on a combo, `trail_offset`).
 
 Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
-wait for the matching engine ACK until the configured timeout. The wait filters
+wait for the matching engine ACK until the configured timeout; the reply is
+then `200 OK`, because the body carries the outcome. The wait filters
 by `order_id` so concurrent requests on the same gateway receive their own ack.
 Rejected ACK payloads include `reject_code`, a stable machine-readable
 classification, alongside the human-readable `reason`. For example, a collar
@@ -430,7 +439,6 @@ instrument's tick size, which `GET /reference/symbols` reports per symbol as
     "message": "100.005 is not a multiple of AAPL's tick size 0.01",
     "field": "price",
     "reject_code": "TICK_VIOLATION",
-    "reason": "100.005 is not a multiple of AAPL's tick size 0.01",
     "client_tag": "CT-1"
   }
 }
@@ -619,7 +627,7 @@ with no `gateway_id`.
 
 | Endpoint | Query parameters | Notes |
 |---|---|---|
-| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN`, `EVENT` — `422` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
+| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN`, `EVENT` — `400` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/session` | none | `{"country": "SE", "session_timezone": "Europe/Stockholm", "session_date": "2026-06-14"}` — the exchange's current locale and today's trading date in the recorded session timezone, resolved exactly as every `date` filter here resolves them (`country` is the same value `GET /reference/schedule` reports). Use it for a client's "today" and session clock |
@@ -705,7 +713,7 @@ Authorization: Bearer key-readonly-demo
 
 returns the next two trades, and so on until a response comes back with
 `has_more: false` and no `next_cursor`. A malformed or expired-schema
-`after` value returns `422` with error code `VALIDATION`.
+`after` value returns `400` with error code `VALIDATION` and `field: "after"`.
 
 `/history/index-ids` has no `limit`/`after` — the number of distinct
 exchange indexes is always small (EduMatcher caps this at 5 per config
@@ -902,7 +910,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"PENDING" }`| `session.transition`        |
 | `GET`  | `/admin/session/schedule`         | none                                        | `{ "sessions_enabled":..., "schedule":{...} }`  | `system.session_schedule_request` |
 | `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
-| `POST` | `/admin/gateways/{gid}/disconnect`| none                                        | `{ "gateway_id":..., "status":"DISCONNECTED" }` | `system.gateway_disconnect` |
+| `POST` | `/admin/gateways/{gid}/disconnect`| none                                        | `202 { "gateway_id":..., "status":"PENDING_DISCONNECT" }` (not awaited) | `system.gateway_disconnect` |
 | `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": "L1", "reason":null }` | engine halt ack                         | `risk.symbol_halt`          |
 | `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
@@ -926,10 +934,11 @@ Behaviour notes:
   indistinguishable from a slow one. `to_state` must be a valid `SessionState`
   (`PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`).
   See [Command correlation](#command-correlation).
-- The circuit-breaker and kill-switch endpoints wait for the matching engine ACK.
-  When the engine rejects the command (for example, an ADMIN-gate or validation
-  failure) the ack carries `accepted: false` and the gateway returns `403` with
-  the engine's `reason`.
+- The circuit-breaker and kill-switch endpoints wait for the matching engine ACK
+  and return `200` with it. When the engine refuses the command (an unknown
+  symbol, a symbol that is not halted) the gateway returns `409` with a
+  command-specific code — `HALT_REJECTED`, `RESUME_REJECTED` or
+  `KILL_SWITCH_REJECTED` — and the engine's reason as `message`.
 - `POST /admin/circuit-breaker/trigger`'s `level`, when it names one of the
   symbol's configured `circuit_breaker.levels`, runs the halt through the same
   activation a price-triggered breaker uses — a real `resume_at_ns` and ACE
@@ -1449,9 +1458,8 @@ gateway were indistinguishable once both acks were in flight, and the gateway
 had to serialise them behind a per-gateway lock to stay correct. They now run
 concurrently.
 
-**Session transition.** `POST /admin/session/transition` used to be
-fire-and-forget: it returned `202 PENDING` and awaited nothing. It now waits
-for the engine's verdict on `session.transition_ack.{gateway_id}` and returns:
+**Session transition.** `POST /admin/session/transition` waits for the
+engine's verdict on `session.transition_ack.{gateway_id}` and returns `200`:
 
 ```json
 { "requested_state": "CONTINUOUS", "status": "APPLIED", "command_id": "cmd-01j4..." }
@@ -1917,7 +1925,7 @@ curl -v --no-buffer \
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
 | `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
-| `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `participants` list |
+| `401 Unauthorized` | Missing, malformed or unknown key in the `Authorization` header (`AUTH`) — or, as `403 ENGINE_AUTH`, the engine rejected the gateway's own handshake for that `gateway_id` | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `participants` list |
 | `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
 | `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |

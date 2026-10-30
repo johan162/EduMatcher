@@ -772,8 +772,8 @@ export interface AdminOrderLifecycleResponse {
 
 /**
  * `POST /api/v1/admin/kill-switch/symbol` response (engine `CancelSymbolAck`).
- * A rejected command is surfaced by the gateway as `403 ROLE_DENIED`, so a
- * `200`/`202` body here always has `accepted: true`.
+ * A rejected command is surfaced by the gateway as `409 KILL_SWITCH_REJECTED`,
+ * so a `200` body here always has `accepted: true`.
  */
 export interface AdminSymbolKillSwitchResponse {
   accepted: boolean;
@@ -787,7 +787,7 @@ export interface AdminSymbolKillSwitchResponse {
 /**
  * `POST /api/v1/admin/kill-switch/gateway` response (engine `KillSwitchGatewayAck`).
  * Cancels every resting order/quote of one named participant (without
- * disconnecting it). Rejection → `403 ROLE_DENIED`, so a success body always has
+ * disconnecting it). Rejection → `409 KILL_SWITCH_REJECTED`, so a success body always has
  * `accepted: true`.
  */
 export interface AdminGatewayKillSwitchResponse {
@@ -817,7 +817,7 @@ export interface AdminGlobalKillSwitchResponse {
  * `POST /api/v1/admin/circuit-breaker/trigger` response (engine `SymbolHaltAck`).
  * `level` is honoured end-to-end: naming one of the symbol's configured CB
  * levels runs the real breaker activation (auto-resume); omitting it is an
- * indefinite halt. Rejection → `403 ROLE_DENIED`.
+ * indefinite halt. Rejection → `409 HALT_REJECTED`.
  */
 export interface SymbolHaltAckResponse {
   accepted: boolean;

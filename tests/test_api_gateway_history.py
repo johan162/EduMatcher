@@ -25,7 +25,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
@@ -385,13 +385,14 @@ async def test_index_daily_omitting_index_id_returns_all_indexes(
 
 
 @pytest.mark.anyio
-async def test_index_daily_invalid_date_rejected_with_422(seeded_db: Path) -> None:
+async def test_index_daily_invalid_date_rejected_with_400(seeded_db: Path) -> None:
     request = _request_for(seeded_db)
     with pytest.raises(HTTPException) as exc_info:
         await _call_index_daily(
             request, _readonly_session(), index_id="EDU100", date="not-a-date"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"
 
 
 @pytest.mark.anyio
@@ -482,7 +483,8 @@ async def test_index_snapshots_invalid_time_range_rejected(seeded_db: Path) -> N
         await _call_index_snapshots(
             request, _readonly_session(), index_id="EDU100", from_ts="garbage"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "from"
 
 
 @pytest.mark.anyio
@@ -523,11 +525,12 @@ async def test_index_ids_filters_by_date(seeded_db: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_index_ids_invalid_date_rejected_with_422(seeded_db: Path) -> None:
+async def test_index_ids_invalid_date_rejected_with_400(seeded_db: Path) -> None:
     request = _request_for(seeded_db)
     with pytest.raises(HTTPException) as exc_info:
         await history.history_index_ids(request, _readonly_session(), date="06/14/2026")
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "date"
 
 
 @pytest.mark.anyio
@@ -624,7 +627,8 @@ async def test_price_snapshots_invalid_time_range_rejected(seeded_db: Path) -> N
         await _call_price_snapshots(
             request, _readonly_session(), symbol="AAPL", from_ts="garbage"
         )
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.status_code == 400
+    assert cast(dict[str, Any], exc_info.value.detail)["error"]["field"] == "from"
 
 
 @pytest.mark.anyio

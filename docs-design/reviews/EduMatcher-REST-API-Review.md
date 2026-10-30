@@ -646,9 +646,9 @@ the same WP, with no aliases (no-backwards-compat rule).
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
-| **WP-API01** | Error model unification | Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
+| **WP-API01** ✅ | Error model unification | **Done 2026-10-30 (uncommitted)**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
 | **WP-API02** | Safe asynchronous writes | Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
-| **WP-API03** | Resource layout freeze | WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. | D1–D5, C5, DOC1 | L |
+| **WP-API03** | Resource layout freeze | WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
 | **WP-API04** | Typed contract | Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
 | **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
 | **WP-API06** | Contract guard | Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
@@ -692,6 +692,67 @@ troubleshooting).
   only for the cases `test_cross_transport_rejects.py` covers. Consider moving
   `_TYPE_FIELDS` to `models/` and applying it in ALF and the engine. That is
   outside this review's REST scope, so it is noted rather than scheduled.
+
+### 9.2 WP-API01 outcome (2026-10-30)
+
+Decisions confirmed by Johan: validation is `400` everywhere (Q3), and the
+envelope's `reason` field is dropped. `errors[]` was not added; it is additive
+and can come in 1.x.
+
+| Item | Change |
+|---|---|
+| E1 envelope everywhere | The handler is registered on Starlette's `HTTPException` (routing raises the base class), so 404 → `NOT_FOUND` and 405 → `METHOD_NOT_ALLOWED`. A catch-all returns `500 INTERNAL_ERROR` with no internals; Starlette still re-raises, so the traceback is logged. Exception headers (`WWW-Authenticate`, `Allow`) are passed through; they used to be dropped. |
+| E2 / S2 auth | `HTTPBearer(auto_error=False)` replaces the header parameter. OpenAPI now has one `http`/`bearer` security scheme on every operation, and no `authorization` parameter. Missing, malformed, empty and unknown keys are all `401 AUTH` with `WWW-Authenticate: Bearer`. `_extract_bearer` is gone. |
+| E3 400 everywhere | The history router's 11 `422` sites became one `_invalid(field, message)` helper; every filter error names its parameter (`date`, `from`, `to`, `after`, `event_type`, `types`). The OpenAPI `422` entries became a shared `INVALID_FILTER` 400 example. |
+| E4 admin refusals | `_require_accepted(ack, code)` returns `409` with `HALT_REJECTED` / `RESUME_REJECTED` / `KILL_SWITCH_REJECTED`, and the engine's reason as `message`. OpenAPI examples use real engine reason strings. |
+| E5 unknown order | `GET /orders/{id}` returns `404 UNKNOWN_ORDER`. |
+| E6 200 vs 202 | Order submit/cancel/amend return `200` when `?wait=ack` yields the outcome, else `202` (new `docs.ok_or_acked` documents both). Transition, circuit-breaker trigger/resume, the three kill switches and rebalance are `200`. Disconnect stays `202` and now says `PENDING_DISCONNECT` instead of claiming `DISCONNECTED`. |
+| E8 `reason` | Removed from the envelope, `ErrorDetail`, every OpenAPI example and trader-gui's `ApiError`. Engine-event `reason` fields (inside `event`) are engine payload and unchanged. |
+| Parity fix | `ENGINE_UNAVAILABLE` now carries `reject_code: INTERNAL_ERROR`, as ALF sends for the same condition; REST said `UNKNOWN`. |
+
+**Clients.** trader-gui's `KillSwitchPanel` and `AdminCircuitBreakersPage`
+keyed their "Rejected: <reason>" toast on `ROLE_DENIED`. They now key on the
+409 codes (still also on a genuine `ROLE_DENIED`), with new tests that fail
+without the fix. Comments in `endpoints.ts`, `types/index.ts` and
+`AdminSessionPage.tsx` were updated. The terminal-gui bridge test fixtures
+modelled the gateway as `{"detail": ...}` and `422`; they now model the real
+envelope and `400`. The example clients don't parse error bodies, so they
+needed nothing.
+
+**Tests.** A new `tests/test_api_gateway_errors.py` drives the real
+`create_app()` through raw ASGI calls (no httpx in the venv). It is the only
+place the app-level handlers, the security dependency and the final status
+code are exercised. 23 existing tests encoded the old contract and were updated
+to the new one.
+
+**Docs.** In the spec: a complete error-code table (code, status, `reject_code`
+and meaning for all 26 codes), the 200/202 rule, the envelope's universality,
+`400` for cursors and `fills_limit`, and per-endpoint replies for
+orders/cancel/amend, mass-cancel, transition, disconnect, the circuit breaker,
+the kill switches and rebalance. Operator guide, training guide and the stats
+chapter were updated to match.
+
+**Insights carried forward:**
+
+- **Spec drift again** (more DOC3/DOC4). In blocks touched here, the spec
+  documented `202` for `mass-cancel` (always `200`) and a `reason` argument on
+  `mass-cancel` that the request model rejects. It also called the halt
+  `level` required (it is optional) and still listed rebalance's `reason`,
+  which WP-API05's doc pass missed. All fixed. The remaining per-endpoint
+  tables are not trustworthy line by line, which strengthens the case for
+  WP-API04/06 generating or testing them from OpenAPI.
+- **New finding, not fixed (scope):** trader-gui's `disconnectGateway` sends
+  `{ reason }`, but `POST /admin/gateways/{gid}/disconnect` has no body
+  parameter, so the note is silently dropped. The engine message can carry a
+  reason (`send_disconnect(gid, "admin disconnect")`). Fold it into WP-API03,
+  which rewrites the admin URLs anyway: accept an optional `reason` body and
+  pass it through.
+- **Starlette's `Allow` header** names only the methods of the first route
+  matched at a path (`PUT /orders` reports `Allow: POST`, not `GET, POST`).
+  This is framework behaviour, not ours; noted, not worked around.
+- **ALF's `ENGINE_UNAVAILABLE` mapping** is in `alf_gwy/protocol.py`, while
+  REST's lives in `main._HTTP_REJECT_CODES`. A shared table would prevent the
+  next drift; that belongs with the ALF/REST consistency note in §9.1.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
