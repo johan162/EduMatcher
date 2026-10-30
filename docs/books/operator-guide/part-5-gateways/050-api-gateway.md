@@ -1262,6 +1262,10 @@ then grows for the lifetime of the process.
 Every socket lives under `/api/v1/ws/`, so a reverse proxy can route upgrades by
 that one prefix.
 
+This section is a guided tour. The contract (frames, close codes, sequencing,
+flow control, the full event catalogue) is the normative
+[WebSocket API Reference](../../protocols-and-clients/part-2-specifications/070-websocket.md).
+
 | Path                       | Purpose                                                        | First message                         |
 |----------------------------|----------------------------------------------------------------|---------------------------------------|
 | `/api/v1/ws/private`       | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |

@@ -1368,12 +1368,89 @@ reference); message reference (generated).
 **Not in scope:** `book --sym` is still WebSocket-only, and is WP-API10's
 REST market-data snapshot.
 
+### 9.11 WP-API08 outcome (2026-10-30)
+
+**Chapter, not AsyncAPI.** A new normative chapter,
+`protocols-and-clients/part-2-specifications/070-websocket.md` ("WebSocket API
+Reference"), sits beside the REST spec. It is held to the code by
+`tests/test_ws_spec_matches_code.py`, the approach WP-API14 used for REST. An
+AsyncAPI document could be generated from it later; it would be a second
+artifact to keep in step, for no client in the project.
+
+**What it specifies (DOC2):**
+
+- **Streams:** the four streams, with access and per-socket queue sizes
+  (256 / 512 / 512 / 64).
+- **Connecting:** the `{api_key}` first frame within 5 s; each auth check and
+  its failure (an `error` frame or not, then close `1008`). `1008` is the only
+  code the gateway itself sends.
+- **Envelope and sequencing:**
+  - `seq` per topic (key on `topic`, not `type`);
+  - `stream_seq` contiguous per private stream;
+  - a dropped event still consumes its number;
+  - counters restart with the process.
+- **Event types:** the `type` derivation rule and its exceptions.
+- **Flow control:** drop-not-block, `dropped_events` in `/healthz` and
+  metrics, gap detection.
+- **Private:** opening frames, the 19-type catalogue with message-reference
+  links for payload schemas, and snapshot-based recovery.
+- **Market data:**
+  - channels (subscribable, plus always-on session, circuit_breaker and
+    news) and their event types;
+  - control frames (flat and items forms, `resume_from`) and server control
+    frames;
+  - both rejection-reason vocabularies;
+  - recovery (snapshot channels self-heal; trades replay for
+    `market_data_cache_sec`, otherwise `trades.reset`).
+- **Admin monitor:** snapshot, `admin.action`, other topics by the type rule,
+  no replay.
+- **`/ws/admin/sim`** (DOC2's missing socket): `sim.snapshot`, `sim.state`
+  and `sim.value`, unnumbered.
+
+**1.0 policy statements (DOC6),** in the shared compatibility policy:
+
+- the WebSocket contract is part of v1;
+- clients MUST tolerate unknown fields, unknown enum values (any enum),
+  unknown WebSocket `type`s and unknown error codes;
+- what counts as breaking for error codes.
+
+**The guard** (12 tests) derives each catalogue from the code:
+
+- endpoints and queue sizes (AST);
+- the auth timeout;
+- close codes;
+- the type exceptions via `websocket_type`;
+- the private catalogue from `PRIVATE_PREFIXES`;
+- channels from `MarketDataChannel` / `ALWAYS_ON_CHANNELS`;
+- forwarded market-data types, complete over every registry topic;
+- control actions;
+- both reason vocabularies;
+- every emitted frame `type`;
+- the sim socket.
+
+A mutation check (dropping a catalogue row, changing a queue size, dropping a
+reason or channel, a wrong topic) failed it every time.
+
+**Corrections made while writing.** The first draft named the config key
+`market_cache_sec` (it is `market_data_cache_sec`) and claimed a `1001` close
+at shutdown. The gateway sends none; the server process does. Both were
+fixed, and the claim was replaced by what the gateway actually does.
+
+**Wiring:**
+
+- the REST spec's intro and appendix now point to the chapter instead of the
+  operator guide;
+- the operator guide's WebSocket section is now a guided tour that links
+  the normative chapter;
+- the book manifest and nav are regenerated;
+- every anchor in the chapter resolves in the built site.
+
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
 | **WP-API07** ✅ | Admin parity with `pm-admin-cli` | **Done 2026-10-30 (uncommitted)**, see §9.10. Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
-| **WP-API08** | WebSocket normative spec | Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
+| **WP-API08** ✅ | WebSocket normative spec | **Done 2026-10-30 (uncommitted)**, see §9.11. Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
 | **WP-API09** | Examples and single source of docs | A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
 
 ### P2: can follow in 1.x (all additive)

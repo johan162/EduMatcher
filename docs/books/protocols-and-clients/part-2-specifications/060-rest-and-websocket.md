@@ -11,8 +11,8 @@ This appendix documents the client-visible REST surface of the API gateway.
 It covers request shapes, replies, query parameters, auth rules, and the
 stable error codes returned by the gateway. WebSocket streams live under
 `/api/v1/ws/` (`private`, `market-data`, `admin/monitor`, `admin/sim`) and are
-documented in [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md);
-they are not repeated here.
+specified normatively in the [WebSocket API Reference](070-websocket.md); they
+are not repeated here.
 
 All paths are rooted at `/api/v1`. Admin paths name their target as a path
 segment — `/admin/symbols/{symbol}/...`, `/admin/gateways/{gateway_id}/...`,
@@ -555,7 +555,9 @@ Full response:
 
 ### Compatibility and deprecation policy
 
-- Versioning: this surface is namespaced under `/api/v1`.
+- Versioning: this surface is namespaced under `/api/v1`. The WebSocket
+  streams under `/api/v1/ws/` (the [WebSocket API Reference](070-websocket.md))
+  are part of the same v1 contract and follow every rule below.
 - Backward compatibility: additive changes (new optional fields/endpoints) MAY
   be introduced within v1 without changing the base path.
 - Breaking changes (field removal, required-field additions, semantic
@@ -575,6 +577,20 @@ Full response:
     are deployed together. The gateway validates its responses, so a gateway
     older than the engine answers `500` on a value it does not know. EduMatcher
     releases both from one spec.
+- What clients MUST tolerate, so that the additive changes above stay
+  additive for them:
+  - **Unknown fields**, in any REST response body and in any WebSocket frame
+    or `data`: ignore them.
+  - **Unknown enum values**, in any enum (`status`, `reject_code`,
+    `cancel_reason`, `order_type`, ...): treat them as "other", not as an
+    error. New members may be added to any enum within v1.
+  - **Unknown WebSocket `type` values**: ignore the frame. New event types
+    may be added within v1.
+  - **Unknown error `code` values**: handle them by HTTP status.
+- What is breaking for error codes: removing a `code` a route can return,
+  changing a `code`'s HTTP status or meaning, or returning a different `code`
+  for a condition that already has one. Adding a `code`, or returning an
+  existing `code` from one more route, is additive.
 
 ## Bootstrap
 
@@ -2515,6 +2531,5 @@ Purpose: reload the compiled reference bundle in place.
   snapshot-on-subscribe, `snapshot`, and `resume` controls on
   `WS /api/v1/ws/market-data` (latest `book`/`depth`/`auction` snapshots are kept
   regardless of age; only the `trades` tail is bounded).
-- WebSocket streams use the chapter-level contracts in
-  [API Gateway (REST/WebSocket)](../../operator-guide/part-5-gateways/050-api-gateway.md); this appendix is REST
-  only.
+- WebSocket streams are specified in the
+  [WebSocket API Reference](070-websocket.md); this appendix is REST only.

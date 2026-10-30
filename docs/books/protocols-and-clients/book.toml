@@ -20,6 +20,7 @@ files = [
   "040-ralf.md",
   "050-lalf.md",
   "060-rest-and-websocket.md",
+  "070-websocket.md",
 ]
 
 [[parts]]

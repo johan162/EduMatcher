@@ -193,6 +193,7 @@ nav:
       - "RALF Protocol Reference": books/protocols-and-clients/part-2-specifications/040-ralf.md
       - "LALF Protocol Reference": books/protocols-and-clients/part-2-specifications/050-lalf.md
       - "REST and WebSocket API Reference": books/protocols-and-clients/part-2-specifications/060-rest-and-websocket.md
+      - "WebSocket API Reference": books/protocols-and-clients/part-2-specifications/070-websocket.md
     - "Part III: Session behavior":
       - "Market Data Feed (CALF)": books/protocols-and-clients/part-3-session-behaviour/030-calf-market-data-feed.md
       - "Drop Copy": books/protocols-and-clients/part-3-session-behaviour/060-drop-copy.md
