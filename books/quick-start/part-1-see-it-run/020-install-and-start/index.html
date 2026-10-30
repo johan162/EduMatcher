@@ -7602,8 +7602,16 @@ the slow way, and the best way to see what every process does.</p>
 <div class="admonition note">
 <p class="admonition-title">Browser applications on the Python route</p>
 <p>The browser applications are web projects of their own and are not part
-of the Python package. The easiest way to use them is the container route
-above.</p>
+of the Python package, but you can run them as ready-built containers
+next to your <code>pipx</code> exchange (a plain exchange or the simulation). With
+Podman or Docker installed, and the exchange started with
+<code>EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 pm-opctl-cli start</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--guis
+</code></pre></div>
+<p>The addresses are the same as on the container route. The Operator's Guide
+chapter <a href="../../../operator-guide/part-1-install-and-deploy/010-installation/#web-applications-with-a-pipx-exchange">Installation</a>
+explains what it sets up and what to check if a GUI stays empty.</p>
 </div>
 <h2 id="where-your-data-lives">Where your data lives<a class="headerlink" href="#where-your-data-lives" title="Permanent link">&para;</a></h2>
 <p>Everything the exchange produces — order books saved between sessions,
@@ -7648,7 +7656,7 @@ on purpose:</p>
 see the container's exchange data by default. Use
 <code>./edumatcher.sh shell</code> instead, or point the command at the container's
 data explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.edumatcher/data"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.edumatcher/data"</span>
 </code></pre></div>
 </div>
 <p>The Reference Manual's

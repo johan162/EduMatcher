@@ -9679,7 +9679,7 @@ AI-sim stack skips it, because its configuration and key are fixed.</p>
     F --&gt;|no| I
     G --&gt; I{"--no-start?"}
     H --&gt; I
-    I --&gt;|yes| Y["done; start later with\n./edumatcher.sh start"]
+    I --&gt;|yes| Y["./edumatcher.sh pull\n(downloads the images);\nstart later with\n./edumatcher.sh start"]
     I --&gt;|no| Z["./edumatcher.sh start\n(pulls the images)"]</code></pre>
 <p>Re-running the installer into an existing directory is safe: it keeps your
 <code>.env</code> and <code>data/</code>, and refreshes the compose files and script from the
@@ -9741,9 +9741,19 @@ selects <code>compose.ai-sim.yaml</code>; otherwise it uses <code>compose.yaml</
 <td>Simulation only</td>
 </tr>
 <tr>
+<td><code>./edumatcher.sh upgrade [-y]</code> (or <code>--upgrade</code>)</td>
+<td>—</td>
+<td>Find the newest release, pull it, then — if the system was running, and after a warning and a question (<code>-y</code> skips it) — stop, replace the images, remove the old ones and restart. A stopped system is only upgraded, not started. A failed pull changes nothing</td>
+</tr>
+<tr>
+<td><code>./edumatcher.sh pull</code></td>
+<td>—</td>
+<td>Download the images, start nothing</td>
+</tr>
+<tr>
 <td><code>./edumatcher.sh update [version]</code></td>
 <td>—</td>
-<td>Set <code>EM_VERSION</code>, pull, restart</td>
+<td>Set <code>EM_VERSION</code>, pull, restart, without asking</td>
 </tr>
 <tr>
 <td><code>./edumatcher.sh urls</code> / <code>mounts</code></td>

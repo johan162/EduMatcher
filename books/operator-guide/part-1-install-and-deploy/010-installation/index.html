@@ -2453,6 +2453,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#web-applications-with-a-pipx-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web applications with a pipx exchange
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Web applications with a pipx exchange">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-the-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: the exchange
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-the-gui-containers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: the GUI containers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-guis-need-from-the-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the GUIs need from the exchange
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#poetry-checkout-developing-edumatcher" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7706,6 +7756,13 @@ in the Architecture and Developer Guide's
 <td><code>pm-engine</code></td>
 </tr>
 <tr>
+<td><strong>pipx + GUI containers</strong></td>
+<td>Running the exchange natively but still wanting the browser applications</td>
+<td>Python 3.14, <code>pipx</code>, Podman or Docker</td>
+<td>The pipx exchange, plus the six web GUIs as ready-built containers</td>
+<td><code>./edumatcher.sh start</code></td>
+</tr>
+<tr>
 <td><strong>Poetry checkout</strong></td>
 <td>Developing, running the test suite</td>
 <td>Python 3.14, Poetry</td>
@@ -7718,7 +7775,9 @@ in the Architecture and Developer Guide's
 the six browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare <code>pm-*</code> command. In Poetry mode, prefix
-those commands with <code>poetry run</code>.</p>
+those commands with <code>poetry run</code>. The browser applications are not part of
+the Python package; <a href="#web-applications-with-a-pipx-exchange">Web applications with a pipx exchange</a>
+shows how to add them to a pipx install as containers.</p>
 <div class="admonition tip">
 <p class="admonition-title">If you are not sure</p>
 <p>Use the one-command container install. It is the fastest route to a
@@ -7859,9 +7918,19 @@ describe different systems.</p>
 <td>Where to install</td>
 </tr>
 <tr>
+<td><code>--sim</code></td>
+<td>—</td>
+<td>Install the AI-trader simulation instead, into <code>~/.edumatcher-sim</code></td>
+</tr>
+<tr>
+<td><code>--guis</code></td>
+<td>—</td>
+<td>Install only the web GUIs, for an exchange run with pipx, into <code>~/.edumatcher-guis</code> (<a href="#web-applications-with-a-pipx-exchange">details</a>)</td>
+</tr>
+<tr>
 <td><code>--no-start</code></td>
 <td>—</td>
-<td>Fetch and configure, but do not start anything</td>
+<td>Fetch, configure and download the images, but do not start anything. <code>./edumatcher.sh start</code> then needs no network</td>
 </tr>
 <tr>
 <td><code>--help</code></td>
@@ -7872,7 +7941,7 @@ describe different systems.</p>
 </table>
 <p>Because the script is read from a pipe, options need <code>bash -s --</code> so that the
 shell hands them to the script rather than consuming them itself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>.../install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--config<span class="w"> </span>s10-nominal<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.5
 </code></pre></div>
 <p>Two environment variables are also honoured: <code>REPO_OWNER</code> (which GitHub
 account and GHCR namespace to use) and <code>REPO_REF</code> (fetch the support files
@@ -8013,10 +8082,11 @@ next time you switched configuration.</p>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>./edumatcher.sh<span class="w"> </span>mounts<span class="w">              </span><span class="c1"># which directory is behind each container path</span>
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>./edumatcher.sh<span class="w"> </span>stop<span class="w">                </span><span class="c1"># stop everything; ./data is kept</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>./edumatcher.sh<span class="w"> </span>start<span class="w">               </span><span class="c1"># bring it back</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>./edumatcher.sh<span class="w"> </span>upgrade<span class="w">             </span><span class="c1"># newest release: asks first if running, replaces the images</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>./edumatcher.sh<span class="w"> </span>update<span class="w">              </span><span class="c1"># pull the newest release and restart, without asking</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>./edumatcher.sh<span class="w"> </span>update<span class="w"> </span><span class="m">0</span>.20.5<span class="w">       </span><span class="c1"># ...or move to an exact one</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w">           </span><span class="c1"># remove containers and volumes, keep data</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>./edumatcher.sh<span class="w"> </span>uninstall<span class="w"> </span>--data<span class="w">    </span><span class="c1"># remove everything</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Picking up a new web application</p>
@@ -8730,7 +8800,7 @@ VM. This mode installs the backend only — the web GUIs are part of the
 container deployment. Provisioning runs <code>pm-setup</code>, so the VM comes up with a
 deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.4<span class="w"> </span>--snapshot
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.5<span class="w"> </span>--snapshot
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>multipass<span class="w"> </span>shell<span class="w"> </span>ems
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>/home/ubuntu/session
@@ -8790,7 +8860,7 @@ deployed configuration and <code>pm-opctl-cli</code> ready to start the stack.</
 <p>To read the script before running it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.4<span class="w"> </span>--snapshot
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.65.5<span class="w"> </span>--snapshot
 </code></pre></div>
 <h2 id="pipx-commands-on-your-own-machine">pipx — commands on your own machine<a class="headerlink" href="#pipx-commands-on-your-own-machine" title="Permanent link">&para;</a></h2>
 <p>Use this when you want to run the processes yourself, one per terminal, which
@@ -8839,14 +8909,209 @@ new terminal afterwards so every <code>pm-*</code> command sees the same data di
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>pm-setup<span class="w"> </span>--force<span class="w">                </span><span class="c1"># replace an already-deployed configuration</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>pm-setup<span class="w"> </span>--no-config<span class="w">            </span><span class="c1"># create the directory only</span>
 </code></pre></div>
+<h2 id="web-applications-with-a-pipx-exchange">Web applications with a pipx exchange<a class="headerlink" href="#web-applications-with-a-pipx-exchange" title="Permanent link">&para;</a></h2>
+<p>The browser applications are separate projects and are not in the Python
+package. If you run the exchange with <code>pipx</code> you can still have all six of
+them: they are published as ready-built container images, and a small
+installer runs just those, pointed at the exchange on your own machine. It
+works the same for a plain exchange and for the AI-trader simulation.</p>
+<pre class="mermaid"><code>flowchart LR
+    BROWSER["Browser"]
+    subgraph host["Your machine"]
+        PM["pipx exchange\npm-opctl-cli start\ngateways on 0.0.0.0"]
+        DATA[("EDUMATCHER_DATA_DIR")]
+        subgraph guis["GUI containers — compose.guis.yaml"]
+            G["terminal · log · trader\nbook · dash · config"]
+        end
+    end
+    BROWSER --&gt;|"8090-8095"| G
+    G --&gt;|"host.docker.internal\n5570 5600-5602 5611 8080 8081"| PM
+    PM --- DATA
+    G -.-&gt;|"read-only mount\nlog.db, metrics.db, config"| DATA</code></pre>
+<p>You need Podman or Docker with Compose in addition to the pipx requirements
+above. Nothing else is installed: no Node, no checkout.</p>
+<h3 id="step-1-the-exchange">Step 1: the exchange<a class="headerlink" href="#step-1-the-exchange" title="Permanent link">&para;</a></h3>
+<p>Set it up as in <a href="#pipx-commands-on-your-own-machine">pipx</a>, then start it as
+you normally would, with one addition: <code>EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0</code>.
+The protocol gateways and the REST API already listen on every interface, but
+<code>pm-monitor</code>, which feeds the Operator Dashboard, listens on <code>127.0.0.1</code> unless
+this variable says otherwise, and a container cannot reach loopback. A plain
+exchange:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-setup<span class="w">                       </span><span class="c1"># deploys s10-basic into ~/.local/share/edumatcher</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_GATEWAY_BIND_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>pm-opctl-cli<span class="w"> </span>start
+</code></pre></div>
+<p>or the AI-trader simulation (see
+<a href="../../../ai-traders/part-3-run-it/100-a-complete-setup-by-hand/">A Complete Set-up by Hand</a>
+for what each step does, and <code>EDUMATCHER_SCHEDULER_SPEED</code> for an accelerated
+day):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/edumatcher-sim
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_GATEWAY_BIND_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>pm-setup<span class="w"> </span>--config<span class="w"> </span>s300-sim
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>pm-opctl-cli<span class="w"> </span>start<span class="w"> </span>ai-sim
+</code></pre></div>
+<p>Wait until <code>pm-opctl-cli list</code> shows every process running before you open
+the GUIs. The installer in the next step needs the deployed configuration that
+<code>pm-setup</code> creates, but not a running exchange.</p>
+<h3 id="step-2-the-gui-containers">Step 2: the GUI containers<a class="headerlink" href="#step-2-the-gui-containers" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--guis
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nb">cd</span><span class="w"> </span>~/.edumatcher-guis
+</code></pre></div>
+<p>This downloads <code>compose.guis.yaml</code>, <code>edumatcher.sh</code> and a <code>.env</code> into
+<code>~/.edumatcher-guis</code>, pulls the six images from <code>ghcr.io</code> and starts them. The
+installer reads the exchange's data directory from <code>EDUMATCHER_DATA_DIR</code> in the
+shell you run it from, and from <code>~/.local/share/edumatcher</code> when that is not
+set, so run it in a shell where your <code>pm-*</code> commands work. If you set the
+variable only in this one shell, repeat it for later starts or put
+<code>EM_DATA_DIR=&lt;directory&gt;</code> in <code>.env</code>.</p>
+<p><code>--version X.Y.Z</code> pins the images to a release. Use the version of your pipx
+package (<code>pm-engine --version</code>): the GUIs and the exchange are released
+together.</p>
+<p>The addresses are the same as in the container install:</p>
+<table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Application</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="http://localhost:8090">http://localhost:8090</a></td>
+<td>TapeDeck (<code>pm-terminal</code>)</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8091">http://localhost:8091</a></td>
+<td>Log Operator Console (<code>pm-log-ui</code>)</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8092">http://localhost:8092</a></td>
+<td>Configuration GUI</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8093">http://localhost:8093</a></td>
+<td>Trading GUI</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8094">http://localhost:8094</a></td>
+<td>Order Book Viewer (<code>pm-book</code>)</td>
+</tr>
+<tr>
+<td><a href="http://localhost:8095">http://localhost:8095</a></td>
+<td>Operator Dashboard (<code>pm-dash</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><code>./edumatcher.sh</code> works as in the container install, with these differences:
+<code>status</code> lists the GUI containers and then runs <code>pm-opctl-cli list</code> on your own
+machine; <code>stop</code> stops the GUIs and leaves the exchange alone; <code>shell</code>,
+<code>config</code> and <code>speed</code> are refused, because the exchange is yours and its
+commands are already on your PATH. <code>share on</code> and <code>update</code> behave as
+documented in the
+<a href="https://github.com/johan162/EduMatcher/blob/main/deployment/curl/README.md">curl installer README</a>.</p>
+<h3 id="what-the-guis-need-from-the-exchange">What the GUIs need from the exchange<a class="headerlink" href="#what-the-guis-need-from-the-exchange" title="Permanent link">&para;</a></h3>
+<p>Three things connect the containers to your pipx exchange. The installer sets
+two of them up for you; the third is yours to check.</p>
+<p><strong>The host address.</strong> Inside a container, <code>127.0.0.1</code> is the container
+itself. The GUIs therefore reach the exchange as <code>host.docker.internal</code>, which
+<code>compose.guis.yaml</code> maps to your machine with <code>host-gateway</code>. Docker Desktop,
+Docker 20.10 or later and Podman 5 all honour this. If the name clashes with something
+on your system, set <code>EM_HOST</code> in <code>.env</code>.</p>
+<p><strong>The read-only API key.</strong> TapeDeck's history panels, the Order Book Viewer and
+the dashboard's session schedule use the credential whose <code>gateway_id</code> is
+<code>null</code>. It is different in every configuration, so <code>./edumatcher.sh start</code>
+reads it from <code>ref_data/engine_config.json</code> in the data directory and hands it
+to the containers. Run <code>./edumatcher.sh restart</code> after you deploy another
+configuration. The Trading GUI needs no key: you type your own trading
+credentials into its login screen.</p>
+<p><strong>The service listeners must be on <code>0.0.0.0</code>.</strong> The gateways and the REST API
+default to it, and <code>EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0</code> (Step 1) extends it
+to <code>pm-monitor</code>. A configuration that pins <code>bind_address: 127.0.0.1</code>, or an
+exported <code>EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1</code>, closes them to the
+containers while every check on your machine still looks healthy. If a GUI
+shows nothing, check this first; without the variable the symptom is a
+dashboard that reports the monitor as down while everything else works.</p>
+<table>
+<thead>
+<tr>
+<th>Container</th>
+<th>Reaches on your machine</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TapeDeck, Order Book Viewer</td>
+<td>5570, 8081, 5600</td>
+<td>Market data, history, log forwarding</td>
+</tr>
+<tr>
+<td>Trading GUI</td>
+<td>8080</td>
+<td>Orders and account data</td>
+</tr>
+<tr>
+<td>Log Operator Console</td>
+<td>5601, 5602, <code>log.db</code></td>
+<td>The log stream and its history</td>
+</tr>
+<tr>
+<td>Operator Dashboard</td>
+<td>5611, <code>metrics.db</code>, 8081, 5600</td>
+<td>Process health and the session schedule</td>
+</tr>
+<tr>
+<td>Configuration GUI</td>
+<td>nothing</td>
+<td>Standalone editor</td>
+</tr>
+</tbody>
+</table>
+<p>The raw ZeroMQ ports 5555-5559 are not used, so no <code>EM_ZMQ</code> equivalent is
+needed.</p>
+<div class="admonition warning">
+<p class="admonition-title">The gateways have no password</p>
+<p>On a pipx install a listener on <code>0.0.0.0</code> is on your network, not behind
+a container namespace. The GUIs' own published ports follow <code>BIND_ADDR</code> in
+<code>.env</code> (<code>127.0.0.1</code> by default), but your exchange's gateways are open to
+whatever your firewall lets through. A container can only reach a listener
+that is not bound to loopback, so there is no loopback-only setup for this
+combination. On a network you do not control, keep the exchange behind the
+host firewall.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">A container exchange on the same machine</p>
+<p>The GUI containers use the host ports 8090-8095, the same as the full
+container install, so the two cannot run together. If a container exchange
+or simulation is running and publishing 5570, 8080 and the rest on
+<code>127.0.0.1</code>, these GUIs cannot reach it either: a port published to
+loopback is not reachable through <code>host-gateway</code>. Use that install's own
+GUIs.</p>
+</div>
+<p>If something does not work, run <code>./edumatcher.sh mounts</code> (it shows which
+directory the GUIs are reading) and test a port from inside a container:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>podman<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>edumatcher-host-terminal-gui<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="s1">const net = require("net");</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="s1">const s = net.connect(5570, "host.docker.internal", () =&gt; { console.log("OPEN"); s.end(); });</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="s1">s.on("error", e =&gt; console.log("FAIL", e.code));'</span>
+</code></pre></div>
+<p><code>ECONNREFUSED</code> means nothing listens on a non-loopback address (check the
+bind host above, and that the process is running; test 5611 for the dashboard). A hang or <code>EHOSTUNREACH</code>
+usually means the host firewall: allow connections from the container network
+to the exchange's ports (on Fedora and other <code>firewalld</code> systems, put the
+Podman network in a trusted zone).</p>
+<p>To remove the GUIs, <code>./edumatcher.sh uninstall</code> deletes the containers and
+volumes; the exchange and its data are not touched.</p>
 <h2 id="poetry-checkout-developing-edumatcher">Poetry checkout — developing EduMatcher<a class="headerlink" href="#poetry-checkout-developing-edumatcher" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>Developer mode uses the repository-local data directory. When exact behaviour
 matters, use the same deployed-configuration flow as installed mode: author
@@ -8861,21 +9126,21 @@ generated by hand.</p>
 image-build time and every interactive <code>make shell</code> / <code>make ssh</code> session
 already has it.</p>
 <p><strong>pipx or <code>pip install</code> into a venv</strong>: add one line to your shell profile —</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># ~/.bashrc</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pm-help<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># ~/.bashrc</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="nb">command</span><span class="w"> </span>-v<span class="w"> </span>pm-help<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="o">((</span><span class="w"> </span>$+commands<span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span><span class="o">))</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$commands</span><span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="o">((</span><span class="w"> </span>$+commands<span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span><span class="o">))</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$commands</span><span class="o">[</span>pm-help<span class="o">]</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <p><strong>Poetry checkout</strong>: the venv is usually not active when your shell profile
 runs, so point at it by its absolute path —</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># ~/.bashrc</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="o">[</span><span class="w"> </span>-x<span class="w"> </span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># ~/.bashrc</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="o">[</span><span class="w"> </span>-x<span class="w"> </span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$EM</span><span class="s2">"</span><span class="w"> </span>--completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="o">[[</span><span class="w"> </span>-x<span class="w"> </span><span class="nv">$EM</span><span class="w"> </span><span class="o">]]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$EM</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># ~/.zshrc, after compinit</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nv">EM</span><span class="o">=</span>/path/to/EduMatcher/.venv/bin/pm-help
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="o">[[</span><span class="w"> </span>-x<span class="w"> </span><span class="nv">$EM</span><span class="w"> </span><span class="o">]]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span><span class="nv">$EM</span><span class="w"> </span>--completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <p>An editable install (<code>poetry install</code>) reads the completion scripts straight
 from the checkout, so they follow whichever branch is checked out. Calling
@@ -8883,11 +9148,11 @@ from the checkout, so they follow whichever branch is checked out. Calling
 completion matched to the installed version, at the cost of <code>pm-help</code>'s
 own ~0.2s start-up per new shell. To avoid that, cache it once per upgrade
 instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.bash
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="c1"># ~/.bashrc:  source ~/.local/share/edumatcher/pm-completion.bash</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>bash<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.bash
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="c1"># ~/.bashrc:  source ~/.local/share/edumatcher/pm-completion.bash</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>zsh<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.zsh
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="c1"># ~/.zshrc:   eval "$(&lt;~/.local/share/edumatcher/pm-completion.zsh)"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-help<span class="w"> </span>--completion<span class="w"> </span>zsh<span class="w"> </span>&gt;<span class="w"> </span>~/.local/share/edumatcher/pm-completion.zsh
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="c1"># ~/.zshrc:   eval "$(&lt;~/.local/share/edumatcher/pm-completion.zsh)"</span>
 </code></pre></div>
 <p>zsh's own completion system (<code>compinit</code>) must already be initialised — the
 snippets above assume the usual <code>autoload -Uz compinit &amp;&amp; compinit</code> earlier
