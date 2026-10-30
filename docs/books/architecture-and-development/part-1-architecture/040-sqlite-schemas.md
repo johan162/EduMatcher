@@ -1436,6 +1436,8 @@ CREATE INDEX idx_trade      ON audit_events(trade_id)
 | `table: episode_events` | `causation_id` | `TEXT` | no |  |  |
 | `table: episode_events` | `correlation_id` | `TEXT` | no |  |  |
 | `table: episode_events` | `topic_seq` | `INTEGER` | no |  |  |
+| `table: episode_events` | `eseq` | `INTEGER` | no |  |  |
+| `table: episode_events` | `publisher_run` | `INTEGER` | yes | `0` |  |
 | `table: episode_events` | `payload` | `TEXT` | yes |  |  |
 | `table: episodes` | `episode_id` | `INTEGER` | no |  | 1 |
 | `table: episodes` | `kind` | `TEXT` | yes |  |  |
@@ -1515,6 +1517,8 @@ CREATE TABLE episode_events (
     causation_id   TEXT,
     correlation_id TEXT,
     topic_seq      INTEGER,
+    eseq           INTEGER,
+    publisher_run  INTEGER NOT NULL DEFAULT 0,
     payload     TEXT    NOT NULL,
     PRIMARY KEY (episode_id, seq_in_ep)
 )
