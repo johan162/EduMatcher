@@ -85,6 +85,9 @@ class BootstrapFakeEngine:
     def request_halt_status(self, gid: str) -> None:
         self.calls.append(("request_halt_status", gid))
 
+    def request_position(self, gid: str) -> None:
+        self.calls.append(("request_position", gid))
+
     def get_caches(self, gid: str) -> SessionCaches:
         return self.cache
 
@@ -115,6 +118,8 @@ class BootstrapFakeEngine:
             return {"gateways": [{"id": "GW01", "role": "TRADER", "connected": True}]}
         if topic.startswith("system.halt_status."):
             return {"halted": []}
+        if topic.startswith("system.position_snapshot."):
+            return {"positions": [{"symbol": "AAPL", "net_qty": 5, "avg_cost": 150.0}]}
         return {}
 
 
@@ -249,6 +254,49 @@ async def test_trader_required_orders_timeout_returns_503() -> None:
 
 
 @pytest.mark.anyio
+async def test_trader_positions_come_from_the_engine_not_the_cache() -> None:
+    """WP-API05 (R3): bootstrap built positions from this process's fill
+    cache, which reads flat after a gateway restart while the engine still
+    holds the position -- the defect GET /positions was already fixed for.
+    The cache is left empty here, as it is right after a restart."""
+    engine = BootstrapFakeEngine(role="TRADER")
+    engine.cache.last_prices["AAPL"] = 151.0
+    assert engine.cache.positions == {}
+    result = await bootstrap.bootstrap_trader(
+        boot_request(engine), trading_session(), fills_limit=50
+    )
+    assert ("request_position", "GW01") in engine.calls
+    assert result["positions"] == [
+        {
+            "symbol": "AAPL",
+            "net_qty": 5,
+            "avg_cost": 150.0,
+            "last_price": 151.0,
+            "market_value": 755.0,
+            "unrealized_pnl": 5.0,
+            "realized_pnl_session": None,
+            "realized_pnl_mtd": None,
+            "realized_pnl_ytd": None,
+        }
+    ]
+
+
+@pytest.mark.anyio
+async def test_trader_required_positions_timeout_returns_503() -> None:
+    """Positions are required like orders: a flat-looking fallback at login is
+    exactly the wrong-state risk the engine round trip exists to remove."""
+    engine = BootstrapFakeEngine(
+        raise_prefixes=frozenset({"system.position_snapshot."})
+    )
+    with pytest.raises(HTTPException) as exc:
+        await bootstrap.bootstrap_trader(
+            boot_request(engine), trading_session(), fills_limit=50
+        )
+    assert exc.value.status_code == 503
+    assert "positions" in cast(dict[str, Any], exc.value.detail)["error"]["message"]
+
+
+@pytest.mark.anyio
 async def test_trader_required_reference_timeout_returns_503() -> None:
     engine = BootstrapFakeEngine(raise_prefixes=frozenset({"system.reference."}))
     with pytest.raises(HTTPException) as exc:
@@ -327,6 +375,7 @@ async def test_mm_success_includes_quote_fields() -> None:
         boot_request(engine), trading_session("MM01"), fills_limit=50
     )
     assert result["gateway_role"] == "MARKET_MAKER"
+    assert result["positions"][0]["net_qty"] == 5  # from the engine (R3)
     assert result["quote_bootstrap"] == {"quotes": []}
     assert result["quote_legs"] == {"legs": []}
     assert result["halts"] == {"halted": []}

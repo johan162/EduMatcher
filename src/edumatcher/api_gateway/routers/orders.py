@@ -44,7 +44,8 @@ log = logging.getLogger(__name__)
 def _check_rate_limit(request: Request, session: Session) -> None:
     """Raise 429 if the per-key write rate is exceeded."""
     if not request.app.state.rate_limiter.allow(session.api_key):
-        log.debug("rate limit exceeded api_key=%s", session.api_key)
+        # Never the api_key: it is the bearer credential itself.
+        log.debug("rate limit exceeded gateway_id=%s", session.gateway_id)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT", "message": "Write rate exceeded"}},
@@ -163,7 +164,8 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
         "Which fields are required depends on `order_type`: LIMIT/FOK/IOC "
         "need `price`; MARKET forbids price; STOP needs `stop_price`; "
         "STOP_LIMIT needs both; ICEBERG needs `price` and a smaller "
-        "`visible_qty`; TRAILING_STOP needs `trail_offset`. Prices must lie "
+        "`visible_qty`; TRAILING_STOP needs `trail_offset` and may set an "
+        "initial `stop_price`. Any other of these fields is rejected. Prices must lie "
         "on the symbol's tick grid. `client_tag` is an opaque label echoed "
         "on every event for this order. Returns `202`; see `?wait=ack` to "
         "get the engine's verdict in the same response."
@@ -413,9 +415,8 @@ async def replace_order(
         "The caller's orders as the engine holds them: resting orders plus "
         "recently finished ones. Each entry carries `status` (NEW, PARTIAL, "
         "FILLED, CANCELLED, REJECTED, EXPIRED), `remaining_qty` and the "
-        "`client_tag` it was submitted with (null if none). If the engine "
-        "does not answer in time, the gateway's own cached view is returned "
-        "instead."
+        "`client_tag` it was submitted with (null if none). `503 "
+        "ENGINE_TIMEOUT` if the engine does not answer in time."
     ),
     responses=docs.ok(docs.ORDERS_LIST, "The caller's orders."),
 )
@@ -432,21 +433,19 @@ async def list_orders(
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
-        response["orders"] = [
-            _with_client_tag(order)
-            for order in response.get("orders", [])
-            if isinstance(order, dict)
-        ]
-        return response
-    except TimeoutError:
-        return {
-            "orders": [
-                _with_client_tag(order)
-                for order in request.app.state.engine.get_caches(
-                    gateway_id
-                ).orders.values()
-            ]
-        }
+    except TimeoutError as exc:
+        # No silent fallback to the cache: a client could not tell it from the
+        # engine's answer, and bootstrap refuses stale orders for that reason.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+    response["orders"] = [
+        _with_client_tag(order)
+        for order in response.get("orders", [])
+        if isinstance(order, dict)
+    ]
+    return response
 
 
 @router.get(

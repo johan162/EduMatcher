@@ -7,7 +7,7 @@ import sqlite3
 from contextlib import closing
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 
 from edumatcher.api_gateway import openapi_docs as docs
@@ -75,8 +75,6 @@ async def _request_reply(
         engine.request_session(gateway_id)
     elif send == "halts":
         engine.request_halt_status(gateway_id)
-    elif send == "positions":
-        engine.request_position(gateway_id)
     elif send == "quote_bootstrap":
         engine.request_quote_bootstrap(gateway_id)
     elif send == "quote_legs":
@@ -454,7 +452,21 @@ async def quote_legs(
 async def positions(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    """Net position per symbol for the caller's own gateway (M4).
+    gateway_id = require_trading(session)
+    try:
+        return {"positions": await fetch_positions(request, gateway_id)}
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+
+
+async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, Any]]:
+    """Net position rows for *gateway_id*, as ``GET /positions`` serves them (M4).
+
+    Shared with the bootstrap endpoints so the two cannot disagree. Raises
+    ``TimeoutError`` when the engine does not answer.
 
     A genuine engine round trip on ``system.position_request`` /
     ``system.position_snapshot.<gateway_id>`` -- the same pair
@@ -473,11 +485,16 @@ async def positions(
     gateway restart. All three are ``null`` when clearing is not deployed,
     and lag a fill by up to one clearing flush (5s by default).
     """
-    gateway_id = require_trading(session)
-    cache = request.app.state.engine.get_caches(gateway_id)
+    engine = request.app.state.engine
+    cache = engine.get_caches(gateway_id)
     realized = _period_realized_pnl(request, gateway_id)
-    reply = await _request_reply(
-        request, "positions", topic_position_snapshot(gateway_id), gateway_id
+    engine.request_position(gateway_id)
+    reply = cast(
+        dict[str, Any],
+        await engine.await_topic(
+            topic_position_snapshot(gateway_id),
+            request.app.state.config.timeouts.engine_reply_sec,
+        ),
     )
     raw_positions = reply.get("positions", [])
     if not isinstance(raw_positions, list):
@@ -509,7 +526,7 @@ async def positions(
             }
         )
     positions_payload.sort(key=lambda p: str(p["symbol"]))
-    return {"positions": positions_payload}
+    return positions_payload
 
 
 @router.get(
@@ -549,9 +566,12 @@ async def status_summary(
 
 
 @router.get("/healthz", include_in_schema=False)
-async def healthz(request: Request) -> dict[str, Any]:
+async def healthz(request: Request, response: Response) -> dict[str, Any]:
     engine = request.app.state.engine
     healthy = request.app.state.config.enabled and engine.is_running()
+    if not healthy:
+        # Probes (container, load balancer) read the status, not the body.
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     # dropped_events is the only server-side evidence that a slow WebSocket
     # consumer lost data. A non-zero count does not make the gateway
     # unhealthy — shedding for a slow client is the intended behaviour — but

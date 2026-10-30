@@ -92,8 +92,9 @@ export interface StatusResponse {
  * Canonical order shape used across the UI. It is NOT the raw wire shape:
  * `GET /orders` returns the engine's pm-msgen `OrderDisplay`, whose id key is
  * `id`, whose timestamp is `ts_ns` (epoch nanoseconds), and whose client tag
- * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
- * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
+ * is `client_tag`; the gateway's cached rows (private WebSocket
+ * `orders.snapshot`) are thinner and keyed on `order_id`.
+ * `normalizeOrder()` (below) folds both into this one shape, so
  * every screen reads `order_id`/`updated_at`/`client_tag` regardless of
  * which path served the data.
  */

@@ -507,8 +507,10 @@ empty `positions`, and empty `orders`).
   // identical to GET /session; null if engine timed out (optional)
   "session": { "state": "CONTINUOUS", "since": "2026-07-27T09:30:00.000Z" },
 
-  // identical to GET /positions (pure cache, never null)
-  "positions": [ { "symbol": "AAPL", "net_qty": 200, "last_price": 210.25 } ],
+  // identical to GET /positions: an engine round trip (required — 503 on failure)
+  "positions": [ { "symbol": "AAPL", "net_qty": 200, "avg_cost": 208.40, "last_price": 210.25,
+                   "market_value": 42050.0, "unrealized_pnl": 370.0,
+                   "realized_pnl_session": 0.0, "realized_pnl_mtd": 0.0, "realized_pnl_ytd": 0.0 } ],
 
   // identical to GET /orders response body (required — 503 on failure)
   "orders": { "orders": [ /* Order[] */ ] },
@@ -527,7 +529,8 @@ empty `positions`, and empty `orders`).
 ```
 
 **Required fields** (return `503 ENGINE_TIMEOUT` if they fail):
-`reference`, `orders` (omitted for read-only keys).
+`reference`, `orders` and `positions` (the last two are empty, without an
+engine query, for read-only keys).
 
 **Optional fields** (appear as `null` + listed in `incomplete` on failure):
 `session`, `recent_fills`.
@@ -537,7 +540,7 @@ empty `positions`, and empty `orders`).
 | Code | Status | When |
 |---|---|---|
 | `AUTH` | `401` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | `503` | `reference` or `orders` could not be fetched |
+| `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
 | `VALIDATION` | `422` | `fills_limit` is not a valid integer |
 
 ---
@@ -568,7 +571,7 @@ All fields from `/bootstrap/trader`, plus:
 }
 ```
 
-**Required fields:** `reference`, `orders`.
+**Required fields:** `reference`, `orders`, `positions`.
 
 **Optional fields:** `session`, `recent_fills`, `quote_bootstrap`, `quote_legs`.
 
@@ -579,7 +582,7 @@ All fields from `/bootstrap/trader`, plus:
 | `AUTH` | `401` | Missing or malformed key |
 | `READ_ONLY` | `403` | Read-only key (no gateway\_id) |
 | `ROLE_DENIED` | `403` | Key resolves to TRADER or ADMIN role |
-| `ENGINE_TIMEOUT` | `503` | `reference` or `orders` could not be fetched |
+| `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
 | `VALIDATION` | `422` | `fills_limit` is not a valid integer |
 
 ---
@@ -668,10 +671,10 @@ Purpose: submit one order for the caller's gateway.
 | `order_type` | `OrderType` | yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, or `TRAILING_STOP` |
 | `quantity` | `Int` | yes | Positive order quantity |
 | `tif` | `Tif` | no | Time-in-force; defaults to `DAY` |
-| `price` | `Price` | conditional | Required for limit-style orders |
-| `stop_price` | `Price` | conditional | Required for stop-style orders |
-| `visible_qty` | `Qty` | conditional | Required for iceberg orders |
-| `trail_offset` | `Ticks` | conditional | Required for trailing-stop orders |
+| `price` | `Price` | conditional | Required for `LIMIT`, `FOK`, `IOC`, `STOP_LIMIT`, `ICEBERG` |
+| `stop_price` | `Price` | conditional | Required for `STOP`, `STOP_LIMIT`; optional initial stop for `TRAILING_STOP` (default: last trade ± `trail_offset`) |
+| `visible_qty` | `Qty` | conditional | Required for `ICEBERG`; must be less than `quantity` |
+| `trail_offset` | `Price` | conditional | Required for `TRAILING_STOP` |
 | `smp_action` | `SmpAction` | no | Self-match prevention action |
 | `client_tag` | `Str` | no | Optional opaque client correlation tag |
 
@@ -693,6 +696,10 @@ Purpose: submit one order for the caller's gateway.
 | `SYMBOLS_NOT_READY` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
 | `RATE_LIMIT` | Write limit exceeded |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
+
+A conditional field the `order_type` does not use is rejected
+(`400 VALIDATION`, for example `"LIMIT forbids trail_offset"`), never silently
+dropped. The same per-type rule applies to OCO and combo legs.
 
 Prices are refused rather than rounded to the nearest tick: rounding would rest
 the order at a price the client never sent. See
@@ -784,22 +791,20 @@ Purpose: cancel one live order and submit a replacement in one workflow.
 
 ### `GET /api/v1/orders`
 
-Purpose: return the caller gateway's live order cache.
+Purpose: return the caller gateway's orders as the engine holds them: resting
+orders plus recently finished ones.
 
 **Arguments**
 
 | Name | Type | Req | Description |
 |---|---|---|---|
-| `symbol` | `Symbol` | no | Filter by symbol |
-| `status` | `OrderStatus` | no | Filter by order status |
-| `after` | `Cursor` | no | Opaque page cursor |
-| `limit` | `Int` | no | Page size, bounded by the gateway |
+| none | — | — | No query parameters |
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "orders": [...], "count": N, "has_more": bool, "next_cursor": str? }` | Current live orders |
+| `200 OK` | `{ "orders": [...] }` | The engine's order snapshot for the caller |
 
 **Errors**
 
@@ -807,8 +812,7 @@ Purpose: return the caller gateway's live order cache.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Query parameters invalid |
-| `ENGINE_TIMEOUT` | Fresh snapshot request to the engine timed out |
+| `ENGINE_TIMEOUT` | `503`: the engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket `orders.snapshot` is the cached view |
 
 ### `GET /api/v1/orders/{order_id}`
 
@@ -846,8 +850,8 @@ Purpose: submit an OCO pair.
 | `oco_id` | `Str` | yes | Group id for the pair |
 | `symbol` | `Symbol` | yes | Instrument symbol |
 | `quantity` | `Qty` | yes | Total quantity |
-| `leg1` | `OrderLeg` | yes | First leg definition |
-| `leg2` | `OrderLeg` | yes | Second leg definition |
+| `leg1` | `OrderLeg` | yes | First leg definition: `side`, `order_type`, and the `price` / `stop_price` / `trail_offset` that type needs (same rule as `POST /orders`; `ICEBERG` is not supported on a leg) |
+| `leg2` | `OrderLeg` | yes | Second leg definition, same shape |
 
 **Reply**
 
@@ -897,7 +901,7 @@ Purpose: submit a combo order.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `combo_id` | `Str` | yes | Combo group id |
-| `legs` | `List<ComboLeg>` | yes | Leg list |
+| `legs` | `List<ComboLeg>` | yes | 2–10 legs: `symbol`, `side`, `order_type` (default `LIMIT`), `quantity`, and the `price` / `stop_price` that type needs (same rule as `POST /orders`; `ICEBERG` and `TRAILING_STOP` are not supported on a leg) |
 
 **Reply**
 
@@ -1205,7 +1209,8 @@ Purpose: liveness probe for the API gateway.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | health object | Gateway is enabled and its engine listener is alive |
+| `200 OK` | `{ "ok": true, ... }` | Gateway is enabled and its engine listener is alive |
+| `503 Service Unavailable` | `{ "ok": false, ... }` | Gateway is disabled or its engine listener has stopped; probes read the status code |
 
 **Errors**
 
@@ -1265,7 +1270,7 @@ Purpose: return current net positions by symbol.
 
 To query a *different* gateway's position (e.g. checking on a running
 `pm-mm-bot`), see [GET /api/v1/admin/positions](#get-apiv1adminpositions),
-which requires the ADMIN role and returns `avg_cost` as well.
+which requires the ADMIN role.
 
 **Arguments**
 
@@ -1277,7 +1282,7 @@ which requires the ADMIN role and returns `avg_cost` as well.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "positions": [...] }` | Net positions for the caller gateway |
+| `200 OK` | `{ "positions": [{ "symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd" }, ...] }` | Net positions for the caller gateway, from the engine; P&L fields are `null` when unknown |
 
 **Errors**
 

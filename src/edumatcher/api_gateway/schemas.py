@@ -44,6 +44,50 @@ class ErrorResponse(StrictModel):
     error: ErrorDetail
 
 
+#: Per order type: the optional price/size fields it requires, and those it
+#: merely allows. Every other one is forbidden. One table for whole orders and
+#: for OCO and combo legs, so the three cannot drift apart.
+_TYPE_FIELDS: dict[OrderType, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    OrderType.MARKET: ((), ()),
+    OrderType.LIMIT: (("price",), ()),
+    OrderType.FOK: (("price",), ()),
+    OrderType.IOC: (("price",), ()),
+    OrderType.STOP: (("stop_price",), ()),
+    OrderType.STOP_LIMIT: (("price", "stop_price"), ()),
+    OrderType.ICEBERG: (("price", "visible_qty"), ()),
+    # Without stop_price the engine starts the stop at last trade +/- offset.
+    OrderType.TRAILING_STOP: (("trail_offset",), ("stop_price",)),
+}
+
+
+def _check_type_fields(
+    model: BaseModel, order_type: OrderType, carried: tuple[str, ...], where: str
+) -> None:
+    """Apply ``_TYPE_FIELDS`` to the *carried* fields of *model*.
+
+    A type needing a field the model cannot carry (an ICEBERG combo leg has no
+    ``visible_qty``) is refused outright rather than reported as missing a
+    field the caller has no way to send.
+    """
+    required, optional = _TYPE_FIELDS[order_type]
+    uncarried = [name for name in required if name not in carried]
+    if uncarried:
+        raise ValueError(
+            f"{order_type.value} is not supported {where}: it needs "
+            + " and ".join(uncarried)
+        )
+    missing = [name for name in required if getattr(model, name) is None]
+    if missing:
+        raise ValueError(f"{order_type.value} requires " + " and ".join(missing))
+    forbidden = [
+        name
+        for name in carried
+        if name not in required + optional and getattr(model, name) is not None
+    ]
+    if forbidden:
+        raise ValueError(f"{order_type.value} forbids " + " and ".join(forbidden))
+
+
 class OrderRequest(StrictModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -82,7 +126,9 @@ class OrderRequest(StrictModel):
     )
     stop_price: float | None = Field(
         default=None,
-        description="Trigger price. Required for STOP and STOP_LIMIT.",
+        description="Trigger price. Required for STOP and STOP_LIMIT; for "
+        "TRAILING_STOP an optional initial stop (default: last trade +/- "
+        "`trail_offset`); forbidden otherwise.",
     )
     visible_qty: int | None = Field(
         default=None,
@@ -118,34 +164,18 @@ class OrderRequest(StrictModel):
     @model_validator(mode="after")
     def validate_by_order_type(self) -> "OrderRequest":
         order_type = OrderType(self.order_type)
-        if order_type == OrderType.MARKET and (
-            self.price is not None or self.stop_price is not None
+        _check_type_fields(
+            self,
+            order_type,
+            ("price", "stop_price", "visible_qty", "trail_offset"),
+            "on an order",
+        )
+        if (
+            order_type == OrderType.ICEBERG
+            and self.visible_qty is not None
+            and self.visible_qty >= self.quantity
         ):
-            raise ValueError("MARKET forbids price and stop_price")
-        if order_type in {OrderType.LIMIT, OrderType.FOK, OrderType.IOC}:
-            if self.price is None:
-                raise ValueError(f"{order_type.value} requires price")
-            if self.stop_price is not None:
-                raise ValueError(f"{order_type.value} forbids stop_price")
-        if order_type == OrderType.STOP:
-            if self.stop_price is None:
-                raise ValueError("STOP requires stop_price")
-            if self.price is not None:
-                raise ValueError("STOP forbids price")
-        if order_type == OrderType.STOP_LIMIT and (
-            self.price is None or self.stop_price is None
-        ):
-            raise ValueError("STOP_LIMIT requires price and stop_price")
-        if order_type == OrderType.ICEBERG:
-            if self.price is None or self.visible_qty is None:
-                raise ValueError("ICEBERG requires price and visible_qty")
-            if self.visible_qty >= self.quantity:
-                raise ValueError("ICEBERG visible_qty must be less than quantity")
-        if order_type == OrderType.TRAILING_STOP:
-            if self.trail_offset is None:
-                raise ValueError("TRAILING_STOP requires trail_offset")
-            if self.price is not None:
-                raise ValueError("TRAILING_STOP forbids price")
+            raise ValueError("ICEBERG visible_qty must be less than quantity")
         return self
 
 
@@ -228,6 +258,16 @@ class OcoLegRequest(StrictModel):
         default=None, description="For trailing-stop legs."
     )
 
+    @model_validator(mode="after")
+    def validate_by_order_type(self) -> "OcoLegRequest":
+        _check_type_fields(
+            self,
+            OrderType(self.order_type),
+            ("price", "stop_price", "trail_offset"),
+            "on an OCO leg",
+        )
+        return self
+
 
 class OcoRequest(StrictModel):
     model_config = ConfigDict(
@@ -278,6 +318,13 @@ class ComboLegRequest(StrictModel):
     @classmethod
     def uppercase_symbol(cls, value: str) -> str:
         return value.upper()
+
+    @model_validator(mode="after")
+    def validate_by_order_type(self) -> "ComboLegRequest":
+        _check_type_fields(
+            self, OrderType(self.order_type), ("price", "stop_price"), "on a combo leg"
+        )
+        return self
 
 
 class ComboRequest(StrictModel):
@@ -509,14 +556,12 @@ class IndexRebalanceRequest(StrictModel):
                         {"symbol": "AAPL", "new_shares_outstanding": 15500000000},
                         {"symbol": "TSLA", "new_shares_outstanding": 3250000000},
                     ],
-                    "reason": "Quarterly share count update",
                 }
             ]
         }
     )
 
     updates: list[IndexRebalanceUpdate] = Field(min_length=1)
-    reason: str | None = None
 
 
 MarketDataChannel = Literal["book", "trades", "depth", "auction"]

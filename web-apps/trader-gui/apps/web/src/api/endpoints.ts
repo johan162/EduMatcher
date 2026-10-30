@@ -81,8 +81,8 @@ export const getCompany = (symbol: string) =>
   apiFetch<CompanyProfile>(`/api/v1/companies/${encodeURIComponent(symbol)}`);
 
 // ── Orders ────────────────────────────────────────────────────────────────────
-// Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin
-// timeout-fallback cache row (order_id). Callers normalize via normalizeOrder.
+// Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag); an engine
+// timeout is a 503, never cached rows. Callers normalize via normalizeOrder.
 export const getOrders = () => apiFetch<{ orders: RawOrder[] }>("/api/v1/orders");
 
 export const getOrder = (orderId: string) => apiFetch<Order>(`/api/v1/orders/${orderId}`);

@@ -9,7 +9,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -564,7 +564,9 @@ async def test_reference_routes() -> None:
     summary = await reference.status_summary(request, session)
     assert summary["positions"]
     assert summary["gateway_role"] == "TRADER"
-    assert (await reference.healthz(request))["ok"] is True  # test double
+    response = Response()
+    assert (await reference.healthz(request, response))["ok"] is True  # test double
+    assert response.status_code == 200
 
 
 @pytest.mark.anyio
@@ -614,19 +616,38 @@ async def test_positions_empty_reply_renders_empty_list() -> None:
 
 
 @pytest.mark.anyio
-async def test_list_orders_timeout_falls_back_to_cache() -> None:
+async def test_list_orders_timeout_is_503_not_the_cache() -> None:
+    """WP-API05 (R4): an engine timeout used to fall back to the gateway's
+    cache without saying so, while every other engine-backed read -- and
+    bootstrap, deliberately -- answers 503. A cached list a client cannot
+    tell apart from the engine's is the stale-state risk bootstrap refuses."""
     engine = TimeoutEngine()
     engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
     request = fake_request(engine)
     session = trading_session()
-    result = await orders.list_orders(request, session)
-    assert result["orders"] == [
-        {
-            "order_id": "ORD1",
-            "status": "NEW",
-            "client_tag": None,
-        }
-    ]
+    with pytest.raises(HTTPException) as exc:
+        await orders.list_orders(request, session)
+    assert exc.value.status_code == 503
+    assert cast(dict[str, Any], exc.value.detail)["error"]["code"] == "ENGINE_TIMEOUT"
+
+
+@pytest.mark.anyio
+async def test_rate_limit_log_does_not_carry_the_api_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """WP-API05 (O1): the bearer key is the only credential, so it must never
+    reach a log record -- the gateway id identifies the caller instead."""
+    session = Session(api_key="sekrit-key-123", gateway_id="GW01", description="")
+    request = limited_request()
+    request.app.state.rate_limiter.allow(session.api_key)  # spend the burst
+    with caplog.at_level("DEBUG", logger=orders.log.name):
+        with pytest.raises(HTTPException) as exc:
+            orders._check_rate_limit(
+                request, session
+            )  # pyright: ignore[reportPrivateUsage]
+    assert exc.value.status_code == 429
+    assert "sekrit-key-123" not in caplog.text
+    assert "GW01" in caplog.text
 
 
 @pytest.mark.anyio
@@ -644,8 +665,11 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
             )
         )
     )
-    result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
+    response = Response()
+    result = await reference.healthz(request, response)  # type: ignore[arg-type]  # test double
     assert result["ok"] is False
+    # WP-API05 (O2): probes read the status code, not the body.
+    assert response.status_code == 503
 
 
 # ---------------------------------------------------------------------------

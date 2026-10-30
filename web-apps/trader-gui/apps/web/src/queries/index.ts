@@ -79,8 +79,7 @@ export function useSessionQuery() {
 export function useOrdersQuery() {
   return useQuery({
     queryKey: ["orders"],
-    // Both `/orders` shapes (engine OrderDisplay keyed on `id`, and the
-    // timeout-fallback cache row keyed on `order_id`) are folded into the
+    // The engine OrderDisplay is keyed on `id`; it is folded into the
     // canonical Order here, so consumers only ever see `order_id`.
     queryFn: () => api.getOrders().then((r) => r.orders.map(normalizeOrder)),
     staleTime: 30_000,

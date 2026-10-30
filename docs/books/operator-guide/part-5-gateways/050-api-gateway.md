@@ -392,11 +392,18 @@ Content-Type: application/json
 | `quantity`     | yes         | Positive integer                                                                  |
 | `tif`          | no          | `DAY`, `GTC`, `ATO`, `ATC`; default `DAY`                                         |
 | `price`        | conditional | Required for `LIMIT`, `FOK`, `IOC`, `ICEBERG`, `STOP_LIMIT`                       |
-| `stop_price`   | conditional | Required for `STOP`, `STOP_LIMIT`                                                 |
+| `stop_price`   | conditional | Required for `STOP`, `STOP_LIMIT`; optional initial stop for `TRAILING_STOP`      |
 | `visible_qty`  | conditional | Required for `ICEBERG`, less than `quantity`                                      |
 | `trail_offset` | conditional | Required for `TRAILING_STOP`                                                      |
 | `smp_action`   | no          | Self-match prevention action                                                      |
 | `client_tag`   | no          | Opaque client correlation tag, echoed on order lifecycle events                    |
+
+A conditional field the `order_type` does not use is rejected with
+`400 VALIDATION` (`"LIMIT forbids trail_offset"`), not silently dropped. A
+`TRAILING_STOP` without `stop_price` starts its stop at the last trade price
+± `trail_offset`. OCO and combo legs follow the same per-type rule; an OCO leg
+cannot be `ICEBERG`, and a combo leg cannot be `ICEBERG` or `TRAILING_STOP`,
+because a leg has no field for `visible_qty` (or, on a combo, `trail_offset`).
 
 Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
 wait for the matching engine ACK until the configured timeout. The wait filters
@@ -481,13 +488,13 @@ different from `client_tag`, which identifies the original order.
 
 | Endpoint | Returns | Notes |
 |---|---|---|
-| `GET /orders` | `{ "orders": [...] }` | Live orders for the caller's gateway, keyed off the gateway's order cache; requests a fresh snapshot from the engine and falls back to the cache on timeout |
+| `GET /orders` | `{ "orders": [...] }` | The caller's orders as the engine holds them (resting plus recently finished); `503 ENGINE_TIMEOUT` if the engine does not answer — there is no silent fallback to the gateway's cache |
 | `GET /orders/{order_id}` | The cached order dict for `order_id` | Read-only, served entirely from the gateway's local cache (no engine round-trip); returns `404` with a plain `{"detail": "Unknown order"}` body if not found — **not** the `{"error": {...}}` envelope used by every other error response in this gateway |
 | `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
 | `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
 | `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
 | `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated — in which case only `legs` is present, `recent`/`show_requested`/`complete` are omitted entirely — otherwise round-tripped from the engine, which returns all four fields |
-| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
+| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
 | `GET /halts` | `{ "halted": [{symbol, resume_at_ns?, level?, ...}] }` | Same engine query as `GET /admin/halts` (`system.halt_status_request`), without the ADMIN-role gate — any trading credential can call it. Used at bootstrap and on market-data reconnect |
 
 All of the round-tripped endpoints above return `503` with error code
@@ -835,10 +842,12 @@ of the concurrent engine queries, not their sum.
 Each response carries an `incomplete` array.  When any optional sub-query
 times out or errors, the corresponding field is set to `null` and its name is
 appended to `incomplete`.  The rest of the response is still valid and useful.
-Required fields — `reference` and `orders` for `/bootstrap/trader` and
-`/bootstrap/mm`; `reference` for `/bootstrap/admin` — return `503
-ENGINE_TIMEOUT` if they fail rather than a partial response, because the UI
-cannot render anything meaningful without them.
+Required fields — `reference`, `orders` and `positions` for
+`/bootstrap/trader` and `/bootstrap/mm`; `reference` for `/bootstrap/admin` —
+return `503 ENGINE_TIMEOUT` if they fail rather than a partial response,
+because the UI cannot render anything meaningful without them. `positions` is
+the same engine round trip as `GET /positions`: a fallback to the gateway's
+own fill cache would show flat positions after a gateway restart.
 
 ### Role access
 
@@ -905,7 +914,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/kill-switch/gateway`      | `{ "target_gateway_id":"TRADER02", "reason":null }` | engine gateway-targeted kill-switch ack | `risk.kill_switch_gateway`  |
 | `POST` | `/admin/kill-switch/global`       | `{ "reason":null }`                         | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
 | `GET`  | `/admin/indexes`                  | none                                        | `{ "indexes":[{id,description,base_value,constituents}], "config_version":... }` | none — reuses the reference-data bundle |
-| `POST` | `/admin/indexes/{id}/rebalance`   | `{ "updates":[{"symbol":"AAPL","new_shares_outstanding":123}], "reason":null }` | pm-index rebalance ack | `index.rebalance` (pm-index, not the engine) |
+| `POST` | `/admin/indexes/{id}/rebalance`   | `{ "updates":[{"symbol":"AAPL","new_shares_outstanding":123}] }` | pm-index rebalance ack | `index.rebalance` (pm-index, not the engine) |
 | `POST` | `/admin/reference/reload`         | none                                         | `{ "status":"RELOADED", "config_version":... }` | `system.reference_reload`   |
 
 Behaviour notes:
@@ -1764,7 +1773,7 @@ created and populated the configured database.
 2. Confirm each non-null `gateway_id` appears in only one API gateway entry
 3. Start `pm-engine`, `pm-stats`, then `pm-api-gwy --instance NAME`
 4. Open `/docs` if Swagger is enabled
-5. Test `GET /api/v1/healthz` (no auth required) — returns `{"ok": true}` when the engine listener is running
+5. Test `GET /api/v1/healthz` (no auth required) — returns `200 {"ok": true}` when the engine listener is running, `503 {"ok": false}` otherwise
 6. Test `GET /api/v1/status` with a bearer token
 7. Connect `/api/v1/events` before submitting orders if you want async outcomes
 8. Use `/history/*` only when `pm-stats` is running and writing `stats.db`
@@ -1907,7 +1916,7 @@ curl -v --no-buffer \
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
-| `{"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
+| `503 {"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
 | `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `participants` list |
 | `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
 | `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
