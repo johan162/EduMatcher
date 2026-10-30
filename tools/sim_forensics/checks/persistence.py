@@ -164,10 +164,11 @@ def _session_date(ds: Dataset, ts: str) -> str:
 )
 def eod_archive_continues(ds: Dataset) -> Outcome:
     """For each ``eod/<date>/gtc_orders.json``: its orders (id, remaining)
-    are the book of that day's CLOSED checkpoint, and of the next checkpoint
-    round after it (the next PRE_OPEN, or a restart's STARTUP) -- nothing
-    appears or vanishes overnight. Seeded quote legs (a restart seeds again,
-    by design) are not counted against it."""
+    are the book of that day's CLOSED checkpoint, and of the next start's
+    round (the next PRE_OPEN, or a restart's STARTUP) -- nothing appears or
+    vanishes overnight. The shutdown's EOD round is no start and is passed
+    over: the audit recorder may catch only part of it (X34). Seeded quote
+    legs (a restart seeds again, by design) are not counted against it."""
     root = ds.data_dir / "eod"
     days = sorted(p.name for p in root.iterdir() if (p / "gtc_orders.json").is_file()) if root.is_dir() else []  # fmt: skip
     if not days:
@@ -189,8 +190,16 @@ def eod_archive_continues(ds: Dataset) -> Outcome:
         if close is None:
             continue  # the audit does not hold that close
         checked += 1
-        for label, i in (("the close", close), ("the next start", close + 1)):
-            if i >= len(rounds):
+        start = next(
+            (
+                i
+                for i in range(close + 1, len(rounds))
+                if rounds[i][1] == "STARTUP" or rounds[i][1:3] == ("PHASE", "PRE_OPEN")
+            ),
+            None,
+        )
+        for label, i in (("the close", close), ("the next start", start)):
+            if i is None:
                 continue
             book = {k: v for k, v in rounds[i][3].items() if k not in seeds}
             if book != archived:

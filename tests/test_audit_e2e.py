@@ -65,6 +65,7 @@ def exchange(tmp_path: Path) -> Iterator[tuple[AuditProcess, zmq.Socket[bytes], 
     try:
         yield proc, pub, clock
     finally:
+        proc._eod_seen = True  # or the stop drains _DRAIN_SEC for system.eod
         proc._running = False
         thread.join(timeout=5)
         proc._flush_buffer()

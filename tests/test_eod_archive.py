@@ -51,7 +51,7 @@ def _checkpoint(ts: str, reason: str, phase: str, orders: list[tuple[str, int]])
     )
 
 
-def g3(open_ds: OpenDataset, tmp_path: Path, archived: list[tuple[str, int]], close: list[tuple[str, int]], start: list[tuple[str, int]], extra: str = "", before: str = "") -> Outcome:  # fmt: skip
+def g3(open_ds: OpenDataset, tmp_path: Path, archived: list[tuple[str, int]], close: list[tuple[str, int]], start: list[tuple[str, int]] | None, extra: str = "", before: str = "") -> Outcome:  # fmt: skip
     data = tmp_path / "data"
     (data / "eod" / "2026-10-28").mkdir(parents=True)
     (data / "eod" / "2026-10-28" / "gtc_orders.json").write_text(
@@ -61,7 +61,7 @@ def g3(open_ds: OpenDataset, tmp_path: Path, archived: list[tuple[str, int]], cl
         before
         + _checkpoint("2026-10-28T15:30:00.000+00:00", "PHASE", "CLOSED", close)
         + extra
-        + _checkpoint("2026-10-29T07:00:00.000+00:00", "STARTUP", "CLOSED", start)
+        + (_checkpoint("2026-10-29T07:00:00.000+00:00", "STARTUP", "CLOSED", start) if start is not None else "")  # fmt: skip
     )
     return REGISTRY["G3"].fn(open_ds(data))
 
@@ -97,4 +97,31 @@ def test_g3_takes_the_close_not_a_start_before_the_open(
     compared the archive with that start's (empty) book."""
     out = g3(open_ds, tmp_path, [("G1", 5)], [("G1", 5)], [("G1", 5)],
              before=_checkpoint("2026-10-28T07:00:00.000+00:00", "STARTUP", "CLOSED", []))  # fmt: skip
+    assert out.violations == 0, out.samples
+
+
+#: The shutdown's EOD round, cut to one empty book -- the audit recorder
+#: stopped mid-round (X34).
+_TORN_EOD_ROUND = _checkpoint("2026-10-28T15:38:00.000+00:00", "EOD", "CLOSED", [])
+
+
+def test_g3_passes_over_the_shutdowns_eod_round(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """2026-10-30 run (X34): the audit caught one checkpoint of the
+    shutdown's EOD round, and G3 took that torso for the next start. The
+    next start is the round past it -- and is still checked."""
+    out = g3(open_ds, tmp_path, [("G1", 5)], [("G1", 5)], [("G1", 4)], extra=_TORN_EOD_ROUND)  # fmt: skip
+    (sample,) = out.samples
+    assert sample["against"] == "the next start"
+    assert sample["reason"] == "STARTUP"
+    assert sample["changed"] == ["G1"]
+
+
+def test_g3_without_a_next_start_checks_the_close_alone(
+    open_ds: OpenDataset, tmp_path: Path
+) -> None:
+    """A run torn down after its one day: nothing follows the close but the
+    shutdown's EOD round."""
+    out = g3(open_ds, tmp_path, [("G1", 5)], [("G1", 5)], None, extra=_TORN_EOD_ROUND)
     assert out.violations == 0, out.samples
