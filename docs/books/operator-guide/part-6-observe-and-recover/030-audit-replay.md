@@ -7,8 +7,8 @@
     - The four-layer model — Event, Fact, Episode, Narrative — and what each adds
     - Why this is a tool for debugging **the exchange**, not for trading on it
     - Every subcommand and option, and which combinations are refused
-    - The forty-six anomaly codes and what each one proves
-    - The four output formats and why the text and NDJSON always agree
+    - The anomaly codes and what each one indicates
+    - The five output formats and how to interpret text and NDJSON
     - A cookbook of investigations, from "what happened to this order" to
       "is this build's trail clean?"
 
@@ -103,23 +103,33 @@ landed, `RECORDED` and `CERTAIN` should account for essentially all of it.
 
 ### Ordering
 
-The trail is written in *receipt* order, which is not always *causal* order —
-a PUB/SUB recorder can write an ack before the submission it acknowledges. The
-tool therefore re-sorts every fact into a canonical key of `(mint
-millisecond, receipt time, read order)` before anything reads it.
+The trail is written in *receipt* order, which is not always *publication*
+order. Replay uses the publisher's socket-wide `eseq` to recover publication
+order: an engine can preserve an inbound gateway message's `msg_id`, so that
+ULID's timestamp does not always say when the engine published it. `eseq`
+increases across topics and resets when the engine publishes `system.startup`;
+replay assigns a local `publisher_run` number at each such boundary and orders
+by that run and `eseq`. This `publisher_run` is a replay ordering aid, **not**
+the engine's payload `run_seq`.
+
+For older records without `eseq`, replay falls back to the ULID timestamp,
+then audit receipt time and read order. In logs mixing sequenced and
+unsequenced records within one run, their relative order cannot be established
+from the available metadata. The `receipt_ts` shown in output remains the
+audit receipt timestamp; it is not replaced by `eseq`.
 
 A **reorder window** bounds that sort so a log larger than memory can still be
 read: `--reorder-window` defaults to 2000 facts or 5 seconds, whichever comes
 first. A fact arriving after its window has closed is emitted where it landed
 and tagged `LATE_ARRIVAL` rather than silently misplaced.
 
-!!! tip "Why not sort by the ULID alone"
-    A ULID orders by its monotonic counter within one millisecond — but only
-    within one *process*. An ack and its fill minted by the engine sort
-    correctly against each other and arbitrarily against the `order.new`
-    minted by the submitting gateway in the same millisecond. Sorting on the
-    ULID's random tail put acks before the orders they acknowledged and
-    produced roughly two thousand spurious findings on the first real trail.
+!!! tip "Why `eseq` is the ordering authority"
+    The engine stamps `eseq` immediately before publishing each message on its
+    socket. The `msg_id` may belong to a gateway and be preserved unchanged
+    during republishing, so ordering by its timestamp can place the message
+    before events the engine actually published first. `msg_id` remains the
+    identity used for causality; `eseq` tells replay when the engine published
+    the recorded message.
 
 ### The episode index
 
@@ -414,6 +424,8 @@ reader should look at, **info** is something expected at a window edge.
 | Code | Severity | Condition |
 |---|---|---|
 | `SEQ_GAP` | error | A gap in a topic's dense per-topic `seq` — a **proof** that messages are missing from the trail |
+| `ESEQ_GAP` | error | A gap in the engine publisher's socket-wide `eseq` — messages are missing across the stream, including a topic's last message |
+| `ESEQ_DISCONTINUITY` | error | A repeated or decreasing `eseq` without a `system.startup` boundary |
 | `TRADE_COUNTER_GAP` | error | A gap in the per-run trade counter. Redundant with `SEQ_GAP`, kept because it localises the loss to the trade stream |
 | `MSG_ID_DUPLICATE` | error | Two messages with the same `msg_id`. Should be impossible; would mean a ULID generator shared unsafely across threads |
 | `CHAIN_BROKEN` | error | An effect whose `correlation_id` differs from its cause's, which breaks `story --chain` |
@@ -444,7 +456,7 @@ reader should look at, **info** is something expected at a window edge.
 | `PARSE_FAILURE` | error | A line the audit format does not match, detected by the hole it leaves |
 | `UNKNOWN_TOPIC` | warn | A topic with no entry in the generated registry: the message spec has grown and the tool has not |
 | `TICK_SCALE_UNKNOWN` | warn | A tick-scaled price with no `tick_decimals` for its symbol anywhere in the window. The price is reported **in ticks and labelled as ticks** rather than guessed |
-| `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped — but the finding itself is **not currently reported** by any view |
+| `UNKNOWN_ENUM` | warn | An enum value with no lexicon entry. The value is printed verbatim in backticks rather than guessed at or dropped. It is a renderer annotation, not a finding in the `anomalies` report or an NDJSON `anomaly` object |
 | `ORPHAN_EVENT` | info | A fact the resolver could not attach to anything |
 
 ### What a clean run does not prove
@@ -455,7 +467,7 @@ because the trail does not carry what they read:
 
 | Check | Why it is dormant |
 |---|---|
-| `DROP_COPY_SEQ_GAP`, `DROP_COPY_DISAGREE`, `DROP_COPY_MISSING` | The drop-copy feed is published on its own socket (`:5557`) and `pm-audit` subscribes to the engine's market-data socket (`:5556`) only. No drop copy reaches the trail, so the clearing feed is recorded nowhere and reconciled against nothing |
+| `DROP_COPY_SEQ_GAP`, `DROP_COPY_DISAGREE`, `DROP_COPY_MISSING` | The drop-copy feed is published on its own socket (`DROP_COPY_PUB_ADDR`, default `:5557`); `pm-audit` subscribes only to the engine event socket (`ENGINE_PUB_ADDR`, default `:5556`). No drop copy reaches a trail recorded by `pm-audit`, so these checks cannot fire on that trail |
 | `ARRIVAL_SEQ_REUSED`, `ARRIVAL_SEQ_GAP` | `order.new` is the command as the engine received it and `arrival_seq` is stamped when the book accepts the order, so the recorded field is `0` — "unassigned" — on every order |
 
 Both are properties of what is recorded rather than of the checks. They fire
@@ -653,11 +665,13 @@ abridged):
   "type": "beat",
   "episode": 4,
   "seq": 2,
-  "sort_key": "1788859862122\u001f2026-09-08T09:31:02.122000+00:00\u001f000000000006",
+  "sort_key": "000000000000\u001f0\u001f00000000000000000019\u001f2026-09-08T09:31:02.122000+00:00\u001f000000000006",
   "msg_id": "01M205PK3A0000000000000019",
   "causation_id": "01M205PK330000000000000001",
   "correlation_id": "01M205PK330000000000000001",
   "topic_seq": 1,
+  "eseq": 19,
+  "publisher_run": 0,
   "receipt_ts": "2026-09-08T09:31:02.122+00:00",
   "topic": "order.fill.TRADER01",
   "kind": "order.fill",
@@ -677,11 +691,18 @@ the prose does not mention never has to go back to the log for it. `prices`
 is what the unit resolution worked out, in display money, handed over rather
 than left to be redone.
 
-**Every prose sentence is the `text` of exactly one beat.** The text renderer
-*is* the `text` field, so the two formats cannot drift — and a test compares
-them in order, one for one, at every detail level. A consumer can build on
-the beats and a human can read `stream`, and they are looking at one account
-of the session.
+At detail levels 1–4, each narrated fact is represented by a `beat`, and its
+`text` is the corresponding prose sentence. At level 0 (`-q`), output is
+episode summaries instead: NDJSON emits `episode` objects and no beats.
+Findings are separate `anomaly` objects, and link edges are separate `link`
+objects. At levels 1–4, text and beat ordering agree, while episode
+announcements and trailing links or anomalies are additional NDJSON records.
+
+The `sort_key` is a packed internal ordering key, not a timestamp. Its fields
+encode `publisher_run`, sequence mode (`0` for `eseq`, `1` for the legacy
+fallback), sequence or fallback timestamp, `receipt_ts`, and stream ordinal.
+Prefer the explicit `eseq`, `publisher_run`, and `receipt_ts` fields when
+interpreting or displaying a beat.
 
 Episodes are announced before their first beat, so the stream can be
 processed without buffering. Links come last, deduplicated and sorted: an

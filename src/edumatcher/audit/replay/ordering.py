@@ -3,25 +3,17 @@
 Prose implies sequence. If the sequence is wrong the prose is a lie, and a
 plausible one -- so ordering here is a lookup rather than a judgement call.
 
-**Order is ``msg_id``.** The envelope's id is a ULID minted at the publish
-site: the first 48 bits are a millisecond timestamp and ``new_ulid`` keeps a
-monotonic counter within a millisecond, so ids sort in mint order. The engine
-publishes from one thread, so mint order *is* publish order -- across every
-topic, not just within one. File order, by contrast, is *receipt* order, and
-on a PUB/SUB bus with several publishers receipt order is not causal order: an
-``order.ack`` can land after the ``trade.executed`` it logically precedes.
+**Order is ``eseq`` within a publisher run.** ``eseq`` is the socket-wide
+counter stamped by the engine's ``SequencedPublisher``. Unlike ``msg_id``, it
+describes the order the engine actually published messages: an inbound
+gateway envelope is deliberately preserved when the engine republishes it,
+so its ULID timestamp can predate messages published earlier by the engine.
+``system.startup`` marks the reset boundary. Older logs without ``eseq`` use
+the ULID millisecond, receipt time, and stream ordinal fallback.
 
-Two consequences worth stating, because both used to need machinery:
-
-* Out-of-order delivery stops mattering. There is no table of protocol-implied
-  precedence (a submission before its ack, an ack before its fills) -- that was
-  a pile of special cases standing in for a number the engine already knew.
-* Engine restarts need no special handling. A ULID's timestamp prefix carries
-  ordering across a restart, so nothing partitions by run.
-
-**Completeness is ``seq``.** ``msg_id`` is not dense, so it cannot prove
-nothing was lost. The per-topic sequence is dense, so a gap in it *proves*
-messages are missing from that topic -- on any topic, not just trades.
+**Completeness is ``seq`` and ``eseq``.** The per-topic sequence localises
+loss; the socket-wide sequence also catches loss when the missing message was
+the last on its topic.
 """
 
 from __future__ import annotations
@@ -32,6 +24,8 @@ from datetime import datetime
 from typing import Iterable, Iterator
 
 from edumatcher.audit.replay.anomalies import (
+    ESEQ_DISCONTINUITY,
+    ESEQ_GAP,
     LATE_ARRIVAL,
     SEQ_GAP,
     SEVERITY_ERROR,
@@ -40,24 +34,23 @@ from edumatcher.audit.replay.anomalies import (
 )
 from edumatcher.audit.replay.facts import Fact
 from edumatcher.models.envelope import ulid_millis
+from edumatcher.models.generated.system import TOPIC_STARTUP
 
 #: Design section 5.2.3's default window: whichever bound is reached first.
 DEFAULT_MAX_FACTS = 2000
 DEFAULT_MAX_SECONDS = 5.0
 
-#: ``(mint_ms, receipt_ts, ordinal)``.
-SortKey = tuple[int, datetime, int]
+#: ``(publisher_run, sequence_mode, sequence_or_mint_ms, receipt_ts, ordinal)``.
+SortKey = tuple[int, int, int, datetime, int]
 
 
 def mint_millis(fact: Fact) -> int:
-    """When the exchange made this message, in epoch milliseconds.
+    """A legacy ordering timestamp in epoch milliseconds.
 
-    Read out of the ULID when there is one. A fact with no envelope -- an
-    archived line, or a publisher that stamps none -- falls back to the audit
-    receipt clock, which is the only clock on every line. The two are not the
-    same measurement, and on a mixed archive the tool is only as accurate as
-    the gap between minting and recording; that is honest, and better than
-    refusing to interleave them at all.
+    Older audit lines have no socket-wide ``eseq``. In those, the ULID time is
+    the best available ordering hint; a line without an envelope falls back
+    to the audit receipt clock. Neither fallback is as authoritative as the
+    engine's publisher sequence.
     """
     if fact.msg_id:
         minted = ulid_millis(fact.msg_id)
@@ -69,29 +62,21 @@ def mint_millis(fact: Fact) -> int:
 def sort_key(fact: Fact) -> SortKey:
     """The canonical key of section 5.2.2.
 
-    The ULID's **millisecond** is the ordering signal and its remaining 80
-    bits are not. This key used to sort on the whole ``msg_id`` second, on the
-    reasoning that "within one millisecond, ULIDs order by their monotonic
-    counter, which is mint order". That is true only within one *process*: a
-    publisher's own ids do advance by one, but two processes minting in the
-    same millisecond produce tails that sort at random relative to each other
-    -- and an order's envelope is minted by the submitting gateway while its
-    ack is minted by the engine.
-
-    The effect was not subtle. On a real run the ack sorted *before* the
-    ``order.new`` it cites, which split the order across two episodes, made
-    the ack's ``causation_id`` point at a message the resolver had not read
-    yet, and reported both as findings. Every hand-written fixture was
-    authored with ascending ids, so none of it showed.
-
-    So: millisecond, then receipt, then read order. ``ordinal`` is the
-    position ``pm-audit`` wrote the line at, and ``pm-audit`` receives on one
-    socket in one thread -- so within a millisecond it *is* the order the
-    exchange published in, which is the strongest signal available and the one
-    the ULID tail was standing in for. ``line_no`` cannot serve, because it
-    restarts at every day part.
+    A current audit line's ``eseq`` is the engine socket's total publication
+    order. It takes precedence over the ULID timestamp, which can belong to
+    the gateway that originally minted a preserved envelope. The run number
+    is assigned at ``system.startup`` because ``eseq`` resets there. Older
+    lines fall back to ULID milliseconds, receipt time, and stream ordinal.
     """
-    return (mint_millis(fact), fact.receipt_ts, fact.ordinal)
+    if fact.eseq is not None:
+        return (fact.publisher_run, 0, fact.eseq, fact.receipt_ts, fact.ordinal)
+    return (
+        fact.publisher_run,
+        1,
+        mint_millis(fact),
+        fact.receipt_ts,
+        fact.ordinal,
+    )
 
 
 def in_canonical_order(facts: Iterable[Fact]) -> list[Fact]:
@@ -100,9 +85,10 @@ def in_canonical_order(facts: Iterable[Fact]) -> list[Fact]:
 
 
 #: Widths that make the packed key sort lexicographically the way the tuple
-#: sorts numerically. 13 digits of epoch milliseconds runs to the year 2286;
-#: 12 of ordinal to a trillion lines in one window.
+#: sorts numerically.
+_RUN_WIDTH = 12
 _MILLIS_WIDTH = 13
+_SEQUENCE_WIDTH = 20
 _ORDINAL_WIDTH = 12
 
 
@@ -110,8 +96,8 @@ def pack_sort_key(fact: Fact) -> str:
     """The canonical key as one lexicographically sortable string.
 
     What ``episodes.opened_sort_key`` stores (design section 6.2). A tuple
-    cannot be a SQLite column and three columns cannot be one index, so the
-    ordering has to survive being flattened: each numeric field is
+    cannot be a SQLite column, so the ordering has to survive being flattened:
+    each numeric field is
     zero-padded to a fixed width, and the separator is below every character
     that can appear in a field so a short value never sorts after a longer one
     that starts the same way.
@@ -119,9 +105,15 @@ def pack_sort_key(fact: Fact) -> str:
     Changing this packing changes what a stored index means, so it is one of
     the three things section 6.2 says must bump ``rules_version``.
     """
-    millis, receipt, ordinal = sort_key(fact)
+    return pack_sort_key_tuple(sort_key(fact))
+
+
+def pack_sort_key_tuple(key: SortKey) -> str:
+    """Pack a stored episode-boundary key using the same ordering as facts."""
+    run, mode, value, receipt, ordinal = key
+    width = _SEQUENCE_WIDTH if mode == 0 else _MILLIS_WIDTH
     return (
-        f"{millis:0{_MILLIS_WIDTH}d}"
+        f"{run:0{_RUN_WIDTH}d}\x1f{mode}\x1f{value:0{width}d}"
         f"\x1f{receipt.isoformat(timespec='microseconds')}"
         f"\x1f{ordinal:0{_ORDINAL_WIDTH}d}"
     )
@@ -184,7 +176,15 @@ class ReorderWindow:
 
 
 def _mark_late(fact: Fact, key: SortKey, emitted: SortKey) -> Fact:
-    behind = (emitted[0] - key[0]) / 1000
+    if key[0] != emitted[0]:
+        detail = f"publisher run {key[0]} arrived after run {emitted[0]} was emitted"
+    elif key[1] == emitted[1] == 0:
+        detail = f"engine eseq {key[2]} arrived after eseq {emitted[2]} was emitted"
+    elif key[1] == emitted[1] == 1:
+        behind = (emitted[2] - key[2]) / 1000
+        detail = f"minted {behind:.3f}s earlier"
+    else:
+        detail = "publisher sequence metadata changed within the run"
     return replace(
         fact,
         late=True,
@@ -193,10 +193,7 @@ def _mark_late(fact: Fact, key: SortKey, emitted: SortKey) -> Fact:
             Anomaly(
                 code=LATE_ARRIVAL,
                 severity=SEVERITY_INFO,
-                detail=(
-                    f"{fact.kind} arrived after its reorder window closed "
-                    f"(minted {behind:.3f}s earlier)"
-                ),
+                detail=f"{fact.kind} arrived after its reorder window closed ({detail})",
                 receipt_ts=fact.receipt_raw,
                 file=fact.file,
                 line_no=fact.line_no,
@@ -208,6 +205,54 @@ def _mark_late(fact: Fact, key: SortKey, emitted: SortKey) -> Fact:
 # ---------------------------------------------------------------------------
 # Completeness (design sections 5.2.3, 12.3)
 # ---------------------------------------------------------------------------
+
+
+def detect_eseq_gaps(facts: Iterable[Fact]) -> Iterator[Fact]:
+    """Attach publisher-sequence findings in audit receipt order.
+
+    Unlike ``seq``, ``eseq`` counts every message on the engine's PUB socket,
+    which pm-audit subscribes to without filtering. It must therefore be
+    checked before the reorder window changes stream order. The first observed
+    value is only a baseline unless the audit contains ``system.startup``.
+    """
+    last: int | None = None
+    for fact in facts:
+        if fact.topic == TOPIC_STARTUP and fact.topic_seq == 1:
+            last = 0
+        sequence = fact.eseq
+        if sequence is None:
+            last = None
+            yield fact
+            continue
+        if last is None:
+            last = sequence
+            yield fact
+            continue
+        if sequence > last + 1:
+            missing = sequence - last - 1
+            anomaly = Anomaly(
+                code=ESEQ_GAP,
+                severity=SEVERITY_ERROR,
+                detail=(
+                    f"engine eseq {last}->{sequence} - " f"{missing} message(s) missing"
+                ),
+                receipt_ts=fact.receipt_raw,
+                file=fact.file,
+                line_no=fact.line_no,
+            )
+            fact = replace(fact, anomalies=fact.anomalies + (anomaly,))
+        elif sequence <= last:
+            anomaly = Anomaly(
+                code=ESEQ_DISCONTINUITY,
+                severity=SEVERITY_ERROR,
+                detail=f"engine eseq {last}->{sequence} repeated or decreased",
+                receipt_ts=fact.receipt_raw,
+                file=fact.file,
+                line_no=fact.line_no,
+            )
+            fact = replace(fact, anomalies=fact.anomalies + (anomaly,))
+        last = sequence
+        yield fact
 
 
 def detect_seq_gaps(facts: Iterable[Fact]) -> Iterator[Fact]:
@@ -276,6 +321,7 @@ def ordered(
     max_facts: int = DEFAULT_MAX_FACTS,
     max_seconds: float = DEFAULT_MAX_SECONDS,
 ) -> Iterator[Fact]:
-    """Canonical order, with late arrivals and sequence gaps reported."""
+    """Canonical order, with publisher/topic gaps and late arrivals reported."""
+    facts = detect_eseq_gaps(facts)
     window = ReorderWindow(max_facts=max_facts, max_seconds=max_seconds)
     return detect_seq_gaps(window.emit(facts))

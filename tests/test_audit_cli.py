@@ -303,11 +303,11 @@ class TestParseLine:
         assert meta == {}
 
     def test_line_with_a_metadata_section(self) -> None:
-        """pm-audit records the per-topic sequence and the causal envelope
-        between the topic and the payload — see models/envelope.py."""
+        """pm-audit records per-topic/publisher sequences and the causal
+        envelope between the topic and the payload — see models/envelope.py."""
         line = (
             f"[{_TS1}] [order.ack.GW01] "
-            "[seq=7 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV "
+            "[seq=7 eseq=40 msg=01ARZ3NDEKTSV4RRFFQ69G5FAV "
             "cause=01ARZ3NDEKTSV4RRFFQ69G5FAB chain=01ARZ3NDEKTSV4RRFFQ69G5FAB] "
             '{"order_id": "ORD-001"}'
         )
@@ -318,6 +318,7 @@ class TestParseLine:
         assert topic == "order.ack.GW01"
         assert payload["order_id"] == "ORD-001"
         assert meta["seq"] == "7"
+        assert meta["eseq"] == "40"
         assert meta["msg"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
         assert meta["cause"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
         assert meta["chain"] == "01ARZ3NDEKTSV4RRFFQ69G5FAB"
@@ -364,11 +365,13 @@ class TestAuditEntry:
 
     def test_to_dict_keys(self) -> None:
         payload = {"gateway_id": "GW01", "symbol": "AAPL"}
-        e = AuditEntry(_TS1, "order.new", payload)
+        e = AuditEntry(_TS1, "order.new", payload, {"eseq": "40"})
         d = e.to_dict()
         assert "timestamp" in d
         assert "topic" in d
         assert "payload" in d
+        assert "eseq" in d
+        assert d["eseq"] == 40
 
     def test_buy_gateway_fallback(self) -> None:
         payload = {"buy_gateway_id": "GW_BUY"}

@@ -174,6 +174,8 @@ class TestTheObjects:
         beat = of_type(objects(ALL[0]), "beat")[0]
 
         assert beat["correlation_id"]
+        assert "eseq" in beat
+        assert beat["publisher_run"] == 0
         assert beat["source"]["file"] and beat["source"]["line"] > 0
         assert beat["sort_key"]
 

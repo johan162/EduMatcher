@@ -6,7 +6,10 @@ JSONL audit trail through the same parser, recovers the causal structure the
 trail records, and renders it.
 
 The layering is deliberate and is what keeps the prose generator from becoming
-a pile of ``if topic == ...`` branches (design section 4):
+a pile of ``if topic == ...`` branches (design section 4). The shared audit
+parser retains the recorded causal envelope, per-topic ``seq`` and publisher
+``eseq``; the replay checks both sequence scopes while keeping old lines
+readable:
 
 * **Event** — one audit line. ``audit.query.AuditEntry``.
 * **Fact** — an Event with its units, clocks and topic resolved. Adds no

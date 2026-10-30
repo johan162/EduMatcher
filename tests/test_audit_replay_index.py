@@ -42,6 +42,7 @@ from edumatcher.audit.replay.index import (
 )
 from edumatcher.audit.replay.ordering import in_canonical_order, pack_sort_key
 from edumatcher.audit.replay.pipeline import reconstruct
+from edumatcher.audit.replay.reader import episodes_in_window
 
 FIXTURES = REPLAY_FIXTURES
 SIMPLE = FIXTURES / "01_simple_limit_partial_fill.log"
@@ -129,6 +130,28 @@ class TestCoverage:
             assert len(rows) == len(lines), log.name
             assert len({tuple(r) for r in rows}) == len(rows), f"{log.name}: dup"
 
+    def test_publisher_sequence_roundtrips_through_the_index(
+        self, db: Path, tmp_path: Path
+    ) -> None:
+        log = tmp_path / "eseq.log"
+        line = SIMPLE.read_text(encoding="utf-8").replace(
+            "[seq=1 msg=", "[seq=1 eseq=17 msg=", 1
+        )
+        log.write_text(line, encoding="utf-8")
+        build_from(log, db)
+
+        conn = opened(open_readonly(db))
+        stored = conn.execute(
+            "SELECT eseq FROM episode_events WHERE line_no = 1"
+        ).fetchone()
+        assert stored["eseq"] == 17
+        facts = [
+            event.fact
+            for episode in episodes_in_window(conn)
+            for event in episode.events
+        ]
+        assert any(fact.line_no == 1 and fact.eseq == 17 for fact in facts)
+
     def test_every_event_belongs_to_an_episode_that_exists(self, db: Path) -> None:
         build_from(KILL_SWITCH, db)
         conn = opened(open_readonly(db))
@@ -175,6 +198,37 @@ class TestTheSortKey:
         facts = [s.fact for s in steps]
         packed = sorted(pack_sort_key(f) for f in facts)
         assert packed == [pack_sort_key(f) for f in in_canonical_order(facts)]
+
+    def test_publisher_runs_survive_index_round_trip(self, tmp_path: Path) -> None:
+        log = tmp_path / "audit.log"
+        log.write_text(
+            "\n".join(
+                (
+                    "[2026-09-08T09:31:00+00:00] [system.startup] " "[seq=1 eseq=1] {}",
+                    "[2026-09-08T09:31:00+00:00] [book.AAPL] " "[seq=1 eseq=2] {}",
+                    "[2026-09-08T09:31:01+00:00] [system.startup] " "[seq=1 eseq=1] {}",
+                    "[2026-09-08T09:31:01+00:00] [book.AAPL] " "[seq=1 eseq=2] {}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        db = tmp_path / "publisher_runs.db"
+        build_from(log, db)
+
+        with reading(db) as conn:
+            facts = [
+                event.fact
+                for episode in episodes_in_window(conn)
+                for event in episode.events
+            ]
+
+        assert [(fact.topic, fact.publisher_run, fact.eseq) for fact in facts] == [
+            ("system.startup", 0, 1),
+            ("book.AAPL", 0, 2),
+            ("system.startup", 1, 1),
+            ("book.AAPL", 1, 2),
+        ]
 
 
 # ---------------------------------------------------------------------------
