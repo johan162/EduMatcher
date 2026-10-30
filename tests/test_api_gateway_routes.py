@@ -37,6 +37,7 @@ from edumatcher.compdb import store as compdb
 from edumatcher.models.generated.order import topic_order_amended, topic_order_cancelled
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import clear_tick_registry, register_tick_decimals
+from tests.api_gateway_harness import check_contract
 
 
 class FakeEngine:
@@ -64,6 +65,13 @@ class FakeEngine:
             return {"orders": [{"order_id": "ORD1"}]}
         if topic.startswith("system.position_snapshot."):
             return {"positions": [{"symbol": "AAPL", "net_qty": 5, "avg_cost": 150.0}]}
+        if topic.startswith("system.quote_legs."):
+            return {
+                "legs": [{"quote_id": "Q1", "side": "BUY"}],
+                "show_requested": "ALL",
+                "complete": True,
+                "recent": [],
+            }
         if topic.startswith("risk.kill_switch_ack."):
             return {"accepted": True, "cancelled_orders": 1, "cancelled_quotes": 0}
         return {
@@ -342,7 +350,7 @@ def test_session_caches_apply_events() -> None:
     cache.apply("trade.executed", {"symbol": "AAPL", "price": 151.0})
     assert cache.positions["AAPL"] == 5
     assert cache.last_prices["AAPL"] == 151.0
-    assert cache.status()["orders"] == 2
+    assert len(cache.orders) == 2
 
 
 @pytest.mark.anyio
@@ -366,8 +374,10 @@ async def test_order_routes_send_engine_messages() -> None:
         "ORD1", AmendRequest(price=151.0), request, Response(), session, wait="ack"
     )
     listed = await orders.list_orders(request, session)
-    engine.cache.orders["ORD1"] = {"order_id": "ORD1"}
+    engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
     one = await orders.get_order("ORD1", request, session)
+    check_contract(orders.amend_order, amend)
+    check_contract(orders.get_order, one)
     assert cancel.event is not None
     assert amend["event"] is not None
     assert listed["orders"]
@@ -524,12 +534,16 @@ async def test_composite_quote_and_risk_routes() -> None:
         symbol="AAPL", bid_price=150.0, bid_qty=10, ask_price=150.1, ask_qty=10
     )
     assert (await orders.submit_oco(oco, request, session)).oco_id == "O1"
-    assert (await orders.cancel_oco("O1", request, session))["status"]
+    oco_cancel = await orders.cancel_oco("O1", request, session)
+    check_contract(orders.cancel_oco, oco_cancel)
     assert (await orders.submit_combo(combo, request, session)).combo_id == "C1"
-    assert (await orders.cancel_combo("C1", request, session))["status"]
+    combo_cancel = await orders.cancel_combo("C1", request, session)
+    check_contract(orders.cancel_combo, combo_cancel)
     quoted = await orders.submit_quote(quote, request, session)
     assert (quoted.symbol, quoted.quote_id) == ("AAPL", None)
-    assert (await orders.cancel_quote("aapl", request, session))["symbol"] == "AAPL"
+    quote_cancel = await orders.cancel_quote("aapl", request, session)
+    check_contract(orders.cancel_quote, quote_cancel)
+    assert quote_cancel["symbol"] == "AAPL"
     result = await orders.mass_cancel(
         MassCancelRequest(symbol="AAPL"), request, session
     )
@@ -545,10 +559,13 @@ async def test_reference_routes() -> None:
     assert await reference.session_state(request, session)
     assert await reference.halts(request, session)
     assert await reference.active_quotes(request, session)
+    # Always an engine round trip now, never the leg cache (WP-API04).
     engine.cache.quote_legs["Q1"] = {"quote_id": "Q1"}
-    assert (await reference.quote_legs(request, session))["legs"]
+    legs = await reference.quote_legs(request, session)
+    assert legs["legs"] == [{"quote_id": "Q1", "side": "BUY"}] and legs["count"] == 1
     engine.cache.last_prices["AAPL"] = 151.0
     result = await reference.positions(request, session)
+    check_contract(reference.positions, result)
     # No clearing.db in the test environment, so the three realized windows
     # report "unknown" rather than a misleading zero.
     assert result["positions"] == [
@@ -565,10 +582,11 @@ async def test_reference_routes() -> None:
         }
     ]
     assert ("request_position", "GW01") in engine.calls
-    engine.cache.positions["AAPL"] = 5
     summary = await reference.status_summary(request, session)
-    assert summary["positions"]
-    assert summary["gateway_role"] == "TRADER"
+    check_contract(reference.status_summary, summary)
+    # WP-API04: who-am-I only; the cache counters and the cached (flat after
+    # a restart) positions are gone.
+    assert summary == {"gateway_id": "GW01", "gateway_role": "TRADER"}
     response = Response()
     assert (await reference.healthz(request, response))["ok"] is True  # test double
     assert response.status_code == 200
@@ -617,7 +635,7 @@ async def test_positions_empty_reply_renders_empty_list() -> None:
     request = fake_request(engine)
     session = trading_session()
     result = await reference.positions(request, session)
-    assert result == {"positions": []}
+    assert result == {"positions": [], "count": 0}
 
 
 @pytest.mark.anyio

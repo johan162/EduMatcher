@@ -166,3 +166,72 @@ def test_engine_reply_examples_match_the_wire_spec(
     parsed.validate()
     # Nothing in the example was silently dropped by the parser.
     assert set(payload) <= set(parsed.to_dict()) | {"gateway_id"}
+
+
+def test_every_success_example_is_exactly_its_response_model() -> None:
+    """WP-API04: a documented example must be a reply the route can send.
+
+    Each 2xx example is validated against the operation's response model and
+    serialised back the way the route serialises (``exclude_unset``); the
+    result must equal the example -- nothing missing, nothing dropped.
+    """
+    from fastapi.routing import APIRoute
+
+    from edumatcher.api_gateway.routers import (
+        admin,
+        bootstrap,
+        history,
+        orders,
+        reference,
+    )
+
+    failures: list[str] = []
+    for module in (orders, reference, history, admin, bootstrap):
+        for route in module.router.routes:
+            if not isinstance(route, APIRoute) or route.response_model is None:
+                continue
+            where = f"{sorted(route.methods or ())} {route.path}"
+            for code, response in (route.responses or {}).items():
+                if not str(code).startswith("2"):
+                    continue
+                media = response.get("content", {}).get("application/json", {})
+                values = [media["example"]] if "example" in media else []
+                values += [e["value"] for e in media.get("examples", {}).values()]
+                for value in values:
+                    try:
+                        dumped = route.response_model.model_validate(value).model_dump(
+                            mode="json", exclude_unset=True
+                        )
+                    except Exception as exc:  # noqa: BLE001 - reported below
+                        failures.append(f"{where}: {str(exc).splitlines()[0]}")
+                        continue
+                    if dumped != value:
+                        failures.append(f"{where}: example has undeclared fields")
+    assert failures == [], "\n".join(failures)
+
+
+def test_every_parameter_is_described(spec: dict[str, Any]) -> None:
+    """S4: a generated SDK turns these into doc comments; none may be blank."""
+    missing = [
+        f"{method} {path} {param['name']}"
+        for method, path, op in _operations(spec)
+        for param in op.get("parameters", [])
+        if not (param.get("description") or param.get("schema", {}).get("description"))
+    ]
+    assert missing == []
+
+
+def test_descriptions_carry_no_internal_references(spec: dict[str, Any]) -> None:
+    """DOC3: review ids, private names and transport internals stay in code
+    comments, not in what a client reads."""
+    import re
+
+    internal = re.compile(
+        r"\bAR-\d|_caches|_gateway_positions|SessionCaches|\bZMQ\b|design section"
+    )
+    leaks = [
+        f"{method} {path}: {sorted(set(internal.findall(op.get('description', ''))))}"
+        for method, path, op in _operations(spec)
+        if internal.search(op.get("description", ""))
+    ]
+    assert leaks == []

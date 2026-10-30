@@ -12,7 +12,6 @@ Covers:
   - QuoteRequest with inverted spread (bid >= ask)
   - OcoRequest with empty oco_id
   - ComboRequest with too few legs (< 2)
-  - HistoryQuery limit out of bounds (0 and 5001)
   - Engine-level: symbol not in allowlist, gateway not connected/not configured
   - Engine-level: order with unknown enum values in raw payload
 """
@@ -30,7 +29,6 @@ from edumatcher.api_gateway.schemas import (
     AmendRequest,
     ComboLegRequest,
     ComboRequest,
-    HistoryQuery,
     IndexRebalanceRequest,
     OcoLegRequest,
     OcoRequest,
@@ -606,26 +604,6 @@ class TestComboRequestValidation:
                     for i in range(11)
                 ],
             )
-
-
-class TestHistoryQueryValidation:
-    """HistoryQuery limit boundary checks."""
-
-    def test_limit_zero_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="limit"):
-            HistoryQuery(limit=0)
-
-    def test_limit_above_max_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="limit"):
-            HistoryQuery(limit=5001)
-
-    def test_limit_at_minimum_accepted(self) -> None:
-        q = HistoryQuery(limit=1)
-        assert q.limit == 1
-
-    def test_limit_at_maximum_accepted(self) -> None:
-        q = HistoryQuery(limit=5000)
-        assert q.limit == 5000
 
 
 # ===========================================================================

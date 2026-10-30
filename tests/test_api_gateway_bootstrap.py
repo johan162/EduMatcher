@@ -22,17 +22,19 @@ from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import bootstrap
 from edumatcher.api_gateway.schemas import OrderAccepted
 from edumatcher.api_gateway.sessions import Session
+from edumatcher.api_gateway import openapi_docs as docs
+from edumatcher.models.generated import system as system_msgs
+from tests.api_gateway_harness import check_contract, wire
 
+# Wire-shaped replies (through the generated bindings), so the contract
+# checks below see what a real engine sends.
 _REFERENCE_REPLY: dict[str, Any] = {
-    "symbols": [{"symbol": "AAPL", "tick_decimals": 2}],
-    "risk": {"default_level": "L2", "levels": {}},
-    "schedule": {
-        "sessions_enabled": True,
-        "country": "Sweden",
-        "schedule": {"pre_open": "09:00"},
-    },
+    **wire(system_msgs.Reference, docs.REFERENCE_BUNDLE),
     "config_version": "v1",
 }
+_SESSION_REPLY = wire(system_msgs.SessionStatus, docs.SESSION_STATUS)
+_GATEWAYS_REPLY = wire(system_msgs.Gateways, docs.ADMIN_GATEWAYS)
+_FILL_ROW: dict[str, Any] = docs.HISTORY_FILLS["events"][0]
 
 
 class BootstrapFakeEngine:
@@ -107,15 +109,15 @@ class BootstrapFakeEngine:
         if topic.startswith("system.reference."):
             return dict(_REFERENCE_REPLY)
         if topic.startswith("system.session_status."):
-            return {"state": "CONTINUOUS", "since": "2026-07-27T09:30:00.000Z"}
+            return dict(_SESSION_REPLY)
         if topic.startswith("order.orders."):
             return {"orders": self._orders}
         if topic.startswith("system.quote_bootstrap."):
             return {"quotes": []}
         if topic.startswith("system.quote_legs."):
-            return {"legs": []}
+            return {"legs": [], "show_requested": "ALL", "complete": True, "recent": []}
         if topic.startswith("system.gateways."):
-            return {"gateways": [{"id": "GW01", "role": "TRADER", "connected": True}]}
+            return dict(_GATEWAYS_REPLY)
         if topic.startswith("system.halt_status."):
             return {"halted": []}
         if topic.startswith("system.position_snapshot."):
@@ -161,7 +163,7 @@ def _fills_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         bootstrap,
         "_query_fills_sync",
-        lambda config, gid, limit: {"events": [{"order_id": "O1"}], "count": 1},
+        lambda config, gid, limit: {"events": [_FILL_ROW]},
     )
 
 
@@ -191,6 +193,7 @@ async def test_trader_full_payload() -> None:
     result = await bootstrap.bootstrap_trader(
         boot_request(engine), trading_session(), fills_limit=50
     )
+    check_contract(bootstrap.bootstrap_trader, result)
     assert result["gateway_id"] == "GW01"
     assert result["gateway_role"] == "TRADER"
     assert result["incomplete"] == []
@@ -198,9 +201,9 @@ async def test_trader_full_payload() -> None:
     assert result["session"]["state"] == "CONTINUOUS"
     # Exactly GET /session: the engine phase plus the locale.
     assert {"session_timezone", "session_date"} <= set(result["session"])
-    assert result["orders"] == {"orders": []}
-    assert result["recent_fills"] == {"events": [{"order_id": "O1"}], "count": 1}
-    assert result["halts"] == {"halted": []}
+    assert result["orders"] == []
+    assert result["recent_fills"] == [_FILL_ROW]
+    assert result["halts"] == []
     assert result["capabilities"]["sessions_enabled"] is True
 
 
@@ -231,9 +234,10 @@ async def test_trader_read_only_key() -> None:
     result = await bootstrap.bootstrap_trader(
         boot_request(engine), readonly_session(), fills_limit=50
     )
+    check_contract(bootstrap.bootstrap_trader, result)
     assert result["gateway_id"] is None
     assert result["gateway_role"] == "READ_ONLY"
-    assert result["orders"] == {"orders": []}
+    assert result["orders"] == []
     assert result["positions"] == []
     # recent_fills is structurally absent (no gateway owns fills), NOT
     # flagged incomplete.
@@ -243,7 +247,7 @@ async def test_trader_read_only_key() -> None:
     # them too -- through a correlation id the engine can echo back.
     assert result["session"]["state"] == "CONTINUOUS"
     assert result["session"]["session_timezone"]
-    assert result["halts"] == {"halted": []}
+    assert result["halts"] == []
     (session_request,) = [c for c in engine.calls if c[0] == "request_session"]
     assert session_request[1].startswith("RO")
     # resolve_role is never called for a keyless credential.
@@ -323,7 +327,7 @@ async def test_trader_optional_session_timeout_is_incomplete() -> None:
     assert result["session"] is None
     assert "session" in result["incomplete"]
     # orders still populated — a partial response, still 200.
-    assert result["orders"] == {"orders": []}
+    assert result["orders"] == []
 
 
 @pytest.mark.anyio
@@ -336,7 +340,7 @@ async def test_trader_optional_halts_timeout_is_incomplete() -> None:
     assert result["halts"] is None
     assert "halts" in result["incomplete"]
     # orders still populated — a partial response, still 200.
-    assert result["orders"] == {"orders": []}
+    assert result["orders"] == []
 
 
 @pytest.mark.anyio
@@ -382,11 +386,13 @@ async def test_mm_success_includes_quote_fields() -> None:
     result = await bootstrap.bootstrap_mm(
         boot_request(engine), trading_session("MM01"), fills_limit=50
     )
+    check_contract(bootstrap.bootstrap_mm, result)
     assert result["gateway_role"] == "MARKET_MAKER"
     assert result["positions"][0]["net_qty"] == 5  # from the engine (R3)
-    assert result["quote_bootstrap"] == {"quotes": []}
-    assert result["quote_legs"] == {"legs": []}
-    assert result["halts"] == {"halted": []}
+    # D6: no nested envelopes -- the lists themselves.
+    assert result["quotes"] == []
+    assert result["quote_legs"] == []
+    assert result["halts"] == []
     assert result["incomplete"] == []
 
 
@@ -437,11 +443,10 @@ async def test_admin_success_payload() -> None:
         seqs={"GW01": 100, "GW02": 50},
     )
     result = await bootstrap.bootstrap_admin(boot_request(engine), trading_session())
+    check_contract(bootstrap.bootstrap_admin, result)
     assert result["gateway_role"] == "ADMIN"
-    assert result["gateways"] == {
-        "gateways": [{"id": "GW01", "role": "TRADER", "connected": True}]
-    }
-    assert result["halts"] == {"halted": []}
+    assert result["gateways"] == _GATEWAYS_REPLY["gateways"]
+    assert result["halts"] == []
     # GW02 has no live orders but must still appear with an explicit 0.
     assert result["active_order_counts"] == {"GW01": 1, "GW02": 0}
     assert result["monitor_last_seq"] == {"GW01": 100, "GW02": 50}

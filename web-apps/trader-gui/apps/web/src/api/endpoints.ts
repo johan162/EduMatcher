@@ -180,7 +180,7 @@ export const getHistoryFills = async (params?: Record<string, string>) => {
   const pageParams = new URLSearchParams(params);
   pageParams.set("limit", "5000");
   const events: HistoryFillsResponse["events"] = [];
-  let nextCursor: string | undefined;
+  let nextCursor: string | null = null;
   let response: HistoryFillsResponse;
 
   do {

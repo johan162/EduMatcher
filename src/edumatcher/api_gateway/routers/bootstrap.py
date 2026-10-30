@@ -25,6 +25,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.events import now_iso
+from edumatcher.api_gateway.responses import (
+    BootstrapAdmin,
+    BootstrapMM,
+    BootstrapTrader,
+)
+from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.routers.reference import (
     fetch_positions,
     fetch_reference_bundle,
@@ -55,7 +61,9 @@ from edumatcher.stats.trading_day import timezone_name, trading_date
 
 log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/bootstrap", tags=["bootstrap"])
+router = APIRouter(
+    prefix="/api/v1/bootstrap", tags=["bootstrap"], route_class=ContractRoute
+)
 
 # Terminal statuses are not counted in the per-gateway active-order totals.
 _TERMINAL = frozenset({"FILLED", "CANCELLED", "EXPIRED", "REJECTED"})
@@ -122,7 +130,7 @@ def _query_fills_sync(
             limit=fills_limit,
             tz=tz,
         )
-    return {"events": events, "count": len(events)}
+    return {"events": events}
 
 
 async def _fetch_fills(
@@ -145,9 +153,6 @@ async def _fetch_quote_bootstrap(request: Request, gateway_id: str) -> dict[str,
 
 async def _fetch_quote_legs(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    cache = engine.get_caches(gateway_id)
-    if cache.quote_legs:
-        return {"legs": list(cache.quote_legs.values())}
     engine.request_quote_legs(gateway_id)
     return await _await_topic(request, topic_quote_legs(gateway_id))
 
@@ -210,6 +215,11 @@ def _monitor_last_seq(request: Request) -> dict[str, int]:
     return {gid: engine.stream_seq(gid) for gid in sorted(engine.active_gateways())}
 
 
+def _items(reply: dict[str, Any] | None, key: str) -> list[Any] | None:
+    """The list a reply wraps, un-nested (D6); ``None`` stays ``None``."""
+    return None if reply is None else list(reply.get(key, []))
+
+
 def _require_or_503(field_results: list[tuple[str, Any]]) -> dict[str, Any]:
     """Return the required fields as a dict, or raise ``503 ENGINE_TIMEOUT``.
 
@@ -258,6 +268,7 @@ def _collect_optional(
 
 @router.get(
     "/trader",
+    response_model=BootstrapTrader,
     summary="Startup payload: trader",
     responses=docs.ok(
         docs.BOOTSTRAP_TRADER,
@@ -327,9 +338,9 @@ async def bootstrap_trader(
             "reference": reference,
             "session": ro_data.get("session"),
             "positions": [],
-            "orders": {"orders": []},
+            "orders": [],
             "recent_fills": None,
-            "halts": ro_data.get("halts"),
+            "halts": _items(ro_data.get("halts"), "halted"),
             "capabilities": _capabilities(request, reference),
         }
 
@@ -375,15 +386,16 @@ async def bootstrap_trader(
         "reference": reference,
         "session": data.get("session"),
         "positions": required["positions"],
-        "orders": required["orders"],
-        "recent_fills": data.get("recent_fills"),
-        "halts": data.get("halts"),
+        "orders": required["orders"]["orders"],
+        "recent_fills": _items(data.get("recent_fills"), "events"),
+        "halts": _items(data.get("halts"), "halted"),
         "capabilities": _capabilities(request, reference),
     }
 
 
 @router.get(
     "/mm",
+    response_model=BootstrapMM,
     summary="Startup payload: market maker",
     responses=docs.ok(
         docs.BOOTSTRAP_MM,
@@ -469,7 +481,7 @@ async def bootstrap_mm(
         [
             ("session", sess_r),
             ("recent_fills", fills_r),
-            ("quote_bootstrap", qb_r),
+            ("quotes", qb_r),
             ("quote_legs", ql_r),
             ("halts", halts_r),
         ],
@@ -488,17 +500,18 @@ async def bootstrap_mm(
         "reference": reference,
         "session": data.get("session"),
         "positions": required["positions"],
-        "orders": required["orders"],
-        "recent_fills": data.get("recent_fills"),
+        "orders": required["orders"]["orders"],
+        "recent_fills": _items(data.get("recent_fills"), "events"),
         "capabilities": caps,
-        "quote_bootstrap": data.get("quote_bootstrap"),
-        "quote_legs": data.get("quote_legs"),
-        "halts": data.get("halts"),
+        "quotes": _items(data.get("quotes"), "quotes"),
+        "quote_legs": _items(data.get("quote_legs"), "legs"),
+        "halts": _items(data.get("halts"), "halted"),
     }
 
 
 @router.get(
     "/admin",
+    response_model=BootstrapAdmin,
     summary="Startup payload: admin",
     responses=docs.ok(
         docs.BOOTSTRAP_ADMIN,
@@ -559,8 +572,8 @@ async def bootstrap_admin(
         "session_timezone": _session_timezone(),
         "reference": reference,
         "session": data.get("session"),
-        "gateways": data.get("gateways"),
-        "halts": data.get("halts"),
+        "gateways": _items(data.get("gateways"), "gateways"),
+        "halts": _items(data.get("halts"), "halted"),
         "active_order_counts": _active_order_counts(request),
         "monitor_last_seq": _monitor_last_seq(request),
         "capabilities": caps,

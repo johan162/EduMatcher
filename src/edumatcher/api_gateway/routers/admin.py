@@ -15,18 +15,42 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from edumatcher.api_gateway import openapi_docs as docs
+from edumatcher.api_gateway.responses import (
+    AdminOrders,
+    DisconnectPending,
+    GatewayList,
+    GatewayPositions,
+    OrderAudit,
+    ReloadApplied,
+    RiskStateView,
+    SimSnapshot,
+    TransitionApplied,
+)
+from edumatcher.api_gateway.params import (
+    GatewayIdPath,
+    IndexIdPath,
+    OrderIdPath,
+    SymbolPath,
+)
+from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.audit.indexer import (
     index_is_available,
     open_readonly_index,
     query_index_events,
 )
+from edumatcher.models.generated.rest.index import IndexRebalanceAck
+from edumatcher.models.generated.rest.risk import (
+    CancelSymbolAck,
+    KillSwitchGatewayAck,
+    KillSwitchGlobalAck,
+    SymbolHaltAck,
+    SymbolResumeAck,
+)
 from edumatcher.models.ids import new_command_id
 from edumatcher.api_gateway.schemas import (
-    GATEWAY_ID_MAX_LEN,
-    SYMBOL_MAX_LEN,
     AdminNoteRequest,
     IndexRebalanceRequest,
     SessionTransitionRequest,
@@ -46,24 +70,7 @@ from edumatcher.models.generated.system import (
     topic_risk_state,
 )
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
-
-_SymbolPath = Annotated[
-    str,
-    Path(
-        min_length=1,
-        max_length=SYMBOL_MAX_LEN,
-        description="Instrument, e.g. `TSLA` (case-insensitive).",
-    ),
-]
-_GatewayPath = Annotated[
-    str,
-    Path(
-        min_length=1,
-        max_length=GATEWAY_ID_MAX_LEN,
-        description="Engine gateway id, e.g. `TRADER01` (case-insensitive).",
-    ),
-]
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"], route_class=ContractRoute)
 
 
 def _check_rate_limit(request: Request, session: Session) -> None:
@@ -138,6 +145,7 @@ def _require_accepted(ack: dict[str, Any], code: str) -> dict[str, Any]:
 
 @router.post(
     "/session/transition",
+    response_model=TransitionApplied,
     summary="Change session state",
     description=(
         "Force the venue into another session phase (PRE_OPEN, OPENING_AUCTION, "
@@ -191,6 +199,7 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/reference/reload",
+    response_model=ReloadApplied,
     status_code=status.HTTP_200_OK,
     summary="Reload reference data",
     responses=docs.merge(
@@ -239,6 +248,7 @@ async def reference_reload(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/sim",
+    response_model=SimSnapshot,
     summary="Market simulator state",
     description=(
         "The market model's latest state and its true (hidden) fair values per symbol"
@@ -261,6 +271,7 @@ async def market_sim(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/gateways",
+    response_model=GatewayList,
     summary="List gateways",
     description=(
         "Every gateway known to the engine with its role (TRADER, MARKET_MAKER, "
@@ -268,7 +279,7 @@ async def market_sim(  # pyright: ignore[reportUnusedFunction]
     ),
     responses=docs.merge(
         docs.ok(
-            docs.ADMIN_GATEWAYS,
+            docs.ADMIN_GATEWAYS_REPLY,
             "Every configured gateway, with role and connection state.",
             200,
         )
@@ -280,11 +291,13 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_gateways(gateway_id)
-    return await _await_reply(request, topic_gateways(gateway_id))
+    reply = await _await_reply(request, topic_gateways(gateway_id))
+    return {**reply, "count": len(reply.get("gateways", []))}
 
 
 @router.post(
     "/gateways/{gateway_id}/disconnect",
+    response_model=DisconnectPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Disconnect a gateway",
     description=(
@@ -298,7 +311,7 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
     ),
 )
 async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
-    gateway_id: _GatewayPath,
+    gateway_id: GatewayIdPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: AdminNoteRequest | None = None,
@@ -313,14 +326,15 @@ async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/symbols/{symbol}/halt",
+    response_model=SymbolHaltAck,
     summary="Halt a symbol",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_HALT_ACK, "The symbol is halted."),
+        docs.ok(docs.ADMIN_HALT_ACK_REPLY, "The symbol is halted."),
         docs.conflict("HALT_REJECTED", "Unknown symbol: XYZ"),
     ),
 )
 async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
-    symbol: _SymbolPath,
+    symbol: SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: SymbolHaltRequest | None = None,
@@ -351,18 +365,19 @@ async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/symbols/{symbol}/resume",
+    response_model=SymbolResumeAck,
     summary="Resume a halted symbol",
     description=(
         "Lift a halt on one symbol, whether it came from a price-triggered circuit "
         "breaker or from `POST /admin/symbols/{symbol}/halt`."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_RESUME_ACK, "The symbol is trading again."),
+        docs.ok(docs.ADMIN_RESUME_ACK_REPLY, "The symbol is trading again."),
         docs.conflict("RESUME_REJECTED", "TSLA is not halted"),
     ),
 )
 async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
-    symbol: _SymbolPath,
+    symbol: SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: AdminNoteRequest | None = None,
@@ -385,10 +400,11 @@ async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/risk/state",
+    response_model=RiskStateView,
     summary="Live risk state",
     responses=docs.merge(
         docs.ok(
-            docs.ADMIN_RISK_STATE,
+            docs.ADMIN_RISK_STATE_REPLY,
             "Collar reference and circuit-breaker state per symbol.",
             200,
         )
@@ -407,7 +423,8 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
     """
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_risk_state(gateway_id)
-    return await _await_reply(request, topic_risk_state(gateway_id))
+    reply = await _await_reply(request, topic_risk_state(gateway_id))
+    return {**reply, "count": len(reply.get("symbols", []))}
 
 
 # ---------------------------------------------------------------------------
@@ -417,14 +434,15 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/indexes/{index_id}/rebalance",
+    response_model=IndexRebalanceAck,
     summary="Rebalance an index",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_REBALANCE, "pm-index applied the rebalance."),
+        docs.ok(docs.ADMIN_REBALANCE_REPLY, "pm-index applied the rebalance."),
         docs.conflict("REBALANCE_REJECTED", "Unknown constituent XYZ"),
     ),
 )
 async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
-    index_id: str,
+    index_id: IndexIdPath,
     body: IndexRebalanceRequest,
     request: Request,
     session: Annotated[Session, Depends(auth)],
@@ -472,9 +490,10 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/symbols/{symbol}/cancel-orders",
+    response_model=CancelSymbolAck,
     summary="Cancel every order on a symbol",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_SYMBOL, "What the engine cancelled."),
+        docs.ok(docs.ADMIN_KILL_SYMBOL_REPLY, "What the engine cancelled."),
         docs.conflict(
             "KILL_SWITCH_REJECTED",
             "Symbol-level mass cancel is only allowed for ADMIN participants",
@@ -482,7 +501,7 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
     ),
 )
 async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
-    symbol: _SymbolPath,
+    symbol: SymbolPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: AdminNoteRequest | None = None,
@@ -506,9 +525,10 @@ async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/gateways/{gateway_id}/kill-switch",
+    response_model=KillSwitchGatewayAck,
     summary="Kill switch: one gateway",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_GATEWAY, "What the engine cancelled."),
+        docs.ok(docs.ADMIN_KILL_GATEWAY_REPLY, "What the engine cancelled."),
         docs.conflict(
             "KILL_SWITCH_REJECTED",
             "Gateway-targeted kill switch is only allowed for ADMIN participants",
@@ -516,7 +536,7 @@ async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
     ),
 )
 async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
-    gateway_id: _GatewayPath,
+    gateway_id: GatewayIdPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
     body: AdminNoteRequest | None = None,
@@ -547,9 +567,10 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
 
 @router.post(
     "/market/kill-switch",
+    response_model=KillSwitchGlobalAck,
     summary="Kill switch: whole market",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_KILL_GLOBAL, "What the engine cancelled."),
+        docs.ok(docs.ADMIN_KILL_GLOBAL_REPLY, "What the engine cancelled."),
         docs.conflict(
             "KILL_SWITCH_REJECTED",
             "Global kill switch is only allowed for ADMIN participants",
@@ -588,6 +609,7 @@ async def kill_switch_market(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/orders",
+    response_model=AdminOrders,
     summary="All orders, all gateways",
     responses=docs.merge(
         docs.ok(
@@ -598,15 +620,22 @@ async def kill_switch_market(  # pyright: ignore[reportUnusedFunction]
 async def admin_orders(  # pyright: ignore[reportUnusedFunction]
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    symbol: str | None = None,
-    gateway_id: str | None = None,
-    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    symbol: Annotated[
+        str | None, Query(description="Only this symbol (case-insensitive).")
+    ] = None,
+    gateway_id: Annotated[
+        str | None, Query(description="Only this gateway's orders (case-insensitive).")
+    ] = None,
+    status_filter: Annotated[
+        str | None,
+        Query(alias="status", description="Only this status, e.g. `NEW` or `PARTIAL`."),
+    ] = None,
 ) -> dict[str, Any]:
     """Every cached order across every gateway, filtered.
 
-    Served entirely from the gateway's own read model — no engine round-trip
-    — because `_caches` already accumulates an entry per gateway whose events
-    pass through. This is *current state*, bounded by
+    Served from the gateway's own read model of every order whose events it
+    has seen since it started -- no engine round trip. This is *current
+    state*, bounded by
     `order_retention_sec`: terminal orders age out, so it answers "what is
     open now", not "what happened today". For the latter, see
     `GET /admin/orders/{order_id}/audit`.
@@ -619,7 +648,7 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
     wanted_status = status_filter.upper() if status_filter else None
 
     filtered = [
-        order
+        {"client_tag": None, **order}
         for order in orders
         if (
             wanted_symbol is None
@@ -643,6 +672,7 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/orders/{order_id}/audit",
+    response_model=OrderAudit,
     summary="Audit trail of one order",
     responses=docs.merge(
         docs.ok(
@@ -655,10 +685,12 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
     ),
 )
 async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
-    order_id: str,
+    order_id: OrderIdPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
-    limit: int = 500,
+    limit: Annotated[
+        int, Query(ge=1, le=5000, description="Maximum events to return (1-5000).")
+    ] = 500,
 ) -> dict[str, Any]:
     """The full cross-gateway lifecycle of one order, from the audit trail.
 
@@ -706,13 +738,14 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
 
 @router.get(
     "/gateways/{gateway_id}/positions",
+    response_model=GatewayPositions,
     summary="Positions of any gateway",
     responses=docs.merge(
         docs.ok(docs.ADMIN_POSITIONS, "Net positions held by the gateway.", 200)
     ),
 )
 async def admin_positions(  # pyright: ignore[reportUnusedFunction]
-    gateway_id: _GatewayPath,
+    gateway_id: GatewayIdPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:

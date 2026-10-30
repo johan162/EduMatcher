@@ -33,6 +33,7 @@ from fastapi import HTTPException
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import history
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.stats.main import SCHEMA
 
@@ -256,7 +257,7 @@ async def _call_index_daily(
     to_date: str | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
-    return await history.history_index_daily(
+    result = await history.history_index_daily(
         request,
         session,
         index_id=index_id,
@@ -265,6 +266,8 @@ async def _call_index_daily(
         to_date=to_date,
         limit=limit,
     )
+    check_contract(history.history_index_daily, result)
+    return result
 
 
 async def _call_index_snapshots(
@@ -277,7 +280,7 @@ async def _call_index_snapshots(
     to_ts: str | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
-    return await history.history_index_snapshots(
+    result = await history.history_index_snapshots(
         request,
         session,
         index_id=index_id,
@@ -286,6 +289,8 @@ async def _call_index_snapshots(
         to_ts=to_ts,
         limit=limit,
     )
+    check_contract(history.history_index_snapshots, result)
+    return result
 
 
 async def _call_price_snapshots(
@@ -299,7 +304,7 @@ async def _call_price_snapshots(
     limit: int = 500,
     after: str | None = None,
 ) -> dict[str, Any]:
-    return await history.history_price_snapshots(
+    result = await history.history_price_snapshots(
         request,
         session,
         symbol=symbol,
@@ -309,6 +314,8 @@ async def _call_price_snapshots(
         limit=limit,
         after=after,
     )
+    check_contract(history.history_price_snapshots, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -421,7 +428,7 @@ async def test_index_daily_empty_db_returns_empty_not_error(empty_db: Path) -> N
     result = await _call_index_daily(
         request, _readonly_session(), index_id="EDU100", date=None
     )
-    assert result == {"daily": [], "count": 0, "has_more": False}
+    assert result == {"daily": [], "count": 0, "has_more": False, "next_cursor": None}
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +502,12 @@ async def test_index_snapshots_empty_db_returns_empty_not_error(
     result = await _call_index_snapshots(
         request, _readonly_session(), index_id="EDU100"
     )
-    assert result == {"snapshots": [], "count": 0, "has_more": False}
+    assert result == {
+        "snapshots": [],
+        "count": 0,
+        "has_more": False,
+        "next_cursor": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -637,7 +649,12 @@ async def test_price_snapshots_empty_db_returns_empty_not_error(
 ) -> None:
     request = _request_for(empty_db)
     result = await _call_price_snapshots(request, _readonly_session(), symbol="AAPL")
-    assert result == {"snapshots": [], "count": 0, "has_more": False}
+    assert result == {
+        "snapshots": [],
+        "count": 0,
+        "has_more": False,
+        "next_cursor": None,
+    }
 
 
 # ---------------------------------------------------------------------------

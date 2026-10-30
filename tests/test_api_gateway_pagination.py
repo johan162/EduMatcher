@@ -28,6 +28,7 @@ from fastapi import HTTPException
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import history
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.sessions import Session
 from edumatcher.stats.main import SCHEMA
 
@@ -70,7 +71,7 @@ async def _call_trades(
     limit: int = 500,
     after: str | None = None,
 ) -> dict[str, Any]:
-    return await history.history_trades(
+    result = await history.history_trades(
         request,
         session,
         symbol=symbol,
@@ -80,6 +81,8 @@ async def _call_trades(
         limit=limit,
         after=after,
     )
+    check_contract(history.history_trades, result)
+    return result
 
 
 async def _call_orders(
@@ -90,7 +93,7 @@ async def _call_orders(
     limit: int = 500,
     after: str | None = None,
 ) -> dict[str, Any]:
-    return await history.history_orders(
+    result = await history.history_orders(
         request,
         session,
         symbol=symbol,
@@ -101,6 +104,8 @@ async def _call_orders(
         limit=limit,
         after=after,
     )
+    check_contract(history.history_orders, result)
+    return result
 
 
 async def _call_index_daily(
@@ -114,7 +119,7 @@ async def _call_index_daily(
     limit: int = 500,
     after: str | None = None,
 ) -> dict[str, Any]:
-    return await history.history_index_daily(
+    result = await history.history_index_daily(
         request,
         session,
         index_id=index_id,
@@ -124,6 +129,8 @@ async def _call_index_daily(
         limit=limit,
         after=after,
     )
+    check_contract(history.history_index_daily, result)
+    return result
 
 
 def _seed_trades(path: Path, count: int) -> None:
@@ -198,7 +205,7 @@ async def test_history_trades_pagination_reproduces_full_result_set(
         page = await _call_trades(request, session, limit=2, after=after)
         paged_ids.extend(t["trade_id"] for t in page["trades"])
         if not page["has_more"]:
-            assert "next_cursor" not in page
+            assert page["next_cursor"] is None  # always present (D6)
             break
         after = page["next_cursor"]
 

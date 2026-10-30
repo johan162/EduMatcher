@@ -649,7 +649,7 @@ the same WP, with no aliases (no-backwards-compat rule).
 | **WP-API01** ✅ | Error model unification | **Done 2026-10-30 (uncommitted)**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
 | **WP-API02** | Safe asynchronous writes | Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
 | **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30 (uncommitted)**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
-| **WP-API04** | Typed contract | Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
+| **WP-API04** ✅ | Typed contract | **Done 2026-10-30 (uncommitted)**, see §9.4. Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
 | **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
 | **WP-API06** | Contract guard | Commit `openapi.json`; a test regenerates it and fails on diff; optional `oasdiff breaking` in CI. Lands last among the P0s, after WP-API04. | X1 | S |
 
@@ -844,6 +844,102 @@ IndexClient, which has no such per-id state.
   /market-data` "top-of-book" endpoint that never existed, and `/symbols`
   shown as open to any key. Fixed, and it now points to the spec as the full
   list. This is more evidence for WP-API04/06.
+
+### 9.4 WP-API04 outcome (2026-10-30)
+
+Decided by Johan: keep JSON float prices (Q1, D8 rule frozen in the spec);
+generate engine payload models with msgen; validate responses at runtime.
+Also done: Q6 (`HistoryQuery` removed).
+
+**What was built:**
+
+- **msgen REST emitter** (`msgen/generators/rest.py`). It writes Pydantic body
+  models to `models/generated/rest/<family>.py` for every message and nested
+  type, and `make msgen-check` covers them.
+  - Body fields are those of `to_dict`, so topic-only fields are absent.
+  - A field `to_dict` can omit (`omit_when_none`/`omit_when_empty`) is
+    optional; every other field is required (`T | None` where nullable).
+  - Descriptions are attribute docstrings (`use_attribute_docstrings`), so
+    the output is black-clean without running black.
+  - `tests/test_msgen_rest.py` proves the required set matches `to_dict` for
+    every message, and that real wire payloads round-trip unchanged.
+- **Every one of the 56 operations has a `response_model`** (6 before):
+  - engine replies use the generated models;
+  - gateway-owned shapes are in `api_gateway/responses.py`, with `Company`
+    built from compdb's own column list;
+  - shared path parameters are in `api_gateway/params.py`;
+  - every router uses `routing.ContractRoute`, which serialises with
+    `exclude_unset`, so "omitted rather than null" holds everywhere.
+- **D6:**
+  - every collection carries `count`;
+  - `next_cursor` is always present (`null` on the last page);
+  - bootstrap is un-nested (`orders`, `recent_fills`, `halts`, `gateways`,
+    `quotes` (was `quote_bootstrap`), `quote_legs`);
+  - status fields are `Literal`s;
+  - `/history/index-events` always carries `warnings`.
+- **D4 `/status`** is now `{gateway_id, gateway_role, gateway_count?}`;
+  `SessionCaches.status()` was removed.
+- **D7:** `/history/index-events` takes ISO-8601/date `from`/`to` (session
+  timezone for bare times), converted to the Unix seconds pm-index wants.
+- **OpenAPI:**
+  - operationIds are the handler names, unique by test;
+  - every parameter is described and bounded (test);
+  - no internal references in descriptions (test);
+  - every 2xx example is validated against its route's model with an exact
+    round-trip (test). Route examples are derived from the engine examples
+    through the generated bindings (`*_REPLY` in `openapi_docs.py`).
+- **Shims dropped:** the subscription ack's legacy `symbols`/`channels`.
+
+**Real defects the runtime validation exposed** (they would have been 500s or
+wrong data):
+
+- **Incomplete engine examples.** 31 of the hand-written examples did not
+  match what the routes send. Most hand-written engine examples left out
+  fields the engine always writes (`OrderDisplay` lacked 17), and history
+  examples still showed `_rowid`, which the queries strip.
+- **`/admin/orders` rows** for orders learned from other gateways' events
+  lacked `client_tag`. The listing now applies the same `null` default as
+  `GET /orders/{id}`, and `status` is optional (absent until a state event is
+  seen).
+- **`GET /quotes/legs`** answered from the gateway's leg cache with only
+  `legs`, while the engine reply also carries `show_requested`, `complete`
+  and `recent`. It (and bootstrap) now always asks the engine.
+
+**Testing approach:**
+
+- Handler-level tests skip FastAPI's response validation. So
+  `tests/api_gateway_harness.check_contract()` runs it explicitly in the
+  history and pagination helpers (real SQLite rows), runtime history,
+  bootstrap, routes and admin tests.
+- `wire()` builds wire-shaped test doubles through the generated bindings.
+
+**Clients.**
+
+- trader-gui: bootstrap hydration (halts list), types (bootstrap,
+  `StatusResponse`, `next_cursor: string | null`), the fills cursor loop, and
+  a new `bootstrapHydrate.test.ts`.
+- book-gui's cursor loop already handled `null`; terminal-gui and dash-gui
+  needed nothing.
+
+**Docs.**
+
+- Spec: a new "Response contract" section freezes the omitted/null, D6,
+  time, price and extension rules; plus the pagination, bootstrap, `/status`
+  and index-events sections.
+- Operator guide (`/status`, cursor end, subscription ack) and training
+  guide.
+
+**Insights carried forward:**
+
+- **`event` stays an untyped object** on the order submit, cancel and amend
+  replies. Typing it would need a discriminated union of ack and cancel
+  events, which the IDL has no variant for. The message reference documents
+  each event.
+- **The generated models enforce enum values on output.** A gateway older
+  than the engine that adds an enum member would answer 500. Both come from
+  one spec and release together, but WP-API06's contract snapshot should note
+  that enum additions are only additive if gateway and engine deploy
+  together.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 

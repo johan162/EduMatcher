@@ -78,11 +78,9 @@ export type RejectCode =
   | "UNKNOWN";
 
 // ── REST: status ──────────────────────────────────────────────────────────────
+/** `GET /api/v1/status` — who the caller is. */
 export interface StatusResponse {
-  orders: number;
-  quote_legs: number;
-  positions: Record<string, unknown>;
-  known_symbols: string[];
+  gateway_id: string;
   gateway_role: GatewayRole;
   gateway_count?: number; // ADMIN keys only
 }
@@ -315,7 +313,7 @@ export interface HistoryFillsResponse {
   events: OrderHistoryEvent[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
   retained_from?: string | null;
 }
 
@@ -395,7 +393,7 @@ export interface HistoryTradesResponse {
   trades: HistoryTrade[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── Book / Depth / Auction (market-data) ─────────────────────────────────────
@@ -883,7 +881,7 @@ export interface IndexDailyResponse {
   daily: IndexDailyRow[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── History: daily rollup (GET /history/daily) ───────────────────────────────
@@ -919,7 +917,7 @@ export interface DailyStatsResponse {
   daily: DailyStat[];
   count: number;
   has_more: boolean;
-  next_cursor?: string;
+  next_cursor: string | null;
 }
 
 // ── Reference bundle (GET /reference, and `reference` inside bootstrap) ──────
@@ -1047,10 +1045,12 @@ export interface BootstrapTrader {
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
   positions: Position[];
-  orders: { orders: Order[] };
-  recent_fills: { events: unknown[]; count: number } | null;
+  /** Engine OrderDisplay rows (keyed on `id`); normalize via normalizeOrder. */
+  orders: RawOrder[];
+  /** Today's fills; null + `incomplete` when the stats DB is unavailable. */
+  recent_fills: unknown[] | null;
   /** Currently-halted symbols (§H4) — null + `incomplete` on engine timeout. */
-  halts: { halted: HaltEntry[] } | null;
+  halts: HaltEntry[] | null;
   capabilities: BootstrapCapabilities;
 }
 
@@ -1063,8 +1063,8 @@ export interface BootstrapAdmin {
   session_timezone: string;
   reference: ReferenceBundle;
   session: SessionStatusDTO | null;
-  gateways: { gateways: AdminGateway[] } | null;
-  halts: { halted: HaltEntry[] } | null;
+  gateways: AdminGateway[] | null;
+  halts: HaltEntry[] | null;
   active_order_counts: Record<string, number>;
   monitor_last_seq: Record<string, number>;
   capabilities: BootstrapCapabilities;

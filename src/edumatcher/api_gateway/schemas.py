@@ -187,7 +187,9 @@ class OrderAccepted(StrictModel):
     client_tag: str | None = Field(
         default=None, description="Echo of the request's tag."
     )
-    status: str = Field(description="`PENDING` (not yet acknowledged) or `ACKED`.")
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING` (not yet acknowledged) or `ACKED`."
+    )
     accepted: bool | None = Field(
         default=None,
         description="Engine verdict; null until acknowledged (see `?wait=ack`).",
@@ -205,7 +207,7 @@ class CancelAccepted(StrictModel):
     request_tag: str | None = Field(
         default=None, description="Echo of the request's `request_tag` query param."
     )
-    status: str = Field(description="`PENDING_CANCEL`, `ACKED` or `REJECTED`.")
+    status: Literal["PENDING_CANCEL", "ACKED", "REJECTED"]
     accepted: bool | None = Field(
         default=None, description="Engine verdict; null until acknowledged."
     )
@@ -245,7 +247,7 @@ class AmendRequest(StrictModel):
 class ReplaceResponse(StrictModel):
     cancelled_order_id: str = Field(description="The order that was cancelled.")
     replacement_order_id: str = Field(description="Id of the new order.")
-    status: str = Field(description="`PENDING`: the replacement awaits the engine.")
+    status: Literal["PENDING"] = Field(description="The replacement awaits the engine.")
 
 
 class OcoLegRequest(StrictModel):
@@ -447,15 +449,6 @@ class QuotePending(StrictModel):
     status: Literal["PENDING"] = Field(
         description="Sent; the verdict follows on the private WebSocket (`quote.ack`)."
     )
-
-
-class HistoryQuery(StrictModel):
-    symbol: str | None = None
-    event_type: str | None = None
-    date: str | None = None
-    from_ts: str | None = None
-    to_ts: str | None = None
-    limit: int = Field(default=500, ge=1, le=5000)
 
 
 class SessionTransitionRequest(StrictModel):

@@ -14,6 +14,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from edumatcher.api_gateway.metrics import install as install_metrics
@@ -118,6 +119,10 @@ def _validation_reject_code(error_type: str, message: str) -> str:
     if error_type == "extra_forbidden":
         return "UNSUPPORTED_FIELD"
     return "INVALID_VALUE"
+
+
+def _operation_id(route: APIRoute) -> str:
+    return route.name
 
 
 def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> FastAPI:
@@ -239,6 +244,10 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         redoc_url=None,
         openapi_url=openapi_url,
         lifespan=lifespan,
+        # operationIds become generated-SDK method names, so they are the
+        # handler names (`submit_order`) rather than FastAPI's default
+        # `submit_order_api_v1_orders_post`. Unique across routers by test.
+        generate_unique_id_function=_operation_id,
     )
     metrics = install_metrics(app)
 

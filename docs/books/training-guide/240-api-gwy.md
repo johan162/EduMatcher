@@ -368,8 +368,8 @@ Expected behavior:
 - `/history/orders` and `/history/fills` are scoped to the caller's own
   gateway — `TRADER01`'s key never sees `TRADER02`'s orders
 - `/history/trades` and `/history/daily` are public and show both sides
-- a reply with `"has_more": true` always includes `next_cursor`; passing it
-  back unchanged as `after` returns the next page
+- every page carries `next_cursor`: a string while `"has_more": true` (pass it
+  back unchanged as `after` for the next page) and `null` on the last page
 - if `pm-stats` is not running, every history call returns `503 STATS_DB`
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why

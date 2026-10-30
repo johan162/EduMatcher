@@ -349,7 +349,7 @@ Base path: `/api/v1`.
 | `GET`    | `/quotes`                    | trading       | The caller's active quotes           |
 | `GET`    | `/quotes/legs`               | trading       | Quote leg state                      |
 | `GET`    | `/positions`                 | trading       | Net positions by symbol              |
-| `GET`    | `/status`                    | trading       | Gateway cache summary                |
+| `GET`    | `/status`                    | trading       | Who am I: gateway id and role        |
 | `GET`    | `/history/orders`            | trading       | Historical order lifecycle events    |
 | `GET`    | `/history/orders/{order_id}` | trading       | Full lifecycle for one order         |
 | `GET`    | `/history/fills`             | trading       | Historical fills                     |
@@ -709,7 +709,7 @@ Authorization: Bearer key-readonly-demo
 ```
 
 returns the next two trades, and so on until a response comes back with
-`has_more: false` and no `next_cursor`. A malformed or expired-schema
+`has_more: false` and `next_cursor: null`. A malformed or expired-schema
 `after` value returns `400` with error code `VALIDATION` and `field: "after"`.
 
 `/history/indexes` has no `limit`/`after` — the number of distinct
@@ -1133,12 +1133,12 @@ stream, regardless of which gateway initiated it.
     currently the only record of it — it does not appear on
     `/api/v1/ws/admin/monitor`.
 
-### Extended `GET /status`
+### `GET /status`
 
-`GET /api/v1/status` now includes `gateway_role` (the resolved
-`TRADER`/`MARKET_MAKER`/`ADMIN` role) alongside the existing cache summary
-fields. When the caller holds the ADMIN role, the response also includes
-`gateway_count`, the number of currently connected gateways.
+`GET /api/v1/status` answers who the caller is: `gateway_id` and
+`gateway_role` (the resolved `TRADER`/`MARKET_MAKER`/`ADMIN` role). When the
+caller holds the ADMIN role, the response also includes `gateway_count`, the
+number of currently connected gateways.
 
 
 ## Cross-gateway admin views
@@ -1581,17 +1581,14 @@ subscription:
       { "symbols": ["*"],    "channels": ["book", "trades"] },
       { "symbols": ["AAPL"], "channels": ["auction", "depth"] }
     ],
-    "symbols": ["AAPL"],
-    "channels": ["auction", "book", "depth", "trades"],
     "always": ["session", "circuit_breaker", "news"],
     "rejected": []
   }
 }
 ```
 
-`symbols` and `channels` are retained for clients written against the earlier
-ack. They are lossy by construction — they cannot represent per-symbol
-channels — so read `items` if you need the real answer.
+`items` is the effective subscription, one entry per symbol (`*` for every
+symbol).
 
 `rejected` reports rules that did nothing, rather than discarding them
 silently:
@@ -1974,7 +1971,7 @@ MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
 | `GET /api/v1/symbols` | Instrument metadata |
 | `GET /api/v1/session` | Current session state |
 | `GET /api/v1/halts` | Currently-halted symbols (trading credential; same data as the admin endpoint, no role gate) |
-| `GET /api/v1/status` | Gateway cache summary |
+| `GET /api/v1/status` | Who am I: gateway id and role |
 | `GET /api/v1/healthz` | Liveness probe |
 
 ### Reference Data

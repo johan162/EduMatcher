@@ -28,6 +28,54 @@ TRADER_KEY = "key-trader"  # gateway GW01
 READ_ONLY_KEY = "key-ro"  # gateway_id null
 
 
+def wire(message: Any, example: dict[str, Any]) -> dict[str, Any]:
+    """*example* as the engine would publish it: through the generated binding.
+
+    The OpenAPI examples are written for readers and may leave out a field the
+    engine always sends; a test double replying with one would not be what a
+    real gateway sees.
+    """
+    payload: dict[str, Any] = message.from_dict(example).to_dict()
+    return payload
+
+
+def response_model_of(endpoint: Any) -> Any:
+    """The ``response_model`` of the route whose handler is *endpoint*."""
+    from fastapi.routing import APIRoute
+
+    from edumatcher.api_gateway.routers import (
+        admin,
+        bootstrap,
+        history,
+        orders,
+        reference,
+    )
+
+    for module in (orders, reference, history, admin, bootstrap):
+        for route in module.router.routes:
+            if isinstance(route, APIRoute) and route.endpoint is endpoint:
+                assert route.response_model is not None, route.path
+                return route.response_model
+    raise AssertionError(f"no route serves {endpoint!r}")
+
+
+def check_contract(endpoint: Any, result: Any) -> None:
+    """Assert *result* is exactly what the route's response model lets through.
+
+    Handler-level tests call route functions directly, which skips FastAPI's
+    response validation. This runs it: the result must validate (no missing
+    required field), and serialising it the way the route does
+    (``exclude_unset``) must give it back unchanged (no field dropped).
+    """
+    model = response_model_of(endpoint)
+    payload = (
+        result.model_dump(mode="json") if hasattr(result, "model_dump") else result
+    )
+    payload = json.loads(json.dumps(payload))
+    dumped = model.model_validate(payload).model_dump(mode="json", exclude_unset=True)
+    assert dumped == payload
+
+
 def make_app(engine: Any) -> Any:
     """The configured app, with *engine* standing in for EngineClient."""
     config = ApiGatewayConfig(swagger_enabled=False)

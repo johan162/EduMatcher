@@ -21,6 +21,7 @@ from edumatcher.api_gateway.schemas import (
     SymbolHaltRequest,
 )
 from edumatcher.api_gateway.sessions import Session
+from tests.api_gateway_harness import check_contract
 from edumatcher.models.session import SessionState
 
 
@@ -190,6 +191,7 @@ async def test_require_admin_allows_admin_role() -> None:
     request = admin_request(engine)
     body = SessionTransitionRequest(to_state=SessionState.CONTINUOUS)
     result = await admin.session_transition(body, request, admin_session())
+    check_contract(admin.session_transition, result)
     # No longer fire-and-forget: the endpoint awaits the engine's verdict, so
     # the caller learns whether the transition actually happened.
     assert result["requested_state"] == "CONTINUOUS"
@@ -334,6 +336,7 @@ async def test_admin_positions_returns_target_gateways_holdings() -> None:
     engine = AdminFakeEngine()
     request = admin_request(engine)
     result = await admin.admin_positions("mm_aapl_01", request, admin_session())
+    check_contract(admin.admin_positions, result)
 
     assert result == {
         "gateway_id": "MM_AAPL_01",
@@ -394,6 +397,7 @@ async def test_gateway_disconnect_uppercases_id() -> None:
     engine = AdminFakeEngine()
     request = admin_request(engine)
     result = await admin.disconnect_gateway("gw02", request, admin_session())
+    check_contract(admin.disconnect_gateway, result)
     assert result == {"gateway_id": "GW02", "status": "PENDING_DISCONNECT"}
     assert ("send_disconnect", ("GW02", "admin disconnect")) in engine.calls
 

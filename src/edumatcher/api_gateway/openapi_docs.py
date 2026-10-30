@@ -19,6 +19,11 @@ from typing import Any
 from fastapi.openapi.models import Example
 
 from edumatcher.api_gateway.schemas import ErrorResponse
+from edumatcher.models.generated import index as index_msgs
+from edumatcher.models.generated import news as news_msgs
+from edumatcher.models.generated import order as order_msgs
+from edumatcher.models.generated import risk as risk_msgs
+from edumatcher.models.generated import system as system_msgs
 from edumatcher.models.generated.order import topic_order_ack, topic_order_fill
 
 API_DESCRIPTION = """\
@@ -779,12 +784,6 @@ SESSION_STATUS: dict[str, Any] = {
     "next": {"state": "CLOSING_AUCTION", "at": "2026-08-29T17:25:00+02:00"},
 }
 
-#: GET /session: the engine's reply plus the locale the gateway adds.
-SESSION: dict[str, Any] = {
-    **SESSION_STATUS,
-    "session_timezone": "Europe/Stockholm",
-    "session_date": "2026-08-29",
-}
 
 HALT_STATUS: dict[str, Any] = {
     "gateway_id": "TRADER01",
@@ -1089,66 +1088,6 @@ _CAPABILITIES = {
 }
 _FILLS_TODAY = {"events": [_EVENT_FILL], "count": 1}
 
-BOOTSTRAP_TRADER: dict[str, Any] = {
-    "ts": "2026-08-29T13:30:05.412+00:00",
-    "incomplete": [],
-    "gateway_id": "TRADER01",
-    "gateway_role": "TRADER",
-    "session_timezone": "Europe/Stockholm",
-    "reference": REFERENCE_BUNDLE,
-    "session": SESSION,
-    "positions": [
-        {"symbol": "AAPL", "net_qty": 40, "last_price": 187.4},
-        {"symbol": "TSLA", "net_qty": -25, "last_price": None},
-    ],
-    "orders": ORDERS_LIST,
-    "recent_fills": _FILLS_TODAY,
-    "halts": {"gateway_id": "TRADER01", "halted": []},
-    "capabilities": _CAPABILITIES,
-}
-BOOTSTRAP_MM: dict[str, Any] = {
-    **BOOTSTRAP_TRADER,
-    "gateway_id": "MM01",
-    "gateway_role": "MARKET_MAKER",
-    "quote_bootstrap": QUOTE_BOOTSTRAP,
-    "quote_legs": QUOTE_LEGS,
-}
-BOOTSTRAP_ADMIN: dict[str, Any] = {
-    "ts": "2026-08-29T13:30:05.412+00:00",
-    "incomplete": [],
-    "gateway_id": "OPS01",
-    "gateway_role": "ADMIN",
-    "session_timezone": "Europe/Stockholm",
-    "reference": REFERENCE_BUNDLE,
-    "session": {**SESSION, "gateway_id": "OPS01"},
-    "gateways": {
-        "gateway_id": "OPS01",
-        "gateways": [
-            {
-                "id": "TRADER01",
-                "role": "TRADER",
-                "connected": True,
-                "description": "Student desk 1",
-            },
-            {
-                "id": "MM01",
-                "role": "MARKET_MAKER",
-                "connected": True,
-                "description": "Market maker",
-            },
-            {
-                "id": "OPS01",
-                "role": "ADMIN",
-                "connected": True,
-                "description": "Instructor console",
-            },
-        ],
-    },
-    "halts": {"gateway_id": "OPS01", "halted": []},
-    "active_order_counts": {"TRADER01": 2, "MM01": 2, "OPS01": 0},
-    "monitor_last_seq": {"TRADER01": 1843, "MM01": 5120, "OPS01": 77},
-    "capabilities": _CAPABILITIES,
-}
 
 # ---------------------------------------------------------------------------
 # Admin
@@ -1181,7 +1120,29 @@ ADMIN_SIM: dict[str, Any] = {
         ],
     },
 }
-ADMIN_GATEWAYS = BOOTSTRAP_ADMIN["gateways"]
+ADMIN_GATEWAYS: dict[str, Any] = {
+    "gateway_id": "OPS01",
+    "gateways": [
+        {
+            "id": "TRADER01",
+            "role": "TRADER",
+            "connected": True,
+            "description": "Student desk 1",
+        },
+        {
+            "id": "MM01",
+            "role": "MARKET_MAKER",
+            "connected": True,
+            "description": "Market maker",
+        },
+        {
+            "id": "OPS01",
+            "role": "ADMIN",
+            "connected": True,
+            "description": "Instructor console",
+        },
+    ],
+}
 ADMIN_DISCONNECT = {"gateway_id": "TRADER01", "status": "PENDING_DISCONNECT"}
 ADMIN_HALT_ACK: dict[str, Any] = {
     "gateway_id": "OPS01",
@@ -1409,3 +1370,121 @@ def drop_stock_validation_error(schema: dict[str, Any]) -> None:
     components = schema.get("components", {}).get("schemas", {})
     components.pop("HTTPValidationError", None)
     components.pop("ValidationError", None)
+
+
+# ---------------------------------------------------------------------------
+# Route examples (WP-API04)
+#
+# What each route actually sends. The examples above are the engine's
+# payloads, kept pure because they are checked against the message specs;
+# a route's example is that payload as the engine serialises it (through the
+# generated binding, so no always-present field is missing) plus whatever the
+# gateway adds -- a D6 `count`, the session locale, an un-nested bootstrap.
+# tests/test_api_gateway_openapi.py checks each against its response model.
+# ---------------------------------------------------------------------------
+
+
+def _wire(message: Any, example: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = message.from_dict(example).to_dict()
+    return payload
+
+
+def _counted(reply: dict[str, Any], key: str) -> dict[str, Any]:
+    return {**reply, "count": len(reply[key])}
+
+
+def _page(page: dict[str, Any], key: str) -> dict[str, Any]:
+    """A history page as sent: no internal `_rowid`, `next_cursor` always set."""
+    rows = [{k: v for k, v in row.items() if k != "_rowid"} for row in page[key]]
+    cursor = (
+        "eyJ0cyI6IjIwMjYtMDgtMjlUMTM6MzA6MDIuOTA0KzAwOjAwIn0"
+        if page.get("has_more")
+        else None
+    )
+    return {**page, key: rows, "next_cursor": cursor}
+
+
+REFERENCE_REPLY = _wire(system_msgs.Reference, REFERENCE_BUNDLE)
+REFERENCE_SYMBOLS_REPLY = {
+    "symbols": REFERENCE_REPLY["symbols"],
+    "count": len(REFERENCE_REPLY["symbols"]),
+    "config_version": REFERENCE_REPLY["config_version"],
+}
+REFERENCE_INDEXES_REPLY = {
+    "indexes": REFERENCE_REPLY["indexes"],
+    "count": len(REFERENCE_REPLY["indexes"]),
+    "config_version": REFERENCE_REPLY["config_version"],
+}
+SYMBOLS_REPLY = _counted(_wire(system_msgs.Symbols, SYMBOLS), "symbols")
+SESSION: dict[str, Any] = {
+    **_wire(system_msgs.SessionStatus, SESSION_STATUS),
+    "session_timezone": "Europe/Stockholm",
+    "session_date": "2026-08-29",
+}
+HALTS_REPLY = _counted(_wire(system_msgs.HaltStatus, HALT_STATUS), "halted")
+QUOTES_REPLY = _counted(_wire(system_msgs.QuoteBootstrap, QUOTE_BOOTSTRAP), "quotes")
+QUOTE_LEGS_REPLY = _counted(_wire(system_msgs.QuoteLegs, QUOTE_LEGS), "legs")
+NEWS_REPLY: dict[str, Any] = {
+    "news": [_wire(news_msgs.NewsEvent, item) for item in NEWS["news"]],
+    "count": len(NEWS["news"]),
+    "sectors": NEWS["sectors"],
+}
+POSITIONS_REPLY = _counted(POSITIONS, "positions")
+STATUS_REPLY: dict[str, Any] = {"gateway_id": "TRADER01", "gateway_role": "TRADER"}
+ORDERS_LIST_REPLY = _counted(_wire(order_msgs.Orders, ORDERS_LIST), "orders")
+MASS_CANCEL_REPLY = _wire(risk_msgs.KillSwitchAck, MASS_CANCEL)
+
+HISTORY_ORDERS_REPLY = _page(HISTORY_ORDERS, "events")
+HISTORY_FILLS_REPLY = _page(HISTORY_FILLS, "events")
+HISTORY_TRADES_REPLY = _page(HISTORY_TRADES, "trades")
+HISTORY_DAILY_REPLY = _page(HISTORY_DAILY, "daily")
+HISTORY_PRICE_SNAPSHOTS_REPLY = _page(HISTORY_PRICE_SNAPSHOTS, "snapshots")
+HISTORY_INDEX_DAILY_REPLY = _page(HISTORY_INDEX_DAILY, "daily")
+HISTORY_INDEX_SNAPSHOTS_REPLY = _page(HISTORY_INDEX_SNAPSHOTS, "snapshots")
+
+ADMIN_GATEWAYS_REPLY = _counted(_wire(system_msgs.Gateways, ADMIN_GATEWAYS), "gateways")
+ADMIN_RISK_STATE_REPLY = _counted(
+    _wire(system_msgs.RiskState, ADMIN_RISK_STATE), "symbols"
+)
+ADMIN_HALT_ACK_REPLY = _wire(risk_msgs.SymbolHaltAck, ADMIN_HALT_ACK)
+ADMIN_RESUME_ACK_REPLY = _wire(risk_msgs.SymbolResumeAck, ADMIN_RESUME_ACK)
+ADMIN_KILL_SYMBOL_REPLY = _wire(risk_msgs.CancelSymbolAck, ADMIN_KILL_SYMBOL)
+ADMIN_KILL_GATEWAY_REPLY = _wire(risk_msgs.KillSwitchGatewayAck, ADMIN_KILL_GATEWAY)
+ADMIN_KILL_GLOBAL_REPLY = _wire(risk_msgs.KillSwitchGlobalAck, ADMIN_KILL_GLOBAL)
+ADMIN_REBALANCE_REPLY = _wire(index_msgs.IndexRebalanceAck, ADMIN_REBALANCE)
+
+BOOTSTRAP_TRADER: dict[str, Any] = {
+    "ts": "2026-08-29T13:30:05.412+00:00",
+    "incomplete": [],
+    "gateway_id": "TRADER01",
+    "gateway_role": "TRADER",
+    "session_timezone": "Europe/Stockholm",
+    "reference": REFERENCE_REPLY,
+    "session": SESSION,
+    "positions": POSITIONS["positions"],
+    "orders": ORDERS_LIST_REPLY["orders"],
+    "recent_fills": HISTORY_FILLS_REPLY["events"],
+    "halts": [],
+    "capabilities": _CAPABILITIES,
+}
+BOOTSTRAP_MM: dict[str, Any] = {
+    **BOOTSTRAP_TRADER,
+    "gateway_id": "MM01",
+    "gateway_role": "MARKET_MAKER",
+    "quotes": QUOTES_REPLY["quotes"],
+    "quote_legs": QUOTE_LEGS_REPLY["legs"],
+}
+BOOTSTRAP_ADMIN: dict[str, Any] = {
+    "ts": "2026-08-29T13:30:05.412+00:00",
+    "incomplete": [],
+    "gateway_id": "OPS01",
+    "gateway_role": "ADMIN",
+    "session_timezone": "Europe/Stockholm",
+    "reference": REFERENCE_REPLY,
+    "session": SESSION,
+    "gateways": ADMIN_GATEWAYS_REPLY["gateways"],
+    "halts": [],
+    "active_order_counts": {"TRADER01": 2, "MM01": 2, "OPS01": 0},
+    "monitor_last_seq": {"TRADER01": 1843, "MM01": 5120, "OPS01": 77},
+    "capabilities": _CAPABILITIES,
+}

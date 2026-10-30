@@ -17,6 +17,21 @@ from fastapi import (
 )
 
 from edumatcher.api_gateway import openapi_docs as docs
+from edumatcher.api_gateway.responses import (
+    AmendAccepted,
+    CachedOrder,
+    ComboCancelPending,
+    OcoCancelPending,
+    OrderList,
+    QuoteCancelPending,
+)
+from edumatcher.api_gateway.routing import ContractRoute
+from edumatcher.api_gateway.params import (
+    ComboIdPath,
+    OcoIdPath,
+    OrderIdPath,
+    SymbolPath,
+)
 from edumatcher.api_gateway.schemas import (
     AmendRequest,
     CancelAccepted,
@@ -39,6 +54,7 @@ from edumatcher.api_gateway.translate import (
     build_order,
     build_quote_payload,
 )
+from edumatcher.models.generated.rest.risk import KillSwitchAck
 from edumatcher.models.price import has_tick_decimals
 from edumatcher.models.generated.order import (
     topic_order_ack,
@@ -47,7 +63,7 @@ from edumatcher.models.generated.order import (
     topic_orders,
 )
 
-router = APIRouter(prefix="/api/v1", tags=["orders"])
+router = APIRouter(prefix="/api/v1", tags=["orders"], route_class=ContractRoute)
 
 log = logging.getLogger(__name__)
 
@@ -264,7 +280,7 @@ async def submit_order(
     ),
 )
 async def cancel_order(
-    order_id: str,
+    order_id: OrderIdPath,
     request: Request,
     response: Response,
     session: Annotated[Session, Depends(auth)],
@@ -314,6 +330,7 @@ async def cancel_order(
 
 @router.patch(
     "/orders/{order_id}",
+    response_model=AmendAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Amend an order",
     description=(
@@ -333,7 +350,7 @@ async def cancel_order(
     ),
 )
 async def amend_order(
-    order_id: str,
+    order_id: OrderIdPath,
     body: AmendRequest,
     request: Request,
     response: Response,
@@ -406,7 +423,7 @@ async def amend_order(
     ),
 )
 async def replace_order(
-    order_id: str,
+    order_id: OrderIdPath,
     body: OrderRequest,
     request: Request,
     session: Annotated[Session, Depends(auth)],
@@ -436,6 +453,7 @@ async def replace_order(
 
 @router.get(
     "/orders",
+    response_model=OrderList,
     summary="List my orders",
     description=(
         "The caller's orders as the engine holds them: resting orders plus "
@@ -444,7 +462,7 @@ async def replace_order(
         "`client_tag` it was submitted with (null if none). `503 "
         "ENGINE_TIMEOUT` if the engine does not answer in time."
     ),
-    responses=docs.ok(docs.ORDERS_LIST, "The caller's orders."),
+    responses=docs.ok(docs.ORDERS_LIST_REPLY, "The caller's orders."),
 )
 async def list_orders(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -471,11 +489,13 @@ async def list_orders(
         for order in response.get("orders", [])
         if isinstance(order, dict)
     ]
+    response["count"] = len(response["orders"])
     return response
 
 
 @router.get(
     "/orders/{order_id}",
+    response_model=CachedOrder,
     summary="Get one order",
     description=(
         "The gateway's cached view of one order: the order as submitted, "
@@ -492,7 +512,9 @@ async def list_orders(
     ),
 )
 async def get_order(
-    order_id: str, request: Request, session: Annotated[Session, Depends(auth)]
+    order_id: OrderIdPath,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     order = request.app.state.engine.get_caches(gateway_id).orders.get(order_id)
@@ -539,6 +561,7 @@ async def submit_oco(
 
 @router.delete(
     "/oco/{oco_id}",
+    response_model=OcoCancelPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel an OCO pair",
     description="Cancel both legs of the OCO group `oco_id`.",
@@ -548,7 +571,9 @@ async def submit_oco(
     ),
 )
 async def cancel_oco(
-    oco_id: str, request: Request, session: Annotated[Session, Depends(auth)]
+    oco_id: OcoIdPath,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
 ) -> dict[str, str]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -587,6 +612,7 @@ async def submit_combo(
 
 @router.delete(
     "/combos/{combo_id}",
+    response_model=ComboCancelPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel a combo order",
     description="Cancel every leg of the combo `combo_id`.",
@@ -596,7 +622,9 @@ async def submit_combo(
     ),
 )
 async def cancel_combo(
-    combo_id: str, request: Request, session: Annotated[Session, Depends(auth)]
+    combo_id: ComboIdPath,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
 ) -> dict[str, str]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -633,6 +661,7 @@ async def submit_quote(
 
 @router.delete(
     "/quotes/{symbol}",
+    response_model=QuoteCancelPending,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Cancel my quote on a symbol",
     description="Withdraw the caller's active quote on `symbol`.",
@@ -642,7 +671,9 @@ async def submit_quote(
     ),
 )
 async def cancel_quote(
-    symbol: str, request: Request, session: Annotated[Session, Depends(auth)]
+    symbol: SymbolPath,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
 ) -> dict[str, str]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
@@ -652,6 +683,7 @@ async def cancel_quote(
 
 @router.post(
     "/mass-cancel",
+    response_model=KillSwitchAck,
     summary="Cancel all my orders",
     description=(
         "Cancel every resting order and quote of the caller's own gateway, "
@@ -661,7 +693,7 @@ async def cancel_quote(
         "`POST /admin/market/kill-switch`."
     ),
     responses=docs.merge(
-        docs.ok(docs.MASS_CANCEL, "What the engine cancelled."), docs.RATE_LIMITED
+        docs.ok(docs.MASS_CANCEL_REPLY, "What the engine cancelled."), docs.RATE_LIMITED
     ),
 )
 async def mass_cancel(

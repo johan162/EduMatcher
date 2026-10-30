@@ -9,7 +9,7 @@ import sqlite3
 import time
 import uuid
 from contextlib import closing
-from datetime import tzinfo
+from datetime import datetime, tzinfo
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -17,9 +17,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from edumatcher.api_gateway import openapi_docs as docs
 from edumatcher.api_gateway.index_client import IndexHistoryError
+from edumatcher.api_gateway.responses import (
+    DailyPage,
+    IndexDailyPage,
+    IndexEvents,
+    IndexIds,
+    IndexSnapshotPage,
+    OrderEventPage,
+    OrderTimeline,
+    PriceSnapshotPage,
+    TradePage,
+)
+from edumatcher.api_gateway.routing import ContractRoute
+from edumatcher.api_gateway.params import OrderIdPath
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
+from edumatcher.audit.archive import session_timezone
 from edumatcher.stats.event_types import EVENT_TYPES
+from edumatcher.stats.trading_day import normalise_ts_bound
 from edumatcher.stats.query import (
     InvalidCursorError,
     open_readonly_connection,
@@ -40,7 +55,9 @@ from edumatcher.stats.query import (
 
 log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/history", tags=["history"])
+router = APIRouter(
+    prefix="/api/v1/history", tags=["history"], route_class=ContractRoute
+)
 
 _Limit = Annotated[
     int,
@@ -142,6 +159,17 @@ def _check(field: str, value: str | None, validate: Callable[[str], object]) -> 
         raise _invalid(field, str(exc)) from exc
 
 
+def _epoch_seconds(field: str, raw: str, tz: tzinfo) -> float:
+    """An ISO-8601 bound as Unix seconds, which is what pm-index takes (D7:
+    every history range is ISO on the REST side, whatever the backend wants)."""
+    try:
+        return datetime.fromisoformat(normalise_ts_bound(raw, tz)).timestamp()
+    except ValueError as exc:
+        raise _invalid(
+            field, f"Invalid timestamp format: {raw} (expected ISO timestamp)"
+        ) from exc
+
+
 def _validate_time_filters(
     date: str | None,
     from_ts: str | None,
@@ -176,30 +204,27 @@ def _validate_event_type(event_type: str | None) -> str | None:
 def _paginated_envelope(
     key: str, rows: list[dict[str, object]], next_cursor: str | None
 ) -> dict[str, object]:
-    """Build the standard list-endpoint envelope for a keyset-paginated query.
+    """Build the standard envelope for a keyset-paginated query (D6).
 
-    ``has_more`` mirrors the pre-existing contract (true whenever another
-    page might exist); ``next_cursor`` is the new, additive field a caller
-    passes back as ``after`` to actually fetch that page — omitted when
-    there isn't one, so existing clients that only look at ``has_more``
-    keep working unchanged.
+    ``next_cursor`` is always present -- ``null`` on the last page -- and is
+    what a caller passes back as ``after``; ``has_more`` says the same thing as
+    a boolean.
     """
-    envelope: dict[str, object] = {
+    return {
         key: rows,
         "count": len(rows),
         "has_more": next_cursor is not None,
+        "next_cursor": next_cursor,
     }
-    if next_cursor is not None:
-        envelope["next_cursor"] = next_cursor
-    return envelope
 
 
 @router.get(
     "/orders",
+    response_model=OrderEventPage,
     summary="My order events",
     responses=docs.merge(
         docs.ok(
-            docs.HISTORY_ORDERS,
+            docs.HISTORY_ORDERS_REPLY,
             "One page of the caller's order events, oldest first. With `has_more: true`, `next_cursor` is also present.",
         ),
         docs.INVALID_FILTER,
@@ -262,6 +287,7 @@ async def history_orders(
 
 @router.get(
     "/orders/{order_id}",
+    response_model=OrderTimeline,
     summary="One order's event timeline",
     responses=docs.merge(
         docs.ok(
@@ -270,7 +296,7 @@ async def history_orders(
     ),
 )
 async def history_order_lifecycle(
-    order_id: str,
+    order_id: OrderIdPath,
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, object]:
@@ -293,9 +319,12 @@ async def history_order_lifecycle(
 
 @router.get(
     "/fills",
+    response_model=OrderEventPage,
     summary="My fills",
     responses=docs.merge(
-        docs.ok(docs.HISTORY_FILLS, "One page of the caller's fills, oldest first."),
+        docs.ok(
+            docs.HISTORY_FILLS_REPLY, "One page of the caller's fills, oldest first."
+        ),
         docs.INVALID_FILTER,
     ),
 )
@@ -346,10 +375,11 @@ async def history_fills(
 
 @router.get(
     "/trades",
+    response_model=TradePage,
     summary="Executed trades",
     responses=docs.merge(
         docs.ok(
-            docs.HISTORY_TRADES,
+            docs.HISTORY_TRADES_REPLY,
             "One page of executed trades, oldest first. Prices are display prices.",
         ),
         docs.INVALID_FILTER,
@@ -394,10 +424,11 @@ async def history_trades(
 
 @router.get(
     "/daily",
+    response_model=DailyPage,
     summary="Daily OHLC per symbol",
     responses=docs.merge(
         docs.ok(
-            docs.HISTORY_DAILY,
+            docs.HISTORY_DAILY_REPLY,
             "One page of daily OHLC rows. Prices are display prices; `turnover / volume` equals `vwap`.",
         ),
         docs.INVALID_FILTER,
@@ -446,10 +477,11 @@ async def history_daily(
 
 @router.get(
     "/price-snapshots",
+    response_model=PriceSnapshotPage,
     summary="Intraday price snapshots",
     responses=docs.merge(
         docs.ok(
-            docs.HISTORY_PRICE_SNAPSHOTS,
+            docs.HISTORY_PRICE_SNAPSHOTS_REPLY,
             "One page of intraday mid/bid/ask rows for the symbol, oldest first.",
         ),
         docs.INVALID_FILTER,
@@ -501,9 +533,10 @@ async def history_price_snapshots(
 
 @router.get(
     "/index-daily",
+    response_model=IndexDailyPage,
     summary="Daily OHLC per index",
     responses=docs.merge(
-        docs.ok(docs.HISTORY_INDEX_DAILY, "One page of daily index OHLC rows."),
+        docs.ok(docs.HISTORY_INDEX_DAILY_REPLY, "One page of daily index OHLC rows."),
         docs.INVALID_FILTER,
     ),
 )
@@ -557,10 +590,11 @@ async def history_index_daily(
 
 @router.get(
     "/index-snapshots",
+    response_model=IndexSnapshotPage,
     summary="Intraday index levels",
     responses=docs.merge(
         docs.ok(
-            docs.HISTORY_INDEX_SNAPSHOTS,
+            docs.HISTORY_INDEX_SNAPSHOTS_REPLY,
             "One page of intraday index levels, oldest first.",
         ),
         docs.INVALID_FILTER,
@@ -610,6 +644,7 @@ async def history_index_snapshots(
 
 @router.get(
     "/indexes",
+    response_model=IndexIds,
     summary="Indexes with history",
     responses=docs.merge(
         docs.ok(docs.HISTORY_INDEXES, "Index ids with recorded statistics."),
@@ -639,11 +674,12 @@ async def history_index_ids(
 
 @router.get(
     "/index-events",
+    response_model=IndexEvents,
     summary="Index structural events",
     responses=docs.merge(
         docs.ok(
             docs.HISTORY_INDEX_EVENTS,
-            "Structural events from pm-index, oldest first. `warnings` is present only when pm-index reported any.",
+            "Structural events from pm-index, oldest first, and any `warnings` it reported.",
         ),
         docs.INVALID_FILTER,
     ),
@@ -655,15 +691,18 @@ async def history_index_events(
         str, Query(min_length=1, description="Index to inspect, e.g. `EDU3`. Required.")
     ],
     from_ts: Annotated[
-        float | None,
+        str | None,
         Query(
             alias="from",
-            description="Start, Unix seconds. Defaults to 30 days ago.",
+            description=(
+                "Start: an ISO-8601 timestamp or `YYYY-MM-DD` date, like every "
+                "history range (no offset means exchange time). Default: 30 days ago."
+            ),
         ),
     ] = None,
     to_ts: Annotated[
-        float | None,
-        Query(alias="to", description="End, Unix seconds. Defaults to now."),
+        str | None,
+        Query(alias="to", description="End, same form. Default: now."),
     ] = None,
     types: Annotated[
         list[str] | None,
@@ -679,28 +718,15 @@ async def history_index_events(
         int, Query(ge=1, le=10_000, description="Cap on records returned.")
     ] = 10_000,
 ) -> dict[str, object]:
-    """Structural/audit index events — live round-trip to pm-index over ZMQ.
+    """Structural index events: creation, corporate actions, constituent changes,
+    delistings and rebalances, oldest first.
 
-    Unlike every other ``/history/*`` endpoint, this does not read pm-stats'
-    SQLite data: pm-index's structural log (index creation, corporate
-    actions, constituent changes, delistings) is not mirrored into
-    pm-stats, so answering this requires a live request/reply exchange with
-    the pm-index process itself. This means it can fail with a 503 if
-    pm-index is unreachable or slow to reply, unlike the SQLite-backed
-    endpoints above which only fail on a missing stats DB file.
-
-    ``from``/``to`` are Unix timestamps (seconds), defaulting to the last 30
-    days and now respectively — matching pm-index's own request defaults.
-    ``types`` restricts to a subset of INIT/CORP_ACTION/ADD_CONSTITUENT/
-    DELIST; omitting it returns all four (there are no level/EOD tick
-    records here — see /index-daily and /index-snapshots for those).
-
-    AR-0.3: this endpoint's own request contract (``from``/``to`` in
-    seconds) is unchanged, but each record in the response's ``events``
-    list is pm-index's ``HistoryRecord`` forwarded as-is, and that record
-    now carries ``ts_ns`` (epoch nanoseconds) rather than ``timestamp``
-    (epoch seconds) — the wire-protocol change is visible in the response
-    body even though the request query params are not.
+    Unlike the other history endpoints this is a live query to pm-index, which
+    keeps the structural log; it can therefore answer `503 INDEX_TIMEOUT` when
+    pm-index is unreachable. `from`/`to` default to the last 30 days; `types`
+    restricts to a subset (default: all). Level and end-of-day data are in
+    `/history/index-daily` and `/history/index-snapshots`. Each record carries
+    `ts_ns` (epoch nanoseconds).
     """
     if types is not None:
         unknown = sorted(set(types) - STRUCTURAL_RECORD_TYPES)
@@ -710,11 +736,14 @@ async def history_index_events(
                 f"Unknown event type(s): {', '.join(unknown)}. "
                 f"Valid types: {', '.join(sorted(STRUCTURAL_RECORD_TYPES))}",
             )
-    if from_ts is not None and to_ts is not None and to_ts < from_ts:
-        raise _invalid("to", "'to' must be >= 'from'")
+    tz = session_timezone()
     now = time.time()
-    resolved_from = from_ts if from_ts is not None else now - 30 * 86400
-    resolved_to = to_ts if to_ts is not None else now
+    resolved_from = (
+        _epoch_seconds("from", from_ts, tz) if from_ts is not None else now - 30 * 86400
+    )
+    resolved_to = _epoch_seconds("to", to_ts, tz) if to_ts is not None else now
+    if resolved_to < resolved_from:
+        raise _invalid("to", "'to' must be >= 'from'")
 
     index_client = request.app.state.index_client
     timeout = request.app.state.config.timeouts.engine_reply_sec
@@ -753,7 +782,4 @@ async def history_index_events(
         ) from exc
     records: list[dict[str, Any]] = reply.get("records", [])
     warnings: list[str] = reply.get("warnings", [])
-    result: dict[str, object] = {"events": records, "count": len(records)}
-    if warnings:
-        result["warnings"] = warnings
-    return result
+    return {"events": records, "count": len(records), "warnings": warnings}

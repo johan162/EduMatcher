@@ -283,7 +283,11 @@ async def test_history_index_events_reachable_with_readonly_key() -> None:
         types=None,
         max_records=10_000,
     )
-    assert result == {"events": [{"type": "INIT", "ts_ns": 1}], "count": 1}
+    assert result == {
+        "events": [{"type": "INIT", "ts_ns": 1}],
+        "count": 1,
+        "warnings": [],
+    }
     # index_id is upper-cased before being sent to pm-index, mirroring every
     # other /history/* endpoint's symbol/index_id normalization.
     assert fake.calls[0]["index_id"] == "EDU100"
@@ -404,8 +408,8 @@ async def test_history_index_events_rejects_to_before_from() -> None:
             _request_with(fake),
             _readonly_session(),
             index_id="EDU100",
-            from_ts=1000.0,
-            to_ts=500.0,
+            from_ts="2026-08-29T12:00:00Z",
+            to_ts="2026-08-29T11:00:00Z",
             types=None,
             max_records=10_000,
         )
@@ -494,7 +498,7 @@ async def test_history_index_events_surfaces_warnings_when_present() -> None:
 
 
 @pytest.mark.anyio
-async def test_history_index_events_omits_warnings_key_when_absent() -> None:
+async def test_history_index_events_warnings_is_always_a_list() -> None:
     fake = _FakeIndexClient()
     fake.reply = {"index_id": "EDU100", "records": []}
     result = await history.history_index_events(
@@ -506,4 +510,4 @@ async def test_history_index_events_omits_warnings_key_when_absent() -> None:
         types=None,
         max_records=10_000,
     )
-    assert "warnings" not in result
+    assert result["warnings"] == []  # always present (D6)

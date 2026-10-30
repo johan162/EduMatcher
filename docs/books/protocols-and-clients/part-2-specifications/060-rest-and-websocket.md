@@ -51,7 +51,7 @@ optional parameters.
 | [GET /api/v1/companies/{symbol}](#get-apiv1companiessymbol) | Authenticated key | Return one company profile from the company database |
 | [GET /api/v1/session](#get-apiv1session) | Authenticated key | Return the session phase, exchange timezone and trading date |
 | [GET /api/v1/halts](#get-apiv1halts) | Authenticated key | Return currently-halted symbols |
-| [GET /api/v1/status](#get-apiv1status) | Trading key | Return gateway cache summary and resolved role |
+| [GET /api/v1/status](#get-apiv1status) | Trading key | Return the caller's gateway id and role |
 | [GET /api/v1/healthz](#get-apiv1healthz) | Public | Liveness probe |
 | [GET /api/v1/quotes](#get-apiv1quotes) | Trading key | Return the caller's active market-maker quotes |
 | [GET /api/v1/quotes/legs](#get-apiv1quoteslegs) | Trading key | Return current quote-leg state |
@@ -209,6 +209,31 @@ not exposed.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
+### Response contract
+
+Every reply has a declared schema in the OpenAPI document (`/openapi.json`),
+and the gateway validates what it sends against it. The schemas of replies the
+gateway forwards from the engine are generated from the same message specs
+as the engine's own bindings, so the REST shape and the bus payload cannot
+drift apart (see [Messages](../part-5-message-reference/010-message-reference.md)).
+
+- **Omitted versus null.** A field the schema marks optional is *omitted* when
+  it does not apply (an ordinary order has no `oco_group_id`); a field it marks
+  required is always present, and is `null` only where the schema allows it.
+- **Collections** are `{ "<plural>": [...], "count": n }`; a paginated one adds
+  `has_more` and `next_cursor`. Envelopes do not nest: a bootstrap's `orders`
+  is the list itself, not `{ "orders": [...] }`.
+- **Status fields** are closed enums declared in the schema.
+- **Time.** `*_ns` fields are epoch nanoseconds; `ts` fields and every history
+  `from`/`to` are ISO-8601 (or a `YYYY-MM-DD` date); `date` is a trading day in
+  the exchange timezone (`session_timezone` in `GET /session`).
+- **Prices** are JSON numbers in display units (`187.25`), always on the
+  symbol's tick grid. A field named `*_ticks` carries the same price as an
+  integer tick count; it supplements a display field and never replaces one.
+- **Extension.** New optional fields, new endpoints and new enum members may
+  be added within v1. A client must ignore fields and enum values it does not
+  recognise.
+
 ### Canonical error envelope
 
 All non-2xx replies MUST use this JSON envelope shape — including an unknown
@@ -244,8 +269,8 @@ Canonical example:
 Endpoints that support pagination use keyset cursoring with these rules:
 
 - Clients MAY pass `after` (opaque cursor from a previous response).
-- Replies include `count` and `has_more`.
-- When another page exists, replies MUST include `next_cursor`.
+- Replies include `count`, `has_more` and `next_cursor`.
+- `next_cursor` is a string when another page exists and `null` on the last.
 - Clients fetch the next page by passing `after=<next_cursor>` unchanged.
 - Ordering is deterministic and backend-defined per endpoint; cursors are valid
   only for the same endpoint and compatible filter set.
@@ -533,11 +558,14 @@ empty `positions` and `orders` and `null` `recent_fills`, but `session` and
                    "market_value": 42050.0, "unrealized_pnl": 370.0,
                    "realized_pnl_session": 0.0, "realized_pnl_mtd": 0.0, "realized_pnl_ytd": 0.0 } ],
 
-  // identical to GET /orders response body (required — 503 on failure)
-  "orders": { "orders": [ /* Order[] */ ] },
+  // the `orders` list of GET /orders (required — 503 on failure)
+  "orders": [ /* OrderDisplay[] */ ],
 
-  // today's fills, limited to fills_limit; null if stats DB absent (optional)
-  "recent_fills": { "events": [ /* Fill[] */ ], "count": 12 },
+  // today's fill events, at most fills_limit; null if stats DB absent (optional)
+  "recent_fills": [ /* OrderEvent[] */ ],
+
+  // the `halted` list of GET /halts; null if engine timed out (optional)
+  "halts": [ ],
 
   // capability flags — assembled from config, never null
   "capabilities": {
@@ -584,17 +612,17 @@ All fields from `/bootstrap/trader`, plus:
   // ...trader fields...
   "gateway_role": "MARKET_MAKER",
 
-  // identical to GET /quotes; null if engine timed out (optional)
-  "quote_bootstrap": { "quotes": [ /* ActiveQuote[] */ ] },
+  // the `quotes` list of GET /quotes; null if engine timed out (optional)
+  "quotes": [ /* ActiveQuote[] */ ],
 
-  // identical to GET /quotes/legs; null if engine timed out (optional)
-  "quote_legs": { "legs": [ /* QuoteLeg[] */ ] }
+  // the `legs` list of GET /quotes/legs; null if engine timed out (optional)
+  "quote_legs": [ /* QuoteLeg[] */ ]
 }
 ```
 
 **Required fields:** `reference`, `orders`, `positions`.
 
-**Optional fields:** `session`, `recent_fills`, `quote_bootstrap`, `quote_legs`.
+**Optional fields:** `session`, `recent_fills`, `halts`, `quotes`, `quote_legs`.
 
 **Errors**
 
@@ -633,17 +661,15 @@ flags.
   "reference": { /* symbols, risk, schedule, config_version */ },
 
   // identical to GET /session; null if engine timed out (optional)
-  "session": { "state": "CONTINUOUS", "since": "..." },
+  "session": { "state": "CONTINUOUS", "sessions_enabled": true, "session_timezone": "...", "session_date": "..." },
 
-  // identical to GET /admin/gateways response body; null if engine timed out (optional)
-  "gateways": {
-    "gateways": [
-      { "gateway_id": "TRADER01", "role": "TRADER", "description": "...", "connected": true }
-    ]
-  },
+  // the `gateways` list of GET /admin/gateways; null if engine timed out (optional)
+  "gateways": [
+    { "id": "TRADER01", "role": "TRADER", "description": "...", "connected": true }
+  ],
 
-  // identical to GET /halts response body; null if engine timed out (optional)
-  "halts": { "halted": [ { "symbol": "AAPL", "level": "L2", ... } ] },
+  // the `halted` list of GET /halts; null if engine timed out (optional)
+  "halts": [ { "symbol": "AAPL", "level": "L2", ... } ],
 
   // per-gateway active (non-terminal) order count — pure cache, never null
   "active_order_counts": { "TRADER01": 3, "MM01": 12 },
@@ -1172,7 +1198,7 @@ stale badge for the rest of the session.
 
 ### `GET /api/v1/status`
 
-Purpose: return the gateway cache summary and resolved role.
+Purpose: return who the caller is: its gateway id and engine role.
 
 **Arguments**
 
@@ -1184,7 +1210,7 @@ Purpose: return the gateway cache summary and resolved role.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | status object | Cache summary, resolved role, and for ADMIN keys `gateway_count` |
+| `200 OK` | `{ "gateway_id", "gateway_role", "gateway_count"? }` | `gateway_role` is TRADER, MARKET_MAKER or ADMIN; ADMIN keys also get `gateway_count`, the connected gateways |
 
 **Errors**
 
@@ -1707,8 +1733,8 @@ Purpose: return index structural and audit events from `pm-index`.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `index_id` | `IndexId` | yes | Index id |
-| `from` | `Secs` | no | Unix time start |
-| `to` | `Secs` | no | Unix time end |
+| `from` | `Timestamp` | no | ISO-8601 or `YYYY-MM-DD`, like every history range (no offset = exchange time); default 30 days ago |
+| `to` | `Timestamp` | no | Same form; default now |
 | `types` | `Str` | no | Repeatable event-type filter |
 | `max_records` | `Int` | no | Reply cap |
 

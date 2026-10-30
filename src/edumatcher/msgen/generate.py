@@ -15,6 +15,7 @@ from edumatcher.msgen import spec as spec_mod
 from edumatcher.msgen.generators import c as c_gen
 from edumatcher.msgen.generators import markdown as md_gen
 from edumatcher.msgen.generators import python as py_gen
+from edumatcher.msgen.generators import rest as rest_gen
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,16 @@ def build_artifacts(
             label=f"{out_python.name}/registry.py",
         )
     )
+    # The REST body models (models/generated/rest/): what pm-api-gwy declares
+    # and validates the engine replies it forwards as, from the same spec.
+    out_rest = out_python / "rest"
+    artifacts.append(
+        Artifact(
+            path=out_rest / "__init__.py",
+            content=rest_gen.render_init(families, f"{spec_root.name}/messages/*.yaml"),
+            label=f"{out_python.name}/rest/__init__.py",
+        )
+    )
     for family in families:
         label = _spec_label(spec_root, family.family)
         artifacts.append(
@@ -87,6 +98,13 @@ def build_artifacts(
                 path=out_python / f"{family.family}.py",
                 content=py_gen.render_family(family, label),
                 label=f"{out_python.name}/{family.family}.py",
+            )
+        )
+        artifacts.append(
+            Artifact(
+                path=out_rest / f"{family.family}.py",
+                content=rest_gen.render_family(family, label),
+                label=f"{out_python.name}/rest/{family.family}.py",
             )
         )
         has_external = any(

@@ -174,7 +174,7 @@ async def test_read_only_key_gets_halts() -> None:
         authorization=f"Bearer {READ_ONLY_KEY}",
     )
     assert status == 200
-    assert body == {"halted": [{"symbol": "AAPL"}]}
+    assert body == {"halted": [{"symbol": "AAPL"}], "count": 1}
 
 
 @pytest.mark.anyio

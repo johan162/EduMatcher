@@ -255,15 +255,14 @@ def test_symbols_are_case_normalised() -> None:
     assert s.matches("AAPL", "book")
 
 
-def test_ack_reports_items_legacy_fields_and_always_on_channels() -> None:
+def test_ack_reports_items_and_always_on_channels() -> None:
     s = Subscription()
     s.apply(_sub(items=[{"symbols": ["AAPL"], "channels": ["depth"]}]))
     described = s.describe()
 
     assert described["items"] == [{"symbols": ["AAPL"], "channels": ["depth"]}]
-    # Legacy keys retained so an existing client parsing the ack still works.
-    assert described["symbols"] == ["AAPL"]
-    assert described["channels"] == ["depth"]
+    # WP-API04: the lossy legacy `symbols`/`channels` keys are gone.
+    assert set(described) == {"items", "always", "rejected"}
     # And the undocumented always-on behaviour is now discoverable.
     assert described["always"] == list(ALWAYS_ON_CHANNELS)
 

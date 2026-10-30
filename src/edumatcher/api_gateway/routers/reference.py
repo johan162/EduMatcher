@@ -12,6 +12,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 
 
 from edumatcher.api_gateway import openapi_docs as docs
+from edumatcher.api_gateway.responses import (
+    Company,
+    ConfigVersion,
+    HaltList,
+    News,
+    Positions,
+    QuoteLegList,
+    QuoteList,
+    ReferenceIndexes,
+    ReferenceRiskView,
+    ReferenceScheduleView,
+    ReferenceSymbols,
+    Session as SessionReply,
+    Status,
+    SymbolList,
+)
+from edumatcher.api_gateway.routing import ContractRoute
+from edumatcher.api_gateway.params import SymbolPath
 from edumatcher.api_gateway.sessions import (
     Session,
     auth,
@@ -20,6 +38,7 @@ from edumatcher.api_gateway.sessions import (
 )
 from edumatcher.audit.archive import session_timezone
 from edumatcher.compdb import store as compdb
+from edumatcher.models.generated.rest.system import Reference
 from edumatcher.stats.trading_day import timezone_name, trading_date
 from edumatcher.clearing.query import (
     PeriodRealizedPnl,
@@ -37,7 +56,7 @@ from edumatcher.models.generated.system import (
     topic_symbols,
 )
 
-router = APIRouter(prefix="/api/v1", tags=["reference"])
+router = APIRouter(prefix="/api/v1", tags=["reference"], route_class=ContractRoute)
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +90,11 @@ def _period_realized_pnl(
         return None
     finally:
         conn.close()
+
+
+def _counted(reply: dict[str, Any], key: str) -> dict[str, Any]:
+    """Add the D6 ``count`` of the reply's list under *key*."""
+    return {**reply, "count": len(reply.get(key, []))}
 
 
 async def _request_reply(
@@ -135,6 +159,7 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
 
 @router.get(
     "/reference",
+    response_model=Reference,
     summary="Full reference bundle",
     description=(
         "Everything static about the venue in one round trip: tradable symbols with "
@@ -144,7 +169,7 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
         "since you last looked. Open to read-only keys."
     ),
     responses=docs.merge(
-        docs.ok(docs.REFERENCE_BUNDLE, "The compiled reference-data bundle.")
+        docs.ok(docs.REFERENCE_REPLY, "The compiled reference-data bundle.")
     ),
 )
 async def reference_bundle(
@@ -155,6 +180,7 @@ async def reference_bundle(
 
 @router.get(
     "/reference/config-version",
+    response_model=ConfigVersion,
     summary="Reference config version",
     description=(
         "Just the `config_version` hash of the reference bundle -- a cheap way to "
@@ -171,6 +197,7 @@ async def reference_config_version(
 
 @router.get(
     "/reference/symbols",
+    response_model=ReferenceSymbols,
     summary="Reference: symbols",
     description=(
         "Per-symbol static configuration. `tick_decimals` is the price scale (2 means "
@@ -181,7 +208,7 @@ async def reference_config_version(
         "previous close) use `GET /symbols`."
     ),
     responses=docs.merge(
-        docs.ok(docs.REFERENCE_SYMBOLS, "One entry per tradable symbol.")
+        docs.ok(docs.REFERENCE_SYMBOLS_REPLY, "One entry per tradable symbol.")
     ),
 )
 async def reference_symbols(
@@ -193,12 +220,14 @@ async def reference_symbols(
     # complete, so there is nothing to default.
     return {
         "symbols": bundle["symbols"],
+        "count": len(bundle["symbols"]),
         "config_version": bundle["config_version"],
     }
 
 
 @router.get(
     "/reference/risk",
+    response_model=ReferenceRiskView,
     summary="Reference: risk levels",
     description=(
         "The named risk levels (price-collar presets) a symbol's `level` refers to, "
@@ -217,26 +246,31 @@ async def reference_risk(
 
 @router.get(
     "/reference/indexes",
+    response_model=ReferenceIndexes,
     summary="Reference: indexes",
     description=(
         "Configured exchange indexes: id, description, base value and constituents. "
         "Static configuration only; the live level is on the market-data WebSocket and"
         " in `GET /history/index-daily`."
     ),
-    responses=docs.merge(docs.ok(docs.REFERENCE_INDEXES, "The configured indexes.")),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_INDEXES_REPLY, "The configured indexes.")
+    ),
 )
 async def reference_indexes(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
     return {
-        "indexes": bundle.get("indexes", []),
-        "config_version": bundle.get("config_version"),
+        "indexes": bundle["indexes"],
+        "count": len(bundle["indexes"]),
+        "config_version": bundle["config_version"],
     }
 
 
 @router.get(
     "/reference/schedule",
+    response_model=ReferenceScheduleView,
     summary="Reference: trading schedule",
     description=(
         "The resolved weekly trading schedule (local wall-clock times per weekday, "
@@ -260,6 +294,7 @@ async def reference_schedule(
 
 @router.get(
     "/symbols",
+    response_model=SymbolList,
     summary="My tradable symbols",
     description=(
         "The symbols the caller can trade, resolved for the caller's gateway. Beyond "
@@ -268,19 +303,23 @@ async def reference_schedule(
         "is the last session's closing price when there is one. Requires a trading "
         "key."
     ),
-    responses=docs.merge(docs.ok(docs.SYMBOLS, "Tradable symbols for this gateway.")),
+    responses=docs.merge(
+        docs.ok(docs.SYMBOLS_REPLY, "Tradable symbols for this gateway.")
+    ),
 )
 async def symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
-    return await _request_reply(
-        request, "symbols", topic_symbols(gateway_id), gateway_id
+    return _counted(
+        await _request_reply(request, "symbols", topic_symbols(gateway_id), gateway_id),
+        "symbols",
     )
 
 
 @router.get(
     "/news",
+    response_model=News,
     summary="Latest news",
     description=(
         "Headlines from the market simulator (`pm-market-sim`), oldest first, plus "
@@ -289,7 +328,9 @@ async def symbols(
         "or RETRACTED; `sentiment` runs from -1 (bad) to +1 (good). Any key, read-only"
         " included. Empty lists when the simulator is not running."
     ),
-    responses=docs.merge(docs.ok(docs.NEWS, "Recent headlines and the sector map.")),
+    responses=docs.merge(
+        docs.ok(docs.NEWS_REPLY, "Recent headlines and the sector map.")
+    ),
 )
 async def news(
     request: Request,
@@ -303,11 +344,12 @@ async def news(
     symbols each sector holds. Any key, read-only ones included: news is
     public. Empty when pm-market-sim is not running."""
     snapshot: dict[str, Any] = request.app.state.sim.news_snapshot(limit)
-    return snapshot
+    return _counted(snapshot, "news")
 
 
 @router.get(
     "/companies/{symbol}",
+    response_model=Company,
     summary="Company profile",
     description=(
         "The fictional company behind a symbol: sector, history, management, and a set"
@@ -321,7 +363,9 @@ async def news(
     ),
 )
 async def company(
-    symbol: str, request: Request, session: Annotated[Session, Depends(auth)]
+    symbol: SymbolPath,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:
     """One company profile from ``<DATA_DIR>/companies.db`` (pm-compdb-cli's
     default), stored and derived columns alike, opened read-only. Any key,
@@ -381,6 +425,7 @@ async def fetch_session(request: Request, correlation: str) -> dict[str, Any]:
 
 @router.get(
     "/session",
+    response_model=SessionReply,
     summary="Session state",
     description=(
         "The venue's current trading phase: PRE_OPEN, OPENING_AUCTION, CONTINUOUS, "
@@ -407,6 +452,7 @@ async def session_state(
 
 @router.get(
     "/halts",
+    response_model=HaltList,
     summary="Halted symbols",
     description=(
         "Symbols currently halted, with when the halt lapses (`resume_at_ns`, absent "
@@ -414,7 +460,7 @@ async def session_state(
         "its `halt_source`. An empty list means nothing is halted. Any key, read-only "
         "included."
     ),
-    responses=docs.merge(docs.ok(docs.HALT_STATUS, "Currently halted symbols.")),
+    responses=docs.merge(docs.ok(docs.HALTS_REPLY, "Currently halted symbols.")),
 )
 async def halts(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -427,54 +473,65 @@ async def halts(
     otherwise leave a stale badge for the rest of the session.
     """
     correlation = correlation_id(session)
-    return await _request_reply(
-        request, "halts", topic_halt_status(correlation), correlation
+    return _counted(
+        await _request_reply(
+            request, "halts", topic_halt_status(correlation), correlation
+        ),
+        "halted",
     )
 
 
 @router.get(
     "/quotes",
+    response_model=QuoteList,
     summary="My active quotes",
     description=(
         "The caller's active market-maker quotes: both legs' order ids, sizes, "
         "remaining quantities, statuses and prices."
     ),
-    responses=docs.merge(
-        docs.ok(docs.QUOTE_BOOTSTRAP, "Active quotes for this gateway.")
-    ),
+    responses=docs.merge(docs.ok(docs.QUOTES_REPLY, "Active quotes for this gateway.")),
 )
 async def active_quotes(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
-    return await _request_reply(
-        request, "quote_bootstrap", topic_quote_bootstrap(gateway_id), gateway_id
+    return _counted(
+        await _request_reply(
+            request, "quote_bootstrap", topic_quote_bootstrap(gateway_id), gateway_id
+        ),
+        "quotes",
     )
 
 
 @router.get(
     "/quotes/legs",
+    response_model=QuoteLegList,
     summary="My quote legs",
     description=(
         "Every leg of the caller's quotes, one row per side, with filled and remaining"
         " quantity."
     ),
-    responses=docs.merge(docs.ok(docs.QUOTE_LEGS, "Quote legs for this gateway.")),
+    responses=docs.merge(
+        docs.ok(docs.QUOTE_LEGS_REPLY, "Quote legs for this gateway.")
+    ),
 )
 async def quote_legs(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
+    # Always the engine: the gateway's leg cache holds the legs alone, not the
+    # `recent`/`show_requested`/`complete` the reply is declared with.
     gateway_id = require_trading(session)
-    cache = request.app.state.engine.get_caches(gateway_id)
-    if cache.quote_legs:
-        return {"legs": list(cache.quote_legs.values())}
-    return await _request_reply(
-        request, "quote_legs", topic_quote_legs(gateway_id), gateway_id
+    return _counted(
+        await _request_reply(
+            request, "quote_legs", topic_quote_legs(gateway_id), gateway_id
+        ),
+        "legs",
     )
 
 
 @router.get(
     "/positions",
+    response_model=Positions,
     summary="My positions",
     description=(
         "Net position per symbol for the caller's own gateway. `net_qty` is signed "
@@ -483,14 +540,17 @@ async def quote_legs(
         " until a trade has printed. `realized_pnl_session`/`_mtd`/`_ytd` come from "
         "the clearing ledger and are `null` when clearing is not deployed."
     ),
-    responses=docs.merge(docs.ok(docs.POSITIONS, "Net positions, sorted by symbol.")),
+    responses=docs.merge(
+        docs.ok(docs.POSITIONS_REPLY, "Net positions, sorted by symbol.")
+    ),
 )
 async def positions(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     try:
-        return {"positions": await fetch_positions(request, gateway_id)}
+        rows = await fetch_positions(request, gateway_id)
+        return {"positions": rows, "count": len(rows)}
     except TimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -567,23 +627,23 @@ async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, A
 
 @router.get(
     "/status",
-    summary="Gateway status",
+    response_model=Status,
+    summary="Who am I",
     description=(
-        "A compact summary of this gateway's state: counts of cached orders and quote "
-        "legs, net positions, the symbols it knows, and its engine role. For ADMIN "
-        "gateways it also reports `gateway_count`, the number of connected gateways."
+        "The caller's gateway id and engine role (TRADER, MARKET_MAKER or ADMIN). "
+        "For ADMIN gateways it also reports `gateway_count`, the number of "
+        "connected gateways. Requires a trading key."
     ),
-    responses=docs.merge(docs.ok(docs.STATUS_TRADER, "Gateway summary.")),
+    responses=docs.merge(docs.ok(docs.STATUS_REPLY, "Gateway summary.")),
 )
 async def status_summary(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     engine = request.app.state.engine
-    summary = cast(dict[str, Any], engine.get_caches(gateway_id).status())
     timeout = request.app.state.config.timeouts.engine_reply_sec
     role = await engine.resolve_role(gateway_id, timeout)
-    summary["gateway_role"] = role
+    summary: dict[str, Any] = {"gateway_id": gateway_id, "gateway_role": role}
     if role == "ADMIN":
         engine.request_gateways(gateway_id)
         try:

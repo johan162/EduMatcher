@@ -108,7 +108,7 @@ class Subscription:
         return symbol is not None and (symbol, channel) in self._pairs
 
     def describe(self, rejected: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """The effective subscription, in both the new and the legacy shape."""
+        """The effective subscription, one item per symbol."""
         by_symbol: dict[str, list[str]] = {}
         for sym, ch in sorted(self._pairs):
             by_symbol.setdefault(sym, []).append(ch)
@@ -117,11 +117,6 @@ class Subscription:
                 {"symbols": [sym], "channels": sorted(chans)}
                 for sym, chans in sorted(by_symbol.items())
             ],
-            # Retained so a client parsing the previous ack still finds what it
-            # expects. Lossy by construction: it cannot represent per-symbol
-            # channels, which is the whole reason `items` exists.
-            "symbols": sorted(s for s, _ in self._pairs if s != _ANY_SYMBOL),
-            "channels": sorted({c for _, c in self._pairs}),
             "always": list(ALWAYS_ON_CHANNELS),
             "rejected": rejected or [],
         }

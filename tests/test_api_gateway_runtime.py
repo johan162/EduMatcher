@@ -18,6 +18,7 @@ from fastapi import HTTPException, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from edumatcher.api_gateway import engine_client, main
+from tests.api_gateway_harness import check_contract
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.market_cache import MarketDataCache
@@ -688,56 +689,56 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )
     session = Session(api_key="key", gateway_id="GW01", description="")
-    assert (
-        await history.history_orders(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            event_type=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 2
-    assert (
-        await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
-    )["count"] == 2
-    assert (
-        await history.history_fills(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 1
-    assert (
-        await history.history_trades(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            from_ts=None,
-            to_ts=None,
-            limit=500,
-        )
-    )["count"] == 1
-    assert (
-        await history.history_daily(  # test double
-            request,  # type: ignore[arg-type]
-            session,
-            symbol=None,
-            date=None,
-            # Called as a plain coroutine, so FastAPI is not here to resolve
-            # the Query() defaults these two carry for their from/to aliases.
-            from_date=None,
-            to_date=None,
-            limit=500,
-        )
-    )["count"] == 1
+    result = await history.history_orders(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        event_type=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_orders, result)
+    assert result["count"] == 2
+    result = await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
+    check_contract(history.history_order_lifecycle, result)
+    assert result["count"] == 2
+    result = await history.history_fills(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_fills, result)
+    assert result["count"] == 1
+    result = await history.history_trades(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    check_contract(history.history_trades, result)
+    assert result["count"] == 1
+    result = await history.history_daily(  # test double
+        request,  # type: ignore[arg-type]
+        session,
+        symbol=None,
+        date=None,
+        # Called as a plain coroutine, so FastAPI is not here to resolve
+        # the Query() defaults these two carry for their from/to aliases.
+        from_date=None,
+        to_date=None,
+        limit=500,
+    )
+    check_contract(history.history_daily, result)
+    assert result["count"] == 1
 
 
 def test_websocket_helper_functions() -> None:
@@ -809,12 +810,10 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     subscription = ws.Subscription()
     with pytest.raises(WebSocketDisconnect):
         await ws._receive_market_controls(controls, subscription)  # type: ignore[arg-type]  # test double
-    # The legacy ack keys keep their meaning; `items`, `always` and `rejected`
-    # are additive.
-    assert controls.sent[0]["data"]["symbols"] == ["AAPL"]
-    assert controls.sent[0]["data"]["channels"] == ["trades"]
-    assert controls.sent[1]["data"]["symbols"] == []
-    assert controls.sent[1]["data"]["channels"] == []
+    assert controls.sent[0]["data"]["items"] == [
+        {"symbols": ["AAPL"], "channels": ["trades"]}
+    ]
+    assert controls.sent[1]["data"]["items"] == []
     assert controls.sent[2]["type"] == "error"
 
     sender = FakeWebSocket([])
