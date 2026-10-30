@@ -321,119 +321,40 @@ order events.
 
 ## REST endpoints
 
-Base path: `/api/v1`.
+The per-endpoint contract (every path, argument, reply and error code) is the
+normative [REST API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md),
+and the machine-readable one is `GET /openapi.json` (Swagger at `/docs`), also
+committed as `spec/rest/openapi.json`. This chapter covers what an operator
+needs to run the gateway and help its users: what each group of endpoints
+depends on, what is cached and for how long, and the behaviours that surprise
+people.
 
-| Method   | Path                         | Auth          | Purpose                              |
-|----------|------------------------------|---------------|--------------------------------------|
-| `POST`   | `/orders`                    | trading       | Submit one order                     |
-| `DELETE` | `/orders/{order_id}`         | trading       | Cancel one order                     |
-| `PATCH`  | `/orders/{order_id}`         | trading       | Amend price and/or quantity          |
-| `POST`   | `/orders/{order_id}/replace` | trading       | Cancel then submit replacement       |
-| `GET`    | `/orders`                    | trading       | List live orders for the gateway     |
-| `GET`    | `/orders/{order_id}`         | trading       | Read cached order state              |
-| `POST`   | `/oco`                       | trading       | Submit OCO pair                      |
-| `DELETE` | `/oco/{oco_id}`              | trading       | Cancel OCO pair                      |
-| `POST`   | `/combos`                    | trading       | Submit combo order                   |
-| `DELETE` | `/combos/{combo_id}`         | trading       | Cancel combo                         |
-| `POST`   | `/quotes`                    | trading       | Submit two-sided quote               |
-| `DELETE` | `/quotes/{symbol}`           | trading       | Cancel quote for symbol              |
-| `POST`   | `/mass-cancel`               | trading       | Cancel all or symbol-scoped exposure |
-| `GET`    | `/symbols`                   | trading       | Instrument metadata                  |
-| `GET`    | `/session`                   | any valid key | Session phase, exchange timezone and today's trading date |
-| `GET`    | `/reference`                 | any valid key | Full compiled reference-data bundle  |
-| `GET`    | `/reference/config-version`  | any valid key | Content-hash version of reference data |
-| `GET`    | `/reference/symbols`         | any valid key | Tick sizes, risk level, collar/circuit-breaker config per symbol |
-| `GET`    | `/reference/risk`            | any valid key | Risk level definitions and the default level |
-| `GET`    | `/reference/indexes`         | any valid key | Configured exchange index definitions |
-| `GET`    | `/reference/schedule`        | any valid key | Session schedule, `sessions_enabled`, `country` |
-| `GET`    | `/quotes`                    | trading       | The caller's active quotes           |
-| `GET`    | `/quotes/legs`               | trading       | Quote leg state                      |
-| `GET`    | `/positions`                 | trading       | Net positions by symbol              |
-| `GET`    | `/status`                    | trading       | Who am I: gateway id and role        |
-| `GET`    | `/history/orders`            | trading       | Historical order lifecycle events    |
-| `GET`    | `/history/orders/{order_id}` | trading       | Full lifecycle for one order         |
-| `GET`    | `/history/fills`             | trading       | Historical fills                     |
-| `GET`    | `/history/trades`            | any valid key | Public trade log                     |
-| `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
-| `GET`    | `/history/price-snapshots`   | any valid key | Intraday instrument mid/bid/ask time series |
-| `GET`    | `/history/index-daily`       | any valid key | Daily index OHLC rows                |
-| `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
-| `GET`    | `/history/indexes`           | any valid key | Index IDs with recorded statistics   |
-| `GET`    | `/history/index-events`      | any valid key | Index structural/audit log (live pm-index round-trip) |
-| `GET`    | `/bootstrap/trader`          | any valid key | One-request TRADER/MM/ADMIN startup payload          |
-| `GET`    | `/bootstrap/mm`              | MARKET\_MAKER | One-request MARKET\_MAKER startup payload (adds quote state) |
-| `GET`    | `/bootstrap/admin`           | admin         | One-request ADMIN startup payload                   |
-| `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
+| Group | Paths | Depends on |
+|---|---|---|
+| Order entry | `/orders`, `/oco`, `/combos`, `/quotes`, `/mass-cancel` | the engine |
+| Account and live state | `/orders` (read), `/positions`, `/quotes` (read), `/symbols`, `/session`, `/halts`, `/status` | the engine, round trip per call |
+| Reference data | `/reference/*` | the engine (compiled config) |
+| History | `/history/*` | `pm-stats`' `stats.db`; `/history/index-events` asks `pm-index` |
+| Bootstrap | `/bootstrap/trader`, `/mm`, `/admin` | the engine, several queries in parallel |
+| Admin | `/admin/*` | the engine; rebalance asks `pm-index`; the audit view reads `audit_index.db` |
+| Health | `/healthz` | nothing; not in Swagger |
 
-Admin endpoints are documented separately under
-[Admin endpoints](#admin-endpoints).
+### Order entry in practice
 
-
-### Submit order
-
-```http
-POST /api/v1/orders?wait=ack
-Authorization: Bearer key-trader-demo
-Content-Type: application/json
-```
-
-```json
-{
-  "symbol": "AAPL",
-  "side": "BUY",
-  "order_type": "LIMIT",
-  "quantity": 100,
-  "tif": "DAY",
-  "price": 150.50,
-  "smp_action": "NONE",
-  "client_tag": "ui-42"
-}
-```
-
-| Field          | Required    | Notes                                                                             |
-|----------------|-------------|-----------------------------------------------------------------------------------|
-| `symbol`       | yes         | Instrument symbol                                                                 |
-| `side`         | yes         | `BUY` or `SELL`                                                                   |
-| `order_type`   | yes         | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
-| `quantity`     | yes         | Positive integer                                                                  |
-| `tif`          | no          | `DAY`, `GTC`, `ATO`, `ATC`; default `DAY`                                         |
-| `price`        | conditional | Required for `LIMIT`, `FOK`, `IOC`, `ICEBERG`, `STOP_LIMIT`                       |
-| `stop_price`   | conditional | Required for `STOP`, `STOP_LIMIT`; optional initial stop for `TRAILING_STOP`      |
-| `visible_qty`  | conditional | Required for `ICEBERG`, less than `quantity`                                      |
-| `trail_offset` | conditional | Required for `TRAILING_STOP`                                                      |
-| `smp_action`   | no          | Self-match prevention action                                                      |
-| `client_tag`   | no          | Opaque client correlation tag, echoed on order lifecycle events                    |
-
-A conditional field the `order_type` does not use is rejected with
-`400 VALIDATION` (`"LIMIT forbids trail_offset"`), not silently dropped. A
-`TRAILING_STOP` without `stop_price` starts its stop at the last trade price
-± `trail_offset`. OCO and combo legs follow the same per-type rule; an OCO leg
-cannot be `ICEBERG`, and a combo leg cannot be `ICEBERG` or `TRAILING_STOP`,
-because a leg has no field for `visible_qty` (or, on a combo, `trail_offset`).
-
-Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
-wait for the matching engine ACK until the configured timeout; the reply is
-then `200 OK`, because the body carries the outcome. The wait filters
-by `order_id` so concurrent requests on the same gateway receive their own ack.
-Rejected ACK payloads include `reject_code`, a stable machine-readable
-classification, alongside the human-readable `reason`. For example, a collar
-breach is surfaced as `"reject_code": "COLLAR_BREACH"` with the matching
-`reason` text such as `"collar breach"`.
-
-If the ACK does not arrive within `timeouts.wait_ack_sec`, the reply is still
-`202 Accepted` with the `order_id`, `status: "PENDING"` and `ack_timeout: true`.
-The order was sent; follow it on the private WebSocket or `GET /orders` rather
-than submitting it again. Any `4xx`/`5xx` on a write means nothing reached the
-engine.
-
-To make a retry after a dropped connection safe, send an `Idempotency-Key`
-header (a UUID per logical request) on `POST /orders`, `/oco`, `/combos`,
-`/quotes` or `/orders/{order_id}/replace`. A repeat with the same key from the
-same gateway is not sent again; it gets the first reply, marked
-`Idempotent-Replayed: true`. The same key on a different request is
-`409 IDEMPOTENCY_KEY_REUSED`. Keys are kept for `order_retention_sec` and are
-lost on a gateway restart. See
-[Write outcomes and safe retries](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#write-outcomes-and-safe-retries).
+- **Per-type fields.** Which of `price`, `stop_price`, `visible_qty` and
+  `trail_offset` each `order_type` needs is one rule shared by REST, ALF, BALF
+  and the engine: a missing field is `MISSING_FIELD`, one the type does not use
+  is `UNSUPPORTED_FIELD`, never silently dropped.
+- **Waiting for the verdict.** Writes answer `202` at once; `?wait=ack` holds
+  the reply until the engine's verdict (`200`) or `timeouts.wait_ack_sec`. A
+  late verdict is still `202`, with the id and `ack_timeout: true`: the order
+  was sent, so users must follow it, never resubmit it. Any `4xx`/`5xx` on a
+  write means nothing reached the engine.
+- **Safe retries.** An `Idempotency-Key` header makes a retry after a dropped
+  connection safe: a repeat is answered with the first reply
+  (`Idempotent-Replayed: true`) instead of a second order. Keys live in the
+  gateway process for `order_retention_sec` and are lost on restart.
+  `client_tag` is not an idempotency key.
 
 ```bash
 curl -s -X POST "$GW/api/v1/orders?wait=ack" \
@@ -442,1330 +363,212 @@ curl -s -X POST "$GW/api/v1/orders?wait=ack" \
   -d '{"symbol":"AAPL","side":"BUY","order_type":"LIMIT","quantity":100,"price":187.25}'
 ```
 
-`client_tag` is not an idempotency key. It is optional, opaque, and not checked
-for uniqueness by the gateway or engine.
+See [Write outcomes and safe retries](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#write-outcomes-and-safe-retries).
 
 #### Tick precision
 
 `price`, `stop_price` and `trail_offset` must be exact multiples of the
-instrument's tick size, which `GET /reference/symbols` reports per symbol as
-`tick_decimals`. A price that is not is rejected with `400` and
-`reject_code: TICK_VIOLATION`:
-
-```json
-{
-  "error": {
-    "code": "VALIDATION",
-    "message": "100.005 is not a multiple of AAPL's tick size 0.01",
-    "field": "price",
-    "reject_code": "TICK_VIOLATION",
-    "client_tag": "CT-1"
-  }
-}
-```
-
-The gateway refuses rather than rounds. Rounding would rest your order at a
-price you never sent and never tell you, and on a 4-decimal instrument the
-difference is not a rounding error at all.
-
-Ordinary floating-point arithmetic is safe: a price computed as
-`100.00 - 3 * 0.01` is `99.97000000000001` in binary floating point and is
-accepted as `99.97`. The check compares against the tick grid with a tolerance,
-not with an exact modulo.
+instrument's tick size (`tick_decimals` in `GET /reference/symbols`). A price
+that is not is refused with `400`, `reject_code: TICK_VIOLATION`, not rounded:
+rounding would rest an order at a price the client never sent. The check
+tolerates ordinary floating-point error (`100.00 - 3 * 0.01` is accepted as
+`99.97`).
 
 !!! note "`503 SYMBOLS_NOT_READY` right after startup"
     The gateway learns each instrument's tick precision from the engine when it
-    authenticates. An order submitted in the window before that arrives is
-    answered `503` with `reject_code: SYMBOL_NOT_READY` rather than converted
-    against a default precision that may be wrong for the symbol. It is
-    transient — retry, and note that only order-entry routes are affected.
-
-
-### Cancel, amend, and replace
-
-| Operation                         | Payload                                               |
-|-----------------------------------|-------------------------------------------------------|
-| `DELETE /orders/{order_id}`       | no body; optional `?request_tag=...` query            |
-| `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200, "request_tag": "req-1" }`, or both |
-| `POST /orders/{order_id}/replace` | same shape as `POST /orders`                          |
-
-`?wait=ack` is not limited to `POST /orders`: `DELETE /orders/{order_id}`,
-`PATCH /orders/{order_id}`, `POST /oco`, `POST /combos` and `POST /quotes` also
-accept it, waiting on the matching `order.cancelled.*`, `order.amended.*`,
-`oco.ack`, `combo.ack` or `quote.ack` event the same way. `POST
-/orders/{order_id}/replace` always waits for the original's cancel before
-submitting the replacement (on the same symbol); a refused cancel is
-`409 REPLACE_REJECTED` and nothing is sent. Its `?wait=ack` also waits for the
-replacement's ACK (see [Implementation notes](#implementation-notes-and-design-deviations)).
-
-For cancel and amend, `request_tag` identifies one request against an order.
-When supplied, the API forwards it to the engine, uses it to match `?wait=ack`
-responses, and echoes it in the pending response and resulting event. It is
-different from `client_tag`, which identifies the original order.
-
-
-### OCO, combos, quotes, and mass cancel
-
-| Endpoint | Minimal payload |
-|---|---|
-| `POST /oco` | `{ "oco_id":"tp-sl-1", "symbol":"AAPL", "quantity":100, "leg1":{"side":"SELL","order_type":"LIMIT","price":152.0}, "leg2":{"side":"SELL","order_type":"STOP","stop_price":147.0} }` |
-| `POST /combos` | `{ "combo_id":"spread-1", "legs":[{"symbol":"AAPL","side":"BUY","quantity":100,"price":150.0},{"symbol":"MSFT","side":"SELL","quantity":100,"price":410.0}] }` |
-| `POST /quotes` | `{ "symbol":"AAPL", "bid_price":150.0, "bid_qty":500, "ask_price":150.1, "ask_qty":500 }` |
-| `POST /mass-cancel` | `{ "symbol":"AAPL" }` or `{}` for all symbols |
-
-
-### Orders, positions, and reference data
-
-| Endpoint | Returns | Notes |
-|---|---|---|
-| `GET /orders` | `{ "orders": [...] }` | The caller's orders as the engine holds them (resting plus recently finished); `503 ENGINE_TIMEOUT` if the engine does not answer — there is no silent fallback to the gateway's cache |
-| `GET /orders/{order_id}` | The cached order dict for `order_id` | Read-only, served entirely from the gateway's local cache (no engine round-trip); `404 UNKNOWN_ORDER` if not found |
-| `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
-| `GET /session` | `{ "state", "sessions_enabled", "next", "session_timezone", "session_date" }` | Phase from the engine's `system.session_status` reply, plus the exchange timezone (compiled config `locale.session_timezone`, the zone every history `date` filter uses) and today's trading date in it. Any key, read-only included |
-| `GET /quotes` | `{ "quotes": [...] }` | The caller's active market-maker quotes, round-tripped from the engine |
-| `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated — in which case only `legs` is present, `recent`/`show_requested`/`complete` are omitted entirely — otherwise round-tripped from the engine, which returns all four fields |
-| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "avg_cost", "last_price", "market_value", "unrealized_pnl", "realized_pnl_session", "realized_pnl_mtd", "realized_pnl_ytd"}, ...] }` | A genuine engine round trip on `system.position_request`/`system.position_snapshot.<gateway_id>` — the same pair `GET /admin/gateways/{gateway_id}/positions` uses for any gateway. Only `last_price` comes from this process's own local trade-price cache; `net_qty` always reflects the engine's live position, which survives a gateway restart |
-| `GET /halts` | `{ "halted": [{symbol, resume_at_ns?, level?, ...}] }` | `system.halt_status_request`; any key, read-only included. Used at bootstrap and on market-data reconnect |
-
-All of the round-tripped endpoints above return `503` with error code
-`ENGINE_TIMEOUT` if the engine doesn't reply within `timeouts.engine_reply_sec`.
-
+    authenticates. An order submitted before that arrives is answered `503`
+    with `reject_code: SYMBOL_NOT_READY` rather than converted against a
+    default precision that may be wrong for the symbol. It is transient: retry.
+    Only order-entry routes (and an admin reopen at a price) are affected.
 
 ### Reference data
 
-Base path: `/api/v1/reference`. These endpoints serve the engine's
-**compiled, static** reference data — the resolved settings a client needs to
-interpret prices and risk state correctly (tick sizes, resolved risk-band
-collars, circuit-breaker ladders, session schedule, index definitions)
-without parsing `engine_config.yaml` or depending on internal engine
-structures. They are distinct from `GET /symbols` and `GET /session`, which
-report *live* state (current halts, `prev_close`, current `SessionState`):
-reference data changes only when an admin reloads it.
-
-| Endpoint | Returns | Notes |
-|---|---|---|
-| `GET /reference` | The full bundle: `symbols`, `risk`, `indexes`, `schedule`, `config_version` | One call for a client that wants everything |
-| `GET /reference/config-version` | `{ "config_version": "..." }` | A content hash — see below |
-| `GET /reference/symbols` | `{ "symbols": [{symbol, tick_decimals, level?, collar?, order_limits?, circuit_breaker?}], "config_version":... }` | A list, not a map: each entry carries its own `symbol`, so a client can iterate without knowing the keys. `collar`/`order_limits`/`circuit_breaker` are omitted for a symbol with none configured. `order_limits` is `{max_order_qty, max_order_value}` |
-| `GET /reference/risk` | `{ "default_level"?:..., "levels": [{name, collar?}], "config_version":... }` | Risk-band definitions referenced by each symbol's `level`. `collar` is omitted for a level that configures none |
-| `GET /reference/indexes` | `{ "indexes": [{id, description, base_value, constituents}], "config_version":... }` | Configured exchange indexes; empty list if none configured |
-| `GET /reference/schedule` | `{ "sessions_enabled":..., "country"?:..., "schedule": {mon, tue, wed, thu, fri, sat, sun, holidays: {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, today: {...} \| null, today_is_holiday: bool, upcoming_holidays: [{date, name}]} \| null, "config_version":... }` | The resolved weekly table is nested under `schedule`, which is the same record `system.session_schedule` carries; each day (or `holidays`) is `null` for CLOSED. `today`/`today_is_holiday` are the engine's own resolution of which entry applies right now, so a client never needs its own holiday calendar. `upcoming_holidays` lists the bank holidays from the day the engine loaded its config through a year on, ascending; each runs on the `holidays` entry. `schedule: null` means no `schedule:` block is configured |
-
-All six accept any valid API key, including read-only (`gateway_id: null`)
-credentials — this is metadata, not account or order data. Every response
-round-trips to the engine (no gateway-side cache, so a reload is reflected
-immediately) and returns `503 ENGINE_TIMEOUT` under the same conditions as
-`GET /symbols`.
-
-```http
-GET /api/v1/reference/symbols
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{
-  "symbols": [
-    {
-      "symbol": "AAPL",
-      "tick_decimals": 2,
-      "level": "STANDARD",
-      "collar": { "static_band_pct": 0.20, "dynamic_band_pct": 0.02 },
-      "circuit_breaker": {
-        "reference_window_ns": 300000000000,
-        "levels": [
-          { "name": "L1", "price_shift_pct": 0.07, "halt_duration_ns": 300000000000 },
-          { "name": "L2", "price_shift_pct": 0.13, "halt_duration_ns": 900000000000 },
-          { "name": "L3", "price_shift_pct": 0.20, "halt_duration_ns": null }
-        ]
-      }
-    }
-  ],
-  "config_version": "3f2a9c1e7b0d4a5f"
-}
-```
+`/reference/*` serves the engine's **compiled, static** reference data: tick
+sizes, resolved risk-band collars, circuit-breaker ladders, the session
+schedule and index definitions, so a client never parses `engine_config.yaml`.
+It is distinct from `GET /symbols`, `/session` and `/halts`, which report
+*live* state. Every call round-trips to the engine (no gateway cache), so a
+reload shows at once. Any key may call it, read-only included.
 
 #### `config_version`
 
-A 16-character hex prefix of a SHA-256 hash over the compiled reference
-bundle, computed once when the engine loads or reloads its config — not
-recomputed per request. It changes if and only if the compiled reference
-data changes, so a client can cache reference data and cheaply poll
-`GET /reference/config-version` to know when to refetch, rather than diffing
-the full bundle. There is no other versioning scheme (no counter, no
-timestamp) — treat the string as opaque.
+A 16-character hex prefix of a SHA-256 hash over the compiled bundle, computed
+when the engine loads or reloads its config. It changes if and only if the
+reference data changes, so a client can cache the bundle and poll
+`GET /reference/config-version` to know when to refetch. Treat it as opaque.
 
 #### Reloading reference data
 
-`POST /api/v1/admin/reference/reload` (ADMIN-only) re-reads the same
-`engine_config.yaml` the engine started from and applies any change to tick
-sizes, risk-band collars, circuit-breaker ladders, the schedule, or index
-descriptions/constituents-within-an-unchanged-index-set.
+`POST /api/v1/admin/reference/reload` (ADMIN) re-reads the `engine_config.yaml`
+the engine started from and applies changes to tick sizes, collars, breaker
+ladders, the schedule and index descriptions. It is deliberately **narrower**
+than a restart:
 
-It is intentionally **narrower** than a full engine restart:
+- It never creates or removes an order book, re-seeds market-maker quotes, or
+  touches session or halt state.
+- A changed **symbol set or index-id set** is refused (`409 RELOAD_REJECTED`)
+  and nothing is applied: adding or removing an instrument needs a restart.
+- An engine started from a compiled config artifact refuses it: there is no
+  file to re-read.
 
-- It never creates or removes an order book, never re-seeds market-maker
-  quotes, and never touches session or halt state — those only happen once,
-  at engine startup, and re-running them mid-session would double-seed
-  quotes and republish trades.
-- If the reloaded file's **symbol set or index-id set differs** from what is
-  currently live, the reload is rejected with `409 RELOAD_REJECTED` and
-  nothing is applied — adding or removing an instrument still requires a
-  restart.
-- If the engine was started from a compiled config artifact rather than a
-  plain YAML file, reload is rejected — there is no single file to re-read.
-- Like other admin writes, it is subject to the per-key rate limit and
-  returns `503 ENGINE_TIMEOUT` if the engine doesn't reply in time.
-
-```http
-POST /api/v1/admin/reference/reload
-Authorization: Bearer key-admin-demo
-```
-
-```json
-{ "status": "RELOADED", "config_version": "9b7e21fa804c6d13" }
-```
-
-This is meant for controlled reloads in development/classroom mode — tuning
-a risk band or circuit-breaker threshold between drills without restarting
-the whole exchange — not for live production config changes.
-
+It is meant for tuning a band or threshold between classroom drills, not for
+live production changes.
 
 ### History endpoints
 
-Base path: `/api/v1/history`. Every endpoint except `/history/index-events`
-reads from `pm-stats`' SQLite database (`--stats-db PATH`, default
-`data/stats.db`); the gateway returns `503` with error code `STATS_DB` if
-that file does not exist yet (for example, before `pm-stats` has run at
-least once). `/history/index-events` is the one exception — see its own
-section below.
+Every `/history/*` endpoint except `/history/index-events` reads `pm-stats`'
+SQLite database (`--stats-db PATH`, default `data/stats.db`). Until `pm-stats`
+has created it, they answer `503 STATS_DB`: a normal state for a fresh venue,
+not a fault. `/history/orders` and `/history/fills` need a trading key and
+return only the caller's own records; the rest are public market data, open to
+read-only keys.
 
-`/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
-a trading credential and are scoped to that credential's `gateway_id` — they
-only ever return that gateway's own orders. `/history/trades`,
-`/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
-`/history/index-snapshots`, `/history/indexes`, and `/history/index-events`
-are public market data: any valid API key works, including read-only keys
-with no `gateway_id`.
+`/history/index-events` is the exception: `pm-index`'s structural log (index
+creation, corporate actions, constituent changes) lives only in `pm-index`'s
+own file, so the gateway asks `pm-index` live. It answers `503 INDEX_TIMEOUT`
+when `pm-index` is not running, whatever the state of `stats.db`.
 
-| Endpoint | Query parameters | Notes |
-|---|---|---|
-| `GET /history/orders` | `symbol`, `event_type` (one of `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO_ACK`, `COMBO_REJECT`, `COMBO_STATUS`, `OCO_ACK`, `OCO_REJECT`, `OCO_CANCEL`, `QUOTE_ACK`, `QUOTE_REJECT`, `QUOTE_STATUS`, `UNKNOWN`, `EVENT` — `400` on any other value), `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
-| `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
-| `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
-| `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
-| `GET /history/daily` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Omitting every time filter returns the latest available date; `from`/`to` (inclusive, dates not timestamps) return a series across days, oldest first |
-| `GET /history/price-snapshots` | `symbol` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday mid/bid/ask ticks (15-minute recording interval); unlike `/trades`/`/daily` there is no "all symbols" mode |
-| `GET /history/index-daily` | `index_id`, `date`, `from`, `to`, `limit`, `after` | Same shape as `/daily` but for exchange indexes, including the `from`/`to` range |
-| `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
-| `GET /history/indexes` | `date` | List of index IDs with recorded data; unpaginated |
-| `GET /history/index-events` | `index_id` (**required**), `from`, `to`, `types`, `max_records` | Structural/audit log; live round-trip to `pm-index`, not `pm-stats` — see below |
-
-#### Daily rollups: one date, or a series
-
-`/history/daily` and `/history/index-daily` answer two different questions
-depending on which time filter you pass:
-
-| Parameters | Result |
-|---|---|
-| *(none)* | The latest available date only |
-| `date=YYYY-MM-DD` | That one date |
-| `from=` and/or `to=` | Every date in range, **oldest first**; bounds are inclusive and either may be omitted |
-
-`from`/`to` here are **dates** (`YYYY-MM-DD`), unlike `/trades` and
-`/price-snapshots` where they are ISO timestamps — these tables are keyed by
-date, not by tick time. Passing `date` together with a range is not an error;
-the specific date wins.
-
-Use the range for anything spanning days, such as a multi-day OHLC chart.
-Without it, a month of bars would take one request per calendar day.
-
-```http
-GET /api/v1/history/daily?symbol=AAPL&from=2026-06-01&to=2026-06-30
-Authorization: Bearer key-readonly-demo
-```
-
-The cursor differs between the two modes. Within a single date, `symbol` (or
-`index_id`) alone identifies a row. Across a range it does not — the same
-symbol appears on every date — so the range cursor carries `(date, symbol)`.
-Both are opaque either way; just pass `next_cursor` back as `after`.
-
-#### Pagination
-
-Every list-returning endpoint wraps its rows in an envelope with `count` and
-`has_more` — a boolean that is `true` when the page came back full (exactly
-`limit` rows), meaning more rows may exist. When `has_more` is `true`, the
-response also includes `next_cursor`, an opaque string. Pass it back as the
-`after` query parameter to fetch the next page; omit it to start from the
-beginning. Cursors are keyset-based (not a row offset), so pages stay
-correct — no skipped or duplicated rows — even if new data is being written
-concurrently. Treat the cursor string as opaque: its internal shape is not a
-stable contract and may change between releases.
-
-!!! note "Pagination exceptions"
-    Three endpoints do not follow the `count`/`has_more`/`next_cursor` contract
-    above: `GET /history/indexes` and `GET /history/index-events` are each
-    documented separately below as intentionally unbounded/unpaginated.
-    `GET /history/orders/{order_id}` is also unbounded — it returns
-    `{ "events": [...], "count": N }` with **no `has_more` and no pagination at
-    all**, since it's a single order's full lifecycle rather than an
-    open-ended list.
-
-```http
-GET /api/v1/history/trades?symbol=EDU100&limit=2
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{
-  "trades": [
-    { "ts": "2026-06-14T09:00:00.000+00:00", "trade_id": "000042-000000001", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" },
-    { "ts": "2026-06-14T09:01:00.000+00:00", "trade_id": "000042-000000002", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" }
-  ],
-  "count": 2,
-  "has_more": true,
-  "next_cursor": "eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9"
-}
-```
-
-```http
-GET /api/v1/history/trades?symbol=EDU100&limit=2&after=eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9
-Authorization: Bearer key-readonly-demo
-```
-
-returns the next two trades, and so on until a response comes back with
-`has_more: false` and `next_cursor: null`. A malformed or expired-schema
-`after` value returns `400` with error code `VALIDATION` and `field: "after"`.
-
-`/history/indexes` has no `limit`/`after` — the number of distinct
-exchange indexes is always small (EduMatcher caps this at 5 per config
-file), so it is intentionally unbounded and unpaginated.
-
-```http
-GET /api/v1/history/price-snapshots?symbol=AAPL&from=2026-06-14T09:00:00%2B00:00&to=2026-06-14T16:30:00%2B00:00&limit=100
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{
-  "snapshots": [
-    { "ts": "2026-06-14T09:00:00.000+00:00", "symbol": "AAPL", "mid_price": 150.5, "best_bid": 150.0, "best_ask": 151.0, "pct_change": null },
-    { "ts": "2026-06-14T09:15:00.000+00:00", "symbol": "AAPL", "mid_price": 151.0, "best_bid": 150.5, "best_ask": 151.5, "pct_change": 0.3322 }
-  ],
-  "count": 2,
-  "has_more": false
-}
-```
-
-Rows come from `pm-stats`' periodic book snapshots — recorded at a fixed
-interval (15 minutes by default, overridable via `pm-stats --snapshot-interval
-SEC`), not on every tick. For live tick-by-tick mid-price movement, use the
-CALF `TOP` channel instead; this endpoint is for historical/charting use,
-not a substitute for a live feed. `pct_change` is the percent change versus
-the *previous recorded snapshot* for that symbol (not versus the day's
-open), and is `null` for the first snapshot recorded for a symbol since
-`pm-stats` started, since there is no prior snapshot to compare against.
-
-```http
-GET /api/v1/history/index-daily?index_id=EDU100&date=2026-06-14
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{
-  "daily": [
-    {
-      "date": "2026-06-14",
-      "index_id": "EDU100",
-      "open_level": 1042.10,
-      "high_level": 1056.30,
-      "low_level": 1040.05,
-      "close_level": 1048.73,
-      "close_session_state": "CLOSED",
-      "open_aggregate_cap": 7300000000000.0,
-      "close_aggregate_cap": 7350000000000.0,
-      "update_count": 512
-    }
-  ],
-  "count": 1,
-  "has_more": false
-}
-```
-
-!!! warning "`close_level` is only final once `close_session_state` is `CLOSED`"
-    `close_level` reflects the most recently recorded `index.update` for that
-    date. For a past date this is always final. For the current date, while
-    the session is still open, `close_level` is a live "latest tick so far"
-    and will keep changing — check `close_session_state == "CLOSED"` (or wait
-    for the date to roll over) before treating it as the official close. See
-    [Statistics & Reporting](../part-4-run-a-market/060-statistics-and-reporting.md#getting-the-eod-index-level-for-a-date).
-
-```http
-GET /api/v1/history/index-snapshots?index_id=EDU100&from=2026-06-14T09:00:00%2B00:00&to=2026-06-14T16:30:00%2B00:00&limit=100
-Authorization: Bearer key-readonly-demo
-```
-
-```http
-GET /api/v1/history/indexes
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{ "index_ids": ["EDU100", "EDUFIN"], "count": 2 }
-```
-
-If no exchange index is configured, or `pm-index`/`pm-stats` have not run
-yet, `index-daily`, `index-snapshots`, and `price-snapshots` return an empty
-list (not an error) and `index-ids` returns `{ "index_ids": [], "count": 0 }`.
-
-#### Index structural/audit events
-
-`/history/index-events` is unlike every other endpoint on this page: it does
-not read `pm-stats`' SQLite data at all. `pm-index`'s structural/audit log
-(index creation, corporate actions, constituent additions, delistings) lives
-only in `pm-index`'s own append-only file and is never mirrored into
-`pm-stats`, so answering this requires a live ZMQ request/reply round-trip to
-the `pm-index` process itself. Practically, this means:
-
-- It can return `503` with error code `INDEX_TIMEOUT` if `pm-index` is not
-  running or does not reply within the configured timeout — independent of
-  whether `stats.db` exists.
-- It can return `502` with error code `INDEX_ERROR` if `pm-index` rejects
-  the request (for example, an unknown `index_id`).
-- There is no `limit`/`has_more`/`after` pagination; `max_records` (default
-  and max 10,000) caps the reply size directly, matching `pm-index`'s own
-  request/reply contract.
-
-```http
-GET /api/v1/history/index-events?index_id=EDU100&from=1750000000&to=1760000000
-Authorization: Bearer key-readonly-demo
-```
-
-```json
-{
-  "events": [
-    { "type": "INIT", "timestamp": 1750000012.5, "index_id": "EDU100" },
-    { "type": "CORP_ACTION", "timestamp": 1751234000.0, "index_id": "EDU100", "action": "SPLIT", "symbol": "AAPL" }
-  ],
-  "count": 2
-}
-```
-
-`from`/`to` are Unix timestamps in seconds (not the ISO-8601 strings used by
-the SQLite-backed endpoints), defaulting to the last 30 days and now
-respectively — matching `pm-index`'s own defaults. `types` restricts the
-reply to a subset of `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`
-(repeat the query parameter for multiple values); omitting it returns all
-four. There are no level or end-of-day tick records here — use
-`/history/index-daily` and `/history/index-snapshots` for those.
-
+Lists are paginated with an opaque cursor; see the spec's
+[pagination contract](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#pagination-contract).
 
 ## Bootstrap endpoints
 
-Bootstrap endpoints collapse the 6–13 sequential REST calls a browser client
-currently needs at login into a single round-trip per role.  Sub-queries
-inside each handler run in parallel; the total wall-clock time is the slowest
-of the concurrent engine queries, not their sum.
-
-### How partial failures work
-
-Each response carries an `incomplete` array.  When any optional sub-query
-times out or errors, the corresponding field is set to `null` and its name is
-appended to `incomplete`.  The rest of the response is still valid and useful.
-Required fields — `reference`, `orders` and `positions` for
-`/bootstrap/trader` and `/bootstrap/mm`; `reference` for `/bootstrap/admin` —
-return `503 ENGINE_TIMEOUT` if they fail rather than a partial response,
-because the UI cannot render anything meaningful without them. `positions` is
-the same engine round trip as `GET /positions`: a fallback to the gateway's
-own fill cache would show flat positions after a gateway restart.
-
-### Role access
-
-| Endpoint | Allowed | Returns `403` for |
-|---|---|---|
-| `GET /api/v1/bootstrap/trader` | Any valid key | — |
-| `GET /api/v1/bootstrap/mm` | MARKET\_MAKER | TRADER, ADMIN, read-only |
-| `GET /api/v1/bootstrap/admin` | ADMIN | TRADER, MARKET\_MAKER, read-only |
-
-Read-only credentials (no `gateway_id`) may call `/bootstrap/trader`.  They
-receive `gateway_role: "READ_ONLY"`, empty `positions`, and empty `orders`
-without triggering any engine round-trip for those fields.
-
-### `fills_limit` query parameter
-
-`/bootstrap/trader` and `/bootstrap/mm` accept an optional `fills_limit`
-integer query parameter (default `50`, max `500`) that controls how many of
-today's fill events are returned in the `recent_fills` field.  The engine
-session timezone in the stats database determines what "today" means,
-consistent with `GET /api/v1/history/fills`.
-
-### Updated login sequence
-
-With a bootstrap endpoint the login sequence becomes:
-
-1. `GET /api/v1/bootstrap/<role>` — one HTTP request with parallel internal
-   engine queries; populates identity, reference data, session state, orders,
-   positions, and capability flags before any WebSocket opens.
-2. Open WebSockets in parallel — `/ws/private`, `/ws/market-data`, and (ADMIN)
-   `/ws/admin/monitor` — all of which can start immediately because
-   `gateway_id` and `gateway_role` are already known from step 1.
-
-For the full response shapes and error codes see
-[Appendix: REST API Reference — Bootstrap](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#bootstrap).
+`/bootstrap/trader`, `/bootstrap/mm` and `/bootstrap/admin` collapse the 6–13
+calls a client needs at login into one, running the engine queries in parallel.
+A sub-query that times out is reported in `incomplete` with its field `null`,
+and the rest of the payload is still delivered; only the required parts
+(`reference`, `orders`, `positions`; `reference` for admin) fail the whole call
+with `503 ENGINE_TIMEOUT`, because a client cannot start without them.
+Positions are always the engine's: a fallback to the gateway's own fill cache
+would show flat positions after a gateway restart.
 
 ## Admin endpoints
 
-Base path: `/api/v1/admin`.
-
-These endpoints require an API key whose `gateway_id` maps to an engine gateway
-configured with the `ADMIN` role (`participants[].role: ADMIN`). The gateway
-role is resolved from the engine at call time, not from the API credential.
-Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
+Every `/admin/*` route needs a key whose gateway holds the **ADMIN** role.
 
 !!! note "Role source"
     The API credential store does not carry role. The gateway resolves and
     caches the ADMIN role from the engine's gateway list reply, so the first
     admin call performs one extra engine round-trip.
 
-| Method | Path                              | Request body (POST) / query params (GET)    | Response                                        | Engine topic                |
-|--------|-----------------------------------|---------------------------------------------|-------------------------------------------------|-----------------------------|
-| `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"APPLIED", "command_id":... }` | `session.transition`        |
-| `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
-| `POST` | `/admin/gateways/{gateway_id}/disconnect` | `{ "reason":null }` (optional)      | `202 { "gateway_id":..., "status":"PENDING_DISCONNECT" }` (not awaited) | `system.gateway_disconnect` |
-| `POST` | `/admin/gateways/{gateway_id}/kill-switch` | `?symbol=` (optional); `{ "reason":null }` (optional) | engine gateway-targeted kill-switch ack | `risk.kill_switch_gateway`  |
-| `DELETE` | `/admin/gateways/{gateway_id}/quotes/{symbol}` | none                            | kill-switch ack, `quotes_only: true`            | `risk.kill_switch_gateway`  |
-| `GET`  | `/admin/gateways/{gateway_id}/orders` | none                                    | `{ "orders":[...], "count":N }` (engine-authoritative) | `order.orders_request` |
-| `GET`  | `/admin/gateways/{gateway_id}/positions` | none                                 | `{ "gateway_id":..., "count":N, "positions":[{symbol,net_qty,avg_cost}] }` | `system.position_request` |
-| `POST` | `/admin/symbols/{symbol}/halt`    | `{ "level": "L1", "reason":null }` (optional) | engine halt ack                               | `risk.symbol_halt`          |
-| `POST` | `/admin/symbols/{symbol}/resume`  | `{ "reason":null }` (optional)              | engine resume ack                               | `risk.symbol_resume`        |
-| `POST` | `/admin/symbols/{symbol}/cancel-orders` | `{ "reason":null }` (optional)        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
-| `POST` | `/admin/symbols/{symbol}/reopen`  | `{ "price":null, "dry_run":false, "reason":null }` (optional) | engine force-uncross ack | `risk.force_uncross` |
-| `GET`  | `/admin/symbols/{symbol}/orders`  | `?price=`                                   | `{ "symbol":..., "orders":[...], "count":N }`   | `order.price_level_orders_request` |
-| `POST` | `/admin/market/halt`              | none                                        | engine halt-all ack                             | `risk.circuit_breaker_halt_all` |
-| `POST` | `/admin/market/resume`            | none                                        | engine resume-all ack                           | `risk.circuit_breaker_resume_all` |
-| `GET`  | `/admin/market/volume`            | none                                        | `{ "symbols":[...], "count":N, "total_qty":..., ... }` | `system.volume_request` |
-| `POST` | `/admin/market/kill-switch`       | `{ "reason":null }` (optional)              | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
-| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
-| `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
-| `GET`  | `/admin/orders/{order_id}/audit`  | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
-| `POST` | `/admin/indexes/{id}/rebalance`   | `{ "updates":[{"symbol":"AAPL","new_shares_outstanding":123}] }` | pm-index rebalance ack | `index.rebalance` (pm-index, not the engine) |
-| `POST` | `/admin/reference/reload`         | none                                         | `{ "status":"RELOADED", "config_version":... }` | `system.reference_reload`   |
+The admin surface covers the venue (`/admin/market/halt`, `/resume`,
+`/kill-switch`, `/volume`, `/session/transition`, `/reference/reload`), single
+symbols (`/admin/symbols/{symbol}/halt`, `/resume`, `/reopen`,
+`/cancel-orders`, `/orders`), single participants (`/admin/gateways`,
+`/admin/gateways/{gateway_id}/disconnect`, `/kill-switch[?symbol=]`,
+`/orders`, `/positions`, `/quotes/{symbol}`), live risk (`/admin/risk/state`),
+order audit (`/admin/orders/{order_id}/audit`) and index rebalancing. Each is
+specified in the REST API Reference; the points below are what operators ask
+about.
 
-Behaviour notes:
-
-- `POST /admin/session/transition` waits for the engine's verdict and returns
-  `status: APPLIED` with a `command_id`, or **409 `TRANSITION_REJECTED`** when
-  the engine will not perform it (sessions not enabled, unknown state). It was
-  previously fire-and-forget, which meant a rejected request was
-  indistinguishable from a slow one. `to_state` must be a valid `SessionState`
-  (`PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`).
-  See [Command correlation](#command-correlation).
-- The circuit-breaker and kill-switch endpoints wait for the matching engine ACK
-  and return `200` with it. When the engine refuses the command (an unknown
-  symbol, a symbol that is not halted) the gateway returns `409` with a
-  command-specific code — `HALT_REJECTED`, `RESUME_REJECTED` or
-  `KILL_SWITCH_REJECTED` — and the engine's reason as `message`.
-- `POST /admin/symbols/{symbol}/halt`'s `level`, when it names one of the
-  symbol's configured `circuit_breaker.levels`, runs the halt through the same
-  activation a price-triggered breaker uses — a real `resume_at_ns` and ACE
-  reopening corridor, picked up automatically on the next resume tick. Omit
-  it (or leave it `null`) for the previous behaviour: an indefinite halt
-  cleared only by an explicit `POST /admin/symbols/{symbol}/resume`. An
-  unrecognized level name, or a level on a symbol with no circuit breaker
-  configured, is rejected.
-- The target of every admin action is a path segment —
-  `/admin/symbols/{symbol}/...`, `/admin/gateways/{gateway_id}/...`,
-  `/admin/market/...` — case-insensitive. The body is optional and carries only
-  `reason` (plus `level` on a halt): a free-text note carried through to the
-  corresponding [`admin.action` monitor event](#adminaction-monitor-events)
-  under the key `note` (a disconnect's goes to the engine log); it is not
-  otherwise interpreted.
-- Write endpoints (`POST`) are subject to the same per-key write rate limit as
-  order entry and return `429` when the limit is exceeded.
-- Requests that receive no engine reply within the configured timeout return
-  `503` with error code `ENGINE_TIMEOUT` (or `INDEX_TIMEOUT` for the
-  `pm-index`-backed `/admin/indexes/{id}/rebalance`).
-
-### `POST /admin/gateways/{gateway_id}/kill-switch` and `/admin/market/kill-switch`
-
-Two admin-only kill-switch scopes beyond the self-service `POST /mass-cancel`
-(caller's own gateway) and `POST /admin/symbols/{symbol}/cancel-orders` (one
-symbol, every gateway):
-
-- **`/admin/gateways/{gateway_id}/kill-switch`** cancels every resting order
-  and quote belonging to that gateway, across every symbol (or one, with
-  `?symbol=`), without disconnecting it. Unlike `POST /mass-cancel`, the
-  caller (must hold the ADMIN role) and the affected gateway are different
-  participants. The target need not be connected, and the audit trail names
-  the ADMIN. `DELETE /admin/gateways/{gateway_id}/quotes/{symbol}` is the
-  same command limited to the quote.
-- **`/admin/market/kill-switch`** is the full-market emergency stop: every
-  resting order and quote, for every gateway, across every symbol, cancelled
-  outright. This is distinct from `POST /admin/symbols/{symbol}/halt`
-  applied symbol-by-symbol, or from a global circuit-breaker halt — those
-  stop *trading*, while resting orders remain; this cancels the resting
-  exposure itself. The response includes `affected_gateways`, the count of
-  distinct gateways that had something cancelled.
-
-Both return `409 KILL_SWITCH_REJECTED` with the engine's reason as `message`
-if the engine refuses.
-
-### `GET /admin/risk/state`
-
-Live per-symbol risk state — the current collar reference price and circuit
-breaker reference/trigger/expansion/corridor state, for every symbol that has
-either configured, halted or not:
-
-```json
-{
-  "symbols": [
-    {
-      "symbol": "AAPL",
-      "collar_reference_price": 150.25,
-      "circuit_breaker": {
-        "halted": false,
-        "reference_price": 150.10,
-        "trigger_price": null,
-        "triggered_level": null,
-        "expansion_index": 0,
-        "corridor_low": null,
-        "corridor_high": null,
-        "corridor_expansion": null,
-        "resume_at_ns": null
-      }
-    }
-  ]
-}
-```
-
-This is distinct from [`GET /reference/risk`](#reference-data) (static,
-named risk-level definitions shared across symbols) and from
-`GET /halts` (only the symbols currently halted, without the
-non-halted reference/reopening detail). Use `/admin/risk/state` when you need
-to see where a symbol's breaker actually stands right now, not just whether
-it has fired.
+- **Three kill-switch scopes.** `POST /mass-cancel` is self-service (the
+  caller's own gateway). `/admin/gateways/{gateway_id}/kill-switch` cancels one
+  participant's exposure (optionally one symbol) without disconnecting it,
+  whether or not it is connected, and the audit names the ADMIN.
+  `/admin/market/kill-switch` cancels every resting order and quote. A halt is
+  different: it stops *trading* and leaves resting orders in place.
+- **Reopening.** `/admin/symbols/{symbol}/reopen` uncrosses and clears a halt
+  in one step, at the natural equilibrium or an operator price; run it with
+  `dry_run` first to see the indicative print.
+- **Live risk state.** `/admin/risk/state` shows where each symbol's collar
+  and circuit breaker actually stand (reference, trigger, corridor) — unlike
+  `/reference/risk` (the static definitions) and `/halts` (only what is halted).
 
 ### Index administration (`pm-index` bridge)
 
-`POST /admin/indexes/{id}/rebalance` is the one place in this router that
-talks to `pm-index` instead of the engine — over
-its own ZMQ PULL/PUB pair, the same one
-[`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) uses for corporate actions and
-constituent changes. Live symbol add/update on the engine and full corporate
-actions/constituent changes on `pm-index` remain **not** exposed here — see
-the note below.
-
-The configured indexes (id, description, base_value, constituents — not live
-level/divisor) are [`GET /reference/indexes`](#reference-data); for the
-current level, use [`GET /history/index-daily`](#history-endpoints).
-
-`POST /admin/indexes/{id}/rebalance` applies a batch shares-outstanding
-update to existing constituents — each entry in `updates` mirrors the
-`SHARES_ISSUANCE` corporate action applied to one symbol, but the whole batch
-is validated (unknown symbols, non-positive share counts, duplicates) before
-any of it is applied, and the index level is recomputed and published once
-for the batch rather than once per symbol:
-
-```http
-POST /api/v1/admin/indexes/EDU100/rebalance
-Authorization: Bearer key-admin-demo
-```
-
-```json
-{ "updates": [ { "symbol": "AAPL", "new_shares_outstanding": 16500000000 } ] }
-```
-
-```json
-{
-  "accepted": true,
-  "reason": "",
-  "timestamp": 1750000000.0,
-  "updated_symbols": 1,
-  "index_id": "EDU100",
-  "level": 1048.90,
-  "divisor": 7123456.78
-}
-```
-
-A rejected batch returns `409 REBALANCE_REJECTED` with the reason (which
-entry was invalid, or why); it can only fail once mutation has begun in the
-rare case where an *already-validated* update still fails inside the
-calculator (a non-positive aggregate cap) — whatever updates in the batch
-had already applied at that point stay applied, matching the same limitation
-the single-action corporate-action endpoint accepts. `rebalance` cannot add
-or remove constituents or an index's symbol set — that remains
-`pm-index-admin-cli`-only, same as splits, dividends, and delistings.
-
-!!! note "Not currently exposed"
-    Live symbol add/update on the engine is not exposed as a REST endpoint —
-    the engine loads its symbol universe once at startup, and adding one
-    mid-session would require creating an order book and seeding
-    market-maker quotes outside the startup path that currently owns both.
-    Corporate actions (splits, dividends, shares issuance as a single-symbol
-    action) and constituent add/delist on `pm-index` are also not exposed
-    here — only the batch shares-outstanding `rebalance` above is. Use
-    [`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md) for those.
-    [`pm-index-cli`](../part-3-run/020-admin-console-and-commands.md#pm-index-cli-index-structuralaudit-history-query-tool)
-    is unrelated to `pm-index`'s ZMQ sockets: it is a read-only tool that
-    parses `pm-index`'s structural/audit JSONL files directly from disk.
+`POST /admin/indexes/{index_id}/rebalance` is the one admin route that talks to
+`pm-index` instead of the engine. It applies a batch of shares-outstanding
+updates, validated as a whole before any is applied, and republishes the level
+once. A refusal is `409 REBALANCE_REJECTED` with the reason. Splits, dividends,
+constituent additions and delistings are not exposed over REST: use
+[`pm-index-admin-cli`](../part-4-run-a-market/080-index-administration.md).
+Adding a symbol to the engine mid-session is not possible at all; the engine
+loads its symbol universe at startup.
 
 ### `admin.action` monitor events
 
-Every admin-gated **engine** command above — circuit-breaker trigger/resume
-and all three kill-switch scopes — publishes one `admin.action` event on the
-[`/api/v1/ws/admin/monitor`](#websocket-endpoints) WebSocket in addition to
-(never instead of) its own REST response. This gives a monitor client one
-uniform shape to watch regardless of which command ran, rather than needing
-to know each command's own ack shape:
-
-```json
-{
-  "type": "admin.action",
-  "topic": "admin.action.ADMIN01",
-  "ts": "2026-08-05T09:30:00.000Z",
-  "data": {
-    "command_id": "cmd-...",
-    "initiator_gateway_id": "ADMIN01",
-    "action": "circuit_breaker.trigger",
-    "scope": { "symbol": "AAPL", "level": "L1", "note": "drill" },
-    "accepted": true,
-    "reason": ""
-  }
-}
-```
-
-`action` is one of `circuit_breaker.trigger`, `circuit_breaker.resume`,
-`kill_switch.self`, `kill_switch.symbol`, `kill_switch.gateway`,
-`kill_switch.global`. `scope` carries what the command acted on and what it
-did, and every key is optional because each `action` uses a different subset.
-The set is closed — since phase 6.1d it is a declared record, and a key
-outside it cannot reach the wire:
-
-| Key                        | Type       | Present on                                    |
-|----------------------------|------------|------------------------------------------------|
-| `symbol`                   | str        | the per-symbol actions                        |
-| `target_gateway_id`        | str        | `kill_switch.gateway`                         |
-| `level`                    | str        | `circuit_breaker.trigger`                     |
-| `note`                     | str        | any action carrying the request's `reason`    |
-| `cancelled_orders`         | int        | accepted kill switches                        |
-| `cancelled_order_ids`      | list[str]  | accepted kill switches — the ids `cancelled_orders` counts |
-| `cancelled_quotes`         | int        | accepted kill switches                        |
-| `cancelled_quote_order_ids`| list[str]  | accepted kill switches — the leg order ids `cancelled_quotes` counts |
-| `affected_gateways`        | int        | an accepted `kill_switch.global`              |
-| `affected_gateway_ids`     | list[str]  | an accepted `kill_switch.global` — the gateways `affected_gateways` counts |
-
-A key whose value is unset is **absent** rather than `null` (an id-list key
-follows the same rule: absent, not an empty list, when nothing was
-cancelled), and `scope` is `{}` on a rejection that named nothing. This event is admin-monitor-only: it
-never reaches a trading gateway's private stream or the public market-data
-stream, regardless of which gateway initiated it.
-
-!!! note "Index rebalance does not emit `admin.action`"
-    `POST /admin/indexes/{id}/rebalance` talks to `pm-index`, a separate
-    process from the engine that the admin-monitor fan-out is not wired to.
-    Its own REST response (and `pm-index`'s append-only structural history,
-    a `REBALANCE` record readable via `GET /history/index-events`) is
-    currently the only record of it — it does not appear on
-    `/api/v1/ws/admin/monitor`.
-
-### `GET /status`
-
-`GET /api/v1/status` answers who the caller is: `gateway_id` and
-`gateway_role` (the resolved `TRADER`/`MARKET_MAKER`/`ADMIN` role). When the
-caller holds the ADMIN role, the response also includes `gateway_count`, the
-number of currently connected gateways.
-
+Every admin-gated engine command (halts and resumes, the kill switches, a
+reopen) also publishes one `admin.action` event on
+[`/api/v1/ws/admin/monitor`](#websocket-endpoints): one uniform record of who
+ran what and what it did, so a monitor need not know each command's own ack.
+It never reaches a trading gateway's private stream or market data. Its
+fields are in the
+[message reference](../../protocols-and-clients/part-5-message-reference/010-message-reference.md#adminactiongateway_id).
+An index rebalance does not emit one: it is not an engine command.
 
 ## Cross-gateway admin views
 
-!!! warning "These endpoints read `pm-audit`'s database"
-    `GET /admin/orders/{order_id}/audit` opens **`audit_index.db` read-only**. This
-    is the only place the API gateway reads a store it does not own, and it
-    exists so the REST API can be a single stop rather than sending an
-    operator to `pm-audit-cli` for order history.
+Two views answer "what is happening across all participants", from different
+sources:
 
-    The dependency is **optional and read-only**. The gateway never writes the
-    file. If `pm-audit` is not deployed, or its index has not been built, that
-    one endpoint returns `503 AUDIT_INDEX_UNAVAILABLE` naming what to do and
-    **every other route is unaffected**. Configure the path with
-    `api_gateways[].audit_db`; see [Audit Trail](../part-6-observe-and-recover/020-audit-trail.md) for building
+- `GET /admin/orders` is the gateway's own **read model**: every order whose
+  events this gateway has seen since it started, filterable, no engine round
+  trip. It is current state bounded by
+  [order cache retention](#order-cache-retention), so it misses orders that
+  rested before the gateway started. `GET /admin/gateways/{gateway_id}/orders`
+  asks the engine and is authoritative for one participant.
+- `GET /admin/orders/{order_id}/audit` is one order's complete lifecycle, read
+  from `pm-audit`'s index.
+
+!!! warning "The audit view reads `pm-audit`'s database"
+    It opens **`audit_index.db` read-only** (`api_gateways[].audit_db`): the
+    only store the gateway reads but does not own. The dependency is optional:
+    without `pm-audit` or its index, that one route answers
+    `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. See
+    [Audit Trail](../part-6-observe-and-recover/020-audit-trail.md) for building
     the index.
-
-### `GET /api/v1/admin/orders`
-
-The cross-gateway active-order table. Served entirely from the gateway's own
-read model — no engine round-trip — because it already maintains a cache per
-gateway whose events pass through it.
-
-| Query | Effect |
-|---|---|
-| `symbol` | Restrict to one instrument (case-insensitive) |
-| `gateway_id` | Restrict to one participant (case-insensitive) |
-| `status` | Restrict to one order status |
-
-```json
-{
-  "count": 2,
-  "orders": [ { "order_id": "ORD-...", "gateway_id": "TRADER01", "symbol": "AAPL", "status": "NEW" } ],
-  "retention_sec": 3600
-}
-```
-
-!!! note "This is current state, not the day's history"
-    Terminal orders age out after `order_retention_sec` (see
-    [below](#order-cache-retention)), which is why the response repeats the
-    setting: a caller can tell what horizon it is being shown. For anything
-    older, use the lifecycle endpoint or the audit trail.
-
-`gateway_id` is added on the way out — order payloads do not carry it, it is
-the cache key.
-
-### `GET /api/v1/admin/orders/{order_id}/audit`
-
-The complete cross-gateway lifecycle of one order, in timestamp order, read
-from the audit index.
-
-```json
-{
-  "order_id": "ORD-...",
-  "count": 3,
-  "events": [
-    { "timestamp": "...", "topic": "order.ack.TRADER01", "gateway_id": "TRADER01", "symbol": "AAPL", "payload": "..." },
-    { "timestamp": "...", "topic": "order.fill.TRADER01", "...": "..." }
-  ]
-}
-```
-
-| Status | Meaning |
-|---|---|
-| `200` | Events found |
-| `404 UNKNOWN_ORDER` | The index has no events for that id |
-| `503 AUDIT_INDEX_UNAVAILABLE` | No audit index — `pm-audit` not running, or index not built |
-
-**Why not from the gateway's cache.** The cache folds each event into current
-state and keeps no history, so a lifecycle served from it would be a weaker
-duplicate of an audit trail that already exists, is complete across every
-gateway, and survives restarts.
 
 ### Order cache retention
 
-The in-memory order cache backs `GET /orders`, the private `orders.snapshot`
-frame, and `GET /admin/orders`. Terminal orders — `FILLED`, `CANCELLED`,
-`EXPIRED`, `REJECTED` — are evicted after **`order_retention_sec`** (default
-`3600`). Resting orders are never evicted regardless of age; positions are
-never affected, since forgetting the order that created one would not undo it.
-
-Set `order_retention_sec: 0` to disable eviction, accepting that the cache
-then grows for the lifetime of the process.
+The in-memory order cache backs `GET /orders/{order_id}`, the private
+`orders.snapshot` frame and `GET /admin/orders`. Terminal orders (`FILLED`,
+`CANCELLED`, `EXPIRED`, `REJECTED`) are evicted after **`order_retention_sec`**
+(default `3600`). Resting orders are never evicted, and positions are never
+affected. `order_retention_sec: 0` disables eviction, and the cache then grows
+for the lifetime of the process. The same horizon bounds how long
+`Idempotency-Key` replies are kept.
 
 ## WebSocket endpoints
 
 Every socket lives under `/api/v1/ws/`, so a reverse proxy can route upgrades by
-that one prefix.
-
-This section is a guided tour. The contract (frames, close codes, sequencing,
-flow control, the full event catalogue) is the normative
+that one prefix. The contract (frames, close codes, sequencing, flow control,
+the full event catalogue, recovery) is the normative
 [WebSocket API Reference](../../protocols-and-clients/part-2-specifications/070-websocket.md).
 
-| Path                       | Purpose                                                        | First message                         |
-|----------------------------|----------------------------------------------------------------|---------------------------------------|
-| `/api/v1/ws/private`       | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
-| `/api/v1/ws/market-data`   | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
-| `/api/v1/ws/admin/monitor` | ADMIN-only cross-gateway monitor feed (all events)             | `{ "api_key": "key-admin-demo" }`     |
-| `/api/v1/ws/admin/sim`     | ADMIN-only `pm-market-sim` true values and heartbeat           | `{ "api_key": "key-admin-demo" }`     |
-
-The `/api/v1/ws/admin/monitor` stream requires an ADMIN-role gateway. After
-authentication it sends `{ "type": "authenticated" }`, then a
-`monitor.snapshot`, and then streams every engine event (order, fill, cancel,
-session, and circuit-breaker) across all gateways. Non-admin keys receive an
-error frame and are disconnected.
-
-```json
-{
-  "type": "monitor.snapshot",
-  "ts": "2026-08-05T09:30:00.000Z",
-  "data": {
-    "orders":   [ { "order_id": "ORD-...", "gateway_id": "TRADER01", "status": "NEW" } ],
-    "halts":    { "halted": ["AAPL"] },
-    "gateways": { "gateways": [ { "id": "TRADER01", "role": "TRADER" } ] },
-    "last_seq": { "TRADER01": 9182 },
-    "incomplete": []
-  }
-}
-```
-
-As with the private stream, the event sink is registered **before** the
-snapshot is taken, so the worst case is a duplicate rather than an event lost
-in the window while the snapshot still looked complete.
-
-!!! note "`halts` and `gateways` come from the engine, not from local state"
-    The gateway's own view of connected participants covers only those that
-    authenticated through *this* API gateway instance. An admin monitor built
-    on it would silently omit every participant connected over ALF, BALF, or a
-    second API gateway — so the snapshot asks the engine for the venue-wide
-    answer instead.
-
-    Both queries are best-effort. If either times out the snapshot is still
-    delivered with that field `null` and its name listed in `incomplete`: a
-    monitor that opens with a partial view and says so is more useful than one
-    that refuses to open.
-
-!!! warning "There is no `monitor/events?from_seq=` replay endpoint"
-    Deliberately. It would need a bounded in-memory ring buffer, which would
-    be strictly weaker than what already exists — the audit trail is the
-    durable, complete, indexed cross-gateway event log, and it survives
-    restarts. Use `monitor.snapshot` for current state and
-    [`GET /admin/orders/{order_id}/audit`](#get-apiv1adminordersorder_idaudit) or
-    `pm-audit-cli` for history.
-
-### The event envelope
-
-Every event on every one of the three sockets uses the same envelope:
-
-```json
-{
-  "type": "order.fill",
-  "topic": "order.fill.TRADER01",
-  "seq": 4127,
-  "ts": "2026-06-24T10:15:03.221Z",
-  "gateway_id": "TRADER01",
-  "data": {
-    "order_id": "ORD-...",
-    "fill_qty": 50,
-    "fill_price": 150.50,
-    "remaining_qty": 50,
-    "status": "PARTIAL",
-    "liquidity_flag": "TAKER"
-  }
-}
-```
-
-| Field | Meaning |
-|---|---|
-| `type` | Stable public event type (`trade`, `book`, `depth`, `auction`, `session`, `circuit_breaker`, `news`, `order.fill`, …) |
-| `topic` | The engine topic the event came from, and what `seq` counts within |
-| `seq` | Monotonic sequence number **within `topic`**, starting at 1 |
-| `stream_seq` | Monotonic across **all** of one gateway's private events. Private events only — see [Private event recovery](#private-event-recovery) |
-| `ts` | Exchange time, not browser receipt time |
-| `gateway_id` | Present on private events only |
-| `data` | The event payload |
-
-`order.fill.data.liquidity_flag` is `"MAKER"` when this order was resting on
-the book and got matched into, `"TAKER"` when it crossed the spread and
-matched immediately — derived from the trade's aggressor side. Every current
-fill notification comes from a real trade, so in practice the field is
-always present; it is nullable/omittable only as a defensive schema
-allowance (mirroring `trade_ids`, which is likewise never actually empty
-today). The same attribution is available today from the drop-copy feed's
-own `order.fill` event (see [Drop Copy](../../protocols-and-clients/part-3-session-behaviour/060-drop-copy.md#orderfill-event));
-on this path it now needs no cross-reference — a client reading only its own
-private fills can tell which side of the spread it was on.
-
-When a STOP, STOP_LIMIT or TRAILING_STOP fires, the private stream carries an
-`order.triggered` event *before* the order's fills: `order_type` as armed,
-`stop_price_ticks` it fired at, the trade that reached it
-(`trigger_trade_id`, `trigger_price_ticks`; both absent when the last price
-came from a restart) and what it `becomes` (`MARKET` or `LIMIT`). Prices are
-integer ticks.
-
-Order lifecycle events — `order.ack`, `order.fill`, `order.cancelled`,
-`order.expired` — additionally carry the identifiers that tie the order to the
-structure it belongs to, when it belongs to one:
-
-| Field | Present when |
-|---|---|
-| `oco_group_id` | The order is one side of an OCO pair |
-| `combo_parent_id` | The order is a combo leg |
-| `leg_index` | The order is a combo leg (0-based) |
-| `quote_id` | The order came from a market-maker quote |
-
-They are **omitted rather than null** for an ordinary single order. This lets a
-consumer attribute a fill to its combo or OCO group without joining against its
-own record of the parent order — which after a reconnect it may not have.
-
-#### Unsolicited cancels: `order.cancelled`
-
-Not every `order.cancelled` answers a `DELETE` you sent. The exchange cancels
-orders on its own — self-match prevention, the unfillable remainder of a
-`MARKET` or `IOC` order, a kill switch, an OCO sibling, a `DAY` order at the
-close. Two fields tell you which happened:
-
-| Field | Meaning |
-|---|---|
-| `request_tag` | Present only when *you* asked. Absent means the exchange decided |
-| `cancel_reason` | Why the exchange decided. Absent on your own cancels |
-
-```json
-{
-  "type": "order.cancelled",
-  "topic": "order.cancelled.TRADER01",
-  "gateway_id": "TRADER01",
-  "data": {
-    "order_id": "ORD-7f3a",
-    "client_tag": "CT-1",
-    "cancel_reason": "SELF_MATCH_PREVENTED"
-  }
-}
-```
-
-| `cancel_reason` | Meaning |
-|---|---|
-| `SELF_MATCH_PREVENTED` | The order would have traded against another order from your own gateway. Which order is cancelled — the aggressor, the resting one, or both — depends on the `smp_action` in force |
-| `INSUFFICIENT_LIQUIDITY` | A `MARKET` or `IOC` order ran out of book. Any part that did trade is reported by the preceding `order.fill` events; this cancels the remainder, which never rests |
-
-`cancel_reason` is **absent, not null**, when you requested the cancel yourself.
-It is also absent on exchange-initiated cancels whose cause is not yet
-classified — a kill switch, a halt cascade, an expiry — so `request_tag` absent
-together with `cancel_reason` absent still means *the exchange did this, cause
-unstated*. Treat a value you do not recognise as unstated rather than failing:
-new members may be added, but existing ones are never removed or renamed.
-
-`cancel_reason` deliberately does **not** share the `reject_code` vocabulary. A
-cancel is not a rejection — the order was accepted, and may have traded — and
-almost no reject code could describe one.
-
-The same field is folded into the cached order, so `GET /orders/{order_id}`
-reports it too after the fact. `DELETE /orders/{order_id}` never returns one:
-that is your own cancel by definition.
-
-### Detecting dropped events
-
-Each WebSocket client has a bounded outbound queue. A client that reads more
-slowly than the market moves will have events **discarded** — that is
-deliberate, because one slow consumer must not stall the gateway for everyone
-else. `seq` is how you find out it happened.
-
-Track the last `seq` per `topic`. A jump means events were dropped:
-
-```python
-last: dict[str, int] = {}
-
-async for raw in websocket:
-    event = json.loads(raw)
-    topic, seq = event.get("topic"), event.get("seq")
-    if topic is not None and seq is not None:
-        previous = last.get(topic)
-        if previous is not None and seq != previous + 1:
-            print(f"gap on {topic}: {seq - previous - 1} event(s) lost")
-            # book/depth carry full state, so the next message re-syncs you.
-            # A missed trade can be replayed with a `resume` (see below),
-            # or refetched from the history endpoints if it aged out.
-        last[topic] = seq
-```
-
-!!! note "Why `seq` is per topic, not per connection"
-    A connection-wide counter would arrive with holes wherever an event was
-    filtered out by your subscription, so every client would see permanent
-    phantom gaps and none could tell those from real loss. Per-topic numbering
-    is contiguous for anyone receiving that topic at all. Key your gap
-    detection on `topic`, **not** on `type` — one type (`depth`) spans many
-    topics (`depth.AAPL`, `depth.MSFT`), each independently numbered.
-
-`book` and `depth` events carry **complete state**, not deltas, so a client
-that missed some simply takes the next one. Trades are the events worth
-reacting to: a dropped `trade` is not repeated on the live feed, but it can be
-recovered without leaving the socket — send a
-[`resume`](#market-data-snapshot-and-resume) with the last `seq` you saw, and
-the gateway replays the buffered prints (falling back to the
-[history endpoints](#history-endpoints) only when the gap is older than
-`market_data_cache_sec`).
-
-The server side of the same signal is on `GET /healthz`, which reports
-`dropped_events` per sink (`market_data`, `private`, `admin`). The gateway also
-logs a warning on the first drop per sink and every hundredth thereafter.
-
-### Command correlation
-
-Most commands already carry an identifier you can correlate on, and those are
-unchanged:
-
-| Command | Correlate on |
-|---|---|
-| `POST /orders` | `order_id` (returned in the 202, echoed on every later event) |
-| Combos / OCO | `combo_id` / `oco_id` |
-| Symbol halt / resume / cancel-symbol | `symbol` |
-| Quotes | `symbol`, `quote_id` |
-
-Two commands had nothing to correlate on, and both now issue a `command_id`:
-
-**Mass cancel / kill switch.** `risk.kill_switch_ack` echoes the `command_id`
-of the request that caused it. Before this, two concurrent mass cancels for one
-gateway were indistinguishable once both acks were in flight, and the gateway
-had to serialise them behind a per-gateway lock to stay correct. They now run
-concurrently.
-
-**Session transition.** `POST /admin/session/transition` waits for the
-engine's verdict on `session.transition_ack.{gateway_id}` and returns `200`:
-
-```json
-{ "requested_state": "CONTINUOUS", "status": "APPLIED", "command_id": "cmd-01j4..." }
-```
-
-A request the engine cannot perform — sessions not enabled, unknown state —
-now returns **409** with `TRANSITION_REJECTED` and the engine's reason. Those
-cases previously produced no reply at all, so a caller saw a timeout
-indistinguishable from a slow engine.
-
-The public `session.state` broadcast also carries this `command_id` now
-(absent for a schedule-driven transition, which has none to carry) — a
-third-party subscriber reconstructing the day's session history from the bus
-alone, rather than from this API's own response, can tie a transition back
-to the command that caused it without this endpoint's help.
-
-!!! note "Why not a `command_id` on everything"
-    A second identifier alongside a working one adds ambiguity rather than
-    removing it — particularly on `POST /orders`, which already accepts
-  `client_tag` for client correlation. The order lifecycle echo is where the
-  value is; echoing a `command_id` through every downstream event a command
-    causes (a mass cancel produces one `order.cancelled` per affected order)
-    is a much larger change for much less benefit, and the
-    [group identifiers](#the-event-envelope) already let a client attribute
-    those cascades.
-
-### Private event recovery
-
-`/api/v1/ws/private` is designed so a reconnecting client needs one socket and no
-REST calls to get back to a correct view.
-
-After authentication the gateway sends two frames, in this order:
-
-```json
-{ "type": "authenticated", "gateway_id": "TRADER01", "stream_seq": 9182 }
-```
-
-```json
-{
-  "type": "orders.snapshot",
-  "gateway_id": "TRADER01",
-  "stream_seq": 9182,
-  "ts": "2026-08-05T09:30:00.000Z",
-  "data": {
-    "orders": [ { "order_id": "ORD-...", "status": "NEW", "symbol": "AAPL" } ],
-    "positions": { "AAPL": 100 },
-    "quote_legs": []
-  }
-}
-```
-
-The snapshot is the gateway's own view of your order state, maintained from
-every engine event and **retained across disconnects** — so it is available
-immediately, without a round-trip to the engine. `stream_seq` names the point
-it is accurate as of: every subsequent event carries a higher `stream_seq`.
-
-The reconnect procedure is therefore:
-
-1. Connect and authenticate.
-2. Replace your local order state with `orders.snapshot`.
-3. Apply live events from there.
-
-!!! note "Duplicates are possible; gaps are not"
-    The event sink is registered *before* the snapshot is taken, so an event
-    landing in that window appears both in the snapshot and as a live event.
-    The reverse ordering would lose it silently while the snapshot still
-    looked complete. Order state is idempotent — applying an event twice
-    leaves the same result — so a duplicate is harmless and a gap is not.
-
-**`stream_seq` versus `seq`.** Both are on every private event. `seq` is
-per-topic, matching market data. `stream_seq` counts every event for your
-gateway across all topics, which is possible here only because this socket
-applies no filtering — you receive everything for your gateway. Tracking one
-`stream_seq` is simpler than tracking a `seq` per topic; use whichever suits.
-
-!!! warning "There is no `resume` for private events"
-    The gateway keeps no replay buffer, so a missed event cannot be re-sent.
-    It does not need to be: order *state* is recoverable in full from the
-    snapshot. What a snapshot cannot tell you is the transitions you missed —
-    an order that filled and was then cancelled appears simply as cancelled.
-    For the fills themselves use the [history endpoints](#history-endpoints);
-    the drop-copy feed is the authoritative fill record.
-
-### Market-data subscriptions
-
-Two accepted forms. The flat form applies one channel set to one symbol set:
-
-```json
-{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades"] }
-```
-
-The `items` form lets each rule have its own symbols, which is the only way to
-express different channels for different instruments:
-
-```json
-{
-  "action": "subscribe",
-  "items": [
-    { "symbols": ["*"],    "channels": ["book", "trades"] },
-    { "symbols": ["AAPL"], "channels": ["depth", "auction"] }
-  ]
-}
-```
-
-That subscribes to top-of-book and trades for every symbol, and the full depth
-ladder for `AAPL` only — the usual shape for an overview grid plus one focused
-instrument. The flat form cannot express it: it has a single symbol set shared
-by every channel, so asking for depth on `AAPL` asks for it on everything.
-
-Available channels are `book`, `trades`, `depth`, and `auction`. An empty or
-`["*"]` symbol list means every symbol. `unsubscribe` removes exactly the
-symbol/channel pairs named.
-
-The server acknowledges every control frame with the **effective**
-subscription:
-
-```json
-{
-  "type": "subscription",
-  "data": {
-    "items": [
-      { "symbols": ["*"],    "channels": ["book", "trades"] },
-      { "symbols": ["AAPL"], "channels": ["auction", "depth"] }
-    ],
-    "always": ["session", "circuit_breaker", "news"],
-    "rejected": []
-  }
-}
-```
-
-`items` is the effective subscription, one entry per symbol (`*` for every
-symbol).
-
-`rejected` reports rules that did nothing, rather than discarding them
-silently:
-
-| `reason` | Meaning |
-|---|---|
-| `no_channels` | The item named symbols but no channels, so it subscribed to nothing |
-| `wildcard_still_subscribed` | You unsubscribed a named symbol on a channel that also has a `"*"` rule, so events for it keep arriving |
-
-!!! warning "`session`, `circuit_breaker` and `news` are not subscribable"
-    They are delivered to every market-data client regardless of subscription,
-    and are reported under `always` in the ack. This is deliberate: a halt or a
-    session transition changes the meaning of every other channel, and a client
-    displaying a stale book during a halt is displaying something false.
-    `news` carries `pm-market-sim`'s headlines (a `news.event` payload as
-    `data`); there are a handful a day, and a headline can be about a whole
-    sector or the market, which no symbol subscription could express. Without
-    [`pm-market-sim`](../part-4-run-a-market/090-market-model.md) none arrive.
-
-!!! note "Behaviour change: accumulated subscriptions no longer widen"
-    Subscriptions are held as symbol/channel *pairs*. Previously they were two
-    separate accumulating sets whose cross product was delivered, so
-    subscribing `{AAPL, [book]}` and then `{MSFT, [depth]}` also delivered
-    depth for `AAPL` and book for `MSFT`. Each rule is now independent. A
-    single control frame behaves exactly as before.
-
-### Market-data snapshot and resume
-
-Unlike the private stream, market data can be recovered without a REST round
-trip: the gateway keeps a small in-memory cache of the latest `book`, `depth`,
-and `auction` snapshot per symbol, plus a time-bounded tail of recent `trade`
-prints. It serves that cache three ways.
-
-**Snapshot on subscribe.** A `subscribe` is answered — after the `subscription`
-ack — with the current cached snapshot for each newly matched symbol/channel,
-so a (re)subscribing client renders immediately instead of waiting for the next
-tick. When the cache is cold (nothing seen yet) the burst is simply empty and
-the client waits for the first live event. For `book` the gateway does not
-leave it at that: the engine publishes a book only when it changes, so a
-symbol that has been quiet since before the gateway started would otherwise
-never arrive. On a cold `book` the gateway asks the engine to republish it,
-and it arrives shortly after as an ordinary `book` event. This is additive:
-a client that ignores the extra frames is unaffected, since they are ordinary
-`book`/`depth`/`auction`/`trade` envelopes it already routes.
-
-**Explicit `snapshot`.** Re-request the current snapshot for some
-symbols/channels without changing the subscription — useful after a detected
-gap on a snapshot channel:
-
-```json
-{ "action": "snapshot", "items": [ { "symbols": ["AAPL"], "channels": ["book", "depth"] } ] }
-```
-
-**`resume`.** Recover the events missed on one stream after the last `seq` you
-processed:
-
-```json
-{ "action": "resume", "topic": "trade.executed", "symbols": ["AAPL"], "from_seq": 128400 }
-```
-
-The topic names the stream; a symbol-qualified topic (`book.AAPL`,
-`depth.AAPL`, `auction.result.AAPL`) carries its own symbol, while
-`trade.executed` takes it from `symbols`. What happens next depends on the
-channel:
-
-| Channel | `resume` behaviour |
-|---|---|
-| `trades` | Buffered prints with `seq > from_seq` are replayed. If `from_seq` predates the retained window, the server sends a `trades.reset`, then a `resume.rejected` with `reason: "too_old"`, then a fresh tail |
-| `book` / `depth` / `auction` | Self-healing — the current snapshot **is** the resume, so the latest snapshot is sent. These channels carry full state, not deltas, so there is nothing older to replay |
-
-You can also fold a resume into a `subscribe` with a per-item `resume_from`
-hint, mapping a channel to the last `seq` you saw:
-
-```json
-{
-  "action": "subscribe",
-  "items": [
-    { "symbols": ["AAPL"], "channels": ["trades"], "resume_from": { "trades": 128400 } }
-  ]
-}
-```
-
-`resume_from` is honoured for `trades` (prints after that `seq` are replayed
-instead of the whole tail) and ignored for the self-healing channels (which get
-a plain snapshot).
-
-Rejections arrive as a `resume.rejected` envelope rather than silently:
-
-```json
-{ "type": "resume.rejected", "ts": "...", "data": { "topic": "trade.executed", "from_seq": 100, "reason": "too_old" } }
-```
-
-| `reason` | Meaning |
-|---|---|
-| `too_old` | `from_seq` predates the retained `trades` window; a `trades.reset` and fresh tail follow |
-| `unknown_topic` | The topic is not a cached market-data topic, or nothing has ever been seen for it |
-
-!!! note "Retention is set by `market_data_cache_sec`"
-    Default 60 s. It bounds only the `trades` tail — the latest
-    `book`/`depth`/`auction` snapshot per topic is kept regardless of age, so a
-    snapshot is always available even for a symbol that has been quiet longer
-    than the window. `0` disables the trade buffer while still serving
-    snapshots. There is intentionally no on-disk retention: this is the
-    classroom/local scale the gateway targets, and older trades live in the
-    [history endpoints](#history-endpoints).
-
-!!! warning "This does not exist for private events"
-    `/api/v1/ws/private` keeps no replay buffer — see
-    [Private event recovery](#private-event-recovery). Market data can offer
-    `resume` because `book`/`depth`/`auction` are self-healing snapshots and
-    the `trades` tail is cheap to retain; private order state is recovered in
-    full from `orders.snapshot` instead.
-
-
-## Python REST example
-
-```python
-from api_gateway_client import ApiGatewayClient
-
-client = ApiGatewayClient("http://127.0.0.1:8080", "key-trader-demo")
-print(client.get_json("/api/v1/status"))
-print(client.get_json("/api/v1/symbols"))
-```
-
-Runnable examples live under `docs/examples/REST/python/`.
-
-
-## C REST example
-
-The C example uses a small POSIX socket helper for simple HTTP GET calls:
-
-```c
-ApiGatewayClient client = api_gateway_client("127.0.0.1", 8080, "key-trader-demo");
-char *body = api_gateway_get(&client, "/api/v1/status");
-puts(body);
-free(body);
-```
-
-Runnable examples live under `docs/examples/REST/c/`.
+| Path | Purpose | First message |
+|---|---|---|
+| `/api/v1/ws/private` | Private order, quote and risk events for one gateway | `{ "api_key": "key-trader-demo" }` |
+| `/api/v1/ws/market-data` | Public book, trades, depth, auctions, session, halts and news | `{ "api_key": "key-dashboard-demo" }` |
+| `/api/v1/ws/admin/monitor` | ADMIN-only feed of every engine event across all gateways | `{ "api_key": "key-admin-demo" }` |
+| `/api/v1/ws/admin/sim` | ADMIN-only `pm-market-sim` true values and heartbeat | `{ "api_key": "key-admin-demo" }` |
+
+What operators need to know:
+
+- **Slow clients lose events, they do not slow the venue.** Each socket has a
+  bounded queue; when it is full, events for that socket are dropped and the
+  socket stays open. `GET /healthz` reports `dropped_events` per stream
+  (`private`, `market_data`, `admin`), and the gateway logs a warning on the
+  first drop per stream and every hundredth after. A client detects its own
+  loss from a `seq` gap and recovers: the private stream by reconnecting (a
+  fresh `orders.snapshot`), market data by a `snapshot` or a trades `resume`.
+- **Trades are replayable for `market_data_cache_sec`** (60 s by default).
+  Older gaps fall back to `/history/trades`.
+- **The admin monitor has no replay.** On reconnect its `monitor.snapshot` is
+  current state; history is the audit trail. Its halts and gateway roster come
+  from the engine, not from this gateway, so participants connected over ALF,
+  BALF or another API gateway are included; if either query times out, the
+  snapshot says so in `incomplete` rather than refusing to open.
+- **Sequence numbers restart with the gateway.** A client must treat a lower
+  `seq` after a reconnect as a restart, not a gap.
+
+
+## Examples
+
+Runnable Python and C clients live under `docs/examples/REST/`: an order's
+whole lifecycle with safe retries, history paging, the private stream with gap
+recovery, market-data subscribe and resume, and an admin halt-and-reopen. They
+run against a real exchange in `make test-e2e`, so they stay working. See
+[Protocol Support Library Examples](../../protocols-and-clients/part-4-writing-clients/030-example-libraries.md#rest-api-support-library-and-examples).
 
 
 ## Implementation notes and design deviations
@@ -1975,118 +778,3 @@ curl -v --no-buffer \
 | An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}/audit` for its history |
 | `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |
-
-
-## Reference
-
-Quick index of the endpoints on this page, grouped by how the UI uses them.
-
-For the full normative request/response contract for each endpoint, see the
-[REST and WebSocket API Reference](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md).
-
-### Bootstrap
-
-Single-fetch startup payloads.  Any valid key for `/bootstrap/trader`;
-MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
-
-| Endpoint | Use |
-|---|---|
-| `GET /api/v1/bootstrap/trader` | Identity, reference, session, positions, orders, recent fills, capabilities |
-| `GET /api/v1/bootstrap/mm` | All of trader + quote bootstrap and quote legs |
-| `GET /api/v1/bootstrap/admin` | Reference, session, gateways, halts, order counts, monitor sequence |
-
-### Trading REST
-
-`trading` auth.
-
-| Endpoint | Use |
-|---|---|
-| `POST /api/v1/orders` | Submit one order |
-| `DELETE /api/v1/orders/{order_id}` | Cancel one order |
-| `PATCH /api/v1/orders/{order_id}` | Amend price and/or qty |
-| `POST /api/v1/orders/{order_id}/replace` | Cancel then resubmit |
-| `GET /api/v1/orders` | Live orders for the gateway |
-| `GET /api/v1/orders/{order_id}` | Cached order state |
-| `POST /api/v1/oco` | Submit OCO pair |
-| `DELETE /api/v1/oco/{oco_id}` | Cancel OCO pair |
-| `POST /api/v1/combos` | Submit combo order |
-| `DELETE /api/v1/combos/{combo_id}` | Cancel combo |
-| `POST /api/v1/quotes` | Submit two-sided quote |
-| `DELETE /api/v1/quotes/{symbol}` | Cancel quote |
-| `POST /api/v1/mass-cancel` | Cancel symbol or all exposure |
-| `GET /api/v1/symbols` | Instrument metadata |
-| `GET /api/v1/session` | Current session state |
-| `GET /api/v1/halts` | Currently-halted symbols (trading credential; same data as the admin endpoint, no role gate) |
-| `GET /api/v1/status` | Who am I: gateway id and role |
-| `GET /api/v1/healthz` | Liveness probe |
-
-### Reference Data
-
-`any valid key` auth.
-
-| Endpoint | Use |
-|---|---|
-| `GET /api/v1/reference` | Full reference bundle |
-| `GET /api/v1/reference/config-version` | Bundle version hash |
-| `GET /api/v1/reference/symbols` | Tick sizes and per-symbol config |
-| `GET /api/v1/reference/risk` | Risk bands and CB levels |
-| `GET /api/v1/news?limit=50` | The latest `limit` (1–200) headlines from `pm-market-sim`, oldest first, as `{"news": [...], "sectors": {"TECH": ["AAPL", …], …}}`. `sectors` (from the deployed `market_sim.yaml`) says which symbols a `SECTOR` headline is about. Empty without `pm-market-sim`; new headlines arrive on the market-data socket |
-| `GET /api/v1/companies/{symbol}` | The symbol's company profile from `companies.db` (`pm-compdb-cli`), opened read-only from the data directory, where `pm-compdb-cli init` builds it. `404` for a symbol without one, `503` when the database is missing |
-| `GET /api/v1/reference/indexes` | Index definitions |
-| `GET /api/v1/reference/schedule` | Session schedule metadata |
-
-### History
-
-`trading` auth for private history; `any valid key` for public market data.
-
-| Endpoint | Use |
-|---|---|
-| `GET /api/v1/history/orders` | Order lifecycle list |
-| `GET /api/v1/history/orders/{order_id}` | One order's full lifecycle |
-| `GET /api/v1/history/fills` | Fill history |
-| `GET /api/v1/history/trades` | Public trade tape |
-| `GET /api/v1/history/daily` | Daily OHLCV rows |
-| `GET /api/v1/history/price-snapshots` | Intraday price snapshots |
-| `GET /api/v1/history/index-daily` | Daily index rows |
-| `GET /api/v1/history/index-snapshots` | Intraday index snapshots |
-| `GET /api/v1/history/indexes` | Index ids with data |
-| `GET /api/v1/history/index-events` | Index structural/audit log |
-
-### Admin REST
-
-`ADMIN` role required.
-
-| Endpoint | Use |
-|---|---|
-| `POST /api/v1/admin/session/transition` | Change session phase |
-| `GET /api/v1/admin/gateways` | List gateways |
-| `POST /api/v1/admin/gateways/{gateway_id}/disconnect` | Kick a gateway |
-| `POST /api/v1/admin/gateways/{gateway_id}/kill-switch` | Kill one gateway's orders (optionally one symbol) |
-| `DELETE /api/v1/admin/gateways/{gateway_id}/quotes/{symbol}` | Pull one gateway's quote |
-| `GET /api/v1/admin/gateways/{gateway_id}/orders` | Any gateway's orders, engine-authoritative |
-| `GET /api/v1/admin/gateways/{gateway_id}/positions` | Any gateway's positions (net qty + avg cost) |
-| `POST /api/v1/admin/symbols/{symbol}/halt` | Halt a symbol |
-| `POST /api/v1/admin/symbols/{symbol}/resume` | Resume a symbol |
-| `POST /api/v1/admin/symbols/{symbol}/reopen` | Uncross and reopen a symbol |
-| `GET /api/v1/admin/symbols/{symbol}/orders` | Every order on a symbol / price level |
-| `POST /api/v1/admin/market/halt` | Halt the whole market |
-| `POST /api/v1/admin/market/resume` | Resume the whole market |
-| `GET /api/v1/admin/market/volume` | Today's volume |
-| `GET /api/v1/admin/risk/state` | Live risk state |
-| `GET /api/v1/admin/orders` | Cross-gateway active orders |
-| `GET /api/v1/admin/orders/{order_id}/audit` | Cross-gateway order lifecycle |
-| `POST /api/v1/admin/symbols/{symbol}/cancel-orders` | Cancel every order on a symbol |
-| `POST /api/v1/admin/market/kill-switch` | Kill the market |
-| `POST /api/v1/admin/indexes/{id}/rebalance` | Rebalance an index |
-| `POST /api/v1/admin/reference/reload` | Reload compiled reference data |
-
-### WebSocket Streams
-
-`/api/v1/ws/private` is private, `/api/v1/ws/market-data` is public, and `/api/v1/ws/admin/monitor` and `/api/v1/ws/admin/sim` are ADMIN-only.
-
-| Endpoint | Use |
-|---|---|
-| `WS /api/v1/ws/private` | Private order, quote, and risk lifecycle |
-| `WS /api/v1/ws/market-data` | Public book, trade, depth, session, CB events |
-| `WS /api/v1/ws/admin/monitor` | Cross-gateway admin monitor feed |
-| `WS /api/v1/ws/admin/sim` | Market simulator true values (ADMIN) |

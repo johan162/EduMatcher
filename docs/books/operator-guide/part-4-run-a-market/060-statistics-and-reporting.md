@@ -1381,7 +1381,7 @@ API filters for `/api/v1/history/orders`:
 
 `/history/orders` (and `/history/fills`) responses include `next_cursor` when
 more rows are available. See
-[API Gateway — Pagination](../part-5-gateways/050-api-gateway.md#pagination) for the full
+[the REST pagination contract](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#pagination-contract) for the full
 `count`/`has_more`/`next_cursor` contract, including which endpoints are
 exceptions to it.
 

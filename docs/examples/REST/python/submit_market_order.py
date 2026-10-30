@@ -21,7 +21,7 @@ import sys
 import uuid
 from typing import Any
 
-from api_gateway_client import ApiGatewayClient
+from api_gateway_client import ApiGatewayClient, ApiUnreachable
 
 
 def _print_result(result: dict[str, Any]) -> None:
@@ -89,9 +89,9 @@ def main() -> None:
     try:
         try:
             result = client.post_json(path, payload, idempotency_key=key)
-        except RuntimeError as exc:
-            if "Could not reach" not in str(exc):
-                raise
+        except ApiUnreachable:
+            # No answer: the order may or may not have gone out. The same key
+            # makes the retry safe -- the gateway replays the first reply.
             result = client.post_json(path, payload, idempotency_key=key)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)

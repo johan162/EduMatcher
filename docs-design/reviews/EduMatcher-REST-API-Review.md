@@ -1098,6 +1098,7 @@ before WP-API07:
 | **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
 | **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30 (uncommitted)**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
 | **WP-API16** ✅ | One order-validation rule | **Done 2026-10-30 (uncommitted)**, see §9.9. Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
+| **WP-API17** | Structure cancel acks (Q8) | Engine: `oco.cancel_ack`, `combo.cancel_ack`, `quote.cancel_ack` (new messages, `request_tag` echoed, on success and refusal). REST: `DELETE /oco/{id}`, `/combos/{id}`, `/quotes/{symbol}` take `request_tag` and `?wait=ack` (200 with the verdict, 202 + `ack_timeout` when late), like order cancel; ALF and the GUIs read the new acks. After WP-API09, before 1.0. | Q8, §9.5 | M |
 
 ### 9.7 WP-API14 outcome (2026-10-30)
 
@@ -1445,13 +1446,99 @@ fixed, and the claim was replaced by what the gateway actually does.
 - the book manifest and nav are regenerated;
 - every anchor in the chapter resolves in the built site.
 
+### 9.12 WP-API09 outcome (2026-10-30)
+
+**Q8 decided before this WP** (see the Q table): structure cancel acks go in
+before 1.0, as dedicated messages, in WP-API17.
+
+**Examples (DOC5).** `docs/examples/REST/python` gains five scenarios, each a
+bounded run that exits non-zero when what it demonstrates does not hold:
+
+| Script | Shows |
+|---|---|
+| `order_lifecycle.py` | LIMIT with `wait=ack` and an `Idempotency-Key`; a retry that returns the same order; amend; replace; cancel; a `TICK_VIOLATION` refusal |
+| `history_pages.py` | Following `next_cursor`; `STATS_DB` on a fresh venue |
+| `private_stream.py` | Snapshot, contiguous `stream_seq`, reconnect-and-resnapshot on a gap |
+| `market_data.py` | `items` subscribe, per-topic `seq`, trades `resume`, snapshot healing |
+| `admin_halt_reopen.py` | Halt, price-level orders, dry-run reopen, reopen or resume |
+
+**The client.** `api_gateway_client.py` gains:
+
+- `patch_json`, `delete_json`, and `get_json` with query params;
+- `pages()`, which follows the cursor;
+- two error types. `ApiError` carries `status`, `code`, `reject_code` and
+  `field` from the envelope, and means nothing was sent. `ApiUnreachable`
+  means no answer, so the outcome is unknown. Both subclass `RuntimeError`,
+  so existing callers keep working, and `submit_market_order.py` now retries
+  only on `ApiUnreachable`.
+
+The client and the REST scripts remain stdlib-only; the two WebSocket
+examples need `websockets`.
+
+**Run in CI.** `tests/test_examples_e2e.py` runs every script as a reader
+would (a subprocess from its own directory) against the bundled `mini`
+exchange, in `make test-e2e`.
+
+- The `mini` exchange startup moved from the monitor test to a shared
+  `tests/e2e_exchange.py` (`running_exchange()`).
+- Running two e2e modules exposed a race: `pm-opctl-cli stop` returns before
+  `pm-monitor` frees its ports, so the next module skipped. The teardown now
+  waits for every port. e2e is 21/21, nothing skipped.
+
+**Found while making them run:**
+
+- **The lifecycle example's first pricing guessed.** s10-basic has no
+  `prev_close`, so the fallback priced a BUY at 99.00 against a 22.98 ask, and
+  the order filled at once.
+  - The scripts take `--price`, and stop with a clear message rather than
+    guess when no `prev_close` exists.
+  - Each step now fails the script unless the engine accepted it, so a
+    silent failure cannot pass the test.
+  - Without a REST book snapshot (WP-API10), a REST-only client cannot find
+    the touch itself.
+- **The trade payload field is `quantity`,** not `qty`.
+
+**Single source of docs (DOC4).**
+
+- Spec tables tested against OpenAPI: done in WP-API14.
+- The operator guide's API chapter went from 2,092 to 780 lines.
+  - **Removed** (each now a link to the REST or WebSocket reference): the
+    endpoint, payload, query-parameter, reply-shape and error tables, the
+    JSON reply examples, the per-route admin and history sections, the
+    envelope, sequencing, correlation, subscription and resume detail, and
+    the closing "Reference" index.
+  - **Kept and rewritten as operator concepts:**
+    - what each endpoint group depends on;
+    - order entry in practice (per-type rule, `wait=ack` and `ack_timeout`,
+      idempotency) and tick precision with `SYMBOLS_NOT_READY`;
+    - live versus static reference data, `config_version`, reload limits;
+    - history's `pm-stats` and `pm-index` dependencies;
+    - bootstrap partial failure;
+    - the ADMIN role source, the three kill-switch scopes, reopen, and live
+      risk state;
+    - the `pm-index` bridge and `admin.action`;
+    - the read model versus the authoritative views, and cache retention;
+    - a WebSocket table plus what operators need: drops, replay window, no
+      monitor replay, seq restart.
+- **Stale facts the trimmed text carried** (now gone):
+  - `/quotes/legs` "served from the local cache";
+  - `/status` open to any key;
+  - an `admin.action` list without `auction.reopen`;
+  - "not exposed" claims that WP-API07 made false;
+  - index-events `from`/`to` as Unix seconds.
+- **Anchors:** every in-page anchor and the five inbound anchors still
+  resolve. The one inbound `#pagination` link now points to the spec's
+  pagination contract.
+- **DOC3** needed nothing: WP-API04 and WP-API06 already removed the stale
+  and internal text.
+
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
 | **WP-API07** ✅ | Admin parity with `pm-admin-cli` | **Done 2026-10-30 (uncommitted)**, see §9.10. Market halt/resume (`halt_all`/`resume_all`). Symbol reopen through force-uncross, with `price` and `dry_run`. Gateway kill switch scoped by symbol. Admin quote cancel for another gateway. Engine-authoritative `GET /admin/gateways/{id}/orders`. Price-level drill-down. Daily volume. Fits the D1 scheme. | C1, R5 | M |
 | **WP-API08** ✅ | WebSocket normative spec | **Done 2026-10-30 (uncommitted)**, see §9.11. Normative WebSocket chapter (or AsyncAPI): auth, close codes, full event catalogue with schemas, control frames, seq and recovery semantics, slow-consumer and drop policy. Include `/ws/admin/sim`. Add the enum and unknown-field extension rules and the 1.0 stability statement (DOC6). | DOC2, DOC6 | M |
-| **WP-API09** | Examples and single source of docs | A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
+| **WP-API09** ✅ | Examples and single source of docs | **Done 2026-10-30 (uncommitted)**, see §9.12. A Python client covering the order lifecycle, errors and retries, pagination, private-WebSocket recovery, market-data subscribe/resume and one admin flow. Examples run in CI. Spec endpoint tables generated from or tested against OpenAPI; the operator guide trimmed to concepts. | DOC4, DOC5 | M |
 
 ### P2: can follow in 1.x (all additive)
 
@@ -1474,5 +1561,5 @@ fixed, and the claim was replaced by what the gateway actually does.
 | Q4 | Adopt the admin scheme in D1 (resource plus action), or keep RPC style but make it consistent? | **D1 scheme.** It also gives WP-API07's new endpoints an obvious home. |
 | Q5 | Is admin parity (WP-API07) a 1.0 blocker? | **Yes, if 1.0 is marketed as "full operator control over REST".** If not, it is purely additive and can be 1.1. |
 | Q6 | Remove `HistoryQuery` (`schemas.py:384`, unused, existing dead code)? | Remove it in WP-API04. |
-| Q8 | `wait=ack` for the OCO, combo and quote cancels needs an attributable outcome. Add `request_tag` to the structure ack messages, or dedicated `*.cancel_ack` messages? | Open (raised by WP-API02, §9.5). Additive, so it can follow 1.0 if the cancels stay `202`-only in v1. |
+| Q8 | `wait=ack` for the OCO, combo and quote cancels: how should the outcome be attributable? | **Decided 2026-10-30 (Johan): before 1.0, with dedicated cancel acks.** New `oco.cancel_ack`, `combo.cancel_ack` and `quote.cancel_ack` messages echo a `request_tag` on success and refusal, so the submit acks keep meaning "submit outcome". Scheduled as WP-API17, after WP-API09. |
 | Q9 | Is ALF part of the 1.0 compatibility promise, and must it validate like REST? | **Decided 2026-10-30 (Johan): ALF is frozen at 1.0.** A field the order type doesn't use is rejected, like REST. One per-type rule lives in `models/` and is applied by REST, ALF and the engine. It must land before 1.0, because tightening ALF later would break ALF clients. Scheduled as WP-API16. |

@@ -790,7 +790,11 @@ See also:
 `pm-api-gwy` exposes a JSON REST API for order submission and session queries.
 The support library (`api_gateway_client`) uses only the Python standard
 library and the C standard socket API — no third-party HTTP libraries are
-required.
+required. The two WebSocket examples need the `websockets` package
+(`pip install websockets`).
+
+Every Python example runs against a real exchange in `make test-e2e`
+(`tests/test_examples_e2e.py`), so they are kept working.
 
 ### Source files
 
@@ -799,6 +803,11 @@ required.
 | [REST/python/api_gateway_client.py](../../../downloads/examples/REST/python/api_gateway_client.py) | Python REST client library |
 | [REST/python/demo_info.py](../../../downloads/examples/REST/python/demo_info.py) | Print gateway status, symbols, and session info |
 | [REST/python/submit_market_order.py](../../../downloads/examples/REST/python/submit_market_order.py) | Submit a MARKET order from the command line |
+| [REST/python/order_lifecycle.py](../../../downloads/examples/REST/python/order_lifecycle.py) | LIMIT with `wait=ack` and an `Idempotency-Key`, a safe retry, amend, replace, cancel, and a `TICK_VIOLATION` refusal |
+| [REST/python/history_pages.py](../../../downloads/examples/REST/python/history_pages.py) | Read a whole history list by following `next_cursor` |
+| [REST/python/private_stream.py](../../../downloads/examples/REST/python/private_stream.py) | The private WebSocket: snapshot, `stream_seq` gap detection, reconnect recovery |
+| [REST/python/market_data.py](../../../downloads/examples/REST/python/market_data.py) | Market data: `items` subscribe, per-topic `seq`, trades `resume` |
+| [REST/python/admin_halt_reopen.py](../../../downloads/examples/REST/python/admin_halt_reopen.py) | Admin: halt a symbol, list its orders, dry-run reopen, reopen or resume |
 | [REST/c/api_gateway_client.h](../../../downloads/examples/REST/c/api_gateway_client.h) | C library header |
 | [REST/c/api_gateway_client.c](../../../downloads/examples/REST/c/api_gateway_client.c) | C library implementation |
 | [REST/c/demo_info.c](../../../downloads/examples/REST/c/demo_info.c) | C equivalent of demo_info.py |
@@ -821,15 +830,32 @@ export EDUMATCHER_API_KEY="key-trader-demo"
 **`ApiGatewayClient(base_url, api_key, timeout=5.0)`**
 : Construct a client for the given base URL and API key.
 
-**`client.get_json(path: str) → dict`**
-: Issue a `GET` request and return the parsed JSON body.  Raises
-  `RuntimeError` on HTTP error responses.
+**`client.get_json(path: str, params: dict | None = None) → dict`**
+: Issue a `GET` request (with `params` as the query string) and return the
+  parsed JSON body.
 
-**`client.post_json(path: str, payload: dict, idempotency_key: str | None = None) → dict`**
+**`client.post_json(path: str, payload: dict | None = None, idempotency_key: str | None = None) → dict`**
 : Issue a `POST` request with a JSON body and return the parsed JSON
-  response.  Raises `RuntimeError` on HTTP error responses.  With
-  `idempotency_key`, sends it as the `Idempotency-Key` header: reuse the same
-  key to retry a write safely (the gateway replays the first reply).
+  response.  With `idempotency_key`, sends it as the `Idempotency-Key`
+  header: reuse the same key to retry a write safely (the gateway replays the
+  first reply).
+
+**`client.patch_json(path, payload)` / `client.delete_json(path)`**
+: Amend and cancel.
+
+**`client.pages(path: str, key: str, params: dict | None = None) → Iterator[dict]`**
+: Every item of a paginated list (`key` names it: `trades`, `events`, ...),
+  following `next_cursor` until `has_more` is false.
+
+Errors are two exception types, because a client must react differently:
+
+- **`ApiError`**: the gateway answered with an error envelope; `status`,
+  `code`, `reject_code`, `field` and `message` come from it. Nothing reached
+  the engine, so the request may be fixed and sent again.
+- **`ApiUnreachable`**: no answer at all. A write may or may not have been
+  sent; retry it only with the same `Idempotency-Key`.
+
+Both subclass `RuntimeError`.
 
 ### Python usage pattern
 
@@ -884,6 +910,21 @@ python3 submit_market_order.py --side SELL --symbol MSFT --qty 50 --wait-ack
 # Override URL or key on the command line
 python3 submit_market_order.py --url http://10.0.0.5:8080 --key mykey \
     --side BUY --symbol TSLA --qty 10
+
+# One order's whole life; --price below the bid so it rests
+python3 order_lifecycle.py --symbol AAPL --price 22.70
+
+# Today's trades, page by page
+python3 history_pages.py --limit 50
+
+# The private stream: place and cancel one order, watch both events arrive
+python3 private_stream.py --symbol AAPL --price 22.70
+
+# Market data: book for every symbol, trades for one; --trade makes a print
+python3 market_data.py --symbol AAPL --trade
+
+# Admin (an ADMIN key): halt, inspect, dry-run reopen, reopen
+python3 admin_halt_reopen.py --symbol MSFT --key <admin key>
 ```
 
 ### C API — `api_gateway_client.h`
