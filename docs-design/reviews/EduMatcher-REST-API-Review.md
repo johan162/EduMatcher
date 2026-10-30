@@ -1088,6 +1088,96 @@ below. The cancels still answer `202 PENDING_CANCEL`.
 WP-API04's runtime validation and exact-example tests are what make a diff
 of this file mean a real wire change.
 
+### P0b: follow-ups from the P0 insights (decided 2026-10-30, before P1)
+
+Johan reviewed the P0 insights (§9.1–9.6) and chose these three, in order,
+before WP-API07:
+
+| WP | Name | Scope | From | Size |
+|---|---|---|---|---|
+| **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
+| **WP-API15** | trader-gui failure wording | Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
+| **WP-API16** | One order-validation rule | Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
+
+### 9.7 WP-API14 outcome (2026-10-30)
+
+Johan widened the scope from a spec check to **exact per-route error codes**.
+The contract had overclaimed errors (every route advertised `ENGINE_TIMEOUT`)
+and underclaimed them (`STATS_DB`, `READ_ONLY` and `ENGINE_UNAVAILABLE` were
+missing on most routes). So checking the spec against it would only have
+moved the error into the spec.
+
+**What was built:**
+
+- **`api_gateway/errors.py`**, one registry of all 27 `error.code` values:
+  status, default `reject_code`, meaning and example message.
+  - It replaces `main._HTTP_REJECT_CODES`; the values are identical.
+  - It feeds the OpenAPI error responses.
+  - The spec's common error table is tested against it.
+- **`openapi_docs.errors(*codes, examples=...)`** builds one response per
+  status, with one named example per code.
+  - `ANY_KEY` and `TRADING_KEY` group the codes the auth dependency raises.
+  - The old ad-hoc helpers are gone: `COMMON_ERRORS`, `VALIDATION_ERROR`,
+    `INVALID_FILTER`, `RATE_LIMITED`, `not_found`, `conflict`,
+    `IDEMPOTENCY_CONFLICT`, `REPLACE_CONFLICT`.
+  - The app-wide default is now only `INTERNAL_ERROR`.
+- **`tests/api_gateway_error_scan.py`** finds each route's reachable codes
+  from the source. That works because every code is a string literal.
+  - It walks the handler body, plus the functions and package methods it
+    calls, transitively.
+  - It includes the route's `Depends` dependencies, plus `VALIDATION` when
+    the route takes input and `INTERNAL_ERROR` everywhere.
+- **`tests/test_api_gateway_error_codes.py`:**
+  - each route's declared codes equal the reachable ones, in both
+    directions;
+  - each status matches the registry;
+  - control facts are pinned, so a broken scan can't pass;
+  - every `{"code": ...}` literal in the package must be registered.
+- **`tests/test_rest_spec_matches_contract.py`** checks each spec section
+  against the contract (172 checks):
+  - one section per route, including the hidden `/healthz`;
+  - the endpoint index lists every section;
+  - argument names and Req;
+  - success statuses;
+  - error codes.
+
+  The four universal codes (`AUTH`, `ENGINE_AUTH`, `ENGINE_UNAVAILABLE`,
+  `INTERNAL_ERROR`) are stated once, and each table lists the rest.
+
+**Spec defects found and fixed:**
+
+- **Wrong:**
+  - `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos` and `/quotes`, and on the
+    gateway disconnect, none of which wait;
+  - `ROLE_DENIED` on `POST /orders`;
+  - `READ_ONLY` on `/halts`, which is open to any key;
+  - `INDEX_ERROR` on rebalance, where a `pm-index` refusal is
+    `REBALANCE_REJECTED`.
+- **Missing:**
+  - `RATE_LIMIT` on cancel, amend, replace and every admin write;
+  - `SYMBOLS_NOT_READY` on OCO, combo and quote;
+  - `READ_ONLY` on about 20 routes;
+  - `VALIDATION` on about 20 routes with bounded parameters.
+- **Arguments:** missing rows (`wait`, `Idempotency-Key`; OCO/combo/quote
+  `tif`, `client_tag`, `combo_type`, `smp_action`, `quote_id`).
+- **Sections:** `GET /admin/sim` had no section or index entry, and the
+  three bootstrap sections used their own layout. They are now normalized.
+
+**Contract finding.** `ENGINE_UNAVAILABLE` is reachable on every route a
+trading key authenticates on: `authenticate` re-raises it when it cannot hand
+the connect message to the engine. The contract never said so before.
+
+**Clients:** none affected. Runtime replies are unchanged, and no client
+consumes the OpenAPI document. E2E is 15/15.
+
+**Limits of the scan:**
+
+- It sees only codes written as literals in `api_gateway`. The registry test
+  makes an unregistered literal fail. A code computed at runtime would be
+  invisible, but none exists.
+- Method calls are resolved by name, which over-approximates. The equality
+  test would show a false positive as a failure; none appeared.
+
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
 | WP | Title | Content | Findings | Size |
@@ -1118,3 +1208,4 @@ of this file mean a real wire change.
 | Q5 | Is admin parity (WP-API07) a 1.0 blocker? | **Yes, if 1.0 is marketed as "full operator control over REST".** If not, it is purely additive and can be 1.1. |
 | Q6 | Remove `HistoryQuery` (`schemas.py:384`, unused, existing dead code)? | Remove it in WP-API04. |
 | Q8 | `wait=ack` for the OCO, combo and quote cancels needs an attributable outcome. Add `request_tag` to the structure ack messages, or dedicated `*.cancel_ack` messages? | Open (raised by WP-API02, §9.5). Additive, so it can follow 1.0 if the cancels stay `202`-only in v1. |
+| Q9 | Is ALF part of the 1.0 compatibility promise, and must it validate like REST? | **Decided 2026-10-30 (Johan): ALF is frozen at 1.0.** A field the order type doesn't use is rejected, like REST. One per-type rule lives in `models/` and is applied by REST, ALF and the engine. It must land before 1.0, because tightening ALF later would break ALF clients. Scheduled as WP-API16. |

@@ -169,7 +169,8 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
         "since you last looked. Open to read-only keys."
     ),
     responses=docs.merge(
-        docs.ok(docs.REFERENCE_REPLY, "The compiled reference-data bundle.")
+        docs.ok(docs.REFERENCE_REPLY, "The compiled reference-data bundle."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def reference_bundle(
@@ -186,7 +187,10 @@ async def reference_bundle(
         "Just the `config_version` hash of the reference bundle -- a cheap way to "
         "detect that the configuration was reloaded (`POST /admin/reference/reload`)."
     ),
-    responses=docs.merge(docs.ok(docs.REFERENCE_CONFIG_VERSION, "The current hash.")),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_CONFIG_VERSION, "The current hash."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def reference_config_version(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -208,7 +212,8 @@ async def reference_config_version(
         "previous close) use `GET /symbols`."
     ),
     responses=docs.merge(
-        docs.ok(docs.REFERENCE_SYMBOLS_REPLY, "One entry per tradable symbol.")
+        docs.ok(docs.REFERENCE_SYMBOLS_REPLY, "One entry per tradable symbol."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def reference_symbols(
@@ -234,7 +239,10 @@ async def reference_symbols(
         "and the default. Static definitions; for live collar and breaker state per "
         "symbol see `GET /admin/risk/state`."
     ),
-    responses=docs.merge(docs.ok(docs.REFERENCE_RISK, "The configured risk levels.")),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_RISK, "The configured risk levels."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def reference_risk(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -254,7 +262,8 @@ async def reference_risk(
         " in `GET /history/index-daily`."
     ),
     responses=docs.merge(
-        docs.ok(docs.REFERENCE_INDEXES_REPLY, "The configured indexes.")
+        docs.ok(docs.REFERENCE_INDEXES_REPLY, "The configured indexes."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def reference_indexes(
@@ -279,7 +288,10 @@ async def reference_indexes(
         "means the venue trades continuously with no daily timeline. Times are in the "
         "exchange timezone (`session_timezone` in `GET /session`)."
     ),
-    responses=docs.merge(docs.ok(docs.REFERENCE_SCHEDULE, "The trading schedule.")),
+    responses=docs.merge(
+        docs.ok(docs.REFERENCE_SCHEDULE, "The trading schedule."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -304,7 +316,8 @@ async def reference_schedule(
         "key."
     ),
     responses=docs.merge(
-        docs.ok(docs.SYMBOLS_REPLY, "Tradable symbols for this gateway.")
+        docs.ok(docs.SYMBOLS_REPLY, "Tradable symbols for this gateway."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def symbols(
@@ -329,7 +342,8 @@ async def symbols(
         " included. Empty lists when the simulator is not running."
     ),
     responses=docs.merge(
-        docs.ok(docs.NEWS_REPLY, "Recent headlines and the sector map.")
+        docs.ok(docs.NEWS_REPLY, "Recent headlines and the sector map."),
+        docs.errors(*docs.ANY_KEY, "VALIDATION"),
     ),
 )
 async def news(
@@ -359,7 +373,13 @@ async def news(
     ),
     responses=docs.merge(
         docs.ok(docs.COMPANY, "The company profile."),
-        docs.not_found("UNKNOWN_COMPANY", "No company profile for XYZ"),
+        docs.errors(
+            *docs.ANY_KEY,
+            "COMPANY_DB_UNAVAILABLE",
+            "UNKNOWN_COMPANY",
+            "VALIDATION",
+            examples={"UNKNOWN_COMPANY": {"message": "No company profile for XYZ"}},
+        ),
     ),
 )
 async def company(
@@ -436,7 +456,10 @@ async def fetch_session(request: Request, correlation: str) -> dict[str, Any]:
         "`session_date` today's trading date in it. Live phase changes arrive on the "
         "market-data WebSocket `session` channel. Any key, read-only included."
     ),
-    responses=docs.merge(docs.ok(docs.SESSION, "The current session state.")),
+    responses=docs.merge(
+        docs.ok(docs.SESSION, "The current session state."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def session_state(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -460,7 +483,10 @@ async def session_state(
         "its `halt_source`. An empty list means nothing is halted. Any key, read-only "
         "included."
     ),
-    responses=docs.merge(docs.ok(docs.HALTS_REPLY, "Currently halted symbols.")),
+    responses=docs.merge(
+        docs.ok(docs.HALTS_REPLY, "Currently halted symbols."),
+        docs.errors(*docs.ANY_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def halts(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -489,7 +515,10 @@ async def halts(
         "The caller's active market-maker quotes: both legs' order ids, sizes, "
         "remaining quantities, statuses and prices."
     ),
-    responses=docs.merge(docs.ok(docs.QUOTES_REPLY, "Active quotes for this gateway.")),
+    responses=docs.merge(
+        docs.ok(docs.QUOTES_REPLY, "Active quotes for this gateway."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def active_quotes(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -512,7 +541,8 @@ async def active_quotes(
         " quantity."
     ),
     responses=docs.merge(
-        docs.ok(docs.QUOTE_LEGS_REPLY, "Quote legs for this gateway.")
+        docs.ok(docs.QUOTE_LEGS_REPLY, "Quote legs for this gateway."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def quote_legs(
@@ -541,7 +571,8 @@ async def quote_legs(
         "the clearing ledger and are `null` when clearing is not deployed."
     ),
     responses=docs.merge(
-        docs.ok(docs.POSITIONS_REPLY, "Net positions, sorted by symbol.")
+        docs.ok(docs.POSITIONS_REPLY, "Net positions, sorted by symbol."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT"),
     ),
 )
 async def positions(
@@ -634,7 +665,9 @@ async def fetch_positions(request: Request, gateway_id: str) -> list[dict[str, A
         "For ADMIN gateways it also reports `gateway_count`, the number of "
         "connected gateways. Requires a trading key."
     ),
-    responses=docs.merge(docs.ok(docs.STATUS_REPLY, "Gateway summary.")),
+    responses=docs.merge(
+        docs.ok(docs.STATUS_REPLY, "Gateway summary."), docs.errors(*docs.TRADING_KEY)
+    ),
 )
 async def status_summary(
     request: Request, session: Annotated[Session, Depends(auth)]

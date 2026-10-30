@@ -17,13 +17,14 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.idempotency import IdempotencyStore
 from edumatcher.api_gateway.metrics import install as install_metrics
 from edumatcher.api_gateway.openapi_docs import (
     API_DESCRIPTION,
-    COMMON_ERRORS,
     TAGS_METADATA,
     drop_stock_validation_error,
+    errors,
 )
 from edumatcher.health import HealthReporter
 from edumatcher.api_gateway.config import (
@@ -62,19 +63,6 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
 
-
-_HTTP_REJECT_CODES = {
-    "AUTH": "AUTH_REQUIRED",
-    "ENGINE_AUTH": "AUTH_FAILED",
-    "READ_ONLY": "ROLE_DENIED",
-    "ROLE_DENIED": "ROLE_DENIED",
-    "RATE_LIMIT": "RATE_LIMITED",
-    "SYMBOLS_NOT_READY": "SYMBOL_NOT_READY",
-    "VALIDATION": "INVALID_VALUE",
-    "ENGINE_TIMEOUT": "INTERNAL_ERROR",
-    # Same value ALF sends for the same condition (alf_gwy/protocol.py).
-    "ENGINE_UNAVAILABLE": "INTERNAL_ERROR",
-}
 
 #: `code` for an HTTPException raised with a plain-string detail -- in
 #: practice only Starlette's own routing errors, since every route raises the
@@ -240,7 +228,8 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         version="1.0.0",
         description=API_DESCRIPTION,
         openapi_tags=TAGS_METADATA,
-        responses=COMMON_ERRORS,
+        # Every route can fail with a gateway bug; each route lists the rest.
+        responses=errors("INTERNAL_ERROR"),
         docs_url=docs_url,
         redoc_url=None,
         openapi_url=openapi_url,
@@ -329,7 +318,8 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
             detail_dict = cast(dict[str, Any], detail)
             error = dict(cast(dict[str, Any], detail_dict["error"]))
             code = str(error.get("code", "UNKNOWN"))
-            error.setdefault("reject_code", _HTTP_REJECT_CODES.get(code, "UNKNOWN"))
+            known = ERROR_CODES.get(code)
+            error.setdefault("reject_code", known.reject_code if known else "UNKNOWN")
         else:
             error = {
                 "code": _HTTP_STATUS_CODES.get(exc.status_code, "HTTP_ERROR"),

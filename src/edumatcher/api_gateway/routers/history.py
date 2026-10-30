@@ -227,7 +227,12 @@ def _paginated_envelope(
             docs.HISTORY_ORDERS_REPLY,
             "One page of the caller's order events, oldest first. With `has_more: true`, `next_cursor` is also present.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_orders(
@@ -293,6 +298,7 @@ async def history_orders(
         docs.ok(
             docs.HISTORY_ORDER_LIFECYCLE, "The order's recorded events, oldest first."
         ),
+        docs.errors(*docs.TRADING_KEY, "STATS_DB", "VALIDATION"),
     ),
 )
 async def history_order_lifecycle(
@@ -325,7 +331,12 @@ async def history_order_lifecycle(
         docs.ok(
             docs.HISTORY_FILLS_REPLY, "One page of the caller's fills, oldest first."
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_fills(
@@ -382,7 +393,12 @@ async def history_fills(
             docs.HISTORY_TRADES_REPLY,
             "One page of executed trades, oldest first. Prices are display prices.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_trades(
@@ -431,7 +447,12 @@ async def history_trades(
             docs.HISTORY_DAILY_REPLY,
             "One page of daily OHLC rows. Prices are display prices; `turnover / volume` equals `vwap`.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_daily(
@@ -484,7 +505,12 @@ async def history_daily(
             docs.HISTORY_PRICE_SNAPSHOTS_REPLY,
             "One page of intraday mid/bid/ask rows for the symbol, oldest first.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_price_snapshots(
@@ -537,7 +563,12 @@ async def history_price_snapshots(
     summary="Daily OHLC per index",
     responses=docs.merge(
         docs.ok(docs.HISTORY_INDEX_DAILY_REPLY, "One page of daily index OHLC rows."),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_index_daily(
@@ -597,7 +628,12 @@ async def history_index_daily(
             docs.HISTORY_INDEX_SNAPSHOTS_REPLY,
             "One page of intraday index levels, oldest first.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_index_snapshots(
@@ -648,7 +684,12 @@ async def history_index_snapshots(
     summary="Indexes with history",
     responses=docs.merge(
         docs.ok(docs.HISTORY_INDEXES, "Index ids with recorded statistics."),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "STATS_DB",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_index_ids(
@@ -681,7 +722,13 @@ async def history_index_ids(
             docs.HISTORY_INDEX_EVENTS,
             "Structural events from pm-index, oldest first, and any `warnings` it reported.",
         ),
-        docs.INVALID_FILTER,
+        docs.errors(
+            *docs.ANY_KEY,
+            "INDEX_ERROR",
+            "INDEX_TIMEOUT",
+            "VALIDATION",
+            examples={"VALIDATION": docs.FILTER_VALIDATION},
+        ),
     ),
 )
 async def history_index_events(

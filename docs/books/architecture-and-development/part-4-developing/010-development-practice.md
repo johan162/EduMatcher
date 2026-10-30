@@ -203,7 +203,13 @@ but the standard way to run all checks and a full build is the `mkbld.sh` script
   change, run `make openapi` and commit the result with the code. The diff is
   where a reviewer decides whether the change is additive. Unlike the message
   bindings, `scripts/mkbld.sh` never regenerates it, so a build cannot quietly
-  accept an API change. See
+  accept an API change. Error codes are held exactly: each route lists the
+  codes it can return in `responses=docs.errors(...)`, a test derives the
+  same set from the code (`tests/api_gateway_error_scan.py`), and a new
+  `error.code` must first be added to `api_gateway/errors.py`. The REST
+  spec's endpoint tables (arguments, success statuses, error codes) are
+  checked against the contract by `tests/test_rest_spec_matches_contract.py`.
+  See
   [Compatibility and deprecation policy](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#compatibility-and-deprecation-policy).
 
 ### What to preserve

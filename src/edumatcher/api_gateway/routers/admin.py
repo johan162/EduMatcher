@@ -156,7 +156,15 @@ def _require_accepted(ack: dict[str, Any], code: str) -> dict[str, Any]:
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_TRANSITION, "The transition was applied."),
-        docs.conflict("TRANSITION_REJECTED", "Sessions are disabled"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "TRANSITION_REJECTED",
+            "VALIDATION",
+            examples={"TRANSITION_REJECTED": {"message": "Sessions are disabled"}},
+        ),
     ),
 )
 async def session_transition(  # pyright: ignore[reportUnusedFunction]
@@ -204,7 +212,16 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
     summary="Reload reference data",
     responses=docs.merge(
         docs.ok(docs.ADMIN_RELOAD, "Reloaded; the new `config_version`.", 200),
-        docs.conflict("RELOAD_REJECTED", "Symbol set changed; restart required"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "RATE_LIMIT",
+            "RELOAD_REJECTED",
+            "ROLE_DENIED",
+            examples={
+                "RELOAD_REJECTED": {"message": "Symbol set changed; restart required"}
+            },
+        ),
     ),
 )
 async def reference_reload(  # pyright: ignore[reportUnusedFunction]
@@ -256,7 +273,8 @@ async def reference_reload(  # pyright: ignore[reportUnusedFunction]
         "the simulator is not running."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_SIM, "Simulator state and the model's true values.", 200)
+        docs.ok(docs.ADMIN_SIM, "Simulator state and the model's true values.", 200),
+        docs.errors(*docs.TRADING_KEY, "ROLE_DENIED"),
     ),
 )
 async def market_sim(  # pyright: ignore[reportUnusedFunction]
@@ -282,7 +300,8 @@ async def market_sim(  # pyright: ignore[reportUnusedFunction]
             docs.ADMIN_GATEWAYS_REPLY,
             "Every configured gateway, with role and connection state.",
             200,
-        )
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),
 )
 async def list_gateways(  # pyright: ignore[reportUnusedFunction]
@@ -307,7 +326,8 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
         "roster in `GET /admin/gateways` shows the result."
     ),
     responses=docs.merge(
-        docs.ok(docs.ADMIN_DISCONNECT, "Disconnect sent to the engine.", 202)
+        docs.ok(docs.ADMIN_DISCONNECT, "Disconnect sent to the engine.", 202),
+        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "ROLE_DENIED", "VALIDATION"),
     ),
 )
 async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
@@ -330,7 +350,15 @@ async def disconnect_gateway(  # pyright: ignore[reportUnusedFunction]
     summary="Halt a symbol",
     responses=docs.merge(
         docs.ok(docs.ADMIN_HALT_ACK_REPLY, "The symbol is halted."),
-        docs.conflict("HALT_REJECTED", "Unknown symbol: XYZ"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "HALT_REJECTED",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={"HALT_REJECTED": {"message": "Unknown symbol: XYZ"}},
+        ),
     ),
 )
 async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
@@ -373,7 +401,15 @@ async def halt_symbol(  # pyright: ignore[reportUnusedFunction]
     ),
     responses=docs.merge(
         docs.ok(docs.ADMIN_RESUME_ACK_REPLY, "The symbol is trading again."),
-        docs.conflict("RESUME_REJECTED", "TSLA is not halted"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "RATE_LIMIT",
+            "RESUME_REJECTED",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={"RESUME_REJECTED": {"message": "TSLA is not halted"}},
+        ),
     ),
 )
 async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
@@ -407,7 +443,8 @@ async def resume_symbol(  # pyright: ignore[reportUnusedFunction]
             docs.ADMIN_RISK_STATE_REPLY,
             "Collar reference and circuit-breaker state per symbol.",
             200,
-        )
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),
 )
 async def risk_state(  # pyright: ignore[reportUnusedFunction]
@@ -438,7 +475,15 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
     summary="Rebalance an index",
     responses=docs.merge(
         docs.ok(docs.ADMIN_REBALANCE_REPLY, "pm-index applied the rebalance."),
-        docs.conflict("REBALANCE_REJECTED", "Unknown constituent XYZ"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "INDEX_TIMEOUT",
+            "RATE_LIMIT",
+            "REBALANCE_REJECTED",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={"REBALANCE_REJECTED": {"message": "Unknown constituent XYZ"}},
+        ),
     ),
 )
 async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
@@ -494,9 +539,18 @@ async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
     summary="Cancel every order on a symbol",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_SYMBOL_REPLY, "What the engine cancelled."),
-        docs.conflict(
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
             "KILL_SWITCH_REJECTED",
-            "Symbol-level mass cancel is only allowed for ADMIN participants",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={
+                "KILL_SWITCH_REJECTED": {
+                    "message": "Symbol-level mass cancel is only allowed for ADMIN participants"
+                }
+            },
         ),
     ),
 )
@@ -529,9 +583,18 @@ async def cancel_symbol_orders(  # pyright: ignore[reportUnusedFunction]
     summary="Kill switch: one gateway",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_GATEWAY_REPLY, "What the engine cancelled."),
-        docs.conflict(
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
             "KILL_SWITCH_REJECTED",
-            "Gateway-targeted kill switch is only allowed for ADMIN participants",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={
+                "KILL_SWITCH_REJECTED": {
+                    "message": "Gateway-targeted kill switch is only allowed for ADMIN participants"
+                }
+            },
         ),
     ),
 )
@@ -571,9 +634,18 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
     summary="Kill switch: whole market",
     responses=docs.merge(
         docs.ok(docs.ADMIN_KILL_GLOBAL_REPLY, "What the engine cancelled."),
-        docs.conflict(
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
             "KILL_SWITCH_REJECTED",
-            "Global kill switch is only allowed for ADMIN participants",
+            "RATE_LIMIT",
+            "ROLE_DENIED",
+            "VALIDATION",
+            examples={
+                "KILL_SWITCH_REJECTED": {
+                    "message": "Global kill switch is only allowed for ADMIN participants"
+                }
+            },
         ),
     ),
 )
@@ -614,7 +686,8 @@ async def kill_switch_market(  # pyright: ignore[reportUnusedFunction]
     responses=docs.merge(
         docs.ok(
             docs.ADMIN_ORDERS, "Matching orders from the gateway's read model.", 200
-        )
+        ),
+        docs.errors(*docs.TRADING_KEY, "ROLE_DENIED", "VALIDATION"),
     ),
 )
 async def admin_orders(  # pyright: ignore[reportUnusedFunction]
@@ -681,7 +754,16 @@ async def admin_orders(  # pyright: ignore[reportUnusedFunction]
             "message as a JSON string.",
             200,
         ),
-        docs.not_found("UNKNOWN_ORDER", "No audited events for order 9f2c..."),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "AUDIT_INDEX_UNAVAILABLE",
+            "ROLE_DENIED",
+            "UNKNOWN_ORDER",
+            "VALIDATION",
+            examples={
+                "UNKNOWN_ORDER": {"message": "No audited events for order 9f2c..."}
+            },
+        ),
     ),
 )
 async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
@@ -741,7 +823,8 @@ async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
     response_model=GatewayPositions,
     summary="Positions of any gateway",
     responses=docs.merge(
-        docs.ok(docs.ADMIN_POSITIONS, "Net positions held by the gateway.", 200)
+        docs.ok(docs.ADMIN_POSITIONS, "Net positions held by the gateway.", 200),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED", "VALIDATION"),
     ),
 )
 async def admin_positions(  # pyright: ignore[reportUnusedFunction]

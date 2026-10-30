@@ -270,11 +270,14 @@ def _collect_optional(
     "/trader",
     response_model=BootstrapTrader,
     summary="Startup payload: trader",
-    responses=docs.ok(
-        docs.BOOTSTRAP_TRADER,
-        "Everything a trading client needs to render after login. A "
-        "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
-        "orders and `null` recent_fills, but session and halts like any key.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_TRADER,
+            "Everything a trading client needs to render after login. A "
+            "read-only key gets `gateway_role: READ_ONLY`, empty positions and "
+            "orders and `null` recent_fills, but session and halts like any key.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "VALIDATION"),
     ),
 )
 async def bootstrap_trader(
@@ -397,9 +400,12 @@ async def bootstrap_trader(
     "/mm",
     response_model=BootstrapMM,
     summary="Startup payload: market maker",
-    responses=docs.ok(
-        docs.BOOTSTRAP_MM,
-        "The trader payload plus the caller's quotes and quote legs.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_MM,
+            "The trader payload plus the caller's quotes and quote legs.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED", "VALIDATION"),
     ),
 )
 async def bootstrap_mm(
@@ -513,11 +519,14 @@ async def bootstrap_mm(
     "/admin",
     response_model=BootstrapAdmin,
     summary="Startup payload: admin",
-    responses=docs.ok(
-        docs.BOOTSTRAP_ADMIN,
-        "Everything an operator console needs after login. "
-        "`monitor_last_seq` is the per-gateway sequence to resume the "
-        "`/ws/admin/monitor` stream from.",
+    responses=docs.merge(
+        docs.ok(
+            docs.BOOTSTRAP_ADMIN,
+            "Everything an operator console needs after login. "
+            "`monitor_last_seq` is the per-gateway sequence to resume the "
+            "`/ws/admin/monitor` stream from.",
+        ),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "ROLE_DENIED"),
     ),
 )
 async def bootstrap_admin(

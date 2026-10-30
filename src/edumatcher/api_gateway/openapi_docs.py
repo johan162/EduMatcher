@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi.openapi.models import Example
 
+from edumatcher.api_gateway.errors import ERROR_CODES
 from edumatcher.api_gateway.schemas import ErrorResponse
 from edumatcher.models.generated import index as index_msgs
 from edumatcher.models.generated import news as news_msgs
@@ -208,124 +209,65 @@ def ok_named(
     return {status_code: _json_named(examples, description)}
 
 
-def _error(code: str, message: str, **extra: str) -> dict[str, Any]:
-    error: dict[str, Any] = {"code": code, "message": message}
-    error.update(extra)
-    return {"error": error}
+#: The codes a route's key check can produce. Any key: unknown (`AUTH`); a
+#: trading key the engine refuses (`ENGINE_AUTH`) or cannot be reached to
+#: confirm (`ENGINE_UNAVAILABLE`).
+ANY_KEY = ("AUTH", "ENGINE_AUTH", "ENGINE_UNAVAILABLE")
+#: A gateway-scoped endpoint additionally refuses a read-only key.
+TRADING_KEY = (*ANY_KEY, "READ_ONLY")
 
 
-def _err_response(description: str, example: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "model": ErrorResponse,
-        "description": description,
-        "content": {"application/json": {"example": example}},
-    }
+def errors(
+    *codes: str, examples: dict[str, dict[str, Any]] | None = None
+) -> dict[int | str, dict[str, Any]]:
+    """``responses=`` entries for exactly the error *codes* a route can return.
+
+    One response per HTTP status, listing its codes and carrying one named
+    example per code (Swagger shows a dropdown). *examples* overrides a
+    code's example fields (``message``, ``field``, ``reject_code``, ...);
+    otherwise the registry's example message and default ``reject_code`` are
+    used. Each route's set is held to what its code can raise by
+    ``tests/test_api_gateway_error_codes.py``.
+    """
+    by_status: dict[int, list[str]] = {}
+    for code in sorted(set(codes)):
+        by_status.setdefault(ERROR_CODES[code].status, []).append(code)
+    out: dict[int | str, dict[str, Any]] = {}
+    for status_code, group in sorted(by_status.items()):
+        named = {}
+        for code in group:
+            entry = ERROR_CODES[code]
+            fields: dict[str, Any] = {
+                "message": entry.example,
+                "reject_code": entry.reject_code,
+                **(examples or {}).get(code, {}),
+            }
+            named[code] = {
+                "summary": code,
+                "value": {"error": {"code": code, **fields}},
+            }
+        out[status_code] = {
+            "model": ErrorResponse,
+            "description": " ".join(
+                f"`{code}`: {ERROR_CODES[code].meaning}" for code in group
+            ),
+            "content": {"application/json": {"examples": named}},
+        }
+    return out
 
 
-#: Errors any authenticated endpoint can produce. Applied once, on the app.
-COMMON_ERRORS: dict[int | str, dict[str, Any]] = {
-    400: _err_response(
-        "A parameter or body field is missing, unknown or invalid. "
-        "`reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, "
-        "`INVALID_VALUE`, `TICK_VIOLATION`; `field` names the culprit.",
-        _error(
-            "VALIDATION",
-            "Input should be less than or equal to 5000",
-            field="limit",
-            reject_code="INVALID_VALUE",
-        ),
-    ),
-    401: _err_response(
-        "Missing, malformed or unknown API key. Carries `WWW-Authenticate: Bearer`.",
-        _error(
-            "AUTH",
-            "Unknown API key",
-            reject_code="AUTH_REQUIRED",
-        ),
-    ),
-    403: _err_response(
-        "The key is valid but not allowed to do this: a read-only key on a "
-        "gateway-scoped endpoint (`READ_ONLY`), a non-ADMIN key on an admin "
-        "endpoint (`ROLE_DENIED`), or the engine refused the gateway "
-        "(`ENGINE_AUTH`).",
-        _error(
-            "ROLE_DENIED",
-            "ADMIN role required",
-            reject_code="ROLE_DENIED",
-        ),
-    ),
-    503: _err_response(
-        "The engine (or pm-index) did not answer within the configured " "timeout.",
-        _error(
-            "ENGINE_TIMEOUT",
-            "Timed out waiting for engine reply",
-            reject_code="INTERNAL_ERROR",
-        ),
-    ),
+#: ``examples=`` for the order-entry writes' ``VALIDATION``.
+ORDER_VALIDATION = {
+    "message": "LIMIT requires price",
+    "field": "__root__",
+    "reject_code": "MISSING_FIELD",
+    "client_tag": "strategy-7",
 }
-
-#: Added to routes with a request body or query validation.
-VALIDATION_ERROR: dict[int | str, dict[str, Any]] = {
-    400: _err_response(
-        "The request is malformed or breaks a rule: missing/extra field, bad "
-        "value, price off the tick grid. `reject_code` is one of "
-        "`MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, "
-        "`TICK_VIOLATION`.",
-        _error(
-            "VALIDATION",
-            "LIMIT requires price",
-            field="__root__",
-            reject_code="MISSING_FIELD",
-            client_tag="strategy-7",
-        ),
-    )
+#: ``examples=`` for the history filters' ``VALIDATION``.
+FILTER_VALIDATION = {
+    "message": "Invalid date format: yesterday (expected YYYY-MM-DD)",
+    "field": "date",
 }
-
-#: Added to the history routes: their own filter checks (dates, cursors,
-#: event types) answer like FastAPI's query validation.
-INVALID_FILTER: dict[int | str, dict[str, Any]] = {
-    400: _err_response(
-        "A filter is malformed: a date or timestamp that does not parse, an "
-        "unknown `event_type`, or a stale or foreign `after` cursor. `field` "
-        "names the parameter.",
-        _error(
-            "VALIDATION",
-            "Invalid date format: yesterday (expected YYYY-MM-DD)",
-            field="date",
-            reject_code="INVALID_VALUE",
-        ),
-    )
-}
-
-#: Added to the order-entry writes.
-RATE_LIMITED: dict[int | str, dict[str, Any]] = {
-    429: _err_response(
-        "Write rate exceeded for this API key; retry after a short pause.",
-        _error(
-            "RATE_LIMIT",
-            "Write rate exceeded",
-            reject_code="RATE_LIMITED",
-        ),
-    )
-}
-
-
-def not_found(code: str, message: str) -> dict[int | str, dict[str, Any]]:
-    return {
-        404: _err_response(
-            "Nothing with that identifier.",
-            _error(code, message, reject_code="UNKNOWN"),
-        )
-    }
-
-
-def conflict(code: str, message: str) -> dict[int | str, dict[str, Any]]:
-    return {
-        409: _err_response(
-            "The engine refused the command; `message` is its reason.",
-            _error(code, message, reject_code="UNKNOWN"),
-        )
-    }
 
 
 def ok_or_acked(
@@ -344,49 +286,6 @@ def ok_or_acked(
         202: _json_named(pending, pending_description),
         200: _json_named(answered, acked_description),
     }
-
-
-#: Added to the writes that take an ``Idempotency-Key``.
-IDEMPOTENCY_CONFLICT: dict[int | str, dict[str, Any]] = {
-    409: _err_response(
-        "The `Idempotency-Key` was already used for a different request.",
-        _error(
-            "IDEMPOTENCY_KEY_REUSED",
-            "This Idempotency-Key was used for a different request; use a new "
-            "key for a new request.",
-            field="Idempotency-Key",
-        ),
-    )
-}
-
-#: ``POST /orders/{order_id}/replace``: a refused cancel or a reused key.
-REPLACE_CONFLICT: dict[int | str, dict[str, Any]] = {
-    409: {
-        "model": ErrorResponse,
-        "description": "The original's cancel was refused (nothing was sent), "
-        "or the `Idempotency-Key` was used for a different request.",
-        "content": {
-            "application/json": {
-                "examples": {
-                    "cancel_refused": {
-                        "summary": "The original is already filled or gone",
-                        "value": _error(
-                            "REPLACE_REJECTED",
-                            "Order already filled",
-                            reject_code="ORDER_ALREADY_TERMINAL",
-                        ),
-                    },
-                    "key_reused": {
-                        "summary": "Idempotency-Key reused",
-                        "value": IDEMPOTENCY_CONFLICT[409]["content"][
-                            "application/json"
-                        ]["example"],
-                    },
-                }
-            }
-        },
-    }
-}
 
 
 def merge(*parts: dict[int | str, dict[str, Any]]) -> dict[int | str, dict[str, Any]]:

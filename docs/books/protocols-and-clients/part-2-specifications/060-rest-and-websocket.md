@@ -88,6 +88,7 @@ optional parameters.
 | Endpoint | Access | Purpose |
 |---|---|---|
 | [POST /api/v1/admin/session/transition](#post-apiv1adminsessiontransition) | Admin role | Request a session-phase transition |
+| [GET /api/v1/admin/sim](#get-apiv1adminsim) | Admin role | Market simulator state and its true fair values |
 | [GET /api/v1/admin/gateways](#get-apiv1admingateways) | Admin role | List configured gateways and live connection state |
 | [POST /api/v1/admin/gateways/{gateway_id}/disconnect](#post-apiv1admingatewaysgateway_iddisconnect) | Admin role | Forcibly disconnect one gateway |
 | [POST /api/v1/admin/symbols/{symbol}/halt](#post-apiv1adminsymbolssymbolhalt) | Admin role | Halt one symbol through the circuit breaker |
@@ -155,6 +156,11 @@ How to get a key:
 Every non-2xx reply carries one of these `error.code` values. `reject_code`
 is the engine vocabulary shared with ALF; it is `UNKNOWN` where no engine
 reject applies.
+
+Every endpoint can answer `AUTH`, `ENGINE_AUTH`, `ENGINE_UNAVAILABLE` (the
+engine could not be reached to confirm a trading key) and `INTERNAL_ERROR`.
+Each endpoint's **Errors** table lists exactly the other codes it can return;
+the OpenAPI document lists all of them per operation.
 
 | Code | HTTP status | `reject_code` | Meaning |
 |---|---:|---|---|
@@ -585,13 +591,17 @@ positions, active orders, today's recent fills, and capability flags.
 empty `positions` and `orders` and `null` `recent_fills`, but `session` and
 `halts` like any key).
 
-**Query parameters**
+**Arguments**
 
-| Name | Type | Default | Constraints | Description |
-|---|---|---|---|---|
-| `fills_limit` | `int` | `50` | `1..500` | Maximum number of today's fill events to include in `recent_fills` |
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `fills_limit` | `Int` | no | Maximum number of today's fill events in `recent_fills`; `1..500`, default `50` |
 
-**Reply `200 OK`**
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | the object below | Startup payload |
 
 ```jsonc
 {
@@ -649,9 +659,9 @@ engine query, for read-only keys).
 
 | Code | Status | When |
 |---|---|---|
-| `AUTH` | `401` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
 | `VALIDATION` | `400` | `fills_limit` is not an integer in 1–500 |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
 
 ---
 
@@ -662,9 +672,17 @@ Purpose: one-request startup payload for MARKET\_MAKER sessions.  Superset of
 
 **Access:** MARKET\_MAKER key only.  TRADER and ADMIN keys receive `403`.
 
-**Query parameters:** same as `/bootstrap/trader` (`fills_limit`).
+**Arguments**
 
-**Reply `200 OK`**
+| Name | Type | Req | Description |
+|---|---|---|---|
+| `fills_limit` | `Int` | no | As for `/bootstrap/trader` |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | the object below | Startup payload |
 
 All fields from `/bootstrap/trader`, plus:
 
@@ -689,11 +707,10 @@ All fields from `/bootstrap/trader`, plus:
 
 | Code | Status | When |
 |---|---|---|
-| `AUTH` | `401` | Missing or malformed key |
+| `VALIDATION` | `400` | `fills_limit` is not an integer in 1–500 |
 | `READ_ONLY` | `403` | Read-only key (no gateway\_id) |
 | `ROLE_DENIED` | `403` | Key resolves to TRADER or ADMIN role |
 | `ENGINE_TIMEOUT` | `503` | `reference`, `orders` or `positions` could not be fetched |
-| `VALIDATION` | `400` | `fills_limit` is not an integer in 1–500 |
 
 ---
 
@@ -706,9 +723,17 @@ flags.
 
 **Access:** ADMIN role required.  TRADER and MARKET\_MAKER keys receive `403`.
 
-**No query parameters.**
+**Arguments**
 
-**Reply `200 OK`**
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No query parameters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | the object below | Startup payload |
 
 ```jsonc
 {
@@ -758,7 +783,7 @@ frame that the `WS /api/v1/ws/admin/monitor` socket sends immediately after auth
 
 | Code | Status | When |
 |---|---|---|
-| `AUTH` | `401` | Missing or malformed key |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
 | `ROLE_DENIED` | `403` | Key is not ADMIN |
 | `ENGINE_TIMEOUT` | `503` | `reference` could not be fetched |
 
@@ -785,6 +810,8 @@ Purpose: submit one order for the caller's gateway.
 | `trail_offset` | `Price` | conditional | Required for `TRAILING_STOP` |
 | `smp_action` | `SmpAction` | no | Self-match prevention action |
 | `client_tag` | `Str` | no | Optional opaque client correlation tag |
+| `wait` | `Bool` | no | `?wait=ack` waits for the engine's verdict (see [Write outcomes and safe retries](#write-outcomes-and-safe-retries)) |
+| `Idempotency-Key` | header | no | Makes a retry safe; see [Write outcomes and safe retries](#write-outcomes-and-safe-retries) |
 
 **Reply**
 
@@ -799,15 +826,13 @@ Takes an optional `Idempotency-Key` header; see
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ROLE_DENIED` | ADMIN-only restriction violated |
-| `VALIDATION` | Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (`reject_code: TICK_VIOLATION`) |
-| `SYMBOLS_NOT_READY` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
-| `RATE_LIMIT` | Write limit exceeded |
-| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (`reject_code: TICK_VIOLATION`) |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | The `Idempotency-Key` was used for a different request |
+| `RATE_LIMIT` | `429` | Write limit exceeded |
+| `SYMBOLS_NOT_READY` | `503` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
 
 A conditional field the `order_type` does not use is rejected
 (`400 VALIDATION`, for example `"LIMIT forbids trail_offset"`), never silently
@@ -843,11 +868,11 @@ refused cancel shows as an ack timeout; pass a `request_tag` to get it as
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Bad path or query |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Bad path or query |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `PATCH /api/v1/orders/{order_id}`
 
@@ -873,11 +898,11 @@ Purpose: amend price and/or quantity on one live order.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Neither or both fields invalid |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Neither or both fields invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `POST /api/v1/orders/{order_id}/replace`
 
@@ -904,15 +929,15 @@ only once the engine has confirmed it.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Replacement body invalid, or names another symbol than the original (`field: symbol`) |
-| `SYMBOLS_NOT_READY` | The symbol's metadata is not loaded; nothing was cancelled |
-| `REPLACE_REJECTED` | `409`: the engine refused the cancel (the order already filled, say; `reject_code` says why); nothing was sent |
-| `ENGINE_TIMEOUT` | `503`: the cancel's outcome did not arrive in time; no replacement was sent |
-| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Replacement body invalid, or names another symbol than the original (`field: symbol`) |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | The `Idempotency-Key` was used for a different request |
+| `REPLACE_REJECTED` | `409` | The engine refused the cancel (the order already filled, say; `reject_code` says why); nothing was sent |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | The cancel's outcome did not arrive in time; no replacement was sent |
+| `SYMBOLS_NOT_READY` | `503` | The symbol's metadata is not loaded; nothing was cancelled |
 
 ### `GET /api/v1/orders`
 
@@ -933,11 +958,10 @@ orders plus recently finished ones.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | `503`: the engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket `orders.snapshot` is the cached view |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | Read-only credential used |
+| `ENGINE_TIMEOUT` | `503` | The engine did not answer in time. There is no fallback to the gateway's cache; the private WebSocket `orders.snapshot` is the cached view |
 
 ### `GET /api/v1/orders/{order_id}`
 
@@ -958,11 +982,11 @@ Purpose: return one cached order from the caller gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `UNKNOWN_ORDER` | Order id unknown to the cache |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `UNKNOWN_ORDER` | `404` | Order id unknown to the cache |
 
 ### `POST /api/v1/oco`
 
@@ -977,6 +1001,10 @@ Purpose: submit an OCO pair.
 | `quantity` | `Qty` | yes | Total quantity |
 | `leg1` | `OrderLeg` | yes | First leg definition: `side`, `order_type`, and the `price` / `stop_price` / `trail_offset` that type needs (same rule as `POST /orders`; `ICEBERG` is not supported on a leg) |
 | `leg2` | `OrderLeg` | yes | Second leg definition, same shape |
+| `tif` | `Tif` | no | Time-in-force of both legs; defaults to `DAY` |
+| `client_tag` | `Str` | no | Opaque label echoed on both legs' events; max 64 chars |
+| `wait` | `Bool` | no | `?wait=ack` waits for the engine's verdict (see [Write outcomes and safe retries](#write-outcomes-and-safe-retries)) |
+| `Idempotency-Key` | header | no | Makes a retry safe; see [Write outcomes and safe retries](#write-outcomes-and-safe-retries) |
 
 **Reply**
 
@@ -991,12 +1019,13 @@ Takes `?wait=ack` and an optional `Idempotency-Key` header; see
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Body invalid |
-| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Body invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | The `Idempotency-Key` was used for a different request |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `SYMBOLS_NOT_READY` | `503` | Order entry before the symbol's tick precision reached the gateway. Transient; retry |
 
 ### `DELETE /api/v1/oco/{oco_id}`
 
@@ -1016,11 +1045,11 @@ Purpose: cancel an OCO pair.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | Cancel timed out |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `POST /api/v1/combos`
 
@@ -1032,6 +1061,12 @@ Purpose: submit a combo order.
 |---|---|---|---|
 | `combo_id` | `Str` | yes | Combo group id |
 | `legs` | `List<ComboLeg>` | yes | 2–10 legs: `symbol`, `side`, `order_type` (default `LIMIT`), `quantity`, and the `price` / `stop_price` that type needs (same rule as `POST /orders`; `ICEBERG` and `TRAILING_STOP` are not supported on a leg) |
+| `combo_type` | `ComboType` | no | Fill rule; `AON` (all or none), the default and only value |
+| `tif` | `Tif` | no | Time-in-force of every leg; defaults to `DAY` |
+| `smp_action` | `SmpAction` | no | Self-match prevention action, as on `POST /orders` |
+| `client_tag` | `Str` | no | Opaque label echoed on every leg's events; max 64 chars |
+| `wait` | `Bool` | no | `?wait=ack` waits for the engine's verdict (see [Write outcomes and safe retries](#write-outcomes-and-safe-retries)) |
+| `Idempotency-Key` | header | no | Makes a retry safe; see [Write outcomes and safe retries](#write-outcomes-and-safe-retries) |
 
 **Reply**
 
@@ -1046,12 +1081,13 @@ Takes `?wait=ack` and an optional `Idempotency-Key` header; see
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Body invalid |
-| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Body invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | The `Idempotency-Key` was used for a different request |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `SYMBOLS_NOT_READY` | `503` | Order entry before the symbol's tick precision reached the gateway. Transient; retry |
 
 ### `DELETE /api/v1/combos/{combo_id}`
 
@@ -1071,11 +1107,11 @@ Purpose: cancel a combo order.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | Cancel timed out |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `POST /api/v1/quotes`
 
@@ -1090,6 +1126,10 @@ Purpose: submit a two-sided market-maker quote.
 | `bid_qty` | `Qty` | yes | Bid quantity |
 | `ask_price` | `Price` | yes | Ask price |
 | `ask_qty` | `Qty` | yes | Ask quantity |
+| `tif` | `Tif` | no | Time-in-force of both sides; defaults to `DAY` |
+| `quote_id` | `Str` | no | Your id for the quote; defaults to the symbol |
+| `wait` | `Bool` | no | `?wait=ack` waits for the engine's verdict (see [Write outcomes and safe retries](#write-outcomes-and-safe-retries)) |
+| `Idempotency-Key` | header | no | Makes a retry safe; see [Write outcomes and safe retries](#write-outcomes-and-safe-retries) |
 
 **Reply**
 
@@ -1104,12 +1144,13 @@ Takes `?wait=ack` and an optional `Idempotency-Key` header; see
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Quote body invalid |
-| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Quote body invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | The `Idempotency-Key` was used for a different request |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `SYMBOLS_NOT_READY` | `503` | Order entry before the symbol's tick precision reached the gateway. Transient; retry |
 
 ### `DELETE /api/v1/quotes/{symbol}`
 
@@ -1129,11 +1170,11 @@ Purpose: cancel the active quote for one symbol.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | Cancel timed out |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `POST /api/v1/mass-cancel`
 
@@ -1153,11 +1194,12 @@ Purpose: cancel all resting exposure for the caller or one symbol.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not ACK in time |
 
 ### `GET /api/v1/symbols`
 
@@ -1177,10 +1219,10 @@ Purpose: return instrument metadata for the caller gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/news`
 
@@ -1203,10 +1245,9 @@ since this is public information, not a trading action.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `VALIDATION` | `limit` outside `1`-`200` |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | `limit` outside `1`-`200` |
 
 ### `GET /api/v1/companies/{symbol}`
 
@@ -1229,11 +1270,11 @@ are public information.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `UNKNOWN_COMPANY` | `404`: the database has no profile for `symbol` |
-| `COMPANY_DB_UNAVAILABLE` | `503`: no `companies.db` in the data directory, or it cannot be read |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `UNKNOWN_COMPANY` | `404` | The database has no profile for `symbol` |
+| `COMPANY_DB_UNAVAILABLE` | `503` | No `companies.db` in the data directory, or it cannot be read |
 
 ### `GET /api/v1/session`
 
@@ -1255,10 +1296,9 @@ Open to every key, read-only included. Replaces the former
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/halts`
 
@@ -1281,11 +1321,9 @@ stale badge for the rest of the session.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only key (no `gateway_id`) |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/status`
 
@@ -1305,9 +1343,9 @@ Purpose: return who the caller is: its gateway id and engine role.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
 
 ### `GET /api/v1/healthz`
 
@@ -1351,10 +1389,10 @@ sizes, remaining quantities, statuses and prices.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/quotes/legs`
 
@@ -1374,10 +1412,10 @@ Purpose: return the current quote-leg state for the caller.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/positions`
 
@@ -1401,10 +1439,10 @@ which requires the ADMIN role.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ## Reference data
 
@@ -1429,10 +1467,9 @@ Purpose: return the full reference bundle in one round-trip.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/reference/config-version`
 
@@ -1452,10 +1489,9 @@ Purpose: return the content-hash version of the reference bundle.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/reference/symbols`
 
@@ -1483,10 +1519,9 @@ Either is omitted entirely when not configured. Full field law:
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/reference/risk`
 
@@ -1511,10 +1546,9 @@ field law: `RiskLevel` in the [message reference](../part-5-message-reference/01
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/reference/indexes`
 
@@ -1534,10 +1568,9 @@ Purpose: return configured exchange index definitions.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/reference/schedule`
 
@@ -1557,10 +1590,9 @@ Purpose: return session schedule metadata.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ## History
 
@@ -1591,12 +1623,11 @@ Purpose: return the caller gateway's order lifecycle events.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `STATS_DB` | `pm-stats` database missing |
-| `VALIDATION` | Query invalid |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Query invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/orders/{order_id}`
 
@@ -1616,12 +1647,11 @@ Purpose: return the full lifecycle of one order for the caller gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `STATS_DB` | `pm-stats` database missing |
-| `VALIDATION` | Path invalid |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Path invalid |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/fills`
 
@@ -1646,11 +1676,11 @@ Purpose: return fill events for the caller gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `READ_ONLY` | Read-only credential used |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | Read-only credential used |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/trades`
 
@@ -1675,10 +1705,10 @@ Purpose: return public trade tape rows.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/daily`
 
@@ -1703,10 +1733,10 @@ Purpose: return daily OHLCV rows.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/price-snapshots`
 
@@ -1731,10 +1761,10 @@ Purpose: return intraday price snapshots.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/index-daily`
 
@@ -1759,10 +1789,10 @@ Purpose: return daily index OHLC rows.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/index-snapshots`
 
@@ -1787,10 +1817,10 @@ Purpose: return intraday index snapshots.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/indexes`
 
@@ -1810,10 +1840,10 @@ Purpose: list index ids with recorded data.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `STATS_DB` | `pm-stats` database missing |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `STATS_DB` | `503` | `pm-stats` database missing |
 
 ### `GET /api/v1/history/index-events`
 
@@ -1837,11 +1867,11 @@ Purpose: return index structural and audit events from `pm-index`.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `INDEX_TIMEOUT` | `pm-index` did not reply in time |
-| `INDEX_ERROR` | `pm-index` rejected the request |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `INDEX_ERROR` | `502` | `pm-index` rejected the request |
+| `INDEX_TIMEOUT` | `503` | `pm-index` did not reply in time |
 
 ## Admin REST
 
@@ -1866,13 +1896,39 @@ Purpose: request a session-phase transition from the engine.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `VALIDATION` | Invalid `to_state` |
-| `TRANSITION_REJECTED` | Engine rejected the transition |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Invalid `to_state` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `TRANSITION_REJECTED` | `409` | Engine rejected the transition |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
+
+### `GET /api/v1/admin/sim`
+
+Purpose: the market simulator's latest state and the model's true (hidden)
+fair value per symbol, from `pm-market-sim`. For instructors: students see
+only prices, never these values.
+
+**Arguments**
+
+| Name | Type | Req | Description |
+|---|---|---|---|
+| none | — | — | No query parameters |
+
+**Reply**
+
+| Status | Shape | Meaning |
+|---|---|---|
+| `200 OK` | `{ "available": true, "state": {...}, "values": {...} }` | `available` is false, and `state`/`values` null, when the simulator is not running |
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | The key's gateway is not ADMIN |
 
 ### `GET /api/v1/admin/gateways`
 
@@ -1892,11 +1948,11 @@ Purpose: list configured gateways and live connection state.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/gateways/{gateway_id}/disconnect`
 
@@ -1917,11 +1973,12 @@ Purpose: forcibly disconnect one gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
 
 ### `POST /api/v1/admin/symbols/{symbol}/halt`
 
@@ -1945,13 +2002,14 @@ is optional.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `VALIDATION` | Body invalid |
-| `HALT_REJECTED` | Engine refused (unknown symbol, no circuit breaker, unknown level); `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Body invalid |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `HALT_REJECTED` | `409` | Engine refused (unknown symbol, no circuit breaker, unknown level); `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/symbols/{symbol}/resume`
 
@@ -1973,12 +2031,14 @@ Purpose: resume one halted symbol.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `RESUME_REJECTED` | Engine refused (for example the symbol is not halted); `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `RESUME_REJECTED` | `409` | Engine refused (for example the symbol is not halted); `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/risk/state`
 
@@ -1998,11 +2058,11 @@ Purpose: return live per-symbol risk state.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `GET /api/v1/admin/orders`
 
@@ -2024,10 +2084,11 @@ Purpose: return the cross-gateway active-order table.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
 
 ### `GET /api/v1/admin/orders/{order_id}/audit`
 
@@ -2048,12 +2109,13 @@ Purpose: return the full cross-gateway lifecycle of one order.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `AUDIT_INDEX_UNAVAILABLE` | No audit index available |
-| `UNKNOWN_ORDER` | No audited events for the order |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `UNKNOWN_ORDER` | `404` | No audited events for the order |
+| `AUDIT_INDEX_UNAVAILABLE` | `503` | No audit index available |
 
 ### `GET /api/v1/admin/gateways/{gateway_id}/positions`
 
@@ -2079,11 +2141,12 @@ command -- all three read the same `system.position_request` /
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/symbols/{symbol}/cancel-orders`
 
@@ -2105,12 +2168,14 @@ Purpose: cancel all resting exposure on one symbol, across every gateway.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/gateways/{gateway_id}/kill-switch`
 
@@ -2133,12 +2198,14 @@ disconnecting it.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/market/kill-switch`
 
@@ -2159,12 +2226,14 @@ Purpose: cancel all resting exposure across every gateway and symbol.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `KILL_SWITCH_REJECTED` | Engine refused; `message` is its reason |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | A body field, query parameter, header or history filter failed validation; `field` names it. `reject_code` is one of `MISSING_FIELD`, `UNSUPPORTED_FIELD`, `INVALID_VALUE`, `TICK_VIOLATION` |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `KILL_SWITCH_REJECTED` | `409` | Engine refused; `message` is its reason |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ### `POST /api/v1/admin/indexes/{index_id}/rebalance`
 
@@ -2186,14 +2255,14 @@ Purpose: rebalance one configured index through `pm-index`.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `VALIDATION` | Batch body invalid |
-| `REBALANCE_REJECTED` | `pm-index` rejected the request |
-| `INDEX_TIMEOUT` | `pm-index` did not reply in time |
-| `INDEX_ERROR` | `pm-index` returned an error |
+| Code | Status | When |
+|---|---|---|
+| `VALIDATION` | `400` | Batch body invalid |
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `REBALANCE_REJECTED` | `409` | `pm-index` rejected the request |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `INDEX_TIMEOUT` | `503` | `pm-index` did not reply in time |
 
 ### `POST /api/v1/admin/reference/reload`
 
@@ -2213,12 +2282,13 @@ Purpose: reload the compiled reference bundle in place.
 
 **Errors**
 
-| Code | When |
-|---|---|
-| `AUTH` | Missing or malformed key |
-| `ROLE_DENIED` | Caller is not ADMIN |
-| `RELOAD_REJECTED` | Reload would change the symbol or index set |
-| `ENGINE_TIMEOUT` | Engine did not reply in time |
+| Code | Status | When |
+|---|---|---|
+| `READ_ONLY` | `403` | A read-only key used on a gateway-scoped endpoint |
+| `ROLE_DENIED` | `403` | Caller is not ADMIN |
+| `RELOAD_REJECTED` | `409` | Reload would change the symbol or index set |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded; retry after a short pause |
+| `ENGINE_TIMEOUT` | `503` | Engine did not reply in time |
 
 ## Operational notes
 

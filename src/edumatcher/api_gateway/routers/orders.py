@@ -232,9 +232,14 @@ def _cache_submitted(
             "private WebSocket.",
             "With `?wait=ack`: the engine's verdict.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.IDEMPOTENCY_CONFLICT,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMIT",
+            "SYMBOLS_NOT_READY",
+            "VALIDATION",
+            examples={"VALIDATION": docs.ORDER_VALIDATION},
+        ),
     ),
 )
 async def submit_order(
@@ -300,7 +305,7 @@ async def submit_order(
             "WebSocket.",
             "With `?wait=ack`: the cancel's outcome.",
         ),
-        docs.RATE_LIMITED,
+        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_order(
@@ -370,8 +375,12 @@ async def cancel_order(
             "WebSocket.",
             "With `?wait=ack`: the amend's outcome.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "RATE_LIMIT",
+            "VALIDATION",
+            examples={"VALIDATION": docs.ORDER_VALIDATION},
+        ),
     ),
 )
 async def amend_order(
@@ -446,9 +455,19 @@ async def amend_order(
             "Original cancelled; replacement sent to the engine.",
             "With `?wait=ack`: the replacement's verdict.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.REPLACE_CONFLICT,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "ENGINE_TIMEOUT",
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMIT",
+            "REPLACE_REJECTED",
+            "SYMBOLS_NOT_READY",
+            "VALIDATION",
+            examples={
+                "REPLACE_REJECTED": {"reject_code": "ORDER_ALREADY_TERMINAL"},
+                "VALIDATION": docs.ORDER_VALIDATION,
+            },
+        ),
     ),
 )
 async def replace_order(
@@ -549,7 +568,10 @@ async def replace_order(
         "`client_tag` it was submitted with (null if none). `503 "
         "ENGINE_TIMEOUT` if the engine does not answer in time."
     ),
-    responses=docs.ok(docs.ORDERS_LIST_REPLY, "The caller's orders."),
+    responses=docs.merge(
+        docs.ok(docs.ORDERS_LIST_REPLY, "The caller's orders."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT"),
+    ),
 )
 async def list_orders(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -595,7 +617,14 @@ async def list_orders(
     ),
     responses=docs.merge(
         docs.ok(docs.ORDER_CACHED, "The order."),
-        docs.not_found("UNKNOWN_ORDER", f"Unknown order {docs.ORDER_ID_EXAMPLE}"),
+        docs.errors(
+            *docs.TRADING_KEY,
+            "UNKNOWN_ORDER",
+            "VALIDATION",
+            examples={
+                "UNKNOWN_ORDER": {"message": f"Unknown order {docs.ORDER_ID_EXAMPLE}"}
+            },
+        ),
     ),
 )
 async def get_order(
@@ -636,9 +665,14 @@ async def get_order(
             "OCO sent to the engine (`PENDING`).",
             "With `?wait=ack`: the engine's verdict.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.IDEMPOTENCY_CONFLICT,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMIT",
+            "SYMBOLS_NOT_READY",
+            "VALIDATION",
+            examples={"VALIDATION": docs.ORDER_VALIDATION},
+        ),
     ),
 )
 async def submit_oco(
@@ -678,7 +712,7 @@ async def submit_oco(
     description="Cancel both legs of the OCO group `oco_id`.",
     responses=docs.merge(
         docs.ok(docs.OCO_CANCEL, "Cancel sent to the engine.", 202),
-        docs.RATE_LIMITED,
+        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_oco(
@@ -709,9 +743,14 @@ async def cancel_oco(
             "Combo sent to the engine (`PENDING`).",
             "With `?wait=ack`: the engine's verdict.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.IDEMPOTENCY_CONFLICT,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMIT",
+            "SYMBOLS_NOT_READY",
+            "VALIDATION",
+            examples={"VALIDATION": docs.ORDER_VALIDATION},
+        ),
     ),
 )
 async def submit_combo(
@@ -752,7 +791,7 @@ async def submit_combo(
     description="Cancel every leg of the combo `combo_id`.",
     responses=docs.merge(
         docs.ok(docs.COMBO_CANCEL, "Cancel sent to the engine.", 202),
-        docs.RATE_LIMITED,
+        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_combo(
@@ -784,9 +823,14 @@ async def cancel_combo(
             "Quote sent to the engine (`PENDING`).",
             "With `?wait=ack`: the engine's verdict.",
         ),
-        docs.VALIDATION_ERROR,
-        docs.IDEMPOTENCY_CONFLICT,
-        docs.RATE_LIMITED,
+        docs.errors(
+            *docs.TRADING_KEY,
+            "IDEMPOTENCY_KEY_REUSED",
+            "RATE_LIMIT",
+            "SYMBOLS_NOT_READY",
+            "VALIDATION",
+            examples={"VALIDATION": docs.ORDER_VALIDATION},
+        ),
     ),
 )
 async def submit_quote(
@@ -829,7 +873,7 @@ async def submit_quote(
     description="Withdraw the caller's active quote on `symbol`.",
     responses=docs.merge(
         docs.ok(docs.QUOTE_CANCEL, "Cancel sent to the engine.", 202),
-        docs.RATE_LIMITED,
+        docs.errors(*docs.TRADING_KEY, "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def cancel_quote(
@@ -855,7 +899,8 @@ async def cancel_quote(
         "`POST /admin/market/kill-switch`."
     ),
     responses=docs.merge(
-        docs.ok(docs.MASS_CANCEL_REPLY, "What the engine cancelled."), docs.RATE_LIMITED
+        docs.ok(docs.MASS_CANCEL_REPLY, "What the engine cancelled."),
+        docs.errors(*docs.TRADING_KEY, "ENGINE_TIMEOUT", "RATE_LIMIT", "VALIDATION"),
     ),
 )
 async def mass_cancel(

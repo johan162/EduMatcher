@@ -56,11 +56,20 @@ def test_every_endpoint_has_a_summary_and_a_real_example(spec: dict[str, Any]) -
 
 
 def test_every_endpoint_documents_the_error_envelope(spec: dict[str, Any]) -> None:
+    """Which codes each operation lists is test_api_gateway_error_codes's job;
+    here: every error response is the envelope, and the two universal ones
+    (an unknown key, a gateway bug) are on every operation."""
     for method, path, op in _operations(spec):
-        for code in ("400", "401", "403", "503"):
-            assert code in op["responses"], f"{method} {path} lacks {code}"
-        envelope = op["responses"]["401"]["content"]["application/json"]["example"]
-        assert envelope["error"]["code"] == "AUTH"
+        for status_code, response in op["responses"].items():
+            if status_code.startswith("2") or status_code == "422":
+                continue
+            content = response["content"]["application/json"]
+            assert content["schema"] == {
+                "$ref": "#/components/schemas/ErrorResponse"
+            }, f"{method} {path} {status_code}"
+        for status_code, code in (("401", "AUTH"), ("500", "INTERNAL_ERROR")):
+            examples = op["responses"][status_code]["content"]["application/json"]
+            assert code in examples["examples"], f"{method} {path} lacks {code}"
 
 
 def test_stock_fastapi_422_is_not_advertised(spec: dict[str, Any]) -> None:
