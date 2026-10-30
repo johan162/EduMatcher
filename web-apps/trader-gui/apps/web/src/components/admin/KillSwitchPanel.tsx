@@ -11,6 +11,7 @@ import { ConfirmTypedDialog } from "@/components/shared/ConfirmTypedDialog.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { AdminGateway } from "@/types/index.js";
 import { FieldHelp } from "@/components/shared/FieldHelp.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 interface KillSwitchPanelProps {
   gateways: AdminGateway[];
@@ -27,7 +28,7 @@ function killSwitchError(err: unknown): void {
     toast.error(`Rejected: ${err.message}`);
     return;
   }
-  if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+  if (isUnconfirmed(err)) {
     toast("Kill switch submitted — awaiting engine confirmation");
     return;
   }

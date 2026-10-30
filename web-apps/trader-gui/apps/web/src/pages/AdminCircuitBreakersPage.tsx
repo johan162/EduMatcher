@@ -12,6 +12,7 @@ import { formatNsTimestamp } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { HeaderTip } from "@/components/shared/HeaderTip.js";
 import { FieldHelp } from "@/components/shared/FieldHelp.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 const th = "px-2 py-1.5 text-left font-medium";
 const fieldCls =
@@ -65,7 +66,7 @@ export function AdminCircuitBreakersPage() {
             toast.error(`Rejected: ${err.message}`);
             return;
           }
-          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+          if (isUnconfirmed(err)) {
             toast(`Halt submitted for ${symbol} — awaiting confirmation`);
             return;
           }
@@ -80,7 +81,7 @@ export function AdminCircuitBreakersPage() {
     resume.mutate(sym, {
       onSuccess: () => toast.success(`Resume submitted for ${sym}`),
       onError: (err) => {
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+        if (isUnconfirmed(err)) {
           toast(`Resume submitted for ${sym} — awaiting confirmation`);
           return;
         }

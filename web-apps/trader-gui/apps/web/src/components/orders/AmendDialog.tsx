@@ -6,6 +6,7 @@ import { validateAmend } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 import { FieldHelp } from "@/components/shared/FieldHelp.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 interface AmendDialogProps {
   orderId: string;
@@ -68,7 +69,7 @@ export function AmendDialog({ orderId, onClose }: AmendDialogProps) {
           onClose();
         },
         onError: (err) => {
-          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+          if (isUnconfirmed(err)) {
             toast(`Amend submitted — awaiting confirmation (check blotter)`);
             onClose();
             return;

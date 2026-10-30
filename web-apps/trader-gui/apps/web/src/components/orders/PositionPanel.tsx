@@ -13,7 +13,7 @@ import { useSymbolDetailStore } from "@/store/useSymbolDetailStore.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { buildFlattenOrder } from "@/lib/flatten.js";
 import { isOrderTypeBlocked } from "@/lib/sessionState.js";
-import { summarizeSettled, describeBulkOutcome } from "@/lib/bulkOutcome.js";
+import { summarizeSettled, describeBulkOutcome, isUnconfirmed } from "@/lib/bulkOutcome.js";
 import { formatPrice, formatQty, formatSignedPrice } from "@/lib/formatters.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { Order, Position, Side } from "@/types/index.js";
@@ -120,7 +120,7 @@ export function PositionPanel() {
           void qc.invalidateQueries({ queryKey: ["positions"] });
         },
         onError: (err) => {
-          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+          if (isUnconfirmed(err)) {
             toast(`Flatten ${p.symbol} submitted — awaiting confirmation`);
             return;
           }

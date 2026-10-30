@@ -6,6 +6,7 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { SESSION_PHASE_META, VALID_TRANSITIONS } from "@/lib/sessionState.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { SessionState } from "@/types/index.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 /**
  * Session Control (§15.4) — buttons for each valid next phase transition from
@@ -29,7 +30,7 @@ export function AdminSessionPage() {
           toast.error(`Transition rejected: ${err.message}`);
           return;
         }
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+        if (isUnconfirmed(err)) {
           toast(`Transition submitted — awaiting engine confirmation`);
           return;
         }

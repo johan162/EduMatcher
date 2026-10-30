@@ -15,8 +15,20 @@ export interface BulkOutcome {
   failed: number;
 }
 
-/** A 503/ENGINE_TIMEOUT rejection means "submitted, awaiting confirmation",
- * not a failure -- matches the single-item cancel/flatten's own onError. */
+/**
+ * True when the command reached the engine but its outcome did not come back
+ * in time: `ENGINE_TIMEOUT` is the only error that means that. Any other
+ * error -- `503 ENGINE_UNAVAILABLE` and `SYMBOLS_NOT_READY` included -- means
+ * the gateway refused before anything was sent, so it is a failure, not
+ * "awaiting confirmation" (WP-API15). A write that waits with `?wait=ack` does
+ * not error on a late ack at all: it answers `202` with `ack_timeout: true`.
+ */
+export function isUnconfirmed(err: unknown): boolean {
+  return err instanceof ApiError && err.code === "ENGINE_TIMEOUT";
+}
+
+/** An unconfirmed rejection (`isUnconfirmed`) counts as pending, not failed
+ * -- matches the single-item cancel/flatten's own onError. */
 export function summarizeSettled(results: PromiseSettledResult<unknown>[]): BulkOutcome {
   let ok = 0;
   let pending = 0;
@@ -24,10 +36,7 @@ export function summarizeSettled(results: PromiseSettledResult<unknown>[]): Bulk
   for (const r of results) {
     if (r.status === "fulfilled") {
       ok++;
-    } else if (
-      r.reason instanceof ApiError &&
-      (r.reason.status === 503 || r.reason.code === "ENGINE_TIMEOUT")
-    ) {
+    } else if (isUnconfirmed(r.reason)) {
       pending++;
     } else {
       failed++;

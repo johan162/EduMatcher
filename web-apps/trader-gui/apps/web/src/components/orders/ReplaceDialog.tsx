@@ -7,6 +7,7 @@ import { orderSchema } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
 import { FieldHelp } from "@/components/shared/FieldHelp.js";
+import { isUnconfirmed } from "@/lib/bulkOutcome.js";
 
 interface ReplaceDialogProps {
   orderId: string;
@@ -108,10 +109,18 @@ export function ReplaceDialog({ orderId, onClose }: ReplaceDialogProps) {
           onClose();
         },
         onError: (err) => {
-          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
-            // The cancel leg's ack never arrived — typically because the order
-            // already filled, so no replacement was sent. Nothing was left live.
-            setError("Replace could not complete — the order may have already filled.");
+          if (err instanceof ApiError && err.code === "REPLACE_REJECTED") {
+            // The engine refused the original's cancel (it filled first, say);
+            // the gateway sent no replacement.
+            setError(`Replace refused: ${err.message} — nothing was sent.`);
+            return;
+          }
+          if (isUnconfirmed(err)) {
+            // The cancel's outcome never arrived, so the gateway sent no
+            // replacement; the original may still be live.
+            setError(
+              "The cancel was not confirmed and no replacement was sent — check the blotter: the original may still be working.",
+            );
             return;
           }
           setError(err instanceof ApiError ? `${err.code}: ${err.message}` : "Replace failed");

@@ -891,12 +891,16 @@ that preserves your queue position.
 
 On success you get *"Replaced `{old}` → `{new}`"*, naming both order ids.
 
-If the cancel leg of a Replace times out waiting for its ack, the dialog
-shows a different message than the general "awaiting confirmation" pattern:
-*"Replace could not complete — the order may have already filled."* This is
-because a timeout here usually means the original order filled before the
-cancel could land, so no replacement was submitted — the dialog stays open
-rather than assuming success, and nothing was left live.
+A Replace can fail in two ways, and the dialog stays open and says which:
+
+- *"Replace refused: `{reason}` — nothing was sent."* The engine refused to
+  cancel the original, typically because it filled first. No replacement was
+  submitted.
+- *"The cancel was not confirmed and no replacement was sent — check the
+  blotter: the original may still be working."* The cancel's outcome did not
+  come back in time. The gateway never sends a replacement for an unconfirmed
+  cancel, so you cannot end up with two orders, but the original may still be
+  live.
 
 ### Cancelling an order
 
@@ -1381,30 +1385,32 @@ expected cancel reason on the surviving leg.
 
 A late acknowledgement means the command reached the engine but its
 acknowledgement did not come back in time. The action may well have
-succeeded. For an order submit the gateway says so explicitly (`202` with
-`ack_timeout: true`); for the other actions it is a `503` / `ENGINE_TIMEOUT`. The app never presents these as rejections; every one of them uses
-neutral "awaiting confirmation" wording:
+succeeded. It can only happen on the actions that wait for the engine's
+answer. For an order submit the gateway says so explicitly (`202` with
+`ack_timeout: true`); for the others it is `503 ENGINE_TIMEOUT`. The app never
+presents these as rejections; each uses neutral "awaiting confirmation"
+wording:
 
 | Action | Message |
 |---|---|
 | Order submit | *"`{side} {symbol}` submitted — awaiting confirmation (check blotter)"* |
-| Amend | *"Amend submitted — awaiting confirmation (check blotter)"* |
-| Cancel | *"Cancel submitted — awaiting confirmation for `{id}`"* |
-| Group cancel | *"Cancel `{kind}` `{id}` submitted — awaiting confirmation"* (`kind` is `OCO` or `COMBO`) |
-| Quote cancel | *"Cancel submitted for `{symbol}` — awaiting confirmation"* |
-| Flatten | *"Flatten `{symbol}` submitted — awaiting confirmation"* |
 | Session transition | *"Transition submitted — awaiting engine confirmation"* |
 | CB halt | *"Halt submitted for `{symbol}` — awaiting confirmation"* |
 | CB resume | *"Resume submitted for `{symbol}` — awaiting confirmation"* |
 | Kill switch | *"Kill switch submitted — awaiting engine confirmation"* |
 
+Amend, cancel, group and quote cancels, and Flatten don't wait: the gateway
+answers at once and the outcome arrives in the blotter. Any error on them,
+including a `503`, means nothing was sent. Only `ENGINE_TIMEOUT` means
+"sent, unconfirmed"; a `503 ENGINE_UNAVAILABLE` or `SYMBOLS_NOT_READY` is a
+plain failure, shown as in class D, and safe to retry.
+
 **Do not resubmit.** Reconcile instead: check Active Orders (or hit its
 Refresh), or check the relevant admin screen, and act on what you actually
 see.
 
-Cancel-Replace is the one exception to the wording, because a timeout there
-has a specific likely cause — see
-[Cancel-Replace](#cancel-replace).
+Cancel-Replace has its own wording, because the gateway never sends a
+replacement for an unconfirmed cancel — see [Cancel-Replace](#cancel-replace).
 
 ### Class D — gateway and HTTP errors
 
@@ -1422,7 +1428,9 @@ Anything else that comes back from `pm-api-gwy` is shown as
 | `RATE_LIMIT` | 429 | Write rate exceeded |
 | `TRANSITION_REJECTED` | 409 | Session transition refused by the engine |
 | `ENGINE_TIMEOUT` | 503 | See class C above |
-| `ENGINE_UNAVAILABLE` | 503 | The gateway cannot reach the engine at all |
+| `ENGINE_UNAVAILABLE` | 503 | The gateway could not hand the command to the engine; nothing was sent, retry |
+| `SYMBOLS_NOT_READY` | 503 | The symbol's reference data has not reached the gateway yet; nothing was sent, retry |
+| `REPLACE_REJECTED` | 409 | The engine refused a Replace's cancel; see [Cancel-Replace](#cancel-replace) |
 | `STATS_DB` | 503 | `pm-stats` unavailable — history endpoints only |
 | `AUDIT_INDEX_UNAVAILABLE` | 503 | `pm-audit` unavailable — admin order drill-down only |
 | `UNKNOWN_ORDER` | 404 | No audited events for that order id |

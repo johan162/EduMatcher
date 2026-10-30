@@ -1096,7 +1096,7 @@ before WP-API07:
 | WP | Name | Scope | From | Size |
 |---|---|---|---|---|
 | **WP-API14** ✅ | Spec tables vs contract | **Done 2026-10-30 (uncommitted)**, extended to exact per-route error codes (Johan), see §9.7. A test checks each endpoint section of the REST spec (statuses, error codes) against `spec/rest/openapi.json`; fix what it finds (e.g. `ENGINE_TIMEOUT` on `DELETE /oco`, `/combos`). Pulled forward from WP-API09's docs part. | §9.1, §9.2, §9.5 | S–M |
-| **WP-API15** | trader-gui failure wording | Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
+| **WP-API15** ✅ | trader-gui failure wording | **Done 2026-10-30 (uncommitted)**, see §9.8. Amend, cancel, replace, bulk and kill switch call a 503 "awaiting confirmation", but they don't wait, so a 503 means nothing was sent. Reuse WP-API02's ticket fix; correct the trader GUI guide's class C table. | §9.5 | S |
 | **WP-API16** | One order-validation rule | Move `_TYPE_FIELDS` to `models/` and apply it in REST, ALF (and BALF) and the engine (the engine is the backstop for combo legs, whose check differs today). One shared reject-code mapping. ALF rejects a field the order type doesn't use, like REST, with the same `reject_code`; ALF spec updated. | §9.1, §9.2, Q9 | M |
 
 ### 9.7 WP-API14 outcome (2026-10-30)
@@ -1177,6 +1177,49 @@ consumes the OpenAPI document. E2E is 15/15.
   invisible, but none exists.
 - Method calls are resolved by name, which over-approximates. The equality
   test would show a false positive as a failure; none appeared.
+
+### 9.8 WP-API15 outcome (2026-10-30)
+
+**The rule.** `ENGINE_TIMEOUT` is the only error that means "sent, outcome
+unknown". Every other error, `503 ENGINE_UNAVAILABLE` and `SYMBOLS_NOT_READY`
+included, means nothing reached the engine. trader-gui's twelve sites treated
+any 503 as "awaiting confirmation". They now share
+`isUnconfirmed(err)` (`lib/bulkOutcome.ts`), which the bulk summary uses too.
+
+**What changed in trader-gui:**
+
+- The predicate is used by amend, cancel and bulk cancel, flatten and Flatten
+  All, quote and group cancel, session transition, circuit-breaker halt and
+  resume, and the kill switch.
+- The order ticket was already fixed in WP-API02.
+- **The replace dialog** used to say "the order may have already filled …
+  nothing was left live" for every 503. That was wrong for an unconfirmed
+  cancel, where the original may still be live. It now distinguishes
+  `409 REPLACE_REJECTED` ("Replace refused: … nothing was sent") from
+  `ENGINE_TIMEOUT` ("the cancel was not confirmed and no replacement was sent;
+  the original may still be working").
+- **Tests:** 5 new.
+  - `unconfirmed.test.ts`: the predicate, and that `ENGINE_UNAVAILABLE` counts
+    as failed in a bulk summary.
+  - The replace dialog's two outcomes.
+  - A flatten refused with 503 is an error toast, not "awaiting".
+
+**Trader GUI guide.**
+
+- Class C now lists only the actions that wait for the engine and so can be
+  late: submit (`ack_timeout`), transition, halt, resume and kill switch.
+- It says an error on the non-waiting actions means nothing was sent.
+- It describes the replace dialog's two outcomes.
+- The class D table gains `SYMBOLS_NOT_READY` and `REPLACE_REJECTED` and
+  rewords `ENGINE_UNAVAILABLE`.
+
+**Not changed:** the other GUIs. Their 503 handling covers only reads
+(company profiles, their own bridges' databases), not command outcomes.
+
+**Insight:** amend, cancel, group and quote cancel, and flatten never wait, so
+their "awaiting confirmation" branch can no longer be reached. It is kept,
+because the rule is general and those branches become correct automatically
+if the calls ever adopt `?wait=ack`.
 
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
