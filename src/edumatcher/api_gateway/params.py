@@ -9,9 +9,28 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Path
+from fastapi import Header, Path
+
+from edumatcher.api_gateway.idempotency import MAX_KEY_LENGTH
 
 from edumatcher.api_gateway.schemas import GATEWAY_ID_MAX_LEN, SYMBOL_MAX_LEN
+
+IdempotencyKey = Annotated[
+    str | None,
+    Header(
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=MAX_KEY_LENGTH,
+        description=(
+            "Makes a retry safe: a later request with the same key (per "
+            "gateway, for `order_retention_sec`) is not sent again but gets the "
+            "first reply, marked `Idempotent-Replayed: true`. Use a fresh key "
+            "(a UUID) per logical request; the same key on a different request "
+            "is `409 IDEMPOTENCY_KEY_REUSED`. Keys are lost when the gateway "
+            "restarts."
+        ),
+    ),
+]
 
 OrderIdPath = Annotated[
     str,

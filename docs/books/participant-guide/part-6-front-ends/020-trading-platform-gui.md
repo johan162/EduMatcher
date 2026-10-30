@@ -1379,9 +1379,10 @@ expected cancel reason on the surviving leg.
 
 ### Class C — timeouts, which are **not** rejections
 
-A `503` / `ENGINE_TIMEOUT` means the command reached the engine but its
+A late acknowledgement means the command reached the engine but its
 acknowledgement did not come back in time. The action may well have
-succeeded. The app never presents these as rejections; every one of them uses
+succeeded. For an order submit the gateway says so explicitly (`202` with
+`ack_timeout: true`); for the other actions it is a `503` / `ENGINE_TIMEOUT`. The app never presents these as rejections; every one of them uses
 neutral "awaiting confirmation" wording:
 
 | Action | Message |
@@ -1709,7 +1710,7 @@ outside that network, and it has to be told how to get back in.
 | Change % and Volume columns are blank on Market Overview | The daily stats rollup is unavailable | Check that the stats database used by `pm-api-gwy`'s `/history/daily` endpoint is reachable; live prices are unaffected |
 | Trade History, the chart's history, or the Order Detail timeline is empty | Same cause — no `pm-stats` | Live fills and live events still appear; only the durable record is missing |
 | The blotter looks stale or disagrees with the engine | A missed event or a long reconnect | Press **Refresh** on Active Orders for an explicit `GET /orders` reconcile |
-| An order I submitted isn't in the blotter and I got no rejection | The ack timed out (`ENGINE_TIMEOUT`) | Do **not** resubmit — press Refresh and look again; see [class C errors](#class-c-timeouts-which-are-not-rejections) |
+| An order I submitted isn't in the blotter and I got no rejection | The ack timed out (`ack_timeout`) | Do **not** resubmit — press Refresh and look again; see [class C errors](#class-c-timeouts-which-are-not-rejections) |
 | MARKET / FOK / IOC tabs are disabled | An auction phase is running | Expected — those three cannot rest, so the engine refuses them during a call phase |
 | Flatten and Flatten All are disabled | The phase is not `CONTINUOUS` | Expected — flatten submits MARKET orders |
 | A quote was rejected with "Quotes are only allowed for MARKET_MAKER participants" | The key's gateway is not a market maker | Use a `MARKET_MAKER` credential |

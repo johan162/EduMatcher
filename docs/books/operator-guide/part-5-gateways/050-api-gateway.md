@@ -420,6 +420,28 @@ classification, alongside the human-readable `reason`. For example, a collar
 breach is surfaced as `"reject_code": "COLLAR_BREACH"` with the matching
 `reason` text such as `"collar breach"`.
 
+If the ACK does not arrive within `timeouts.wait_ack_sec`, the reply is still
+`202 Accepted` with the `order_id`, `status: "PENDING"` and `ack_timeout: true`.
+The order was sent; follow it on the private WebSocket or `GET /orders` rather
+than submitting it again. Any `4xx`/`5xx` on a write means nothing reached the
+engine.
+
+To make a retry after a dropped connection safe, send an `Idempotency-Key`
+header (a UUID per logical request) on `POST /orders`, `/oco`, `/combos`,
+`/quotes` or `/orders/{order_id}/replace`. A repeat with the same key from the
+same gateway is not sent again; it gets the first reply, marked
+`Idempotent-Replayed: true`. The same key on a different request is
+`409 IDEMPOTENCY_KEY_REUSED`. Keys are kept for `order_retention_sec` and are
+lost on a gateway restart. See
+[Write outcomes and safe retries](../../protocols-and-clients/part-2-specifications/060-rest-and-websocket.md#write-outcomes-and-safe-retries).
+
+```bash
+curl -s -X POST "$GW/api/v1/orders?wait=ack" \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 6f1c2a9e-1f4b-4c43-9a51-3b8f0e2d7c11" \
+  -d '{"symbol":"AAPL","side":"BUY","order_type":"LIMIT","quantity":100,"price":187.25}'
+```
+
 `client_tag` is not an idempotency key. It is optional, opaque, and not checked
 for uniqueness by the gateway or engine.
 
@@ -467,12 +489,14 @@ not with an exact modulo.
 | `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200, "request_tag": "req-1" }`, or both |
 | `POST /orders/{order_id}/replace` | same shape as `POST /orders`                          |
 
-`?wait=ack` is not limited to `POST /orders` — both `DELETE /orders/{order_id}`
-and `PATCH /orders/{order_id}` also accept it, waiting on the matching
-`order.cancelled.*`/`order.amended.*` event the same way. `POST
-/orders/{order_id}/replace` has no `wait` parameter; it always waits
-synchronously for the cancel to be acknowledged before submitting the
-replacement (see [Implementation notes](#implementation-notes-and-design-deviations)).
+`?wait=ack` is not limited to `POST /orders`: `DELETE /orders/{order_id}`,
+`PATCH /orders/{order_id}`, `POST /oco`, `POST /combos` and `POST /quotes` also
+accept it, waiting on the matching `order.cancelled.*`, `order.amended.*`,
+`oco.ack`, `combo.ack` or `quote.ack` event the same way. `POST
+/orders/{order_id}/replace` always waits for the original's cancel before
+submitting the replacement (on the same symbol); a refused cancel is
+`409 REPLACE_REJECTED` and nothing is sent. Its `?wait=ack` also waits for the
+replacement's ACK (see [Implementation notes](#implementation-notes-and-design-deviations)).
 
 For cancel and amend, `request_tag` identifies one request against an order.
 When supplied, the API forwards it to the engine, uses it to match `?wait=ack`
@@ -1760,9 +1784,17 @@ model. Outbound WebSocket events are wrapped in a consistent envelope, but they
 do not attempt broad tick-to-display price rewriting beyond the payloads already
 published by the engine.
 
-Cancel-replace is implemented as cancel, wait for the cancel event, then submit
-the replacement. The replacement body uses the same shape as `POST /orders`,
-including `symbol`.
+Cancel-replace is implemented as cancel, wait for the cancel's outcome, then
+submit the replacement. The replacement body uses the same shape as
+`POST /orders`, including `symbol`, which must be the original's. The gateway
+tags its cancel, so a refused cancel (typically: the original filled before the
+cancel reached it) is reported as `409 REPLACE_REJECTED` rather than waited out.
+
+`Idempotency-Key` replies are held in the gateway process (one per gateway id),
+for `order_retention_sec` (one hour when eviction is disabled). A duplicate that
+arrives while the first request is still waiting shares its outcome, and the
+first request completes even if its client disconnects, so its reply is there
+for the retry.
 
 Startup creates the engine client and listener, but does not fail the process
 only because `stats.db` is absent. History endpoints depend on `pm-stats` having

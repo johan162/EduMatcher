@@ -24,15 +24,27 @@ class ApiGatewayClient:
         """Issue a GET request and decode the JSON response body."""
         return self._json_request("GET", path)
 
-    def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Issue a POST request with a JSON body and decode the response."""
-        return self._json_request("POST", path, payload)
+    def post_json(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Issue a POST request with a JSON body and decode the response.
+
+        Pass the same *idempotency_key* when retrying a write after a dropped
+        connection: the gateway then replays the first reply instead of
+        submitting the order a second time.
+        """
+        headers = {"Idempotency-Key": idempotency_key} if idempotency_key else {}
+        return self._json_request("POST", path, payload, headers)
 
     def _json_request(
         self,
         method: str,
         path: str,
         payload: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = Request(
@@ -43,6 +55,7 @@ class ApiGatewayClient:
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
+                **(extra_headers or {}),
             },
         )
         try:

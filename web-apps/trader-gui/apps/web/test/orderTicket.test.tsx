@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { OrderAccepted } from "@/types/index";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -8,13 +9,16 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
-const apiFetchMock = vi.fn(async () => ({
-  order_id: "ord-abcdef123456",
-  client_tag: null,
-  status: "ACKED",
-  accepted: true,
-  event: null,
-}));
+const apiFetchMock = vi.fn(
+  async (): Promise<OrderAccepted> => ({
+    order_id: "ord-abcdef123456",
+    client_tag: null,
+    status: "ACKED",
+    accepted: true,
+    event: null,
+    ack_timeout: false,
+  }),
+);
 
 vi.mock("@/api/apiFetch", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...(args as [])),
@@ -226,8 +230,16 @@ describe("OrderTicket submit side (§12.9)", () => {
     expect(lastBody()).not.toHaveProperty("client_order_id");
   });
 
-  it("treats a wait=ack timeout (503) as awaiting-confirmation, not a rejection", async () => {
-    apiFetchMock.mockRejectedValueOnce(new ApiError(503, "ENGINE_TIMEOUT", "no ack in time"));
+  it("treats a wait=ack timeout (ack_timeout) as awaiting-confirmation, not a rejection", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      order_id: "ORD-T1",
+      client_tag: null,
+      status: "PENDING",
+      accepted: null,
+      reject_code: null,
+      event: null,
+      ack_timeout: true,
+    });
     renderTicket();
     fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
     fireEvent.click(screen.getByRole("button", { name: "BUY" }));
@@ -236,6 +248,16 @@ describe("OrderTicket submit side (§12.9)", () => {
     // A submitted-but-unacked order must NOT be reported as REJECT (§12.9 step 6).
     expect(entry.kind).toBe("ACK");
     expect(entry.title).toMatch(/awaiting ACK/);
+    expect(entry.orderId).toBe("ORD-T1");
+  });
+
+  it("reports a 503 as a failure: the gateway refused before sending", async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError(503, "ENGINE_UNAVAILABLE", "engine down"));
+    renderTicket();
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    await waitFor(() => expect(useNotificationStore.getState().entries.length).toBe(1));
+    expect(useNotificationStore.getState().entries[0]!.kind).toBe("REJECT");
   });
 });
 

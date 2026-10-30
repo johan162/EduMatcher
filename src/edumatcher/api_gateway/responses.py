@@ -60,6 +60,10 @@ class AmendAccepted(BaseModel):
     event: dict[str, Any] | None = Field(
         description="The engine's `order.amended` (or reject) event, once received."
     )
+    ack_timeout: bool = Field(
+        description="True when `?wait=ack` gave up waiting: the amend was sent and "
+        "the outcome follows on the private WebSocket."
+    )
 
 
 class OrderList(rest_order.Orders, _Counted):

@@ -173,10 +173,12 @@ reject applies.
 | `RESUME_REJECTED` | `409` | `UNKNOWN` | The engine refused the resume (for example `TSLA is not halted`) |
 | `KILL_SWITCH_REJECTED` | `409` | `UNKNOWN` | The engine refused a symbol, gateway or global kill switch |
 | `REBALANCE_REJECTED` | `409` | `UNKNOWN` | `pm-index` refused the rebalance |
+| `REPLACE_REJECTED` | `409` | engine's | The engine refused `replace`'s cancel (for example the order already filled); nothing was sent |
+| `IDEMPOTENCY_KEY_REUSED` | `409` | `UNKNOWN` | The `Idempotency-Key` was already used for a different request |
 | `RATE_LIMIT` | `429` | `RATE_LIMITED` | Per-key write limit exceeded |
 | `INTERNAL_ERROR` | `500` | `INTERNAL_ERROR` | A gateway bug; the message carries no internals |
 | `INDEX_ERROR` | `502` | `UNKNOWN` | `pm-index` answered with an error |
-| `ENGINE_TIMEOUT` | `503` | `INTERNAL_ERROR` | No engine reply in time. Transient — retry |
+| `ENGINE_TIMEOUT` | `503` | `INTERNAL_ERROR` | No engine reply in time to a read, or to `replace`'s cancel. Transient — retry. A write whose ack is late is not an error: `202` with `ack_timeout: true` |
 | `ENGINE_UNAVAILABLE` | `503` | `INTERNAL_ERROR` | The command could not be handed to the engine (down or backpressured). Transient — retry |
 | `SYMBOLS_NOT_READY` | `503` | `SYMBOL_NOT_READY` | Order entry before the symbol's tick precision reached the gateway. Transient — retry |
 | `INDEX_TIMEOUT` | `503` | `UNKNOWN` | No `pm-index` reply in time |
@@ -201,11 +203,12 @@ not exposed.
 ### Common reply shapes
 
 - `200 OK` means the response body carries the outcome: every read, and every
-  command the gateway waited for (admin commands, `POST /mass-cancel`, and an
-  order submit, cancel or amend with `?wait=ack`).
+  command the gateway waited for (admin commands, `POST /mass-cancel`, and any
+  order, cancel, amend, replace, OCO, combo or quote write with `?wait=ack`
+  whose verdict arrived in time).
 - `202 Accepted` means the request was handed on and the outcome follows on a
-  WebSocket: an order submit, cancel or amend without `?wait=ack`, `replace`,
-  OCO, combo and quote writes, and `POST /admin/gateways/{gateway_id}/disconnect`.
+  WebSocket: those writes without `?wait=ack` (or with it, when the verdict was
+  late: `ack_timeout: true`), and `POST /admin/gateways/{gateway_id}/disconnect`.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
@@ -276,6 +279,45 @@ Endpoints that support pagination use keyset cursoring with these rules:
   only for the same endpoint and compatible filter set.
 - A malformed, stale, or cross-endpoint cursor returns `400 VALIDATION` with
   `field: "after"`.
+
+### Write outcomes and safe retries
+
+Every write that creates or changes orders (`POST /orders`, `DELETE` and
+`PATCH /orders/{order_id}`, `POST /orders/{order_id}/replace`, `POST /oco`,
+`POST /combos`, `POST /quotes`) answers in one of three ways, so a client can
+always tell whether something reached the engine:
+
+| Reply | Sent to the engine? | What to do |
+|---|---|---|
+| `200 OK`, `status: "ACKED"` | Yes, and the verdict is in the body (`accepted`, `reject_code`, `event`) | Done |
+| `202 Accepted`, `ack_timeout: false` | Yes; no `?wait=ack`, the verdict follows on the private WebSocket | Watch the WebSocket |
+| `202 Accepted`, `ack_timeout: true` | Yes; `?wait=ack` gave up waiting (`wait_ack_sec`) | Watch the WebSocket or `GET /orders`; **do not resubmit** |
+| `4xx` or `5xx` | No (`503 ENGINE_UNAVAILABLE`, `400`, `429`, ...) | Fix and retry |
+
+The reply always carries the id to cancel or track (`order_id`, `oco_id`,
+`combo_id`, `symbol`), including after an ack timeout. Two exceptions, both on
+`replace`, which only sends the replacement once the original's cancel is
+confirmed: a refused cancel is `409 REPLACE_REJECTED` (nothing sent), and a
+cancel whose outcome did not arrive is `503 ENGINE_TIMEOUT` (no replacement
+sent; check the original with `GET /orders/{order_id}`).
+
+**`Idempotency-Key`.** A client whose connection dropped cannot know which of
+those replies it missed. The submit writes (`POST /orders`, `/oco`, `/combos`,
+`/quotes` and `/orders/{order_id}/replace`) accept an optional
+`Idempotency-Key` header (1–255 characters; a UUID per logical request):
+
+- The first request with a key runs. A later one with the same key, from the
+  same gateway, is not sent again: it gets the first reply (same status, same
+  body) with the header `Idempotent-Replayed: true`. A duplicate that arrives
+  while the first is still waiting for its ack waits for it too.
+- The same key on a different request (another path, query or body) is
+  `409 IDEMPOTENCY_KEY_REUSED`.
+- A request that failed before the engine was reached is not remembered, so it
+  may be retried with the same key.
+- Keys are kept for `order_retention_sec` and are lost when the gateway
+  restarts.
+
+`client_tag` is unrelated: it is an opaque, non-unique label (below).
 
 ### Order correlation with `client_tag`
 
@@ -729,8 +771,12 @@ Purpose: submit one order for the caller's gateway.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{"order_id": "...", "status": "PENDING"}` | Default immediate reply |
-| `200 OK` | `{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "event": {..., "reason": "collar breach"}}` | Returned when `?wait=ack` waits for the matching ACK; a rejected ACK carries the stable machine-readable `reject_code`, and the engine's `order.ack` in `event` has the human-readable `reason` |
+| `202 Accepted` | `{"order_id": "...", "status": "PENDING", "ack_timeout": false, ...}` | Default immediate reply |
+| `200 OK` | `{"order_id": "...", "status": "ACKED", "accepted": false, "reject_code": "COLLAR_BREACH", "event": {..., "reason": "collar breach"}, "ack_timeout": false}` | Returned when `?wait=ack` waits for the matching ACK; a rejected ACK carries the stable machine-readable `reject_code`, and the engine's `order.ack` in `event` has the human-readable `reason` |
+| `202 Accepted` | `{"order_id": "...", "status": "PENDING", "ack_timeout": true, ...}` | `?wait=ack` and the ACK did not arrive in time; the order was sent |
+
+Takes an optional `Idempotency-Key` header; see
+[Write outcomes and safe retries](#write-outcomes-and-safe-retries).
 
 **Errors**
 
@@ -742,7 +788,7 @@ Purpose: submit one order for the caller's gateway.
 | `VALIDATION` | Body does not match the order type, or a price is not an exact multiple of the instrument's tick size (`reject_code: TICK_VIOLATION`) |
 | `SYMBOLS_NOT_READY` | Symbol metadata has not reached the gateway yet (`reject_code: SYMBOL_NOT_READY`) |
 | `RATE_LIMIT` | Write limit exceeded |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
+| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
 
 A conditional field the `order_type` does not use is rejected
 (`400 VALIDATION`, for example `"LIMIT forbids trail_offset"`), never silently
@@ -770,7 +816,11 @@ Purpose: cancel one live order in the caller's gateway.
 |---|---|---|
 | `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_CANCEL"}` | Default: cancel sent; the outcome follows on the private WebSocket |
 | `200 OK` | `{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}` | With `?wait=ack`: the cancel's outcome |
-| `200 OK` | cancel ACK payload | Returned when waiting for the ACK |
+| `202 Accepted` | `{..., "status": "PENDING_CANCEL", "ack_timeout": true}` | `?wait=ack` and the outcome did not arrive in time; the cancel was sent |
+
+Without a `request_tag`, `?wait=ack` waits for `order.cancelled` alone, so a
+refused cancel shows as an ack timeout; pass a `request_tag` to get it as
+`REJECTED`.
 
 **Errors**
 
@@ -779,7 +829,6 @@ Purpose: cancel one live order in the caller's gateway.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `VALIDATION` | Bad path or query |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
 ### `PATCH /api/v1/orders/{order_id}`
 
@@ -801,7 +850,7 @@ Purpose: amend price and/or quantity on one live order.
 |---|---|---|
 | `202 Accepted` | `{"order_id": "...", "request_tag": "...", "status": "PENDING_AMEND"}` | Default: amend sent; the outcome follows on the private WebSocket |
 | `200 OK` | `{"order_id": "...", "status": "ACKED" \| "REJECTED", "accepted": ..., "reject_code": ..., "event": {...}}` | With `?wait=ack`: the amend's outcome |
-| `200 OK` | amend ACK payload | Returned when waiting for the ACK |
+| `202 Accepted` | `{..., "status": "PENDING_AMEND", "ack_timeout": true}` | `?wait=ack` and the outcome did not arrive in time; the amend was sent |
 
 **Errors**
 
@@ -810,7 +859,6 @@ Purpose: amend price and/or quantity on one live order.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `VALIDATION` | Neither or both fields invalid |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
 ### `POST /api/v1/orders/{order_id}/replace`
 
@@ -821,13 +869,19 @@ Purpose: cancel one live order and submit a replacement in one workflow.
 | Name | Type | Req | Description |
 |---|---|---|---|
 | `order_id` | `Str` | yes (path) | Order to replace |
-| body | `Order` fields | yes | Same shape as `POST /orders` |
+| body | `Order` fields | yes | Same shape as `POST /orders`, on the same symbol |
+| `wait` | `Bool` | no | `?wait=ack` also waits for the replacement's `order.ack` |
+| `Idempotency-Key` | header | no | See [Write outcomes and safe retries](#write-outcomes-and-safe-retries) |
+
+The gateway always waits for the original's cancel, and sends the replacement
+only once the engine has confirmed it.
 
 **Reply**
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | cancel ACK then replacement ACK | Synchronous cancel-then-submit workflow |
+| `202 Accepted` | `{"cancelled_order_id": "...", "replacement_order_id": "...", "status": "PENDING", "accepted": null, ...}` | Original cancelled; replacement sent |
+| `200 OK` | `{..., "status": "ACKED", "accepted": true \| false, "reject_code": ..., "event": {...}}` | With `?wait=ack`: the replacement's verdict |
 
 **Errors**
 
@@ -835,8 +889,11 @@ Purpose: cancel one live order and submit a replacement in one workflow.
 |---|---|
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
-| `VALIDATION` | Replacement body invalid |
-| `ENGINE_TIMEOUT` | Cancel or submit timed out |
+| `VALIDATION` | Replacement body invalid, or names another symbol than the original (`field: symbol`) |
+| `SYMBOLS_NOT_READY` | The symbol's metadata is not loaded; nothing was cancelled |
+| `REPLACE_REJECTED` | `409`: the engine refused the cancel (the order already filled, say; `reject_code` says why); nothing was sent |
+| `ENGINE_TIMEOUT` | `503`: the cancel's outcome did not arrive in time; no replacement was sent |
+| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
 
 ### `GET /api/v1/orders`
 
@@ -906,7 +963,12 @@ Purpose: submit an OCO pair.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{ "oco_id": "...", "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`oco.ack`) |
+| `202 Accepted` | `{ "oco_id": "...", "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }` | Sent; the verdict follows on the private WebSocket (`oco.ack`) |
+| `200 OK` | `{ "oco_id": "...", "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...}, "ack_timeout": false }` | With `?wait=ack`: the engine's `oco.ack` |
+| `202 Accepted` | `{..., "status": "PENDING", "ack_timeout": true}` | `?wait=ack` and the verdict did not arrive in time; it was sent |
+
+Takes `?wait=ack` and an optional `Idempotency-Key` header; see
+[Write outcomes and safe retries](#write-outcomes-and-safe-retries).
 
 **Errors**
 
@@ -915,7 +977,7 @@ Purpose: submit an OCO pair.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `VALIDATION` | Body invalid |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
+| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
 
 ### `DELETE /api/v1/oco/{oco_id}`
 
@@ -956,7 +1018,12 @@ Purpose: submit a combo order.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{ "combo_id": "...", "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`combo.ack`) |
+| `202 Accepted` | `{ "combo_id": "...", "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }` | Sent; the verdict follows on the private WebSocket (`combo.ack`) |
+| `200 OK` | `{ "combo_id": "...", "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...}, "ack_timeout": false }` | With `?wait=ack`: the engine's `combo.ack` |
+| `202 Accepted` | `{..., "status": "PENDING", "ack_timeout": true}` | `?wait=ack` and the verdict did not arrive in time; it was sent |
+
+Takes `?wait=ack` and an optional `Idempotency-Key` header; see
+[Write outcomes and safe retries](#write-outcomes-and-safe-retries).
 
 **Errors**
 
@@ -965,7 +1032,7 @@ Purpose: submit a combo order.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `VALIDATION` | Body invalid |
-| `ENGINE_TIMEOUT` | Engine did not ACK in time |
+| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
 
 ### `DELETE /api/v1/combos/{combo_id}`
 
@@ -1009,7 +1076,12 @@ Purpose: submit a two-sided market-maker quote.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `202 Accepted` | `{ "symbol": "...", "quote_id": "..." \| null, "status": "PENDING" }` | Sent; the verdict follows on the private WebSocket (`quote.ack`) |
+| `202 Accepted` | `{ "symbol": "...", "quote_id": "..." \| null, "status": "PENDING", "accepted": null, "reason": null, "event": null, "ack_timeout": false }` | Sent; the verdict follows on the private WebSocket (`quote.ack`) |
+| `200 OK` | `{ "symbol": "...", ..., "status": "ACKED", "accepted": true \| false, "reason": ..., "event": {...} }` | With `?wait=ack`: the engine's `quote.ack` |
+| `202 Accepted` | `{..., "status": "PENDING", "ack_timeout": true}` | `?wait=ack` and the verdict did not arrive in time; it was sent |
+
+Takes `?wait=ack` and an optional `Idempotency-Key` header; see
+[Write outcomes and safe retries](#write-outcomes-and-safe-retries).
 
 **Errors**
 
@@ -1018,7 +1090,7 @@ Purpose: submit a two-sided market-maker quote.
 | `AUTH` | Missing or malformed key |
 | `READ_ONLY` | Read-only credential used |
 | `VALIDATION` | Quote body invalid |
-| `ENGINE_TIMEOUT` | Quote ACK timed out |
+| `IDEMPOTENCY_KEY_REUSED` | `409`: the `Idempotency-Key` was used for a different request |
 
 ### `DELETE /api/v1/quotes/{symbol}`
 

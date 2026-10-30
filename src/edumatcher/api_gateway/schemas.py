@@ -201,6 +201,12 @@ class OrderAccepted(StrictModel):
         default=None, description="The engine's `order.ack` event, once received."
     )
 
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
+
 
 class CancelAccepted(StrictModel):
     order_id: str
@@ -217,6 +223,12 @@ class CancelAccepted(StrictModel):
     event: dict[str, Any] | None = Field(
         default=None,
         description="The engine's cancel (or reject) event, once received.",
+    )
+
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
     )
 
 
@@ -247,7 +259,23 @@ class AmendRequest(StrictModel):
 class ReplaceResponse(StrictModel):
     cancelled_order_id: str = Field(description="The order that was cancelled.")
     replacement_order_id: str = Field(description="Id of the new order.")
-    status: Literal["PENDING"] = Field(description="The replacement awaits the engine.")
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING` until the engine acks the replacement (`?wait=ack`)."
+    )
+    accepted: bool | None = Field(
+        default=None, description="The replacement's verdict; null until acked."
+    )
+    reject_code: str | None = Field(
+        default=None, description="Why the replacement was refused, when it was."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The replacement's `order.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
+    )
 
 
 class OcoLegRequest(StrictModel):
@@ -425,29 +453,74 @@ class MassCancelRequest(StrictModel):
         return None if value is None else value.upper()
 
 
-class OcoPending(StrictModel):
+class OcoAccepted(StrictModel):
     oco_id: str = Field(
         description="The id you chose; `DELETE /oco/{oco_id}` takes it."
     )
-    status: Literal["PENDING"] = Field(
-        description="Sent; the verdict follows on the private WebSocket (`oco.ack`)."
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`oco.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `oco.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
     )
 
 
-class ComboPending(StrictModel):
+class ComboAccepted(StrictModel):
     combo_id: str = Field(
         description="The id you chose; `DELETE /combos/{combo_id}` takes it."
     )
-    status: Literal["PENDING"] = Field(
-        description="Sent; the verdict follows on the private WebSocket (`combo.ack`)."
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`combo.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `combo.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
     )
 
 
-class QuotePending(StrictModel):
+class QuoteAccepted(StrictModel):
     symbol: str = Field(description="`DELETE /quotes/{symbol}` takes it.")
     quote_id: str | None = Field(description="Your id for the quote, if you set one.")
-    status: Literal["PENDING"] = Field(
-        description="Sent; the verdict follows on the private WebSocket (`quote.ack`)."
+    status: Literal["PENDING", "ACKED"] = Field(
+        description="`PENDING`: sent, the verdict follows on the private WebSocket "
+        "(`quote.ack`); `ACKED` with `?wait=ack`."
+    )
+    accepted: bool | None = Field(
+        default=None, description="Engine verdict; null until acknowledged."
+    )
+    reason: str | None = Field(
+        default=None, description="The engine's reason, when it refused."
+    )
+    event: dict[str, Any] | None = Field(
+        default=None, description="The engine's `quote.ack`, once received."
+    )
+    ack_timeout: bool = Field(
+        default=False,
+        description="True when `?wait=ack` gave up waiting: the request was sent "
+        "and the outcome follows on the private WebSocket.",
     )
 
 

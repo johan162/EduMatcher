@@ -346,6 +346,49 @@ def ok_or_acked(
     }
 
 
+#: Added to the writes that take an ``Idempotency-Key``.
+IDEMPOTENCY_CONFLICT: dict[int | str, dict[str, Any]] = {
+    409: _err_response(
+        "The `Idempotency-Key` was already used for a different request.",
+        _error(
+            "IDEMPOTENCY_KEY_REUSED",
+            "This Idempotency-Key was used for a different request; use a new "
+            "key for a new request.",
+            field="Idempotency-Key",
+        ),
+    )
+}
+
+#: ``POST /orders/{order_id}/replace``: a refused cancel or a reused key.
+REPLACE_CONFLICT: dict[int | str, dict[str, Any]] = {
+    409: {
+        "model": ErrorResponse,
+        "description": "The original's cancel was refused (nothing was sent), "
+        "or the `Idempotency-Key` was used for a different request.",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "cancel_refused": {
+                        "summary": "The original is already filled or gone",
+                        "value": _error(
+                            "REPLACE_REJECTED",
+                            "Order already filled",
+                            reject_code="ORDER_ALREADY_TERMINAL",
+                        ),
+                    },
+                    "key_reused": {
+                        "summary": "Idempotency-Key reused",
+                        "value": IDEMPOTENCY_CONFLICT[409]["content"][
+                            "application/json"
+                        ]["example"],
+                    },
+                }
+            }
+        },
+    }
+}
+
+
 def merge(*parts: dict[int | str, dict[str, Any]]) -> dict[int | str, dict[str, Any]]:
     out: dict[int | str, dict[str, Any]] = {}
     for part in parts:
@@ -394,6 +437,7 @@ ORDER_SUBMITTED = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -405,6 +449,7 @@ ORDER_SUBMITTED = {
             "accepted": True,
             "reject_code": None,
             "event": ORDER_ACK_EVENT,
+            "ack_timeout": False,
         },
     ),
     "rejected": (
@@ -416,6 +461,19 @@ ORDER_SUBMITTED = {
             "accepted": False,
             "reject_code": "TICK_VIOLATION",
             "event": ORDER_REJECT_EVENT,
+            "ack_timeout": False,
+        },
+    ),
+    "timeout": (
+        "With ?wait=ack: sent, but the verdict did not arrive in time",
+        {
+            "order_id": _ORDER_1,
+            "client_tag": "strategy-7",
+            "status": "PENDING",
+            "accepted": None,
+            "reject_code": None,
+            "event": None,
+            "ack_timeout": True,
         },
     ),
 }
@@ -440,6 +498,7 @@ ORDER_CANCEL_RESULT = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -451,6 +510,7 @@ ORDER_CANCEL_RESULT = {
             "accepted": True,
             "reject_code": None,
             "event": ORDER_CANCELLED_EVENT,
+            "ack_timeout": False,
         },
     ),
     "rejected": (
@@ -469,6 +529,7 @@ ORDER_CANCEL_RESULT = {
                 "reject_code": "ORDER_ALREADY_TERMINAL",
                 "request_tag": "cxl-1",
             },
+            "ack_timeout": False,
         },
     ),
 }
@@ -483,6 +544,7 @@ ORDER_AMEND_RESULT = {
             "accepted": None,
             "reject_code": None,
             "event": None,
+            "ack_timeout": False,
         },
     ),
     "acked": (
@@ -506,14 +568,36 @@ ORDER_AMEND_RESULT = {
                 "client_tag": "strategy-7",
                 "request_tag": "amend-1",
             },
+            "ack_timeout": False,
         },
     ),
 }
 
 ORDER_REPLACED = {
-    "cancelled_order_id": _ORDER_1,
-    "replacement_order_id": _ORDER_2,
-    "status": "PENDING",
+    "pending": (
+        "Default: original cancelled, replacement sent",
+        {
+            "cancelled_order_id": _ORDER_1,
+            "replacement_order_id": _ORDER_2,
+            "status": "PENDING",
+            "accepted": None,
+            "reject_code": None,
+            "event": None,
+            "ack_timeout": False,
+        },
+    ),
+    "acked": (
+        "With ?wait=ack: the replacement was accepted",
+        {
+            "cancelled_order_id": _ORDER_1,
+            "replacement_order_id": _ORDER_2,
+            "status": "ACKED",
+            "accepted": True,
+            "reject_code": None,
+            "event": {**ORDER_ACK_EVENT, "order_id": _ORDER_2},
+            "ack_timeout": False,
+        },
+    ),
 }
 
 _ORDER_DISPLAY_LIMIT: dict[str, Any] = {
@@ -580,11 +664,57 @@ ORDER_CACHED: dict[str, Any] = {
     "trade_ids": [_TRADE_1],
 }
 
-OCO_PENDING = {"oco_id": "oco-2026-0042", "status": "PENDING"}
+OCO_ACK_EVENT: dict[str, Any] = {
+    "oco_id": "oco-2026-0042",
+    "accepted": True,
+    "reason": "",
+    "order_id_1": "ORD-OCO-1",
+    "order_id_2": "ORD-OCO-2",
+}
+COMBO_ACK_EVENT: dict[str, Any] = {
+    "combo_id": "combo-spread-17",
+    "accepted": True,
+    "reason": "",
+}
+QUOTE_ACK_EVENT: dict[str, Any] = {
+    "quote_id": "q-AAPL-0001",
+    "accepted": True,
+    "symbol": "AAPL",
+    "reason": "",
+    "bid_order_id": "ORD-QB-1",
+    "ask_order_id": "ORD-QA-1",
+}
+
+
+def _structure_sent(ids: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
+    """The pending and acked examples of an OCO, combo or quote submit."""
+    unanswered = {"accepted": None, "reason": None, "event": None}
+    return {
+        "pending": (
+            "Default: sent, the verdict follows on the WebSocket",
+            {**ids, "status": "PENDING", **unanswered, "ack_timeout": False},
+        ),
+        "acked": (
+            "With ?wait=ack: the engine's verdict",
+            {
+                **ids,
+                "status": "ACKED",
+                "accepted": True,
+                "reason": None,
+                "event": event,
+                "ack_timeout": False,
+            },
+        ),
+    }
+
+
+OCO_SENT = _structure_sent({"oco_id": "oco-2026-0042"}, OCO_ACK_EVENT)
 OCO_CANCEL = {"oco_id": "oco-2026-0042", "status": "PENDING_CANCEL"}
-COMBO_PENDING = {"combo_id": "combo-spread-17", "status": "PENDING"}
+COMBO_SENT = _structure_sent({"combo_id": "combo-spread-17"}, COMBO_ACK_EVENT)
 COMBO_CANCEL = {"combo_id": "combo-spread-17", "status": "PENDING_CANCEL"}
-QUOTE_PENDING = {"symbol": "AAPL", "quote_id": "q-AAPL-0001", "status": "PENDING"}
+QUOTE_SENT = _structure_sent(
+    {"symbol": "AAPL", "quote_id": "q-AAPL-0001"}, QUOTE_ACK_EVENT
+)
 QUOTE_CANCEL = {"symbol": "AAPL", "status": "PENDING_CANCEL"}
 
 MASS_CANCEL: dict[str, Any] = {
@@ -1278,6 +1408,13 @@ ADMIN_POSITIONS: dict[str, Any] = {
 # ---------------------------------------------------------------------------
 # Request examples and shared parameter text
 # ---------------------------------------------------------------------------
+
+STRUCTURE_ACK = (
+    "Returns `202` (`PENDING`), the verdict following on the private "
+    "WebSocket; with `?wait=ack`, `200` and the verdict in the same response, "
+    "or `202` with `ack_timeout: true` if it did not come in time. Send an "
+    "`Idempotency-Key` to make a retry safe."
+)
 
 WAIT_ACK = (
     "Pass `ack` to hold the response until the engine acknowledges the "

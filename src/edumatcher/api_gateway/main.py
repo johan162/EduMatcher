@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from edumatcher.api_gateway.idempotency import IdempotencyStore
 from edumatcher.api_gateway.metrics import install as install_metrics
 from edumatcher.api_gateway.openapi_docs import (
     API_DESCRIPTION,
@@ -250,6 +251,9 @@ def create_app(config: ApiGatewayConfig, *, instance: str | None = None) -> Fast
         generate_unique_id_function=_operation_id,
     )
     metrics = install_metrics(app)
+    # Idempotency-Key replies live as long as finished orders do; with
+    # eviction disabled (0) they still expire, so the store stays bounded.
+    app.state.idempotency = IdempotencyStore(config.order_retention_sec or 3600)
 
     default_openapi = app.openapi
 

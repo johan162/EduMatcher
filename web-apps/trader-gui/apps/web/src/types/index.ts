@@ -125,9 +125,9 @@ export interface Order {
  * `order.ack` event. Submitting with `?wait=ack` folds the first ack into this
  * response: `status` becomes `"ACKED"`, `accepted` is the ack verdict, and
  * `event` is the raw `order.ack` payload. Without `wait`, `status` is
- * `"PENDING"` and `accepted`/`event` are null. Note: under `wait=ack` an ack
- * that does not arrive in time is returned as HTTP `503 ENGINE_TIMEOUT`, NOT a
- * `PENDING` body — the order is still submitted and must be reconciled (§12.9).
+ * `"PENDING"` and `accepted`/`event` are null. Under `wait=ack` an ack that
+ * does not arrive in time is a `202` `PENDING` body with `ack_timeout: true`:
+ * the order is submitted and must be reconciled (§12.9).
  */
 export interface OrderAccepted {
   order_id: string;
@@ -139,6 +139,8 @@ export interface OrderAccepted {
   reject_code?: RejectCode | null;
   /** Raw `order.ack` payload when `wait=ack` resolved, else null. */
   event: OrderAckData | null;
+  /** True when `wait=ack` gave up waiting; the order was still sent. */
+  ack_timeout: boolean;
 }
 
 /**

@@ -99,12 +99,15 @@ async def call(
     *,
     body: dict[str, Any] | None = None,
     authorization: str | None = f"Bearer {TRADER_KEY}",
+    headers: dict[str, str] | None = None,
 ) -> Reply:
     """One request through the whole ASGI stack, middleware included."""
     path, _, query = path.partition("?")
-    headers = [(b"content-type", b"application/json")]
+    raw_headers = [(b"content-type", b"application/json")]
     if authorization is not None:
-        headers.append((b"authorization", authorization.encode()))
+        raw_headers.append((b"authorization", authorization.encode()))
+    for name, value in (headers or {}).items():
+        raw_headers.append((name.lower().encode(), value.encode()))
     messages = [
         {
             "type": "http.request",
@@ -130,7 +133,7 @@ async def call(
         "raw_path": path.encode(),
         "query_string": query.encode(),
         "root_path": "",
-        "headers": headers,
+        "headers": raw_headers,
         "server": ("test", 80),
         "client": ("client", 1),
     }

@@ -497,13 +497,15 @@ async def test_replace_order_and_error_paths() -> None:
         quantity=10,
         price=150.0,
     )
-    replaced = await orders.replace_order("OLD", order_body, request, session)
+    replaced = await orders.replace_order(
+        "OLD", order_body, request, Response(), session
+    )
     assert replaced.cancelled_order_id == "OLD"
 
-    with pytest.raises(Exception):
-        await orders.cancel_order(
-            "ORD1", fake_request(TimeoutEngine()), Response(), session, wait="ack"
-        )
+    timed_out = await orders.cancel_order(
+        "ORD1", fake_request(TimeoutEngine()), Response(), session, wait="ack"
+    )
+    assert (timed_out.status, timed_out.ack_timeout) == ("PENDING_CANCEL", True)
 
     rate_limited = limited_request()
     await orders.cancel_order("ORD1", rate_limited, Response(), session)
@@ -533,13 +535,18 @@ async def test_composite_quote_and_risk_routes() -> None:
     quote = QuoteRequest(
         symbol="AAPL", bid_price=150.0, bid_qty=10, ask_price=150.1, ask_qty=10
     )
-    assert (await orders.submit_oco(oco, request, session)).oco_id == "O1"
+    sent = await orders.submit_oco(oco, request, Response(), session)
+    assert (sent.oco_id, sent.status) == ("O1", "PENDING")
+    check_contract(orders.submit_oco, sent)
     oco_cancel = await orders.cancel_oco("O1", request, session)
     check_contract(orders.cancel_oco, oco_cancel)
-    assert (await orders.submit_combo(combo, request, session)).combo_id == "C1"
+    sent_combo = await orders.submit_combo(combo, request, Response(), session)
+    assert sent_combo.combo_id == "C1"
+    check_contract(orders.submit_combo, sent_combo)
     combo_cancel = await orders.cancel_combo("C1", request, session)
     check_contract(orders.cancel_combo, combo_cancel)
-    quoted = await orders.submit_quote(quote, request, session)
+    quoted = await orders.submit_quote(quote, request, Response(), session)
+    check_contract(orders.submit_quote, quoted)
     assert (quoted.symbol, quoted.quote_id) == ("AAPL", None)
     quote_cancel = await orders.cancel_quote("aapl", request, session)
     check_contract(orders.cancel_quote, quote_cancel)
@@ -810,15 +817,18 @@ async def test_cancel_wait_ack_without_request_tag_falls_back_to_single_topic() 
 
 
 @pytest.mark.anyio
-async def test_cancel_wait_ack_timeout_still_surfaces_503_with_request_tag() -> None:
+async def test_cancel_wait_ack_timeout_with_request_tag_is_pending() -> None:
+    """WP-API02 (E7): the cancel was sent, so a timeout is not an error."""
     engine = TimeoutEngine()
     request = fake_request(engine)
     session = trading_session()
+    response = Response()
 
-    with pytest.raises(Exception):
-        await orders.cancel_order(
-            "ORD1", request, Response(), session, wait="ack", request_tag="RT-CXL-003"
-        )
+    cancelled = await orders.cancel_order(
+        "ORD1", request, response, session, wait="ack", request_tag="RT-CXL-003"
+    )
+    assert (cancelled.status, cancelled.ack_timeout) == ("PENDING_CANCEL", True)
+    check_contract(orders.cancel_order, cancelled)
 
 
 @pytest.mark.anyio

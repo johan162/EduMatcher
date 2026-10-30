@@ -647,7 +647,7 @@ the same WP, with no aliases (no-backwards-compat rule).
 | WP | Title | Content | Findings | Size |
 |---|---|---|---|---|
 | **WP-API01** ✅ | Error model unification | **Done 2026-10-30 (uncommitted)**, see §9.2. Envelope for 404, 405 and 500 (Starlette and catch-all handlers). `HTTPBearer` with 401 and `WWW-Authenticate`. One validation status code (Q3). Admin engine refusals become 409 with specific codes. `UNKNOWN_ORDER` on `GET /orders/{id}`. Rule: 200 when the outcome is in the body, 202 when not. Decide `reason` and `errors[]`. Complete code table in the spec. | E1–E8, S2 | M |
-| **WP-API02** | Safe asynchronous writes | Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
+| **WP-API02** ✅ | Safe asynchronous writes | **Done 2026-10-30 (uncommitted)**, except `wait=ack` on the structure cancels (Q8), see §9.5. Ack timeout returns 202 with `order_id` and `ack_timeout: true`, never 503. Idempotency (Q2). `wait=ack` for OCO, combo, quote and their cancels. `replace`: race the reject topic, symbol-ready check, same-symbol rule, optional `wait=ack` for the replacement. | E7, R1, R2, C8 | M–L |
 | **WP-API03** ✅ | Resource layout freeze | **Done 2026-10-30 (uncommitted)**, see §9.3. WebSockets under `/api/v1/ws/*`. Admin resource scheme (D1). Remove duplicates (D2). One public `GET /session` open to read-only keys, plus `/halts` and symbols metadata (C5). `GET /quotes` replaces `/quotes/bootstrap`. Admin audit path rename (D3). Explicit `oco_id`/`combo_id` in responses. Update all four GUIs, the examples and the docs. Accept and pass through the disconnect `reason` trader-gui already sends (§9.2). | D1–D5, C5, DOC1 | L |
 | **WP-API04** ✅ | Typed contract | **Done 2026-10-30 (uncommitted)**, see §9.4. Response models for all operations. Generate engine-payload models from `spec/messages` through msgen; hand-write the gateway-owned ones. List-envelope convention and status enums (D6). Timestamp rule, with `index-events` switched to ISO (D7). Price-unit rule (D8, Q1). Explicit operationIds. Parameter descriptions and bounds. Scrub internal references from descriptions. Drop compatibility shims (subscription-ack legacy fields). | S1, S3, S4, D6–D8, DOC3 | L |
 | **WP-API05** ✅ | Correctness fixes | **Done 2026-10-30 (uncommitted)**, see §9.1. Bootstrap positions from the engine, matching `/positions` (R3). `/healthz` returns 503 when unhealthy (O2). Rebalance `reason` bounded and passed through, or removed (S5). Stop logging the API key (O1). OCO and combo leg validation, and rejection of irrelevant `OrderRequest` fields (S5). `GET /orders` cache fallback flagged or turned into a 503 (R4). Each fix gets a reproducing test first. | R3, R4, O1, O2, S5 | S–M |
@@ -941,6 +941,104 @@ wrong data):
   that enum additions are only additive if gateway and engine deploy
   together.
 
+### 9.5 WP-API02 outcome (2026-10-30)
+
+Decided by Johan: Q2 is an optional `Idempotency-Key` header, not a unique
+client order id. D1 (Trading Verification §A.1.4) had made `client_tag` the
+non-unique label precisely to avoid FIX `ClOrdID` semantics.
+
+**What was built:**
+
+- **E7, an ack timeout keeps the id.** `?wait=ack` that gives up is now
+  `202` with the normal pending body and `ack_timeout: true` on every write
+  that waits: order submit, cancel, amend, replace, OCO, combo, quote. It
+  used to be `503 ENGINE_TIMEOUT`, which lost the `order_id` of an order
+  that had been sent. The client could not cancel or track it, and its
+  natural retry made a second order. A `4xx`/`5xx` on a write now always
+  means nothing reached the engine; the one exception is replace (below).
+- **Q2, `Idempotency-Key`** (`api_gateway/idempotency.py`) on `POST
+  /orders`, `/oco`, `/combos`, `/quotes` and `/orders/{order_id}/replace`:
+  - A repeat with the same key from the same gateway is not sent; it gets
+    the first reply (status and body) with `Idempotent-Replayed: true`.
+  - A concurrent duplicate waits on the first attempt.
+  - The same key on a different request (path, query or body) is
+    `409 IDEMPOTENCY_KEY_REUSED`.
+  - A request that failed before reaching the engine is forgotten, and a
+    duplicate that was waiting on it makes its own attempt.
+  - Keys are kept for `order_retention_sec` (1 h when eviction is off), in
+    process, and are lost on a restart.
+  - The attempt runs as its own task, so a client disconnecting mid-wait
+    cannot cancel an attempt whose order is already out (found in review, see
+    below).
+  - The header's bounds (1–255) give `400` naming `Idempotency-Key`.
+- **`wait=ack` for OCO, combo and quote submits.** The reply is now
+  `OcoAccepted`, `ComboAccepted` or `QuoteAccepted` with `accepted`, `reason`,
+  `event` and `ack_timeout`. Each matches its ack on `oco_id`, `combo_id` or
+  `symbol` (the quote ack always names the symbol; `quote_id` is optional).
+- **R1/R2, replace:**
+  - The gateway tags its own cancel, so a refused cancel (the order filled
+    first, say) is `409 REPLACE_REJECTED` with the engine's `reject_code`. It
+    used to wait out the timeout as a 503.
+  - The symbol-ready check runs before the cancel; it used to run after, when
+    refusing the replacement would leave the caller with no order at all.
+  - The replacement must keep the original's symbol (`400`, `field: symbol`).
+  - The replacement is seeded into the gateway's order cache like any submit.
+  - It takes `?wait=ack` for the replacement's verdict.
+  - A cancel whose outcome is unknown stays `503 ENGINE_TIMEOUT`, with no
+    replacement sent.
+
+**Found while reviewing the work.** My first idempotency version ran the
+attempt inline. A client disconnecting after its order was sent cancelled the
+handler, which forgot the key, so the retry the key exists for sent a second
+order. Fixed by running the attempt as a task, and pinned by
+`test_a_disconnect_mid_wait_still_records_the_reply`.
+
+**Not done: Q8, `wait=ack` on `DELETE /oco`, `/combos`, `/quotes`.** The
+engine gives these cancels no ack the gateway can attribute:
+
+- A refused OCO or combo cancel arrives as `oco.ack` / `combo.ack` with
+  `accepted: false`, the topic the submit uses, and with no request tag.
+- A successful OCO cancel publishes only the legs' `order.cancelled`.
+
+Attributing the outcome needs an IDL change: a `request_tag` on the structure
+acks, or dedicated cancel acks. That is engine work, so it is open as **Q8**
+below. The cancels still answer `202 PENDING_CANCEL`.
+
+**Clients.**
+
+- trader-gui's order ticket reads `ack_timeout` ("awaiting confirmation",
+  now with the order id). It now reports a 503 as a failure, since nothing was
+  sent. Before, it called every 503 "awaiting confirmation", including
+  `ENGINE_UNAVAILABLE`.
+- `OrderAccepted` gains `ack_timeout`, and the test mock is typed.
+- The REST example client sends an `Idempotency-Key` and reuses it on a
+  connection retry, and prints `ack_timeout`.
+- The other GUIs don't use `wait=ack` and needed nothing.
+
+**Docs.**
+
+- Spec: a new "Write outcomes and safe retries" section (the 200 / 202 /
+  202+`ack_timeout` / error table, and the key rules); per-endpoint replies
+  and errors; the common error codes (`REPLACE_REJECTED`,
+  `IDEMPOTENCY_KEY_REUSED`, `ENGINE_TIMEOUT` reworded).
+- Operator guide: an ack-timeout and key paragraph with a curl example, the
+  `wait=ack` scope, replace, and the implementation notes.
+- Example-libraries chapter and the trader GUI guide.
+
+**Insights carried forward:**
+
+- **The GUIs' other "awaiting confirmation" 503 branches are stale.** Amend,
+  cancel, replace, bulk and kill switch don't send `?wait=ack`, so a 503
+  there is `ENGINE_UNAVAILABLE` (nothing sent). It is reported as "awaiting
+  confirmation", and the trader GUI guide's class C table describes it that
+  way too. Not changed here, since it was outside the order-ticket path this
+  WP altered. Worth a small trader-gui WP.
+- **The spec lists `ENGINE_TIMEOUT` for `DELETE /oco` and `/combos`,** which
+  never wait. That predates this WP, and I left it.
+- Rate limiting runs before the key check, so a replayed duplicate still
+  costs a write token. This is deliberate: the limiter protects the gateway,
+  not the engine.
+
 ### P1: strongly recommended for 1.0 (additive, but defines "complete control")
 
 | WP | Title | Content | Findings | Size |
@@ -965,8 +1063,9 @@ wrong data):
 | # | Question | Recommendation |
 |---|---|---|
 | Q1 | Prices: keep JSON floats plus `tick_decimals`, or move to decimal strings? | **Keep floats.** The tick grid is enforced at the edge (`TICK_VIOLATION`), every client already uses floats, and strings would be a large cross-GUI change for little benefit in a teaching venue. Freeze the D8 rule instead. |
-| Q2 | Idempotency: client order id, or `Idempotency-Key` header? | **Client order id** (`client_order_id`, optional, unique per gateway among live and retained orders; a duplicate returns 409 with the existing `order_id`). It is exchange-native (FIX `ClOrdID`), serves as correlation too, and needs no response cache. Keep `client_tag` as the non-unique label for ALF parity, or decide to fold the two together. |
+| Q2 | Idempotency: client order id, or `Idempotency-Key` header? | **Decided 2026-10-30: `Idempotency-Key` header** (Johan). D1 had deliberately named the order label `client_tag` and made it non-unique to avoid FIX `ClOrdID` semantics, which a unique `client_order_id` would have reintroduced; the header also covers OCO, combo, quote and replace, not only order submit. See §9.5. |
 | Q3 | Validation status: 400 or 422? | **400 everywhere.** Most routes already use it, it matches the "malformed request" semantics of ALF parity, and only the history router needs to change. |
 | Q4 | Adopt the admin scheme in D1 (resource plus action), or keep RPC style but make it consistent? | **D1 scheme.** It also gives WP-API07's new endpoints an obvious home. |
 | Q5 | Is admin parity (WP-API07) a 1.0 blocker? | **Yes, if 1.0 is marketed as "full operator control over REST".** If not, it is purely additive and can be 1.1. |
 | Q6 | Remove `HistoryQuery` (`schemas.py:384`, unused, existing dead code)? | Remove it in WP-API04. |
+| Q8 | `wait=ack` for the OCO, combo and quote cancels needs an attributable outcome. Add `request_tag` to the structure ack messages, or dedicated `*.cancel_ack` messages? | Open (raised by WP-API02, §9.5). Additive, so it can follow 1.0 if the cancels stay `202`-only in v1. |

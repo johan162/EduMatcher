@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Annotated, Any, cast
 
 from fastapi import (
@@ -17,6 +18,7 @@ from fastapi import (
 )
 
 from edumatcher.api_gateway import openapi_docs as docs
+from edumatcher.api_gateway.idempotency import idempotent
 from edumatcher.api_gateway.responses import (
     AmendAccepted,
     CachedOrder,
@@ -28,6 +30,7 @@ from edumatcher.api_gateway.responses import (
 from edumatcher.api_gateway.routing import ContractRoute
 from edumatcher.api_gateway.params import (
     ComboIdPath,
+    IdempotencyKey,
     OcoIdPath,
     OrderIdPath,
     SymbolPath,
@@ -39,10 +42,10 @@ from edumatcher.api_gateway.schemas import (
     MassCancelRequest,
     OcoRequest,
     OrderAccepted,
-    ComboPending,
-    OcoPending,
+    ComboAccepted,
+    OcoAccepted,
     OrderRequest,
-    QuotePending,
+    QuoteAccepted,
     QuoteRequest,
     ReplaceResponse,
 )
@@ -56,6 +59,8 @@ from edumatcher.api_gateway.translate import (
 )
 from edumatcher.models.generated.rest.risk import KillSwitchAck
 from edumatcher.models.price import has_tick_decimals
+from edumatcher.models.generated.quote import topic_quote_ack
+from edumatcher.models.generated.structure import topic_combo_ack, topic_oco_ack
 from edumatcher.models.generated.order import (
     topic_order_ack,
     topic_order_amended,
@@ -105,33 +110,25 @@ def _check_symbol_ready(symbol: str) -> None:
         )
 
 
-async def _await_order_event(
-    request: Request,
-    topic: str,
-    order_id: str,
-    wait: str | None,
-    request_tag: str | None = None,
-) -> dict[str, Any] | None:
-    """Optionally wait for an order-specific ack event matching *order_id*."""
+async def _await_ack(
+    request: Request, topic: str, match: dict[str, str], wait: str | None
+) -> tuple[dict[str, Any] | None, bool]:
+    """With ``?wait=ack``, wait for the engine's event on *topic*.
+
+    Returns ``(event, timed_out)``. A timeout is not an error: the request was
+    sent, so the reply must still carry its id (E7) -- answering 503 here used
+    to leave the client unable to cancel or track a live order, and its
+    natural retry made a second one.
+    """
     if wait != "ack":
-        return None
+        return None, False
     try:
-        match = {"order_id": order_id}
-        if request_tag is not None:
-            match["request_tag"] = request_tag
-        return cast(
-            dict[str, Any],
-            await request.app.state.engine.await_event(
-                topic,
-                match=match,
-                timeout=request.app.state.config.timeouts.wait_ack_sec,
-            ),
+        event = await request.app.state.engine.await_event(
+            topic, match=match, timeout=request.app.state.config.timeouts.wait_ack_sec
         )
-    except TimeoutError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
-        ) from exc
+    except TimeoutError:
+        return None, True
+    return cast(dict[str, Any], event), False
 
 
 async def _await_cancel_or_amend_event(
@@ -142,36 +139,29 @@ async def _await_cancel_or_amend_event(
     order_id: str,
     wait: str | None,
     request_tag: str | None,
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, bool]:
     """Wait for a cancel/amend, reporting a reject rather than timing out on it.
 
     Without a request_tag there is nothing to safely race the reject topic
-    on (see EngineClient.await_cancel_or_amend_outcome), so this falls back
-    to the old single-topic wait — same behaviour as before C1's fix: a
-    reject still times out as a 503 in that case.
+    on (see EngineClient.await_cancel_or_amend_outcome), so this waits on the
+    success topic alone, and a reject then shows as a timeout. Returns
+    ``(event, timed_out)`` like ``_await_ack``.
     """
     if wait != "ack":
-        return None
+        return None, False
     if request_tag is None:
-        return await _await_order_event(
-            request, success_topic, order_id, wait, request_tag=request_tag
-        )
+        return await _await_ack(request, success_topic, {"order_id": order_id}, wait)
     try:
-        return cast(
-            dict[str, Any],
-            await request.app.state.engine.await_cancel_or_amend_outcome(
-                success_topic=success_topic,
-                gateway_id=gateway_id,
-                order_id=order_id,
-                request_tag=request_tag,
-                timeout=request.app.state.config.timeouts.wait_ack_sec,
-            ),
+        event = await request.app.state.engine.await_cancel_or_amend_outcome(
+            success_topic=success_topic,
+            gateway_id=gateway_id,
+            order_id=order_id,
+            request_tag=request_tag,
+            timeout=request.app.state.config.timeouts.wait_ack_sec,
         )
-    except TimeoutError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
-        ) from exc
+    except TimeoutError:
+        return None, True
+    return cast(dict[str, Any], event), False
 
 
 def _ok_when_answered(response: Response, event: dict[str, Any] | None) -> None:
@@ -180,11 +170,41 @@ def _ok_when_answered(response: Response, event: dict[str, Any] | None) -> None:
         response.status_code = status.HTTP_200_OK
 
 
+def _structure_verdict(
+    response: Response, event: dict[str, Any] | None, timed_out: bool
+) -> dict[str, Any]:
+    """The verdict fields shared by the OCO, combo and quote submit replies."""
+    _ok_when_answered(response, event)
+    accepted = None if event is None else bool(event.get("accepted"))
+    return {
+        "status": "PENDING" if event is None else "ACKED",
+        "accepted": accepted,
+        "reason": (event.get("reason") or None) if event is not None else None,
+        "event": event,
+        "ack_timeout": timed_out,
+    }
+
+
 def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
     """Return an order response carrying the canonical tag key."""
     result = dict(order)
     result.setdefault("client_tag", None)
     return result
+
+
+def _cache_submitted(
+    request: Request, gateway_id: str, order_id: str, body: OrderRequest
+) -> None:
+    """Seed the gateway's view of an order it is about to send."""
+    request.app.state.engine.get_caches(gateway_id).orders[order_id] = {
+        "order_id": order_id,
+        "client_tag": body.client_tag,
+        "symbol": body.symbol,
+        "side": wire_value(body.side),
+        "order_type": wire_value(body.order_type),
+        "quantity": body.quantity,
+        "status": "PENDING",
+    }
 
 
 @router.post(
@@ -201,7 +221,9 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
         "initial `stop_price`. Any other of these fields is rejected. Prices must lie "
         "on the symbol's tick grid. `client_tag` is an opaque label echoed "
         "on every event for this order. Returns `202` (`PENDING`); with "
-        "`?wait=ack`, `200` and the engine's verdict in the same response."
+        "`?wait=ack`, `200` and the engine's verdict in the same response, or "
+        "`202` with `ack_timeout: true` if the verdict did not come in time. "
+        "Send an `Idempotency-Key` to make a retry safe."
     ),
     responses=docs.merge(
         docs.ok_or_acked(
@@ -211,6 +233,7 @@ def _with_client_tag(order: dict[str, Any]) -> dict[str, Any]:
             "With `?wait=ack`: the engine's verdict.",
         ),
         docs.VALIDATION_ERROR,
+        docs.IDEMPOTENCY_CONFLICT,
         docs.RATE_LIMITED,
     ),
 )
@@ -222,40 +245,41 @@ async def submit_order(
     wait: Annotated[
         str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
     ] = None,
+    idempotency_key: IdempotencyKey = None,
 ) -> OrderAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
-    log.debug(
-        "[%s] submit_order symbol=%s side=%s order_type=%s qty=%s",
-        gateway_id,
-        body.symbol,
-        wire_value(body.side),
-        wire_value(body.order_type),
-        body.quantity,
-    )
-    order = build_order(body, gateway_id)
-    request.app.state.engine.get_caches(gateway_id).orders[order.id] = {
-        "order_id": order.id,
-        "client_tag": body.client_tag,
-        "symbol": body.symbol,
-        "side": wire_value(body.side),
-        "order_type": wire_value(body.order_type),
-        "quantity": body.quantity,
-        "status": "PENDING",
-    }
-    request.app.state.engine.send_new_order(order)
-    event = await _await_order_event(
-        request, topic_order_ack(gateway_id), order.id, wait
-    )
-    _ok_when_answered(response, event)
-    return OrderAccepted(
-        order_id=order.id,
-        client_tag=body.client_tag,
-        status="PENDING" if event is None else "ACKED",
-        accepted=None if event is None else bool(event.get("accepted")),
-        reject_code=None if event is None else event.get("reject_code"),
-        event=event,
+
+    async def run() -> OrderAccepted:
+        log.debug(
+            "[%s] submit_order symbol=%s side=%s order_type=%s qty=%s",
+            gateway_id,
+            body.symbol,
+            wire_value(body.side),
+            wire_value(body.order_type),
+            body.quantity,
+        )
+        order = build_order(body, gateway_id)
+        _cache_submitted(request, gateway_id, order.id, body)
+        request.app.state.engine.send_new_order(order)
+        event, timed_out = await _await_ack(
+            request, topic_order_ack(gateway_id), {"order_id": order.id}, wait
+        )
+        _ok_when_answered(response, event)
+        return OrderAccepted(
+            order_id=order.id,
+            client_tag=body.client_tag,
+            status="PENDING" if event is None else "ACKED",
+            accepted=None if event is None else bool(event.get("accepted")),
+            reject_code=None if event is None else event.get("reject_code"),
+            event=event,
+            ack_timeout=timed_out,
+        )
+
+    return cast(
+        OrderAccepted,
+        await idempotent(request, response, gateway_id, idempotency_key, run),
     )
 
 
@@ -267,7 +291,7 @@ async def submit_order(
     description=(
         "Cancel one resting order of the caller's gateway. `request_tag` "
         "(query) is echoed on the resulting event so the cancel can be "
-        "matched to its outcome."
+        "matched to its outcome, and lets `?wait=ack` report a refusal."
     ),
     responses=docs.merge(
         docs.ok_or_acked(
@@ -304,7 +328,7 @@ async def cancel_order(
         request_tag,
     )
     request.app.state.engine.send_cancel(order_id, gateway_id, request_tag=request_tag)
-    event = await _await_cancel_or_amend_event(
+    event, timed_out = await _await_cancel_or_amend_event(
         request,
         success_topic=topic_order_cancelled(gateway_id),
         gateway_id=gateway_id,
@@ -325,6 +349,7 @@ async def cancel_order(
             event.get("reject_code") if event is not None and rejected else None
         ),
         event=event,
+        ack_timeout=timed_out,
     )
 
 
@@ -376,7 +401,7 @@ async def amend_order(
         body.quantity,
         request_tag=body.request_tag,
     )
-    event = await _await_cancel_or_amend_event(
+    event, timed_out = await _await_cancel_or_amend_event(
         request,
         success_topic=topic_order_amended(gateway_id),
         gateway_id=gateway_id,
@@ -397,6 +422,7 @@ async def amend_order(
             event.get("reject_code") if event is not None and rejected else None
         ),
         "event": event,
+        "ack_timeout": timed_out,
     }
 
 
@@ -407,18 +433,21 @@ async def amend_order(
     summary="Replace an order",
     description=(
         "Cancel an order and submit a new one in a single call. The body is "
-        "a full order, exactly as for `POST /orders`. The replacement is "
-        "only sent once the engine has confirmed the cancel, so a failed "
-        "cancel never leaves the caller with two live orders. The "
-        "replacement is a new order (new id, new time priority)."
+        "a full order, exactly as for `POST /orders`, on the same symbol. The "
+        "replacement is only sent once the engine has confirmed the cancel; a "
+        "refused cancel (the order already filled, say) is `409 "
+        "REPLACE_REJECTED` and nothing is sent. The replacement is a new order "
+        "(new id, new time priority); `?wait=ack` waits for its verdict too. "
+        "Send an `Idempotency-Key` to make a retry safe."
     ),
     responses=docs.merge(
-        docs.ok(
+        docs.ok_or_acked(
             docs.ORDER_REPLACED,
             "Original cancelled; replacement sent to the engine.",
-            202,
+            "With `?wait=ack`: the replacement's verdict.",
         ),
         docs.VALIDATION_ERROR,
+        docs.REPLACE_CONFLICT,
         docs.RATE_LIMITED,
     ),
 )
@@ -426,28 +455,86 @@ async def replace_order(
     order_id: OrderIdPath,
     body: OrderRequest,
     request: Request,
+    response: Response,
     session: Annotated[Session, Depends(auth)],
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    idempotency_key: IdempotencyKey = None,
 ) -> ReplaceResponse:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_cancel(order_id, gateway_id)
-    try:
-        await request.app.state.engine.await_event(
-            topic_order_cancelled(gateway_id),
-            match={"order_id": order_id},
-            timeout=request.app.state.config.timeouts.wait_ack_sec,
-        )
-    except TimeoutError as exc:
+    # Checked before the cancel: refusing the replacement after cancelling
+    # would leave the caller with no order at all.
+    _check_symbol_ready(body.symbol)
+    known = request.app.state.engine.get_caches(gateway_id).orders.get(order_id, {})
+    if known.get("symbol") and known["symbol"] != body.symbol:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
-        ) from exc
-    replacement = build_order(body, gateway_id)
-    request.app.state.engine.send_new_order(replacement)
-    return ReplaceResponse(
-        cancelled_order_id=order_id,
-        replacement_order_id=replacement.id,
-        status="PENDING",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": {
+                    "code": "VALIDATION",
+                    "message": f"A replacement keeps the order's symbol "
+                    f"({known['symbol']}); cancel and submit for another one.",
+                    "field": "symbol",
+                }
+            },
+        )
+
+    async def run() -> ReplaceResponse:
+        engine = request.app.state.engine
+        # A request_tag of our own lets the cancel's refusal be raced, so a
+        # replace of an already-filled order is a 409, not a timeout.
+        tag = f"replace-{uuid.uuid4().hex}"
+        engine.send_cancel(order_id, gateway_id, request_tag=tag)
+        try:
+            outcome = cast(
+                dict[str, Any],
+                await engine.await_cancel_or_amend_outcome(
+                    success_topic=topic_order_cancelled(gateway_id),
+                    gateway_id=gateway_id,
+                    order_id=order_id,
+                    request_tag=tag,
+                    timeout=request.app.state.config.timeouts.wait_ack_sec,
+                ),
+            )
+        except TimeoutError as exc:
+            # The cancel's fate is unknown, so no replacement is sent.
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+            ) from exc
+        if outcome.get("accepted") is False:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": {
+                        "code": "REPLACE_REJECTED",
+                        "message": str(outcome.get("reason") or "Cancel refused"),
+                        "reject_code": str(outcome.get("reject_code") or "UNKNOWN"),
+                    }
+                },
+            )
+        replacement = build_order(body, gateway_id)
+        _cache_submitted(request, gateway_id, replacement.id, body)
+        engine.send_new_order(replacement)
+        event, timed_out = await _await_ack(
+            request, topic_order_ack(gateway_id), {"order_id": replacement.id}, wait
+        )
+        _ok_when_answered(response, event)
+        return ReplaceResponse(
+            cancelled_order_id=order_id,
+            replacement_order_id=replacement.id,
+            status="PENDING" if event is None else "ACKED",
+            accepted=None if event is None else bool(event.get("accepted")),
+            reject_code=None if event is None else event.get("reject_code"),
+            event=event,
+            ack_timeout=timed_out,
+        )
+
+    return cast(
+        ReplaceResponse,
+        await idempotent(request, response, gateway_id, idempotency_key, run),
     )
 
 
@@ -533,7 +620,7 @@ async def get_order(
 
 @router.post(
     "/oco",
-    response_model=OcoPending,
+    response_model=OcoAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit an OCO pair",
     description=(
@@ -541,22 +628,46 @@ async def get_order(
         "quantity, typically a profit-target limit and a protective stop. "
         "When one leg fills or triggers, the engine cancels the other. "
         "`oco_id` is chosen by the caller and is what `DELETE /oco/{oco_id}` "
-        "takes. Acknowledgement arrives on the private WebSocket."
+        "takes. " + docs.STRUCTURE_ACK
     ),
     responses=docs.merge(
-        docs.ok(docs.OCO_PENDING, "OCO sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.OCO_SENT,
+            "OCO sent to the engine (`PENDING`).",
+            "With `?wait=ack`: the engine's verdict.",
+        ),
         docs.VALIDATION_ERROR,
+        docs.IDEMPOTENCY_CONFLICT,
         docs.RATE_LIMITED,
     ),
 )
 async def submit_oco(
-    body: OcoRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> OcoPending:
+    body: OcoRequest,
+    request: Request,
+    response: Response,
+    session: Annotated[Session, Depends(auth)],
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    idempotency_key: IdempotencyKey = None,
+) -> OcoAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
-    request.app.state.engine.send_oco(build_oco_payload(body, gateway_id))
-    return OcoPending(oco_id=body.oco_id, status="PENDING")
+
+    async def run() -> OcoAccepted:
+        request.app.state.engine.send_oco(build_oco_payload(body, gateway_id))
+        event, timed_out = await _await_ack(
+            request, topic_oco_ack(gateway_id), {"oco_id": body.oco_id}, wait
+        )
+        return OcoAccepted(
+            oco_id=body.oco_id, **_structure_verdict(response, event, timed_out)
+        )
+
+    return cast(
+        OcoAccepted,
+        await idempotent(request, response, gateway_id, idempotency_key, run),
+    )
 
 
 @router.delete(
@@ -583,31 +694,54 @@ async def cancel_oco(
 
 @router.post(
     "/combos",
-    response_model=ComboPending,
+    response_model=ComboAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit a combo order",
     description=(
         "A multi-leg order (2-10 legs, possibly across symbols) handled as "
         "one unit. `combo_type` decides the rule: `AON` fills all legs or "
         "none. `combo_id` is chosen by the caller and is what "
-        "`DELETE /combos/{combo_id}` takes. Acknowledgement arrives on the "
-        "private WebSocket."
+        "`DELETE /combos/{combo_id}` takes. " + docs.STRUCTURE_ACK
     ),
     responses=docs.merge(
-        docs.ok(docs.COMBO_PENDING, "Combo sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.COMBO_SENT,
+            "Combo sent to the engine (`PENDING`).",
+            "With `?wait=ack`: the engine's verdict.",
+        ),
         docs.VALIDATION_ERROR,
+        docs.IDEMPOTENCY_CONFLICT,
         docs.RATE_LIMITED,
     ),
 )
 async def submit_combo(
-    body: ComboRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> ComboPending:
+    body: ComboRequest,
+    request: Request,
+    response: Response,
+    session: Annotated[Session, Depends(auth)],
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    idempotency_key: IdempotencyKey = None,
+) -> ComboAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     for leg in body.legs:
         _check_symbol_ready(leg.symbol)
-    request.app.state.engine.send_combo(build_combo_payload(body, gateway_id))
-    return ComboPending(combo_id=body.combo_id, status="PENDING")
+
+    async def run() -> ComboAccepted:
+        request.app.state.engine.send_combo(build_combo_payload(body, gateway_id))
+        event, timed_out = await _await_ack(
+            request, topic_combo_ack(gateway_id), {"combo_id": body.combo_id}, wait
+        )
+        return ComboAccepted(
+            combo_id=body.combo_id, **_structure_verdict(response, event, timed_out)
+        )
+
+    return cast(
+        ComboAccepted,
+        await idempotent(request, response, gateway_id, idempotency_key, run),
+    )
 
 
 @router.delete(
@@ -634,29 +768,57 @@ async def cancel_combo(
 
 @router.post(
     "/quotes",
-    response_model=QuotePending,
+    response_model=QuoteAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit a two-sided quote",
     description=(
         "A market-maker quote: a bid and an ask on one symbol, managed as a "
         "pair. Submitting a new quote for a symbol replaces the previous "
         "one, and `DELETE /quotes/{symbol}` withdraws it. Per-symbol "
-        "obligations (max spread, min size) are listed in `GET /symbols`."
+        "obligations (max spread, min size) are listed in `GET /symbols`. "
+        + docs.STRUCTURE_ACK
     ),
     responses=docs.merge(
-        docs.ok(docs.QUOTE_PENDING, "Quote sent to the engine.", 202),
+        docs.ok_or_acked(
+            docs.QUOTE_SENT,
+            "Quote sent to the engine (`PENDING`).",
+            "With `?wait=ack`: the engine's verdict.",
+        ),
         docs.VALIDATION_ERROR,
+        docs.IDEMPOTENCY_CONFLICT,
         docs.RATE_LIMITED,
     ),
 )
 async def submit_quote(
-    body: QuoteRequest, request: Request, session: Annotated[Session, Depends(auth)]
-) -> QuotePending:
+    body: QuoteRequest,
+    request: Request,
+    response: Response,
+    session: Annotated[Session, Depends(auth)],
+    wait: Annotated[
+        str | None, Query(pattern="^ack$", description=docs.WAIT_ACK)
+    ] = None,
+    idempotency_key: IdempotencyKey = None,
+) -> QuoteAccepted:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
     _check_symbol_ready(body.symbol)
-    request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
-    return QuotePending(symbol=body.symbol, quote_id=body.quote_id, status="PENDING")
+
+    async def run() -> QuoteAccepted:
+        request.app.state.engine.send_quote(build_quote_payload(body, gateway_id))
+        # The ack always names the symbol; quote_id is optional on the request.
+        event, timed_out = await _await_ack(
+            request, topic_quote_ack(gateway_id), {"symbol": body.symbol}, wait
+        )
+        return QuoteAccepted(
+            symbol=body.symbol,
+            quote_id=body.quote_id,
+            **_structure_verdict(response, event, timed_out),
+        )
+
+    return cast(
+        QuoteAccepted,
+        await idempotent(request, response, gateway_id, idempotency_key, run),
+    )
 
 
 @router.delete(

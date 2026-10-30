@@ -825,13 +825,17 @@ export EDUMATCHER_API_KEY="key-trader-demo"
 : Issue a `GET` request and return the parsed JSON body.  Raises
   `RuntimeError` on HTTP error responses.
 
-**`client.post_json(path: str, payload: dict) → dict`**
+**`client.post_json(path: str, payload: dict, idempotency_key: str | None = None) → dict`**
 : Issue a `POST` request with a JSON body and return the parsed JSON
-  response.  Raises `RuntimeError` on HTTP error responses.
+  response.  Raises `RuntimeError` on HTTP error responses.  With
+  `idempotency_key`, sends it as the `Idempotency-Key` header: reuse the same
+  key to retry a write safely (the gateway replays the first reply).
 
 ### Python usage pattern
 
 ```python
+import uuid
+
 from api_gateway_client import ApiGatewayClient
 
 client = ApiGatewayClient("http://127.0.0.1:8080", "key-trader-demo")
@@ -850,14 +854,17 @@ result = client.post_json("/api/v1/orders", {
 })
 print(result["order_id"], result["status"])
 
-# Submit and wait for the engine ACK
+# Submit and wait for the engine ACK; the key makes a retry safe
 result = client.post_json("/api/v1/orders?wait=ack", {
     "symbol":     "MSFT",
     "side":       "SELL",
     "order_type": "MARKET",
     "quantity":   50,
-})
-print(result.get("event"))   # engine acknowledgement event
+}, idempotency_key=str(uuid.uuid4()))
+if result["ack_timeout"]:
+    print("sent; the ACK was late -- follow it, do not resubmit")
+else:
+    print(result.get("event"))   # engine acknowledgement event
 ```
 
 ### Run Python examples
