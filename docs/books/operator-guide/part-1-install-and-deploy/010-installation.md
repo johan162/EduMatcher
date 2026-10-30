@@ -205,7 +205,8 @@ cd ~/.edumatcher
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
 ./edumatcher.sh start               # bring it back
-./edumatcher.sh update              # pull the newest release and restart
+./edumatcher.sh upgrade             # newest release: asks first if running, replaces the images
+./edumatcher.sh update              # pull the newest release and restart, without asking
 ./edumatcher.sh update 0.20.5       # ...or move to an exact one
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything

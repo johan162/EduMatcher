@@ -71,7 +71,8 @@ cd ~/.edumatcher
 ./edumatcher.sh mounts              # which directory is behind each container path
 ./edumatcher.sh stop                # stop everything; ./data is kept
 ./edumatcher.sh start               # bring it back
-./edumatcher.sh update              # pull the newest release and restart
+./edumatcher.sh upgrade             # newest release: asks first if running, replaces the images
+./edumatcher.sh update              # pull the newest release and restart, without asking
 ./edumatcher.sh update 0.20.5       # ...or pin an exact one
 ./edumatcher.sh uninstall           # remove containers and volumes, keep data
 ./edumatcher.sh uninstall --data    # remove everything
@@ -217,6 +218,19 @@ is no configuration GUI in this stack; the other five are on the usual ports.
 
 What the simulation *is* — the hidden true value, the traders, the news — is
 the "AI Traders and Market Simulation" book.
+
+### Upgrading
+
+`./edumatcher.sh upgrade` (also spelled `--upgrade`) moves an install to the
+newest release. The new images are pulled first, so a failed download leaves a
+running system untouched. If the containers are running it warns that it is
+about to stop them and asks before it does (`-y` skips the question); it then
+stops them, replaces the images, removes the old release's images and starts
+again. If they are not running, it only replaces the images. Only the images and
+the pinned `EM_VERSION` move; to refresh `compose.yaml` and the script as well,
+re-run the installer into the same directory. `update [version]` is the
+unconditional variant: it pins whatever version you name and restarts without
+asking.
 
 ## The web GUIs for a pipx exchange
 

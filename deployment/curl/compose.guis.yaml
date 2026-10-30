@@ -13,7 +13,7 @@
 # (5555-5559) is not used by any GUI, so nothing here needs EM_ZMQ.
 #
 # The two GUIs that read files (log-gui, dash-gui) get the exchange's data
-# directory read-only: EM_DATA_DIR, resolved by ./edumatcher.sh from
+# directory read-only: EM_DATA_DIR, which ./edumatcher.sh resolves from
 # EDUMATCHER_DATA_DIR (default ~/.local/share/edumatcher).
 #
 # Normally driven by ./edumatcher.sh (EM_STACK=guis) rather than by hand.
@@ -88,7 +88,7 @@ services:
     volumes:
       # pm-log-srv's own directory, read-only: the viewer reads log.db but
       # must never write it.
-      - ${EM_DATA_DIR:?set by ./edumatcher.sh}:/backend-data:ro,z
+      - ${EM_DATA_DIR:-${HOME}/.local/share/edumatcher}:/backend-data:ro,z
       - log-gui-acks:/app/ack-data
 
   config-gui:
@@ -129,7 +129,7 @@ services:
       LOG_SRV_PORT: "5600"
       LOG_FAILOVER_DIR: "/app/logs"
     volumes:
-      - ${EM_DATA_DIR:?set by ./edumatcher.sh}:/backend-data:ro,z
+      - ${EM_DATA_DIR:-${HOME}/.local/share/edumatcher}:/backend-data:ro,z
       - dash-gui-logs:/app/logs
 
   trader-gui:

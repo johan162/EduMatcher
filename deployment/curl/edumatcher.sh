@@ -9,6 +9,7 @@
 #   ./edumatcher.sh speed <N> [start-time]      (AI-sim installs only)
 #   ./edumatcher.sh share on [host-ip] | off
 #   ./edumatcher.sh pull                       (download the images, start nothing)
+#   ./edumatcher.sh upgrade [-y]               (newest release; --upgrade works too)
 #   ./edumatcher.sh update [version]
 #   ./edumatcher.sh uninstall [--data]
 #
@@ -474,6 +475,87 @@ cmd_update() {
     cmd_restart
 }
 
+# Move to the newest release: what 'update' does for a version you name, but
+# it finds the newest itself and respects what state the system is in.
+#   running  -> warn, ask, pull while it still runs, stop, drop the old images,
+#               start again
+#   stopped  -> pull and drop the old images; nothing is started
+# The new images are pulled BEFORE anything is stopped, so a failed download
+# (no network, a release whose images are not published yet) leaves a running
+# system running. -y skips the question, for scripts.
+#
+# Only the images and the pinned version move. compose.yaml and this script
+# come from the release you installed; re-run install.sh to refresh those too.
+image_list() { $COMPOSE $COMPOSE_FILES config 2>/dev/null | sed -n 's/^ *image: *//p' | sort -u; }
+
+cmd_upgrade() {
+    local yes=0
+    [[ "${1:-}" == "-y" || "${1:-}" == "--yes" ]] && yes=1
+    detect_engine
+    command -v curl >/dev/null 2>&1 || die "curl is required to look up the newest release."
+
+    local owner current latest tag name running=0
+    owner="$(env_value GHCR_OWNER)"; owner="${owner:-johan162}"
+    current="$(env_value EM_VERSION)"; current="${current:-latest}"
+
+    info "Looking up the newest release..."
+    tag=$(curl -fsSL "https://api.github.com/repos/${owner}/EduMatcher/releases/latest" \
+          | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+    [[ -n "$tag" ]] || die "Could not determine the newest release (no network, or GitHub rate limit)."
+    latest="${tag#v}"
+
+    if [[ "$current" == "$latest" ]]; then
+        ok "Already on the newest release ($latest). Nothing to do."
+        return
+    fi
+    info "Installed: $current    Newest: $latest"
+
+    for name in $CONTAINERS; do
+        if [[ "$($ENGINE inspect "$name" --format '{{.State.Running}}' 2>/dev/null || true)" == "true" ]]; then
+            running=1; break
+        fi
+    done
+
+    if [[ "$running" -eq 1 ]]; then
+        warn "The containers are running. Upgrading will STOP them, replace the images with"
+        warn "release $latest and start them again. Orders in flight are lost; your data"
+        warn "is kept."
+        if [[ "$yes" -ne 1 ]]; then
+            [[ -t 0 ]] || die "Not a terminal, so I cannot ask. Re-run with -y to upgrade without asking."
+            local answer
+            read -r -p "Stop and upgrade now? [y/N] " answer
+            [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || { info "Cancelled; nothing was changed."; return; }
+        fi
+    fi
+
+    local old_images
+    old_images="$(image_list)"
+
+    # The environment beats .env in compose, so this pulls the new release
+    # without touching .env until the download has worked.
+    info "Pulling release $latest..."
+    EM_VERSION="$latest" $COMPOSE $COMPOSE_FILES pull \
+        || die "The pull failed; nothing was stopped or changed."
+
+    [[ "$running" -eq 1 ]] && cmd_stop
+    set_env EM_VERSION "$latest"
+
+    # The previous release's images are now unused; remove them so the upgrade
+    # replaces rather than adds to what is on disk.
+    local new_images img
+    new_images="$(image_list)"
+    for img in $old_images; do
+        grep -qxF "$img" <<<"$new_images" || $ENGINE rmi "$img" >/dev/null 2>&1 || true
+    done
+    ok "Images are now release $latest."
+
+    if [[ "$running" -eq 1 ]]; then
+        cmd_start
+    else
+        info "The system was not running, so it was not started: ./edumatcher.sh start"
+    fi
+}
+
 cmd_uninstall() {
     detect_engine
     $COMPOSE $COMPOSE_FILES down --volumes || true
@@ -498,6 +580,7 @@ case "${1:-}" in
     speed)     shift; cmd_speed "$@" ;;
     share)     shift; cmd_share "$@" ;;
     pull)      shift; cmd_pull "$@" ;;
+    upgrade|--upgrade) shift; cmd_upgrade "$@" ;;
     update)    shift; cmd_update "$@" ;;
     uninstall) shift; cmd_uninstall "$@" ;;
     *)
