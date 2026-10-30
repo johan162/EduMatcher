@@ -61,6 +61,7 @@ def test_there_are_guis() -> None:
         (DOCKER / "compose.ai-sim.yaml", BACKED, "edumatcher-sim-{}"),
         (CURL / "compose.yaml", GUIS, "edumatcher-{}"),
         (CURL / "compose.ai-sim.yaml", BACKED, "edumatcher-sim-{}"),
+        (CURL / "compose.guis.yaml", GUIS, "edumatcher-host-{}"),
     ],
     ids=lambda v: v.name if isinstance(v, Path) else None,
 )
@@ -86,9 +87,10 @@ def test_edumatcher_sh_owns_every_container() -> None:
     lists = re.findall(
         r'CONTAINERS="([^"]+)"', (CURL / "edumatcher.sh").read_text(encoding="utf-8")
     )
-    normal, sim = (set(names.split()) for names in lists)
+    normal, host, sim = (set(names.split()) for names in lists)
     assert normal == {"edumatcher", *(f"edumatcher-{g}" for g in GUIS)}
     assert sim == {"edumatcher-sim", *(f"edumatcher-sim-{g}" for g in BACKED)}
+    assert host == {f"edumatcher-host-{g}" for g in GUIS}
 
 
 def test_every_gui_image_is_published_and_announced() -> None:

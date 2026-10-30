@@ -153,8 +153,19 @@ the slow way, and the best way to see what every process does.
 
 !!! note "Browser applications on the Python route"
     The browser applications are web projects of their own and are not part
-    of the Python package. The easiest way to use them is the container route
-    above.
+    of the Python package, but you can run them as ready-built containers
+    next to your `pipx` exchange (a plain exchange or the simulation). With
+    Podman or Docker installed, and the exchange started with
+    `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 pm-opctl-cli start`:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+    | bash -s -- --guis
+    ```
+
+    The addresses are the same as on the container route. The Operator's Guide
+    chapter [Installation](../../operator-guide/part-1-install-and-deploy/010-installation.md#web-applications-with-a-pipx-exchange)
+    explains what it sets up and what to check if a GUI stays empty.
 
 ## Where your data lives
 

@@ -30,13 +30,16 @@ The first question is whether you want to **run** EduMatcher or **change** it.
 | **Containers from source** | Changing the code and seeing it run as a system | Podman/Docker, Poetry, Node | The same, built from your checkout | `make up-all` |
 | **VM bootstrap** | Workshops where host setup must stay untouched | Multipass, `curl` | Backend inside a Multipass VM | `multipass shell ems` |
 | **pipx** | Students running processes by hand, one per terminal | Python 3.14, `pipx` | `pm-*` commands on your PATH | `pm-engine` |
+| **pipx + GUI containers** | Running the exchange natively but still wanting the browser applications | Python 3.14, `pipx`, Podman or Docker | The pipx exchange, plus the six web GUIs as ready-built containers | `./edumatcher.sh start` |
 | **Poetry checkout** | Developing, running the test suite | Python 3.14, Poetry | Repository plus dev dependencies | `poetry run pm-engine` |
 
 The container modes give you the whole system — engine, gateways, REST API and
 the six browser applications — with one command. The pipx and Poetry modes
 give you the individual processes to start yourself, which is what the rest of
 this guide assumes when it shows a bare `pm-*` command. In Poetry mode, prefix
-those commands with `poetry run`.
+those commands with `poetry run`. The browser applications are not part of
+the Python package; [Web applications with a pipx exchange](#web-applications-with-a-pipx-exchange)
+shows how to add them to a pipx install as containers.
 
 !!! tip "If you are not sure"
     Use the one-command container install. It is the fastest route to a
@@ -111,7 +114,9 @@ describe different systems.
 | `--config NAME` | `s10-basic` | Deploy a bundled example configuration |
 | `--config FILE` | — | ...or a path to an `engine_config.yaml` of your own |
 | `--dir PATH` | `~/.edumatcher` | Where to install |
-| `--no-start` | — | Fetch and configure, but do not start anything |
+| `--sim` | — | Install the AI-trader simulation instead, into `~/.edumatcher-sim` |
+| `--guis` | — | Install only the web GUIs, for an exchange run with pipx, into `~/.edumatcher-guis` ([details](#web-applications-with-a-pipx-exchange)) |
+| `--no-start` | — | Fetch, configure and download the images, but do not start anything. `./edumatcher.sh start` then needs no network |
 | `--help` | — | Show the options |
 
 Because the script is read from a pipe, options need `bash -s --` so that the
@@ -705,6 +710,178 @@ pm-setup --force                # replace an already-deployed configuration
 pm-setup --no-config            # create the directory only
 ```
 
+
+## Web applications with a pipx exchange
+
+The browser applications are separate projects and are not in the Python
+package. If you run the exchange with `pipx` you can still have all six of
+them: they are published as ready-built container images, and a small
+installer runs just those, pointed at the exchange on your own machine. It
+works the same for a plain exchange and for the AI-trader simulation.
+
+```mermaid
+flowchart LR
+    BROWSER["Browser"]
+    subgraph host["Your machine"]
+        PM["pipx exchange\npm-opctl-cli start\ngateways on 0.0.0.0"]
+        DATA[("EDUMATCHER_DATA_DIR")]
+        subgraph guis["GUI containers — compose.guis.yaml"]
+            G["terminal · log · trader\nbook · dash · config"]
+        end
+    end
+    BROWSER -->|"8090-8095"| G
+    G -->|"host.docker.internal\n5570 5600-5602 5611 8080 8081"| PM
+    PM --- DATA
+    G -.->|"read-only mount\nlog.db, metrics.db, config"| DATA
+```
+
+You need Podman or Docker with Compose in addition to the pipx requirements
+above. Nothing else is installed: no Node, no checkout.
+
+### Step 1: the exchange
+
+Set it up as in [pipx](#pipx-commands-on-your-own-machine), then start it as
+you normally would, with one addition: `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0`.
+The protocol gateways and the REST API already listen on every interface, but
+`pm-monitor`, which feeds the Operator Dashboard, listens on `127.0.0.1` unless
+this variable says otherwise, and a container cannot reach loopback. A plain
+exchange:
+
+```bash
+pipx install edumatcher
+pm-setup                       # deploys s10-basic into ~/.local/share/edumatcher
+export EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0
+pm-opctl-cli start
+```
+
+or the AI-trader simulation (see
+[A Complete Set-up by Hand](../../ai-traders/part-3-run-it/100-a-complete-setup-by-hand.md)
+for what each step does, and `EDUMATCHER_SCHEDULER_SPEED` for an accelerated
+day):
+
+```bash
+export EDUMATCHER_DATA_DIR=~/edumatcher-sim
+export EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0
+pm-setup --config s300-sim
+pm-opctl-cli start ai-sim
+```
+
+Wait until `pm-opctl-cli list` shows every process running before you open
+the GUIs. The installer in the next step needs the deployed configuration that
+`pm-setup` creates, but not a running exchange.
+
+### Step 2: the GUI containers
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+| bash -s -- --guis
+cd ~/.edumatcher-guis
+```
+
+This downloads `compose.guis.yaml`, `edumatcher.sh` and a `.env` into
+`~/.edumatcher-guis`, pulls the six images from `ghcr.io` and starts them. The
+installer reads the exchange's data directory from `EDUMATCHER_DATA_DIR` in the
+shell you run it from, and from `~/.local/share/edumatcher` when that is not
+set, so run it in a shell where your `pm-*` commands work. If you set the
+variable only in this one shell, repeat it for later starts or put
+`EM_DATA_DIR=<directory>` in `.env`.
+
+`--version X.Y.Z` pins the images to a release. Use the version of your pipx
+package (`pm-engine --version`): the GUIs and the exchange are released
+together.
+
+The addresses are the same as in the container install:
+
+| URL | Application |
+|---|---|
+| <http://localhost:8090> | TapeDeck (`pm-terminal`) |
+| <http://localhost:8091> | Log Operator Console (`pm-log-ui`) |
+| <http://localhost:8092> | Configuration GUI |
+| <http://localhost:8093> | Trading GUI |
+| <http://localhost:8094> | Order Book Viewer (`pm-book`) |
+| <http://localhost:8095> | Operator Dashboard (`pm-dash`) |
+
+`./edumatcher.sh` works as in the container install, with these differences:
+`status` lists the GUI containers and then runs `pm-opctl-cli list` on your own
+machine; `stop` stops the GUIs and leaves the exchange alone; `shell`,
+`config` and `speed` are refused, because the exchange is yours and its
+commands are already on your PATH. `share on` and `update` behave as
+documented in the
+[curl installer README](https://github.com/johan162/EduMatcher/blob/main/deployment/curl/README.md).
+
+### What the GUIs need from the exchange
+
+Three things connect the containers to your pipx exchange. The installer sets
+two of them up for you; the third is yours to check.
+
+**The host address.** Inside a container, `127.0.0.1` is the container
+itself. The GUIs therefore reach the exchange as `host.docker.internal`, which
+`compose.guis.yaml` maps to your machine with `host-gateway`. Docker Desktop,
+Docker 20.10 or later and Podman 5 all honour this. If the name clashes with something
+on your system, set `EM_HOST` in `.env`.
+
+**The read-only API key.** TapeDeck's history panels, the Order Book Viewer and
+the dashboard's session schedule use the credential whose `gateway_id` is
+`null`. It is different in every configuration, so `./edumatcher.sh start`
+reads it from `ref_data/engine_config.json` in the data directory and hands it
+to the containers. Run `./edumatcher.sh restart` after you deploy another
+configuration. The Trading GUI needs no key: you type your own trading
+credentials into its login screen.
+
+**The service listeners must be on `0.0.0.0`.** The gateways and the REST API
+default to it, and `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` (Step 1) extends it
+to `pm-monitor`. A configuration that pins `bind_address: 127.0.0.1`, or an
+exported `EDUMATCHER_GATEWAY_BIND_HOST=127.0.0.1`, closes them to the
+containers while every check on your machine still looks healthy. If a GUI
+shows nothing, check this first; without the variable the symptom is a
+dashboard that reports the monitor as down while everything else works.
+
+| Container | Reaches on your machine | Used for |
+|---|---|---|
+| TapeDeck, Order Book Viewer | 5570, 8081, 5600 | Market data, history, log forwarding |
+| Trading GUI | 8080 | Orders and account data |
+| Log Operator Console | 5601, 5602, `log.db` | The log stream and its history |
+| Operator Dashboard | 5611, `metrics.db`, 8081, 5600 | Process health and the session schedule |
+| Configuration GUI | nothing | Standalone editor |
+
+The raw ZeroMQ ports 5555-5559 are not used, so no `EM_ZMQ` equivalent is
+needed.
+
+!!! warning "The gateways have no password"
+    On a pipx install a listener on `0.0.0.0` is on your network, not behind
+    a container namespace. The GUIs' own published ports follow `BIND_ADDR` in
+    `.env` (`127.0.0.1` by default), but your exchange's gateways are open to
+    whatever your firewall lets through. A container can only reach a listener
+    that is not bound to loopback, so there is no loopback-only setup for this
+    combination. On a network you do not control, keep the exchange behind the
+    host firewall.
+
+!!! note "A container exchange on the same machine"
+    The GUI containers use the host ports 8090-8095, the same as the full
+    container install, so the two cannot run together. If a container exchange
+    or simulation is running and publishing 5570, 8080 and the rest on
+    `127.0.0.1`, these GUIs cannot reach it either: a port published to
+    loopback is not reachable through `host-gateway`. Use that install's own
+    GUIs.
+
+If something does not work, run `./edumatcher.sh mounts` (it shows which
+directory the GUIs are reading) and test a port from inside a container:
+
+```bash
+podman exec edumatcher-host-terminal-gui node -e '
+const net = require("net");
+const s = net.connect(5570, "host.docker.internal", () => { console.log("OPEN"); s.end(); });
+s.on("error", e => console.log("FAIL", e.code));'
+```
+
+`ECONNREFUSED` means nothing listens on a non-loopback address (check the
+bind host above, and that the process is running; test 5611 for the dashboard). A hang or `EHOSTUNREACH`
+usually means the host firewall: allow connections from the container network
+to the exchange's ports (on Fedora and other `firewalld` systems, put the
+Podman network in a trusted zone).
+
+To remove the GUIs, `./edumatcher.sh uninstall` deletes the containers and
+volumes; the exchange and its data are not touched.
 
 ## Poetry checkout — developing EduMatcher
 

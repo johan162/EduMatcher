@@ -1031,7 +1031,7 @@ flowchart TD
     F -->|no| I
     G --> I{"--no-start?"}
     H --> I
-    I -->|yes| Y["done; start later with\n./edumatcher.sh start"]
+    I -->|yes| Y["./edumatcher.sh pull\n(downloads the images);\nstart later with\n./edumatcher.sh start"]
     I -->|no| Z["./edumatcher.sh start\n(pulls the images)"]
 ```
 

@@ -46,7 +46,8 @@ half a minute.
 !!! tip "Podman, or a different directory"
     The installer uses Podman when it is installed and Docker otherwise.
     `--dir PATH` puts the install somewhere else, `--version X.Y.Z` pins a
-    release, `--no-start` stops short of starting it.
+    release, `--no-start` downloads everything, images included, but stops short of
+    starting it (`./edumatcher.sh start` then needs no network).
 
 !!! note "From a clone of the repository"
     `deployment/docker/compose.ai-sim.yaml` is the same stack built from

@@ -173,7 +173,8 @@ stack started before that check existed can still be there.
 --speed N         --sim only: run the trading calendar N times faster
 --start TS        --sim only: where an accelerated calendar starts
 --dir PATH        Where to install (default: ~/.edumatcher, ~/.edumatcher-sim with --sim)
---no-start        Fetch and configure, but do not start
+--guis            Install only the web GUIs, for an exchange run with pipx (into ~/.edumatcher-guis)
+--no-start        Fetch, configure and download the images, but do not start
 ```
 
 Pass them through the pipe with `bash -s --`:
@@ -216,6 +217,32 @@ is no configuration GUI in this stack; the other five are on the usual ports.
 
 What the simulation *is* — the hidden true value, the traders, the news — is
 the "AI Traders and Market Simulation" book.
+
+## The web GUIs for a pipx exchange
+
+If you run the exchange itself with `pipx` (a plain exchange, or the simulation
+started by hand), `--guis` installs only the six web GUIs, as containers
+pointed at the exchange on your own machine:
+
+```bash
+pipx install edumatcher && pm-setup
+EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0 pm-opctl-cli start   # 0.0.0.0: pm-monitor, for the dashboard
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh | bash -s -- --guis
+```
+
+It installs into `~/.edumatcher-guis` (`compose.guis.yaml`, `edumatcher.sh`,
+`.env`) and is driven by the same `./edumatcher.sh`. Differences: `start`
+reads the read-only API key from the deployed configuration under
+`$EDUMATCHER_DATA_DIR` (default `~/.local/share/edumatcher`) and mounts that
+directory read-only into log-gui and dash-gui; `status` also runs
+`pm-opctl-cli list` on your machine; `stop` leaves the exchange alone; `shell`,
+`config` and `speed` are refused. The containers reach the exchange as
+`host.docker.internal` (`EM_HOST` in `.env`), so its service listeners must be
+on a non-loopback address — the default, except `pm-monitor`, which needs
+`EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` (the dashboard's feed). The full explanation and the
+troubleshooting steps are in the Operator's Guide chapter *Installation*,
+section "Web applications with a pipx exchange". It uses the same host ports as
+the full container install, so only one of them can run at a time.
 
 ## Testing this installer before a release carries it
 

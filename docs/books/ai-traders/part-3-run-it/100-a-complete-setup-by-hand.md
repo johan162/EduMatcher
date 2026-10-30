@@ -55,6 +55,22 @@ To stop everything:
 pm-opctl-cli stop
 ```
 
+!!! tip "Web applications for the hand-built simulation"
+    The browser applications come as ready-built containers that you can
+    run beside this simulation. Start the simulation with
+    `EDUMATCHER_GATEWAY_BIND_HOST=0.0.0.0` exported (the dashboard needs it),
+    then in a shell with `EDUMATCHER_DATA_DIR` set as above:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/deployment/curl/install.sh \
+    | bash -s -- --guis
+    ```
+
+    See [Web applications with a pipx exchange](../../operator-guide/part-1-install-and-deploy/010-installation.md#web-applications-with-a-pipx-exchange).
+    The trading and read-only keys are the ones in your `s300-sim`
+    configuration. Do not run the container simulation at the same time:
+    both use the same ports.
+
 ## Accelerated time by hand
 
 The scheduler reads two environment variables (the container sets them from

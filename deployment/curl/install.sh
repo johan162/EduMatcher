@@ -14,6 +14,11 @@
 #   curl -fsSL .../install.sh | bash -s -- --sim
 #   curl -fsSL .../install.sh | bash -s -- --sim --speed 10 --start 2026-11-02T08:58
 #
+# With --guis it installs only the six web GUIs, for an exchange you run
+# yourself with pipx (plain or simulation), into ~/.edumatcher-guis.
+#
+#   curl -fsSL .../install.sh | bash -s -- --guis
+#
 # Needs podman or docker, and nothing else — no Python, no Node, no checkout.
 # Everything lands in one directory you can inspect, move or delete.
 
@@ -31,6 +36,7 @@ VERSION=""
 CONFIG=""
 START=1
 SIM=0
+GUIS=0
 SPEED=""
 SIM_START=""
 
@@ -45,6 +51,7 @@ usage() {
     cat <<'USAGE'
 Options:
   --sim             Install the AI-trader simulation instead of the exchange
+  --guis            Install only the web GUIs, for an exchange run with pipx
   --version X.Y.Z   Release to install (default: the latest release)
     --config NAME     Bundled example to deploy (default: s10-basic)
   --config FILE     ...or a path to an engine_config.yaml of your own
@@ -54,7 +61,7 @@ Options:
                     e.g. 2026-11-02T08:58
   --dir PATH        Install location (default: ~/.edumatcher,
                     or ~/.edumatcher-sim with --sim)
-  --no-start        Install the files but do not start anything
+  --no-start        Download the files and the container images, start nothing
   --help            This text
 USAGE
 }
@@ -65,6 +72,7 @@ while [[ $# -gt 0 ]]; do
         --config)  CONFIG="${2:-}";  shift 2 ;;
         --dir)     INSTALL_DIR="${2:-}"; shift 2 ;;
         --sim)     SIM=1; shift ;;
+        --guis)    GUIS=1; shift ;;
         --speed)   SPEED="${2:-}"; shift 2 ;;
         --start)   SIM_START="${2:-}"; shift 2 ;;
         --no-start) START=0; shift ;;
@@ -76,7 +84,14 @@ done
 if [[ "$SIM" -eq 0 && ( -n "$SPEED" || -n "$SIM_START" ) ]]; then
     die "--speed and --start apply to the simulation only; add --sim."
 fi
-[[ -n "$INSTALL_DIR" ]] || INSTALL_DIR=$([[ "$SIM" -eq 1 ]] && echo "$HOME/.edumatcher-sim" || echo "$HOME/.edumatcher")
+if [[ "$GUIS" -eq 1 && ( "$SIM" -eq 1 || -n "$CONFIG" ) ]]; then
+    die "--guis installs no exchange, so it takes neither --sim nor --config."
+fi
+if [[ -z "$INSTALL_DIR" ]]; then
+    if [[ "$SIM" -eq 1 ]]; then INSTALL_DIR="$HOME/.edumatcher-sim"
+    elif [[ "$GUIS" -eq 1 ]]; then INSTALL_DIR="$HOME/.edumatcher-guis"
+    else INSTALL_DIR="$HOME/.edumatcher"; fi
+fi
 
 # --- Preflight -------------------------------------------------------------
 command -v curl >/dev/null 2>&1 || die "curl is required but not installed."
@@ -105,6 +120,8 @@ else
 fi
 if [[ "$SIM" -eq 1 ]]; then
     ok "Installing the EduMatcher AI-trader simulation $VERSION"
+elif [[ "$GUIS" -eq 1 ]]; then
+    ok "Installing the EduMatcher web GUIs $VERSION"
 else
     ok "Installing EduMatcher $VERSION"
 fi
@@ -120,6 +137,9 @@ info "Downloading into $INSTALL_DIR ..."
 if [[ "$SIM" -eq 1 ]]; then
     FILES="compose.ai-sim.yaml edumatcher.sh .env.sim.example"
     ENV_TEMPLATE=.env.sim.example
+elif [[ "$GUIS" -eq 1 ]]; then
+    FILES="compose.guis.yaml edumatcher.sh .env.guis.example"
+    ENV_TEMPLATE=.env.guis.example
 else
     FILES="compose.yaml compose.zmq.yaml edumatcher.sh .env.example"
     ENV_TEMPLATE=.env.example
@@ -129,7 +149,7 @@ for f in $FILES; do
         || die "Could not download ${f} from ${BASE_URL} — does ${FETCH_REF} exist?"
 done
 chmod +x edumatcher.sh
-mkdir -p data config
+[[ "$GUIS" -eq 1 ]] || mkdir -p data config
 
 # --- Configure -------------------------------------------------------------
 # An existing .env is the user's; keep it and only re-pin the version.
@@ -172,7 +192,32 @@ fi
 
 ok "Installed in $INSTALL_DIR"
 
+if [[ "$GUIS" -eq 1 ]]; then
+    cat <<EOF
+
+These are the web applications only. The exchange is the one you installed
+with pipx (pipx install edumatcher && pm-setup) and start yourself:
+
+  pm-opctl-cli start            # or: pm-opctl-cli start ai-sim
+
+Then, from $INSTALL_DIR:
+  ./edumatcher.sh start         pull the GUI images and start them
+  ./edumatcher.sh status        containers, plus the exchange's process table
+  ./edumatcher.sh stop          stop the GUIs; the exchange is untouched
+EOF
+    echo
+    if [[ "$START" -eq 1 ]]; then
+        ./edumatcher.sh start || warn "Not started. Run ./edumatcher.sh start once pm-setup has run."
+    else
+        ./edumatcher.sh pull
+    fi
+    exit 0
+fi
+
 if [[ "$START" -eq 0 ]]; then
+    echo
+    info "Downloading the container images (nothing is started)..."
+    ./edumatcher.sh pull
     echo
     echo "Not starting (--no-start). When you are ready:"
     echo "  cd $INSTALL_DIR && ./edumatcher.sh start"
