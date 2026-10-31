@@ -55,13 +55,15 @@ NO_DOCS=false
 # For both Linux and macOS
 NUM_CORES=$(nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
-# The documentation build (Phase 5) is started in the background while pytest is still
-# running, since the tail of the test run is sequential and leaves most cores idle.
-# DOCS_START_DELAY is the number of seconds to wait before starting it so the parallel
-# part of pytest gets all cores. Tune it to the build machine (override from environment).
-DOCS_START_DELAY="${DOCS_START_DELAY:-55}"
+# The documentation build (Phase 5) is started in the background once pytest reports
+# 99% progress, since the tail of the test run is sequential and leaves most cores idle.
+# DOCS_START_DELAY is the number of seconds to wait after that before the docs build
+# actually starts. Tune it to the build machine (override from environment).
+DOCS_START_DELAY="${DOCS_START_DELAY:-3}"
 DOCS_PID=""
 DOCS_LOG=""
+PYTEST_LOG=""
+PYTEST_DONE=""
 
 # Kill the background docs build if the script exits early (e.g. pytest failure)
 cleanup_docs() {
@@ -215,7 +217,7 @@ run_parallel_commands3() {
         return 0
     fi
 
-    print_sub_step "Running PDF bundle builds in parallel"
+    print_sub_step "Running three commands in parallel"
     echo -e "${YELLOW}  ->Executing (background): $cmd1${NC}"
     eval "$cmd1" &
     local pid1=$!
@@ -260,8 +262,8 @@ run_parallel_commands3() {
 }
 
 
-# Build all documentation (Phase 5). Runs in a background subshell alongside pytest,
-# see DOCS_START_DELAY below.
+# Build all documentation (Phase 5). Runs in a background subshell alongside the tail
+# of pytest, see DOCS_START_DELAY above.
 build_docs() {
     BUILD_EXCHANGE_INTRO_PDF=false
     BUILD_EXCHANGE_INTRO_EPUB=false
@@ -528,10 +530,12 @@ else
 fi
 
 print_sub_step "Running npm tests for web applications"
-# Step 3.1: Run npm verification and tests for two web applications at a time
+# Step 3.1: Run npm verification and tests for up to three web applications at a time
 if [ -d "web-apps" ]; then
     pending_command=""
     pending_description=""
+    pending_command2=""
+    pending_description2=""
     for app_dir in web-apps/*; do
         if [ -d "$app_dir" ]; then
             printf -v app_command '(cd %q && npm install && npm run typecheck && npm run lint && npm test)' "$app_dir"
@@ -539,30 +543,50 @@ if [ -d "web-apps" ]; then
             if [ -z "$pending_command" ]; then
                 pending_command="$app_command"
                 pending_description="$app_description"
+            elif [ -z "$pending_command2" ]; then
+                pending_command2="$app_command"
+                pending_description2="$app_description"
             else
-                run_parallel_commands2 "$pending_command" "$pending_description" "$app_command" "$app_description"
+                run_parallel_commands3 "$pending_command" "$pending_description" \
+                    "$pending_command2" "$pending_description2" "$app_command" "$app_description"
                 pending_command=""
+                pending_command2=""
             fi
         fi
     done
-    if [ -n "$pending_command" ]; then
+    if [ -n "$pending_command2" ]; then
+        run_parallel_commands2 "$pending_command" "$pending_description" "$pending_command2" "$pending_description2"
+    elif [ -n "$pending_command" ]; then
         run_command "$pending_command" "$pending_description"
     fi
 else
     print_warning "web-apps directory not found; skipping npm tests for web applications"
 fi
 
-# Start the documentation build in the background after DOCS_START_DELAY seconds
+# Start a watcher that launches the documentation build when pytest reaches 99%
+# (or when pytest has finished, if it never printed 99%/100%)
 if [ "$NO_DOCS" = false ] && [ "$DRY_RUN" = false ]; then
     DOCS_LOG="$(mktemp)"
-    print_sub_step "Starting documentation build in ${DOCS_START_DELAY}s, in parallel with pytest (log: ${DOCS_LOG})"
-    ( sleep "$DOCS_START_DELAY"; build_docs ) > "$DOCS_LOG" 2>&1 &
+    PYTEST_LOG="$(mktemp)"
+    PYTEST_DONE="$(mktemp -u)"
+    print_sub_step "Documentation build starts ${DOCS_START_DELAY}s after pytest reaches 99% (log: ${DOCS_LOG})"
+    (
+        until grep -qE '\[ *(99|100)%\]' "$PYTEST_LOG" || [ -e "$PYTEST_DONE" ]; do sleep 1; done
+        sleep "$DOCS_START_DELAY"
+        build_docs
+    ) > "$DOCS_LOG" 2>&1 &
     DOCS_PID=$!
+    # Pipe through tee so the watcher can see progress; stdout is no longer a tty so force colors
+    PYTEST_TEE=" 2>&1 | tee ${PYTEST_LOG}"
+    [ "$CI_MODE" = true ] || PYTEST_TEE=" --color=yes${PYTEST_TEE}"
+else
+    PYTEST_TEE=""
 fi
 
 print_sub_step "Running pytest with coverage"
 # Step 3.2: Run tests with coverage
-run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}" "Running tests with coverage"
+run_command "poetry run pytest -n logical tests/ ${PYTEST_QUIET} --cov-fail-under=${COVERAGE}${PYTEST_TEE}" "Running tests with coverage"
+[ -z "$PYTEST_DONE" ] || touch "$PYTEST_DONE"
 
 # Step 3.3: Update coverage badge in README
 if [ "$CI_MODE" = false ] && [ "$DRY_RUN" = false ]; then
@@ -626,6 +650,7 @@ elif [ -n "$DOCS_PID" ]; then
     wait "$DOCS_PID" || docs_status=$?
     DOCS_PID=""
     cat "$DOCS_LOG"
+    rm -f "$DOCS_LOG" "$PYTEST_LOG" "$PYTEST_DONE"
     if [ "$docs_status" -ne 0 ]; then
         print_error_colored "Documentation build failed"
         exit 1

@@ -198,7 +198,8 @@ git switch main && git pull --ff-only
 
 1. validates environment and required Poetry tools
 2. runs `black`, `flake8`, `mypy` (and `pyright` if available)
-3. runs all `npm` tests for the `web-apps/`
+3. runs `npm install`, `npm run typecheck`, `npm run lint`, and `npm test` for each
+   app in `web-apps/`, with up to three apps in parallel
 4. runs pytyest tests with coverage threshold **80%**
 5. updates coverage badge when `coverage.xml` changed
 6. builds and verifies Python packages
