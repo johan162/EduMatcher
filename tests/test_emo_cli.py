@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+from typing import Any
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -880,3 +881,29 @@ def test_main_translates_configuration_errors_to_cli_exit_code(
     )
     assert emo_cli.main() == 2
     assert "pm-opctl: bad yaml" in capsys.readouterr().err
+
+
+def test_start_profile_starts_log_srv_first_and_waits_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    processes = [
+        {"name": "engine", "command": ["pm-engine"]},
+        {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
+    ]
+    monkeypatch.setattr(emo_cli, "load_profiles", lambda: {"demo": processes})
+    monkeypatch.setattr(emo_cli, "resolve_pid", lambda process, claimed: (None, False))
+    events: list[str] = []
+
+    def fake_spawn(process: dict[str, Any]) -> int:
+        events.append(f"spawn {process['name']}")
+        return 1
+
+    def fake_wait(address: str, timeout_sec: float) -> bool:
+        events.append(f"wait {address}")
+        return True
+
+    monkeypatch.setattr(emo_cli, "spawn_process", fake_spawn)
+    monkeypatch.setattr(emo_cli, "wait_for_tcp", fake_wait)
+
+    assert emo_cli.start_profile("demo") == 0
+    assert events == ["spawn log", "wait 127.0.0.1:5600", "spawn engine"]

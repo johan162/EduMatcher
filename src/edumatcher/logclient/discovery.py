@@ -13,6 +13,7 @@ import logging
 import os
 import socket
 import sys
+import time
 from pathlib import Path
 from typing import TextIO
 
@@ -25,6 +26,12 @@ from edumatcher.logclient.protocol import (
 )
 
 _RECV_BUFFER_BYTES = 4096
+
+# How long a starting process keeps re-probing for pm-log-srv before it settles
+# for stdout. The fallback is permanent (the handler never re-probes), so a
+# server that is merely a moment behind its clients must not be missed.
+PROBE_WAIT_SEC = 3.0
+_PROBE_RETRY_INTERVAL_SEC = 0.25
 
 
 def _probe_server(
@@ -76,6 +83,7 @@ def resolve_handler(
     failover_timeout_sec: float,
     failover_dir: Path | str,
     fallback_stream: TextIO | None = None,
+    probe_wait_sec: float | None = None,
 ) -> logging.Handler:
     """Resolve which ``logging.Handler`` this process should use (§8.3).
 
@@ -85,6 +93,8 @@ def resolve_handler(
     records go when ``log_target`` is unset/"server" and no server is
     detected (default: ``sys.stdout``, resolved at call time); pass
     ``sys.stderr`` for processes that reserve stdout for piped data output.
+    ``probe_wait_sec`` (default :data:`PROBE_WAIT_SEC`) is how long to keep
+    retrying the probe before concluding that no server is present.
     """
     if fallback_stream is None:
         fallback_stream = sys.stdout
@@ -97,7 +107,13 @@ def resolve_handler(
         return logging.FileHandler(log_file, encoding="utf-8")
 
     # log_target is None (default) or explicitly "server": probe first.
+    if probe_wait_sec is None:
+        probe_wait_sec = PROBE_WAIT_SEC
+    deadline = time.monotonic() + probe_wait_sec
     detected = _probe_server(host, port, client_name, instance, connect_timeout_sec)
+    while not detected and time.monotonic() < deadline:
+        time.sleep(_PROBE_RETRY_INTERVAL_SEC)
+        detected = _probe_server(host, port, client_name, instance, connect_timeout_sec)
 
     if detected:
         return TcpLogHandler(

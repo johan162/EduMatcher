@@ -27,6 +27,7 @@ _DATA_DIR = tempfile.mkdtemp(prefix="edumatcher-tests-")
 os.environ["EDUMATCHER_DATA_DIR"] = _DATA_DIR
 
 from edumatcher.config import DATA_DIR  # noqa: E402
+from edumatcher.logclient import discovery as log_discovery  # noqa: E402
 from edumatcher.models.order import Order, OrderType, Side, TIF  # noqa: E402
 from edumatcher.models.trade import (  # noqa: E402
     reset_trade_ids_for_tests,
@@ -172,6 +173,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def update_goldens(request: pytest.FixtureRequest) -> bool:
     """True when the run was asked to regenerate golden files."""
     return bool(request.config.getoption("--update-goldens"))
+
+
+@pytest.fixture(autouse=True)
+def _no_log_server_probe_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Don't make every test that configures logging wait for a log server."""
+    monkeypatch.setattr(log_discovery, "PROBE_WAIT_SEC", 0.0)
 
 
 @pytest.fixture(autouse=True)
